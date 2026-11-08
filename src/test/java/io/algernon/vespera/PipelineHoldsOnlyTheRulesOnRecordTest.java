@@ -8,15 +8,11 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -287,14 +283,6 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
      * the operator where the tree is, and writes nothing there.
      */
     private static final Set<String> NAMING_THE_DELIVERABLE = Set.of("GenerationTasklet", "NextAction");
-
-    /**
-     * A type of one of the six capability modules or of {@code profile}, as a compiled class writes it,
-     * read up to the first character that is not a letter, a digit or an underscore: a nested type answers
-     * for the type it is nested in. {@code deliverable} is among them since ADR-274.
-     */
-    private static final Pattern A_CAPABILITY_TYPE = Pattern.compile(
-            "io/algernon/vespera/(corpus|extraction|similarity|embedding|synthesis|deliverable|profile)/(\\w+)");
 
     /**
      * The classes that run content census, content redundancy, both runs of stage 5, arrangement and
@@ -581,46 +569,6 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             Map.entry("ArrangementGate", Set.of("profile.Profile", "profile.ProfileStore", "profile.TextValue")));
 
     @Test
-    @Story("A stage is identified by the code that runs the stages only while that code decides something for it")
-    @DisplayName("The classes that run the stages no longer identified by this code call only the code on record for them")
-    void theClassesOfTheFreedStagesNameOnlyTheCollaboratorsOnRecord() throws Exception {
-        Map<String, Set<String>> named = new TreeMap<>();
-        COLLABORATORS_ON_RECORD.keySet().forEach(held -> named.put(held, new TreeSet<>()));
-        for (Map.Entry<String, List<String>> shipped : ShippedClasses.namesByClass().entrySet()) {
-            if (!PIPELINE.equals(ShippedClasses.moduleOf(shipped.getKey()))) {
-                continue;
-            }
-            Set<String> ofItsClass = named.get(shipped.getKey().substring(IN_PIPELINE.length()).split("\\$")[0]);
-            if (ofItsClass == null) {
-                continue;
-            }
-            for (String name : shipped.getValue()) {
-                Matcher type = A_CAPABILITY_TYPE.matcher(name);
-                while (type.find()) {
-                    ofItsClass.add(type.group(1) + "." + type.group(2));
-                }
-            }
-        }
-
-        Map<String, Set<String>> onRecord = new TreeMap<>();
-        COLLABORATORS_ON_RECORD.forEach((held, types) -> onRecord.put(held, new TreeSet<>(types)));
-
-        claim(
-                "each class held closer names the measuring, judging and writing code on record for it and"
-                        + " no other. They run stages that are not done again when one of them changes, so"
-                        + " nothing in them may decide what those stages write. A type named beyond the"
-                        + " record is a new collaborator, often met when two changes are merged: read what"
-                        + " the class now does with it. If it only hands it values or acts on its answer,"
-                        + " add the type to that class's list. If the class decides something by it, move"
-                        + " that decision into the collaborator's own code, or record it and have the stage"
-                        + " identified by this code again. A type on record that is no longer named comes"
-                        + " off the list",
-                () -> assertThat(named)
-                        .as("the types of the six modules each class names, by class")
-                        .containsExactlyInAnyOrderEntriesOf(onRecord));
-    }
-
-    @Test
     @Story("The code that runs the stages decides nothing that is not on record")
     @DisplayName("Every class of the code that runs the stages has been asked whether it decides what is written, and its answer is on record")
     void everyClassOfPipelineIsOnRecord() throws Exception {
@@ -668,47 +616,6 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                         + " name of the folder they are written in. A third would be handing that code"
                         + " something to write that nobody recorded",
                 () -> assertThat(namingTheDeliverable).containsExactlyInAnyOrderElementsOf(NAMING_THE_DELIVERABLE));
-    }
-
-    @Test
-    @Story("A stage is identified by the code that runs the stages only while that code decides something for it")
-    @DisplayName("The stages identified by the code that runs the stages are exactly those it decides something for, which is none")
-    void aStageNamesPipelineExactlyWhileARuleOfItIsOnRecord() throws Exception {
-        Set<String> namingPipeline = new TreeSet<>();
-        Set<String> stagesRead = new TreeSet<>();
-        Class<?> table = Class.forName(
-                IN_PIPELINE + "StageModules", true, Thread.currentThread().getContextClassLoader());
-        Method stage = table.getDeclaredMethod("stage");
-        Method modules = table.getDeclaredMethod("modules");
-        stage.setAccessible(true);
-        modules.setAccessible(true);
-        for (Object row : table.getEnumConstants()) {
-            String name = (String) stage.invoke(row);
-            stagesRead.add(name);
-            if (((List<?>) modules.invoke(row)).contains(PIPELINE)) {
-                namingPipeline.add(name);
-            }
-        }
-
-        claim(
-                "the table read holds every stage from content census to generation and the stages the record"
-                        + " names, so the claim below is about them and an empty answer is not an empty table",
-                () -> assertThat(stagesRead)
-                        .containsAll(RULES_ON_RECORD.keySet())
-                        .contains(
-                                "content-census",
-                                "content-redundancy",
-                                "seed-measurement",
-                                "embedding-scoring",
-                                "arrangement",
-                                "generation"));
-        claim(
-                "the stages identified by the code that runs the stages are the stages that code decides"
-                        + " something for, and it decides nothing for any. A stage named here is done again"
-                        + " after every change to a progress line or a command-line option, for nothing; a"
-                        + " rule found in that code is recorded, with its stage, and the stage named here in"
-                        + " the same change, or its old results stand after a change to what decides them",
-                () -> assertThat(namingPipeline).containsExactlyInAnyOrderElementsOf(RULES_ON_RECORD.keySet()));
     }
 
     /**

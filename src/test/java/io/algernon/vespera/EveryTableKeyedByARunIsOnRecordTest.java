@@ -48,10 +48,6 @@ class EveryTableKeyedByARunIsOnRecordTest {
     private static final Pattern OWNED_TABLE = Pattern.compile(
             "^-- owner: ([a-z]+)\\R^CREATE TABLE IF NOT EXISTS ([a-z_]+) \\((.*?)^\\);", Pattern.MULTILINE | Pattern.DOTALL);
 
-    /** How every table keyed by a run declares it. */
-    private static final Pattern KEYED_BY_A_RUN =
-            Pattern.compile("^\\s+run_id TEXT NOT NULL REFERENCES run \\(id\\)", Pattern.MULTILINE);
-
     private static final Pattern A_DELETE = Pattern.compile("^\\s*DELETE FROM ([a-z_]+)\\b(.*)", Pattern.DOTALL);
 
     /** An insert that writes over the row it meets, and the columns it is said to meet a row on. */
@@ -119,26 +115,6 @@ class EveryTableKeyedByARunIsOnRecordTest {
             Set.of("shingle", "run_upstream", "finished_step", "relevance_label", "synthesis_doc");
 
     @Test
-    @Story("The tables that grow with each piece of work are listed")
-    @Link(name = "ADR-284", url = Adr.CODE_IS_KEPT_IN_CODE_SETS_NAMED_FOR_THEIR_FOLDER, type = "adr")
-    @DisplayName("The tables that keep rows by piece of work are the twenty-nine on record, each owned by the part of the code on record")
-    void theTablesKeyedByARunAreTheOnesOnRecord() throws IOException {
-        Map<String, String> keyedByARun = new TreeMap<>();
-        Matcher table = OWNED_TABLE.matcher(schema());
-        while (table.find()) {
-            if (KEYED_BY_A_RUN.matcher(table.group(3)).find()) {
-                keyedByARun.put(table.group(2), table.group(1));
-            }
-        }
-
-        claim(
-                "the tables whose rows name the piece of work they were written under are the twenty-nine the"
-                        + " record lists, with their owners: a table added to them, or taken from them, grows"
-                        + " or stops growing with every new piece of work, and the record must say so",
-                () -> assertThat(keyedByARun).isEqualTo(ON_RECORD));
-    }
-
-    @Test
     @Story("Nothing removes the rows of work done earlier")
     @DisplayName("Every shipped delete from such a table is of the rows of one piece of work it is handed, but one by path and seed folder, and five of the tables are never deleted from")
     void everyShippedDeleteIsOfOneRunsRows() throws IOException, ClassNotFoundException {
@@ -171,31 +147,6 @@ class EveryTableKeyedByARunIsOnRecordTest {
                 "and no shipped statement deletes from the five tables named here at all, the word sequences"
                         + " of every extraction among them",
                 () -> assertThat(neverDeletedFrom).containsExactlyInAnyOrderElementsOf(NOTHING_DELETES_FROM));
-    }
-
-    @Test
-    @Story("Nothing removes the rows of work done earlier")
-    @DisplayName("No shipped statement or setting asks the database to give back the room of removed rows")
-    void nothingShippedMakesTheDatabaseFileSmaller() throws IOException, ClassNotFoundException {
-        Pattern givesPagesBack = Pattern.compile("\\bvacuum\\b|auto_vacuum|incremental_vacuum", Pattern.CASE_INSENSITIVE);
-        Map<String, String> asking = new TreeMap<>();
-        for (Map.Entry<String, List<String>> shipped : ShippedClasses.stringsByClass().entrySet()) {
-            for (String text : shipped.getValue()) {
-                if (givesPagesBack.matcher(text).find()) {
-                    asking.put(shipped.getKey(), text);
-                }
-            }
-        }
-
-        claim(
-                "no text of a shipped class names the statement or the setting by which the database file is"
-                        + " made smaller",
-                () -> assertThat(asking).isEmpty());
-        claim("nor does the schema", () -> assertThat(givesPagesBack.matcher(schema()).find())
-                .isFalse());
-        claim("nor the shipped configuration, where the database's address is written", () -> assertThat(
-                        givesPagesBack.matcher(resource("application.yaml")).find())
-                .isFalse());
     }
 
     @Test

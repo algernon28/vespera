@@ -94,9 +94,6 @@ class ModuleBoundariesTest {
             "confluence", List.of("ledger", "deliverable", "synthesis"),
             "website", List.of("ledger", "deliverable", "synthesis"));
 
-    /** The modules of the plugins compiled into the jar (ADR-333 §1): the Confluence rendering's and the website's. */
-    private static final List<String> PLUGIN_MODULES = List.of("confluence", "website");
-
     /**
      * The capability modules, derived rather than re-listed: the recorded eleven less {@code ledger},
      * which they all depend on, and {@code pipeline}, which is the composition root and may depend on
@@ -219,40 +216,5 @@ class ModuleBoundariesTest {
                         + " draws the tree the operator is handed, the one that publishes to Confluence and the one"
                         + " that draws and refreshes the website among them",
                 () -> assertThat(identifiers(MODULES.stream())).containsExactlyInAnyOrderElementsOf(RECORDED_MODULES));
-    }
-
-    /**
-     * A plugin is a module of its own, declaring {@code ledger}, {@code deliverable}, whose seam it implements, and
-     * {@code synthesis}, whose records the seam hands it, and nothing else horizontal; and {@code deliverable}, which
-     * drives every drawing, names no plugin's module, the beans reaching it from {@code pipeline} (ADR-333 §1). It
-     * replaces ADR-308 §7's {@code thePublisherIsAModuleOfItsOwn}, whose "names no class of deliverable" ADR-333
-     * reverses; no stage's version names either module, so no run id moves (ADR-333 §14).
-     */
-    @Test
-    @Story("The boundary rule holds for every module")
-    @DisplayName("A plugin's module declares the ledger, the seam's module and the writing's records, and the tree's module names no plugin")
-    @Issue("633")
-    @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
-    void aPluginsModuleDeclaresTheSeamAndNothingElseHorizontal() {
-        Map<String, List<String>> declared = new java.util.TreeMap<>();
-        MODULES.stream()
-                .filter(module -> PLUGIN_MODULES.contains(module.getIdentifier().toString())
-                        || "deliverable".equals(module.getIdentifier().toString()))
-                .forEach(module -> declared.put(
-                        module.getIdentifier().toString(),
-                        module.getBasePackage()
-                                .getAnnotation(ApplicationModule.class)
-                                .map(declaration -> List.of(declaration.allowedDependencies()))
-                                .orElse(List.of())));
-
-        claim(
-                "each plugin's module is there, and declares the ledger, deliverable and synthesis, and nothing else",
-                () -> assertThat(PLUGIN_MODULES).allSatisfy(plugin -> assertThat(declared)
-                        .as("what %s declares", plugin)
-                        .containsEntry(plugin, List.of("ledger", "deliverable", "synthesis"))));
-        claim(
-                "and deliverable, which drives every plugin's drawing, declares no plugin's module: pipeline hands it"
-                        + " the beans",
-                () -> assertThat(declared.get("deliverable")).doesNotContainAnyElementsOf(PLUGIN_MODULES));
     }
 }

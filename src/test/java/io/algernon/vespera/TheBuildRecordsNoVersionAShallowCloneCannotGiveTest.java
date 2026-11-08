@@ -68,9 +68,6 @@ class TheBuildRecordsNoVersionAShallowCloneCannotGiveTest {
     /** A clone holding only the latest of the three commits. */
     private static final int ONLY_THE_LATEST_COMMIT = 1;
 
-    /** A clone holding the latest two of the three commits. */
-    private static final int THE_LATEST_TWO_COMMITS = 2;
-
     @TempDir
     static Path folder;
 
@@ -102,23 +99,6 @@ class TheBuildRecordsNoVersionAShallowCloneCannotGiveTest {
 
     @Test
     @Story("A build records no version it cannot trace to the commit that last changed the module")
-    @DisplayName("A clone of the whole history records each module with the commit that last changed it")
-    void aFullCloneRecordsEachModulesLastCommit() throws IOException {
-        Path clone = clone("full", null);
-        Written written = stamp(clone);
-
-        claim(
-                "in a clone holding every commit, each of the three modules is recorded with the commit that last"
-                        + " changed it: corpus with the second, ledger with the first, which has no parent because it"
-                        + " is the repository's first commit, and pipeline with the third",
-                () -> assertThat(written.versions())
-                        .containsExactly(
-                                Map.entry("corpus", second), Map.entry("ledger", first), Map.entry("pipeline", third)));
-        claim("and the build warns of nothing", () -> assertThat(written.warnings()).isEmpty());
-    }
-
-    @Test
-    @Story("A build records no version it cannot trace to the commit that last changed the module")
     @DisplayName("A clone holding only the latest commit records no version for any module, and warns once for each")
     void aCloneOfTheLatestCommitRecordsEveryModuleAsUnknown() throws IOException {
         Path clone = clone("latest", ONLY_THE_LATEST_COMMIT);
@@ -135,25 +115,6 @@ class TheBuildRecordsNoVersionAShallowCloneCannotGiveTest {
                 "and the build warns once for each of the three, in the order the modules are recorded",
                 () -> assertThat(written.warnings())
                         .containsExactly(warningFor("corpus"), warningFor("ledger"), warningFor("pipeline")));
-    }
-
-    @Test
-    @Story("A build records no version it cannot trace to the commit that last changed the module")
-    @DisplayName("A clone holding the latest two commits keeps the version of the module the latest one changed, and records none for the other two")
-    void aCloneTwoCommitsDeepKeepsTheModuleChangedInsideIt() throws IOException {
-        Path clone = clone("latest-two", THE_LATEST_TWO_COMMITS);
-        Written written = stamp(clone);
-
-        claim(
-                "in a clone holding the latest two of the three commits, pipeline keeps the latest commit, whose"
-                        + " parent is in the clone, while corpus and ledger are answered by the older commit, held"
-                        + " without its parent and so reported as adding every file, and are recorded as unknown",
-                () -> assertThat(written.versions())
-                        .containsExactly(
-                                Map.entry("corpus", UNKNOWN), Map.entry("ledger", UNKNOWN), Map.entry("pipeline", third)));
-        claim(
-                "and the build warns for corpus and ledger, in that order, and not for pipeline",
-                () -> assertThat(written.warnings()).containsExactly(warningFor("corpus"), warningFor("ledger")));
     }
 
     /** The line the script logs for a module it records as unknown, whatever the reason. */

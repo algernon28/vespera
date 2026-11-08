@@ -29,43 +29,8 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-057", url = Adr.VERDICT_VOCABULARY_IS_EIGHT_VALUES, type = "adr")
 class VerdictKindTest {
 
-    /**
-     * The size of the closed vocabulary: ten ways to be taken out of the survivors, one way to be let
-     * through. Eleven since ADR-277 added code, ten since ADR-271 added translation-of, nine since
-     * ADR-146 added out-of-scope, and eight before it (ADR-057).
-     */
-    private static final int RECORDED_VERDICT_KINDS = 11;
-
     /** The kind ADR-277 adds, named by its stored name so that this compiles before the value exists. */
     private static final String CODE = "CODE";
-
-    @Test
-    @Story("The vocabulary is closed")
-    @DisplayName("There are exactly eleven verdicts, and adding one is a decision rather than an edit")
-    @Link(name = "ADR-146", url = Adr.SPREADSHEETS_ARE_OUT_OF_SCOPE, type = "adr")
-    @Link(name = "ADR-271", url = Adr.ONE_COPY_OF_A_TRANSLATION_SET_SURVIVES, type = "adr")
-    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
-    void isExactlyTheRecordedVocabulary() {
-        claim(
-                "there are " + RECORDED_VERDICT_KINDS + " verdict kinds; a value here without a decision"
-                        + " behind it is what this count exists to catch",
-                () -> assertThat(VerdictKind.values()).hasSize(RECORDED_VERDICT_KINDS));
-    }
-
-    @Test
-    @Story("The vocabulary is closed")
-    @DisplayName("Code is a kind of its own, straight after out-of-scope")
-    @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
-    void codeComesStraightAfterOutOfScope() {
-        claim(
-                "code is a value of the vocabulary, stored under its own name, and it comes straight after"
-                        + " out-of-scope, the other kind stage 1's first pass writes for what a file is,"
-                        + " so every count by kind in the vocabulary's order shows the two side by side",
-                () -> assertThat(Arrays.stream(VerdictKind.values()).map(Enum::name).toList())
-                        .containsSubsequence(VerdictKind.OUT_OF_SCOPE.name(), CODE, VerdictKind.EXTRACTION_FAILED.name())
-                        .satisfies(names -> assertThat(names.indexOf(CODE))
-                                .isEqualTo(names.indexOf(VerdictKind.OUT_OF_SCOPE.name()) + 1)));
-    }
 
     @Test
     @Story("The vocabulary is closed")

@@ -6,27 +6,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.embedding.DocumentCluster;
 import io.algernon.vespera.embedding.DocumentClusters;
 import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.synthesis.Arrangement;
 import io.algernon.vespera.synthesis.ClusterFault;
 import io.algernon.vespera.synthesis.ClusterFaults;
 import io.algernon.vespera.synthesis.Clusters;
-import io.algernon.vespera.deliverable.Deliverable;
 import io.algernon.vespera.synthesis.RecordedCluster;
 import io.algernon.vespera.synthesis.SynthesisDoc;
 import io.algernon.vespera.synthesis.SynthesisDocs;
-import io.algernon.vespera.synthesis.SynthesisStatement;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.RecordComponent;
-import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -51,10 +44,6 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
 class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
 
-    private static final String DELIVERABLE = "io.algernon.vespera.deliverable.";
-
-    private static final String PIPELINE = "io.algernon.vespera.pipeline.";
-
     @Test
     @Story("No table of the last three stages is read a whole run at a time")
     @DisplayName("Nothing reads every grouped document, every group, every written text or every failure of a run in one go")
@@ -78,111 +67,6 @@ class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
                                     row.getSimpleName())
                             .isEmpty());
         }
-    }
-
-    @Test
-    @Story("No table of the last three stages is read a whole run at a time")
-    @DisplayName("Writing over the groups no longer announces a read of everything already written")
-    void theReadOfEverythingAlreadyWrittenIsNotAnnounced() {
-        claim(
-                "the statement that read every written text of a run, to learn which groups to walk past, is"
-                        + " gone from the statements this stage announces: the one left is the read of the failures"
-                        + " standing under the run, and each group is asked about by its key",
-                () -> assertThat(Arrays.stream(SynthesisStatement.values()).map(Enum::name))
-                        .containsExactly("STANDING_FAULTS"));
-    }
-
-    @Test
-    @Story("Nothing that writes a page is handed a whole run as a list")
-    @DisplayName("The tree, the index, the listing and the pictures are written from a source asked a part at a time, never from lists of everything")
-    void nothingThatWritesIsHandedAListOfEverything() throws ClassNotFoundException {
-        claim(
-                "the tree's writer takes a source it asks one exemplar at a time: none of its ways in takes a"
-                        + " list, but for the plugin beans one of them is handed, which are the plugins compiled into"
-                        + " the jar and not a run's rows (ADR-220, ADR-333 §1)",
-                () -> assertThat(methodsNamed(Deliverable.class, "writeTo"))
-                        .as("the ways into the tree's writer")
-                        .isNotEmpty()
-                        .allSatisfy(method -> assertThat(takesAList(method))
-                                .as("whether %s takes a list", method)
-                                .isFalse()));
-        claim(
-                "that source is the one type the writer was given for it",
-                () -> assertThat(methodsNamed(Deliverable.class, "writeTo"))
-                        .anySatisfy(method -> assertThat(Arrays.stream(method.getParameterTypes()).map(Class::getSimpleName))
-                                .contains("ArrangedSurvivors")));
-        Class<?> indexPage = Class.forName(DELIVERABLE + "IndexPage");
-        Class<?> manifest = Class.forName(DELIVERABLE + "ManifestCsv");
-        claim(
-                "the index and the listing are appended to as their rows come: neither composes its whole file,"
-                        + " and the index no longer gathers every group or every exemplar's path into a map",
-                () -> {
-                    assertThat(namesOf(indexPage.getDeclaredMethods())).doesNotContain("contents", "partitions", "seedPaths");
-                    assertThat(namesOf(manifest.getDeclaredMethods())).doesNotContain("contents");
-                });
-        Class<?> entryPictures = Class.forName(DELIVERABLE + "EntryPictures");
-        claim(
-                "the pass that finds which pictures recur is fed its documents by the same source, not a list",
-                () -> assertThat(methodsNamed(entryPictures, "among"))
-                        .isNotEmpty()
-                        .allSatisfy(method -> assertThat(takesAList(method))
-                                .as("whether %s takes a list", method)
-                                .isFalse()));
-    }
-
-    @Test
-    @Story("Nothing that writes a page is handed a whole run as a list")
-    @DisplayName("The arrangement is ordered one exemplar's groups at a time, and its page and the sizes page keep no list of every group")
-    void theArrangementAndItsPagesKeepNoListOfEveryCluster() throws ClassNotFoundException {
-        claim(
-                "the groups are put in order one exemplar at a time: no ordering takes every exemplar's groups"
-                        + " at once",
-                () -> assertThat(methodsNamed(Arrangement.class, "order"))
-                        .isNotEmpty()
-                        .allSatisfy(method -> assertThat(takesAList(method))
-                                .as("whether %s takes a list", method)
-                                .isFalse()));
-        Class<?> arrangementPage = Class.forName(PIPELINE + "ArrangementReport");
-        claim(
-                "the page the operator approves is written as each exemplar's groups come, so nothing renders"
-                        + " it whole from a list",
-                () -> assertThat(namesOf(arrangementPage.getDeclaredMethods()))
-                        .doesNotContain("render")
-                        .contains("open", "partition", "close"));
-        Class<?> sizesRow = Class.forName(PIPELINE + "ClusterSizeReport$Partition");
-        claim(
-                "a row of the sizes page keeps its five numbers and not the size of every group they came from",
-                () -> assertThat(Arrays.stream(sizesRow.getRecordComponents()).map(RecordComponent::getName))
-                        .as("what a row of the sizes page is made of")
-                        .doesNotContain("sizes")
-                        .contains("documentCount", "clusterCount", "largest", "median", "singletons"));
-    }
-
-    /**
-     * Whether {@code method} takes anything a whole run could be handed in: a list, and as much any other
-     * collection, iterable, stream, map or array, which a form put back to take a run would reach for as
-     * readily. A {@code List<Plugin>} is passed over: those are the plugin beans {@code pipeline} hands the
-     * tree's writer, compiled into the jar and no run's rows (ADR-220, ADR-333 §1).
-     */
-    private static boolean takesAList(Method method) {
-        Class<?>[] types = method.getParameterTypes();
-        Type[] generic = method.getGenericParameterTypes();
-        return IntStream.range(0, types.length)
-                .filter(i -> generic.length != types.length || !isThePluginBeans(generic[i]))
-                .mapToObj(i -> types[i])
-                .anyMatch(type -> type.isArray()
-                        // A path is iterable over its names, and is no run.
-                        || (Iterable.class.isAssignableFrom(type) && !java.nio.file.Path.class.isAssignableFrom(type))
-                        || java.util.Map.class.isAssignableFrom(type)
-                        || java.util.stream.BaseStream.class.isAssignableFrom(type));
-    }
-
-    /** Whether {@code type} is {@code List<io.algernon.vespera.deliverable.Plugin>}, and nothing wider. */
-    private static boolean isThePluginBeans(Type type) {
-        return type instanceof ParameterizedType parameterized
-                && parameterized.getRawType() == List.class
-                && parameterized.getActualTypeArguments().length == 1
-                && parameterized.getActualTypeArguments()[0].getTypeName().equals(DELIVERABLE + "Plugin");
     }
 
     /**

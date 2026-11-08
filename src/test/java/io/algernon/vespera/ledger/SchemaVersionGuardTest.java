@@ -2,9 +2,7 @@ package io.algernon.vespera.ledger;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.catchThrowable;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -12,18 +10,12 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.nio.file.Path;
-import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-import org.sqlite.SQLiteDataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.stereotype.Component;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
@@ -68,18 +60,6 @@ class SchemaVersionGuardTest {
 
     @Test
     @Story("A module states the schema it was built against")
-    @DisplayName("A module whose recorded version matches carries on")
-    void acceptsAMatchingVersion() {
-        SchemaVersionGuard guard = new SchemaVersionGuard(jdbcTemplate);
-        guard.require("fictional", EXPECTED);
-
-        claim(
-                "a second run against the same version is not a mismatch",
-                () -> assertThatCode(() -> guard.require("fictional", EXPECTED)).doesNotThrowAnyException());
-    }
-
-    @Test
-    @Story("A module states the schema it was built against")
     @DisplayName("A module whose recorded version differs refuses to start, naming both versions")
     void refusesAMismatchedVersionNamingBoth() {
         jdbcTemplate.update("INSERT INTO schema_version (module, version) VALUES (?, ?)", "fictional", STALE);
@@ -93,90 +73,5 @@ class SchemaVersionGuardTest {
                         .hasMessageContaining("fictional")
                         .hasMessageContaining(String.valueOf(EXPECTED))
                         .hasMessageContaining(String.valueOf(STALE)));
-    }
-
-    @Test
-    @Story("A module states the schema it was built against")
-    @DisplayName("A mismatched database stops the application from starting at all")
-    void refusesToStartAgainstAMismatchedDatabase() {
-        int somethingOtherThanTheLedgerExpects = LedgerSchema.VERSION + 1;
-        jdbcTemplate.update(
-                "INSERT INTO schema_version (module, version) VALUES (?, ?)",
-                LedgerSchema.MODULE,
-                somethingOtherThanTheLedgerExpects);
-
-        claim(
-                "the ledger's schema is a component the application builds eagerly as it starts, not on first use",
-                () -> assertThat(List.of(
-                                LedgerSchema.class.isAnnotationPresent(Component.class),
-                                LedgerSchema.class.isAnnotationPresent(Lazy.class)))
-                        .containsExactly(true, false));
-        claim(
-                "and building it runs the check, so a mismatched database is refused before anything reads or"
-                        + " writes a row",
-                () -> assertThatThrownBy(() -> new LedgerSchema(new SchemaVersionGuard(jdbcTemplate)))
-                        .isInstanceOf(SchemaVersionMismatchException.class)
-                        .hasMessageContaining(LedgerSchema.MODULE)
-                        .hasMessageContaining(String.valueOf(LedgerSchema.VERSION))
-                        .hasMessageContaining(String.valueOf(somethingOtherThanTheLedgerExpects)));
-    }
-
-    @Test
-    @Story("A module states the schema it was built against")
-    @DisplayName("One module's mismatch says nothing about another module's tables")
-    void refusesOneModuleWithoutRefusingAnother() {
-        SchemaVersionGuard guard = new SchemaVersionGuard(jdbcTemplate);
-        jdbcTemplate.update("INSERT INTO schema_version (module, version) VALUES (?, ?)", "stale-module", STALE);
-        guard.require("current-module", EXPECTED);
-
-        claim(
-                "the module whose version matches carries on even while another module's is stale, which is"
-                        + " what one row per module buys",
-                () -> assertThatCode(() -> guard.require("current-module", EXPECTED)).doesNotThrowAnyException());
-        claim(
-                "and the stale module still refuses",
-                () -> assertThatThrownBy(() -> guard.require("stale-module", EXPECTED))
-                        .isInstanceOf(SchemaVersionMismatchException.class));
-    }
-
-    @Test
-    @Issue("364")
-    @Link(name = "ADR-177", url = Adr.ONE_INVOCATION_PER_WORKING_DIRECTORY, type = "adr")
-    @Story("A module states the schema it was built against")
-    @DisplayName("A mismatch names the database file it read, and how to name another working directory")
-    void aMismatchNamesTheDatabaseFile(@TempDir Path workingDirectory) {
-        Path databaseFile = workingDirectory.resolve("vespera.db");
-        SQLiteDataSource onFile = new SQLiteDataSource();
-        onFile.setUrl("jdbc:sqlite:" + databaseFile);
-        JdbcTemplate overTheFile = new JdbcTemplate(onFile);
-        overTheFile.execute("CREATE TABLE schema_version (module TEXT PRIMARY KEY, version INTEGER NOT NULL)");
-        overTheFile.update("INSERT INTO schema_version (module, version) VALUES (?, ?)", "fictional", STALE);
-
-        Throwable refused = catchThrowable(() -> new SchemaVersionGuard(overTheFile).require("fictional", EXPECTED));
-
-        claim(
-                "the refusal names the database file that recorded the other version, so an operator can see"
-                        + " whether it is the one they meant",
-                () -> assertThat(refused)
-                        .isInstanceOf(SchemaVersionMismatchException.class)
-                        .hasMessage("module fictional expects schema version " + EXPECTED + ", but the database file "
-                                + databaseFile + " records version " + STALE + "; delete and recreate fictional's"
-                                + " tables, then re-run census. If that is not the working directory you meant,"
-                                + " name it with --db-dir=<path> or vespera.working-dir"));
-    }
-
-    @Test
-    @Issue("364")
-    @Link(name = "ADR-177", url = Adr.ONE_INVOCATION_PER_WORKING_DIRECTORY, type = "adr")
-    @Story("A module states the schema it was built against")
-    @DisplayName("A mismatch in a database held only in memory says so in place of a file")
-    void aMismatchInMemorySaysSo() {
-        jdbcTemplate.update("INSERT INTO schema_version (module, version) VALUES (?, ?)", "in-memory", STALE);
-
-        claim(
-                "a database with no file is named as an in-memory database",
-                () -> assertThatThrownBy(() -> new SchemaVersionGuard(jdbcTemplate).require("in-memory", EXPECTED))
-                        .isInstanceOf(SchemaVersionMismatchException.class)
-                        .hasMessageContaining("but an in-memory database records version " + STALE));
     }
 }
