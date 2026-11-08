@@ -45,7 +45,8 @@ No run id moves: no class under `src/main` changes.
 
 ## Consequences
 
-- After the cut, surefire ran 604 executions, none failing, 6 skipped on assumptions this machine cannot meet, and failsafe holds 13 tests in the seven classes: 617 in all, from about 3,350.
+- The suite holds 661 methods annotated as tests. Surefire runs 649 executions, none failing, 6 skipped on assumptions a Linux machine cannot meet, and failsafe 24 in the seven classes: 673 in all, from about 3,350.
+- What a cut left with no test and decides a verdict, a run's identity, the refusal of a value no run can be made under, the website's sandbox, or the publish's host, token and foreign pages, is held again by one to three tests each.
 - Many decisions are held by one test where they were held by several, and some by none: what a record names in `docs/retired-tests.txt` is a claim no test holds now.
 
 ## What this does not decide
