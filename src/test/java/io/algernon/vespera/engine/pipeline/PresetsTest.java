@@ -13,8 +13,12 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.mock.env.MockEnvironment;
@@ -33,6 +37,15 @@ import org.springframework.mock.env.MockEnvironment;
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
 class PresetsTest {
     private static final String NEIGHBOURS = "vespera.clustering.neighbours";
+    private static final String OCR_PRESET = "vespera.docling.ocr-preset";
+    private static final String TIMEOUTS = "vespera.docling.timeouts-in-a-row";
+    private static final String PERMUTATIONS = "vespera.redundancy.minhash.permutations";
+    private static final String BANDS = "vespera.redundancy.minhash.bands";
+    private static final String ROWS = "vespera.redundancy.minhash.rows-per-band";
+    private static final String SEED = "vespera.redundancy.minhash.seed";
+    private static final String JACCARD = "vespera.redundancy.near-duplicate-jaccard";
+    private static final String RARE_HITS = "vespera.redundancy.rare-shingle-hits";
+    private static final String TOP_SIMILARITIES = "vespera.relevance.top-similarities";
 
     /** A profile naming nothing, so that what configuration names applies. */
     private static final Profile NOTHING_NAMED = ProfileFixture.profile().build();
@@ -58,6 +71,40 @@ class PresetsTest {
         MockEnvironment environment = PresetsFixture.shippedEnvironment();
         values.forEach(environment::withProperty);
         return new Presets(environment);
+    }
+
+    /**
+     * One value of §9's table no run can be made under for each check that refuses it: the near-duplicate cut at 0,
+     * bands times rows that are not the permutations, a score of no similarities, an OCR preset of {@code auto}, a seed
+     * past what a long holds, timeouts past 4, and more hits than the shipped sample of 32. Each row names its values over
+     * the shipped sixteen, so the line it gives is that value's alone.
+     */
+    static Stream<Arguments> oneValueNoRunCanBeMadeUnder() {
+        return Stream.of(
+                Arguments.of(Map.of(JACCARD, "0"), JACCARD + " is 0: a number above 0 and at most 1"),
+                Arguments.of(Map.of(PERMUTATIONS, "128", BANDS, "8", ROWS, "8"),
+                        "vespera.redundancy.minhash is 128 permutations in 8 bands of 8 rows: the bands times their rows"
+                                + " must be the permutations"),
+                Arguments.of(Map.of(TOP_SIMILARITIES, "0"), TOP_SIMILARITIES + " is 0: a whole number from 1 to 2147483647"),
+                Arguments.of(Map.of(OCR_PRESET, "auto"),
+                        OCR_PRESET + " is \"auto\": one preset's name, of letters, digits, '-', '_' and '.', and never"
+                                + " auto, which the converter resolves where nothing records it"),
+                Arguments.of(Map.of(SEED, "9223372036854775808"),
+                        SEED + " is 9223372036854775808: a whole number from -9223372036854775808 to 9223372036854775807"),
+                Arguments.of(Map.of(TIMEOUTS, "5"),
+                        TIMEOUTS + " is 5: a whole number from 2 to 4, so that one slow document can still earn its"
+                                + " verdict and the count stays below the five failures in a row that stop the step"),
+                Arguments.of(Map.of(RARE_HITS, "33"),
+                        RARE_HITS + " is 33: a whole number from 1 to vespera.redundancy.rare-shingle-sample, 32"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("oneValueNoRunCanBeMadeUnder")
+    @Story("A value no run can be made under stops the invocation")
+    @DisplayName("Each value no run can be made under is refused with the one line that names its key and its value")
+    void eachValueIsRefusedWithItsLine(Map<String, String> values, String line) {
+        claim("configuration naming " + values + " is refused, in the record's words",
+                () -> assertThat(naming(values).refusal(NOTHING_NAMED)).contains(line));
     }
 
     @Test
