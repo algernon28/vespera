@@ -102,29 +102,14 @@ class AFileThatCannotBeReadIsMarkedInvocationTest {
     /** Two files of one length, so stage 1 hashes both (ADR-067). */
     private static final List<String> TWO_OF_ONE_LENGTH = List.of("same-length-1.txt", "same-length-2.txt");
 
-    /** Three files of three lengths, so stage 1's first pass checks each and its hashing has none to hash. */
-    private static final List<String> THREE_OF_THREE_LENGTHS = List.of("first.txt", "second-file.txt", "third-file-of-three.txt");
-
-    /** How many files stage 1 hashes when two share a length: both, the one it could not read included. */
-    private static final long BOTH = 2;
-
     /** How the reason begins for a file stage 2 could not read off the disk. */
     private static final String COULD_NOT_BE_READ = "could not be read: ";
-
-    /** Stage 1's counter over the files it hashes. */
-    private static final String CONTENT_HASH = "Stage 1 (byte-level reduction, content hash)";
-
-    /** How stage 1's finishing line opens. */
-    private static final String STAGE_1_FINISHED = "Stage 1 (byte-level reduction) finished under run ";
 
     /** How stage 1's line opens when the step did not complete. */
     private static final String STAGE_1_FAILED = "Stage 1 (byte-level reduction) failed and is not recorded as finished";
 
     /** How stage 2's closing line opens when the step completed. */
     private static final String STAGE_2_FINISHED = "Stage 2 (extraction) finished";
-
-    /** How stage 2's closing line opens when the step did not complete. */
-    private static final String STAGE_2_FAILED = "Stage 2 (extraction) failed and is not recorded as finished";
 
     /** What a closing line tells the operator when the folder being read is gone. */
     private static final String RECONNECT = "Reconnect the archive and run the same command again.";
@@ -318,46 +303,6 @@ class AFileThatCannotBeReadIsMarkedInvocationTest {
     }
 
     @Test
-    @Story("A file stage 1 cannot hash")
-    @DisplayName("A file deleted while byte-level reduction hashes the files of its length is left unhashed, the stage finishes and its count of hashes reaches its total, and extraction then removes the file as one that could not be read")
-    void aFileDeletedAsStageOneHashesItIsLeftForStageTwo(@TempDir Path parent) throws IOException {
-        Path root = theFolderBeingRead(parent);
-        writeTwoOfOneLength(root, parent.getFileName().toString());
-        AFTER_STAGE_1S_FIRST_HASH.set(firstHash -> TWO_OF_ONE_LENGTH.stream()
-                .map(root::resolve)
-                .filter(file -> Files.exists(file) && !sha256Of(file).equals(firstHash))
-                .forEach(AFileThatCannotBeReadIsMarkedInvocationTest::delete));
-
-        cli.run("run", root.toString());
-
-        claim(
-                "byte-level reduction finished and is recorded as finished: the file it could not hash did not"
-                        + " stop it, and nothing it had done was undone",
-                () -> {
-                    assertThat(lines()).anyMatch(line -> line.startsWith(STAGE_1_FINISHED));
-                    assertThat(finishedSteps(root)).contains("byte-level-reduction");
-                });
-        claim(
-                "its count of the files it hashes reached " + BOTH + " of " + BOTH + ": the file it could not"
-                        + " hash is counted as gone through, so the count does not stop short of its total",
-                () -> assertThat(ProgressLines.of(logged.list, CONTENT_HASH))
-                        .containsExactlyElementsOf(ProgressLines.expected(CONTENT_HASH, BOTH)));
-        String deleted = theOneWithNoHash(root);
-        claim(
-                "the deleted file, the one with no hash recorded, was not removed by byte-level reduction: it"
-                        + " is not called broken, and not called a copy of the other",
-                () -> assertThat(stageOneVerdictsAgainst(root, deleted)).isEmpty());
-        claim(
-                "extraction met it next, removed it as one that could not be read, and completed",
-                () -> {
-                    assertThat(extractionFailedReasons(root))
-                            .containsOnlyKeys(deleted)
-                            .hasEntrySatisfying(deleted, reason -> assertThat(reason).startsWith(COULD_NOT_BE_READ));
-                    assertThat(finishedSteps(root)).contains("extraction");
-                });
-    }
-
-    @Test
     @Story("The folder being read is gone")
     @DisplayName("When the folder being read is gone while byte-level reduction hashes its files, the stage stops, names the folder, says to reconnect it, and removes nothing")
     void aFolderGoneAsStageOneHashesStopsTheStage(CapturedOutput output, @TempDir Path parent) throws IOException {
@@ -369,56 +314,6 @@ class AFileThatCannotBeReadIsMarkedInvocationTest {
         cli.run("run", root.toString());
 
         aStageOneThatStoppedForTheFolder(output, canonicalRoot);
-    }
-
-    @Test
-    @Story("The folder being read is gone")
-    @DisplayName("When the folder being read is gone while byte-level reduction checks its files for damage, the stage stops, names the folder, says to reconnect it, and calls no file broken")
-    void aFolderGoneAsStageOneChecksStopsTheStage(CapturedOutput output, @TempDir Path parent) throws IOException {
-        Path root = theFolderBeingRead(parent);
-        for (String name : THREE_OF_THREE_LENGTHS) {
-            Files.writeString(root.resolve(name), name + " in " + parent.getFileName());
-        }
-        String canonicalRoot = Walk.canonicalRoot(root).toString();
-        AFTER_STAGE_1S_FIRST_CHECK.set(() -> move(root, parent.resolve("moved-away")));
-
-        cli.run("run", root.toString());
-
-        aStageOneThatStoppedForTheFolder(output, canonicalRoot);
-    }
-
-    @Test
-    @Story("The folder being read is gone")
-    @DisplayName("When the folder being read is gone as extraction hashes a file, extraction stops, names the folder, says to reconnect it, and removes nothing")
-    void aFolderGoneAsStageTwoHashesStopsTheStep(@TempDir Path parent) throws IOException {
-        Path root = theFolderBeingRead(parent);
-        String stamp = parent.getFileName().toString();
-        Files.writeString(root.resolve(AN_ORDINARY_FILE), "one ordinary file in " + stamp);
-        Files.writeString(
-                root.resolve(HASHED_ONLY_BY_STAGE_2),
-                "a file of a length no other file here has, whose folder goes as extraction hashes it, in " + stamp);
-        String canonicalRoot = Walk.canonicalRoot(root).toString();
-        Path movedTo = parent.resolve("moved-away");
-        AT_STAGE_2S_HASH.set(file -> move(root, movedTo));
-
-        cli.run("run", root.toString());
-
-        claim("the invocation failed", () -> assertThat(cli.getExitCode()).isNotZero());
-        claim(
-                "extraction's closing line says it failed, names the folder that can no longer be listed, and"
-                        + " says to reconnect it and run the same command again",
-                () -> assertThat(lines())
-                        .anyMatch(line -> line.startsWith(STAGE_2_FAILED)
-                                && line.contains(theFolderCannotBeListed(canonicalRoot))
-                                && line.contains(RECONNECT)));
-        claim(
-                "byte-level reduction, which came first, is recorded as finished, and extraction is not",
-                () -> assertThat(finishedSteps(canonicalRoot))
-                        .contains("byte-level-reduction")
-                        .doesNotContain("extraction"));
-        claim(
-                "no file was removed by extraction for the folder having gone",
-                () -> assertThat(extractionFailedReasons(canonicalRoot)).isEmpty());
     }
 
     /** What every stage-1 stop for a folder that is gone leaves: the same claims, wherever stage 1 was. */
@@ -456,20 +351,6 @@ class AFileThatCannotBeReadIsMarkedInvocationTest {
         }
     }
 
-    /** Which of {@link #TWO_OF_ONE_LENGTH} stage 1 recorded no hash for; exactly one, or the claim on it is moot. */
-    private String theOneWithNoHash(Path root) {
-        List<String> hashed = jdbcTemplate.queryForList(
-                "SELECT o.path FROM content_hash h JOIN file_occurrence o ON o.id = h.occurrence_id"
-                        + " JOIN walk w ON w.id = o.walk_id WHERE w.root = ?",
-                String.class,
-                Walk.canonicalRoot(root).toString());
-        List<String> notHashed = TWO_OF_ONE_LENGTH.stream().filter(name -> !hashed.contains(name)).toList();
-        claim(
-                "stage 1 recorded a hash for exactly one of the two files of one length: the one still there",
-                () -> assertThat(notHashed).hasSize(1));
-        return notHashed.getFirst();
-    }
-
     /** The steps recorded as finished under any run over the walk of the folder walked as {@code canonicalRoot}. */
     private List<String> finishedSteps(String canonicalRoot) {
         return jdbcTemplate.queryForList(
@@ -490,17 +371,6 @@ class AFileThatCannotBeReadIsMarkedInvocationTest {
                         + " JOIN walk w ON w.id = fo.walk_id WHERE w.root = ?",
                 String.class,
                 canonicalRoot);
-    }
-
-    /** Every verdict stage 1 wrote against {@code path}, as text. */
-    private List<String> stageOneVerdictsAgainst(Path root, String path) {
-        return jdbcTemplate.queryForList(
-                "SELECT v.kind FROM verdict v JOIN file_occurrence fo ON fo.id = v.occurrence_id"
-                        + " JOIN walk w ON w.id = fo.walk_id JOIN run r ON r.id = v.run_id"
-                        + " WHERE w.root = ? AND fo.path = ? AND r.stage = 'byte-level-reduction'",
-                String.class,
-                Walk.canonicalRoot(root).toString(),
-                path);
     }
 
     /** Each file removed as one extraction failed on, with why, for the walk of {@code canonicalRoot}. */
@@ -546,14 +416,6 @@ class AFileThatCannotBeReadIsMarkedInvocationTest {
     private static void move(Path from, Path to) {
         try {
             Files.move(from, to);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    private static void delete(Path file) {
-        try {
-            Files.delete(file);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

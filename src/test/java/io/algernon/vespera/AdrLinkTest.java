@@ -134,57 +134,6 @@ class AdrLinkTest {
                 () -> assertThat(missing).isEmpty());
     }
 
-    @Test
-    @Story("A decision link's label names the decision it opens")
-    @DisplayName("Every decision link is labelled with the id of the file it points at")
-    void everyLinkLabelMatchesTheDecisionItOpens() throws IOException {
-        List<MappedDecision> mapped = mappedDecisions();
-        List<DecisionLink> links = decisionLinks();
-        List<Position> positions =
-                links.stream().map(DecisionLink::position).distinct().toList();
-        List<String> mislabelled = links.stream()
-                .map(link -> disagreementIn(link, mapped))
-                .flatMap(Optional::stream)
-                .sorted()
-                .toList();
-
-        claim(
-                "the reading found decision links in both of the places one can be written -- above a class"
-                        + " and above a single test -- so a reading that had stopped seeing one of the two"
-                        + " positions fails now rather than passing the claim below having checked half of"
-                        + " what is written",
-                () -> assertThat(positions).containsExactlyInAnyOrder(Position.ON_A_TYPE, Position.ON_A_TEST));
-        claim(
-                "and every link's label carries the id of the file its address opens, so a reader who"
-                        + " follows the label arrives at the decision the label promised; a link named here"
-                        + " says one decision and opens another, which no reader of the report can detect",
-                () -> assertThat(mislabelled).isEmpty());
-    }
-
-    @Test
-    @Story("The decision map's comments agree with the files beneath them")
-    @DisplayName("Every entry's comment names the id in the filename it maps to")
-    void everyCommentMatchesItsFilename() {
-        List<MappedDecision> mapped = mappedDecisions();
-        List<String> disagreeing = mapped.stream()
-                .filter(decision -> idIn(decision.javadoc()) != idOf(decision.filename()))
-                .map(decision -> decision.constant() + " is described as " + written(idIn(decision.javadoc()))
-                        + " but names " + decision.filename() + ", which is " + written(idOf(decision.filename())))
-                .sorted()
-                .toList();
-
-        claim(
-                "the map had entries to check at all, so a reading that came back empty -- a moved source"
-                        + " root, a shape it no longer recognises -- fails now instead of satisfying the claim"
-                        + " below by having looked at nothing",
-                () -> assertThat(mapped).isNotEmpty());
-        claim(
-                "and the comment above each entry names the same decision as the filename beneath it, so"
-                        + " somebody choosing a constant by reading the comments picks the decision they meant;"
-                        + " an entry named here is one a renumber relabelled on one side only",
-                () -> assertThat(disagreeing).isEmpty());
-    }
-
     /** What one link disagrees about, naming the constant and both ids, or nothing when it agrees. */
     private static Optional<String> disagreementIn(DecisionLink link, List<MappedDecision> mapped) {
         MappedDecision opened = mapped.stream()

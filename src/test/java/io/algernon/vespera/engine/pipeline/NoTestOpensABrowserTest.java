@@ -22,8 +22,6 @@ import org.springframework.test.context.ActiveProfiles;
  * off, so the whole application context a test builds holds the system's opener, and the recording one, which the
  * test tree declares as a primary component under the application's own package, so that every full context finds
  * it and every invocation in one asks it instead.
- *
- * <p>Configured as {@code TheApplicationStartsWithNoVectorStoreTest} is, so the two share one context.
  */
 @SpringBootTest
 @ActiveProfiles("test")

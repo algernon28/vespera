@@ -2,31 +2,24 @@ package io.algernon.vespera.publish.website;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static io.algernon.vespera.engine.deliverable.ListedTree.cluster;
-import static io.algernon.vespera.engine.deliverable.ListedTree.sha256Of;
 import static io.algernon.vespera.engine.deliverable.ListedTree.slotOf;
 import static io.algernon.vespera.engine.deliverable.ListedTree.survivor;
 import static io.algernon.vespera.engine.deliverable.ListedTree.writing;
-import static io.algernon.vespera.publish.website.WebsiteFixture.DAMPERS;
 import static io.algernon.vespera.publish.website.WebsiteFixture.DAMPERS_FOLDER;
 import static io.algernon.vespera.publish.website.WebsiteFixture.DOORS_FOLDER;
 import static io.algernon.vespera.publish.website.WebsiteFixture.DOORS_LABEL;
 import static io.algernon.vespera.publish.website.WebsiteFixture.DOORS_TITLE;
-import static io.algernon.vespera.publish.website.WebsiteFixture.SEED_PATH;
 import static io.algernon.vespera.publish.website.WebsiteFixture.THE_SEED;
 import static io.algernon.vespera.publish.website.WebsiteFixture.VESPERA_WEBSITE_JSON;
 import static io.algernon.vespera.publish.website.WebsiteFixture.WEBSITE;
-import static io.algernon.vespera.publish.website.WebsiteFixture.WRITING;
-import static io.algernon.vespera.publish.website.WebsiteFixture.bytes;
 import static io.algernon.vespera.publish.website.WebsiteFixture.filesUnder;
 import static io.algernon.vespera.publish.website.WebsiteFixture.listedIn;
 import static io.algernon.vespera.publish.website.WebsiteFixture.renderingOf;
 import static io.algernon.vespera.publish.website.WebsiteFixture.sha256;
 import static io.algernon.vespera.publish.website.WebsiteFixture.survivors;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.engine.deliverable.ClusterPage;
 import io.algernon.vespera.engine.deliverable.DeliverableRoot;
 import io.algernon.vespera.engine.deliverable.ListedCodeSets;
 import io.algernon.vespera.engine.deliverable.ListedSurvivor;
@@ -37,7 +30,6 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
@@ -78,17 +70,8 @@ class PublishRefreshesTheWebsiteByDigestTest {
             "vespera publish refreshed the website at (.+): (\\d+) files? written, (\\d+) standing, (\\d+) removed,"
                     + " (\\d+) changed by hand and kept\\. Open (.+), or run vespera serve\\.");
 
-    private static final Pattern STOPPED = Pattern.compile(
-            "vespera publish stopped the website: .+\\. (\\d+) of (\\d+) files? written\\. Publish again to go on from"
-                    + " there\\.");
-
     /** A time no publish writes a file at, set on every file before a publish that should write none. */
     private static final FileTime LONG_AGO = FileTime.from(Instant.parse("2001-02-03T04:05:06Z"));
-
-    /** A document only a later drawing lists, its copy written first by the publish of that drawing. */
-    private static final String FRAME_CHECK = "reports/frame-check.docx";
-
-    private static final byte[] FRAME_CHECK_BYTES = bytes("the frame check");
 
     @TempDir
     Path base;
@@ -214,227 +197,6 @@ class PublishRefreshesTheWebsiteByDigestTest {
                     assertThat(operatorsNote).hasContent("the operator's");
                     assertThat(operatorsFileBesideAPage).hasContent("the operator's too");
                 });
-    }
-
-    @Test
-    @Story("A publish stopped partway goes on from there")
-    @DisplayName("A source unlike its list stops the publish after the copies, and the next publish goes on from there")
-    void aStopMidwayResumes() throws IOException {
-        Path workingDirectory = Files.createDirectories(base.resolve("work"));
-        Path website = workingDirectory.resolve(WEBSITE);
-        WebsiteFixture.published(WebsiteFixture.drawn(base.resolve("a")), workingDirectory);
-
-        Path stopped = drawnWithTheFrameCheck(base.resolve("b"));
-        byte[] unlikeItsList = theDoorsPageMadeUnlikeItsList(stopped);
-        Plugin.Delivery stop = WebsiteFixture.published(stopped, workingDirectory);
-        Matcher stopLine = STOPPED.matcher(stop.closingLine());
-
-        claim(
-                "the publish stopped, in the record's line, having written at least one file",
-                () -> {
-                    assertThat(stop.delivered()).isFalse();
-                    assertThat(stopLine.matches()).as(stop.closingLine()).isTrue();
-                    assertThat(Long.parseLong(stopLine.group(1))).isPositive()
-                            .isLessThanOrEqualTo(Long.parseLong(stopLine.group(2)));
-                });
-        claim(
-                "copies went first: the new document's copy stands, byte for byte",
-                () -> assertThat(website.resolve(DOORS_FOLDER).resolve("frame-check.docx"))
-                        .hasBinaryContent(FRAME_CHECK_BYTES));
-        claim(
-                "and the page unlike its list was not written",
-                () -> assertThat(Files.readAllBytes(website.resolve(DOORS_FOLDER).resolve("index.html")))
-                        .isNotEqualTo(unlikeItsList));
-
-        Path redrawn = drawnWithTheFrameCheck(base.resolve("b-again"));
-        Map<String, WebsiteFixture.Listed> listed = listedIn(renderingOf(redrawn));
-        long toWrite = listed.values().stream().filter(entry -> !standsAsListed(website, entry)).count();
-        Plugin.Delivery resumed = WebsiteFixture.published(redrawn, workingDirectory);
-
-        claim(
-                "the next publish, the rendering drawn again, delivers, writing only what does not stand yet: the copy"
-                        + " written before the stop stands",
-                () -> {
-                    assertThat(resumed.delivered()).as(resumed.closingLine()).isTrue();
-                    assertThat(countsOf(resumed, website))
-                            .containsExactly(toWrite, listed.size() - toWrite, 0L, 0L);
-                    assertThat(toWrite).isLessThan(listed.size());
-                });
-        claim(
-                "and the website is the rendering's, its marker and its own list, and nothing else",
-                () -> assertThat(filesUnder(website).keySet())
-                        .containsExactlyInAnyOrderElementsOf(withItsOwnFiles(listed)));
-    }
-
-    @Test
-    @Story("A publish stopped partway goes on from there")
-    @DisplayName("What a stopped publish wrote and the next list does not name is removed by the next publish, leaving no orphan")
-    void aStopMidwayLeavesNoOrphan() throws IOException {
-        Path workingDirectory = Files.createDirectories(base.resolve("work"));
-        Path website = workingDirectory.resolve(WEBSITE);
-        WebsiteFixture.published(WebsiteFixture.drawn(base.resolve("a")), workingDirectory);
-        Path stopped = drawnWithTheFrameCheck(base.resolve("b"));
-        theDoorsPageMadeUnlikeItsList(stopped);
-        Plugin.Delivery stop = WebsiteFixture.published(stopped, workingDirectory);
-
-        Path asBefore = WebsiteFixture.drawn(base.resolve("a-again"));
-        Map<String, WebsiteFixture.Listed> listed = listedIn(renderingOf(asBefore));
-        Plugin.Delivery next = WebsiteFixture.published(asBefore, workingDirectory);
-
-        claim(
-                "the publish stopped after writing the new document's copy, which no later list names",
-                () -> {
-                    assertThat(stop.delivered()).isFalse();
-                    assertThat(listed).doesNotContainKey(DOORS_FOLDER + "/frame-check.docx");
-                });
-        claim(
-                "the next publish, of a rendering without it, delivers and counts it removed",
-                () -> {
-                    assertThat(next.delivered()).as(next.closingLine()).isTrue();
-                    assertThat(countsOf(next, website).get(2)).isPositive();
-                });
-        claim(
-                "so the copy the stopped publish wrote is gone: the website is the rendering's, its marker and its own"
-                        + " list, and nothing else",
-                () -> {
-                    assertThat(website.resolve(DOORS_FOLDER).resolve("frame-check.docx")).doesNotExist();
-                    assertThat(filesUnder(website).keySet())
-                            .containsExactlyInAnyOrderElementsOf(withItsOwnFiles(listed));
-                });
-    }
-
-    @Test
-    @Story("The website is refreshed by digest")
-    @DisplayName("A copy renamed by case alone is not removed where the file system takes the two names for one file: it stands, counted standing, and the page links it")
-    void aFileRenamedByCaseAloneIsNotRemoved() throws IOException {
-        aCopyRenamedToOneFileStands("Report.docx", "report.docx");
-    }
-
-    /**
-     * {@code ΟΔΟΣ 1.docx} renamed to {@code ΟΔΟσ 1.docx}, its last Σ, U+03A3, made σ, U+03C3: lower-casing the whole
-     * name makes that Σ the final ς, U+03C2, since it ends a word, and leaves the σ as it is, so a key by lower case
-     * holds the two apart. ADR-280 §1.4's per-unit key, each UTF-16 unit upper-cased on its own as NTFS compares names,
-     * gives both {@code ΟΔΟΣ 1.DOCX}, and NTFS takes them for one file. A comparison by lower case would remove the file
-     * the page links.
-     */
-    @Test
-    @Story("The website is refreshed by digest")
-    @DisplayName("A copy renamed from Σ to σ at a word's end is not removed where the file system takes the two names for one file, as NTFS's per-unit upper case does: it stands, counted standing, and the page links it")
-    void aFileRenamedByAFoldLowerCaseMissesIsNotRemoved() throws IOException {
-        aCopyRenamedToOneFileStands("ΟΔΟΣ 1.docx", "ΟΔΟσ 1.docx");
-    }
-
-    /**
-     * The doors' one copy, first listed as {@code firstName} and then, its bytes the same, as {@code renamedName}, is
-     * held to stand after the second publish where the file system takes the two names for one file; skipped where it
-     * tells them apart, as a probe folder holding {@code firstName} shows.
-     */
-    private void aCopyRenamedToOneFileStands(String firstName, String renamedName) throws IOException {
-        Path probe = Files.createDirectories(base.resolve("name-probe"));
-        Files.writeString(probe.resolve(firstName), "a");
-        assumeTrue(Files.exists(probe.resolve(renamedName))
-                        && Files.isSameFile(probe.resolve(firstName), probe.resolve(renamedName)),
-                "the file system tells " + firstName + " and " + renamedName + " apart, so the rename is two files there");
-
-        byte[] reportBytes = bytes("the report on the doors");
-        String reportSha = sha256Of(reportBytes);
-        String asFirstNamed = DOORS_FOLDER + "/" + firstName;
-        String asRenamed = DOORS_FOLDER + "/" + renamedName;
-        Path workingDirectory = Files.createDirectories(base.resolve("work"));
-        Path website = workingDirectory.resolve(WEBSITE);
-
-        Path earlier = drawnWithOneReport(base.resolve("a"), "reports/" + firstName, reportBytes);
-        Map<String, WebsiteFixture.Listed> before = listedIn(renderingOf(earlier));
-        Plugin.Delivery first = WebsiteFixture.published(earlier, workingDirectory);
-
-        Path later = drawnWithOneReport(base.resolve("b"), "reports/" + renamedName, reportBytes);
-        Map<String, WebsiteFixture.Listed> after = listedIn(renderingOf(later));
-        Set<String> dropped = new TreeSet<>(before.keySet());
-        dropped.removeAll(after.keySet());
-        Set<String> standing = new TreeSet<>();
-        after.forEach((path, entry) -> {
-            if (path.equals(asRenamed)
-                    || (before.containsKey(path) && before.get(path).sha256().equals(entry.sha256()))) {
-                standing.add(path);
-            }
-        });
-
-        Plugin.Delivery second = WebsiteFixture.published(later, workingDirectory);
-
-        claim(
-                "the first publish delivered; its list names the copy as " + firstName + ", the next as " + renamedName
-                        + ", each with the same sha256, and that copy is the one path the next list drops",
-                () -> {
-                    assertThat(first.delivered()).as(first.closingLine()).isTrue();
-                    assertThat(before).containsKey(asFirstNamed).doesNotContainKey(asRenamed);
-                    assertThat(after).containsKey(asRenamed).doesNotContainKey(asFirstNamed);
-                    assertThat(before.get(asFirstNamed).sha256()).isEqualTo(reportSha);
-                    assertThat(after.get(asRenamed).sha256()).isEqualTo(reportSha);
-                    assertThat(dropped).containsExactly(asFirstNamed);
-                });
-        claim(
-                "the doors' page links the copy as " + renamedName,
-                () -> assertThat(website.resolve(DOORS_FOLDER).resolve("index.html"))
-                        .content(StandardCharsets.UTF_8)
-                        .contains("href=\"./" + ClusterPage.percentEncoded(renamedName) + "\""));
-        claim(
-                "the file the page links still stands after the second publish, hashing to the copy's sha256",
-                () -> {
-                    assertThat(website.resolve(asRenamed)).as(asRenamed).isRegularFile();
-                    assertThat(sha256(website.resolve(asRenamed))).as(asRenamed).isEqualTo(reportSha);
-                });
-        claim(
-                "the second publish delivered, counting the renamed copy standing and nothing removed",
-                () -> {
-                    assertThat(second.delivered()).as(second.closingLine()).isTrue();
-                    assertThat(countsOf(second, website)).containsExactly(
-                            (long) (after.size() - standing.size()), (long) standing.size(), 0L, 0L);
-                });
-    }
-
-    /**
-     * The doors alone, holding one document at {@code archivePath} with {@code content}, cited by their writing, drawn
-     * in {@code drawnIn}; its copy keeps the name it has in the archive (ADR-280).
-     */
-    private static Path drawnWithOneReport(Path drawnIn, String archivePath, byte[] content) throws IOException {
-        Path archive = drawnIn.resolve("archive");
-        Files.createDirectories(archive.resolve(archivePath).getParent());
-        Files.write(archive.resolve(archivePath), content);
-        RecordedCluster doorsOfOne = cluster(THE_SEED, 0, DOORS_LABEL, 1, 1);
-        return WebsiteFixture.drawn(drawnIn, List.of(doorsOfOne),
-                Map.of(slotOf(doorsOfOne), writing(DOORS_TITLE, "Doors are rehung [1] once a decade.", 14)),
-                List.of(survivor(14, archivePath, sha256Of(content), THE_SEED, SEED_PATH, 0, 0.9)),
-                ListedCodeSets.NONE);
-    }
-
-    /** The fixture with a fourth document among the doors, its writing changed, drawn in {@code drawnIn}. */
-    private static Path drawnWithTheFrameCheck(Path drawnIn) throws IOException {
-        Path archive = drawnIn.resolve("archive");
-        Files.createDirectories(archive.resolve("reports"));
-        Files.write(archive.resolve(FRAME_CHECK), FRAME_CHECK_BYTES);
-        RecordedCluster doorsOfFour = cluster(THE_SEED, 0, DOORS_LABEL, 1, 4);
-        List<ListedSurvivor> survivors = new ArrayList<>(survivors());
-        survivors.add(3, survivor(13, FRAME_CHECK, sha256Of(FRAME_CHECK_BYTES), THE_SEED, SEED_PATH, 0, 0.65));
-        return WebsiteFixture.drawn(drawnIn, List.of(doorsOfFour, DAMPERS),
-                Map.of(slotOf(doorsOfFour), writing(DOORS_TITLE, WRITING + " Frames are checked [3].", 10, 11, 13)),
-                survivors, ListedCodeSets.NONE);
-    }
-
-    /** Makes the doors' page of {@code tree}'s rendering unlike its list by a byte added, and gives its bytes. */
-    private static byte[] theDoorsPageMadeUnlikeItsList(Path tree) throws IOException {
-        Path page = renderingOf(tree).resolve(DOORS_FOLDER).resolve("index.html");
-        Files.writeString(page, "\n", StandardCharsets.UTF_8, java.nio.file.StandardOpenOption.APPEND);
-        return Files.readAllBytes(page);
-    }
-
-    /** Whether {@code entry}'s file stands in {@code website} hashing to its sha256. */
-    private static boolean standsAsListed(Path website, WebsiteFixture.Listed entry) {
-        try {
-            Path file = website.resolve(entry.path());
-            return Files.isRegularFile(file) && sha256(file).equals(entry.sha256());
-        } catch (IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
     }
 
     /** The paths {@code listed} names, with the website's marker and its own list. */

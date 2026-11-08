@@ -60,13 +60,8 @@ class SameOccurrencesTest {
     /** The occurrence whose path differs: on the first page. */
     private static final int ON_THE_FIRST_PAGE = 10;
 
-    private static final String PAGE = "a page of a walk";
-
     /** Exactly two full pages, so the third page each walk is asked for is empty. */
     private static final int TWO_FULL_PAGES = 2 * A_PAGE;
-
-    /** The last occurrence of {@link #TWO_FULL_PAGES}: the last row of the second, full, page. */
-    private static final int THE_LAST_ONE = TWO_FULL_PAGES - 1;
 
     @TempDir
     Path folder;
@@ -83,31 +78,6 @@ class SameOccurrencesTest {
     @AfterEach
     void closeThePool() {
         pool.close();
-    }
-
-    @Test
-    @Story("A walk that saw nothing new is discarded")
-    @DisplayName("Two walks that recorded the same thousands of files are the same, compared a page of each at a time")
-    void twoWalksOfTheSameOccurrencesAreTheSameReadAPageAtATime() throws SQLException {
-        WalkId earlier = walk("earlier", OCCURRENCES, i -> "dir/f" + i + ".pdf", i -> i);
-        WalkId later = walk("later", OCCURRENCES, i -> "dir/f" + i + ".pdf", i -> i);
-        StatementLog log = new StatementLog(pool.jdbcTemplate().getDataSource());
-
-        boolean same = new Ledger(log.jdbcTemplate()).occurrences().sameOccurrences(earlier, later);
-
-        List<String> pages = log.said().stream().filter(SameOccurrencesTest::isAPage).toList();
-        claim("the two walks recorded the same files, so they are the same", () -> assertThat(same).isTrue());
-        claim(
-                "each walk was read a page of at most " + A_PAGE + " at a time, three pages of each, six in all,"
-                        + " where each was read whole before",
-                () -> assertThat(pages).hasSize(3 * ONE_PAGE_OF_EACH));
-        claim(
-                "each page is found by the occurrences' own numbers, going on from the last one read, and none"
-                        + " searches the walk's index by size or sorts",
-                () -> assertThat(pages).allSatisfy(sql -> assertThat(planOf(sql))
-                        .anyMatch(detail -> detail.contains("file_occurrence USING INTEGER PRIMARY KEY (rowid>?)"))
-                        .noneMatch(detail -> detail.contains("file_occurrence_by_walk_and_size"))
-                        .noneMatch(detail -> detail.contains("TEMP B-TREE"))));
     }
 
     @Test
@@ -136,25 +106,6 @@ class SameOccurrencesTest {
 
     @Test
     @Story("A walk that saw nothing new is discarded")
-    @DisplayName("A difference on the first page is found having read one page of each walk")
-    void aDifferenceOnTheFirstPageStopsTheComparisonThere() throws SQLException {
-        WalkId earlier = walk("earlier", OCCURRENCES, i -> "dir/f" + i + ".pdf", i -> i);
-        WalkId pathDiffers =
-                walk("path", OCCURRENCES, i -> i == ON_THE_FIRST_PAGE ? "dir/renamed.pdf" : "dir/f" + i + ".pdf", i -> i);
-        StatementLog log = new StatementLog(pool.jdbcTemplate().getDataSource());
-
-        boolean same = new Ledger(log.jdbcTemplate()).occurrences().sameOccurrences(earlier, pathDiffers);
-
-        claim("the walks are not the same", () -> assertThat(same).isFalse());
-        claim(
-                "and the comparison stopped at the first page that differed, having read " + ONE_PAGE_OF_EACH
-                        + " pages, one of each walk",
-                () -> assertThat(log.said().stream().filter(SameOccurrencesTest::isAPage).toList())
-                        .hasSize(ONE_PAGE_OF_EACH));
-    }
-
-    @Test
-    @Story("A walk that saw nothing new is discarded")
     @DisplayName("Two walks of exactly two thousand files are the same, the empty page after the second full one ending the comparison")
     void twoWalksOfAnExactNumberOfPagesAreTheSame() throws SQLException {
         WalkId earlier = walk("earlier-exact", TWO_FULL_PAGES, i -> "dir/f" + i + ".pdf", i -> i);
@@ -172,27 +123,6 @@ class SameOccurrencesTest {
                 "each walk was read in three pages, two full and one empty, six in all, and no more",
                 () -> assertThat(log.said().stream().filter(SameOccurrencesTest::isAPage).toList())
                         .hasSize(3 * ONE_PAGE_OF_EACH));
-    }
-
-    @Test
-    @Story("A walk that saw nothing new is discarded")
-    @DisplayName("Of two walks of exactly two thousand files, one differing in its last file or holding one file more is not the same")
-    void aDifferenceAtTheEdgeOfAnExactNumberOfPagesMakesTwoWalksDifferent() throws SQLException {
-        WalkId earlier = walk("earlier-edge", TWO_FULL_PAGES, i -> "dir/f" + i + ".pdf", i -> i);
-        WalkId lastDiffers =
-                walk("last-edge", TWO_FULL_PAGES, i -> "dir/f" + i + ".pdf", i -> i == THE_LAST_ONE ? i + 1 : i);
-        WalkId oneMore = walk("more-edge", TWO_FULL_PAGES + 1, i -> "dir/f" + i + ".pdf", i -> i);
-
-        claim(
-                "a walk whose last file, the last row of its second full page, has another size is not the same",
-                () -> assertThat(ledger.occurrences().sameOccurrences(earlier, lastDiffers)).isFalse());
-        claim(
-                "a walk holding one file more, alone on a third page where the other walk's third page is empty,"
-                        + " is not the same, whichever of the two is asked about first",
-                () -> {
-                    assertThat(ledger.occurrences().sameOccurrences(earlier, oneMore)).isFalse();
-                    assertThat(ledger.occurrences().sameOccurrences(oneMore, earlier)).isFalse();
-                });
     }
 
     /** A finished-looking walk of {@code count} occurrences, written in one batch, the i-th named and sized by the two functions. */

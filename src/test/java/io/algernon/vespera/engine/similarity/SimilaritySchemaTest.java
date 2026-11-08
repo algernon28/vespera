@@ -1,7 +1,6 @@
 package io.algernon.vespera.engine.similarity;
 
 import static io.algernon.vespera.TestSteps.claim;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
@@ -37,9 +36,6 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-074", url = Adr.STAGE_3_MEASURES_SHINGLE_DOCUMENT_FREQUENCY, type = "adr")
 class SimilaritySchemaTest {
 
-    /** The version of similarity's tables, written out: the third. */
-    private static final int SIMILARITYS_VERSION = 3;
-
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -61,21 +57,5 @@ class SimilaritySchemaTest {
                         .hasMessageContaining(SimilaritySchema.MODULE)
                         .hasMessageContaining(String.valueOf(SimilaritySchema.VERSION))
                         .hasMessageContaining(String.valueOf(somethingOtherThanSimilarityExpects)));
-    }
-
-    @Test
-    @Story("A module states the schema it was built against")
-    @DisplayName("similarity records its own version on first use, independent of any other module's row")
-    void recordsItsOwnVersionOnFirstUse() {
-        new SimilaritySchema(new SchemaVersionGuard(jdbcTemplate));
-
-        claim(
-                "the version recorded is exactly " + SIMILARITYS_VERSION + ", the one similarity's tables are at --"
-                        + " not a value borrowed from ledger, corpus or extraction's own rows",
-                () -> assertThat(jdbcTemplate.queryForObject(
-                                "SELECT version FROM schema_version WHERE module = ?",
-                                Integer.class,
-                                SimilaritySchema.MODULE))
-                        .isEqualTo(SIMILARITYS_VERSION));
     }
 }

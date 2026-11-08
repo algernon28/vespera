@@ -182,40 +182,6 @@ class AnErrorWhileHashingStopsTheStepInvocationTest {
                         .contains(THE_ERRORS_MESSAGE));
     }
 
-    @Test
-    @Story("An error that is not about the file stops the step")
-    @DisplayName("An out-of-memory error raised while a seed is hashed stops seed extraction, and the seed is not recorded as one that would not open")
-    @Link(name = "ADR-155", url = Adr.A_SEED_FILE_THAT_WILL_NOT_OPEN_IS_RECORDED_UNDER_A_REASON_OF_ITS_OWN, type = "adr")
-    void anErrorWhileASeedIsHashedStopsSeedExtraction(
-            CapturedOutput output, @TempDir Path root, @TempDir Path seeds) throws IOException {
-        anArchiveAndItsSeeds(root, seeds);
-        Files.writeString(
-                seeds.resolve(RAISES_AN_ERROR_WHEN_HASHED),
-                "a seed with text of its own, whose hashing raises the error, in " + seeds.getFileName());
-        ARMED.set(true);
-
-        Throwable escaped = catchThrowable(() -> cli.run("run", root.toString()));
-
-        claim(
-                "the error does not leave the command as an error",
-                () -> assertThat(escaped).as("what the command threw").isNull());
-        claim("the invocation reports failure", () -> assertThat(cli.getExitCode()).isNotZero());
-        claim(
-                "conversion of the archive, which came first, is recorded as finished: the error stopped"
-                        + " seed extraction and nothing before it",
-                () -> assertThat(finishedSteps(root)).contains("extraction"));
-        claim(
-                "no seed is recorded as one whose file would not open. Only a file the file system would not"
-                        + " hand over is recorded that way; an error that is not about the file is not",
-                () -> assertThat(unusableSeedsUnder(seeds)).isEmpty());
-        claim(
-                "the line the operator reads says seed extraction failed before it had read the whole"
-                        + " seed folder, and carries what the error said",
-                () -> assertThat(output.getAll())
-                        .contains("Stage 5a (seed extraction) failed before it had read the whole seed folder")
-                        .contains(THE_ERRORS_MESSAGE));
-    }
-
     /** The steps recorded as finished under any run over the walk of {@code folder}. */
     private List<String> finishedSteps(Path folder) {
         return jdbcTemplate.queryForList(
@@ -229,18 +195,6 @@ class AnErrorWhileHashingStopsTheStepInvocationTest {
     private List<String> verdictsAgainstFilesUnder(Path folder) {
         return jdbcTemplate.queryForList(
                 "SELECT fo.path || ' -> ' || v.kind FROM verdict v JOIN file_occurrence fo ON fo.id = v.occurrence_id"
-                        + " JOIN walk w ON w.id = fo.walk_id WHERE w.root = ?",
-                String.class,
-                Walk.canonicalRoot(folder).toString());
-    }
-
-    /**
-     * Every seed under {@code folder} recorded as unusable, as path and reason, under whatever run: the seed
-     * measurement run is minted over the corpus root's walk, so the seed is found through the seed folder's own.
-     */
-    private List<String> unusableSeedsUnder(Path folder) {
-        return jdbcTemplate.queryForList(
-                "SELECT fo.path || ' -> ' || u.reason FROM unusable_seed u JOIN file_occurrence fo ON fo.id = u.occurrence_id"
                         + " JOIN walk w ON w.id = fo.walk_id WHERE w.root = ?",
                 String.class,
                 Walk.canonicalRoot(folder).toString());

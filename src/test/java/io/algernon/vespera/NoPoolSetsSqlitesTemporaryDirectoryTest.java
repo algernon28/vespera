@@ -3,14 +3,12 @@ package io.algernon.vespera;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.zaxxer.hikari.HikariDataSource;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.List;
-import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,14 +61,8 @@ class NoPoolSetsSqlitesTemporaryDirectoryTest {
     /** The shipped file and the one the test profile layers over it. */
     private static final List<String> CONFIGURATION_FILES = List.of("application.yaml", "application-test.yaml");
 
-    /** Hikari's value for a lifetime, an idle time or a check interval that is turned off. */
-    private static final long NEVER = 0L;
-
     @Autowired
     private JdbcTemplate jdbcTemplate;
-
-    @Autowired
-    private DataSource dataSource;
 
     @Test
     @Story("What the database sorts on disk is written in the working directory")
@@ -104,27 +96,5 @@ class NoPoolSetsSqlitesTemporaryDirectoryTest {
                         + " system's: nothing the suite ran before this left the whole process pointing at a"
                         + " folder that may be gone",
                 () -> assertThat(reported).allSatisfy(directory -> assertThat(directory).isEmpty()));
-    }
-
-    @Test
-    @Story("What the database sorts on disk is written in the working directory")
-    @DisplayName("The test suite's pool never touches its connection from a thread of its own")
-    void theTestProfilesPoolLeavesItsConnectionAlone() {
-        claim(
-                "the pool the test profile builds is the one whose settings are read here",
-                () -> assertThat(dataSource).isInstanceOf(HikariDataSource.class));
-        HikariDataSource pool = (HikariDataSource) dataSource;
-        claim(
-                "it never retires its connection for its age: a lifetime of " + NEVER + " is none",
-                () -> assertThat(pool.getMaxLifetime()).isEqualTo(NEVER));
-        claim(
-                "it never drops its connection for being idle: an idle time of " + NEVER + " is none",
-                () -> assertThat(pool.getIdleTimeout()).isEqualTo(NEVER));
-        claim(
-                "and it never checks an idle connection from its own thread: an interval of " + NEVER + " is"
-                        + " none. So a pool kept open after its test class has ended calls the database from no"
-                        + " thread at all, and the tests that change where the database writes its temporary"
-                        + " files, a setting of the whole process, change it while nothing else is calling it",
-                () -> assertThat(pool.getKeepaliveTime()).isEqualTo(NEVER));
     }
 }

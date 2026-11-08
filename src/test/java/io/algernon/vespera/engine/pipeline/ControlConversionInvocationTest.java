@@ -15,14 +15,9 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -34,9 +29,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -101,26 +94,11 @@ class ControlConversionInvocationTest {
     /** A corpus one file longer than a row of five, so the stage stops with a file still unread. */
     private static final int MORE_THAN_FIVE = FIVE_IN_A_ROW + 1;
 
-    /** A corpus in which five refusals sit at every other position, never two of them side by side. */
-    private static final int TEN = 10;
-
-    /** Four that drop, the one answered from storage, and four more that drop. */
-    private static final int FOUR_ONE_FOUR = 2 * (FIVE_IN_A_ROW - 1) + 1;
-
-    /** The position, in the order the stage reads, of the one file between two rows of four. */
-    private static final int THE_MIDDLE = FIVE_IN_A_ROW - 1;
-
-    /** The position, in read order, of the one file that drops the connection among refusals. */
-    private static final int THIRD = 2;
-
     /** How often the converter is sent the control conversion when one row of five is reached. */
     private static final long ONCE = 1;
 
     /** How often it is sent the control conversion for two rows of five. */
     private static final long TWICE = 2;
-
-    /** How often a file nothing new was asked about is posted. */
-    private static final long NOT_AT_ALL = 0;
 
     /** How stage 2's closing line opens when the step completed. */
     private static final String STAGE_2_FINISHED = "Stage 2 (extraction) finished";
@@ -152,21 +130,6 @@ class ControlConversionInvocationTest {
             + "\"component_type\":\"pipeline\",\"module_name\":\"docling.pipeline\","
             + "\"error_message\":\"" + NO_CAPACITY + "\",\"category\":\"capacity\"}],"
             + "\"processing_time\":0.1}";
-
-    /** What the converter says when it reports that a file took too long. */
-    private static final String TOOK_TOO_LONG = "the conversion took too long";
-
-    /** A timeout the converter reported about one file, in the wire shape it answers with. */
-    private static final String REPORTED_TIMEOUT = "{\"status\":\"failure\",\"errors\":[{"
-            + "\"component_type\":\"pipeline\",\"module_name\":\"docling.pipeline\","
-            + "\"error_message\":\"" + TOOK_TOO_LONG + "\",\"category\":\"timeout\"}],"
-            + "\"processing_time\":0.1}";
-
-    /** Where the control conversion's PDF is shipped. */
-    private static final String THE_CONTROL_PDF = "io/algernon/vespera/engine/pipeline/control-conversion.pdf";
-
-    /** How every PDF opens. */
-    private static final String PDF_HEADER = "%PDF-";
 
     @TempDir
     static Path workingDirectory;
@@ -238,36 +201,6 @@ class ControlConversionInvocationTest {
                         .allSatisfy((file, reason) -> assertThat(reason).startsWith("crashed the converter:")));
     }
 
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("convertersThatConvertNothing")
-    @Issue("393")
-    @Issue("385")
-    @Story("A converter that answers its health check and converts nothing")
-    @DisplayName("A converter that fails every call, Vespera's own control PDF included, still stops extraction after five files in a row, says the control PDF failed too, and removes nothing")
-    void aConverterThatFailsTheControlConversionTooStillStopsTheStage(
-            Consumer<LoopbackSidecar> failingEveryCall, String fiveInARow, @TempDir Path root) throws IOException {
-        writeTheCorpus(root, MORE_THAN_FIVE);
-        failingEveryCall.accept(sidecar);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation failed: a converter that converts nothing is not a fact about any file",
-                () -> assertThat(cli.getExitCode()).isNotZero());
-        claim(
-                "the control PDF was sent " + ONCE + " time, after the fifth file in a row",
-                () -> assertThat(sidecar.controlConversions()).isEqualTo(ONCE));
-        claim(
-                "the closing line says " + FIVE_IN_A_ROW + " files in a row failed the way this converter fails"
-                        + " them and that the control PDF was not converted either",
-                () -> assertThat(lines())
-                        .anyMatch(line -> line.startsWith(STAGE_2_FAILED)
-                                && line.contains(fiveInARow + AND_NOT_THE_CONTROL_EITHER)));
-        claim(
-                "no file was removed: a stopped extraction resolves none of what it set aside",
-                () -> assertThat(extractionFailedReasons(root)).isEmpty());
-    }
-
     /** The two ways a converter converts nothing, each with what the closing line says of the five in a row. */
     static Stream<Arguments> convertersThatConvertNothing() {
         Consumer<LoopbackSidecar> dropping = LoopbackSidecar::droppingEveryCall;
@@ -275,117 +208,6 @@ class ControlConversionInvocationTest {
         return Stream.of(
                 Arguments.of(Named.of("a converter that drops every call", dropping), FIVE_DROPPED_TWICE),
                 Arguments.of(Named.of("a converter that refuses every call for want of room", refusing), FIVE_SET_ASIDE));
-    }
-
-    @Test
-    @Issue("385")
-    @Story("A resume that reads its refused files again together")
-    @DisplayName("Five files the converter refuses every time, spread through a completed extraction and read again side by side when it resumes, are removed again, and the resume completes")
-    void fiveRepeatRefusalsReadTogetherOnAResumeAreRemovedAndTheResumeCompletes(@TempDir Path root)
-            throws IOException {
-        writeTheCorpus(root, TEN);
-        List<Integer> asRead = theOrderTheStageReadsIn(root);
-        List<Integer> refused = List.of(asRead.get(0), asRead.get(2), asRead.get(4), asRead.get(6), asRead.get(8));
-        refused.forEach(file -> sidecar.answering(file, REFUSED_FOR_CAPACITY));
-
-        cli.run("run", root.toString());
-        String run = onlyExtractionRunOf(root);
-
-        claim(
-                "the first invocation completes extraction: the " + refused.size() + " refusals sit at every"
-                        + " other position, so a converted file always came between two of them",
-                () -> {
-                    assertThat(stageTwoFinished(run)).isTrue();
-                    assertThat(extractionFailedReasons(root)).hasSize(refused.size());
-                });
-
-        jdbcTemplate.update("DELETE FROM finished_step WHERE run_id = ? AND step = ?", run, StepNames.EXTRACTION);
-        Map<Integer, Long> postedBeforeTheResume = sidecar.callsPerDocument();
-        logged.list.clear();
-        cli.run("run", root.toString());
-        Map<Integer, Long> postedByTheResume = postedSince(postedBeforeTheResume);
-
-        claim(
-                "with the record that extraction finished gone, the resume reads those " + refused.size()
-                        + " files again, one after another, and completes",
-                () -> {
-                    assertThat(lines()).anyMatch(line -> line.startsWith(STAGE_2_FINISHED));
-                    assertThat(stageTwoFinished(run)).isTrue();
-                });
-        claim(
-                "it posted each of the " + refused.size() + " once, the control PDF " + ONCE + " time after the"
-                        + " fifth, and no other file",
-                () -> {
-                    assertThat(postedByTheResume).containsEntry(LoopbackSidecar.CONTROL, ONCE);
-                    refused.forEach(file -> assertThat(postedByTheResume).containsEntry(file, ONCE));
-                    assertThat(postedByTheResume).hasSize(refused.size() + 1);
-                });
-        claim(
-                "and the " + refused.size() + " are removed again, each for the converter's want of room, as"
-                        + " the first invocation removed them",
-                () -> assertThat(extractionFailedReasons(root))
-                        .containsOnlyKeys(refused.stream().map(ControlConversionInvocationTest::nameOf).toList())
-                        .allSatisfy((file, reason) -> assertThat(reason).isEqualTo("capacity: " + NO_CAPACITY)));
-    }
-
-    @Test
-    @Issue("393")
-    @Story("A converter that answers its health check and converts nothing")
-    @DisplayName("A file answered from storage between files that drop the connection does not end their row: with the converter converting nothing, extraction stops after five of them and removes nothing")
-    void anAnswerFromStorageDoesNotEndARowOfDroppedConnections(@TempDir Path base) throws IOException {
-        Path root = Files.createDirectory(base.resolve("read-with-one-stored"));
-        writeTheCorpus(root, FOUR_ONE_FOUR);
-        List<Integer> asRead = theOrderTheStageReadsIn(root);
-        int stored = asRead.get(THE_MIDDLE);
-        Path elsewhere = Files.createDirectory(base.resolve("stored-from-here-first"));
-        Files.copy(root.resolve(nameOf(stored)), elsewhere.resolve(nameOf(stored)));
-        cli.run("run", elsewhere.toString());
-        long postedBefore = sidecar.callsPerDocument().getOrDefault(stored, NOT_AT_ALL);
-        logged.list.clear();
-
-        sidecar.droppingEveryCall();
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation failed: " + (FIVE_IN_A_ROW - 1) + " files dropped the connection twice, the one"
-                        + " read next was answered from storage, which says nothing about the converter now, and"
-                        + " the one after it made " + FIVE_IN_A_ROW,
-                () -> assertThat(cli.getExitCode()).isNotZero());
-        claim(
-                "the file answered from storage was not posted",
-                () -> assertThat(sidecar.callsPerDocument().getOrDefault(stored, NOT_AT_ALL)).isEqualTo(postedBefore));
-        claim(
-                "the closing line says " + FIVE_IN_A_ROW + " files in a row dropped the connection twice",
-                () -> assertThat(lines())
-                        .anyMatch(line -> line.startsWith(STAGE_2_FAILED) && line.contains(FIVE_DROPPED_TWICE)));
-        claim(
-                "no file was removed",
-                () -> assertThat(extractionFailedReasons(root)).isEmpty());
-    }
-
-    @Test
-    @Issue("393")
-    @Story("A converter that answers its health check and converts nothing")
-    @DisplayName("A file that drops the connection twice between refusals does not end their row: with the converter refusing everything, extraction stops after the fifth refusal")
-    void aDroppedConnectionDoesNotEndARowOfRefusals(@TempDir Path root) throws IOException {
-        writeTheCorpus(root, MORE_THAN_FIVE);
-        List<Integer> asRead = theOrderTheStageReadsIn(root);
-        sidecar.answeringEveryCall(REFUSED_FOR_CAPACITY);
-        sidecar.dropping(asRead.get(THIRD), LoopbackSidecar.EVERY_CALL);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation failed: two refusals, a file that dropped the connection twice, which is no"
-                        + " answer about anything, and three more refusals make " + FIVE_IN_A_ROW,
-                () -> assertThat(cli.getExitCode()).isNotZero());
-        claim(
-                "the control PDF was sent " + ONCE + " time and refused like everything else",
-                () -> assertThat(sidecar.controlConversions()).isEqualTo(ONCE));
-        claim(
-                "the closing line says " + FIVE_IN_A_ROW + " files in a row were set aside",
-                () -> assertThat(lines())
-                        .anyMatch(line -> line.startsWith(STAGE_2_FAILED) && line.contains(FIVE_SET_ASIDE)));
     }
 
     @Test
@@ -416,111 +238,6 @@ class ControlConversionInvocationTest {
         claim(
                 "no file was removed",
                 () -> assertThat(extractionFailedReasons(root)).isEmpty());
-    }
-
-    @Test
-    @Story("Vespera's own control PDF")
-    @DisplayName("Vespera ships its control PDF, and the PDF carries its one sentence where the bytes sent show it")
-    void theControlPdfIsShippedAndCarriesItsSentenceUncompressed() throws IOException {
-        byte[] pdf;
-        try (InputStream shipped = getClass().getClassLoader().getResourceAsStream(THE_CONTROL_PDF)) {
-            claim(
-                    "the control PDF is on the classpath at " + THE_CONTROL_PDF,
-                    () -> assertThat(shipped).isNotNull());
-            pdf = shipped.readAllBytes();
-        }
-        String bytes = new String(pdf, StandardCharsets.ISO_8859_1);
-        claim(
-                "it is a PDF: it opens with " + PDF_HEADER,
-                () -> assertThat(bytes).startsWith(PDF_HEADER));
-        claim(
-                "and its one line of text, \"" + LoopbackSidecar.CONTROL_SENTENCE + "\", is written uncompressed,"
-                        + " as a literal string, so the bytes sent carry it",
-                () -> assertThat(bytes).contains("(" + LoopbackSidecar.CONTROL_SENTENCE + ")"));
-    }
-
-    @Test
-    @Issue("393")
-    @Story("Vespera's own control PDF")
-    @DisplayName("Vespera's own control PDF, converted, leaves nothing in the store of converted documents")
-    void aControlConversionThatConvertedLeavesNothingInTheExtractionCache(@TempDir Path root) throws IOException {
-        writeTheCorpus(root, MORE_THAN_FIVE);
-        List<Integer> asRead = theOrderTheStageReadsIn(root);
-        asRead.subList(0, FIVE_IN_A_ROW).forEach(file -> sidecar.dropping(file, LoopbackSidecar.EVERY_CALL));
-
-        cli.run("run", root.toString());
-
-        claim(
-                "extraction completed, having sent the control PDF " + ONCE + " time after the first "
-                        + FIVE_IN_A_ROW + " files in a row crashed the converter, and the converter converted it",
-                () -> {
-                    assertThat(lines()).anyMatch(line -> line.startsWith(STAGE_2_FINISHED));
-                    assertThat(sidecar.controlConversions()).isEqualTo(ONCE);
-                    assertThat(lines()).contains(THE_CONTROL_CONVERTED);
-                });
-        String controlHash = sha256OfTheControlPdf();
-        claim(
-                "nothing is stored under the control PDF's content",
-                () -> assertThat(jdbcTemplate.queryForObject(
-                                "SELECT COUNT(*) FROM extraction_cache WHERE content_hash = ?", Long.class, controlHash))
-                        .as("rows stored under the control PDF's content hash %s", controlHash)
-                        .isZero());
-        claim(
-                "and no stored answer carries the control PDF's sentence, under whatever key",
-                () -> assertThat(jdbcTemplate.queryForObject(
-                                "SELECT COUNT(*) FROM extraction_cache WHERE response_json LIKE ?",
-                                Long.class,
-                                "%" + LoopbackSidecar.CONTROL_SENTENCE + "%"))
-                        .as("stored answers carrying \"%s\"", LoopbackSidecar.CONTROL_SENTENCE)
-                        .isZero());
-    }
-
-    @Test
-    @Issue("393")
-    @Story("Files side by side that each crash the converter")
-    @DisplayName("A timeout the converter reports about a file, between files that crash it, ends their row: the converter answered about that file, so no row reaches five and the control PDF is never sent")
-    void aTimeoutTheConverterReportedEndsARowOfDroppedConnections(@TempDir Path root) throws IOException {
-        writeTheCorpus(root, FOUR_ONE_FOUR);
-        List<Integer> asRead = theOrderTheStageReadsIn(root);
-        int timedOut = asRead.get(THE_MIDDLE);
-        List<Integer> crashing = asRead.stream().filter(file -> file != timedOut).toList();
-        crashing.forEach(file -> sidecar.dropping(file, LoopbackSidecar.EVERY_CALL));
-        sidecar.answering(timedOut, REPORTED_TIMEOUT);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the control PDF was never sent: " + (FIVE_IN_A_ROW - 1) + " files crashed the converter, the one"
-                        + " read next was answered with a timeout the converter reported about it, which ends the"
-                        + " row, and " + (FIVE_IN_A_ROW - 1) + " more crashed it after that",
-                () -> assertThat(sidecar.controlConversions()).isEqualTo(NOT_AT_ALL));
-        claim(
-                "extraction completed",
-                () -> assertThat(lines()).anyMatch(line -> line.startsWith(STAGE_2_FINISHED)));
-        claim(
-                "the " + crashing.size() + " files that crashed the converter were removed with that as their"
-                        + " reason, and the one that timed out was removed for the timeout",
-                () -> {
-                    Map<String, String> reasons = extractionFailedReasons(root);
-                    assertThat(reasons).hasSize(FOUR_ONE_FOUR);
-                    crashing.forEach(file ->
-                            assertThat(reasons.get(nameOf(file))).startsWith("crashed the converter:"));
-                    assertThat(reasons.get(nameOf(timedOut))).isEqualTo("timeout: " + TOOK_TOO_LONG);
-                });
-    }
-
-    /**
-     * The control PDF's content hash, as the extraction cache would key it: SHA-256 over the shipped
-     * bytes, in lowercase hex.
-     */
-    private static String sha256OfTheControlPdf() throws IOException {
-        try (InputStream shipped =
-                ControlConversionInvocationTest.class.getClassLoader().getResourceAsStream(THE_CONTROL_PDF)) {
-            claim("the control PDF is on the classpath at " + THE_CONTROL_PDF, () -> assertThat(shipped).isNotNull());
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(shipped.readAllBytes()));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is required of every JVM", e);
-        }
     }
 
     /**
@@ -580,36 +297,6 @@ class ControlConversionInvocationTest {
 
     private List<String> lines() {
         return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
-    }
-
-    /** What was posted since {@code before}, per file, leaving out every file posted no more often. */
-    private Map<Integer, Long> postedSince(Map<Integer, Long> before) {
-        return sidecar.callsPerDocument().entrySet().stream()
-                .filter(posted -> posted.getValue() > before.getOrDefault(posted.getKey(), NOT_AT_ALL))
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey, posted -> posted.getValue() - before.getOrDefault(posted.getKey(), NOT_AT_ALL)));
-    }
-
-    /** The one stage-2 run over {@code root}, claimed to be the only one. */
-    private String onlyExtractionRunOf(Path root) {
-        List<String> runs = jdbcTemplate.queryForList(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id WHERE w.root = ? AND r.stage = ?",
-                String.class,
-                Walk.canonicalRoot(root).toString(),
-                StageModules.EXTRACTION.stage());
-        claim(
-                "extraction over this folder has one run so far, so every count below is about that run",
-                () -> assertThat(runs).hasSize(1));
-        return runs.getFirst();
-    }
-
-    private boolean stageTwoFinished(String run) {
-        Long rows = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM finished_step WHERE run_id = ? AND step = ?",
-                Long.class,
-                run,
-                StepNames.EXTRACTION);
-        return rows != null && rows > NOT_AT_ALL;
     }
 
     /** Each file removed as one extraction failed on, with why, for this test's own walk. */

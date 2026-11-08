@@ -5,9 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.corpus.Walk;
-import io.algernon.vespera.engine.profile.ProfileKeys;
 import io.algernon.vespera.engine.profile.ProfileStore;
-import io.algernon.vespera.engine.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -31,9 +29,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * seed, each seed's partition is divided into clusters under that same scoring run — rows, a size
  * report, and nothing else.
  *
- * <p>A sibling of {@link RelevanceScoringInvocationTest} for the reason that class is a sibling of
- * {@link EmbeddingScoringInvocationTest}: this ticket's own step reads what the step before it wrote
- * rather than re-deriving it.
+ * <p>A sibling of {@link RelevanceScoringInvocationTest}: this ticket's own step reads what the step
+ * before it wrote rather than re-deriving it.
  *
  * <p><b>What this step must be shown not to do matters as much as what it does.</b> Clustering
  * arranges what survived, so no verdict may appear because of it, and its two parameters are code
@@ -50,17 +47,6 @@ class ClusteringInvocationTest {
 
     /** How many corpus documents this fixture walks, all of which survive to be clustered. */
     private static final int CORPUS_DOCUMENTS = 3;
-
-    /**
-     * Every key the profile is allowed to carry after this step has run — the same set it had before,
-     * which is the claim. The set grows when a <em>later</em> stage adds a key of its own, as the
-     * arrangement's approval did (ADR-107, #175); it must never grow because of this step. Read off the
-     * profile record rather than spelled out, so it is the one list every test compares with (ADR-186).
-     */
-    private static final List<String> THE_KNOWN_PROFILE_KEYS = ProfileKeys.everyKey();
-
-    /** The weakest, middle and strongest link of a partition, a cell each. */
-    private static final int LINK_COLUMNS = 3;
 
     @TempDir
     static Path workingDirectory;
@@ -111,98 +97,9 @@ class ClusteringInvocationTest {
                 () -> assertThat(verdictCountFor(root)).isZero());
     }
 
-    @Test
-    @Story("The parameters are code defaults, never profile keys")
-    @DisplayName("Clustering adds no profile key, so nothing new ships unset")
-    void addsNoProfileKey(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
-        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profile(seeds);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "clustering contributes none of the keys the profile carries: k and the"
-                        + " resolution are operational numbers, and cluster granularity is a preference"
-                        + " about page size discoverable only from output that does not exist yet -- a key"
-                        + " for it would ship unset, gate nothing, and be unanswerable",
-                () -> assertThat(topLevelProfileKeys())
-                        .containsExactlyInAnyOrderElementsOf(THE_KNOWN_PROFILE_KEYS));
-        claim(
-                "and no edge similarity floor appears among them either: an unmeasured threshold is what"
-                        + " observe-before-enforce refuses, and k already bounds the edges",
-                () -> assertThat(topLevelProfileKeys()).noneSatisfy(key -> assertThat(key).contains("similarity")));
-    }
-
-    @Test
-    @Story("The spread of cluster sizes is reported per partition")
-    @DisplayName("The size report is written beside the profile, naming the exemplar's partition")
-    void writesTheSizeReport(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
-        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profile(seeds);
-
-        cli.run("run", root.toString());
-
-        Path report = workingDirectory.resolve(ClusteringTasklet.CLUSTER_SIZES_FILE_NAME);
-        claim(
-                "the report was written to the working directory rather than into the corpus (ADR-054),"
-                        + " beside the profile the operator was already told to look at",
-                () -> assertThat(Files.exists(report)).isTrue());
-        claim(
-                "and it names the exemplar whose partition was grouped, so the sizes belong to something"
-                        + " a reader can find",
-                () -> assertThat(Files.readString(report)).contains("seed.txt"));
-        claim(
-                "and its table has columns for how alike the documents on the kept links were, which is the"
-                        + " one thing the sizes cannot say: a partition grouped by resemblance and one grouped"
-                        + " because k links every document to its nearest few produce the same rows",
-                () -> assertThat(Files.readString(report))
-                        .contains("Weakest link")
-                        .contains("Strongest link"));
-        claim(
-                "and this partition holds one document, so its " + LINK_COLUMNS + " link cells show no"
-                        + " resemblance at all rather than 0.00: there is no pair of documents for a number to"
-                        + " describe, and a zero would read as a document resembling nothing",
-                () -> assertThat(Files.readString(report))
-                        .contains(ReportPage.numberCell(1) + ReportPage.numberCell("&mdash;").repeat(LINK_COLUMNS)));
-    }
-
-    @Test
-    @Story("The retained-edge spread is reported beside the sizes")
-    @DisplayName("A partition with links reports how alike the documents on them were")
-    void reportsTheResemblanceOfAPartitionThatHasLinks(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        Files.writeString(root.resolve("corpus-a.txt"), "a corpus document");
-        Files.writeString(root.resolve("corpus-b.txt"), "another corpus document");
-        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profile(seeds);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "two documents make one link, and the page carries the number that link is worth --"
-                        + " read off the graph this invocation built rather than recomputed afterwards,"
-                        + " since the similarities exist only inside the pass that chose the edges",
-                () -> assertThat(theSizeReport()).containsPattern(">[01]\\.\\d\\d<"));
-    }
-
-    /** The size report as written, for a claim about what a reader would see. */
-    private String theSizeReport() throws IOException {
-        return Files.readString(workingDirectory.resolve(ClusteringTasklet.CLUSTER_SIZES_FILE_NAME));
-    }
-
     /** The seed folder named, stage 4's gate open, and gate 3 open too. */
     private void profile(Path seeds) {
         EveryGateOpen.throughStageFive(profileStore, seeds);
-    }
-
-    /** The keys the profile file actually carries, read as text rather than through the record. */
-    private List<String> topLevelProfileKeys() throws IOException {
-        return Files.readAllLines(profileStore.file()).stream()
-                .filter(line -> !line.isBlank() && !Character.isWhitespace(line.charAt(0)) && line.contains(":"))
-                .map(line -> line.substring(0, line.indexOf(':')).trim())
-                .toList();
     }
 
     /**

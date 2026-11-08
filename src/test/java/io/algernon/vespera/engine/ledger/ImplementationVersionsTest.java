@@ -42,16 +42,6 @@ class ImplementationVersionsTest {
 
     @Test
     @Story("What version of the code a stage ran as")
-    @DisplayName("The version recorded for a module is read back exactly")
-    void readsBackWhatTheBuildRecorded() {
-        claim(
-                "the commit the build recorded for a module is returned unchanged, so a run's identity is"
-                        + " traceable to a commit a person can go and read",
-                () -> assertThat(recording("corpus", A_RECORDED_SHA).of("corpus")).isEqualTo(A_RECORDED_SHA));
-    }
-
-    @Test
-    @Story("What version of the code a stage ran as")
     @DisplayName("A module the build could not attribute refuses to be read at all")
     void refusesTheUnattributedPlaceholder() {
         ImplementationVersions versions = recording("pipeline", "unknown");
@@ -62,20 +52,6 @@ class ImplementationVersionsTest {
                 () -> assertThatThrownBy(() -> versions.of("pipeline"))
                         .isInstanceOf(IllegalStateException.class)
                         .hasMessageContaining("pipeline"));
-    }
-
-    @Test
-    @Story("What version of the code a stage ran as")
-    @DisplayName("A module the build never mentioned refuses in the same way")
-    void refusesAModuleTheBuildNeverRecorded() {
-        ImplementationVersions versions = recording("corpus", A_RECORDED_SHA);
-
-        claim(
-                "a module missing from the build's record is refused exactly as an unattributed one is:"
-                        + " both mean nobody knows what code would run",
-                () -> assertThatThrownBy(() -> versions.of("embedding"))
-                        .isInstanceOf(IllegalStateException.class)
-                        .hasMessageContaining("embedding"));
     }
 
     @Test

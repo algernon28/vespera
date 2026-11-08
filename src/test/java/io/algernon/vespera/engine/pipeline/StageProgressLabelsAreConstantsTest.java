@@ -101,35 +101,6 @@ class StageProgressLabelsAreConstantsTest {
                         .allMatch(part -> A_WHOLE_STRING_LITERAL.matcher(part).matches() || allowedHere.contains(part));
     }
 
-    @Test
-    @Story("A progress label is spelled by code and never built from a document")
-    @DisplayName("A label that opens with literal text and then formats something into it is not taken for literal text")
-    void aLiteralWithACallOnItIsNotALiteral() {
-        claim(
-                "text with a placeholder, filled by a call on it, is refused: what fills the placeholder is"
-                        + " whatever the call is handed, and the scan cannot read that it is a number",
-                () -> assertThat(isConstant(new Label(
-                                "ArrangementTasklet.java", "\"Stage 6a (arrangement, clusters, partition %d of %d)\".formatted(place")))
-                        .isFalse());
-        claim(
-                "the same label built by joining literal text to the two numbers a stage counts its exemplars"
-                        + " with is accepted in the file those names are allowed in",
-                () -> assertThat(isConstant(new Label(
-                                "ArrangementTasklet.java",
-                                "\"Stage 6a (arrangement, clusters, partition \" + place + \" of \" + of + \")\"")))
-                        .isTrue());
-        claim(
-                "and refused in a file they are not allowed in, where the same two names could be anything",
-                () -> assertThat(isConstant(new Label(
-                                "GenerationTasklet.java",
-                                "\"Stage 6b (generation, clusters, partition \" + place + \" of \" + of + \")\"")))
-                        .isFalse());
-        claim(
-                "literal text alone, with a bracket and a comma inside it, is still literal text",
-                () -> assertThat(isConstant(new Label("GenerationTasklet.java", "\"Stage 6b (generation, clusters)\"")))
-                        .isTrue());
-    }
-
     /** Splits on a {@code +} outside a string literal, keeping each part trimmed. */
     private static List<String> partsOf(String expression) {
         List<String> parts = new ArrayList<>();

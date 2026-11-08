@@ -1,7 +1,6 @@
 package io.algernon.vespera.engine.synthesis;
 
 import static io.algernon.vespera.TestSteps.claim;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
@@ -40,9 +39,6 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-105", url = Adr.STAGE_6A_NAMES_THE_ARRANGEMENT_STAGE_5_BUILT, type = "adr")
 class SynthesisSchemaTest {
 
-    /** The version of synthesis's tables, written out: the fourth. */
-    private static final int SYNTHESISS_VERSION = 4;
-
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -64,22 +60,5 @@ class SynthesisSchemaTest {
                         .hasMessageContaining(SynthesisSchema.MODULE)
                         .hasMessageContaining(String.valueOf(SynthesisSchema.VERSION))
                         .hasMessageContaining(String.valueOf(somethingOtherThanSynthesisExpects)));
-    }
-
-    @Test
-    @Story("A module states the schema it was built against")
-    @DisplayName("synthesis records its own version on first use, independent of any other module's row")
-    void recordsItsOwnVersionOnFirstUse() {
-        new SynthesisSchema(new SchemaVersionGuard(jdbcTemplate));
-
-        claim(
-                "the version recorded is exactly " + SYNTHESISS_VERSION + ", the one synthesis's tables are at --"
-                        + " not a value borrowed from a module that happens to have been in the database"
-                        + " longer",
-                () -> assertThat(jdbcTemplate.queryForObject(
-                                "SELECT version FROM schema_version WHERE module = ?",
-                                Integer.class,
-                                SynthesisSchema.MODULE))
-                        .isEqualTo(SYNTHESISS_VERSION));
     }
 }

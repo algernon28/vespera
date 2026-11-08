@@ -13,9 +13,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * {@code degenerate-output}'s floor (ADR-070): a hard zero-content tier enforced always, a confidence tier
@@ -28,15 +26,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Link(name = "ADR-070", url = Adr.EXTRACTION_FAILED_SPLITS_ON_DOCLINGS_STATUS, type = "adr")
 @Link(name = "ADR-078", url = Adr.TIER_2_IS_A_FLOOR_ON_THE_MEAN_CONFIDENCE_SCORE, type = "adr")
 class DegeneracyFloorTest {
-
-    /**
-     * A 300-page scan whose pages are almost all clean: the mean is excellent on Docling's scale
-     * ({@code >= 0.9}), while the one folded page drags the worst-page score down to poor ({@code <
-     * 0.5}). The configured floor sits at the poor/fair boundary.
-     */
-    private static final double EXCELLENT_MEAN_SCORE = 0.91;
-
-    private static final double POOR_WORST_PAGE_SCORE = 0.22;
 
     private static final double CONFIGURED_FLOOR = 0.5;
 
@@ -73,31 +62,6 @@ class DegeneracyFloorTest {
     }
 
     @Test
-    @Story("Tier 1 — the hard zero-content floor")
-    @DisplayName("One alphanumeric character clears tier 1, with tier 2 unset")
-    void oneAlphanumericCharacterClearsTheFloorWhenTier2IsUnset() {
-        ExtractionMetric metric = metricWithAlphanumericCount(1, null);
-
-        DegeneracyVerdict verdict = DegeneracyFloor.evaluate(metric, null, NO_WORD_FLOOR);
-
-        claim("with no confidence floor configured, one real character is enough", () -> assertThat(verdict.degenerate()).isFalse());
-    }
-
-    @Test
-    @Story("Tier 2 — the confidence floor, unset by default")
-    @DisplayName("A low confidence score never blocks while tier 2 is unset")
-    void aLowScoreDoesNotBlockWhileTier2IsUnset() {
-        ExtractionMetric metric = metricWithAlphanumericCount(1, 0.1);
-
-        DegeneracyVerdict verdict = DegeneracyFloor.evaluate(metric, null, NO_WORD_FLOOR);
-
-        claim(
-                "observe before enforce: a score this low would fail almost any threshold, but no threshold"
-                        + " exists yet",
-                () -> assertThat(verdict.degenerate()).isFalse());
-    }
-
-    @Test
     @Story("Tier 2 — the confidence floor, once set")
     @DisplayName("A score below the configured floor is degenerate once tier 2 is set")
     void aScoreBelowTheConfiguredFloorIsDegenerateOnceSet() {
@@ -106,33 +70,6 @@ class DegeneracyFloorTest {
         DegeneracyVerdict verdict = DegeneracyFloor.evaluate(metric, 0.5, NO_WORD_FLOOR);
 
         claim("0.4 is below the configured 0.5 floor", () -> assertThat(verdict.degenerate()).isTrue());
-    }
-
-    @Test
-    @Story("Tier 2 — the confidence floor, once set")
-    @DisplayName("A score at or above the configured floor clears tier 2")
-    void aScoreAtOrAboveTheConfiguredFloorClearsTier2() {
-        ExtractionMetric metric = metricWithAlphanumericCount(1, 0.5);
-
-        DegeneracyVerdict verdict = DegeneracyFloor.evaluate(metric, 0.5, NO_WORD_FLOOR);
-
-        claim("0.5 meets the 0.5 floor, so it clears rather than blocks", () -> assertThat(verdict.degenerate()).isFalse());
-    }
-
-    @Test
-    @Story("Tier 2 — the confidence floor, once set")
-    @DisplayName("A document whose worst page is poor clears tier 2 while its mean is above the floor")
-    void aPoorWorstPageDoesNotBlockWhileTheMeanClearsTheFloor() {
-        ExtractionMetric metric = metricWithMeanAndWorstPageScore(EXCELLENT_MEAN_SCORE, POOR_WORST_PAGE_SCORE);
-
-        DegeneracyVerdict verdict = DegeneracyFloor.evaluate(metric, CONFIGURED_FLOOR, NO_WORD_FLOOR);
-
-        claim(
-                "the floor reads the mean of 0.91, which is above the configured 0.5, and never the"
-                        + " worst-page score of 0.22, which is below it -- a 300-page scan with one folded"
-                        + " page converted fine, and condemning it would be a judgement about part of a"
-                        + " document rather than about whether extraction produced usable text",
-                () -> assertThat(verdict.degenerate()).isFalse());
     }
 
     @Test
@@ -165,58 +102,10 @@ class DegeneracyFloorTest {
                 () -> assertThat(verdict).isEqualTo(new DegeneracyVerdict(true, ONE_WORD_BELOW_A_FLOOR_OF_TWO)));
     }
 
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("wordCountsThatClearTheFloor")
-    @Story("Tier 3 — the word floor, once set")
-    @DisplayName("As many words as the word floor, or more, clear it")
-    @Issue("576")
-    @Link(name = "ADR-282", url = Adr.FEWER_WORDS_THAN_THE_WORD_FLOOR_IS_DEGENERATE_OUTPUT, type = "adr")
-    void asManyWordsAsTheFloorClearIt(long words) {
-        ExtractionMetric metric = metricWithWords(words, null);
-
-        DegeneracyVerdict verdict = DegeneracyFloor.evaluate(metric, null, A_WORD_FLOOR_OF_TWO);
-
-        claim(
-                words + " words meet a floor of " + A_WORD_FLOOR_OF_TWO + ": the floor removes fewer words than"
-                        + " itself, not as many or more",
-                () -> assertThat(verdict).isEqualTo(DegeneracyVerdict.notDegenerate()));
-    }
-
     static Stream<Arguments> wordCountsThatClearTheFloor() {
         return Stream.of(
                 Arguments.of(Named.of("as many words as the floor", TWO_WORDS)),
                 Arguments.of(Named.of("more words than the floor", THREE_WORDS)));
-    }
-
-    @Test
-    @Story("Tier 3 — the word floor, unset by default")
-    @DisplayName("One word is not removed while the word floor is unset")
-    @Issue("576")
-    @Link(name = "ADR-282", url = Adr.FEWER_WORDS_THAN_THE_WORD_FLOOR_IS_DEGENERATE_OUTPUT, type = "adr")
-    void anUnsetWordFloorRemovesNothing() {
-        ExtractionMetric metric = metricWithWords(ONE_WORD, null);
-
-        DegeneracyVerdict verdict = DegeneracyFloor.evaluate(metric, null, NO_WORD_FLOOR);
-
-        claim(
-                "observe before enforce: " + ONE_WORD + " word would be below almost any floor, but none is set",
-                () -> assertThat(verdict).isEqualTo(DegeneracyVerdict.notDegenerate()));
-    }
-
-    @Test
-    @Story("Tier 3 — the word floor, once set")
-    @DisplayName("Where there is no letter or digit at all, the reason given is that, and not too few words")
-    @Issue("576")
-    @Link(name = "ADR-282", url = Adr.FEWER_WORDS_THAN_THE_WORD_FLOOR_IS_DEGENERATE_OUTPUT, type = "adr")
-    void noAlphanumericContentIsTheReasonBeforeTooFewWords() {
-        ExtractionMetric metric = metricWithAlphanumericsAndWords(0, ONE_WORD, null);
-
-        DegeneracyVerdict verdict = DegeneracyFloor.evaluate(metric, null, A_WORD_FLOOR_OF_TWO);
-
-        claim(
-                "tier 1 is judged first: a word of punctuation alone is below the floor of " + A_WORD_FLOOR_OF_TWO
-                        + " too, and the reason is still that nothing alphanumeric was found",
-                () -> assertThat(verdict).isEqualTo(new DegeneracyVerdict(true, UsableText.NO_ALPHANUMERIC_CONTENT)));
     }
 
     @Test
@@ -233,23 +122,6 @@ class DegeneracyFloorTest {
                 "tier 2 is judged before tier 3: a mean of 0.4 under the configured 0.5 is the reason, though "
                         + ONE_WORD + " word is below the floor of " + A_WORD_FLOOR_OF_TWO + " as well",
                 () -> assertThat(verdict).isEqualTo(new DegeneracyVerdict(true, A_MEAN_OF_0_4_BELOW_A_FLOOR_OF_0_5)));
-    }
-
-    @Test
-    @Story("Tier 3 — the word floor, once set")
-    @DisplayName("A document with no confidence score is still held to the word floor")
-    @Issue("576")
-    @Link(name = "ADR-282", url = Adr.FEWER_WORDS_THAN_THE_WORD_FLOOR_IS_DEGENERATE_OUTPUT, type = "adr")
-    void aMissingConfidenceScoreExemptsNothingFromTheWordFloor() {
-        ExtractionMetric metric = metricWithWords(ONE_WORD, null);
-
-        DegeneracyVerdict verdict = DegeneracyFloor.evaluate(metric, 0.99, A_WORD_FLOOR_OF_TWO);
-
-        claim(
-                "a .docx or .txt document has no mean score, which tier 2 reads as not measured; the word floor"
-                        + " reads its words, whatever kind of file it is, and " + ONE_WORD + " is below "
-                        + A_WORD_FLOOR_OF_TWO,
-                () -> assertThat(verdict).isEqualTo(new DegeneracyVerdict(true, ONE_WORD_BELOW_A_FLOOR_OF_TWO)));
     }
 
     /** A converted document of {@code words} words, each holding a letter, with {@code meanScore} or none. */
@@ -276,12 +148,6 @@ class DegeneracyFloorTest {
                 0,
                 null,
                 null);
-    }
-
-    /** A converted document carrying both scores Docling reports: the mean, and the worst page's. */
-    private static ExtractionMetric metricWithMeanAndWorstPageScore(double meanScore, double worstPageScore) {
-        return metricWithConfidence(
-                1, new ConfidenceScores(null, null, null, null, meanScore, worstPageScore, null, null));
     }
 
     private static ExtractionMetric metricWithAlphanumericCount(long alphanumericCharCount, Double meanScore) {

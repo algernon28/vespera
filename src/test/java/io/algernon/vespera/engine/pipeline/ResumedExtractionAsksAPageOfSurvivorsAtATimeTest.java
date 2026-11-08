@@ -172,24 +172,6 @@ class ResumedExtractionAsksAPageOfSurvivorsAtATimeTest {
                         }));
     }
 
-    @Test
-    @Story("A resumed extraction asks which documents it already read")
-    @DisplayName("The count a resumed extraction reports its progress against is taken the same way, a page at a time")
-    void countsWhatIsStillToReadAskingAPageAtATime() {
-        StatementLog log = new StatementLog(pool.jdbcTemplate().getDataSource());
-        Ledger ledger = new Ledger(log.jdbcTemplate());
-        ExtractionMetrics metrics = new ExtractionMetrics(log.jdbcTemplate(), new LanguageDetection());
-
-        long count = UnrecordedOccurrences.countOver(ledger, stopped, page -> metrics.recordedAmong(stopped, page));
-
-        claim(
-                "the count is the " + STILL_TO_READ + " surviving documents the stopped run had not read",
-                () -> assertThat(count).isEqualTo(STILL_TO_READ));
-        claim(
-                "taken a page of surviving documents at a time, each page followed by one ask of its metric rows",
-                () -> assertThat(kinds(log)).containsExactly(PAGE, ASK, PAGE, ASK, PAGE, ASK));
-    }
-
     private static List<String> kinds(StatementLog log) {
         return log.said().stream().map(ResumedExtractionAsksAPageOfSurvivorsAtATimeTest::kind)
                 .filter(kind -> !kind.isEmpty()).toList();

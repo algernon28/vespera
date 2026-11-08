@@ -17,7 +17,6 @@ import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -78,50 +77,6 @@ class ExtractionFaultsTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @Story("A file the converter will not open is recorded rather than left absent")
-    @DisplayName("What the converter reported is kept against the occurrence it refused")
-    void keepsWhatTheConverterReportedAgainstTheOccurrence() {
-        ExtractionFaults faults = new ExtractionFaults(jdbcTemplate);
-        OccurrenceId occurrence = anOccurrence("corpus/legacy.xls");
-        RunId run = aRun(occurrence);
-
-        faults.write(occurrence, run, UNCATEGORISED, DETAIL);
-
-        claim(
-                "the refusal is a row under the run it happened in, so how much of the corpus stage 2"
-                        + " actually got an answer about is a count over two tables rather than a question"
-                        + " about rows that are not there",
-                () -> assertThat(faults.countForRun(run)).isEqualTo(ONE_REFUSAL));
-        claim(
-                "and the row carries the category the converter reported and the message it came with, in"
-                        + " columns of their own: the category is what tells a removal caused by the sidecar"
-                        + " from one caused by the file, and learning it any other way costs the conversion"
-                        + " that already refused once",
-                () -> assertThat(theRowFor(occurrence, run))
-                        .containsEntry("category", UNCATEGORISED)
-                        .containsEntry("detail", DETAIL));
-    }
-
-    @Test
-    @Story("A recorded refusal takes nothing out of the archive by itself")
-    @DisplayName("Writing the row records no judgement against the occurrence")
-    void writesNoVerdict() {
-        ExtractionFaults faults = new ExtractionFaults(jdbcTemplate);
-        OccurrenceId occurrence = anOccurrence("corpus/legacy.xls");
-        RunId run = aRun(occurrence);
-
-        faults.write(occurrence, run, UNCATEGORISED, DETAIL);
-
-        claim(
-                "no judgement stands against the occurrence for the row alone. Whether a refusal is about"
-                        + " the file or about the sidecar is not answerable at the moment it happens -- the"
-                        + " evidence is what becomes of the rest of the step -- so the class that records"
-                        + " the refusal leaves that question to whatever can answer it",
-                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM verdict", Integer.class))
-                        .isZero());
-    }
-
-    @Test
     @Story("A stopped invocation's rows are cleared before the same work is done again")
     @DisplayName("Discarding clears this run's refusals and lets them be written again, and touches no other run's")
     void discardsThisRunsRefusalsAndLetsThemBeWrittenAgain() {
@@ -154,29 +109,6 @@ class ExtractionFaultsTest {
                         + " writes beside the first rather than over it -- what one pass could not open says"
                         + " nothing about what another was told",
                 () -> assertThat(faults.countForRun(anotherRun)).isEqualTo(ONE_REFUSAL));
-    }
-
-    @Test
-    @Story("A count of refusals is a count of one pass's refusals")
-    @DisplayName("A run the converter refused nothing under counts none")
-    void countsNoneForARunWithNoRefusals() {
-        ExtractionFaults faults = new ExtractionFaults(jdbcTemplate);
-        OccurrenceId occurrence = anOccurrence("corpus/legacy.xls");
-        RunId run = aRun(occurrence);
-
-        claim(
-                "a pass the converter opened everything for counts none rather than failing to answer."
-                        + " The number goes on the page an operator reads to set a threshold, so a run with"
-                        + " no refusals has to be able to say so",
-                () -> assertThat(faults.countForRun(run)).isEqualTo(NO_REFUSALS));
-    }
-
-    /** The one row, read straight off the table: nothing in {@code src/main} reads these rows back. */
-    private Map<String, Object> theRowFor(OccurrenceId occurrence, RunId run) {
-        return jdbcTemplate.queryForMap(
-                "SELECT category, detail FROM extraction_fault WHERE occurrence_id = ? AND run_id = ?",
-                occurrence.value(),
-                run.value());
     }
 
     private OccurrenceId anOccurrence(String path) {

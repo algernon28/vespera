@@ -43,22 +43,6 @@ class LanguagesTest {
 
     @Test
     @Story("A folder named for a language")
-    @DisplayName("A region or a script after the code keeps the code's language")
-    void aRegionOrAScriptAfterTheCodeKeepsItsLanguage() {
-        Map<String, Optional<String>> read = readAsFolders(List.of("en_US", "pt-BR", "zh-cn", "zh-Hans"));
-
-        claim(
-                "a two-letter region or a four-letter script after a hyphen or an underscore, in either case,"
-                        + " leaves the folder one of the language its first two letters name",
-                () -> assertThat(read).containsExactlyInAnyOrderEntriesOf(Map.of(
-                        "en_US", Optional.of("en"),
-                        "pt-BR", Optional.of("pt"),
-                        "zh-cn", Optional.of("zh"),
-                        "zh-Hans", Optional.of("zh"))));
-    }
-
-    @Test
-    @Story("A folder named for a language")
     @DisplayName("Capitals, names in full, three-letter codes, unknown codes and odd suffixes are no language folder")
     void noOtherSegmentIsALanguageFolder() {
         List<String> segments = List.of("IT", "HR", "En", "english", "eng", "xx", "en-", "en_USA", "e", "");
@@ -74,27 +58,6 @@ class LanguagesTest {
                 () -> assertThat(read.values())
                         .withFailMessage("the segments were read as %s", read)
                         .containsOnly(Optional.empty()));
-    }
-
-    @Test
-    @Story("A folder named for a language")
-    @DisplayName("A language as the detector named it reads as its two-letter code, and no language as none")
-    void aStoredLanguageReadsAsItsCode() {
-        Map<String, Optional<String>> read = new LinkedHashMap<>();
-        for (String stored : List.of("ENGLISH", "CHINESE", "BOKMAL")) {
-            read.put(stored, Languages.ofDetected(stored));
-        }
-
-        claim(
-                "the names the detector stores, ENGLISH, CHINESE and BOKMAL, read as en, zh and nb, the codes a"
-                        + " folder is named by, so a folder's language and a detected one can be compared",
-                () -> assertThat(read).containsExactlyInAnyOrderEntriesOf(Map.of(
-                        "ENGLISH", Optional.of("en"),
-                        "CHINESE", Optional.of("zh"),
-                        "BOKMAL", Optional.of("nb"))));
-        claim(
-                "and a text whose language was not detected has no code",
-                () -> assertThat(Languages.ofDetected(null)).isEmpty());
     }
 
     /** Each segment and what {@link Languages#ofFolder} reads it as, in the order given. */

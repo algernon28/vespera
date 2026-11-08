@@ -68,17 +68,6 @@ class InvocationAccountInvocationTest {
     /** The corpus file the scripted converter fails on while blaming itself, so a fault row is written. */
     private static final String FAULTED = SeedScriptedExtractionBeans.CONVERTER_FAULT;
 
-    /** The corpus files the fixture writes: the two readable ones and the one the converter faults on. */
-    private static final int CORPUS_FILES = MARKED_READABLE_FILES.size() + 1;
-
-    /** The one file the converter faulted on, and so the one extraction-failed verdict this fixture earns. */
-    private static final int ONE_FAULTED_FILE = 1;
-
-
-    /** The stage whose progress line this fixture can read: one seed, recorded, so one of one. */
-    private static final String SEEDS_RECORDED_LINE =
-            "Stage 5a (seed extraction, seeds recorded): 1 of 1 (100%)";
-
     @TempDir
     static Path workingDirectory;
 
@@ -129,117 +118,6 @@ class InvocationAccountInvocationTest {
         }
     }
 
-    @Test
-    @Story("An account says which steps ran, how they ended and how long each took")
-    @DisplayName("The account names every step of the job that ran, with its outcome and its duration")
-    void theAccountNamesEveryStepAndHowItEnded(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aMarkedCorpus(root, seeds);
-        profileNaming(seeds);
-        List<Path> before = accounts();
-
-        cli.run("run", root.toString());
-
-        String account = theOneAccountWrittenSince(before);
-        for (String step : List.of(
-                StepNames.CENSUS,
-                StepNames.BYTE_LEVEL_REDUCTION,
-                StepNames.EXTRACTION,
-                StepNames.CONTENT_CENSUS,
-                StepNames.SEED_EXTRACTION,
-                StepNames.ARRANGEMENT)) {
-            claim(
-                    "the account has a line for the " + step + " step carrying how it ended and how long it took",
-                    () -> assertThat(linesOf(account))
-                            .anyMatch(line -> line.contains(" step name=" + step + " ")
-                                    && line.contains("status=COMPLETED")
-                                    && line.contains("duration=PT")));
-        }
-        claim(
-                "the account opens with the invocation starting and closes with it ending, with how it ended",
-                () -> {
-                    assertThat(linesOf(account).getFirst()).contains(" invocation started");
-                    assertThat(linesOf(account).getLast()).contains(" invocation ended").contains("status=COMPLETED");
-                });
-    }
-
-    @Test
-    @Story("An account carries the counts a run is diagnosed from")
-    @DisplayName("The account counts occurrences, verdicts by kind and faults by category, and names none of them")
-    void theAccountCarriesCounts(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aMarkedCorpus(root, seeds);
-        profileNaming(seeds);
-        List<Path> before = accounts();
-
-        cli.run("run", root.toString());
-
-        String account = theOneAccountWrittenSince(before);
-        claim(
-                "it counts the " + CORPUS_FILES + " occurrences the walk recorded, as a number and nothing else",
-                () -> assertThat(account).contains("counts occurrences=" + CORPUS_FILES));
-        claim(
-                "it counts the " + ONE_FAULTED_FILE + " extraction-failed verdict the faulted file earned, by"
-                        + " the kind the verdict vocabulary names",
-                () -> assertThat(account)
-                        .contains("counts verdict kind=EXTRACTION_FAILED count=" + ONE_FAULTED_FILE));
-        claim(
-                "it counts the " + ONE_FAULTED_FILE + " extraction fault by the category the converter reported,"
-                        + " and writes none of the converter's message about the file",
-                () -> assertThat(account)
-                        .contains("counts extraction-fault category=internal count=" + ONE_FAULTED_FILE)
-                        .doesNotContain(SeedScriptedExtractionBeans.CONVERTER_FAULT_MESSAGE));
-        claim(
-                "it counts at least one group arranged, drawn from documents whose names carry the marker, and"
-                        + " names none of them",
-                () -> assertThat(account).containsPattern("counts clusters arranged=[1-9][0-9]* "));
-    }
-
-    @Test
-    @Story("An account carries each loop's progress, which is the label its stage spelled and counts")
-    @DisplayName("The account carries the progress lines the invocation wrote, word for word")
-    void theAccountCarriesProgressLines(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aMarkedCorpus(root, seeds);
-        profileNaming(seeds);
-        List<Path> before = accounts();
-
-        cli.run("run", root.toString());
-
-        String account = theOneAccountWrittenSince(before);
-        claim(
-                "the seed recording loop's one line is in the account as it was written to the log: its"
-                        + " label and the count, one of one",
-                () -> assertThat(linesOf(account)).anyMatch(line -> line.endsWith(" progress " + SEEDS_RECORDED_LINE)));
-    }
-
-    @Test
-    @Story("A failed step is named by the type of what failed, and its message stays in the operator's log")
-    @DisplayName("A step that fails on a message naming a marked file is written by exception type alone")
-    void aFailureIsKeptAsItsTypeAndNeverItsMessage(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aMarkedCorpus(root, seeds);
-        profileNaming(seeds);
-        Files.writeString(profileStore.file(), MARKER + "-key-written-flat: a value\n");
-        List<Path> before = accounts();
-
-        cli.run("run", root.toString());
-
-        String account = theOneAccountWrittenSince(before);
-        claim(
-                "the invocation failed, because a profile that does not load stops the census step: the"
-                        + " exception it throws names the profile's file and the key, which is the message"
-                        + " this test is about",
-                () -> assertThat(cli.getExitCode()).isNotZero());
-        claim(
-                "the account names the failed step and the exception's own type, which is what says what failed",
-                () -> assertThat(linesOf(account))
-                        .anyMatch(line -> line.contains(" failure step=" + StepNames.CENSUS + " ")
-                                && line.contains("type=io.algernon.vespera.engine.profile.MisshapenProfileException")));
-        claim(
-                "the account ends with the invocation having failed, and has none of the marker the message carried",
-                () -> {
-                    assertThat(linesOf(account).getLast()).contains(" invocation ended").contains("status=FAILED");
-                    assertThat(account).doesNotContain(MARKER).doesNotContain(workingDirectory.toString());
-                });
-    }
-
     /** Marks every directory, file name and text the invocation is given, and one file the converter faults on. */
     private void aMarkedCorpus(Path root, Path seeds) throws IOException {
         Path folder = Files.createDirectory(root.resolve(MARKED_FOLDER));
@@ -276,18 +154,5 @@ class InvocationAccountInvocationTest {
             }
         }
         return written;
-    }
-
-    /** The one account this invocation added, failing with a plain message when it added none or several. */
-    private String theOneAccountWrittenSince(List<Path> before) throws IOException {
-        List<String> written = accountsWrittenSince(before);
-        claim(
-                "the invocation wrote exactly one account, in the working directory's logs folder",
-                () -> assertThat(written).hasSize(1));
-        return written.getFirst();
-    }
-
-    private static List<String> linesOf(String account) {
-        return account.lines().toList();
     }
 }

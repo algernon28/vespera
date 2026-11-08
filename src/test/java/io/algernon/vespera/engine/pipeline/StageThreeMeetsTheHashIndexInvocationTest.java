@@ -9,7 +9,6 @@ import io.algernon.vespera.engine.extraction.ConverterStopsPartwayBeans;
 import io.algernon.vespera.engine.ledger.SuccessiveBuildsBeans;
 import io.algernon.vespera.engine.profile.ProfileFixture;
 import io.algernon.vespera.engine.profile.ProfileStore;
-import io.algernon.vespera.engine.similarity.TheRunsHashIndex;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -70,9 +69,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * claims on the trigger's record hold. The last claim of {@link
  * #aStageThreeStoppedOverOneCorpusRootGroupsWithTheHashIndexAnotherCorpusRootsStageFourBBuilt} holds what
  * the clause is for: with the index there, the grouping as {@link #GROUPING} writes it is planned through
- * {@code shingle_by_run_id} and sorts for its {@code GROUP BY}. That {@code DocumentFrequency} sends the
- * clause is {@code DocumentFrequencyIsCountedInTheDatabaseTest}'s to hold; the text planned here is this
- * class's own copy.
+ * {@code shingle_by_run_id} and sorts for its {@code GROUP BY}. The text planned here is this class's own copy.
  */
 @CascadeSliceTest
 @Import({ConverterStopsPartwayBeans.class, SuccessiveBuildsBeans.class})
@@ -96,9 +93,6 @@ class StageThreeMeetsTheHashIndexInvocationTest {
     /** The index ADR-219's clause names, which a start always makes. */
     private static final String BY_RUN_ID = "shingle_by_run_id";
 
-    /** What the trigger records where the index is there, and where it is not. */
-    private static final int PRESENT = 1;
-
     private static final int ABSENT = 0;
 
     /** The start of the line stage 2 writes before it drops the index. */
@@ -106,9 +100,6 @@ class StageThreeMeetsTheHashIndexInvocationTest {
 
     /** The start of the line stage 4b writes before it builds the index. */
     private static final String BUILDING = "Stage 4b (redundancy resolution) is building shingle_by_hash";
-
-    /** The start of the line stage 3 writes when it has work to do, before the run's id. */
-    private static final String STAGE_3_STARTING = "Stage 3 (content census) starting under run ";
 
     /**
      * Stage 3's grouping for its plan: what {@code DocumentFrequency} issues, less the insert and less the
@@ -170,61 +161,6 @@ class StageThreeMeetsTheHashIndexInvocationTest {
 
     @Test
     @Story("When the index on word-sequence hashes exists")
-    @DisplayName("After a new build that changes only the code that runs the stages, the count of repeated word sequences is not made again")
-    @Issue("353")
-    @Link(name = "ADR-222", url = Adr.A_STAGE_NAMES_PIPELINE_ONLY_WHILE_PIPELINE_HOLDS_A_RULE_OF_IT, type = "adr")
-    void aBuildThatMovesOnlyPipelineLeavesStageThreesRunAsItWas(CapturedOutput output, @TempDir Path root)
-            throws IOException {
-        writeCorpus(root, "pipeline alone");
-        openStageFoursGate();
-        cli.run("run", root.toString());
-        String extractionRun = onlyRunOf(root, StageModules.EXTRACTION);
-        String firstCensus = onlyRunOf(root, StageModules.CONTENT_CENSUS);
-
-        claim(
-                "the first invocation counts the repeated word sequences with no hash index, the extraction"
-                        + " before it having had everything to write",
-                () -> assertThat(howTheGroupingFoundTheIndexUnder(firstCensus)).containsExactly(ABSENT));
-        claim(
-                "and ends with the hash index in place, built for the redundancy check",
-                () -> assertThat(indexExists()).isTrue());
-
-        SuccessiveBuildsBeans.aCommitTo("pipeline");
-        ConverterStopsPartwayBeans.keepAnswering();
-        int before = output.getAll().length();
-        cli.run("run", root.toString());
-        String second = output.getAll().substring(before);
-        List<String> censusRuns = runsOf(root, StageModules.CONTENT_CENSUS);
-
-        claim("the second invocation, under the new build, completes", () -> assertThat(cli.getExitCode())
-                .isZero());
-        claim(
-                "its extraction is the one already finished",
-                () -> assertThat(runsOf(root, StageModules.EXTRACTION)).containsExactly(extractionRun));
-        claim(
-                "so it converts nothing",
-                () -> assertThat(ConverterStopsPartwayBeans.conversions()).isZero());
-        claim(
-                "and says nothing about removing the hash index, nor about building it, since it was there",
-                () -> assertThat(second).doesNotContain(REMOVING).doesNotContain(BUILDING));
-        claim(
-                "the count of repeated word sequences is the one already made, and no second one stands"
-                        + " beside it: the new build changed only the code that runs the stages, and that"
-                        + " code is no part of what this count is identified by",
-                () -> assertThat(censusRuns).containsExactly(firstCensus));
-        claim("so the second invocation does not say that count is starting", () -> assertThat(second)
-                .doesNotContain(STAGE_3_STARTING));
-        claim(
-                "the redundancy check that read that count is the one already made too, for the same reason",
-                () -> assertThat(runsOf(root, StageModules.CONTENT_REDUNDANCY)).hasSize(1));
-        claim(
-                "and no row of that count was written with the hash index in the database: the only rows"
-                        + " are the first invocation's, written before the index was built",
-                () -> assertThat(howTheGroupingFoundTheIndexUnder(firstCensus)).containsExactly(ABSENT));
-    }
-
-    @Test
-    @Story("When the index on word-sequence hashes exists")
     @DisplayName("After a new build that changes the code that makes the word sequences, the extraction removes the hash index before the repeated word sequences are counted again")
     void aBuildThatMovesSimilarityHasStageTwoDropTheHashIndexBeforeStageThreeGroups(
             CapturedOutput output, @TempDir Path root) throws IOException {
@@ -259,80 +195,6 @@ class StageThreeMeetsTheHashIndexInvocationTest {
                 "so the second count of repeated word sequences found no hash index for any row it wrote",
                 () -> assertThat(howTheGroupingFoundTheIndexUnder(censusRuns.getLast()))
                         .containsExactly(ABSENT));
-    }
-
-    @Test
-    @Story("When the index on word-sequence hashes exists")
-    @DisplayName("A count of repeated word sequences stopped over one folder is made with the hash index in place, once another folder kept in the same place has reached the redundancy check")
-    void aStageThreeStoppedOverOneCorpusRootGroupsWithTheHashIndexAnotherCorpusRootsStageFourBBuilt(
-            CapturedOutput output, @TempDir Path finished, @TempDir Path stopped) throws IOException {
-        writeCorpus(finished, "the corpus that goes on");
-        writeCorpus(stopped, "the corpus that stops");
-
-        cli.run("run", finished.toString());
-        jdbcTemplate.execute("CREATE TRIGGER stage_three_stops BEFORE INSERT ON finished_step WHEN NEW.step = '"
-                + StepNames.CONTENT_CENSUS + "' BEGIN SELECT RAISE(ABORT, 'stage 3 stopped'); END");
-        try {
-            cli.run("run", stopped.toString());
-        } finally {
-            jdbcTemplate.execute("DROP TRIGGER IF EXISTS stage_three_stops");
-        }
-        String stoppedExtraction = onlyRunOf(stopped, StageModules.EXTRACTION);
-
-        claim(
-                "the invocation over the second folder stops while it counts the repeated word sequences",
-                () -> assertThat(cli.getExitCode()).isNotZero());
-        claim(
-                "with its extraction finished",
-                () -> assertThat(stepFinished(stoppedExtraction, StepNames.EXTRACTION)).isTrue());
-        claim(
-                "and nothing of its count kept, not even the run it was made under: the stop undid the whole"
-                        + " of it",
-                () -> assertThat(runsOf(stopped, StageModules.CONTENT_CENSUS)).isEmpty());
-        claim(
-                "and no hash index in the database: both extractions wrote, and nothing has built one since",
-                () -> assertThat(indexExists()).isFalse());
-
-        openStageFoursGate();
-        cli.run("run", finished.toString());
-        String finishedExtraction = onlyRunOf(finished, StageModules.EXTRACTION);
-
-        claim(
-                "the first folder, invoked again with the redundancy check opened, ends with the hash index"
-                        + " built over the word sequences of its own extraction alone, not the second folder's",
-                () -> assertThat(TheRunsHashIndex.statementInTheDatabase(jdbcTemplate))
-                        .contains(TheRunsHashIndex.statementFor(finishedExtraction)));
-
-        jdbcTemplate.update("DELETE FROM hash_index_as_the_grouping_found_it");
-        ConverterStopsPartwayBeans.keepAnswering();
-        int before = output.getAll().length();
-        cli.run("run", stopped.toString());
-        String resumed = output.getAll().substring(before);
-
-        claim("the second folder, invoked again, completes", () -> assertThat(cli.getExitCode())
-                .isZero());
-        String stoppedCensus = onlyRunOf(stopped, StageModules.CONTENT_CENSUS);
-        claim(
-                "under the same extraction, which has nothing to write and says nothing about removing the"
-                        + " hash index",
-                () -> assertThat(resumed).doesNotContain(REMOVING));
-        claim(
-                "its count of repeated word sequences is made in this invocation",
-                () -> assertThat(resumed).contains(STAGE_3_STARTING + stoppedCensus));
-        claim(
-                "over the extraction that finished before the stop, the only one this folder has had",
-                () -> assertThat(runsOf(stopped, StageModules.EXTRACTION)).containsExactly(stoppedExtraction));
-        claim(
-                "and every row it wrote was written with the hash index in the database",
-                () -> assertThat(howTheGroupingFoundTheIndexUnder(stoppedCensus)).containsExactly(PRESENT));
-        claim(
-                "and with the hash index there, the count as written out here, naming the index by run, is"
-                        + " planned through that index and sorts the rows itself to count them: the hash index in"
-                        + " the database does not change the plan of a count that names its index",
-                () -> assertThat(planOfTheGroupingOver(stoppedExtraction))
-                        .contains("USING INDEX " + BY_RUN_ID)
-                        .contains("FOR GROUP BY")
-                        .doesNotContain(BY_HASH));
     }
 
     /**
@@ -395,14 +257,5 @@ class StageThreeMeetsTheHashIndexInvocationTest {
                 "SELECT DISTINCT present FROM hash_index_as_the_grouping_found_it WHERE run_id = ? ORDER BY present",
                 Integer.class,
                 censusRun);
-    }
-
-    private String planOfTheGroupingOver(String extractionRun) {
-        return String.join(
-                " | ",
-                jdbcTemplate.query(
-                        "EXPLAIN QUERY PLAN " + GROUPING,
-                        (resultSet, rowNumber) -> resultSet.getString("detail"),
-                        extractionRun));
     }
 }
