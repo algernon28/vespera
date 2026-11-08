@@ -3,9 +3,9 @@ package io.algernon.vespera;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.algernon.vespera.extraction.FailureCategory;
-import io.algernon.vespera.ledger.VerdictKind;
-import io.algernon.vespera.synthesis.ClusterFaultKind;
+import io.algernon.vespera.engine.extraction.FailureCategory;
+import io.algernon.vespera.engine.ledger.VerdictKind;
+import io.algernon.vespera.engine.synthesis.ClusterFaultKind;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -40,7 +40,7 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-224", url = Adr.THE_ACCOUNTS_COUNTS_AND_THE_EMBEDDER_IDENTITY_READS_SORT_NOTHING, type = "adr")
 class TheAccountsCountsAreTextsTheBuildHoldsTest {
 
-    private static final String THE_CLASS_THAT_COUNTS_FOR_THE_ACCOUNT = "io.algernon.vespera.pipeline.InvocationAccount";
+    private static final String THE_CLASS_THAT_COUNTS_FOR_THE_ACCOUNT = "io.algernon.vespera.engine.pipeline.InvocationAccount";
 
     @Test
     @Story("A count by kind reads its rows once and sorts none of them")

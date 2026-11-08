@@ -47,9 +47,9 @@ import org.junit.jupiter.api.Test;
 class MethodsNothingShippedCallsAreGoneTest {
 
     /** The record of content identity and of which copy stands for the others. */
-    private static final String CONTENT_IDENTITY = "io.algernon.vespera.corpus.ContentIdentity";
+    private static final String CONTENT_IDENTITY = "io.algernon.vespera.engine.corpus.ContentIdentity";
 
-    private static final String EXTRACTION = "io.algernon.vespera.extraction.";
+    private static final String EXTRACTION = "io.algernon.vespera.engine.extraction.";
 
     /** The three types of the structureless fallback, both halves and the seam between them. */
     private static final List<String> THE_STRUCTURELESS_FALLBACK = List.of(
@@ -64,26 +64,26 @@ class MethodsNothingShippedCallsAreGoneTest {
     private static final String A_JSON_NODE = "JsonNode";
 
     /** The ledger's record of walks. */
-    private static final String WALKS = "io.algernon.vespera.ledger.Walks";
+    private static final String WALKS = "io.algernon.vespera.engine.ledger.Walks";
 
     /**
      * What the relevance floor lets a run do. A type nested in the floor's class of {@code pipeline} until
      * ADR-226 moved the rule into {@code embedding}; since ADR-227 it answers one action, below which
      * number to remove.
      */
-    private static final String FLOOR_REACH = "io.algernon.vespera.embedding.FloorReach";
+    private static final String FLOOR_REACH = "io.algernon.vespera.engine.embedding.FloorReach";
 
     /** Where the outcome type lived before ADR-226. */
-    private static final String RELEVANCE_FLOOR_STATE = "io.algernon.vespera.pipeline.RelevanceFloor$State";
+    private static final String RELEVANCE_FLOOR_STATE = "io.algernon.vespera.engine.pipeline.RelevanceFloor$State";
 
     /** The reader of a run's scores, which also names the embedder identity its vectors carry. */
-    private static final String RELEVANCE_DISTRIBUTION = "io.algernon.vespera.embedding.RelevanceDistribution";
+    private static final String RELEVANCE_DISTRIBUTION = "io.algernon.vespera.engine.embedding.RelevanceDistribution";
 
     /** How many things the read of an embedder identity takes: the embedding model's name, and its artefact. */
     private static final int A_NAME_AND_AN_ARTEFACT = 2;
 
     /** The clusters a run made, as the embedding module records them. */
-    private static final String DOCUMENT_CLUSTERS = "io.algernon.vespera.embedding.DocumentClusters";
+    private static final String DOCUMENT_CLUSTERS = "io.algernon.vespera.engine.embedding.DocumentClusters";
 
     @Test
     @Story("Nothing ships that nothing calls")

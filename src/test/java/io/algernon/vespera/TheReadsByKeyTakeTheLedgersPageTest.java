@@ -3,13 +3,13 @@ package io.algernon.vespera;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.algernon.vespera.embedding.RelevanceScoring;
-import io.algernon.vespera.extraction.ConfidenceDistribution;
-import io.algernon.vespera.extraction.ExtractionCacheKeys;
-import io.algernon.vespera.extraction.ExtractionMetrics;
-import io.algernon.vespera.extraction.WordCountDistribution;
-import io.algernon.vespera.ledger.KeysetPages;
-import io.algernon.vespera.ledger.Occurrences;
+import io.algernon.vespera.engine.embedding.RelevanceScoring;
+import io.algernon.vespera.engine.extraction.ConfidenceDistribution;
+import io.algernon.vespera.engine.extraction.ExtractionCacheKeys;
+import io.algernon.vespera.engine.extraction.ExtractionMetrics;
+import io.algernon.vespera.engine.extraction.WordCountDistribution;
+import io.algernon.vespera.engine.ledger.KeysetPages;
+import io.algernon.vespera.engine.ledger.Occurrences;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
@@ -60,10 +60,10 @@ class TheReadsByKeyTakeTheLedgersPageTest {
         List<Class<?>> readsByKey = List.of(
                 ExtractionCacheKeys.class,
                 RelevanceScoring.class,
-                Class.forName("io.algernon.vespera.embedding.RelevanceScoreCache"),
+                Class.forName("io.algernon.vespera.engine.embedding.RelevanceScoreCache"),
                 Occurrences.class,
                 ExtractionMetrics.class,
-                Class.forName("io.algernon.vespera.extraction.ChunkCache"),
+                Class.forName("io.algernon.vespera.engine.extraction.ChunkCache"),
                 ConfidenceDistribution.class,
                 WordCountDistribution.class);
 

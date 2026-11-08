@@ -75,7 +75,7 @@ class EachTableIsNamedOnlyByItsOwnerTest {
      * The one class ADR-198 section 3 lets count rows in tables it does not own, for the invocation
      * account, which ADR-209 section 3 leaves standing: counts and nothing else, made nowhere else.
      */
-    private static final String THE_CLASS_THAT_COUNTS_FOR_THE_ACCOUNT = "io.algernon.vespera.pipeline.InvocationAccount";
+    private static final String THE_CLASS_THAT_COUNTS_FOR_THE_ACCOUNT = "io.algernon.vespera.engine.pipeline.InvocationAccount";
 
     /** The seven tables that exception names, and no more: the ledger's three, extraction's one, synthesis's three. */
     private static final Set<String> TABLES_THE_ACCOUNT_COUNTS = Set.of(

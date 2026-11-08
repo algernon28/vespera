@@ -1977,7 +1977,7 @@ public final class Adr {
             + "0284-code-is-kept-in-code-sets-each-below-the-nearest-folder-under-the-corpus-root-holding-a-build-file.md";
 
     /**
-     * ADR-285 -- the control panel's code lives in this build under {@code io.algernon.controlpanel}, outside the
+     * ADR-285 -- the control panel's code lives in this build under {@code io.algernon.vespera.ui}, outside the
      * nine modules, and is packaged as a second jar, classifier {@code control-panel}, that the Spring Boot jar does
      * not carry; it names only its own package, {@code java.base} and {@code jdk.httpserver}, so no class of the jar,
      * and no class of the jar names it.
@@ -2009,7 +2009,7 @@ public final class Adr {
 
     /**
      * ADR-288 -- the operator starts the control panel with {@code java -jar} on its jar, whose manifest names
-     * {@code io.algernon.controlpanel.ControlPanel} as {@code Main-Class} and the Spring Boot jar's file name as
+     * {@code io.algernon.vespera.ui.ControlPanel} as {@code Main-Class} and the Spring Boot jar's file name as
      * {@code Vespera-Jar}; the control panel starts that jar, found beside its own, with the {@code java} of the runtime
      * running it, and refuses with one line where none is there (amends ADR-285 and ADR-278).
      */
@@ -2440,7 +2440,7 @@ public final class Adr {
     /**
      * ADR-342 -- the control panel is a JavaFX window inside the Vespera jar, OpenJFX 26.0.2's {@code javafx-controls}
      * and {@code javafx-web} of the building platform's classifier, opened by the jar started with no argument through {@code
-     * io.algernon.EntryPoint}, its child the jar it runs from; its loopback server, pages and second jar go, and a
+     * io.algernon.vespera.EntryPoint}, its child the jar it runs from; its loopback server, pages and second jar go, and a
      * window is tested on JavaFX's Headless platform (supersedes ADR-291, ADR-297, ADR-302 but for §5 to §7, ADR-325,
      * ADR-331 but for §6 and §8, and ADR-335; amends ADR-285 §2 to §4, ADR-288 §1 and §4, and ADR-278 §2).
      */
@@ -2610,6 +2610,14 @@ public final class Adr {
      */
     public static final String THE_COCKPITS_CHARTS_CARRY_A_LEGEND_AND_A_RUNNING_STEP_SAYS_ITS_PERCENT =
             FILE + "0365-the-cockpits-charts-carry-a-legend-and-a-value-on-each-sample-and-a-running-step-or-leg-says-its-whole-percent.md";
+
+    /**
+     * ADR-367 -- the jar's packages lie under {@code engine}, {@code publish} and {@code ui}, and the eleven modules keep
+     * their names (amends ADR-040's package statement, ADR-058's path, ADR-285 §1 and §3 and ADR-342 §2 and §3 for the
+     * package names).
+     */
+    public static final String THE_JARS_PACKAGES_LIE_UNDER_ENGINE_PUBLISH_AND_UI =
+            FILE + "0367-the-jars-packages-lie-under-engine-publish-and-ui-and-the-eleven-modules-keep-their-names.md";
 
     private Adr() {
     }

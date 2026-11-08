@@ -28,12 +28,16 @@ def git = { List<String> arguments ->
 }
 def probe = git(['rev-parse', '--is-shallow-repository'])
 def shallow = probe.exit == 0 && probe.output == 'true'
-def modules = new File(project.basedir, 'src/main/java/io/algernon/vespera')
-    .listFiles()
-    .findAll { it.directory }
-    .sort { it.name }
+// A module lies one folder below engine/ or publish/ (ADR-367); its name, the key written, is its folder's, unchanged by
+// the move. The control panel's folder, ui/, is no module and holds no stage, and is not listed.
+def groups = ['engine', 'publish']
+def modules = groups.collectMany { group ->
+    (new File(project.basedir, "src/main/java/io/algernon/vespera/${group}").listFiles() ?: [])
+        .findAll { it.directory }
+        .collect { [group: group, name: it.name] }
+}.sort { it.name }
 def lines = modules.collect { module ->
-    def relative = "src/main/java/io/algernon/vespera/${module.name}"
+    def relative = "src/main/java/io/algernon/vespera/${module.group}/${module.name}"
     def answer = git(['log', '-1', '--format=%H %P', '--', relative])
     def fields = answer.output.split(/\s+/).findAll { it }
     def sha = fields ? fields[0] : ''

@@ -1,0 +1,504 @@
+package io.algernon.vespera.engine.ledger;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Deque;
+import java.util.EnumMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+/**
+ * What the ledger records about verdicts, and the survivors they leave: the {@code verdict} table (ADR-209
+ * section 1).
+ */
+public class Verdicts {
+
+    /** Occurrences per statement in {@link #discardVerdictsAgainst}: SQLite caps one statement's variables. */
+    private static final int DISCARD_BATCH = 500;
+
+    /**
+     * One page of {@link #survivors}: the run's walk's survivors after the last id read.
+     */
+    private static final String SURVIVORS_PAGE_SQL = "SELECT id FROM file_occurrence"
+            + " WHERE +walk_id = (SELECT walk_id FROM run WHERE id = ?)"
+            + " AND NOT EXISTS (SELECT 1 FROM verdict"
+            + " WHERE verdict.occurrence_id = file_occurrence.id"
+            + " AND verdict.kind IN (%s)"
+            + " AND verdict.run_id IN (%s))"
+            + " AND id > ? ORDER BY id";
+
+    /**
+     * One statement of {@link #survivingAmong}: which of the named occurrences survive. The walk is
+     * compared as a value ({@code +walk_id}) so the planner looks each occurrence up by its key and does
+     * not search the walk's index (ADR-211 section 8). No {@code LIMIT}: the names are at most a page.
+     */
+    private static final String SURVIVING_AMONG_SQL = "SELECT id FROM file_occurrence"
+            + " WHERE +walk_id = (SELECT walk_id FROM run WHERE id = ?)"
+            + " AND NOT EXISTS (SELECT 1 FROM verdict"
+            + " WHERE verdict.occurrence_id = file_occurrence.id"
+            + " AND verdict.kind IN (%s)"
+            + " AND verdict.run_id IN (%s))"
+            + " AND id IN (%s)";
+
+    /**
+     * One page of {@link #survivorsBySize}: the walk's survivors after the last row read. {@code size_bytes
+     * >= ?} bounds the range by the index column after the walk, and the row-value comparison then cuts
+     * it at the exact row, the pair {@code (size_bytes, id)} compared as one.
+     */
+    private static final String SURVIVORS_BY_SIZE_PAGE_SQL = "SELECT id, size_bytes FROM file_occurrence"
+            + " WHERE walk_id = (SELECT walk_id FROM run WHERE id = ?)"
+            + " AND NOT EXISTS (SELECT 1 FROM verdict"
+            + " WHERE verdict.occurrence_id = file_occurrence.id"
+            + " AND verdict.kind IN (%s)"
+            + " AND verdict.run_id IN (%s))"
+            + " AND size_bytes >= ? AND (size_bytes, id) > (?, ?)"
+            + " ORDER BY size_bytes, id";
+
+    /**
+     * One page of {@link #eachPageOfSurvivorsByPath}: the walk's survivors after the last path read. The walk
+     * is compared as a column, so the page is a range of {@code UNIQUE (walk_id, path)} in path order and
+     * nothing sorts (ADR-250 section 3).
+     */
+    private static final String SURVIVORS_BY_PATH_PAGE_SQL = "SELECT id, path FROM file_occurrence"
+            + " WHERE walk_id = (SELECT walk_id FROM run WHERE id = ?)"
+            + " AND NOT EXISTS (SELECT 1 FROM verdict"
+            + " WHERE verdict.occurrence_id = file_occurrence.id"
+            + " AND verdict.kind IN (%s)"
+            + " AND verdict.run_id IN (%s))"
+            + " AND path > ? ORDER BY path";
+
+    private final JdbcTemplate jdbcTemplate;
+
+    private final Map<VerdictKind, AtomicLong> recorded = new EnumMap<>(VerdictKind.class);
+
+    private final ThreadLocal<Boolean> countingAtInsert = new ThreadLocal<>();
+
+    public Verdicts(JdbcTemplate jdbcTemplate) {
+        for (VerdictKind kind : VerdictKind.values()) {
+            recorded.put(kind, new AtomicLong());
+        }
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    /**
+     * Deletes every verdict of {@code kinds} recorded under {@code runId} — the discard half of
+     * ADR-115/ADR-116, for the one table every stage shares. Safe because a run is one stage's
+     * identity (CONTEXT.md, "Run"): a kind named here is only ever written by the one step of that
+     * run's stage that writes it, so discarding by kind under this run id discards that step's own
+     * rows and nothing another step under the same run wrote.
+     */
+    public void discardVerdicts(RunId runId, VerdictKind... kinds) {
+        if (kinds.length == 0) {
+            return;
+        }
+        String placeholders = Arrays.stream(kinds).map(kind -> "?").collect(Collectors.joining(", "));
+        Object[] arguments = new Object[kinds.length + 1];
+        arguments[0] = runId.value();
+        for (int i = 0; i < kinds.length; i++) {
+            arguments[i + 1] = kinds[i].name();
+        }
+        jdbcTemplate.update("DELETE FROM verdict WHERE run_id = ? AND kind IN (" + placeholders + ")", arguments);
+    }
+
+    /**
+     * Deletes the verdicts of {@code kind} recorded under {@code runId} against exactly {@code
+     * occurrences}, leaving every other verdict of that kind where it is (ADR-181 section 1: the
+     * verdicts that resolved a stage-2 fault, which a resumed step deletes before it reads the
+     * faulted occurrence again). {@code verdict} has no unique key, so a verdict left behind would be
+     * written a second time.
+     */
+    public void discardVerdictsAgainst(RunId runId, Collection<OccurrenceId> occurrences, VerdictKind kind) {
+        // SQLite caps the variables of one statement, so a long list goes in batches.
+        ListedPages.each(occurrences, DISCARD_BATCH, batch -> {
+            String occurrencePlaceholders = batch.stream().map(id -> "?").collect(Collectors.joining(", "));
+            Object[] arguments = new Object[2 + batch.size()];
+            arguments[0] = runId.value();
+            arguments[1] = kind.name();
+            for (int i = 0; i < batch.size(); i++) {
+                arguments[2 + i] = batch.get(i).value();
+            }
+            jdbcTemplate.update(
+                    "DELETE FROM verdict WHERE run_id = ? AND kind = ? AND occurrence_id IN ("
+                            + occurrencePlaceholders + ")",
+                    arguments);
+        });
+    }
+
+    /**
+     * Appends one verdict against an occurrence, under the run that judged it. Verdicts accumulate:
+     * retuning a stage mints a new run of that stage (ADR-117, ADR-154) rather than an update in
+     * place, and none is deleted except by the step that wrote it, redoing its own unfinished work
+     * under the same run (ADR-116, CONTEXT.md, "Verdict").
+     */
+    public void verdict(OccurrenceId occurrenceId, RunId runId, VerdictKind kind, String reason) {
+        jdbcTemplate.update(
+                "INSERT INTO verdict (occurrence_id, run_id, kind, reason) VALUES (?, ?, ?, ?)",
+                occurrenceId.value(),
+                runId.value(),
+                kind.name(),
+                reason);
+        if (countingAtInsert.get() != null || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            recorded.get(kind).incrementAndGet();
+            return;
+        }
+        // one callback a transaction, holding a tally by kind; a rolled-back insert counts nothing (ADR-268 section 2)
+        long[] tally = (long[]) TransactionSynchronizationManager.getResource(this);
+        if (tally == null) {
+            long[] mine = new long[VerdictKind.values().length];
+            tally = mine;
+            TransactionSynchronizationManager.bindResource(this, mine);
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    for (VerdictKind each : VerdictKind.values()) {
+                        recorded.get(each).addAndGet(mine[each.ordinal()]);
+                    }
+                }
+
+                @Override
+                public void afterCompletion(int status) {
+                    TransactionSynchronizationManager.unbindResourceIfPossible(Verdicts.this);
+                }
+            });
+        }
+        tally[kind.ordinal()]++;
+    }
+
+    /**
+     * Runs {@code work}, counting every verdict this thread inserts during it at its insert rather than at its
+     * commit: the work of a step whose whole work is one transaction, which commits only when the step ends
+     * (ADR-268 section 2). A verdict counted here stays counted if that transaction rolls back, the step then failing.
+     */
+    public <T> T countingAtInsert(Callable<T> work) throws Exception {
+        Boolean outer = countingAtInsert.get();
+        countingAtInsert.set(Boolean.TRUE);
+        try {
+            return work.call();
+        } finally {
+            if (outer == null) {
+                countingAtInsert.remove();
+            }
+        }
+    }
+
+    /**
+     * The verdicts of each blocking kind recorded under {@code runId}, by the kind's name as {@link #recorded}
+     * writes it and in {@link VerdictKind}'s order, {@code 0} where none (ADR-269 section 5). ADR-224's form: one
+     * statement, a sum a kind, {@code NOCASE} because a kind is stored in either case, through
+     * {@code verdict_by_run_id}, sorting nothing.
+     */
+    public Map<String, Long> countsOfRun(RunId runId) {
+        List<String> kinds = Arrays.stream(VerdictKind.values()).filter(VerdictKind::blocking).map(Enum::name).toList();
+        String sql = "SELECT SUM(kind = 'BROKEN' COLLATE NOCASE), SUM(kind = 'DUPLICATE_OF' COLLATE NOCASE),"
+                + " SUM(kind = 'SUPERSEDED_BY' COLLATE NOCASE), SUM(kind = 'OUT_OF_SCOPE' COLLATE NOCASE),"
+                + " SUM(kind = 'CODE' COLLATE NOCASE), SUM(kind = 'EXTRACTION_FAILED' COLLATE NOCASE), SUM(kind = 'DEGENERATE_OUTPUT' COLLATE NOCASE),"
+                + " SUM(kind = 'REDUNDANT_WITH' COLLATE NOCASE), SUM(kind = 'TRANSLATION_OF' COLLATE NOCASE),"
+                + " SUM(kind = 'BELOW_THRESHOLD' COLLATE NOCASE)"
+                + " FROM verdict WHERE run_id = ?";
+        return jdbcTemplate.query(sql, resultSet -> {
+            Map<String, Long> counts = new LinkedHashMap<>();
+            resultSet.next();
+            for (int i = 0; i < kinds.size(); i++) {
+                counts.put(kinds.get(i).toLowerCase(Locale.ROOT).replace('_', '-'), resultSet.getLong(i + 1));
+            }
+            return counts;
+        }, runId.value());
+    }
+
+    /**
+     * How many verdicts of each blocking kind this process has appended and committed, by the kind's name as
+     * {@code CONTEXT.md} writes it ({@code extraction-failed}), in {@link VerdictKind}'s order: held in memory so a
+     * page can show them with no query (ADR-268 section 2). A delete subtracts nothing.
+     */
+    public Map<String, Long> recorded() {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        recorded.forEach((kind, count) -> {
+            if (kind.blocking()) {
+                counts.put(kind.name().toLowerCase(Locale.ROOT).replace('_', '-'), count.get());
+            }
+        });
+        return counts;
+    }
+
+    /**
+     * Hands each occurrence carrying {@code extraction-failed} under {@code runId} to {@code failure}, with
+     * its path and the verdict's reason, in path order (ADR-175), as the row is read and keeping none
+     * (ADR-220 section 6): what stage 2 lists for review once it ends. Read under the run, so after a
+     * resume it covers what earlier invocations of that run recorded too (ADR-181 section 5).
+     *
+     * <p>{@code failure} runs while the statement is open, so it must not ask the ledger anything.
+     */
+    public void eachExtractionFailure(RunId runId, Consumer<RemovedOccurrence> failure) {
+        jdbcTemplate.query(
+                "SELECT v.occurrence_id, o.path, v.reason FROM verdict v"
+                        + " JOIN file_occurrence o ON o.id = v.occurrence_id"
+                        + " WHERE v.run_id = ? AND v.kind = ? ORDER BY o.path",
+                resultSet -> {
+                    failure.accept(new RemovedOccurrence(
+                            new OccurrenceId(resultSet.getLong("occurrence_id")),
+                            resultSet.getString("path"),
+                            resultSet.getString("reason")));
+                },
+                runId.value(),
+                VerdictKind.EXTRACTION_FAILED.name());
+    }
+
+    /** How many occurrences carry {@code extraction-failed} under {@code runId}: what {@link #eachExtractionFailure} hands over. */
+    public long extractionFailureCount(RunId runId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM verdict WHERE run_id = ? AND kind = ?",
+                Long.class,
+                runId.value(),
+                VerdictKind.EXTRACTION_FAILED.name());
+        return count == null ? 0 : count;
+    }
+
+    /** How many verdicts of {@code kind} are recorded under {@code runId} itself, through no run upstream of it. */
+    public long countOfKind(RunId runId, VerdictKind kind) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM verdict WHERE run_id = ? AND kind = ?",
+                Long.class,
+                runId.value(),
+                kind.name());
+        return count == null ? 0 : count;
+    }
+
+    /**
+     * Those of {@code occurrences} that carry a verdict of {@code kind} recorded under {@code runId} itself
+     * (ADR-271 section 5): a lookup by key in statements of at most 1,000, and none for an empty collection.
+     */
+    public Set<OccurrenceId> carryingAmong(RunId runId, VerdictKind kind, Collection<OccurrenceId> occurrences) {
+        Set<OccurrenceId> carrying = new LinkedHashSet<>();
+        ListedPages.each(occurrences.stream().distinct().toList(), batch -> {
+            List<Object> arguments = new ArrayList<>();
+            arguments.add(runId.value());
+            arguments.add(kind.name());
+            batch.forEach(occurrence -> arguments.add(occurrence.value()));
+            carrying.addAll(jdbcTemplate.query(
+                    "SELECT occurrence_id FROM verdict WHERE run_id = ? AND kind = ? AND occurrence_id IN ("
+                            + Placeholders.of(batch.size()) + ")",
+                    (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("occurrence_id")),
+                    arguments.toArray()));
+        });
+        return carrying;
+    }
+
+    /**
+     * How many verdicts of any kind are recorded under {@code runId} itself, not through its upstream runs:
+     * what a run downstream of it can name of the removals standing beneath it (ADR-230 section 3).
+     */
+    public long verdictsUnder(RunId runId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM verdict WHERE run_id = ?", Long.class, runId.value());
+        return count == null ? 0 : count;
+    }
+
+    /**
+     * How many occurrences {@link #survivors} would hand out for {@code runId} — the denominator a
+     * stage's progress line needs before it starts (ADR-093).
+     *
+     * <p>The same anti-join as the read, over the same {@link #runsInScope} set, and deliberately
+     * not a count the caller keeps as it reads: a stage reports progress against the set it was
+     * given, and that set is a query.
+     */
+    public long survivorCount(RunId runId) {
+        List<String> runsInScope = runsInScope(runId);
+        String placeholders = runsInScope.stream().map(id -> "?").collect(Collectors.joining(", "));
+        Object[] arguments = new Object[runsInScope.size() + 1];
+        arguments[0] = runId.value();
+        for (int i = 0; i < runsInScope.size(); i++) {
+            arguments[i + 1] = runsInScope.get(i);
+        }
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM file_occurrence"
+                        + " WHERE walk_id = (SELECT walk_id FROM run WHERE id = ?)"
+                        + " AND NOT EXISTS (SELECT 1 FROM verdict"
+                        + " WHERE verdict.occurrence_id = file_occurrence.id"
+                        + " AND verdict.kind IN (" + blockingKinds() + ")"
+                        + " AND verdict.run_id IN (" + placeholders + "))",
+                Long.class,
+                arguments);
+        return count == null ? 0 : count;
+    }
+
+    /**
+     * The occurrences of {@code runId}'s walk that carry no blocking verdict under {@code runId} or
+     * any run upstream of it, transitively — the survivor set, in id order, a page of 1,000 at a time
+     * (ADR-060, ADR-156, ADR-209 section 2).
+     *
+     * <p>Not a view and not a {@code List}. The survivor set is the whole corpus minus what has been
+     * ruled out, so at stage 1 it is every occurrence there is; handing back pages is what keeps a
+     * stage from holding a million ids in memory, and keeps the SQL inside {@code ledger} where the
+     * shape of {@code verdict} is nobody else's business. Each capability module then queries its own
+     * tables for the ids it was handed.
+     *
+     * <p>The run names the walk, so this is scoped to that walk's occurrences. A blocking verdict counts
+     * only when it was written under {@code runId} itself or under a run reached from {@code runId} by
+     * following {@code run_upstream}, however many steps back ({@link #runsInScope}). A verdict under
+     * any other run of the same walk — a sibling, a later run, or a run this run does not read — stays
+     * recorded and removes nothing (ADR-156 section 2).
+     *
+     * <p>An {@code Iterable} that needs no closing; each of its iterators starts again at the first page.
+     */
+    public Iterable<OccurrenceId> survivors(RunId runId) {
+        return survivorPages(runId);
+    }
+
+    /**
+     * The same survivors as {@link #survivors}, each page handed to {@code page} once its statement has finished:
+     * the form for a caller that goes through a page of survivors at a time, which is handed the read's own pages
+     * and does not put them together again (ADR-245).
+     */
+    public void eachPageOfSurvivors(RunId runId, Consumer<List<OccurrenceId>> page) {
+        survivorPages(runId).eachPage(page);
+    }
+
+    /**
+     * The same survivors as {@link #survivors}, each page of at most 1,000 handed to {@code page} in path order
+     * (ADR-250 section 3): keyed by path, which no empty string is, so the first page starts after "".
+     */
+    public void eachPageOfSurvivorsByPath(RunId runId, Consumer<List<OccurrenceAtPath>> page) {
+        List<String> runsInScope = runsInScope(runId);
+        String placeholders = runsInScope.stream().map(id -> "?").collect(Collectors.joining(", "));
+        List<Object> fixedArguments = new ArrayList<>();
+        fixedArguments.add(runId.value());
+        fixedArguments.addAll(runsInScope);
+        new KeysetPages<OccurrenceAtPath>(
+                        jdbcTemplate,
+                        SURVIVORS_BY_PATH_PAGE_SQL.formatted(blockingKinds(), placeholders),
+                        fixedArguments,
+                        List.of(""),
+                        (OccurrenceAtPath last) -> List.of(last.path().value()),
+                        (resultSet, rowNumber) -> new OccurrenceAtPath(
+                                new OccurrenceId(resultSet.getLong("id")),
+                                new OccurrencePath(resultSet.getString("path"))))
+                .eachPage(page);
+    }
+
+    private KeysetPages<OccurrenceId> survivorPages(RunId runId) {
+        List<String> runsInScope = runsInScope(runId);
+        String placeholders = runsInScope.stream().map(id -> "?").collect(Collectors.joining(", "));
+        List<Object> fixedArguments = new ArrayList<>();
+        fixedArguments.add(runId.value());
+        fixedArguments.addAll(runsInScope);
+        return new KeysetPages<>(
+                jdbcTemplate,
+                SURVIVORS_PAGE_SQL.formatted(blockingKinds(), placeholders),
+                fixedArguments,
+                List.of(Long.MIN_VALUE),
+                (OccurrenceId last) -> List.of(last.value()),
+                (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("id")));
+    }
+
+    /**
+     * Those of {@code occurrences} that belong to {@code runId}'s walk and carry no blocking verdict under
+     * {@code runId} or any run upstream of it (ADR-156): the survivors among them, which a caller holding a
+     * page of ids asks instead of holding every survivor (ADR-211 section 5).
+     *
+     * <p>Asked in statements of at most 1,000 occurrences, each a lookup by key.
+     * Nothing is asked, not even the runs in scope, for an empty collection.
+     */
+    public Set<OccurrenceId> survivingAmong(RunId runId, Collection<OccurrenceId> occurrences) {
+        List<OccurrenceId> distinct = occurrences.stream().distinct().toList();
+        Set<OccurrenceId> surviving = new LinkedHashSet<>();
+        if (distinct.isEmpty()) {
+            return surviving;
+        }
+        List<String> runsInScope = runsInScope(runId);
+        String runPlaceholders = runsInScope.stream().map(id -> "?").collect(Collectors.joining(", "));
+        ListedPages.each(distinct, batch -> {
+            String occurrencePlaceholders = batch.stream().map(id -> "?").collect(Collectors.joining(", "));
+            List<Object> arguments = new ArrayList<>();
+            arguments.add(runId.value());
+            arguments.addAll(runsInScope);
+            batch.forEach(occurrence -> arguments.add(occurrence.value()));
+            surviving.addAll(jdbcTemplate.query(
+                    SURVIVING_AMONG_SQL.formatted(blockingKinds(), runPlaceholders, occurrencePlaceholders),
+                    (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("id")),
+                    arguments.toArray()));
+        });
+        return surviving;
+    }
+
+    /**
+     * The survivors of {@code runId}, the same set {@link #survivors} reads, in ascending recorded size and
+     * the lower id first within a size, so every survivor of one size arrives together (ADR-200).
+     *
+     * <p>What stage 1's content identity needs, which is each size whole and never the whole set: a caller
+     * holds one size at a time and lets it go. Paged for the reason {@link #survivors} is (ADR-060), by
+     * keyset over {@code file_occurrence_by_walk_and_size}, so no page sorts and none goes back over the
+     * walk.
+     *
+     * <p>A verdict the caller writes for a survivor already handed out removes nothing still to come,
+     * because a later page asks only for rows after the last one read.
+     */
+    public Iterable<SizedOccurrence> survivorsBySize(RunId runId) {
+        List<String> runsInScope = runsInScope(runId);
+        String placeholders = runsInScope.stream().map(id -> "?").collect(Collectors.joining(", "));
+        List<Object> fixedArguments = new ArrayList<>();
+        fixedArguments.add(runId.value());
+        fixedArguments.addAll(runsInScope);
+        return new KeysetPages<>(
+                jdbcTemplate,
+                SURVIVORS_BY_SIZE_PAGE_SQL.formatted(blockingKinds(), placeholders),
+                fixedArguments,
+                List.of(Long.MIN_VALUE, Long.MIN_VALUE, Long.MIN_VALUE),
+                (SizedOccurrence last) ->
+                        List.of(last.sizeBytes(), last.sizeBytes(), last.occurrenceId().value()),
+                (resultSet, rowNumber) ->
+                        new SizedOccurrence(new OccurrenceId(resultSet.getLong("id")), resultSet.getLong("size_bytes")));
+    }
+
+    /**
+     * {@code runId} itself, plus every run reached from it by following {@code run_upstream}
+     * transitively — the set of runs whose blocking verdicts a run's survivors answer to (ADR-156
+     * section 1). Resolved here, in Java, rather than as a recursive CTE inside the paging query: the
+     * page stays a plain anti-join with a bound {@code IN} list, and this walk is a handful of rows per
+     * run (one upstream per stage, seven stages), never a scan per occurrence. It reads {@code
+     * run_upstream} with the statement {@link Runs#upstreamRuns} uses, so this record needs nothing but
+     * a template.
+     */
+    private List<String> runsInScope(RunId runId) {
+        List<String> runsInScope = new ArrayList<>();
+        Set<String> visited = new LinkedHashSet<>();
+        Deque<String> toVisit = new ArrayDeque<>();
+        toVisit.add(runId.value());
+        while (!toVisit.isEmpty()) {
+            String current = toVisit.poll();
+            if (visited.add(current)) {
+                runsInScope.add(current);
+                toVisit.addAll(jdbcTemplate.query(
+                        "SELECT upstream_run_id FROM run_upstream WHERE run_id = ? ORDER BY upstream_run_id",
+                        (resultSet, rowNumber) -> resultSet.getString("upstream_run_id"),
+                        current));
+            }
+        }
+        return runsInScope;
+    }
+
+    /**
+     * The blocking kinds as SQL literals rather than as placeholders.
+     *
+     * <p>Inlining a value into SQL is the thing not to do, with one exception, and this is it: these
+     * are enum constant names this class compiled against, so there is nothing here to inject.
+     */
+    private static String blockingKinds() {
+        return Arrays.stream(VerdictKind.values())
+                .filter(VerdictKind::blocking)
+                .map(kind -> "'" + kind.name() + "'")
+                .collect(Collectors.joining(", "));
+    }
+}

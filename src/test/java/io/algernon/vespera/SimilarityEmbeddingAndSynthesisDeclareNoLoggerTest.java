@@ -60,7 +60,7 @@ class SimilarityEmbeddingAndSynthesisDeclareNoLoggerTest {
         List<String> typesScanned = new ArrayList<>();
         List<String> withALogger = new ArrayList<>();
         for (String module : MODULES) {
-            for (BeanDefinition candidate : scanner.findCandidateComponents("io.algernon.vespera." + module)) {
+            for (BeanDefinition candidate : scanner.findCandidateComponents("io.algernon.vespera.engine." + module)) {
                 typesScanned.add(candidate.getBeanClassName());
                 Class<?> type = Class.forName(candidate.getBeanClassName());
                 for (Field field : type.getDeclaredFields()) {
@@ -74,9 +74,9 @@ class SimilarityEmbeddingAndSynthesisDeclareNoLoggerTest {
         claim(
                 "the scan found types in all three modules, so an empty answer below is not an empty scan",
                 () -> assertThat(typesScanned)
-                        .anyMatch(name -> name.startsWith("io.algernon.vespera.similarity."))
-                        .anyMatch(name -> name.startsWith("io.algernon.vespera.embedding."))
-                        .anyMatch(name -> name.startsWith("io.algernon.vespera.synthesis.")));
+                        .anyMatch(name -> name.startsWith("io.algernon.vespera.engine.similarity."))
+                        .anyMatch(name -> name.startsWith("io.algernon.vespera.engine.embedding."))
+                        .anyMatch(name -> name.startsWith("io.algernon.vespera.engine.synthesis.")));
         claim(
                 "and none of them declares a field of the logger type",
                 () -> assertThat(withALogger).isEmpty());
