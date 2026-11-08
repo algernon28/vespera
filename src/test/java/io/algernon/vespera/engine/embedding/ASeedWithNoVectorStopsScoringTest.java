@@ -12,6 +12,7 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -85,6 +86,70 @@ class ASeedWithNoVectorStopsScoringTest {
                                         seeds(ONE_CHUNK, ONE_CHUNK), CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER))
                         .isInstanceOf(IllegalStateException.class)
                         .hasMessageContaining("seed occurrence " + THE_SECOND_SEED.value()));
+    }
+
+    /** A seed document, or a corpus document, whose text was cut into two chunks. */
+    private static final int TWO_CHUNKS = 2;
+
+    /**
+     * A seed is refused when it has a vector under the run's identity for some of its chunks only (ADR-231
+     * sections 3 and 5): scored on the chunks that are left, it would measure every survivor against a part
+     * of itself, with no line.
+     */
+    @Test
+    @Story("A seed document with no vector of the scoring's own model stops the scoring")
+    @DisplayName("Reading the seed documents' vectors stops on a seed document with two pieces of text to embed and a vector for only one of them")
+    void aSeedWithAVectorForOnlySomeOfItsChunksIsRefused() {
+        store("the-first-seed", READ_UNDER);
+        store("the-second-seed", READ_UNDER);
+        new VectorCache(jdbcTemplate)
+                .put("the-second-seed", CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, 1, A_LATER_PULLS_IDENTITY,
+                        new float[] {0f, 1f});
+
+        claim(
+                "the read stops and gives the number of the second seed document, "
+                        + THE_SECOND_SEED.value() + ": it has " + TWO_CHUNKS + " pieces of text to embed, and"
+                        + " the vector of the second is under the digest of another pull, so read under the"
+                        + " scoring's own it would stand for half of itself -- the refusal says it has a vector"
+                        + " for only " + ONE_CHUNK + " of its " + TWO_CHUNKS + " chunks",
+                () -> assertThatThrownBy(() -> scoring()
+                                .residentSeedVectors(
+                                        seeds(ONE_CHUNK, TWO_CHUNKS), CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER))
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessageContaining("seed occurrence " + THE_SECOND_SEED.value()
+                                + " has stored chunk vectors for only " + ONE_CHUNK + " of its " + TWO_CHUNKS
+                                + " chunks"));
+    }
+
+    /** A corpus document with a vector under the run's identity for the first of its two chunks only. */
+    private static final OccurrenceId A_PARTLY_EMBEDDED_DOCUMENT = new OccurrenceId(4024);
+
+    /** The survivor's side of the refusal above. */
+    @Test
+    @Story("A document with no vector of the scoring's own model stops the scoring")
+    @DisplayName("Scoring a corpus document with two pieces of text to embed and a vector for only one of them stops and names it")
+    void aSurvivorWithAVectorForOnlySomeOfItsChunksIsRefused() {
+        store("a-partly-embedded-document", READ_UNDER);
+        Map<OccurrenceId, List<float[]>> oneResidentSeed = Map.of(THE_FIRST_SEED, List.of(new float[] {1f, 0f}));
+
+        claim(
+                "the scoring stops on document " + A_PARTLY_EMBEDDED_DOCUMENT.value() + " rather than score it"
+                        + " on the one chunk it has a vector for: the refusal says it has a vector for only "
+                        + ONE_CHUNK + " of its " + TWO_CHUNKS + " chunks",
+                () -> assertThatThrownBy(() -> scoring()
+                                .scoreAndRecord(
+                                        A_PARTLY_EMBEDDED_DOCUMENT,
+                                        new io.algernon.vespera.engine.ledger.RunId("a-scoring-run"),
+                                        "a-partly-embedded-document",
+                                        TWO_CHUNKS,
+                                        CHUNKER_IDENTITY,
+                                        CHUNKING_RULE_IDENTITY,
+                                        READ_UNDER,
+                                        oneResidentSeed, TOP_SIMILARITIES))
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessageContaining("occurrence " + A_PARTLY_EMBEDDED_DOCUMENT.value()
+                                + " has stored chunk vectors for only " + ONE_CHUNK + " of its " + TWO_CHUNKS
+                                + " chunks"));
     }
 
     /** A corpus document that has no vector stored under any identity. */

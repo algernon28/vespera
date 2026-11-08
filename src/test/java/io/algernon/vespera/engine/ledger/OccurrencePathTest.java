@@ -39,10 +39,32 @@ class OccurrencePathTest {
 
     private static final Path ROOT = Path.of("D:", "Archive");
 
+    /** The legacy Windows path ceiling, which the stored form is not bound by. */
+    private static final int MAX_PATH = 260;
+
+    /** Segments of this length, repeated, take the test path past {@link #MAX_PATH}. */
+    private static final int SEGMENT_LENGTH = 60;
+
+    private static final String DOTLESS_I = ch(0x0131);   // dotless i -- the JDK upper-cases this to I
+    private static final String MICRO_SIGN = ch(0x00B5);  // micro sign -- the JDK folds this onto greek mu
+    private static final String GREEK_MU = ch(0x03BC);
+    private static final String E_ACUTE = ch(0x00E9);     // e acute, composed
+    private static final String COMBINING_ACUTE = ch(0x0301);
     private static final String LONE_HIGH_SURROGATE = ch(0xD800);
 
     private static String ch(int codePoint) {
         return String.valueOf((char) codePoint);
+    }
+
+    /**
+     * Non-ASCII rendered as code points, so that a failure message is legible: "expected X but was X"
+     * over two names that look alike tells nobody anything.
+     */
+    private static String readable(String value) {
+        StringBuilder out = new StringBuilder();
+        value.codePoints()
+                .forEach(cp -> out.append(cp < 128 ? String.valueOf((char) cp) : String.format("[U+%04X]", cp)));
+        return out.toString();
     }
 
     private static Path resolve(String... more) {
@@ -83,6 +105,76 @@ class OccurrencePathTest {
                 "the root D:/Archive is dropped and the Windows separators of a/b/c/d.txt are stored as forward"
                         + " slashes, whatever platform observed it",
                 () -> assertThat(stored("a", "b", "c", "d.txt")).isEqualTo("a/b/c/d.txt"));
+    }
+
+    /** No schema cap needed: java.nio applies the extended-length prefix itself. */
+    @Test
+    @Story("The stored form")
+    @DisplayName("A path past the legacy Windows limit is stored, not truncated")
+    void acceptsAPathLongerThanTheLegacyWindowsLimit() {
+        String segment = "x".repeat(SEGMENT_LENGTH);
+        String whole = String.join("/", segment, segment, segment, segment, segment, "leaf.txt");
+        String value = stored(segment, segment, segment, segment, segment, "leaf.txt");
+        claim(
+                "five " + SEGMENT_LENGTH + "-character segments and a leaf exceed the " + MAX_PATH
+                        + "-character legacy MAX_PATH, and are stored whole, every one of their " + whole.length()
+                        + " characters",
+                () -> {
+                    assertThat(whole.length()).isGreaterThan(MAX_PATH);
+                    assertThat(value).isEqualTo(whole);
+                });
+    }
+
+    /**
+     * Why comparison is exact rather than case-folded: the JDK's folding table disagrees with NTFS. U+0131
+     * and I, and U+00B5 and U+03BC, compare equal as {@link Path}s on Windows and are distinct files on disk,
+     * so any fold would merge two different files into one occurrence. The claims hold each name exactly as
+     * observed, which no fold leaves standing, on any platform.
+     */
+    @Test
+    @Story("Distinct files stay distinct")
+    @DisplayName("Case is preserved exactly as observed, including the case pairs the JDK wrongly folds")
+    void preservesCaseExactlyAsObserved() {
+        claim(
+                "the upper-case name Reports/Q1.PDF and the lower-case name reports/q1.pdf are each stored with"
+                        + " their case untouched",
+                () -> {
+                    assertThat(stored("Reports", "Q1.PDF")).isEqualTo("Reports/Q1.PDF");
+                    assertThat(stored("reports", "q1.pdf")).isEqualTo("reports/q1.pdf");
+                });
+        claim(
+                "U+0131 (dotless i) and I are each stored exactly as observed, so they are two occurrences,"
+                        + " because NTFS holds two different files",
+                () -> {
+                    assertThat(readable(stored(DOTLESS_I + ".txt"))).isEqualTo(readable(DOTLESS_I + ".txt"));
+                    assertThat(readable(stored("I.txt"))).isEqualTo("I.txt");
+                });
+        claim(
+                "U+00B5 (micro sign) and U+03BC (greek mu) are each stored exactly as observed, for the same"
+                        + " reason",
+                () -> {
+                    assertThat(readable(stored(MICRO_SIGN + ".txt"))).isEqualTo(readable(MICRO_SIGN + ".txt"));
+                    assertThat(readable(stored(GREEK_MU + ".txt"))).isEqualTo(readable(GREEK_MU + ".txt"));
+                });
+    }
+
+    /** NTFS normalises nothing, so a composed and a decomposed name are two different files. */
+    @Test
+    @Story("Distinct files stay distinct")
+    @DisplayName("Composed and decomposed forms of a name are kept apart")
+    void keepsComposedAndDecomposedFormsApart() {
+        String composed = "caf" + E_ACUTE + ".txt";
+        String decomposed = "cafe" + COMBINING_ACUTE + ".txt";
+
+        claim(
+                "neither form is normalised on the way in: cafe with U+00E9 and cafe with e + U+0301 are each"
+                        + " stored exactly as observed, so they are two occurrences, because NTFS holds two"
+                        + " different files",
+                () -> {
+                    assertThat(readable(stored(composed))).isEqualTo(readable(composed));
+                    assertThat(readable(stored(decomposed))).isEqualTo(readable(decomposed));
+                    assertThat(readable(composed)).isNotEqualTo(readable(decomposed));
+                });
     }
 
     /**

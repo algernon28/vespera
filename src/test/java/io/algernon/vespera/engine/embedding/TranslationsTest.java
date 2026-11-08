@@ -59,6 +59,57 @@ class TranslationsTest {
 
     @Test
     @Story("A copy under a folder of another language")
+    @DisplayName("Where no copy is in a preferred language, the copy with the lowest path is kept")
+    void whereNoCopyIsInAPreferredLanguageTheLowestPathIsKept() {
+        List<Translations.Member> members = List.of(
+                member(1, "en/x.html", "ENGLISH"),
+                member(2, "ja/x.html", "JAPANESE"),
+                member(3, "zh/x.html", "CHINESE"));
+
+        Translations.Resolution resolution = Translations.resolve(members, List.of(), NO_FLOOR, List.of("it"));
+
+        claim(
+                "Italian is preferred and no copy is Italian, so en/x.html, the lowest of the three paths, is"
+                        + " kept and the Japanese and Chinese copies are translations of it",
+                () -> assertThat(resolution.removals()).containsExactly(
+                        new Translations.Removal(id(2), id(1), "ja", "en", Translations.Evidence.PARALLEL_PATHS),
+                        new Translations.Removal(id(3), id(1), "zh", "en", Translations.Evidence.PARALLEL_PATHS)));
+    }
+
+    @Test
+    @Story("A copy under a folder of another language")
+    @DisplayName("Only paths one lowercase language folder apart, with no second one, are translations by their paths")
+    void onlyOneLowercaseLanguageFolderInOneDirectoryMakesTranslationsByTheirPaths() {
+        List<Translations.Member> members = List.of(
+                member(1, "IT/budget.pdf", "ITALIAN"),
+                member(2, "HR/budget.pdf", "ITALIAN"),
+                member(3, "docs/en", "ENGLISH"),
+                member(4, "docs/zh", "CHINESE"),
+                member(5, "en/v1/x.html", "ENGLISH"),
+                member(6, "zh/v2/x.html", "CHINESE"),
+                member(7, "en/y.html", "ENGLISH"),
+                member(8, "zh/sub/y.html", "CHINESE"),
+                member(9, "en/de/z.html", "ENGLISH"),
+                member(10, "zh/de/z.html", "CHINESE"),
+                member(11, "en/de/w.html", "GERMAN"),
+                member(12, "en/fr/w.html", "FRENCH"));
+
+        Translations.Resolution resolution = Translations.resolve(members, List.of(), NO_FLOOR, List.of("en"));
+
+        claim(
+                "IT and HR are in capitals; en and zh in docs are the files' own names; v1 and v2 make two"
+                        + " segments differ; y.html lies at two depths; and en/de, zh/de and en/fr each hold a"
+                        + " second language folder -- en/de/w.html and en/fr/w.html would be one folder apart"
+                        + " if only the last language folder were read -- so no two of the " + members.size()
+                        + " are translations by their paths",
+                () -> assertThat(resolution.removals()).isEmpty());
+        claim(
+                "and there is no set at all",
+                () -> assertThat(resolution.sets()).isZero());
+    }
+
+    @Test
+    @Story("A copy under a folder of another language")
     @DisplayName("With no preferred language, nothing is removed and the set is counted")
     void withNoPreferredLanguageNothingIsRemovedAndTheSetIsCounted() {
         List<Translations.Member> members = List.of(

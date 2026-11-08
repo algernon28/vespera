@@ -41,6 +41,25 @@ class LanguagesTest {
                         "ja", Optional.of("ja"))));
     }
 
+    @Test
+    @Story("A folder named for a language")
+    @DisplayName("Capitals, names in full, three-letter codes, unknown codes and odd suffixes are no language folder")
+    void noOtherSegmentIsALanguageFolder() {
+        List<String> segments = List.of("IT", "HR", "En", "english", "eng", "xx", "en-", "en_USA", "e", "");
+
+        Map<String, Optional<String>> read = readAsFolders(segments);
+
+        claim(
+                "IT and HR are what departments are called, not Italian and Croatian; En is not written as a"
+                        + " language folder is, in lowercase; english and eng are not two-letter codes; xx names no language;"
+                        + " en- and en_USA carry a suffix that is neither a region nor a script; e and the empty"
+                        + " segment are too short -- so none of the " + segments.size() + " is a folder of a"
+                        + " language",
+                () -> assertThat(read.values())
+                        .withFailMessage("the segments were read as %s", read)
+                        .containsOnly(Optional.empty()));
+    }
+
     /** Each segment and what {@link Languages#ofFolder} reads it as, in the order given. */
     private static Map<String, Optional<String>> readAsFolders(List<String> segments) {
         Map<String, Optional<String>> read = new LinkedHashMap<>();

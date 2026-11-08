@@ -135,6 +135,106 @@ class OccurrenceJudgeTest {
                 () -> assertThat(judging.metricRowsFor(0)).isEqualTo(METRIC_ROWS_PER_JUDGED_RESPONSE));
     }
 
+    /**
+     * The conditional pair on its own, and beside an unexplained error: nothing in the response is
+     * evidence about the converter, so the document is judged. The {@code unknown} entry comes first, so
+     * the reason names the refusal only because a named refusal is preferred over the first error.
+     */
+    @Test
+    @Story("A failure whose scope depends on the rest of the response")
+    @DisplayName("A refusal, or an unreadable source, reported on its own or beside an unexplained error is recorded against the document")
+    @Link(name = "ADR-143", url = Adr.AN_UNCATEGORISED_FAILURE_IS_A_VERDICT, type = "adr")
+    void verdictsARefusalReportedOnItsOwnOrAlongsideAnUnexplainedError() {
+        List<DoclingResponse> answers = List.of(
+                failing(FailureCategory.POLICY),
+                failing(FailureCategory.SOURCE_UNAVAILABLE),
+                failing(FailureCategory.UNKNOWN, FailureCategory.POLICY),
+                failing(FailureCategory.UNKNOWN, FailureCategory.SOURCE_UNAVAILABLE));
+        List<String> namedReasons = List.of(
+                wire(FailureCategory.POLICY),
+                wire(FailureCategory.SOURCE_UNAVAILABLE),
+                wire(FailureCategory.POLICY),
+                wire(FailureCategory.SOURCE_UNAVAILABLE));
+        Judging judging = judging(answers.size());
+
+        for (int i = 0; i < answers.size(); i++) {
+            int index = i;
+            OccurrenceDecision decision = judging.answer(i, answers.get(i));
+            claim(
+                    "a converter that reported " + answers.get(i).errors().stream().map(e -> wire(e.category())).toList()
+                            + " said nothing about itself -- it refused this file, or could not read it -- so"
+                            + " the document is recorded as one extraction could not read, and the reason names"
+                            + " the refusal and its message rather than the unexplained error beside it",
+                    () -> assertThat(decision)
+                            .isEqualTo(new OccurrenceDecision.Failed(namedReasons.get(index) + ": " + ERROR_MESSAGE)));
+            claim(
+                    "and the measurement is filed against it, because a response really came back for this"
+                            + " document -- " + METRIC_ROWS_PER_JUDGED_RESPONSE + " row recorded for it",
+                    () -> assertThat(judging.metricRowsFor(index)).isEqualTo(METRIC_ROWS_PER_JUDGED_RESPONSE));
+        }
+    }
+
+    /**
+     * A converter problem anywhere in the response makes the whole response about the converter: it
+     * overrides the conditional pair and an unexplained error, whichever comes first.
+     */
+    @Test
+    @Story("A failure whose scope depends on the rest of the response")
+    @DisplayName("A refusal or an unexplained error reported alongside a failure the converter blames on itself is read as being about the converter")
+    @Link(name = "ADR-143", url = Adr.AN_UNCATEGORISED_FAILURE_IS_A_VERDICT, type = "adr")
+    void setsAsideARefusalOrAnUnexplainedErrorReportedAlongsideAConverterProblem() {
+        List<DoclingResponse> answers = List.of(
+                failing(FailureCategory.POLICY, FailureCategory.CAPACITY),
+                failing(FailureCategory.SOURCE_UNAVAILABLE, FailureCategory.TARGET_UNAVAILABLE),
+                failing(FailureCategory.UNKNOWN, FailureCategory.INTERNAL));
+        List<FailureCategory> converterProblems =
+                List.of(FailureCategory.CAPACITY, FailureCategory.TARGET_UNAVAILABLE, FailureCategory.INTERNAL);
+        Judging judging = judging(answers.size());
+
+        for (int i = 0; i < answers.size(); i++) {
+            int index = i;
+            FailureCategory problem = converterProblems.get(i);
+            OccurrenceDecision decision = judging.answer(i, answers.get(i));
+            claim(
+                    "a response reporting " + answers.get(i).errors().stream().map(e -> wire(e.category())).toList()
+                            + " is about the converter's own state, so the document is set aside unjudged under"
+                            + " that problem, " + wire(problem) + ", with the converter's message",
+                    () -> assertThat(decision).isEqualTo(new OccurrenceDecision.SetAside(wire(problem), ERROR_MESSAGE)));
+            claim(
+                    "and no measurement is filed against it, so a later run finds the document as untouched as"
+                            + " it was before -- zero rows recorded for it",
+                    () -> assertThat(judging.metricRowsFor(index)).isZero());
+        }
+    }
+
+    /**
+     * The two unconditional document-scope categories outrank a converter problem in the same response,
+     * whichever comes first: under one uploaded file per call they can only be about that file.
+     */
+    @Test
+    @Story("A failure that is a fact about the document")
+    @DisplayName("A failure the converter blames on the document is recorded against it even beside a failure it blames on itself")
+    void verdictsADocumentBlamedFailureReportedAlongsideAConverterProblem() {
+        List<DoclingResponse> answers = List.of(
+                failing(FailureCategory.CAPACITY, FailureCategory.BACKEND_FAILURE),
+                failing(FailureCategory.INTERNAL, FailureCategory.INFERENCE_FAILURE));
+        List<FailureCategory> blamedOnTheDocument =
+                List.of(FailureCategory.BACKEND_FAILURE, FailureCategory.INFERENCE_FAILURE);
+        Judging judging = judging(answers.size());
+
+        for (int i = 0; i < answers.size(); i++) {
+            FailureCategory blamed = blamedOnTheDocument.get(i);
+            OccurrenceDecision decision = judging.answer(i, answers.get(i));
+            claim(
+                    "a response reporting " + answers.get(i).errors().stream().map(e -> wire(e.category())).toList()
+                            + " blames this document for its own failure, so the document is recorded as one"
+                            + " extraction could not read, for " + wire(blamed) + " and not for the converter"
+                            + " problem listed before it",
+                    () -> assertThat(decision)
+                            .isEqualTo(new OccurrenceDecision.Failed(wire(blamed) + ": " + ERROR_MESSAGE)));
+        }
+    }
+
     @Test
     @Story("A conversion that partly worked")
     @DisplayName("A document some of whose pages failed is not condemned for that alone")

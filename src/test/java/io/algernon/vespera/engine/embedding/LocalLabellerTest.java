@@ -13,20 +13,22 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Parameter;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.provider.Arguments;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.http.HttpMethod;
@@ -63,6 +65,7 @@ class LocalLabellerTest {
     private static final String THE_LABELLER = "ollama:a-writing-model:8b";
     private static final String OLLAMA = "http://ollama.example";
     private static final String A_DIGEST = "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d";
+    private static final String A_LOCAL_URL = "http://localhost:11434";
     private static final String A_HOSTED_URL = "https://api.openai.com/v1";
     private static final double LOWEST_RELEVANT_SCORE = 0.579;
     private static final double SCORE_OF_A_NEGATIVE_BELOW_IT = 0.30;
@@ -146,24 +149,125 @@ class LocalLabellerTest {
                 () -> assertThat(calls.get()).isZero());
     }
 
-    static Stream<Arguments> modelsNotEstablishedAsLocal() {
+    @Test
+    @Story("No hosted endpoint is configurable for the labeller")
+    @DisplayName("Only this machine counts as local")
+    void onlyThisMachineIsLocal() {
+        claim(
+                "localhost, the IPv4 loopback and the IPv6 loopback are this machine",
+                () -> {
+                    assertThat(LocalEndpoint.isLocal(A_LOCAL_URL)).isTrue();
+                    assertThat(LocalEndpoint.isLocal("http://127.0.0.1:11434")).isTrue();
+                    assertThat(LocalEndpoint.isLocal("http://[::1]:11434")).isTrue();
+                });
+        claim(
+                "a hosted service, another machine, an address that merely starts like localhost and an empty"
+                        + " URL are not",
+                () -> {
+                    assertThat(LocalEndpoint.isLocal(A_HOSTED_URL)).isFalse();
+                    assertThat(LocalEndpoint.isLocal("http://192.168.1.20:11434")).isFalse();
+                    assertThat(LocalEndpoint.isLocal("http://localhost.example.com:11434")).isFalse();
+                    assertThat(LocalEndpoint.isLocal("")).isFalse();
+                });
+    }
+
+    /**
+     * Each case is at a loopback endpoint, so {@link LocalEndpoint} lets it through: what refuses it is
+     * the labeller asking whether the model itself runs here. The four cases share one test.
+     */
+    @Test
+    @Story("No hosted endpoint is configurable for the labeller")
+    @DisplayName("A model not established as running on this machine is refused with no call made, though the endpoint is local")
+    void aModelNotEstablishedAsLocalIsRefusedWithNoCallMade() {
+        for (NotEstablishedAsLocal model : modelsNotEstablishedAsLocal()) {
+            AtomicInteger calls = new AtomicInteger();
+            OllamaRelevanceLabeller labeller =
+                    new OllamaRelevanceLabeller(saying("relevant", calls), model.name(), A_LOCAL_URL, model.client());
+
+            Optional<Boolean> answer = labeller.answer(aQuestion());
+
+            claim(
+                    "for " + model.description() + ", the refusal says why the model is not taken for a local"
+                            + " one: a loopback endpoint does not keep a document here when the local daemon"
+                            + " forwards it to a hosted service, and a model is not assumed local when that"
+                            + " cannot be checked",
+                    () -> assertThat(labeller.refusal()).hasValueSatisfying(reason -> assertThat(reason)
+                            .contains(model.reasonSays())));
+            claim("for " + model.description() + ", no answer was given", () -> assertThat(answer).isEmpty());
+            claim(
+                    "for " + model.description() + ", the chat model was called zero times",
+                    () -> assertThat(calls.get()).isZero());
+        }
+    }
+
+    @Test
+    @Story("No hosted endpoint is configurable for the labeller")
+    @DisplayName("The labeller is built from Ollama's chat model and names no URL or key of its own")
+    void theLabellersOnlyConstructorTakesOllamaAndNoEndpoint() {
+        Constructor<?>[] injectable = OllamaRelevanceLabeller.class.getConstructors();
+        List<String> expressions = new ArrayList<>();
+        for (Parameter parameter : injectable[0].getParameters()) {
+            Value value = parameter.getAnnotation(Value.class);
+            if (value != null) {
+                expressions.add(value.value());
+            }
+        }
+
+        claim(
+                "it has one public constructor, the one Spring injects, and the first thing it is given is"
+                        + " Ollama's chat model, never the generic chat model that an OpenAI one would also"
+                        + " satisfy",
+                () -> {
+                    assertThat(injectable).hasSize(1);
+                    assertThat(injectable[0].getParameterTypes()[0]).isEqualTo(OllamaChatModel.class);
+                });
+        claim(
+                "every setting it reads is its own model name or Ollama's own, and none names a key or"
+                        + " another provider",
+                () -> assertThat(expressions)
+                        .isNotEmpty()
+                        .allSatisfy(expression -> assertThat(expression)
+                                .matches("\\$\\{(vespera\\.label\\.model|spring\\.ai\\.ollama\\.).*")
+                                .doesNotContainIgnoringCase("openai")
+                                .doesNotContainIgnoringCase("api-key")));
+    }
+
+    /** A model at a loopback endpoint, the client that answers for it, and what its refusal must say. */
+    private record NotEstablishedAsLocal(String description, String name, OllamaClient client, List<String> reasonSays) {}
+
+    private static List<NotEstablishedAsLocal> modelsNotEstablishedAsLocal() {
         RestClient.Builder failing = RestClient.builder().baseUrl(OLLAMA);
         MockRestServiceServer.bindTo(failing).build()
                 .expect(requestTo(OLLAMA + "/api/show"))
                 .andRespond(withServerError());
-        return Stream.of(
-                Arguments.of(
-                        Named.of("a model whose tag ends in cloud, named with the reason", "a-large-model:120b-cloud"),
+        RestClient.Builder unlisted = RestClient.builder().baseUrl(OLLAMA);
+        MockRestServiceServer unlistedServer = MockRestServiceServer.bindTo(unlisted).build();
+        unlistedServer.expect(requestTo(OLLAMA + "/api/show")).andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        unlistedServer.expect(requestTo(OLLAMA + "/api/tags"))
+                .andRespond(withSuccess(
+                        "{\"models\": [{\"name\": \"another:model\", \"digest\": \"" + A_DIGEST + "\"}]}",
+                        MediaType.APPLICATION_JSON));
+        return List.of(
+                new NotEstablishedAsLocal(
+                        "a model whose tag ends in cloud, named with the reason",
+                        "a-large-model:120b-cloud",
                         unaskedClient(),
                         List.of("a-large-model:120b-cloud", "is a cloud model")),
-                Arguments.of(
-                        Named.of("a model Ollama reports as remote, whatever its name", "a-writing-model:8b"),
+                new NotEstablishedAsLocal(
+                        "a model Ollama reports as remote, whatever its name",
+                        "a-writing-model:8b",
                         clientShowing("{\"remote_host\": \"https://ollama.com:443\", \"remote_model\": \"a-writing-model:8b\"}"),
                         List.of("reports the model a-writing-model:8b as remote")),
-                Arguments.of(
-                        Named.of("a model whose remoteness cannot be established, not assumed local", "a-writing-model:8b"),
+                new NotEstablishedAsLocal(
+                        "a model whose remoteness cannot be established, not assumed local",
+                        "a-writing-model:8b",
                         new OllamaClient(failing.build()),
-                        List.of("could not be established", "is not assumed to be local")));
+                        List.of("could not be established", "is not assumed to be local")),
+                new NotEstablishedAsLocal(
+                        "a model whose weights' digest Ollama does not list",
+                        "a-writing-model:8b",
+                        new OllamaClient(unlisted.build()),
+                        List.of("could not be established")));
     }
 
     /** A client whose /api/show answers with {@code body}, once: the labeller asks once and remembers. */
