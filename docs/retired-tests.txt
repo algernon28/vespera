@@ -1,6 +1,6 @@
-# The test names decision records keep naming after ADR-367 cut the suite to at most 700 executions.
+# The test names decision records keep naming after ADR-368 cut the suite to at most 700 executions.
 # One line each, `ADR-NNN Name` as docs/check-claims.mjs prints a name a record's Tests section holds.
-# A record that names a test listed here names a test that held it until ADR-367; nothing holds that claim now.
+# A record that names a test listed here names a test that held it until ADR-368; nothing holds that claim now.
 # A line naming a test that exists, or a name no record holds, fails the claims check: take the line out.
 ADR-157 EarlyStageRunsInvocationTest
 ADR-159 ThinkingModelWritesNoCitationIT

@@ -43,24 +43,27 @@ const README = "README.md";
 const ADR_DIR = "docs/adr";
 const ADR_INDEX = ADR_DIR + "/README.md";
 const MAIN = "src/main/java/io/algernon/vespera";
+// The capability modules lie one folder below one of these two (ADR-367); the control panel's folder, `ui`, is none.
+const ENGINE = MAIN + "/engine";
+const PUBLISH = MAIN + "/publish";
 const TEST = "src/test/java";
 const POM = "pom.xml";
 const APPLICATION_YAML = "src/main/resources/application.yaml";
 const COMPOSE = "compose.yaml";
-const COMMANDS = MAIN + "/pipeline/VesperaCommand.java";
+const COMMANDS = ENGINE + "/pipeline/VesperaCommand.java";
 /**
  * VesperaCommand.java, a command named by a constant, `name = ServeCommand.NAME` (ADR-333 §8), written as the text the
  * constant holds, read from that class in `pipeline`, so that the checks reading `@Command(name = "...")` see it.
  */
 function commandsSource() {
   return readFileSync(COMMANDS, "utf8").replace(/(@Command\(\s*name = )([A-Z]\w*)\.([A-Z_]+)\b/g, (whole, head, cls, constant) => {
-    const file = `${MAIN}/pipeline/${cls}.java`;
+    const file = `${ENGINE}/pipeline/${cls}.java`;
     const held = existsSync(file) && new RegExp(`\\b${constant} = "(\\w+)";`).exec(readFileSync(file, "utf8"));
     return held ? `${head}"${held[1]}"` : whole;
   });
 }
-const WORKING_DIRECTORY_OPTION = MAIN + "/pipeline/WorkingDirectoryOption.java";
-const PROFILE = MAIN + "/profile/Profile.java";
+const WORKING_DIRECTORY_OPTION = ENGINE + "/pipeline/WorkingDirectoryOption.java";
+const PROFILE = ENGINE + "/profile/Profile.java";
 // No trailing slash: the list form is /issues?labels=..., and /issues/?labels=... is a 404.
 const ISSUE_API = "https://api.github.com/repos/algernon28/vespera/issues";
 
@@ -158,7 +161,7 @@ const adrById = new Map(adrFiles.map((f) => [Number(f.slice(0, 4)), f]));
 // and a package on disk the file names nowhere — the tenth module nobody documented.
 {
   const NAME = "the module list";
-  const listed = claim(/as packages under `io\.algernon\.vespera`: ([^.]+)\./, NAME);
+  const listed = claim(/as packages under `io\.algernon\.vespera\.engine` and `io\.algernon\.vespera\.publish`: ([^.]+)\./, NAME);
   const total = claim(/\*\*(\w+) capability-shaped modules\*\*/, NAME);
   // Two forms, because "none is still design only" is a real state and a sentence that
   // simply dropped the clause would turn this check off -- the defect this file exists
@@ -170,7 +173,7 @@ const adrById = new Map(adrFiles.map((f) => [Number(f.slice(0, 4)), f]));
     const named = backticked(listed[1]);
     const absent = gap.length > 2 ? backticked(gap[2]) : [];
     const present = named.filter((n) => !absent.includes(n));
-    const onDisk = subdirs(MAIN);
+    const onDisk = [...subdirs(ENGINE), ...subdirs(PUBLISH)];
     const wrong = [];
     if (named.length !== wordNumber(total[1])) wrong.push(`the file says ${total[1]} modules and names ${named.length}`);
     if (present.length !== wordNumber(gap[1])) wrong.push(`the file says ${gap[1]} exist and implies ${present.length}`);
@@ -382,7 +385,7 @@ function readmeSection(heading, name) {
   // says vespera serve reads no YAML file, application-local.yaml among them. The port and the property are read off
   // ServeCommand, and "reads no YAML file" holds only while ServeCommand's code, its comments aside, names none.
   const NAME = "what README says of vespera serve";
-  const SERVE_COMMAND = MAIN + "/pipeline/ServeCommand.java";
+  const SERVE_COMMAND = ENGINE + "/pipeline/ServeCommand.java";
   if (!existsSync(SERVE_COMMAND)) fail(NAME, `${SERVE_COMMAND} is not there, and README's vespera serve is read against it`);
   else {
     const source = readFileSync(SERVE_COMMAND, "utf8");
@@ -443,7 +446,7 @@ function readmeSection(heading, name) {
     // Measurement, census's own pointer (ADR-061), which census refreshes and nobody else writes
     // (ADR-062).
     const written = (type) => {
-      const record = new RegExp(`public record ${type}\\(([^)]*)\\)`).exec(readFileSync(`${MAIN}/profile/${type}.java`, "utf8"));
+      const record = new RegExp(`public record ${type}\\(([^)]*)\\)`).exec(readFileSync(`${ENGINE}/profile/${type}.java`, "utf8"));
       return record ? [...record[1].matchAll(/(\w+) (\w+)(?:,|$)/g)].filter((c) => c[1] !== "Measurement").map((c) => c[2]).sort() : null;
     };
     const text = written("TextValue");
@@ -723,7 +726,7 @@ function markerPattern(source, whole = false) {
   const FIRST = 50;
   // Accepted records whose code is not built yet. A number leaves this set in the change that builds its record.
   const NOT_YET_BUILT = new Set([362, 364]);
-  // ADR-367: the names the cut of the suite deleted, one `ADR-NNN Name` a line as this check prints it. A record keeps
+  // ADR-368: the names the cut of the suite deleted, one `ADR-NNN Name` a line as this check prints it. A record keeps
   // naming them as the tests that held it; this list says they are gone, and a line naming a test that exists is stale.
   const RETIRED_FILE = "docs/retired-tests.txt";
   const retired = new Set(existsSync(RETIRED_FILE)
@@ -752,7 +755,19 @@ function markerPattern(source, whole = false) {
   const declares = (path, method) => [...source(path).matchAll(DECLARATION(method))].some((m) => !NOT_A_TYPE.has(m[1]));
   const looksLikeATest = (simple) => /.(?:Test|IT)$/.test(simple) || testFiles.has(simple);
   /** The test files a class may be, its package's tail matched where it has one. */
-  const filesOf = (pkg, simple) => (testFiles.get(simple) ?? []).filter((p) => !pkg || p.endsWith(`/${pkg.replaceAll(".", "/")}/${simple}.java`));
+  // A record names a test by the package it lay in when the record was written, and a settled record is not edited: the
+  // packages ADR-367 moved are read as where they lie now. The control panel's `controlpanel` is `vespera.ui`, the entry
+  // point's `io.algernon` is `io.algernon.vespera`, and a module's `io.algernon.vespera.<module>` lies under `engine`, or
+  // under `publish` for the two plugins' modules. A short name, `pipeline.Class`, is matched by its tail and needs none.
+  const MOVED_MODULES = /^io\.algernon\.vespera\.(ledger|corpus|extraction|similarity|embedding|synthesis|deliverable|profile|pipeline)(?=\.|$)/;
+  const MOVED_PLUGINS = /^io\.algernon\.vespera\.(confluence|website)(?=\.|$)/;
+  const nowAt = (pkg) => pkg
+    .replace(/^io\.algernon\.controlpanel(?=\.|$)/, "io.algernon.vespera.ui")
+    .replace(/^controlpanel(?=\.|$)/, "ui")
+    .replace(/^io\.algernon$/, "io.algernon.vespera")
+    .replace(MOVED_MODULES, "io.algernon.vespera.engine.$1")
+    .replace(MOVED_PLUGINS, "io.algernon.vespera.publish.$1");
+  const filesOf = (pkg, simple) => (testFiles.get(simple) ?? []).filter((p) => !pkg || p.endsWith(`/${nowAt(pkg).replaceAll(".", "/")}/${simple}.java`));
   const holdsNested = (files, nested) => files.some((p) => new RegExp(`\\b(?:class|record|interface|enum) ${nested}\\b`).test(source(p)));
   // Packages, a class in CamelCase, classes nested in it, and a member: a test's name is a method, anything else is not.
   const QUALIFIED = /^((?:[a-z][a-z0-9]*\.)*)([A-Z][A-Za-z0-9]*[a-z][A-Za-z0-9]*)((?:\.[A-Z][a-z][A-Za-z0-9]*)*)(?:\.(\w+))?(?:\([^)]*\))?$/;
@@ -825,12 +840,12 @@ function markerPattern(source, whole = false) {
   const stale = [...retired].filter((r) => !retiredSeen.has(r));
   if (stale.length) missing.push(`${RETIRED_FILE} lists ${stale.length} names no record names or that exist: ${stale.join("; ")}`);
   if (missing.length) fail(NAME, `${missing.length} of ${checked}: ${missing.join("; ")}`);
-  else pass(NAME, `${checked} names of test classes and methods, in the Tests sections from ADR-0${FIRST} on, every one under ${TEST} but the ${retiredSeen.size} ${RETIRED_FILE} lists as retired by ADR-367`);
+  else pass(NAME, `${checked} names of test classes and methods, in the Tests sections from ADR-0${FIRST} on, every one under ${TEST} but the ${retiredSeen.size} ${RETIRED_FILE} lists as retired by ADR-368`);
 }
 
 /* ---------- the suite's ceiling ---------- */
 
-// ADR-367: the Java suite holds at most 700 tests. What is counted here is the methods annotated as tests, each once;
+// ADR-368: the Java suite holds at most 700 tests. What is counted here is the methods annotated as tests, each once;
 // a parameterized test's cases, which surefire counts one by one, are not, so this is the floor of what a build runs.
 {
   const NAME = "the suite's ceiling";
@@ -843,8 +858,8 @@ function markerPattern(source, whole = false) {
       else if (e.name.endsWith(".java")) count += (readFileSync(join(dir, e.name), "utf8").match(ANNOTATION) ?? []).length;
     }
   })(TEST);
-  if (count > CEILING) fail(NAME, `${count} test methods under ${TEST}, past the ${CEILING} ADR-367 allows: cut one for each added`);
-  else pass(NAME, `${count} test methods under ${TEST}, of the ${CEILING} ADR-367 allows`);
+  if (count > CEILING) fail(NAME, `${count} test methods under ${TEST}, past the ${CEILING} ADR-368 allows: cut one for each added`);
+  else pass(NAME, `${count} test methods under ${TEST}, of the ${CEILING} ADR-368 allows`);
 }
 
 /* ---------- how an agent works under the guard ---------- */

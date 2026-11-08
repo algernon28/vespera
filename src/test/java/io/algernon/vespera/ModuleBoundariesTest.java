@@ -41,7 +41,11 @@ import org.springframework.modulith.core.ApplicationModules;
 @Link(name = "ADR-101", url = Adr.THE_RUN_ENDS_AT_THE_GENERATED_DOCUMENTS, type = "adr")
 @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
 @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
+@Link(name = "ADR-367", url = Adr.THE_JARS_PACKAGES_LIE_UNDER_ENGINE_PUBLISH_AND_UI, type = "adr")
 class ModuleBoundariesTest {
+
+    /** The modules of the plugins compiled into the jar (ADR-333 §1): the Confluence rendering's and the website's. */
+    private static final List<String> PLUGIN_MODULES = List.of("confluence", "website");
 
     private static final ApplicationModules MODULES = ApplicationModules.of(VesperaApplication.class);
 
@@ -190,8 +194,10 @@ class ModuleBoundariesTest {
     }
 
     /**
-     * A package under the application root that is not one of the eleven is a module nobody decided
-     * on. Catching it here is cheaper than finding it once things depend on it. And each of the eleven is
+     * A package annotated {@code @ApplicationModule} that is not one of the eleven is a module nobody decided
+     * on. Catching it here is cheaper than finding it once things depend on it. Since ADR-367 a module is a package
+     * that carries the annotation, found under {@code engine} or {@code publish}, so a package left without it is
+     * not seen here and {@code TheJarsCodeLiesUnderEngineAndPublishAndUiTest} holds that there is none. And each of the eleven is
      * there: the tree the operator is handed is drawn by a module of its own, which no stage's version names
      * (ADR-274 §4, §5), and the one module that opens a connection to Confluence is one of its own too
      * (ADR-308 §7, §10), and so is the website's (ADR-333 §1); what each declares is held above.
@@ -216,5 +222,40 @@ class ModuleBoundariesTest {
                         + " draws the tree the operator is handed, the one that publishes to Confluence and the one"
                         + " that draws and refreshes the website among them",
                 () -> assertThat(identifiers(MODULES.stream())).containsExactlyInAnyOrderElementsOf(RECORDED_MODULES));
+    }
+
+    /**
+     * A plugin is a module of its own, declaring {@code ledger}, {@code deliverable}, whose seam it implements, and
+     * {@code synthesis}, whose records the seam hands it, and nothing else horizontal; and {@code deliverable}, which
+     * drives every drawing, names no plugin's module, the beans reaching it from {@code pipeline} (ADR-333 §1). It
+     * replaces ADR-308 §7's {@code thePublisherIsAModuleOfItsOwn}, whose "names no class of deliverable" ADR-333
+     * reverses; no stage's version names either module, so no run id moves (ADR-333 §14).
+     */
+    @Test
+    @Story("The boundary rule holds for every module")
+    @DisplayName("A plugin's module declares the ledger, the seam's module and the writing's records, and the tree's module names no plugin")
+    @Issue("633")
+    @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
+    void aPluginsModuleDeclaresTheSeamAndNothingElseHorizontal() {
+        Map<String, List<String>> declared = new java.util.TreeMap<>();
+        MODULES.stream()
+                .filter(module -> PLUGIN_MODULES.contains(module.getIdentifier().toString())
+                        || "deliverable".equals(module.getIdentifier().toString()))
+                .forEach(module -> declared.put(
+                        module.getIdentifier().toString(),
+                        module.getBasePackage()
+                                .getAnnotation(ApplicationModule.class)
+                                .map(declaration -> List.of(declaration.allowedDependencies()))
+                                .orElse(List.of())));
+
+        claim(
+                "each plugin's module is there, and declares the ledger, deliverable and synthesis, and nothing else",
+                () -> assertThat(PLUGIN_MODULES).allSatisfy(plugin -> assertThat(declared)
+                        .as("what %s declares", plugin)
+                        .containsEntry(plugin, List.of("ledger", "deliverable", "synthesis"))));
+        claim(
+                "and deliverable, which drives every plugin's drawing, declares no plugin's module: pipeline hands it"
+                        + " the beans",
+                () -> assertThat(declared.get("deliverable")).doesNotContainAnyElementsOf(PLUGIN_MODULES));
     }
 }

@@ -46,7 +46,7 @@ class DeliverableRulesHaveOneHomeTest {
     /** The two modules the deliverable's rules lie in. */
     private static final Set<String> THE_MODULES = Set.of("synthesis", "deliverable");
 
-    private static final String IN_DELIVERABLE = "io.algernon.vespera.deliverable.";
+    private static final String IN_DELIVERABLE = "io.algernon.vespera.engine.deliverable.";
 
     /** A backslash before a character a Markdown renderer reads as markup: what the Markdown surroundings inserted. */
     private static final List<String> MARKDOWN_ESCAPES = List.of("\\<", "\\&", "\\[", "\\]", "\\|", "\\`");
@@ -137,9 +137,9 @@ class DeliverableRulesHaveOneHomeTest {
 
     /** The sources that take a filename stem: the group's label, the index page and the Confluence pages. */
     private static final List<Path> STEM_READERS = List.of(
-            Path.of("src/main/java/io/algernon/vespera/synthesis/ClusterLabel.java"),
-            Path.of("src/main/java/io/algernon/vespera/deliverable/IndexPage.java"),
-            Path.of("src/main/java/io/algernon/vespera/confluence/ConfluencePages.java"));
+            Path.of("src/main/java/io/algernon/vespera/engine/synthesis/ClusterLabel.java"),
+            Path.of("src/main/java/io/algernon/vespera/engine/deliverable/IndexPage.java"),
+            Path.of("src/main/java/io/algernon/vespera/publish/confluence/ConfluencePages.java"));
 
     /** The class {@code name}, loaded without running its static initialisers. */
     private static Class<?> loaded(String name) throws ClassNotFoundException {

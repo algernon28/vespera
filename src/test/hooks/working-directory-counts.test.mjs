@@ -41,7 +41,7 @@ const held = (file) => `${sources.find((folder) => existsSync(`${folder}/${file}
 
 const SCRIPT = held("hooks/working-directory-counts.mjs");
 const SCHEMA = readFileSync(`${repo}/src/main/resources/schema.sql`, "utf8");
-const JAVA = `${repo}/src/main/java/io/algernon/vespera`;
+const JAVA = `${repo}/src/main/java/io/algernon/vespera/engine`;
 
 const COUNTED = 0;
 const REFUSED = 2;

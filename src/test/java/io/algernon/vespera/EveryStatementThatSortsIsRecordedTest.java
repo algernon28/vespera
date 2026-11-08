@@ -157,7 +157,7 @@ class EveryStatementThatSortsIsRecordedTest {
     private static final String A_RUN_ID_OF_THE_MINTED_FORM = "a".repeat(64);
 
     /** The class whose one index build is applied for the second planning. */
-    private static final String THE_CLASS_THAT_BUILDS_THE_HASH_INDEX = PACKAGE + "similarity.ShingleHashIndex";
+    private static final String THE_CLASS_THAT_BUILDS_THE_HASH_INDEX = PACKAGE + "engine.similarity.ShingleHashIndex";
 
     /**
      * How many statements of each shipped class sort or build an index on a database as {@code
@@ -331,7 +331,9 @@ class EveryStatementThatSortsIsRecordedTest {
                 }
             }
             for (Map.Entry<String, List<String>> shipped : strings.entrySet()) {
-                String name = shipped.getKey().substring(PACKAGE.length());
+                // A class is recorded by its module and its name, as it was before the modules moved under engine
+                // and publish (ADR-367): the folder in between is not part of it.
+                String name = shipped.getKey().substring(PACKAGE.length()).replaceFirst("^(engine|publish)\\.", "");
                 for (String text : shipped.getValue()) {
                     if (!STATEMENT.matcher(text).matches()) {
                         continue;

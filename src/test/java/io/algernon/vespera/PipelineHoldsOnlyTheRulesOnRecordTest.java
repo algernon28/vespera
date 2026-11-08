@@ -64,13 +64,13 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
 
     private static final String PIPELINE = "pipeline";
 
-    private static final String IN_PIPELINE = "io.algernon.vespera.pipeline.";
+    private static final String IN_PIPELINE = "io.algernon.vespera.engine.pipeline.";
 
     /** How the verdict vocabulary is written inside a compiled class, in a reference or in a signature. */
-    private static final String A_VERDICT_KIND = "io/algernon/vespera/ledger/VerdictKind";
+    private static final String A_VERDICT_KIND = "io/algernon/vespera/engine/ledger/VerdictKind";
 
     /** How the class that writes the deliverable is written inside a compiled class that calls it. */
-    private static final String THE_DELIVERABLE = "io/algernon/vespera/deliverable/Deliverable";
+    private static final String THE_DELIVERABLE = "io/algernon/vespera/engine/deliverable/Deliverable";
 
     /**
      * ADR-222's allowance: the classes of {@code pipeline} that hold a rule, by the persisted name of the

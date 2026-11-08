@@ -2,5 +2,5 @@
 # start (#321), and so is a working directory another invocation already holds (ADR-177, #364).
 # Spring Boot finds its failure reporters here and nowhere else.
 org.springframework.boot.SpringBootExceptionReporter=\
-io.algernon.vespera.pipeline.MisshapenProfileRefusal,\
-io.algernon.vespera.pipeline.WorkingDirectoryInUseRefusal
+io.algernon.vespera.engine.pipeline.MisshapenProfileRefusal,\
+io.algernon.vespera.engine.pipeline.WorkingDirectoryInUseRefusal

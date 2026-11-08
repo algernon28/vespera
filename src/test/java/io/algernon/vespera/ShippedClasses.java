@@ -37,6 +37,18 @@ final class ShippedClasses {
 
     private static final String SHIPPED_PACKAGE = "io.algernon.vespera";
 
+    /**
+     * The folders the capability modules lie in, under the application package (ADR-367): a module is the package
+     * one level below one of them.
+     */
+    private static final List<String> MODULE_GROUPS = List.of("engine", "publish");
+
+    /**
+     * What the scan leaves out: the control panel's package and the entry point, which are no module and are held by
+     * the tests of their own, as they lay outside {@code io.algernon.vespera} before ADR-367.
+     */
+    private static final List<String> LEFT_OUT = List.of(SHIPPED_PACKAGE + ".ui.", SHIPPED_PACKAGE + ".EntryPoint");
+
     private ShippedClasses() {
     }
 
@@ -67,11 +79,23 @@ final class ShippedClasses {
         return readByClass(ShippedClasses::appendedCharactersOf);
     }
 
-    /** The module a shipped class belongs to: the package segment after {@code io.algernon.vespera}. */
+    /**
+     * The module a shipped class belongs to: the package segment after {@code io.algernon.vespera.engine} or
+     * {@code io.algernon.vespera.publish}, and the empty text for the application class.
+     */
     static String moduleOf(String className) {
         String rest = className.substring(SHIPPED_PACKAGE.length() + 1);
         int dot = rest.indexOf('.');
-        return dot < 0 ? "" : rest.substring(0, dot);
+        if (dot < 0) {
+            return "";
+        }
+        String group = rest.substring(0, dot);
+        if (!MODULE_GROUPS.contains(group)) {
+            return group;
+        }
+        String inGroup = rest.substring(dot + 1);
+        int next = inGroup.indexOf('.');
+        return next < 0 ? "" : inGroup.substring(0, next);
     }
 
     private static Map<String, List<String>> byClass(Function<PoolEntry, String> kept)
@@ -126,7 +150,7 @@ final class ShippedClasses {
         for (BeanDefinition candidate : scanner.findCandidateComponents(SHIPPED_PACKAGE)) {
             Class<?> type =
                     Class.forName(candidate.getBeanClassName(), false, Thread.currentThread().getContextClassLoader());
-            if (compiledFromTheTestTree(type)) {
+            if (compiledFromTheTestTree(type) || leftOut(type.getName())) {
                 continue;
             }
             held.put(type.getName(), read.apply(compiledFormOf(type)));
@@ -136,6 +160,10 @@ final class ShippedClasses {
                     "the scan found no shipped class, so an answer naming no offender would be an empty scan");
         }
         return held;
+    }
+
+    private static boolean leftOut(String className) {
+        return LEFT_OUT.stream().anyMatch(className::startsWith);
     }
 
     private static boolean compiledFromTheTestTree(Class<?> type) {

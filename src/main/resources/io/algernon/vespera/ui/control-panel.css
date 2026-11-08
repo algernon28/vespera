@@ -1,0 +1,234 @@
+/*
+ * The control panel's one stylesheet (ADR-342 section 3): every colour, size and space the window draws. No class sets
+ * a style of its own.
+ */
+.root {
+    -vespera-ink: #1e1b2e;
+    -vespera-dim: #67637a;
+    -vespera-surface: #ffffff;
+    -vespera-ground: #f5f4f1;
+    -vespera-rule: #dfdce6;
+    -vespera-accent: #4c3fb1;
+    -vespera-accent-ink: #ffffff;
+    -vespera-bad: #b3282d;
+    -vespera-faint: #6f6a85;
+    -fx-font-size: 13px;
+    -fx-base: #efedf3;
+    -fx-background: -vespera-ground;
+    -fx-text-fill: -vespera-ink;
+}
+
+/* the dark theme: the same tokens redefined, every pair at WCAG AA (4.5:1) or better; Modena derives the controls from -fx-base */
+.root.dark, .dark-dialog {
+    -vespera-ink: #ecebf3;
+    -vespera-dim: #aeaac2;
+    -vespera-surface: #25232f;
+    -vespera-ground: #1a1922;
+    -vespera-rule: #3b3949;
+    -vespera-accent: #b0a6ff;
+    -vespera-accent-ink: #16132b;
+    -vespera-bad: #ff8f94;
+    -vespera-faint: #8e8aa6;
+    -fx-base: #2c2a38;
+    -fx-background: -vespera-ground;
+    -fx-control-inner-background: #211f2a;
+    -fx-text-fill: -vespera-ink;
+    -fx-text-background-color: -vespera-ink;
+    -fx-text-inner-color: -vespera-ink;
+    -fx-prompt-text-fill: -vespera-dim;
+    -fx-focus-color: -vespera-accent;
+    -fx-faint-focus-color: transparent;
+}
+
+/* the theme switch: a pill, its knob on the right where dark is chosen */
+.theme-switch {
+    -fx-background-color: -vespera-dim;
+    -fx-background-radius: 12px;
+    -fx-padding: 2px;
+    -fx-min-width: 46px;
+    -fx-pref-width: 46px;
+    -fx-max-width: 46px;
+    -fx-min-height: 24px;
+    -fx-pref-height: 24px;
+    -fx-max-height: 24px;
+    -fx-cursor: hand;
+}
+
+.theme-switch:selected {
+    -fx-background-color: -vespera-accent;
+}
+
+.theme-switch .knob {
+    -fx-fill: -vespera-surface;
+}
+
+.dark-dialog.dialog-pane,
+.dark-dialog .dialog-pane {
+    -fx-background-color: -vespera-surface;
+}
+
+.dark-dialog .label {
+    -fx-text-fill: -vespera-ink;
+}
+
+.cockpit {
+    -fx-background-color: -vespera-ground;
+}
+
+.main {
+    -fx-padding: 12px;
+    -fx-spacing: 8px;
+}
+
+.header .label {
+    -fx-font-size: 15px;
+}
+
+.card {
+    -fx-background-color: -vespera-surface;
+    -fx-border-color: -vespera-rule;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+    -fx-padding: 12px;
+}
+
+.outcome {
+    -fx-text-fill: -vespera-accent;
+}
+
+.button {
+    -fx-background-color: -vespera-accent;
+    -fx-text-fill: -vespera-accent-ink;
+    -fx-background-radius: 6px;
+    -fx-padding: 4px 12px 4px 12px;
+}
+
+.button:disabled {
+    -fx-opacity: 0.45;
+}
+
+.hyperlink {
+    -fx-text-fill: -vespera-accent;
+}
+
+.small {
+    -fx-font-size: 11px;
+    -fx-text-fill: -vespera-dim;
+}
+
+.dim {
+    -fx-text-fill: -vespera-dim;
+}
+
+.grey {
+    -fx-text-fill: -vespera-faint;
+}
+
+.key-name,
+.field-name {
+    -fx-font-weight: bold;
+}
+
+.section {
+    -fx-padding: 8px;
+    -fx-spacing: 8px;
+}
+
+.profile-row {
+    -fx-border-color: transparent transparent -vespera-rule transparent;
+    -fx-padding: 6px 0 10px 0;
+}
+
+.spaced-row,
+.actions,
+.charts,
+.card,
+.step {
+    -fx-spacing: 8px;
+}
+
+.tight-column {
+    -fx-spacing: 2px;
+}
+
+.repair {
+    -fx-spacing: 4px;
+}
+
+.tab-content {
+    -fx-padding: 8px;
+    -fx-spacing: 8px;
+}
+
+.steps-and-output {
+    -fx-pref-height: 300px;
+}
+
+.form-tabs {
+    -fx-pref-height: 420px;
+}
+
+.progress-chart {
+    -fx-pref-height: 340px;
+}
+
+/* a sample is a hit area 24 px across, unseen but for each line's latest, a marker in the line's colour (ADR-365 §3) */
+.progress-chart .chart-line-symbol.sample {
+    -fx-background-color: transparent;
+    -fx-background-radius: 12px;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+    -fx-min-width: 24px;
+    -fx-min-height: 24px;
+    -fx-pref-width: 24px;
+    -fx-pref-height: 24px;
+}
+
+.progress-chart .chart-line-symbol.latest-sample {
+    -fx-background-radius: 4px;
+    -fx-background-insets: 8px;
+}
+
+.progress-chart .default-color0.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_1; }
+.progress-chart .default-color1.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_2; }
+.progress-chart .default-color2.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_3; }
+.progress-chart .default-color3.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_4; }
+.progress-chart .default-color4.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_5; }
+.progress-chart .default-color5.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_6; }
+.progress-chart .default-color6.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_7; }
+.progress-chart .default-color7.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_8; }
+
+.step {
+    -fx-alignment: center-left;
+    -fx-padding: 2px 0 2px 0;
+}
+
+.leg-summary {
+    -fx-alignment: center-left;
+    -fx-spacing: 8px;
+}
+
+.leg-rows {
+    -fx-padding: 0 0 0 8px;
+}
+
+.leg-summary .progress-bar,
+.step .progress-bar {
+    -fx-min-width: 160px;
+    -fx-pref-width: 160px;
+}
+
+.command-line {
+    -fx-font-family: monospace;
+    -fx-font-size: 11px;
+}
+
+.output .list-cell {
+    -fx-font-family: monospace;
+    -fx-font-size: 11px;
+}
+
+.sidebar {
+    -fx-pref-width: 420px;
+    -fx-background-color: -vespera-surface;
+}

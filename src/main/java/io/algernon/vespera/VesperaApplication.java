@@ -1,14 +1,14 @@
 package io.algernon.vespera;
 
-import io.algernon.vespera.pipeline.CorpusRootLock;
-import io.algernon.vespera.pipeline.MisshapenProfileRefusal;
-import io.algernon.vespera.pipeline.ProfileShapeCheck;
-import io.algernon.vespera.pipeline.ServeCommand;
-import io.algernon.vespera.pipeline.SidecarStarter;
-import io.algernon.vespera.pipeline.TemporaryFilesInTheWorkingDirectory;
-import io.algernon.vespera.pipeline.WorkingDirectoryInUseRefusal;
-import io.algernon.vespera.pipeline.WorkingDirectoryLock;
-import io.algernon.vespera.pipeline.WorkingDirectoryPreparer;
+import io.algernon.vespera.engine.pipeline.CorpusRootLock;
+import io.algernon.vespera.engine.pipeline.MisshapenProfileRefusal;
+import io.algernon.vespera.engine.pipeline.ProfileShapeCheck;
+import io.algernon.vespera.engine.pipeline.ServeCommand;
+import io.algernon.vespera.engine.pipeline.SidecarStarter;
+import io.algernon.vespera.engine.pipeline.TemporaryFilesInTheWorkingDirectory;
+import io.algernon.vespera.engine.pipeline.WorkingDirectoryInUseRefusal;
+import io.algernon.vespera.engine.pipeline.WorkingDirectoryLock;
+import io.algernon.vespera.engine.pipeline.WorkingDirectoryPreparer;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.boot.SpringApplication;
