@@ -40,6 +40,28 @@
     -fx-faint-focus-color: transparent;
 }
 
+/* the theme switch: a pill, its knob on the right where dark is chosen */
+.theme-switch {
+    -fx-background-color: -vespera-dim;
+    -fx-background-radius: 12px;
+    -fx-padding: 2px;
+    -fx-min-width: 46px;
+    -fx-pref-width: 46px;
+    -fx-max-width: 46px;
+    -fx-min-height: 24px;
+    -fx-pref-height: 24px;
+    -fx-max-height: 24px;
+    -fx-cursor: hand;
+}
+
+.theme-switch:selected {
+    -fx-background-color: -vespera-accent;
+}
+
+.theme-switch .knob {
+    -fx-fill: -vespera-surface;
+}
+
 .dark-dialog.dialog-pane,
 .dark-dialog .dialog-pane {
     -fx-background-color: -vespera-surface;
