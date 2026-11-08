@@ -155,7 +155,7 @@ class CliExitIT {
     }
 
     /** As {@link #launch}, standard output and standard error kept in two files, so the stream a line is on is read. */
-    private static Streams launchSplit(Path root, String... args) throws Exception {
+    private static Streams launchSplit(String... args) throws Exception {
         Path out = Files.createTempFile(workingDirectory, "split", ".out");
         Path err = Files.createTempFile(workingDirectory, "split", ".err");
         ProcessBuilder builder = new ProcessBuilder(
@@ -164,6 +164,7 @@ class CliExitIT {
                                                 javaExecutable(),
                                                 "-Dspring.docker.compose.enabled=false",
                                                 "-Dvespera.sidecars.start=false",
+                                                "-Dvespera.sidecars.wait-at-most=1s",
                                                 "-Dvespera.working-dir=" + workingDirectory.resolve("split-" + out.getFileName()),
                                                 "-jar",
                                                 EXECUTABLE_JAR.toString()),
@@ -196,7 +197,7 @@ class CliExitIT {
     @Story("A refusal reads as its words alone")
     @DisplayName("A refusal is printed on standard error as its words alone")
     void aRefusalIsPrintedOnStandardErrorAsItsWordsAlone() throws Exception {
-        Streams launched = launchSplit(workingDirectory, "run");
+        Streams launched = launchSplit("run");
 
         claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds", () -> assertThat(launched.finished()).isTrue());
         claim("standard error's last line is the refusal, its words whole with nothing before them on the line",
@@ -213,7 +214,7 @@ class CliExitIT {
     @Story("A refusal reads as its words alone")
     @DisplayName("The usage of the bare command is printed on standard output as its words alone")
     void theUsageIsPrintedOnStandardOutputAsItsWordsAlone() throws Exception {
-        Streams launched = launchSplit(workingDirectory, "--headless");
+        Streams launched = launchSplit("--headless");
         List<String> output = launched.standardOutput();
         int usageStarts = output.indexOf(output.stream().filter(line -> line.startsWith("Usage: vespera")).findFirst().orElse(""));
 
@@ -236,7 +237,7 @@ class CliExitIT {
     @Story("A refusal reads as its words alone")
     @DisplayName("An argument picocli refuses is said on standard error as its words alone")
     void anArgumentPicocliRefusesIsSaidOnStandardErrorAsItsWordsAlone() throws Exception {
-        Streams launched = launchSplit(workingDirectory, "run", "--bogus-option");
+        Streams launched = launchSplit("run", "--bogus-option");
 
         claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds", () -> assertThat(launched.finished()).isTrue());
         claim("picocli's refusal is a line of standard error of its words alone",
@@ -256,7 +257,8 @@ class CliExitIT {
     @Story("A closing line reads as its words alone")
     @DisplayName("A closing line that used to be logged is its words alone, with no converter answering")
     void aClosingLineThatWasLoggedIsItsWordsAlone(@TempDir Path root) throws Exception {
-        Streams launched = launchSplit(workingDirectory, "run", root.toString());
+        Files.writeString(root.resolve("a document.txt"), "a document of the corpus");
+        Streams launched = launchSplit("run", root.toString());
 
         claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds", () -> assertThat(launched.finished()).isTrue());
         claim("standard error's last line is stage 2's failure line, its words alone with nothing before them",

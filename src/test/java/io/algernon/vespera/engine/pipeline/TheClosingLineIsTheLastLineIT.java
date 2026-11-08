@@ -68,6 +68,9 @@ class TheClosingLineIsTheLastLineIT {
     /** The embedding model the profile names and the stand-in serves. */
     private static final String EMBEDDING_MODEL = "closing-line-embed:latest";
 
+    /** An embedding model Ollama would forward to a hosted service, which the run refuses before it sends a chunk. */
+    private static final String A_CLOUD_EMBEDDING_MODEL = "closing-line-embed:cloud";
+
     /** How many numbers each vector the stand-in answers holds. */
     private static final int DIMENSION = 16;
 
@@ -162,9 +165,12 @@ class TheClosingLineIsTheLastLineIT {
         runWhoseEmbeddingFails = launch(converterUrl, "http://127.0.0.1:" + brokenOllama.getAddress().getPort(),
                 "run", "--db-dir=" + embeddingWorkingDirectory, corpusRoot.toString());
 
-        ollamaServingNoModel = ollamaServingNoEmbeddingModel();
+        ollamaServingNoModel = ollamaServingACloudEmbeddingModel();
         Path notServedWorkingDirectory = Files.createDirectories(temporary.resolve("not-served-working-directory"));
-        Files.copy(workingDirectory.resolve("profile.yaml"), notServedWorkingDirectory.resolve("profile.yaml"));
+        Files.writeString(
+                notServedWorkingDirectory.resolve("profile.yaml"),
+                Files.readString(workingDirectory.resolve("profile.yaml"))
+                        .replace(EMBEDDING_MODEL, A_CLOUD_EMBEDDING_MODEL));
         runWhoseEmbeddingModelIsNotServed = launch(converterUrl,
                 "http://127.0.0.1:" + ollamaServingNoModel.getAddress().getPort(),
                 "run", "--db-dir=" + notServedWorkingDirectory, corpusRoot.toString());
@@ -232,10 +238,10 @@ class TheClosingLineIsTheLastLineIT {
     @Test
     @Story("The closing line is the last line")
     @Link(name = "ADR-364", url = Adr.THE_OUTPUT_PANEL_IS_COPYABLE_TEXT_AND_EVERY_LINE_GOES_THROUGH_LOGBACK, type = "adr")
-    @DisplayName("vespera run whose embedding model is not served prints the stop saying so last, after the step's own line")
+    @DisplayName("vespera run whose embedding model Ollama would forward to a hosted service prints the stop saying so last, after the step's own line")
     void aRunWhoseEmbeddingModelIsNotServedPrintsItsStopLast() {
         Printed printed = runWhoseEmbeddingModelIsNotServed;
-        String stop = "stage 5's scoring step stopped: the embedding model " + EMBEDDING_MODEL + " was refused";
+        String stop = "stage 5's scoring step stopped: the embedding model " + A_CLOUD_EMBEDDING_MODEL + " was refused";
 
         endedWith(printed, CommandLine.ExitCode.SOFTWARE, "a failure");
         claim("the stop, its words alone, is the last line that is not blank, standard output and standard error"
@@ -312,9 +318,14 @@ class TheClosingLineIsTheLastLineIT {
      * saying it is local, and {@code /api/embed} answering each input with a vector drawn from its hash.
      */
     private static HttpServer ollamaStandIn() throws IOException {
+        return ollamaStandIn(EMBEDDING_MODEL);
+    }
+
+    /** As above, serving {@code model} as the one model it has. */
+    private static HttpServer ollamaStandIn(String model) throws IOException {
         JsonMapper json = JsonMapper.builder().build();
         HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        server.createContext("/api/tags", exchange -> answer(exchange, "{\"models\":[{\"name\":\"" + EMBEDDING_MODEL
+        server.createContext("/api/tags", exchange -> answer(exchange, "{\"models\":[{\"name\":\"" + model
                 + "\",\"digest\":\"closing-line-digest\",\"details\":{\"quantization_level\":\"F16\"}}]}"));
         server.createContext("/api/show", exchange -> {
             exchange.getRequestBody().readAllBytes();
@@ -329,7 +340,7 @@ class TheClosingLineIsTheLastLineIT {
             } else {
                 inputs.add(input.asString());
             }
-            StringBuilder body = new StringBuilder("{\"model\":\"" + EMBEDDING_MODEL + "\",\"embeddings\":[");
+            StringBuilder body = new StringBuilder("{\"model\":\"" + model + "\",\"embeddings\":[");
             for (int i = 0; i < inputs.size(); i++) {
                 body.append(i == 0 ? "" : ",").append(vector(inputs.get(i)));
             }
@@ -351,12 +362,9 @@ class TheClosingLineIsTheLastLineIT {
         return server;
     }
 
-    /** As {@link #ollamaStandIn()}, except that it serves no model at all, so the embedding model asked for is not there. */
-    private static HttpServer ollamaServingNoEmbeddingModel() throws IOException {
-        HttpServer server = ollamaStandIn();
-        server.removeContext("/api/tags");
-        server.createContext("/api/tags", exchange -> answer(exchange, "{\"models\":[]}"));
-        return server;
+    /** As {@link #ollamaStandIn()}, serving a model whose name ends in cloud, which the run refuses to send a text to. */
+    private static HttpServer ollamaServingACloudEmbeddingModel() throws IOException {
+        return ollamaStandIn(A_CLOUD_EMBEDDING_MODEL);
     }
 
     private static String vector(String input) {
