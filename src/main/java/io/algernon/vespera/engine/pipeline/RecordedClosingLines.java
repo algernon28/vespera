@@ -6,7 +6,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.listener.StepExecutionListener;
 import org.springframework.batch.core.step.StepExecution;
-import org.springframework.stereotype.Component;
 
 /**
  * Holds the closing lines a tasklet writes from inside its work, and logs them once the step has ended (ADR-364 §4,
@@ -23,7 +22,6 @@ import org.springframework.stereotype.Component;
  * returned. Neither listener implements {@code Ordered} or carries {@code @Order}: Spring Batch sorts listeners that do
  * before it reverses them, which would undo the order.
  */
-@Component
 public final class RecordedClosingLines implements StepExecutionListener {
 
     private final ConcurrentHashMap<Long, List<String>> recorded = new ConcurrentHashMap<>();

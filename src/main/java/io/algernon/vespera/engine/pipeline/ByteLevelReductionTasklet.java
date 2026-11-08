@@ -144,8 +144,8 @@ public class ByteLevelReductionTasklet implements Tasklet {
             DetectedFormats detectedFormats,
             ImplementationVersions implementationVersions,
             ProfileStore profileStore,
-            Path root,
-            Path workingDirectory,
+            @Value("#{jobParameters['root']}") Path root,
+            @Value("${vespera.working-dir}") Path workingDirectory,
             RecordedClosingLines recordedClosingLines) {
         this.recordedClosingLines = recordedClosingLines;
         this.ledger = ledger;

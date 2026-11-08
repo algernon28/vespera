@@ -240,6 +240,15 @@ public class VesperaJobConfiguration {
         return TaskletSteps.taskletStep(StepNames.GENERATION, jobRepository, transactionManager, recordedClosingLines, generationTasklet);
     }
 
+    /**
+     * The closing lines a tasklet records for after its step (ADR-364 section 4), one holder for every step. A bean of
+     * this configuration and not a component of its own, so that each context that imports the job's steps has it.
+     */
+    @Bean
+    RecordedClosingLines recordedClosingLines() {
+        return new RecordedClosingLines();
+    }
+
     /** The clock census stamps its measurements with, injectable so a test can hold time still. */
     @Bean
     Clock clock() {
