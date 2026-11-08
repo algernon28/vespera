@@ -76,7 +76,8 @@ class SystemPageOpenerTest {
         try {
             return Path.of(first, more);
         } catch (InvalidPathException e) {
-            return abort("this file system will not name " + String.join("/", List.of(more)) + ": " + e.getMessage());
+            return abort("this file system will not name " + String.join("/", first, String.join("/", more)) + ": "
+                    + e.getMessage());
         }
     }
 }

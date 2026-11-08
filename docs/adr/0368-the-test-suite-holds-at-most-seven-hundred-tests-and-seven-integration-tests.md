@@ -3,7 +3,7 @@
 - **Date**: 2026-11-08
 - **Status**: accepted on 2026-11-08.
 - **Settles**: the size of the Java test suite, which the operator asked to be cut to no more than six or seven hundred tests, its integration tests to the fewest the build needs.
-- **Amends**: [ADR-337](0337-every-claim-can-fail-a-decision-is-held-once-and-a-records-tests-name-tests-that-exist.md) §5, and the rule of `docs/adr/README.md` it cites, for the records up to ADR-367: a record that names a test this decision removed, in its `## Tests` section or anywhere else in its text, keeps the name, and `docs/retired-tests.txt` says it is gone (§4). From ADR-368 on, ADR-337 §5 stands as written.
+- **Amends**: [ADR-337](0337-every-claim-can-fail-a-decision-is-held-once-and-a-records-tests-name-tests-that-exist.md) §5, and the rule of `docs/adr/README.md` it cites, for the records up to ADR-367: a record that names a test this decision removed, in its `## Tests` section or anywhere else in its text, keeps the name; a name in its `## Tests` section is listed in `docs/retired-tests.txt` (§4). From ADR-368 on, ADR-337 §5 stands as written.
 - **Keeps**: [ADR-052](0052-the-test-report-is-written-for-a-reader-outside-the-project.md)'s four conventions, and the seven standards a test is held to, for every test that stays; [ADR-320](0320-a-publish-sends-each-page-whole-its-files-before-its-body-before-it-creates-the-next-and-says-how-far-it-has-got.md) §6, the publish's tests tagged `confluence` and skipped by CI.
 
 ## Context
