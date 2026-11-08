@@ -89,6 +89,17 @@ class RedundancyResolutionTest {
     /** Shingles a pair just below the cut shares: 79 of the 100 between them, one more of its own on one side. */
     private static final int SHARED_JUST_BELOW = 79;
 
+    /** A document measured against the containment cut: 100 shingles, some of them in a far larger one. */
+    private static final int SMALL_DOCUMENT_SHINGLES = 100;
+
+    /** How many of its 100 the larger one holds at the containment cut, 95/100 = 0.95, and just below it. */
+    private static final int HELD_AT_THE_CUT = 95;
+
+    private static final int HELD_JUST_BELOW = 94;
+
+    /** The containment of that document, 95/100: the shipped containment cut exactly. */
+    private static final double CONTAINMENT_AT_THE_CUT = 0.95;
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -252,6 +263,54 @@ class RedundancyResolutionTest {
                         .containsExactly(true, true));
     }
 
+    /**
+     * The containment cut is 0.95, judged at or above (ADR-079, ADR-081): a 100-shingle document holding 95 of its
+     * shingles in a far larger one is removed as inside it, one holding 94 is not. Raising the cut, judging strictly
+     * above it, or lowering it by a hundredth each turns this red. Each small document's 32 rarest shingles are its
+     * own few plus shared ones enough that its container holds at least the 24 retrieval asks for, so both pairs are
+     * measured and the cut alone decides them.
+     */
+    @Test
+    @Story("A document is inside another from the cut up, and not below it")
+    @DisplayName("A document with 95 of its 100 shingles in a far larger one is judged inside it, and one with 94 is not")
+    void aDocumentAtTheContainmentCutIsJudgedAndOneJustBelowItIsNot() {
+        Fixture fixture = fixture();
+        OccurrenceId atTheCut = fixture.document(
+                "at-the-cut.pdf",
+                union(shingles(0, HELD_AT_THE_CUT), shingles(1_000, SMALL_DOCUMENT_SHINGLES - HELD_AT_THE_CUT)),
+                THINNER_TEXT, Instant.parse("2021-01-01T00:00:00Z"));
+        OccurrenceId atTheCutContainer = fixture.document(
+                "at-the-cut-container.pdf",
+                union(shingles(0, HELD_AT_THE_CUT), shingles(10_000, CONTAINER_EXTRA_SHINGLES)),
+                FULLER_TEXT, Instant.parse("2022-01-01T00:00:00Z"));
+        OccurrenceId justBelow = fixture.document(
+                "just-below.pdf",
+                union(shingles(50_000, HELD_JUST_BELOW), shingles(51_000, SMALL_DOCUMENT_SHINGLES - HELD_JUST_BELOW)),
+                THINNER_TEXT, Instant.parse("2021-01-01T00:00:00Z"));
+        OccurrenceId justBelowContainer = fixture.document(
+                "just-below-container.pdf",
+                union(shingles(50_000, HELD_JUST_BELOW), shingles(60_000, CONTAINER_EXTRA_SHINGLES)),
+                FULLER_TEXT, Instant.parse("2022-01-01T00:00:00Z"));
+
+        fixture.resolve();
+
+        claim(
+                "the document with 95 of its 100 shingles in the larger one is inside it at exactly 0.95, the cut"
+                        + " itself, and is removed as inside it: the cut is met from 0.95 up",
+                () -> assertThat(redundantWith(atTheCut)).isEqualTo(atTheCutContainer.value()));
+        claim(
+                "the stored relation names containment",
+                () -> assertThat(relationOf(atTheCut)).isEqualTo("contained-in"));
+        claim(
+                "and the stored score is that exact 0.95",
+                () -> assertThat(scoreOf(atTheCut)).isEqualTo(CONTAINMENT_AT_THE_CUT));
+        claim(
+                "the document with 94 of its 100 shingles in the larger one is inside it at 0.94, a hundredth below"
+                        + " the cut, and neither it nor the larger one is removed",
+                () -> assertThat(List.of(redundantWith(justBelow) == null, redundantWith(justBelowContainer) == null))
+                        .containsExactly(true, true));
+    }
+
     @Test
     @Story("No pointer names a document the same pass removed")
     @DisplayName("Of a document inside a second that is inside a third, no document is left pointing at one that was itself removed")
@@ -275,6 +334,29 @@ class RedundancyResolutionTest {
         claim(
                 "and every document the pass points a removed one at is a document the pass kept -- a reader"
                         + " following the pointer finds the text, not another pointer",
+                () -> assertThat(pointersAtRemovedDocuments()).isEmpty());
+    }
+
+    @Test
+    @Story("No pointer names a document the same pass removed")
+    @DisplayName("The copy kept of two near-identical documents is not removed afterwards for lying inside a third, leaving the other copy pointing at nothing kept")
+    @Link(name = "ADR-234", url = Adr.NO_REDUNDANCY_POINTER_NAMES_A_REMOVED_DOCUMENT, type = "adr")
+    void aNearDuplicateSurvivorInsideAnotherDocumentLeavesNoPointerAtARemovedDocument() {
+        Fixture fixture = fixture();
+        Set<Long> digitalShingles = shingles(1, 100);
+        OccurrenceId scan = fixture.document("scan.pdf", shingles(0, 100), THINNER_TEXT, Instant.parse("2021-01-01T00:00:00Z"));
+        fixture.document("digital.pdf", digitalShingles, FULLER_TEXT, Instant.parse("2022-01-01T00:00:00Z"));
+        Set<Long> anthology = new LinkedHashSet<>(digitalShingles);
+        anthology.addAll(shingles(10_000, CONTAINER_EXTRA_SHINGLES));
+        fixture.document("anthology.pdf", anthology, FULLER_TEXT, Instant.parse("2023-01-01T00:00:00Z"));
+
+        fixture.resolve();
+
+        claim(
+                "the scan is removed as a near-duplicate of the digital copy",
+                () -> assertThat(relationOf(scan)).isEqualTo("near-duplicate"));
+        claim(
+                "and every document the pass points a removed one at is a document the pass kept",
                 () -> assertThat(pointersAtRemovedDocuments()).isEmpty());
     }
 

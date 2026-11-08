@@ -16,6 +16,7 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -59,6 +60,12 @@ class BrokenOrOutOfScopeTest {
 
     /** A largest size converted in parts, far below the real one, for the same reason. */
     private static final long SMALL_LARGEST = 400L;
+
+    /** Over {@link #SMALL_CEILING} and under {@link #SMALL_LARGEST}. */
+    private static final int OVER_THE_CEILING = 150;
+
+    /** Over {@link #SMALL_LARGEST}. */
+    private static final int OVER_THE_LARGEST = 401;
 
     /** A file whose name begins with this is answered "not converted in parts" by the limits below. */
     private static final String NOT_CUT_PREFIX = "wide";
@@ -110,6 +117,57 @@ class BrokenOrOutOfScopeTest {
                             .contains(DetectedFormat.PLAIN_TEXT);
                 });
     }
+
+    @Test
+    @Story("When a text file is too large to convert")
+    @DisplayName("Text over the size limit is kept when cut into parts, and removed when it is HTML, not cut, or too large to cut")
+    @Link(name = "ADR-171", url = Adr.LOGS_AND_TEXT_TOO_LARGE_FOR_DOCLING_ARE_OUT_OF_SCOPE, type = "adr")
+    @Link(name = "ADR-178", url = Adr.TEXT_OVER_THE_CEILING_IS_CONVERTED_IN_PARTS, type = "adr")
+    void appliesTheSizeRuleThroughTheLimitsHandedIn(@TempDir Path root) throws Exception {
+        writeTextOfExactly(root.resolve("export.txt"), OVER_THE_CEILING);
+        writeTextOfExactly(root.resolve("page.html"), OVER_THE_CEILING);
+        writeTextOfExactly(root.resolve("small.html"), (int) SMALL_CEILING);
+        writeTextOfExactly(root.resolve(NOT_CUT_PREFIX + ".txt"), OVER_THE_CEILING);
+        writeTextOfExactly(root.resolve("dump.txt"), OVER_THE_LARGEST);
+        Corpus corpus = new Corpus(root);
+        OccurrenceId cut = corpus.occurrence("export.txt");
+        OccurrenceId html = corpus.occurrence("page.html");
+        OccurrenceId smallHtml = corpus.occurrence("small.html");
+        OccurrenceId notCut = corpus.occurrence(NOT_CUT_PREFIX + ".txt");
+        OccurrenceId dump = corpus.occurrence("dump.txt");
+
+        FormatMix mix = corpus.pass().verdictSurvivors(corpus.run(), root, null, List.of(), List.of(), new RecordedChecks());
+
+        claim(
+                "a 150-byte text file over the 100-byte ceiling is kept, because the limits say it is cut into parts",
+                () -> assertThat(verdictsOf(cut)).isEmpty());
+        claim(
+                "an HTML file of exactly 100 bytes is kept: only a file over the ceiling is removed",
+                () -> assertThat(verdictsOf(smallHtml)).isEmpty());
+        claim(
+                "a 150-byte HTML file is removed against the 100-byte ceiling it was handed",
+                () -> assertThat(verdictsOf(html)).containsExactly("OUT_OF_SCOPE: an HTML file of 150 bytes, and HTML,"
+                        + " CSV and AsciiDoc files over 100 bytes are out of scope, because the converter cannot finish"
+                        + " one in time and cutting one into parts breaks its structure"));
+        claim(
+                "a 150-byte text file the limits say is not cut is removed, with the reason saying so",
+                () -> assertThat(verdictsOf(notCut)).containsExactly("OUT_OF_SCOPE: a text file of 150 bytes in UTF-16"
+                        + " or UTF-32, and such text files over 100 bytes are out of scope, because the converter cannot"
+                        + " finish one in time and one is not cut into parts"));
+        claim(
+                "a 401-byte text file is removed against the 400-byte largest size it was handed",
+                () -> assertThat(verdictsOf(dump)).containsExactly("OUT_OF_SCOPE: a text file of 401 bytes, and text"
+                        + " files over 400 bytes are out of scope, because the converter's answer for one would be too"
+                        + " large to keep"));
+        claim(
+                "the tally counts the three removed among the text files left out for their size",
+                () -> {
+                    assertThat(mix.outOfScope()).isEqualTo(3);
+                    assertThat(mix.tooLarge()).isEqualTo(3);
+                    assertThat(mix.logs()).isZero();
+                });
+    }
+
 
     @Test
     @Story("What the first pass counts")
@@ -200,6 +258,17 @@ class BrokenOrOutOfScopeTest {
             codeUnreadable.add(occurrence);
         }
     }
+
+    /** Rows of semicolon-separated values, none beginning with a timestamp, cut at exactly {@code size} bytes. */
+    private static void writeTextOfExactly(Path file, int size) throws IOException {
+        byte[] row = "TID-0001;ACME RETAIL;terminal row\n".getBytes(StandardCharsets.US_ASCII);
+        byte[] bytes = new byte[size];
+        for (int i = 0; i < size; i++) {
+            bytes[i] = row[i % row.length];
+        }
+        Files.write(file, bytes);
+    }
+
 
     /** The first four bytes of a Windows shortcut, which no detection rule recognises. */
     private static final byte[] WINDOWS_SHORTCUT_HEADER = {0x4C, 0x00, 0x00, 0x00};
