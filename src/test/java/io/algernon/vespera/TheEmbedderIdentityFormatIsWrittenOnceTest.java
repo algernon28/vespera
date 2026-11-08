@@ -45,7 +45,7 @@ class TheEmbedderIdentityFormatIsWrittenOnceTest {
     private static final String EMBEDDING = "embedding";
 
     /** The one class that composes an embedder identity, and so the one that may write its format. */
-    private static final String THE_IDENTITY = "io.algernon.vespera.embedding.EmbedderIdentity";
+    private static final String THE_IDENTITY = "io.algernon.vespera.engine.embedding.EmbedderIdentity";
 
     /** How every embedder identity begins: the name of the model that produced the vector. */
     private static final String THE_MODEL_PART = "model=";

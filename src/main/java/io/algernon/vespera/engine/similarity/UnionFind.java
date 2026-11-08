@@ -1,0 +1,90 @@
+package io.algernon.vespera.engine.similarity;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * A disjoint-set structure over occurrence ids, holding the connected components ADR-079's
+ * near-duplicate resolution needs: every pair scoring at or above the threshold is one union, and the
+ * final {@link #components()} are exactly the sets one survivor rule then picks a survivor from.
+ *
+ * <p>Built empty, and taking an occurrence the first time a union names it (ADR-220 section 4): it holds
+ * the occurrences of the pairs at or above the cut and no others, so it grows with the run's near-duplicates
+ * and not with its signed occurrences.
+ *
+ * <p>Path-compressing but otherwise the textbook structure -- nothing here needs to be fast at the
+ * scale this slice is built against (ADR-082's "no scale or throughput test"), only correct and
+ * deterministic regardless of the order pairs are unioned in.
+ */
+final class UnionFind {
+
+    private final Map<Long, Long> parent = new HashMap<>();
+    private long unions;
+
+    long find(long element) {
+        long root = element;
+        while (true) {
+            Long above = parent.get(root);
+            if (above == null) {
+                parent.put(root, root);
+                break;
+            }
+            if (above == root) {
+                break;
+            }
+            root = above;
+        }
+        long node = element;
+        while (node != root) {
+            long above = parent.get(node);
+            parent.put(node, root);
+            node = above;
+        }
+        return root;
+    }
+
+    void union(long a, long b) {
+        long rootA = find(a);
+        long rootB = find(b);
+        if (rootA != rootB) {
+            parent.put(rootA, rootB);
+            unions++;
+        }
+    }
+
+    /** How many unions have joined two components so far: a component's members change only when this does. */
+    long unions() {
+        return unions;
+    }
+
+    /** Whether a union has named {@code element}; asks without adding it, as {@link #joined} does. */
+    boolean holds(long element) {
+        return parent.containsKey(element);
+    }
+
+    /** Whether both occurrences are held and share a root; adds neither, so a pair already joined costs no member. */
+    boolean joined(long a, long b) {
+        return parent.containsKey(a) && parent.containsKey(b) && find(a) == find(b);
+    }
+
+    /** Every occurrence a union has named, the members of every component, as a view of what is held. */
+    Set<Long> members() {
+        return Collections.unmodifiableSet(parent.keySet());
+    }
+
+    /**
+     * Every connected component of the occurrences a union has named, each of two or more: an occurrence is
+     * held only because a union named it, so none stands alone.
+     */
+    Collection<Set<Long>> components() {
+        Map<Long, Set<Long>> grouped = new HashMap<>();
+        for (long element : parent.keySet()) {
+            grouped.computeIfAbsent(find(element), ignored -> new HashSet<>()).add(element);
+        }
+        return grouped.values();
+    }
+}

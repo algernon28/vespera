@@ -46,7 +46,7 @@ class OnlyPipelineNamesSpringBatchTest {
     private static final String THE_MODULE_THAT_ASSEMBLES_THE_JOB = "pipeline";
 
     /** The helper that read a whole reader into a set, which went with the readers it emptied. */
-    private static final String THE_HELPER_THAT_EMPTIED_A_READER = "io.algernon.vespera.pipeline.ItemStreamReaders";
+    private static final String THE_HELPER_THAT_EMPTIED_A_READER = "io.algernon.vespera.engine.pipeline.ItemStreamReaders";
 
     @Test
     @Story("The batch framework is named only where the job is assembled")

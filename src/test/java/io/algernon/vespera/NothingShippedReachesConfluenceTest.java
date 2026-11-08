@@ -3,7 +3,7 @@ package io.algernon.vespera;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.algernon.vespera.pipeline.VesperaCommand;
+import io.algernon.vespera.engine.pipeline.VesperaCommand;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -40,7 +40,7 @@ import picocli.CommandLine.Model.OptionSpec;
  *
  * <p>A call to Confluence cannot be written without naming where it sends: a REST path of Confluence's or the host of
  * an Atlassian Cloud site. Each of those is read here from the files, with no Docker and no network, and is found under
- * {@code io/algernon/vespera/confluence/} alone, in its sources and its resources. The whole production tree is read,
+ * {@code io/algernon/vespera/publish/confluence/} alone, in its sources and its resources. The whole production tree is read,
  * so the control panel's classes, which lie outside the ten modules, are read with the jar's. It holds a call written
  * plainly; a path or a host built from pieces at run time is beyond a static check.
  *
@@ -58,7 +58,7 @@ class NothingShippedReachesConfluenceTest {
     private static final Path SHIPPED_TREE = Path.of("src", "main");
 
     /** The one module's folder, in the sources and the resources alike, that may name where a call to Confluence goes. */
-    private static final String THE_PUBLISHERS_FOLDER = "io/algernon/vespera/confluence/";
+    private static final String THE_PUBLISHERS_FOLDER = "io/algernon/vespera/publish/confluence/";
 
     /** The pom at the repository root, which is where Maven runs the tests from. */
     private static final Path POM = Path.of("pom.xml");
@@ -146,7 +146,7 @@ class NothingShippedReachesConfluenceTest {
                 () -> {
                     assertThat(files)
                             .anyMatch(file -> file.endsWith(SHIPPED_CONFIGURATION))
-                            .anyMatch(file -> file.toString().replace('\\', '/').contains("io/algernon/controlpanel/"));
+                            .anyMatch(file -> file.toString().replace('\\', '/').contains("io/algernon/vespera/ui/"));
                     assertThat(namingInThePublisher).as("files of the publisher naming one").isNotEmpty();
                 });
         claim(

@@ -1,0 +1,290 @@
+package io.algernon.vespera.engine.pipeline;
+
+import io.algernon.vespera.engine.corpus.DetectedFormat;
+import io.algernon.vespera.engine.corpus.DetectedFormats;
+import io.algernon.vespera.engine.extraction.ConfidenceDistribution;
+import io.algernon.vespera.engine.extraction.ExtractionStatement;
+import io.algernon.vespera.engine.extraction.WordCountDistribution;
+import io.algernon.vespera.engine.ledger.Ledger;
+import io.algernon.vespera.engine.ledger.OccurrenceId;
+import io.algernon.vespera.engine.ledger.RunId;
+import io.algernon.vespera.engine.profile.Measurement;
+import io.algernon.vespera.engine.profile.Profile;
+import io.algernon.vespera.engine.profile.ProfileStore;
+import io.algernon.vespera.engine.similarity.DocumentFrequency;
+import io.algernon.vespera.engine.similarity.FrequencyProgress;
+import io.algernon.vespera.engine.similarity.ShingleParameters;
+import io.algernon.vespera.engine.similarity.SimilarityStatement;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Clock;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.OptionalLong;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.core.scope.context.ChunkContext;
+import org.springframework.batch.core.step.StepContribution;
+import org.springframework.batch.core.step.tasklet.Tasklet;
+import org.springframework.batch.infrastructure.repeat.RepeatStatus;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+/**
+ * Stage 3: content census. A tasklet rather than a chunk-oriented step (the stage-3 hand-off spec's
+ * settlement of the map's one item of fog): this stage reads already-stored columns and rows
+ * ({@code shingle}, {@code extraction_metric}) rather than per-occurrence documents needing
+ * conversion, so there is no per-item fault-tolerance need the way stage 2's Docling calls had — the
+ * same shape {@link CensusTasklet} and {@link ByteLevelReductionTasklet} already use.
+ *
+ * <p>Drives {@code similarity}'s document-frequency pass (ADR-038, ADR-074) and {@code extraction}'s
+ * confidence-distribution report (ADR-075) under the run {@link StageRuns#contentCensus} mints.
+ * Writes no verdict of any kind — stage 3 measures, it does not judge.
+ *
+ * <p>The confidence-distribution HTML file and the profile pointer to it are composed here rather
+ * than inside {@code extraction} (ADR-040: a capability module may depend on {@code ledger} and
+ * nothing else horizontal) — {@link ConfidenceDistribution} hands back the same {@code Distribution}
+ * value it wrote to its own table, and this class is what renders that value as a file and points the
+ * profile at it, the composition only {@code pipeline} may do (ADR-075). The same goes for {@code
+ * document-frequency.html}, the page the boilerplate floor is read off (ADR-262), and the floor's pointer to it;
+ * and for {@code word-count-distribution.html}, the page the word floor is read off (ADR-282), where the detected
+ * format of each survivor is asked of {@code corpus} here and handed to {@code extraction}, which names no table of
+ * {@code corpus}.
+ */
+@Component
+@StepScope
+class ContentCensusTasklet implements Tasklet {
+
+    /** The confidence-distribution report's fixed name in the working directory (ADR-075). */
+    static final String CONFIDENCE_DISTRIBUTION_FILE_NAME = "confidence-distribution.html";
+
+    /** The page the boilerplate floor is read off, its fixed name in the working directory (ADR-262). */
+    static final String DOCUMENT_FREQUENCY_FILE_NAME = "document-frequency.html";
+
+    /** The page the word floor is read off, its fixed name in the working directory (ADR-282 section 5). */
+    static final String WORD_COUNT_DISTRIBUTION_FILE_NAME = "word-count-distribution.html";
+
+    /** For the seconds the measurement of shingle document frequency took, as its line states them (ADR-191). */
+    private static final double NANOS_PER_SECOND = 1_000_000_000.0;
+
+    private static final Logger log = LoggerFactory.getLogger(ContentCensusTasklet.class);
+
+    /** Stage 3's own name, which its statement lines open with. */
+    private static final String STAGE = "Stage 3 (content census)";
+
+    private final DocumentFrequency documentFrequency;
+    private final ConfidenceDistribution confidenceDistribution;
+    private final WordCountDistribution wordCountDistribution;
+    private final DetectedFormats detectedFormats;
+    private final StageRuns stageRuns;
+    private final Ledger ledger;
+    private final ProfileStore profileStore;
+    private final Clock clock;
+    private final Path workingDirectory;
+
+    ContentCensusTasklet(
+            DocumentFrequency documentFrequency,
+            ConfidenceDistribution confidenceDistribution,
+            WordCountDistribution wordCountDistribution,
+            DetectedFormats detectedFormats,
+            StageRuns stageRuns,
+            Ledger ledger,
+            ProfileStore profileStore,
+            Clock clock,
+            @Value("${vespera.working-dir}") Path workingDirectory) {
+        this.documentFrequency = documentFrequency;
+        this.confidenceDistribution = confidenceDistribution;
+        this.wordCountDistribution = wordCountDistribution;
+        this.detectedFormats = detectedFormats;
+        this.stageRuns = stageRuns;
+        this.ledger = ledger;
+        this.profileStore = profileStore;
+        this.clock = clock;
+        this.workingDirectory = workingDirectory;
+    }
+
+    @Override
+    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
+        RunId runId = stageRuns.contentCensus();
+        RunId extractionRunId = stageRuns.upstream(StageModules.EXTRACTION);
+        return TaskletSteps.once(
+                ledger,
+                runId,
+                StepNames.CONTENT_CENSUS,
+                // This step's own work under this run is already measured, so there is nothing here
+                // to do (ADR-115, ADR-116). The report beside the database is not rewritten either:
+                // it was written from these very rows, and a step that skipped its measuring and
+                // rewrote its page would be claiming to have looked again.
+                () -> log.info("Stage 3 (content census) was already recorded under run {}", runId.value()),
+                () -> {
+                    documentFrequency.discardForRun(runId);
+                    confidenceDistribution.discardForRun(runId);
+                },
+                () -> {
+                    log.info("Stage 3 (content census) starting under run {}", runId.value());
+
+                    // Reading every shingle row of stage 2's run alone took half an hour on a 16.7 GB database
+                    // on a USB spinning disk, and the one statement inside DocumentFrequency.measure that
+                    // groups them in the database now does more than read them (it sorts and counts them; it
+                    // was never measured on that disk), so it has a line before it where there is something
+                    // to read, progress lines while it runs (a floor, from SQLite's callbacks), and
+                    // the measurement has its time after it whether or not there is (ADR-191, ADR-211
+                    // section 9). The time on this line is the whole call's, the check of the walk's
+                    // occurrences included.
+                    long measureStarted = System.nanoTime();
+                    documentFrequency.measure(runId, extractionRunId, frequencyRowsProgress());
+                    log.info(
+                            "Stage 3 (content census) measured shingle document frequency in {} s",
+                            String.format(Locale.ROOT, "%.1f", (System.nanoTime() - measureStarted) / NANOS_PER_SECOND));
+
+                    ConfidenceDistribution.Distribution distribution = confidenceDistribution.measure(
+                            runId,
+                            extractionRunId,
+                            ReportedStatements.saying()
+                                    .paged(
+                                            ExtractionStatement.EXTRACTION_METRICS,
+                                            STAGE,
+                                            "the extraction metrics",
+                                            "Stage 3 (content census, reading extraction metrics)")
+                                    .build());
+                    log.info("Stage 3 (content census) measured the confidence distribution");
+                    Path reportFile = writeReport(distribution);
+
+                    RunId byteLevelReductionRunId = stageRuns.upstream(StageModules.BYTE_LEVEL_REDUCTION);
+                    WordCountDistribution.Distribution wordCounts = wordCountDistribution.measure(
+                            extractionRunId,
+                            page -> formatsOf(page, byteLevelReductionRunId),
+                            ReportedStatements.saying()
+                                    .paged(
+                                            ExtractionStatement.EXTRACTION_METRICS,
+                                            STAGE,
+                                            "the word counts",
+                                            "Stage 3 (content census, reading word counts)")
+                                    .build());
+                    log.info("Stage 3 (content census) measured the word counts");
+                    Path wordCountFile = writePage(
+                            WORD_COUNT_DISTRIBUTION_FILE_NAME,
+                            WordCountDistributionReport.render(wordCounts, runId));
+
+                    // The read walks the run's rows of shingle_document_frequency, so it states its seconds (ADR-193).
+                    log.info("Stage 3 (content census) is reading the shares of the documents");
+                    long readStarted = System.nanoTime();
+                    // The window stage 2's run was minted under, which names the shingle rows read (ADR-330 section 9).
+                    ShingleParameters window = stageRuns.shingleWindow();
+                    DocumentFrequency.Shares shares = documentFrequency.shares(runId, window);
+                    log.info(
+                            "Stage 3 (content census) read the shares of the documents in {} s",
+                            String.format(Locale.ROOT, "%.1f", (System.nanoTime() - readStarted) / NANOS_PER_SECOND));
+                    Path frequencyFile = writePage(
+                            DOCUMENT_FREQUENCY_FILE_NAME,
+                            DocumentFrequencyReport.render(shares, runId));
+
+                    Profile profile = profileStore.load();
+                    profileStore.save(profile.withDegenerateOutputConfidenceFloorMeasurement(
+                                    new Measurement(reportFile.toString(), clock.instant()))
+                            .withDegenerateOutputWordFloorMeasurement(
+                                    new Measurement(wordCountFile.toString(), clock.instant()))
+                            .withBoilerplateDocumentFrequencyFloorMeasurement(
+                                    new Measurement(frequencyFile.toString(), clock.instant())));
+
+                    log.info(
+                            "Stage 3 (content census) finished under run {}; reports written to {}, {} and {}",
+                            runId.value(),
+                            reportFile,
+                            wordCountFile,
+                            frequencyFile);
+                    return true;
+                });
+    }
+
+    /**
+     * The detected format stage 1 found for each occurrence of {@code page}, asked of {@code corpus} by key. An
+     * occurrence it recorded none for is left out of the map, which {@link WordCountDistribution} refuses.
+     */
+    private Map<OccurrenceId, DetectedFormat> formatsOf(List<OccurrenceId> page, RunId byteLevelReductionRunId) {
+        Map<OccurrenceId, DetectedFormat> formats = new LinkedHashMap<>();
+        for (OccurrenceId occurrence : page) {
+            detectedFormats.formatFor(occurrence, byteLevelReductionRunId).ifPresent(format -> formats.put(occurrence, format));
+        }
+        return formats;
+    }
+
+    /**
+     * The lines of stage 3's grouping of the shingle rows, written as {@code similarity} reports it (ADR-193
+     * section 7, ADR-211 section 9), and the running counter of the walk's occurrences it checks after (ADR-192
+     * section 4). The bound of the grouping is {@code similarity}'s to answer ({@link
+     * DocumentFrequency#shingleRowsUpTo}) and it hands it over immediately before the grouping; what is said
+     * about it is this class's. The grouping says nothing where the run holds no shingle row, and where it
+     * does it is the reworded reading line, then progress lines that state a floor of what is done, from
+     * SQLite's callbacks, and no after-line of its own: the line the caller writes after the whole
+     * measurement is ADR-191's.
+     */
+    private static FrequencyProgress frequencyRowsProgress() {
+        return new FrequencyProgress() {
+            private StatementProgress groupingProgress;
+            private StageProgress counter;
+
+            @Override
+            public void statementStarting(SimilarityStatement statement, OptionalLong rowsUpTo) {
+                if (statement != SimilarityStatement.SHINGLE_ROWS || rowsUpTo.isEmpty()) {
+                    return;
+                }
+                log.info(
+                        "Stage 3 (content census) is reading up to {} shingle rows of stage 2's run before it"
+                                + " measures anything; the database reads them, sorts them in temporary files in"
+                                + " the working directory and counts them, in one statement, whose progress lines"
+                                + " state the least it has done and stop short of 100%; reading them alone took"
+                                + " half an hour on a USB spinning disk for one run in a 16.7 GB database, and"
+                                + " stopping before it ends loses only the time spent",
+                        rowsUpTo.getAsLong());
+                groupingProgress = StatementProgress.ofLowerEstimate(
+                        "Stage 3 (content census, grouping shingle rows)",
+                        rowsUpTo.getAsLong(),
+                        statement.stepsPerRow().getAsInt());
+            }
+
+            @Override
+            public void stepsTaken(SimilarityStatement statement, long steps) {
+                if (groupingProgress != null) {
+                    groupingProgress.stepsTaken(steps);
+                }
+            }
+
+            @Override
+            public void occurrencesChecked(int occurrences) {
+                if (counter == null) {
+                    counter = StageProgress.running("Stage 3 (content census, files checked)");
+                }
+                for (int occurrence = 0; occurrence < occurrences; occurrence++) {
+                    counter.itemDone();
+                }
+            }
+        };
+    }
+
+    /**
+     * Writes the confidence-distribution report to the working directory, overwriting whatever an
+     * earlier run left there (ADR-075) — never accumulated, never left stale.
+     */
+    private Path writeReport(ConfidenceDistribution.Distribution distribution) {
+        return writePage(CONFIDENCE_DISTRIBUTION_FILE_NAME, ConfidenceDistributionReport.render(distribution));
+    }
+
+    /** Writes {@code html} as {@code fileName} in the working directory, overwriting what an earlier run left (ADR-077). */
+    private Path writePage(String fileName, String html) {
+        Path reportFile = workingDirectory.resolve(fileName);
+        try {
+            Files.createDirectories(workingDirectory);
+            Files.writeString(reportFile, html, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not write the report at " + reportFile, e);
+        }
+        return reportFile;
+    }
+}

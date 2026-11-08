@@ -1,0 +1,171 @@
+package io.algernon.vespera.engine.corpus;
+
+import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+
+/**
+ * Which kinds of file this tool leaves out, whatever they hold: spreadsheets, both the workbook
+ * archive stage 1 recognises from its bytes and the older compound file named as one (ADR-146), a
+ * BMP image, recognised from its two headers (ADR-167), and a video, recognised from its
+ * container's own signature (ADR-168); and compiled code, a font, a certificate or detached
+ * signature, and a database, each recognised from its bytes, and an email, an Outlook message or an
+ * internet message, recognised by its name within what the bytes fixed (ADR-252).
+ *
+ * <p>A code default, and the one place it is written. Making it the operator's to change is a later
+ * decision (#278), and a profile key would read this same question; nothing else in the tree names a
+ * kind of file as out of scope. The profile's {@code outOfScopeNameEndings} (ADR-256) leaves out more
+ * files by name, but names no kind, and adds to these.
+ *
+ * <p>A comma-separated file is not a spreadsheet here. It is text, it is cheap, and on the corpus
+ * ADR-146 was measured on its 73 files came to 2.6 MB between them.
+ *
+ * <p>Moved from {@code pipeline} into {@code corpus} unchanged (ADR-188). The three facts about text
+ * size that belong to {@code extraction} arrive as {@link TextSizeLimits}; this holds no number of its
+ * own for them.
+ */
+final class OutOfScope {
+
+    private OutOfScope() {}
+
+    /** A file left out for what it is. */
+    static Optional<String> reasonFor(DetectedFormat format, Optional<DetectedSubtype> subtype) {
+        boolean spreadsheet = format == DetectedFormat.SPREADSHEET
+                || (format == DetectedFormat.OLE_COMPOUND && subtype.equals(Optional.of(DetectedSubtype.LEGACY_SPREADSHEET)));
+        if (spreadsheet) {
+            return Optional.of("a spreadsheet, and spreadsheets are out of scope");
+        }
+        if (format == DetectedFormat.BMP) {
+            return Optional.of("a BMP image, and BMP images are out of scope");
+        }
+        if (format == DetectedFormat.VIDEO) {
+            return Optional.of("a video, and videos are out of scope");
+        }
+        if (format == DetectedFormat.COMPILED_CODE) {
+            return Optional.of("compiled code, and compiled code is out of scope");
+        }
+        if (format == DetectedFormat.FONT) {
+            return Optional.of("a font, and fonts are out of scope");
+        }
+        if (format == DetectedFormat.CERTIFICATE) {
+            return Optional.of("a certificate or a detached signature, and certificates and detached signatures are out of scope");
+        }
+        if (format == DetectedFormat.DATABASE) {
+            return Optional.of("a database, and databases are out of scope");
+        }
+        boolean email = (format == DetectedFormat.OLE_COMPOUND && subtype.equals(Optional.of(DetectedSubtype.OUTLOOK_MESSAGE)))
+                || (format == DetectedFormat.PLAIN_TEXT && subtype.equals(Optional.of(DetectedSubtype.RFC822_MESSAGE)));
+        if (email) {
+            return Optional.of("an email, and emails are out of scope");
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Why a file whose bytes matched no signature is left out for the ending of its name, or empty where
+     * it is not (ADR-256). Only {@code UNRECOGNISED} and {@code PLAIN_TEXT} are read (section 3): a name
+     * never overrides bytes that named a kind (ADR-094). {@code endings} are the profile's
+     * {@code outOfScopeNameEndings}, lower case;
+     * the longer ending wins, and the reason spells it as the file's name does.
+     */
+    static Optional<String> nameReason(Path file, DetectedFormat format, List<String> endings) {
+        if (format != DetectedFormat.UNRECOGNISED && format != DetectedFormat.PLAIN_TEXT) {
+            return Optional.empty();
+        }
+        String name = file.getFileName().toString();
+        String folded = name.toLowerCase(Locale.ROOT);
+        return endings.stream()
+                .filter(ending -> folded.endsWith(ending.toLowerCase(Locale.ROOT)))
+                .max(Comparator.comparingInt(String::length))
+                .map(ending -> "a file whose name ends with " + spelt(name, ending)
+                        + ", an ending outOfScopeNameEndings in profile.yaml lists as out of scope");
+    }
+
+    /**
+     * The ending as the file's name spells it, or as listed where folding changed the name's length: a
+     * character such as U+0130 folds to two, so the name's last characters may not be the ending's.
+     */
+    private static String spelt(String name, String ending) {
+        int from = name.length() - ending.length();
+        return from >= 0 && name.substring(from).toLowerCase(Locale.ROOT).equals(ending.toLowerCase(Locale.ROOT))
+                ? name.substring(from)
+                : ending;
+    }
+
+    /** Why a text file is a log under {@code floor}, or empty where it is not, or no floor is set (ADR-171). */
+    static Optional<String> logReason(TimestampedLines.Count count, Double floor) {
+        if (floor == null || !count.isLog(floor)) {
+            return Optional.empty();
+        }
+        return Optional.of("a log, and logs are out of scope: " + count.wholePercent()
+                + "% of the lines read from its start and end begin with a timestamp");
+    }
+
+    /**
+     * Why the text file {@code file}, of {@code sizeBytes}, is too large to be converted, or empty where
+     * it is not (ADR-171, amended by ADR-178). Three rules, in this order:
+     *
+     * <ol>
+     *   <li>over {@link TextSizeLimits#largestBytes()}, any text: the converter's answer would be too
+     *       large to keep;
+     *   <li>over {@link TextSizeLimits#ceilingBytes()}, HTML, CSV or AsciiDoc: the converter cannot
+     *       finish one in time, and a cut breaks its structure;
+     *   <li>over the ceiling, any other text that {@link TextSizeLimits.InParts} does not cut, which is
+     *       text in UTF-16 or UTF-32.
+     * </ol>
+     *
+     * Any other text over the ceiling is converted in parts, and has no reason here. Whether it is cut is
+     * the limits' {@code inParts} to say, so that this and stage 2 cannot disagree.
+     */
+    static Optional<String> sizeReason(
+            Path file, long sizeBytes, Optional<DetectedSubtype> subtype, TextSizeLimits limits) {
+        if (sizeBytes > limits.largestBytes()) {
+            return Optional.of(String.format(
+                    Locale.ROOT,
+                    "a text file of %s bytes, and text files over %s bytes are out of scope, because the converter's"
+                            + " answer for one would be too large to keep",
+                    grouped(sizeBytes),
+                    grouped(limits.largestBytes())));
+        }
+        if (sizeBytes <= limits.ceilingBytes()) {
+            return Optional.empty();
+        }
+        Optional<String> structured = subtype.flatMap(OutOfScope::structuredKind);
+        if (structured.isPresent()) {
+            return Optional.of(String.format(
+                    Locale.ROOT,
+                    "%s of %s bytes, and HTML, CSV and AsciiDoc files over %s bytes are out of scope, because the"
+                            + " converter cannot finish one in time and cutting one into parts breaks its structure",
+                    structured.get(),
+                    grouped(sizeBytes),
+                    grouped(limits.ceilingBytes())));
+        }
+        if (limits.inParts().convertedInParts(file, subtype, sizeBytes)) {
+            return Optional.empty();
+        }
+        return Optional.of(String.format(
+                Locale.ROOT,
+                "a text file of %s bytes in UTF-16 or UTF-32, and such text files over %s bytes are out of scope,"
+                        + " because the converter cannot finish one in time and one is not cut into parts",
+                grouped(sizeBytes),
+                grouped(limits.ceilingBytes())));
+    }
+
+    /** How a text file of a kind that is never cut is named in its reason, or empty for any other. */
+    private static Optional<String> structuredKind(DetectedSubtype subtype) {
+        return switch (subtype) {
+            case HTML -> Optional.of("an HTML file");
+            case CSV -> Optional.of("a CSV file");
+            case ASCIIDOC -> Optional.of("an AsciiDoc file");
+            case MARKDOWN, LEGACY_WORD, LEGACY_SPREADSHEET, LEGACY_PRESENTATION, OUTLOOK_MESSAGE, RFC822_MESSAGE ->
+                Optional.empty();
+        };
+    }
+
+    /** A number with {@code ,} as the grouping separator, whatever the locale. */
+    private static String grouped(long number) {
+        return String.format(Locale.ROOT, "%,d", number);
+    }
+}

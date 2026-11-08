@@ -64,7 +64,7 @@ class PackagedJarIT {
     private static final String SIDECARS = "sidecars/";
 
     /** The control panel's classes, as a jar names their entries. */
-    private static final String CONTROL_PANEL = "io/algernon/controlpanel/";
+    private static final String CONTROL_PANEL = "io/algernon/vespera/ui/";
 
     /** A class of the control panel the jar is read for. */
     private static final String A_CLASS_OF_THE_CONTROL_PANEL = CONTROL_PANEL + "HolderLine.class";
@@ -72,11 +72,11 @@ class PackagedJarIT {
     /** A class of the jar the Spring Boot jar must hold, so that an absence below is a real one. */
     private static final String A_CLASS_OF_THE_JAR = "io/algernon/vespera/VesperaApplication.class";
 
-    /** The jar's entry point, outside both packages, as a jar names its entry (ADR-342 §2). */
-    private static final String THE_ENTRY_POINT = "io/algernon/EntryPoint.class";
+    /** The jar's entry point, in the application package beside its application class, as a jar names its entry (ADR-342 §2). */
+    private static final String THE_ENTRY_POINT = "io/algernon/vespera/EntryPoint.class";
 
     /** The class the Boot launcher hands the start to, which opens the window or runs the command line (ADR-342 §2). */
-    private static final String ENTRY_POINT_CLASS = "io.algernon.EntryPoint";
+    private static final String ENTRY_POINT_CLASS = "io.algernon.vespera.EntryPoint";
 
     /** The manifest entry Spring Boot's launcher reads the class it starts from. */
     private static final String START_CLASS = "Start-Class";

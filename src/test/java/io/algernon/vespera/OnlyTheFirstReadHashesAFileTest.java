@@ -48,23 +48,23 @@ class OnlyTheFirstReadHashesAFileTest {
     private static final String SHIPPED_PACKAGE = "io.algernon.vespera";
 
     /** The class whose method hashes a file for its cache key, as the compiler names it. */
-    private static final String THE_EXTRACTOR = "io/algernon/vespera/extraction/DoclingExtractor";
+    private static final String THE_EXTRACTOR = "io/algernon/vespera/engine/extraction/DoclingExtractor";
 
     private static final String HASHES_A_FILE = "contentHashFor";
 
     /** The class whose method detects a file's format from its bytes and converts it. */
-    private static final String SEED_CONVERSIONS = "io/algernon/vespera/pipeline/SeedConversions";
+    private static final String SEED_CONVERSIONS = "io/algernon/vespera/engine/pipeline/SeedConversions";
 
     private static final String CONVERTS_A_FILE = "convert";
 
     /** Stage 2's reader, which hashes a file before it dispatches the call. */
-    private static final String STAGE_TWO_READER = "io.algernon.vespera.pipeline.ConversionDispatch";
+    private static final String STAGE_TWO_READER = "io.algernon.vespera.engine.pipeline.ConversionDispatch";
 
     /** Stage 2's per-document step, which hashes a file where it places the call itself. */
-    private static final String STAGE_TWO_STEP = "io.algernon.vespera.pipeline.ExtractionItemProcessor";
+    private static final String STAGE_TWO_STEP = "io.algernon.vespera.engine.pipeline.ExtractionItemProcessor";
 
     /** Seed extraction's per-seed step, the first read of a seed. */
-    private static final String SEED_EXTRACTION_STEP = "io.algernon.vespera.pipeline.SeedExtractionItemProcessor";
+    private static final String SEED_EXTRACTION_STEP = "io.algernon.vespera.engine.pipeline.SeedExtractionItemProcessor";
 
     @Test
     @Story("A stage reads what an earlier stage recorded instead of the archive")

@@ -55,7 +55,7 @@ class ExceptionNamingTest {
      * and this is what fails instead.
      */
     private static final String A_THROWABLE_THE_APPLICATION_DEFINES =
-            "io.algernon.vespera.pipeline.ExtractorStoppedAnsweringException";
+            "io.algernon.vespera.engine.pipeline.ExtractorStoppedAnsweringException";
 
     @Test
     @Story("A throwable type is recognisable as one from its name")

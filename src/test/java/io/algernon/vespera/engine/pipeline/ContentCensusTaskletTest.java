@@ -1,0 +1,419 @@
+package io.algernon.vespera.engine.pipeline;
+
+import static io.algernon.vespera.TestSteps.claim;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import io.algernon.vespera.Adr;
+import io.algernon.vespera.engine.corpus.AnomalyLog;
+import io.algernon.vespera.engine.corpus.ContentIdentity;
+import io.algernon.vespera.engine.corpus.DetectedFormats;
+import io.algernon.vespera.engine.corpus.WalkRecorder;
+import io.algernon.vespera.engine.extraction.ConfidenceDistribution;
+import io.algernon.vespera.engine.extraction.ExtractorIdentity;
+import io.algernon.vespera.engine.extraction.WordCountDistribution;
+import io.algernon.vespera.engine.ledger.ImplementationVersions;
+import io.algernon.vespera.engine.ledger.Ledger;
+import io.algernon.vespera.engine.ledger.OccurrenceId;
+import io.algernon.vespera.engine.ledger.OccurrencePath;
+import io.algernon.vespera.engine.ledger.RunId;
+import io.algernon.vespera.engine.ledger.WalkId;
+import io.algernon.vespera.engine.profile.Measurement;
+import io.algernon.vespera.engine.profile.Profile;
+import io.algernon.vespera.engine.profile.ProfileFixture;
+import io.algernon.vespera.engine.profile.ProfileStore;
+import io.algernon.vespera.engine.profile.NumericValue;
+import io.algernon.vespera.engine.similarity.DocumentFrequency;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Issue;
+import io.qameta.allure.Link;
+import io.qameta.allure.Story;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Map;
+import javax.sql.DataSource;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.batch.core.scope.context.ChunkContext;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
+import java.util.HashMap;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.JdbcTransactionManager;
+import org.springframework.test.context.ActiveProfiles;
+
+/**
+ * Stage 3's tasklet as one act (ADR-075): driving both {@code similarity}'s document-frequency pass
+ * (already pinned for its own sake by {@link io.algernon.vespera.engine.similarity.DocumentFrequencyTest})
+ * and {@code extraction}'s confidence-distribution report, then composing the HTML file and the
+ * profile pointer — the composition only {@code pipeline} may do (ADR-040).
+ *
+ * <p>Assembled by hand against a real walk taken through byte-level reduction and a minted extraction
+ * run. The {@code extraction_metric} rows are written directly for the fixture's own occurrences rather
+ * than run through a real Docling call, since what this class pins is the report, not extraction's own
+ * per-document judgement.
+ *
+ * <p><b>Only the fixture names how a run is minted:</b> {@link #stageRunsOver} builds the holder, and
+ * {@link #contentCensusOver} and the line in {@link #walkedThroughExtractionWithScores} that mints
+ * stage 2's run ask it. Every claim reads the run this invocation recorded, through {@link
+ * InvocationRuns}, never through the class that minted it, which is why ADR-157's folding of the run
+ * classes into one holder changed those methods and moved no claim.
+ */
+@JdbcTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@ActiveProfiles("test")
+@Epic("Extraction")
+@Feature("Content census")
+@Issue("59")
+@Link(name = "ADR-075", url = Adr.STAGE_3_WRITES_A_CONFIDENCE_DISTRIBUTION_REPORT, type = "adr")
+@Link(name = "ADR-077", url = Adr.A_REGENERATED_MEASUREMENT_IS_KEYED_PER_RUN, type = "adr")
+class ContentCensusTaskletTest {
+
+    /**
+     * Stage 1's working directory, where its {@code profile.yaml} is written: a temporary folder of
+     * this test's own, outside every corpus root so no walk reads it, and shared with no other test,
+     * class, run or branch. A shared one let a stale {@code profile.yaml} from elsewhere change what
+     * stages 1 and 2 do here. It is not the census's working directory, which each test names itself.
+     */
+    @TempDir
+    Path stage1Working;
+
+    private static final ExtractorIdentity IDENTITY = new ExtractorIdentity("docling-serve;base-url=http://example");
+
+    /**
+     * The invocation each corpus root was taken through extraction in, so stage 3 is handed the record
+     * that invocation's stages 1 and 2 actually wrote (ADR-154).
+     */
+    private final Map<Path, ExecutionContext> invocations = new HashMap<>();
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private DataSource dataSource;
+
+    @Test
+    @Story("The confidence-distribution report")
+    @DisplayName("The HTML report exists, is self-contained, and its numbers agree with the table's")
+    void writesAnHtmlReportAgreeingWithTheTable(@TempDir Path root, @TempDir Path workingDirectory) throws Exception {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        ImplementationVersions versions = new ImplementationVersions();
+        // Distinct per-bucket counts (poor=1, fair=2, good=0, excellent=3) rather than one score per
+        // grade -- a renderer bug that shuffled counts between grades, or a re-query landing on a
+        // different-but-still-uniform answer, would slip past a fixture where every bucket is 1. The
+        // empty "good" bucket also exercises that an unfilled grade still renders its own row.
+        RunId extractionRunId = walkedThroughExtractionWithScores(
+                ledger, versions, root, new double[] {0.10, 0.65, 0.65, 0.95, 0.95, 0.95});
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+        Clock clock = Clock.fixed(Instant.parse("2026-09-05T12:00:00Z"), ZoneOffset.UTC);
+
+        ContentCensusTasklet tasklet = contentCensusOver(ledger, versions, root, profileStore, clock, workingDirectory);
+
+        tasklet.execute(null, null);
+
+        Path reportFile = workingDirectory.resolve(ContentCensusTasklet.CONFIDENCE_DISTRIBUTION_FILE_NAME);
+        claim(
+                "the report exists in the working directory, beside the database and profile.yaml",
+                () -> assertThat(Files.exists(reportFile)).isTrue());
+        String html = Files.readString(reportFile);
+        claim(
+                "the file is a whole, standalone HTML document, openable without any other file present",
+                () -> assertThat(html).contains("<html").contains("</html>").contains("<!DOCTYPE html>"));
+        claim(
+                "the file names no other file and reaches for nothing over the network, so it opens on a"
+                        + " laptop with no connection",
+                () -> assertThat(html)
+                        .doesNotContain("<link")
+                        .doesNotContain("<script")
+                        .doesNotContain("src=")
+                        .doesNotContain("href=\"http")
+                        .doesNotContain("src=\"http"));
+        claim(
+                "the HTML's stated total agrees with the six survivors just measured -- one poor, two"
+                        + " fair, none good, three excellent",
+                () -> assertThat(html).contains("Total documents counted: 6."));
+
+        for (var entry : Map.of("poor", 1L, "fair", 2L, "good", 0L, "excellent", 3L).entrySet()) {
+            String grade = entry.getKey();
+            long expectedCount = entry.getValue();
+            long tableCount = jdbcTemplate.queryForObject(
+                    "SELECT document_count FROM confidence_distribution WHERE run_id = ? AND grade = ?",
+                    Long.class,
+                    theContentCensusRunOf(root).value(),
+                    grade);
+            claim(
+                    "the table itself measured what the fixture set up for " + grade,
+                    () -> assertThat(tableCount).isEqualTo(expectedCount));
+            claim(
+                    "the HTML file's row for " + grade + " carries exactly the same count the table row"
+                            + " does -- both come from the one computed value (ADR-075's acceptance"
+                            + " criterion 5)",
+                    () -> assertThat(html).contains(">" + grade + "</td>").contains(rowFragment(grade, tableCount)));
+        }
+    }
+
+    /** The exact {@code <td>grade</td><td>count</td>} fragment the renderer writes for one bucket. */
+    private String rowFragment(String grade, long count) {
+        return ">" + grade + "</td><td>[" + switch (grade) {
+                    case "poor" -> "0.00, 0.50)";
+                    case "fair" -> "0.50, 0.80)";
+                    case "good" -> "0.80, 0.90)";
+                    default -> "0.90, 1.00]";
+                } + "</td><td>" + count + "</td>";
+    }
+
+    @Test
+    @Story("The profile points at the report")
+    @DisplayName("The profile's degenerate-output-confidence-floor pointer is refreshed to the report's path")
+    void refreshesTheProfilePointerToTheReport(@TempDir Path root, @TempDir Path workingDirectory) throws Exception {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        ImplementationVersions versions = new ImplementationVersions();
+        walkedThroughExtractionWithScores(ledger, versions, root, new double[] {0.95});
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+        Instant ranAt = Instant.parse("2026-09-05T12:00:00Z");
+        Clock clock = Clock.fixed(ranAt, ZoneOffset.UTC);
+
+        contentCensusOver(ledger, versions, root, profileStore, clock, workingDirectory).execute(null, null);
+
+        Profile profile = profileStore.load();
+        Path reportFile = workingDirectory.resolve(ContentCensusTasklet.CONFIDENCE_DISTRIBUTION_FILE_NAME);
+        claim(
+                "the profile's measurement now names the HTML file's own path, not the raw table",
+                () -> assertThat(profile.degenerateOutputConfidenceFloor().measurement().source())
+                        .isEqualTo(reportFile.toString()));
+        claim(
+                "and it is stamped with the time this run wrote it",
+                () -> assertThat(profile.degenerateOutputConfidenceFloor().measurement().refreshedAt())
+                        .isEqualTo(ranAt));
+    }
+
+    @Test
+    @Story("The profile points at the report")
+    @DisplayName("An operator's own confidence-floor value and provenance survive a census run untouched")
+    void neverTouchesAConfidenceFloorAnswerAlreadyInTheFile(@TempDir Path root, @TempDir Path workingDirectory)
+            throws Exception {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        ImplementationVersions versions = new ImplementationVersions();
+        walkedThroughExtractionWithScores(ledger, versions, root, new double[] {0.95});
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+        Instant firstMeasuredAt = Instant.parse("2026-09-01T09:00:00Z");
+        profileStore.save(ProfileFixture.profile()
+                .degenerateOutputConfidenceFloor(new NumericValue(
+                        "0.55",
+                        "matched to last quarter's manual review",
+                        new Measurement("some earlier report", firstMeasuredAt)))
+                .build());
+        Instant ranAt = Instant.parse("2026-09-05T12:00:00Z");
+        Clock clock = Clock.fixed(ranAt, ZoneOffset.UTC);
+
+        contentCensusOver(ledger, versions, root, profileStore, clock, workingDirectory).execute(null, null);
+
+        Profile afterTheRun = profileStore.load();
+        Path reportFile = workingDirectory.resolve(ContentCensusTasklet.CONFIDENCE_DISTRIBUTION_FILE_NAME);
+        claim(
+                "the operator's threshold value is exactly what it was before this run",
+                () -> assertThat(afterTheRun.degenerateOutputConfidenceFloor().value()).isEqualTo("0.55"));
+        claim(
+                "so is the provenance they wrote beside it",
+                () -> assertThat(afterTheRun.degenerateOutputConfidenceFloor().provenance())
+                        .isEqualTo("matched to last quarter's manual review"));
+        claim(
+                "and census's own pointer moved on to this run's own report and time, not left pointing"
+                        + " at the earlier one",
+                () -> assertThat(afterTheRun.degenerateOutputConfidenceFloor().measurement())
+                        .isEqualTo(new Measurement(reportFile.toString(), ranAt)));
+    }
+
+    /**
+     * The two outputs are regenerated differently on purpose (ADR-077, amending ADR-075): the file is
+     * what the profile points at by path and claims is current, so it is rewritten in place; a table
+     * row carries its own run id and makes no such claim, so it is added beside the earlier run's
+     * rather than replacing it.
+     */
+    @Test
+    @Story("Neither output is written once and left stale")
+    @DisplayName("A second run overwrites the HTML file and adds the second run's own table rows")
+    void aSecondRunOverwritesTheReportRatherThanAccumulating(
+            @TempDir Path firstRoot, @TempDir Path secondRoot, @TempDir Path workingDirectory) throws Exception {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        ImplementationVersions versions = new ImplementationVersions();
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+
+        RunId firstExtractionRun =
+                walkedThroughExtractionWithScores(ledger, versions, firstRoot, new double[] {0.10});
+        contentCensusOver(
+                        ledger,
+                        versions,
+                        firstRoot,
+                        profileStore,
+                        Clock.fixed(Instant.parse("2026-09-05T10:00:00Z"), ZoneOffset.UTC),
+                        workingDirectory)
+                .execute(null, null);
+
+        RunId secondExtractionRun =
+                walkedThroughExtractionWithScores(ledger, versions, secondRoot, new double[] {0.95, 0.95});
+        Instant secondRanAt = Instant.parse("2026-09-05T11:00:00Z");
+        contentCensusOver(ledger, versions, secondRoot, profileStore, Clock.fixed(secondRanAt, ZoneOffset.UTC), workingDirectory)
+                .execute(null, null);
+
+        Path reportFile = workingDirectory.resolve(ContentCensusTasklet.CONFIDENCE_DISTRIBUTION_FILE_NAME);
+        String html = Files.readString(reportFile);
+        claim(
+                "the file now reflects only the second run's numbers -- the excellent bucket carries the"
+                        + " second run's two documents and the poor bucket none, where a report counting both"
+                        + " runs would put the first run's one poor document back",
+                () -> assertThat(html).contains(rowFragment("excellent", 2)).contains(rowFragment("poor", 0)));
+        claim(
+                "and the first run's own count for excellent (zero, its one document was poor) is not"
+                        + " what the file shows instead",
+                () -> assertThat(html).doesNotContain(rowFragment("excellent", 0)));
+        claim(
+                "the profile's pointer was refreshed to the second run's own time",
+                () -> assertThat(profileStore.load().degenerateOutputConfidenceFloor().measurement().refreshedAt())
+                        .isEqualTo(secondRanAt));
+        claim(
+                "the first run's own table rows are untouched -- historical data under its own run_id,"
+                        + " never rewritten by a later run's rows under a different run_id",
+                () -> assertThat(jdbcTemplate.queryForObject(
+                                "SELECT document_count FROM confidence_distribution WHERE run_id = ? AND grade = ?",
+                                Long.class,
+                                theContentCensusRunOf(firstRoot).value(),
+                                "poor"))
+                        .isEqualTo(1));
+    }
+
+    /**
+     * Stage 3 states how many shingle rows it is about to read, and the two statements that find that
+     * out are {@code similarity}'s, beside the table it owns (ADR-191 section 3). The first version of
+     * that record had the tasklet hold a {@link JdbcTemplate} and name the table itself.
+     *
+     * <p>What is checked is the declared type of each field the tasklet declares: none is in a package
+     * under {@code org.springframework.jdbc} or {@code javax.sql}, which takes in {@code JdbcTemplate},
+     * {@code NamedParameterJdbcTemplate}, {@code JdbcClient} and {@code DataSource}. That stops the
+     * tasklet keeping such a handle. It does not check what a method body does with one a collaborator
+     * hands it, or with a field declared under a wider type.
+     */
+    @Test
+    @Story("The content census asks the module that owns a table about it")
+    @DisplayName("The content census step keeps no database handle of its own")
+    @Issue("410")
+    @Link(name = "ADR-191", url = Adr.STAGE_3_SAYS_HOW_MANY_SHINGLE_ROWS_IT_IS_ABOUT_TO_READ, type = "adr")
+    void theTaskletDeclaresNoFieldOfADatabaseHandleType() {
+        claim(
+                "no field the content census step declares has a type from the database packages "
+                        + DATABASE_HANDLE_PACKAGES + ", so it keeps no handle of its own to run a statement with",
+                () -> assertThat(ContentCensusTasklet.class.getDeclaredFields())
+                        .extracting(field -> field.getType().getPackageName())
+                        .noneMatch(declared -> DATABASE_HANDLE_PACKAGES.stream()
+                                .anyMatch(handles -> declared.equals(handles) || declared.startsWith(handles + "."))));
+    }
+
+    /** The packages whose types are database handles: Spring's JDBC classes, and the JDK's {@code DataSource}. */
+    private static final java.util.List<String> DATABASE_HANDLE_PACKAGES =
+            java.util.List.of("org.springframework.jdbc", "javax.sql");
+
+    /**
+     * Stage 3's tasklet as the step builds it, over the content-census run this invocation of {@code
+     * root} mints: the one place this class says how that run comes to exist.
+     */
+    private ContentCensusTasklet contentCensusOver(
+            Ledger ledger,
+            ImplementationVersions versions,
+            Path root,
+            ProfileStore profileStore,
+            Clock clock,
+            Path workingDirectory) {
+        return new ContentCensusTasklet(
+                new DocumentFrequency(jdbcTemplate, ledger),
+                new ConfidenceDistribution(jdbcTemplate, ledger),
+                new WordCountDistribution(jdbcTemplate, ledger),
+                new DetectedFormats(jdbcTemplate),
+                stageRunsOver(ledger, versions, root),
+                ledger,
+                profileStore,
+                clock,
+                workingDirectory);
+    }
+
+    /**
+     * The holder a stage asks for its run through (ADR-157), over the invocation that took {@code root}
+     * through byte-level reduction. Stages 2 and 3 pass no gate, so the gates and the later stages'
+     * collaborators are left out: an accessor that needed one would fail here rather than mint.
+     *
+     * <p>The profile is the one in the working directory stage 1 ran in, because stage 2 reads {@code
+     * extractionAttempt} from it fresh when its run is minted (ADR-185 §1). Nothing here writes that
+     * key, so every run this class mints is the first attempt's.
+     */
+    private StageRuns stageRunsOver(Ledger ledger, ImplementationVersions versions, Path root) {
+        return new StageRuns(
+                ledger,
+                versions,
+                new StaticListableBeanFactory(Map.of("extractorIdentity", IDENTITY))
+                        .getBeanProvider(ExtractorIdentity.class),
+                new DegenerateOutputConfidenceFloor(null),
+                null,
+                null,
+                null,
+                new ProfileStore(stage1Working),
+                null,
+                null,
+                null,
+                null,
+                PresetsFixture.shipped(),
+                root,
+                invocations.get(root));
+    }
+
+    /** The content-census run the invocation over {@code root} recorded, read as later stages read it. */
+    private RunId theContentCensusRunOf(Path root) {
+        return new InvocationRuns(invocations.get(root)).runOf("content-census").orElseThrow();
+    }
+
+    /**
+     * Walks {@code root}, runs byte-level reduction and extraction for real against it, then writes an
+     * {@code extraction_metric} row carrying each of {@code meanScores} for the files it just walked --
+     * the fixture {@link ConfidenceDistribution} needs actually present, without a real Docling call.
+     */
+    private RunId walkedThroughExtractionWithScores(
+            Ledger ledger, ImplementationVersions versions, Path root, double[] meanScores) throws Exception {
+        for (int i = 0; i < meanScores.length; i++) {
+            Files.writeString(root.resolve("document-" + i + ".txt"), "the content of document " + i);
+        }
+        WalkId walkId = new WalkRecorder(ledger, new AnomalyLog(jdbcTemplate), new JdbcTransactionManager(dataSource))
+                .walk(root);
+        ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
+        new ByteLevelReductionTasklet(ledger, new ContentIdentity(jdbcTemplate), new DetectedFormats(jdbcTemplate), versions, new io.algernon.vespera.engine.profile.ProfileStore(stage1Working), root, stage1Working).execute(null, step);
+        invocations.put(root, InvocationRecordFixture.recordOf(step));
+        RunId extractionRunId = stageRunsOver(ledger, versions, root).extraction();
+
+        for (int i = 0; i < meanScores.length; i++) {
+            OccurrenceId occurrenceId =
+                    ledger.occurrences().occurrenceId(walkId, new OccurrencePath("document-" + i + ".txt")).orElseThrow();
+            jdbcTemplate.update(
+                    "INSERT INTO extraction_metric"
+                            + " (occurrence_id, run_id, status, processing_time, character_count,"
+                            + " alphanumeric_char_count, word_count, word_character_length_total,"
+                            + " vowelless_word_count, single_character_word_count, mean_score)"
+                            + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    occurrenceId.value(),
+                    extractionRunId.value(),
+                    "success",
+                    0.5,
+                    100,
+                    90,
+                    20,
+                    80,
+                    0,
+                    0,
+                    meanScores[i]);
+        }
+        return extractionRunId;
+    }
+}

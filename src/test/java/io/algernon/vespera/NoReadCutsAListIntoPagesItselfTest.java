@@ -3,7 +3,7 @@ package io.algernon.vespera;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.algernon.vespera.corpus.AnomalyLog;
+import io.algernon.vespera.engine.corpus.AnomalyLog;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
@@ -84,7 +84,7 @@ class NoReadCutsAListIntoPagesItselfTest {
                 ownPageSizes.add(AnomalyLog.class.getSimpleName() + "." + field.getName());
             }
         }
-        String source = Files.readString(MAIN_SOURCE.resolve(Path.of("io", "algernon", "vespera", "corpus",
+        String source = Files.readString(MAIN_SOURCE.resolve(Path.of("io", "algernon", "vespera", "engine", "corpus",
                 "AnomalyLog.java")));
 
         claim(

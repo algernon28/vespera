@@ -1,0 +1,65 @@
+package io.algernon.vespera.engine.embedding;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.OptionalDouble;
+import java.util.function.Supplier;
+
+/**
+ * What the relevance floor lets stage 5e do (ADR-088, ADR-118, ADR-226 moving ADR-222's rules 2 and 3),
+ * answered as the action the step takes and not as a classification of the floor.
+ *
+ * <p>A threshold is a number on a scale and the {@link RelevanceScale} is the scale: the embedder identity the
+ * vectors carry, and, where the number of similarities a score is the mean of is not 3, {@code ;top:<n>} after it
+ * (ADR-330 section 9). The answers recorded for the seed set carry the scale that was on screen when each was given,
+ * so a number read off another scale, or off several, removes nothing. Nothing checks that a floor was ever
+ * labelled (ADR-088): no answers at all applies it.
+ *
+ * <p>Where the vectors carry no single embedder identity no removal is made and the answers are not
+ * read.
+ */
+public final class FloorReach {
+
+    /** What a below-threshold removal records as its reason. */
+    public static final String REASON = "relevance score below the floor set in the profile";
+
+    private final OptionalDouble floor;
+    private final List<String> answeredUnder;
+    private final OptionalDouble removesBelow;
+
+    private FloorReach(OptionalDouble floor, List<String> answeredUnder, OptionalDouble removesBelow) {
+        this.floor = floor;
+        this.answeredUnder = answeredUnder;
+        this.removesBelow = removesBelow;
+    }
+
+    /**
+     * The reach for a run whose scores are on {@code scale}, which {@link RelevanceScale#of} composes. {@code
+     * answers} is read once, here, and only where there is a scale and a number.
+     */
+    public static FloorReach of(
+            Optional<String> scale, OptionalDouble floor, Supplier<List<RelevanceLabel>> answers) {
+        if (scale.isEmpty() || floor.isEmpty()) {
+            return new FloorReach(floor, List.of(), OptionalDouble.empty());
+        }
+        List<String> answeredUnder =
+                answers.get().stream().map(RelevanceLabel::embedderIdentity).distinct().toList();
+        boolean onThisScale = answeredUnder.isEmpty() || answeredUnder.equals(List.of(scale.get()));
+        return new FloorReach(floor, answeredUnder, onThisScale ? floor : OptionalDouble.empty());
+    }
+
+    /** Present only for a number on this run's own scale. */
+    public OptionalDouble removesBelow() {
+        return removesBelow;
+    }
+
+    /** The number it was handed. */
+    public OptionalDouble floor() {
+        return floor;
+    }
+
+    /** The distinct identities of the answers in the order read; empty where they were not read. */
+    public List<String> answeredUnder() {
+        return answeredUnder;
+    }
+}

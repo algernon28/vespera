@@ -1,16 +1,16 @@
 package io.algernon.vespera;
 
-import io.algernon.vespera.embedding.DocumentCluster;
-import io.algernon.vespera.ledger.OccurrenceId;
-import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.synthesis.ArrangedCluster;
-import io.algernon.vespera.synthesis.ClusterFault;
-import io.algernon.vespera.synthesis.ClusterFaultKind;
-import io.algernon.vespera.synthesis.ClusterLabel;
-import io.algernon.vespera.synthesis.RecordedCluster;
-import io.algernon.vespera.synthesis.ListedFault;
-import io.algernon.vespera.synthesis.ListedDoc;
-import io.algernon.vespera.synthesis.SynthesisDoc;
+import io.algernon.vespera.engine.embedding.DocumentCluster;
+import io.algernon.vespera.engine.ledger.OccurrenceId;
+import io.algernon.vespera.engine.ledger.RunId;
+import io.algernon.vespera.engine.synthesis.ArrangedCluster;
+import io.algernon.vespera.engine.synthesis.ClusterFault;
+import io.algernon.vespera.engine.synthesis.ClusterFaultKind;
+import io.algernon.vespera.engine.synthesis.ClusterLabel;
+import io.algernon.vespera.engine.synthesis.RecordedCluster;
+import io.algernon.vespera.engine.synthesis.ListedFault;
+import io.algernon.vespera.engine.synthesis.ListedDoc;
+import io.algernon.vespera.engine.synthesis.SynthesisDoc;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;

@@ -1,0 +1,79 @@
+package io.algernon.vespera.engine.pipeline;
+
+import io.algernon.vespera.engine.ledger.Ledger;
+import io.algernon.vespera.engine.ledger.OccurrenceId;
+import io.algernon.vespera.engine.ledger.RunId;
+import io.algernon.vespera.engine.similarity.MinHashParameters;
+import io.algernon.vespera.engine.similarity.RedundancySignatures;
+import io.algernon.vespera.engine.similarity.ShingleParameters;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.infrastructure.item.Chunk;
+import org.springframework.batch.infrastructure.item.ItemWriter;
+import org.springframework.stereotype.Component;
+
+/**
+ * Writes one MinHash signature (plus its band rows) per stage-2 survivor in the chunk, delegating the
+ * actual read-strip-compute-write to {@link RedundancySignatures} (ADR-080, ADR-081) — this class only
+ * supplies the per-run identity everything in it needs to agree on.
+ *
+ * <p>Never invoked while the gate is closed: {@link RedundancyJobConfiguration}'s reader yields no items
+ * in that case, so this writer's own step-scoped target is never even constructed — which is what keeps
+ * {@link StageRuns}, reached here as a direct dependency, from minting stage 4's run row when it should
+ * not.
+ */
+@Component
+@StepScope
+class RedundancySignatureItemWriter implements ItemWriter<OccurrenceId> {
+
+    private static final Logger log = LoggerFactory.getLogger(RedundancySignatureItemWriter.class);
+
+    private final RedundancySignatures redundancySignatures;
+    private final StageRuns stageRuns;
+    private final RunId runId;
+    private final RunId extractionRunId;
+    private final RedundancyBoilerplate redundancyBoilerplate;
+
+    /** Stage 4a's progress line (ADR-093), over the survivor set this step's reader was given. */
+    private final StageProgress progress;
+
+    RedundancySignatureItemWriter(
+            Ledger ledger,
+            RedundancySignatures redundancySignatures,
+            StageRuns stageRuns,
+            RedundancyBoilerplate redundancyBoilerplate) {
+        this.redundancySignatures = redundancySignatures;
+        this.stageRuns = stageRuns;
+        this.runId = stageRuns.contentRedundancy();
+        this.extractionRunId = stageRuns.upstream(StageModules.EXTRACTION);
+        this.redundancyBoilerplate = redundancyBoilerplate;
+        long survivors = TimedStatement.of(
+                "Stage 4a (redundancy signatures)",
+                "counting",
+                "counted",
+                "the survivors it signs",
+                () -> ledger.verdicts().survivorCount(runId));
+        this.progress = StageProgress.over("Stage 4a (redundancy signatures)", survivors);
+    }
+
+    @Override
+    public void write(Chunk<? extends OccurrenceId> chunk) {
+        // The numbers the runs were minted under, so the signature written is the one the run is named by
+        // (ADR-330 section 9, ADR-117): the window of stage 2's run and the permutations of stage 4's.
+        ShingleParameters window = stageRuns.shingleWindow();
+        MinHashParameters permutations = stageRuns.minHash();
+        for (OccurrenceId occurrenceId : chunk) {
+            redundancySignatures.write(
+                    occurrenceId,
+                    runId,
+                    extractionRunId,
+                    redundancyBoilerplate.hashes(),
+                    stageRuns.contentRedundancyFloor(),
+                    window,
+                    permutations);
+            log.info("[redundancy-signature] finished {}", occurrenceId.value());
+            progress.itemDone();
+        }
+    }
+}

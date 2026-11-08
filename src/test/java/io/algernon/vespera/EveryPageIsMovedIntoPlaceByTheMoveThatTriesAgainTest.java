@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
 class EveryPageIsMovedIntoPlaceByTheMoveThatTriesAgainTest {
 
     /** The one shipped class that may move a file in one atomic move. */
-    private static final String THE_MOVE_THAT_TRIES_AGAIN = "io.algernon.vespera.ledger.ReplacingMove";
+    private static final String THE_MOVE_THAT_TRIES_AGAIN = "io.algernon.vespera.engine.ledger.ReplacingMove";
 
     /** What a class that moves a file in one atomic move names. */
     private static final String AN_ATOMIC_MOVE = "ATOMIC_MOVE";
