@@ -1,0 +1,274 @@
+<!doctype html>
+<!--
+  PROTOTYPE — throwaway. Not part of the jar, never merged to main (branch prototype/profile-tab).
+  Question (#764 / ADR-366): what should a compact Profile tab look like?
+  Three variants of the control panel's Profile tab, switchable via ?variant=A|B|C and the bar at the bottom.
+  Assumption: the window is JavaFX, so there is no web route to host this; this HTML imitates its look (Modena)
+  with the real profile keys, titles, descriptions and costs from ProfileKey, and sample provenances.
+  Nothing is saved: Save only prints what would be written.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Profile tab prototype</title>
+<style>
+  :root { --bg:#f4f4f4; --pane:#fff; --line:#c8c8c8; --text:#222; --dim:#666; --small:#555; --link:#2a5db0;
+          --accent:#0096c9; --sel:#cfe8fc; --tag:#e7eef7; --tagline:#a9bcd6; }
+  * { box-sizing: border-box; }
+  body { margin:0; font: 13px "Segoe UI", system-ui, sans-serif; color:var(--text); background:var(--bg); }
+  .window { max-width: 1040px; margin: 16px auto 90px; border:1px solid #999; background:var(--bg); }
+  .tabs { display:flex; gap:2px; padding:6px 6px 0; border-bottom:1px solid var(--line); }
+  .tab { padding:4px 12px; border:1px solid var(--line); border-bottom:none; background:#e6e6e6; border-radius:3px 3px 0 0; }
+  .tab.on { background:var(--pane); font-weight:600; }
+  .body { background:var(--pane); padding:10px 14px; min-height:520px; }
+  .small { font-size:11.5px; color:var(--small); }
+  a, .link { color:var(--link); cursor:pointer; text-decoration:none; }
+  a:hover, .link:hover { text-decoration:underline; }
+  input[type=text], input[type=number], select { font:inherit; padding:2px 5px; border:1px solid #b5b5b5; border-radius:2px; background:#fff; }
+  input[type=number] { width:90px; }
+  button { font:inherit; padding:2px 10px; border:1px solid #9a9a9a; border-radius:3px; background:linear-gradient(#fafafa,#e3e3e3); cursor:pointer; }
+  .sel-text { user-select:text; cursor:text; }
+  /* one-line provenance with a drawn ellipsis that is not part of the text */
+  .prov { display:flex; align-items:center; gap:8px; min-width:0; }
+  .prov .line { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--dim); font-style:italic; }
+  .prov textarea { flex:1; font:inherit; min-height:42px; resize:vertical; }
+  .tags { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+  .tagc { display:inline-flex; align-items:center; gap:4px; padding:1px 4px 1px 8px; background:var(--tag); border:1px solid var(--tagline); border-radius:10px; }
+  .tagc button { padding:0 5px; border:none; background:none; color:#555; }
+  .tagc button:focus { outline:2px solid var(--accent); border-radius:8px; }
+  .tags input { width:80px; }
+  .inuse { color:var(--dim); font-size:11.5px; }
+  .changed { border-left:3px solid var(--accent) !important; }
+  .reports a { margin-right:10px; }
+
+  /* A: compact rows */
+  .A .row { padding:7px 4px 8px; border-bottom:1px solid #e3e3e3; display:grid; grid-template-columns: 210px 1fr; column-gap:14px; row-gap:3px; }
+  .A .title { font-weight:600; align-self:center; }
+  .A .ctl { display:flex; align-items:center; gap:10px; }
+  .A .meta { grid-column:2; display:flex; gap:14px; flex-wrap:wrap; }
+
+  /* B: one table */
+  .B table { width:100%; border-collapse:collapse; table-layout:fixed; }
+  .B th { text-align:left; font-weight:600; font-size:12px; color:#444; background:#efefef; border-bottom:1px solid var(--line); padding:4px 6px; position:sticky; top:0; }
+  .B td { border-bottom:1px solid #e6e6e6; padding:4px 6px; vertical-align:middle; }
+  .B tr:hover td { background:#f7fbff; }
+  .B .costs { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--small); font-size:11.5px; }
+  .B .grouphead td { background:#fafafa; font-weight:600; color:#333; padding-top:10px; }
+
+  /* C: master and detail */
+  .C { display:grid; grid-template-columns: 300px 1fr; gap:0; border:1px solid var(--line); min-height:500px; }
+  .C .list { border-right:1px solid var(--line); overflow:auto; }
+  .C .item { padding:6px 10px; border-bottom:1px solid #eee; cursor:pointer; }
+  .C .item.on { background:var(--sel); }
+  .C .item .v { color:var(--dim); font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .C .detail { padding:12px 16px; display:flex; flex-direction:column; gap:10px; }
+  .C .detail h3 { margin:0; font-size:15px; }
+  .C .detail .k { font-family:Consolas, monospace; font-size:11.5px; color:var(--dim); }
+
+  .savebar { display:flex; gap:10px; align-items:center; margin-top:12px; }
+  pre.state { background:#1f2430; color:#cfe3ff; font:11.5px Consolas, monospace; padding:8px 10px; margin:12px 0 0; white-space:pre-wrap; max-height:180px; overflow:auto; }
+
+  /* prototype switcher: obviously not part of the design */
+  .proto { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); display:flex; align-items:center; gap:10px;
+           background:#111; color:#fff; padding:7px 14px; border-radius:999px; box-shadow:0 4px 18px rgba(0,0,0,.35); font:13px system-ui; z-index:10; }
+  .proto button { background:#333; color:#fff; border:none; border-radius:50%; width:28px; height:28px; padding:0; }
+  .proto .lbl { min-width:220px; text-align:center; }
+  .proto .q { color:#ffcf5a; font-size:11px; display:block; }
+</style>
+</head>
+<body>
+<div class="window">
+  <div class="tabs"><div class="tab on">Profile</div><div class="tab">Inclusions</div></div>
+  <div class="body" id="root"></div>
+</div>
+<div class="proto">
+  <button id="prev" title="Previous variant (←)">‹</button>
+  <span class="lbl"><span id="vlabel"></span><span class="q">PROTOTYPE · #764 Profile tab</span></span>
+  <button id="next" title="Next variant (→)">›</button>
+</div>
+
+<script>
+// ---- sample data: real keys from ProfileKey; provenances and values are samples ----
+const RERUN = {
+  extraction: 'extraction, content-census, content-redundancy, seed-measurement, embedding-scoring, arrangement, generation',
+  byte: 'byte-level-reduction, extraction, content-census, content-redundancy, seed-measurement, embedding-scoring, arrangement, generation',
+  scoring: 'embedding-scoring, arrangement, generation',
+  generation: 'generation',
+};
+const keys = [
+  { key:'seedFolder', title:'Example documents', kind:'folder', value:'D:\\archive\\File sicuri', inUse:null,
+    desc:'Documents you already know belong in what you keep; everything else is measured against them.',
+    cost:'seed-measurement, embedding-scoring, arrangement, generation', reports:['seed-corpus-comparison.html'],
+    prov:"Operator's folder of documents known to be relevant, named on 2026-10-19." },
+  { key:'degenerateOutputConfidenceFloor', title:'Lowest text quality', kind:'number', value:'0.5', inUse:null,
+    desc:'A file whose extracted text the converter rates below this, from 0 to 1, is set aside: its text is too poor to use.',
+    cost:RERUN.extraction, reports:['confidence-distribution.html'],
+    prov:"Lower bound of the 'fair' grade in confidence-distribution.html (888 documents): no document scores poor, 191 fair, 211 good, 486 excellent. 0.5 removes none of them and keeps every fair one." },
+  { key:'degenerateOutputWordFloor', title:'Fewest words in a file', kind:'number', value:'2', inUse:null,
+    desc:'A file holding fewer words than this once its text is extracted is set aside.',
+    cost:RERUN.extraction, reports:['word-count-distribution.html'],
+    prov:'Smallest floor in word-count-distribution.html (content census run 4aee3956355db7456f89af244f52a48005e8bfe306a3f2bf48d5a5a597bb47d9). It removes 3 empty files and nothing else.' },
+  { key:'relevanceScoreFloor', title:'Relevance cut-off', kind:'number', value:'', inUse:'0.62',
+    desc:'A document less like your example documents than this is left out.',
+    cost:RERUN.scoring, reports:['relevance-score-distribution.html','relevance-labelling.html'],
+    prov:'' },
+  { key:'codeNameEndings', title:'Code file endings', kind:'tags', value:['.java','.sql','.xml','.properties'], inUse:null,
+    desc:'File name endings that mark a file as code, kept apart from the documents.',
+    cost:RERUN.byte, reports:['format-mix.html'],
+    prov:'set in the control panel' },
+  { key:'outOfScopeNameEndings', title:'Endings left out', kind:'tags', value:['.ok','.tmp'], inUse:null,
+    desc:'File name endings that mark a file as no document at all, so that it is left out.',
+    cost:RERUN.byte, reports:['format-mix.html'],
+    prov:'The .OK flow markers of the PERIN corpus: operational records, labelled not relevant on 2026-10-30.' },
+  { key:'generationModel', title:'Writing model', kind:'text', value:'', inUse:'qwen3:8b',
+    desc:'The local model that writes the text connecting the documents of each page.',
+    cost:RERUN.generation, reports:[], prov:'' },
+  { key:'deliverableLanguage', title:'Language of the pages', kind:'select', options:['','en','it'], value:'it', inUse:null,
+    desc:'The language the finished pages are written in, English or Italian.',
+    cost:RERUN.generation, reports:[], prov:'The readers of the hand-over are the Italian QA team.' },
+];
+const FILLED_IN = 'set in the control panel';
+const state = { variant:'A', selected:keys[0].key, editing:{}, original:JSON.parse(JSON.stringify(keys)), log:[] };
+
+// ---- helpers ----
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const k = name => keys.find(x => x.key === name);
+const orig = name => state.original.find(x => x.key === name);
+const changed = name => JSON.stringify(k(name).value) !== JSON.stringify(orig(name).value);
+function provTooltip(p) { return (p || '(no provenance saved)') + '\n\nSaved beside the value in profile.yaml as its provenance, saying where the value came from.'; }
+function titleTooltip(x) { return x.key + '\n\n' + x.desc; }
+
+function control(x) {
+  const id = 'v-' + x.key;
+  if (x.kind === 'number') return `<input type="number" step="any" id="${id}" data-key="${x.key}" value="${esc(x.value)}" placeholder="${esc(x.inUse ?? '')}">`;
+  if (x.kind === 'select') return `<select id="${id}" data-key="${x.key}">${x.options.map(o => `<option ${o===x.value?'selected':''} value="${o}">${o||'(none)'}</option>`).join('')}</select>`;
+  if (x.kind === 'tags') return `<div class="tags" data-tags="${x.key}">${x.value.map((t,i) =>
+      `<span class="tagc sel-text">${esc(t)}<button data-remove="${x.key}" data-i="${i}" title="Remove ${esc(t)}" aria-label="Remove ${esc(t)}">×</button></span>`).join('')}
+      <input type="text" data-add="${x.key}" placeholder="${x.key==='preferredLanguages'?'it':'.java'}" title="Type an ending and press Enter; Backspace in the empty box removes the last"></div>`;
+  const wide = x.kind === 'folder' ? 'style="width:420px"' : 'style="width:300px"';
+  return `<input type="text" ${wide} id="${id}" data-key="${x.key}" value="${esc(x.value)}" placeholder="${esc(x.inUse ?? '')}">${x.kind==='folder'?' <button>Browse</button>':''}`;
+}
+function provenance(x) {
+  if (state.editing[x.key] !== undefined) {
+    return `<div class="prov"><textarea data-prov="${x.key}" title="Enter adds no line break; Escape restores and closes">${esc(state.editing[x.key])}</textarea></div>`;
+  }
+  const shown = x.prov || '';
+  return `<div class="prov"><span class="line sel-text" title="${esc(provTooltip(shown))}">${shown ? esc(shown) : ''}</span>
+          <span class="link" data-edit="${x.key}" title="Change the reason saved beside the value in profile.yaml; it is written when you press Save.">Edit reason</span></div>`;
+}
+function inUse(x) { return x.inUse && (x.value === '' || x.value == null) ? `<span class="inuse sel-text">In use where the profile names none: ${esc(x.inUse)}</span>` : ''; }
+function reports(x) { return x.reports.length ? `<span class="reports small">Reports: ${x.reports.map(r => `<a>${esc(r)}</a>`).join('')}</span>` : ''; }
+function cost(x) { return `<span class="small sel-text">A change makes again: ${esc(x.cost)}.</span>`; }
+
+// ---- variant A: compact rows (the record as written) ----
+function VariantA() {
+  return `<div class="A">${keys.map(x => `
+    <div class="row ${changed(x.key)?'changed':''}">
+      <div class="title sel-text" title="${esc(titleTooltip(x))}">${esc(x.title)}</div>
+      <div class="ctl">${control(x)} ${inUse(x)}</div>
+      <div class="meta">${cost(x)} ${reports(x)}</div>
+      <div style="grid-column:2">${provenance(x)}</div>
+    </div>`).join('')}</div>${saveBar()}`;
+}
+
+// ---- variant B: one dense table, everything else on hover ----
+function VariantB() {
+  const groups = [['Reading the files', ['degenerateOutputConfidenceFloor','degenerateOutputWordFloor','codeNameEndings','outOfScopeNameEndings']],
+                  ['Choosing what to keep', ['seedFolder','relevanceScoreFloor']],
+                  ['Writing the pages', ['generationModel','deliverableLanguage']]];
+  return `<div class="B"><table>
+    <colgroup><col style="width:190px"><col style="width:300px"><col><col style="width:150px"></colgroup>
+    <thead><tr><th>Setting</th><th>Value</th><th>Why this value</th><th>Re-runs</th></tr></thead>
+    <tbody>${groups.map(([g, names]) => `<tr class="grouphead"><td colspan="4">${g}</td></tr>` + names.map(n => { const x = k(n); return `
+      <tr class="${changed(n)?'changed':''}">
+        <td class="sel-text" title="${esc(titleTooltip(x))}">${esc(x.title)}${x.reports.length?`<div class="small">${x.reports.map(r=>`<a>${esc(r)}</a>`).join(' · ')}</div>`:''}</td>
+        <td>${control(x)}<div>${inUse(x)}</div></td>
+        <td>${provenance(x)}</td>
+        <td class="costs sel-text" title="A change makes again: ${esc(x.cost)}.">${esc(x.cost.split(', ')[0])}${x.cost.includes(',')?' and '+(x.cost.split(', ').length-1)+' after':''}</td>
+      </tr>`; }).join('')).join('')}</tbody></table></div>${saveBar()}`;
+}
+
+// ---- variant C: master list and one detail pane ----
+function VariantC() {
+  const sel = k(state.selected);
+  const summary = x => Array.isArray(x.value) ? x.value.join(' ') : (x.value || (x.inUse ? `(${x.inUse} in use)` : '(none)'));
+  return `<div class="C">
+    <div class="list">${keys.map(x => `<div class="item ${x.key===state.selected?'on':''} ${changed(x.key)?'changed':''}" data-pick="${x.key}">
+        <div>${esc(x.title)}</div><div class="v">${esc(summary(x))}</div></div>`).join('')}</div>
+    <div class="detail">
+      <div><h3 class="sel-text">${esc(sel.title)}</h3><div class="k sel-text">${esc(sel.key)}</div></div>
+      <div class="sel-text">${esc(sel.desc)}</div>
+      <div style="display:flex;gap:10px;align-items:center">${control(sel)} ${inUse(sel)}</div>
+      ${cost(sel)}
+      ${reports(sel)}
+      <div><div class="small" style="margin-bottom:3px">Why this value</div>${provenance(sel)}</div>
+    </div></div>${saveBar()}`;
+}
+
+function saveBar() { return `<div class="savebar"><button data-save>Save</button><button data-reset>Reset</button><span class="small" id="outcome"></span></div>`; }
+
+// ---- render and state ----
+const VARIANTS = { A:['Compact rows (as recorded)', VariantA], B:['One table, hover for the rest', VariantB], C:['List and detail', VariantC] };
+function render() {
+  document.getElementById('root').innerHTML = VARIANTS[state.variant][1]() +
+    `<pre class="state">${esc(JSON.stringify({ variant: state.variant, values: Object.fromEntries(keys.map(x => [x.key, x.value])),
+      provenance: Object.fromEntries(keys.map(x => [x.key, x.prov])), editing: state.editing, lastSave: state.log.at(-1) ?? null }, null, 1))}</pre>`;
+  document.getElementById('vlabel').textContent = `${state.variant} (${VARIANTS[state.variant][0]})`;
+}
+function go(v) { state.variant = v; const u = new URL(location); u.searchParams.set('variant', v); history.replaceState(null, '', u); render(); }
+function cycle(d) { const ks = Object.keys(VARIANTS); go(ks[(ks.indexOf(state.variant) + d + ks.length) % ks.length]); }
+
+document.addEventListener('click', e => {
+  const t = e.target;
+  if (t.id === 'prev') return cycle(-1);
+  if (t.id === 'next') return cycle(1);
+  if (t.dataset.edit) { const x = k(t.dataset.edit); state.editing[x.key] = x.prov || FILLED_IN; render();
+    const ta = document.querySelector(`[data-prov="${x.key}"]`); ta.focus(); ta.selectionStart = ta.value.length; return; }
+  if (t.dataset.remove) { const x = k(t.dataset.remove); x.value.splice(+t.dataset.i, 1); render();
+    document.querySelector(`[data-add="${x.key}"]`)?.focus(); return; }
+  if (t.dataset.pick) { state.selected = t.dataset.pick; render(); return; }
+  if (t.closest('[data-pick]')) { state.selected = t.closest('[data-pick]').dataset.pick; render(); return; }
+  if (t.dataset.save !== undefined) {
+    const written = [];
+    for (const x of keys) {
+      const editedProv = state.editing[x.key];
+      const valueChanged = changed(x.key);
+      let prov = x.prov;
+      if (editedProv !== undefined && editedProv !== x.prov) prov = editedProv.trim() || FILLED_IN;
+      else if (valueChanged) prov = FILLED_IN;          // ADR-343: changed value, reason left as shown
+      if (valueChanged || prov !== x.prov) { written.push({ key:x.key, value:x.value, provenance:prov }); x.prov = prov; }
+    }
+    state.editing = {}; state.original = JSON.parse(JSON.stringify(keys));
+    state.log.push({ wouldWrite: written.length ? written : 'nothing changed' });
+    render(); document.getElementById('outcome').textContent = written.length ? `profile.yaml would be written (${written.length} key(s)) — prototype, nothing saved` : 'nothing to save';
+    return;
+  }
+  if (t.dataset.reset !== undefined) { keys.splice(0, keys.length, ...JSON.parse(JSON.stringify(state.original))); state.editing = {}; render(); }
+});
+document.addEventListener('change', e => { const t = e.target; if (t.dataset.key) { k(t.dataset.key).value = t.value; render(); } });
+document.addEventListener('input', e => { const t = e.target; if (t.dataset.prov) state.editing[t.dataset.prov] = t.value.replace(/[\r\n\t]+/g, ' '); });
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  if (t.dataset && t.dataset.add !== undefined) {
+    const x = k(t.dataset.add);
+    if (e.key === 'Enter' && t.value.trim()) { x.value.push(t.value.trim()); render(); document.querySelector(`[data-add="${x.key}"]`).focus(); e.preventDefault(); }
+    else if (e.key === 'Backspace' && t.value === '' && x.value.length) { x.value.pop(); render(); document.querySelector(`[data-add="${x.key}"]`).focus(); e.preventDefault(); }
+    return;
+  }
+  if (t.dataset && t.dataset.prov) {
+    if (e.key === 'Enter') { e.preventDefault(); return; }
+    if (e.key === 'Escape') { delete state.editing[t.dataset.prov]; render(); return; }
+    return;
+  }
+  if (t.matches && t.matches('input, textarea, select, [contenteditable]')) return;
+  if (e.key === 'ArrowLeft') cycle(-1);
+  if (e.key === 'ArrowRight') cycle(1);
+});
+
+const v = new URL(location).searchParams.get('variant');
+state.variant = VARIANTS[v] ? v : 'A';
+render();
+</script>
+</body>
+</html>
