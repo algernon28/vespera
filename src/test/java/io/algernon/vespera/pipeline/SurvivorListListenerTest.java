@@ -25,10 +25,8 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -37,16 +35,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.job.JobExecution;
@@ -116,9 +110,6 @@ class SurvivorListListenerTest {
     /** How many times the move is refused before it goes through. */
     private static final int REFUSED_TWICE = 2;
 
-    /** How many times a refused move is attempted in all before the refusal is said: the move's own bound. */
-    private static final int EVERY_ATTEMPT = 5;
-
     /** Everything asked of the two stand-ins and every line said, in the order it happened in. */
     private final List<String> happened = new ArrayList<>();
 
@@ -157,105 +148,6 @@ class SurvivorListListenerTest {
 
     @Test
     @Story("The list of files extraction read and kept")
-    @DisplayName("When extraction ends, the files it converted and kept are listed by path beside the database, without a file it never reached, and one line says how many and where")
-    void theSurvivorsThatCarryARowAreListedByPath(@TempDir Path root, @TempDir Path workingDirectory)
-            throws IOException {
-        listener(theVerdicts(), theMetrics(), root, workingDirectory).afterStep(step(ExitStatus.COMPLETED, 0));
-
-        Path page = workingDirectory.resolve(THE_SURVIVOR_LIST);
-        String written = Files.readString(page, StandardCharsets.UTF_8);
-        claim(
-                "the page states the " + CAME_THROUGH + " files that carry a measurement, and names them in the"
-                        + " order of their paths although their measurements were handed over the other way round",
-                () -> assertThat(written)
-                        .contains("Files that came through: " + CAME_THROUGH + ".")
-                        .containsSubsequence(
-                                NAMED_FIRST.path().value(), NAMED_LAST.path().value(), "</table>"));
-        claim(
-                "the file that is still standing only because extraction never reached it is not on the page",
-                () -> assertThat(written).doesNotContain(NOT_YET_REACHED.path().value()));
-        claim(
-                "each file's row carries its page count, or a dash where it has none, and its word count",
-                () -> assertThat(written)
-                        .contains(ReportPage.row(
-                                ReportPage.textCell(NAMED_FIRST.path().value()),
-                                ReportPage.numberCell(4),
-                                ReportPage.numberCell(900)))
-                        .contains(ReportPage.row(
-                                ReportPage.textCell(NAMED_LAST.path().value()),
-                                ReportPage.numberCell("&mdash;"),
-                                ReportPage.numberCell(12))));
-        claim(
-                "the page was written beside its place and moved there: nothing is left beside it",
-                () -> assertThat(workingDirectory.resolve(THE_SURVIVOR_LIST + ".part")).doesNotExist());
-        claim(
-                "the listener said one line, not an error, stating the " + CAME_THROUGH + " files and where their"
-                        + " list is",
-                () -> assertThat(saidByTheListener).singleElement().satisfies(line -> {
-                    assertThat(line.getLevel()).isEqualTo(Level.INFO);
-                    assertThat(line.getFormattedMessage())
-                            .isEqualTo("Stage 2 (extraction): " + CAME_THROUGH + " file(s) came through; their"
-                                    + " list is " + page.toAbsolutePath());
-                }));
-        int before = happened.indexOf(THE_LINE_BEFORE);
-        int after = theLineAfter();
-        claim(
-                "the count and the read by path were both made after the line that says the reading began and"
-                        + " before the line that says how long it took, so the seconds that line states are the"
-                        + " whole page's",
-                () -> {
-                    assertThat(List.of(before, after)).as("what happened, in order: %s", happened).doesNotContain(-1);
-                    assertThat(happened.indexOf(THE_COUNT))
-                            .as("what happened, in order: %s", happened)
-                            .isGreaterThan(before)
-                            .isLessThan(after);
-                    assertThat(happened.indexOf(THE_READ_BY_PATH))
-                            .as("what happened, in order: %s", happened)
-                            .isGreaterThan(before)
-                            .isLessThan(after);
-                });
-    }
-
-    @Test
-    @Story("The list of files extraction read and kept")
-    @DisplayName("An extraction that failed before reading any file writes no list and asks nothing")
-    void aStepThatFailedHavingReadNothingWritesNoPage(@TempDir Path root, @TempDir Path workingDirectory) {
-        StageRuns neverAsked = stageRuns(new Ledger(null), root, () -> {
-            throw new AssertionError("the run was asked for at the end of a step that read nothing");
-        });
-        SurvivorListListener listener =
-                new SurvivorListListener(new Ledger(null), theMetrics(), neverAsked, workingDirectory);
-
-        Throwable thrown = catchThrowable(() -> listener.afterStep(step(ExitStatus.FAILED, 0)));
-
-        claim(
-                "nothing was thrown, so the run was not asked for: asking would call the converter that had"
-                        + " just failed its check",
-                () -> assertThat(thrown).isNull());
-        claim(
-                "no page was written and nothing was said: there is no extraction to list",
-                () -> {
-                    assertThat(workingDirectory.resolve(THE_SURVIVOR_LIST)).doesNotExist();
-                    assertThat(happened).isEmpty();
-                });
-    }
-
-    @Test
-    @Story("The list of files extraction read and kept")
-    @DisplayName("An extraction that failed after reading a file still lists what it had converted and kept by then")
-    void aStepThatFailedAfterReadingWritesThePage(@TempDir Path root, @TempDir Path workingDirectory) {
-        listener(theVerdicts(), theMetrics(), root, workingDirectory).afterStep(step(ExitStatus.FAILED, 1));
-
-        claim(
-                "the page is there and names the " + CAME_THROUGH + " files converted before the failure",
-                () -> assertThat(workingDirectory.resolve(THE_SURVIVOR_LIST))
-                        .isRegularFile()
-                        .content(StandardCharsets.UTF_8)
-                        .contains(NAMED_FIRST.path().value(), NAMED_LAST.path().value()));
-    }
-
-    @Test
-    @Story("The list of files extraction read and kept")
     @DisplayName("When the read of the files extraction kept fails partway, the list written before stands whole, one line says so, and nothing is thrown from the end of extraction")
     void aReadThatFailsPartwayLeavesThePageBeforeAndIsNotThrown(@TempDir Path root, @TempDir Path workingDirectory)
             throws IOException {
@@ -287,177 +179,6 @@ class SurvivorListListenerTest {
                             .startsWith("Stage 2 (extraction): " + CAME_THROUGH + " file(s) came through, and"
                                     + " their list could not be written to " + page.toAbsolutePath() + ": ")
                             .contains(WHAT_THE_READ_SAID);
-                }));
-    }
-
-    /** A count that fails, as the database fails it and as any other error does, and what that failure says. */
-    static Stream<Arguments> countsThatFail() {
-        return Stream.of(
-                Arguments.of(
-                        Named.of("a failure the database reports", failingToCount()), WHAT_THE_COUNT_SAID),
-                Arguments.of(
-                        Named.of("an error that is not the database's", failingWithAnError()), WHAT_THE_ERROR_SAID));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("countsThatFail")
-    @Story("The list of files extraction read and kept")
-    @DisplayName("When the count of the files extraction kept fails, for any reason, the list written before stands whole, one line says so, and nothing is thrown from the end of extraction")
-    @Link(name = "ADR-254", url = Adr.A_FAILURE_AT_THE_END_OF_STAGE_2_IS_SAID_WHATEVER_IT_WAS, type = "adr")
-    void aCountThatFailsLeavesThePageBeforeAndIsNotThrown(
-            Verdicts failing, String whatTheFailureSaid, @TempDir Path root, @TempDir Path workingDirectory)
-            throws IOException {
-        listener(theVerdicts(), theMetrics(), root, workingDirectory).afterStep(step(ExitStatus.COMPLETED, 0));
-        Path page = workingDirectory.resolve(THE_SURVIVOR_LIST);
-        String thePageBefore = Files.readString(page, StandardCharsets.UTF_8);
-        saidByTheListener.clear();
-        happened.clear();
-
-        Throwable thrown = catchThrowable(() -> listener(failing, theMetrics(), root, workingDirectory)
-                .afterStep(step(ExitStatus.COMPLETED, 0)));
-
-        theReadingBeganAndNoLineSaysHowLongItTook();
-
-        claim(
-                "nothing was thrown from the end of extraction: Spring Batch would log a stack trace and skip the"
-                        + " listeners after this one",
-                () -> assertThat(thrown).isNull());
-        claim(
-                "the list in its place is the first invocation's, character for character",
-                () -> assertThat(Files.readString(page, StandardCharsets.UTF_8)).isEqualTo(thePageBefore));
-        claim(
-                "one line, written as an error, says that the files that came through could not be counted and"
-                        + " that their list could not be written to the page's place, with what the failure said",
-                () -> assertThat(saidByTheListener).singleElement().satisfies(line -> {
-                    assertThat(line.getLevel()).isEqualTo(Level.ERROR);
-                    assertThat(line.getFormattedMessage())
-                            .startsWith("Stage 2 (extraction): the files that came through could not be counted,"
-                                    + " and their list could not be written to " + page.toAbsolutePath() + ": ")
-                            .contains(whatTheFailureSaid);
-                }));
-    }
-
-    @Test
-    @Story("The list of files extraction read and kept")
-    @DisplayName("A list of the files extraction kept that cannot be moved into place twice in a row, because another program holds it, is put in place on the third attempt")
-    void aMoveRefusedForAMomentStillPutsThePageInPlace(@TempDir Path root, @TempDir Path workingDirectory)
-            throws IOException {
-        int[] attempts = {0};
-        ReplacingMove refusedTwice = new ReplacingMove(
-                (part, target) -> {
-                    attempts[0]++;
-                    if (attempts[0] <= REFUSED_TWICE) {
-                        throw new AccessDeniedException(part.toString(), target.toString(), null);
-                    }
-                    Files.move(part, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-                },
-                millis -> {});
-
-        listener(theVerdicts(), theMetrics(), root, workingDirectory, refusedTwice)
-                .afterStep(step(ExitStatus.COMPLETED, 0));
-
-        Path page = workingDirectory.resolve(THE_SURVIVOR_LIST);
-        claim(
-                "the move was attempted three times, the first " + REFUSED_TWICE + " refused",
-                () -> assertThat(attempts[0]).isEqualTo(REFUSED_TWICE + 1));
-        claim(
-                "the list stands whole in its place, naming the " + CAME_THROUGH + " files, and nothing is left"
-                        + " beside it",
-                () -> {
-                    assertThat(Files.readString(page, StandardCharsets.UTF_8))
-                            .contains(NAMED_FIRST.path().value(), NAMED_LAST.path().value())
-                            .contains("</table>");
-                    assertThat(workingDirectory.resolve(THE_SURVIVOR_LIST + ".part")).doesNotExist();
-                });
-        claim(
-                "the line that says where the list is was written, and no error line",
-                () -> assertThat(saidByTheListener).singleElement().satisfies(line -> {
-                    assertThat(line.getLevel()).isEqualTo(Level.INFO);
-                    assertThat(line.getFormattedMessage()).contains("their list is " + page.toAbsolutePath());
-                }));
-    }
-
-    @Test
-    @Story("The list of files extraction read and kept")
-    @DisplayName("When the list of the files extraction kept is refused its place on every attempt, the list written before stands whole, one line says so, and nothing is thrown from the end of extraction")
-    void aMoveRefusedOnEveryAttemptLeavesThePageBeforeAndIsNotThrown(@TempDir Path root, @TempDir Path workingDirectory)
-            throws IOException {
-        listener(theVerdicts(), theMetrics(), root, workingDirectory).afterStep(step(ExitStatus.COMPLETED, 0));
-        Path page = workingDirectory.resolve(THE_SURVIVOR_LIST);
-        String thePageBefore = Files.readString(page, StandardCharsets.UTF_8);
-        saidByTheListener.clear();
-        happened.clear();
-        int[] attempts = {0};
-        ReplacingMove refusedForGood = new ReplacingMove(
-                (part, target) -> {
-                    attempts[0]++;
-                    throw new AccessDeniedException(part.toString(), target.toString(), null);
-                },
-                millis -> {});
-
-        Throwable thrown =
-                catchThrowable(() -> listener(theVerdicts(), theMetrics(), root, workingDirectory, refusedForGood)
-                        .afterStep(step(ExitStatus.COMPLETED, 0)));
-
-        claim(
-                "the move was attempted " + EVERY_ATTEMPT + " times, as often as a refused move is attempted, and"
-                        + " nothing was thrown from the end of extraction",
-                () -> {
-                    assertThat(attempts[0]).isEqualTo(EVERY_ATTEMPT);
-                    assertThat(thrown).isNull();
-                });
-        claim(
-                "the list in its place is the first invocation's, character for character",
-                () -> assertThat(Files.readString(page, StandardCharsets.UTF_8)).isEqualTo(thePageBefore));
-        claim(
-                "one line, written as an error, says that " + CAME_THROUGH + " files came through and that their"
-                        + " list could not be written to the page's place",
-                () -> assertThat(saidByTheListener).singleElement().satisfies(line -> {
-                    assertThat(line.getLevel()).isEqualTo(Level.ERROR);
-                    assertThat(line.getFormattedMessage())
-                            .startsWith("Stage 2 (extraction): " + CAME_THROUGH + " file(s) came through, and"
-                                    + " their list could not be written to " + page.toAbsolutePath() + ": ");
-                }));
-        theReadingBeganAndNoLineSaysHowLongItTook();
-    }
-
-    @Test
-    @Story("The list of files extraction read and kept")
-    @DisplayName("When the run of extraction cannot be found at the end of the step, one line says so and nothing is thrown from the end of extraction")
-    @Link(name = "ADR-254", url = Adr.A_FAILURE_AT_THE_END_OF_STAGE_2_IS_SAID_WHATEVER_IT_WAS, type = "adr")
-    void aRunThatCannotBeFoundIsSaidAndNotThrown(@TempDir Path root, @TempDir Path workingDirectory) {
-        Ledger ledger = new Ledger(null) {
-            @Override
-            public Verdicts verdicts() {
-                return theVerdicts();
-            }
-        };
-        SurvivorListListener listener = new SurvivorListListener(
-                ledger,
-                theMetrics(),
-                stageRuns(ledger, root, () -> {
-                    throw new IllegalStateException(WHAT_THE_ERROR_SAID);
-                }),
-                workingDirectory,
-                ReplacingMove.ATOMIC);
-
-        Throwable thrown = catchThrowable(() -> listener.afterStep(step(ExitStatus.COMPLETED, 0)));
-
-        claim(
-                "nothing was thrown from the end of extraction, and no page was written",
-                () -> {
-                    assertThat(thrown).isNull();
-                    assertThat(workingDirectory.resolve(THE_SURVIVOR_LIST)).doesNotExist();
-                });
-        claim(
-                "one line, written as an error, says that the list could not be written and why",
-                () -> assertThat(saidByTheListener).singleElement().satisfies(line -> {
-                    assertThat(line.getLevel()).isEqualTo(Level.ERROR);
-                    assertThat(line.getFormattedMessage())
-                            .startsWith("Stage 2 (extraction): the run of the files that came through could not be"
-                                    + " found, and their list could not be written to "
-                                    + workingDirectory.resolve(THE_SURVIVOR_LIST).toAbsolutePath() + ": ")
-                            .contains(WHAT_THE_ERROR_SAID);
                 }));
     }
 

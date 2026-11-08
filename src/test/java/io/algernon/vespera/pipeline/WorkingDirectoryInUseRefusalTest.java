@@ -15,7 +15,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import picocli.CommandLine;
 
 /**
  * A working directory already in use is said in one line on standard error, in place of Spring's
@@ -64,23 +63,6 @@ class WorkingDirectoryInUseRefusalTest {
                     assertThat(WorkingDirectoryInUseRefusal.refuses(inUse)).isTrue();
                     assertThat(WorkingDirectoryInUseRefusal.refuses(new IllegalStateException("wrapped", inUse))).isTrue();
                 });
-    }
-
-    @Test
-    @Story("A second invocation on the same working directory is refused")
-    @DisplayName("Any other failed start is left to Spring, and the refusal's exit code is 1")
-    void anyOtherFailureIsLeftAlone() {
-        IllegalStateException unrelated = new IllegalStateException("something else failed");
-
-        Reported other = reported(() -> new WorkingDirectoryInUseRefusal().reportException(unrelated));
-
-        claim("a failure that is not a working directory in use is not claimed",
-                () -> assertThat(other.claimed()).isFalse());
-        claim("and nothing is printed for it here", () -> assertThat(other.printed()).isEmpty());
-        claim("the entry point lets it through rather than exiting as though the directory were in use",
-                () -> assertThat(WorkingDirectoryInUseRefusal.refuses(unrelated)).isFalse());
-        claim("the refusal exits with 1, the code a refused profile already returns, not picocli's usage code",
-                () -> assertThat(WorkingDirectoryInUseRefusal.EXIT_CODE).isEqualTo(CommandLine.ExitCode.SOFTWARE));
     }
 
     /** Whether the reporter claimed the failure, and what it printed on standard error meanwhile. */

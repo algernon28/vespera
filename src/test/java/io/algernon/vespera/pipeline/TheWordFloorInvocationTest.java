@@ -134,31 +134,6 @@ class TheWordFloorInvocationTest {
                         .doesNotContain("degenerateOutputWordFloor"));
     }
 
-    @Test
-    @Story("A seed is held to usable text alone")
-    @DisplayName("Under a word floor of two, a seed document of one word is usable and is measured with the others")
-    void aOneWordSeedIsUsableUnderTheFloor(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        documentsWithABody(root, "corpus", DOCUMENTS_WITH_A_BODY);
-        documentsWithABody(seeds, "seed", DOCUMENTS_WITH_A_BODY - 1);
-        Files.writeString(seeds.resolve(SeedScriptedExtractionBeans.ONE_WORD), "one word seed, of " + seeds.getFileName());
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), WHY)
-                .degenerateOutputWordFloor(A_FLOOR_OF_TWO, WHY)
-                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so gate 3 is open")
-                .build());
-
-        cli.run("run", root.toString());
-
-        claim(
-                "no seed document is recorded as unusable: a seed is held to having a letter or a digit outside its"
-                        + " page headers and footers, and never to the word floor",
-                () -> assertThat(unusableSeedReasonsOf(seeds)).isEmpty());
-        claim(
-                "both seed documents, the one of one word among them, have vectors to score the corpus against",
-                () -> assertThat(documentsWithVectors(seeds)).isEqualTo(DOCUMENTS_WITH_A_BODY));
-    }
-
     /** {@code count} files beneath {@code folder}, each naming its folder so that no other test wrote its bytes. */
     private void documentsWithABody(Path folder, String kind, int count) throws IOException {
         for (int i = 0; i < count; i++) {

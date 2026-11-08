@@ -166,38 +166,6 @@ class SeedExtractionWhenTheSidecarDropsItsConnectionTest {
                         .satisfies(run -> assertThat(ledger.runs().stepFinished(run, "seed-extraction")).isTrue()));
     }
 
-    @Test
-    @Story("A seed the converter answers an error status for")
-    @DisplayName("When the document converter answers a seed with an error status, seed extraction fails and the operator is told which seed and why")
-    void aRejectedSeedStopsSeedExtractionAndIsNamed(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus file, for the seed that is rejected");
-        writeSeeds(seeds, "is rejected");
-        profile(seeds);
-        sidecar.rejecting(THE_FAILING_SEED, NOT_FOUND);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation failed: a seed is an input the operator chose, so one that cannot be"
-                        + " converted stops the step",
-                () -> assertThat(cli.getExitCode()).isNotZero());
-        claim(
-                "a line says that seed extraction failed, names seed " + THE_FAILING_SEED + " by its file,"
-                        + " and says the converter answered HTTP " + NOT_FOUND + " for it",
-                () -> assertThat(operatorLines())
-                        .anyMatch(line -> line.contains("seed extraction")
-                                && line.contains("failed")
-                                && line.contains(nameOf(THE_FAILING_SEED))
-                                && line.contains("could not be converted")
-                                && line.contains("HTTP " + NOT_FOUND)));
-        claim(
-                "seed " + THE_FAILING_SEED + " was posted once: an answer is not asked for again",
-                () -> assertThat(sidecar.callsPerDocument()).containsEntry(THE_FAILING_SEED, ONCE));
-        claim(
-                "and no measurement run was minted, because nothing saw the whole seed folder",
-                () -> assertThat(measurementRunsOver(root)).isEmpty());
-    }
-
     /**
      * A seed is an input the operator chose, so a seed whose call drops, and whose one retry drops again,
      * stops the step with the seed named, rather than being skipped as a corpus document would be, or

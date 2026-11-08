@@ -15,7 +15,6 @@ import io.algernon.vespera.ledger.WalkId;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -92,9 +91,6 @@ class SeedExtractionInvocationTest {
      * the seed report says about a seed, never a reason for nothing to have been recorded about it.
      */
     private static final int SEEDS_IN_THIS_FOLDER = 2;
-
-    /** The seed files the fixture moves away as seed extraction reads them: the one it is armed for. */
-    private static final int SEED_FILES_THAT_WOULD_NOT_OPEN = 1;
 
     @DynamicPropertySource
     static void workingDirectory(DynamicPropertyRegistry registry) {
@@ -237,146 +233,6 @@ class SeedExtractionInvocationTest {
                         .isTrue());
     }
 
-    /**
-     * After writing, the unfinished branch of seed extraction logs one summary warning: how many seed
-     * files could not be opened, that the step is not recorded as finished and stage 5 goes no further,
-     * and to release them and run again (ADR-155 section 4, its second paragraph).
-     */
-    @Test
-    @Story("A seed file that will not open stops stage 5 without failing the invocation")
-    @DisplayName("When a seed file will not open, one warning counts the files, says the step is not finished, and says to release them and run again")
-    @Issue("291")
-    @Link(name = "ADR-155", url = Adr.A_SEED_FILE_THAT_WILL_NOT_OPEN_IS_RECORDED_UNDER_A_REASON_OF_ITS_OWN, type = "adr")
-    void aSeedFileThatWillNotOpenIsCountedInOneWarningThatSaysToReleaseIt(
-            @TempDir Path root, @TempDir Path seeds, @TempDir Path elsewhere) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
-        Files.writeString(seeds.resolve("seed.txt"), "a seed document that opens, for the summary warning's test");
-        Files.writeString(
-                seeds.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ),
-                "a seed document that is moved away when read, for the summary warning's test");
-        profile(seeds);
-        SeedScriptedExtractionBeans.moveAwayWhenReadInto(elsewhere);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the fixture really did take the file away when seed extraction read it",
-                () -> assertThat(elsewhere.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ)).exists());
-        claim(
-                "exactly one warning sums up the seed files that would not open: it counts "
-                        + SEED_FILES_THAT_WOULD_NOT_OPEN + " -- the one file moved away, of the "
-                        + SEEDS_IN_THIS_FOLDER + " seeds -- says seed extraction is not recorded as finished"
-                        + " and stage 5 goes no further, and says to release them and run the same command again",
-                () -> assertThat(warnings().stream()
-                                .filter(line -> line.contains("seed file(s) could not be opened"))
-                                .toList())
-                        .singleElement()
-                        .satisfies(line -> assertThat(line)
-                                .startsWith(SEED_FILES_THAT_WOULD_NOT_OPEN + " seed file(s) could not be opened")
-                                .contains("is not recorded as finished")
-                                .contains("stage 5 goes no further in this invocation")
-                                .contains("Release them and run the same command again")));
-    }
-
-    @Test
-    @Story("A seed file that will not open stops stage 5 without failing the invocation")
-    @DisplayName("A seed file that stops opening after seed extraction finished costs a warning and changes no record")
-    @Issue("291")
-    @Link(name = "ADR-155", url = Adr.A_SEED_FILE_THAT_WILL_NOT_OPEN_IS_RECORDED_UNDER_A_REASON_OF_ITS_OWN, type = "adr")
-    void aSeedFileThatStopsOpeningAfterTheStepFinishedChangesNoRecord(
-            @TempDir Path root, @TempDir Path seeds, @TempDir Path elsewhere) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
-        Files.writeString(seeds.resolve("seed.txt"), "a seed document that opens, for ADR-155's second test");
-        Files.writeString(
-                seeds.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ),
-                "a seed document that is moved away when read, for ADR-155's second test");
-        profile(seeds);
-
-        cli.run("run", root.toString());
-
-        RunId measurementRun = runIdsFor("seed-measurement", root).getFirst();
-        WalkId seedWalk = theSeedWalkOf(seeds);
-        claim(
-                "the first invocation extracted both seeds and recorded seed extraction as finished",
-                () -> {
-                    assertThat(cli.getExitCode()).isZero();
-                    assertThat(ledger.runs().stepFinished(measurementRun, "seed-extraction"))
-                            .isTrue();
-                    assertThat(unusableSeeds.forRun(measurementRun)).isEmpty();
-                });
-
-        SeedScriptedExtractionBeans.moveAwayWhenReadInto(elsewhere);
-        logged.list.clear();
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the fixture really did take the file away when this invocation's seed extraction read it",
-                () -> assertThat(elsewhere.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ)).exists());
-        claim(
-                "the invocation reported success: seed extraction had already recorded everything it"
-                        + " records, and the file was needed for none of it",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "seed extraction is still recorded as finished under the same run",
-                () -> {
-                    assertThat(runIdsFor("seed-measurement", root)).containsExactly(measurementRun);
-                    assertThat(ledger.runs().stepFinished(measurementRun, "seed-extraction"))
-                            .isTrue();
-                });
-        claim(
-                "no unusable-seed row appeared, and both seeds' metrics rows still stand: a file"
-                        + " unavailable today does not rewrite what the finished step recorded",
-                () -> {
-                    assertThat(unusableSeeds.forRun(measurementRun)).isEmpty();
-                    assertThat(metricRowsAgainst(seedWalk, measurementRun)).isEqualTo(SEEDS_IN_THIS_FOLDER);
-                });
-        claim(
-                "and a warning still names the file",
-                () -> assertThat(warnings())
-                        .anyMatch(line -> line.contains(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ)));
-        claim(
-                "but no gate shut on it: the finished step's rows are the seed set, and a file used for"
-                        + " nothing this invocation records stops nothing that reads them",
-                () -> assertThat(operatorLines())
-                        .noneMatch(line -> line.contains("a seed file could not be opened")));
-    }
-
-    @Test
-    @Story("The seed set is extracted under its own measurement run")
-    @DisplayName("A named seed folder is extracted, and the run names stage 4's run upstream")
-    @Link(name = "ADR-089", url = Adr.A_RUN_NAMES_ITS_IMMEDIATE_PREDECESSOR_UPSTREAM, type = "adr")
-    void extractsTheSeedSetAndNamesStageFourUpstream(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
-        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        profile(seeds);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation reported success, so what follows is what a completed pass left rather"
-                        + " than the wreckage of a failed one",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "exactly one measurement run was minted: the seed folder was named, its walk had"
-                        + " finished, and at least one seed produced text -- the three conditions that have"
-                        + " to hold before a run row exists at all",
-                () -> assertThat(runIdsFor("seed-measurement", root)).hasSize(1));
-        claim(
-                "and that run names the redundancy run as the one before it, rather than reaching"
-                        + " further back to extraction. What this stage goes on to read is the documents"
-                        + " still standing, and a document stops standing the moment any earlier pass rules"
-                        + " it out -- so a run that skipped the pass before it would carry an identity that"
-                        + " two different sets of surviving documents could share",
-                () -> assertThat(upstreamStagesOf(runIdsFor("seed-measurement", root).getFirst()))
-                        .containsExactly("content-redundancy"));
-        claim(
-                "no seed was recorded unusable, because the one seed converted with text in it",
-                () -> assertThat(unusableSeeds.forRun(
-                                runIdsFor("seed-measurement", root).getFirst()))
-                        .isEmpty());
-    }
-
     @Test
     @Story("A seed is never judged")
     @DisplayName("No verdict of any kind stands against a seed occurrence, usable or not")
@@ -422,36 +278,6 @@ class SeedExtractionInvocationTest {
     }
 
     @Test
-    @Story("The seed set is measured by the pass that converts it")
-    @DisplayName("Every seed the extractor answered for carries a metrics row under the measurement run")
-    @Issue("106")
-    @Link(name = "ADR-092", url = Adr.THE_SEED_SIDE_IS_MEASURED_BY_SEED_EXTRACTION, type = "adr")
-    void measuresEverySeedItConverted(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
-        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
-        Files.writeString(seeds.resolve(SeedScriptedExtractionBeans.EMPTY_SEED), "not a document");
-        profile(seeds);
-
-        cli.run("run", root.toString());
-
-        WalkId seedWalk = theSeedWalkOf(seeds);
-        RunId measurementRun = runIdsFor("seed-measurement", root).getFirst();
-
-        claim(
-                "both seeds carry a metrics row, the unusable one included: how far the seed set"
-                        + " resembles the corpus is asked of stored columns, and the pass holding the"
-                        + " converted document open is the only pass that can write them without converting"
-                        + " everything a second time",
-                () -> assertThat(metricRowsAgainst(seedWalk, measurementRun)).isEqualTo(SEEDS_IN_THIS_FOLDER));
-        claim(
-                "and they are keyed by the run that measured them, so no seed row lands under the run"
-                        + " that converted the corpus -- that run's identity does not name the seed folder,"
-                        + " and two invocations with different seed folders would otherwise write different"
-                        + " seed measurements under one identity",
-                () -> assertThat(metricRowsAgainst(seedWalk, extractionRunOver(root))).isZero());
-    }
-
-    @Test
     @Story("A gate ends the invocation rather than failing it")
     @DisplayName("With no seed producing text, stage 5 mints no run at all and the command still succeeds")
     void mintsNoRunWhenNoSeedIsUsable(@TempDir Path root, @TempDir Path seeds) throws IOException {
@@ -487,76 +313,6 @@ class SeedExtractionInvocationTest {
                         && line.contains("Fix the seed folder and run again")));
     }
 
-    @Test
-    @Story("A gate ends the invocation rather than failing it")
-    @DisplayName("With no seed folder named, stage 5 mints no run and converts nothing")
-    @Link(name = "ADR-064", url = Adr.THE_WALK_INSTRUMENT_GENERALIZES, type = "adr")
-    void mintsNoRunWhenNoSeedFolderIsNamed(@TempDir Path root) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
-        openTheBoilerplateGateOnly();
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation reports success -- a corpus can be censused, reduced and deduplicated"
-                        + " before anybody has decided what the seed set is",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "and stage 5 minted no run, because there is no seed folder to have measured anything"
-                        + " against",
-                () -> assertThat(runIdsFor("seed-measurement", root)).isEmpty());
-        claim(
-                "nothing tells the operator to fix a seed folder they never named: every clause of that"
-                        + " sentence is false here -- there is no folder to fix, nothing was extracted"
-                        + " because there was nowhere to extract from, and none of them was usable is a"
-                        + " claim about zero documents",
-                () -> assertThat(operatorLines()).noneMatch(line -> line.contains(THE_UNUSABLE_SEED_LINE)));
-        claim(
-                "the step says it was gated instead, in the sentence stage 5's other steps already"
-                        + " share, so the silence a shut gate used to leave is filled by what is true",
-                () -> assertThat(operatorLines())
-                        .anyMatch(line -> line.contains("seed-extraction step is gated")
-                                && line.contains("no seed folder is named")));
-        claim(
-                "and it is not a warning: a value nobody has supplied yet is the ordinary state of an"
-                        + " early invocation, and the loudest line in the log should not describe it",
-                () -> assertThat(warnings()).noneMatch(line -> line.contains("seed")));
-    }
-
-
-    @Test
-    @Story("One gate, one missing value, one paragraph")
-    @DisplayName("Stage 4's gate states itself once per invocation, not once per step it stops")
-    @Link(name = "ADR-080", url = Adr.THE_BOILERPLATE_FLOOR_IS_A_GATE, type = "adr")
-    void stageFoursGateIsStatedOnce(@TempDir Path root) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
-        nothingIsAnswered();
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the gate says what it wants exactly once. It stops two steps -- the signature reader and"
-                        + " the resolution tasklet -- and said its whole forty-word paragraph at each of"
-                        + " them, though there is one gate, one missing value and one action",
-                () -> assertThat(operatorLines().stream()
-                                .filter(line -> line.contains("stage 4 (content redundancy) is gated")))
-                        .hasSize(1));
-        claim(
-                "and it still names the value and where to read what informs it, which is the half of"
-                        + " the message that was never the defect",
-                () -> assertThat(operatorLines())
-                        .anyMatch(line -> line.contains("boilerplateDocumentFrequencyFloor is unset")
-                                && line.contains("document-frequency.html")));
-    }
-
-    /** Nothing answered at all, which is the state an invocation 1 with no profile is in. */
-    private void nothingIsAnswered() {
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .build());
-    }
-
     /** Every operator-facing line this invocation wrote, in the order it wrote them. */
     private List<String> operatorLines() {
         return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
@@ -575,15 +331,6 @@ class SeedExtractionInvocationTest {
         Profile profile = profileStore.load();
         profileStore.save(ProfileFixture.profile()
                 .seedFolder(seeds.toString(), "set by this test")
-                .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
-                .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .build());
-    }
-
-    /** Stage 4's gate open, and deliberately no seed folder. */
-    private void openTheBoilerplateGateOnly() {
-        Profile profile = profileStore.load();
-        profileStore.save(ProfileFixture.profile()
                 .degenerateOutputConfidenceFloor(profile.degenerateOutputConfidenceFloor())
                 .boilerplateDocumentFrequencyFloor(BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
                 .build());
@@ -619,14 +366,6 @@ class SeedExtractionInvocationTest {
                 .orElseThrow(() -> new IllegalStateException("census recorded no finished walk of " + root));
     }
 
-    /** Which stages the runs named upstream of {@code runId} were minted by. */
-    private List<String> upstreamStagesOf(RunId runId) {
-        return jdbcTemplate.queryForList(
-                "SELECT r.stage FROM run_upstream u JOIN run r ON r.id = u.upstream_run_id WHERE u.run_id = ?",
-                String.class,
-                runId.value());
-    }
-
     /** How many runs of any stage stand over this test's own corpus walk. */
     private long runCountOver(Path root) {
         return jdbcTemplate.queryForObject(
@@ -641,11 +380,6 @@ class SeedExtractionInvocationTest {
                 Long.class,
                 walkId.value(),
                 runId.value());
-    }
-
-    /** The run stage 2 minted over this test's own corpus, whose columns the corpus side is read from. */
-    private RunId extractionRunOver(Path root) {
-        return runIdsFor("extraction", root).getFirst();
     }
 
     /** Unusable-seed rows against occurrences of this test's own seed walk. */

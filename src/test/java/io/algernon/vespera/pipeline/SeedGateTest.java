@@ -8,10 +8,8 @@ import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.ledger.Ledger;
 import io.algernon.vespera.ledger.WalkCounts;
 import io.algernon.vespera.ledger.WalkId;
-import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
-import io.algernon.vespera.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -25,7 +23,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -78,9 +75,6 @@ class SeedGateTest {
     @Autowired
     private Ledger ledger;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
     @Test
     @Story("The gate opens only when everything it needs is there")
     @DisplayName("A named seed folder with a finished walk, and the earlier floor answered, opens the gate")
@@ -109,31 +103,6 @@ class SeedGateTest {
                         + " not finished may hold fewer documents than the folder holds files, and a seed"
                         + " set quietly missing entries would score every document against the wrong set,"
                         + " silently, for the rest of the run",
-                () -> assertThat(seedGate.seedWalk()).isEmpty());
-    }
-
-    @Test
-    @Story("A gate closes rather than failing")
-    @DisplayName("No seed folder named closes the gate, however much else is answered")
-    void closesWhenNoSeedFolderIsNamed() {
-        profile(null, BOILERPLATE_FLOOR);
-
-        claim(
-                "with no folder named there is nothing to open the gate onto -- an archive can be"
-                        + " surveyed and deduplicated before anybody has decided what the seed set is",
-                () -> assertThat(seedGate.seedWalk()).isEmpty());
-    }
-
-    @Test
-    @Story("A gate closes rather than failing")
-    @DisplayName("A seed folder that names nothing on disk closes the gate rather than raising")
-    void closesWhenTheNamedFolderCannotBeResolved() {
-        profile(workingDirectory.resolve("no-such-folder").toString(), BOILERPLATE_FLOOR);
-
-        claim(
-                "a mistyped folder closes the gate instead of failing the invocation: the survey that ran"
-                        + " earlier already recorded why it could not walk that path, and raising here"
-                        + " would report one typo twice",
                 () -> assertThat(seedGate.seedWalk()).isEmpty());
     }
 

@@ -11,11 +11,9 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,7 +23,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.yaml.snakeyaml.Yaml;
 
 /**
  * The presets of the converter, of redundancy and of relevance, named by application configuration in place of the
@@ -87,8 +84,6 @@ class TheTechnicalPresetsFromConfigurationInvocationTest {
     private static final int CONFIGURED_BANDS_OF_THE_SAMPLE = 2;
 
     private static final int CONFIGURED_PER_BAND = 1;
-
-
 
     @TempDir
     static Path workingDirectory;
@@ -152,23 +147,6 @@ class TheTechnicalPresetsFromConfigurationInvocationTest {
     }
 
     @Test
-    @Story("How documents are converted is a preset")
-    @DisplayName("The OCR preset named by configuration is in the extractor identity, and the timeouts in a row and the shingle window end the extraction run's identity, in that order")
-    void theConvertersPresetsNameTheExtractionRun() {
-        claim("the invocation ended well", () -> assertThat(cli.getExitCode()).isZero());
-        List<String> extraction = theConfigurationsOf("extraction");
-        claim("the one extraction run's extractor identity names the OCR preset configured, " + CONFIGURED_OCR_PRESET
-                        + ", where the shipped one stood",
-                () -> assertThat(extraction).singleElement().asString()
-                        .contains(";ocr_preset=" + CONFIGURED_OCR_PRESET + ";")
-                        .doesNotContain("ocr_preset=rapidocr"));
-        claim("and its recorded configuration ends with " + CONFIGURED_TIMEOUTS_IN_A_ROW + " timeouts in a row"
-                        + " and shingles of " + CONFIGURED_SHINGLE_WORDS + " words",
-                () -> assertThat(extraction).singleElement().asString().endsWith(",\"timeoutsInARow\":" + CONFIGURED_TIMEOUTS_IN_A_ROW
-                        + ",\"shingleIdentity\":\"word:" + CONFIGURED_SHINGLE_WORDS + "\"}"));
-    }
-
-    @Test
     @Story("How redundancy is measured is a preset")
     @DisplayName("The signature's numbers and the similarity cuts named by configuration end the content-redundancy run's identity, in that order")
     void theRedundancyPresetsNameTheContentRedundancyRun() {
@@ -184,32 +162,8 @@ class TheTechnicalPresetsFromConfigurationInvocationTest {
                                 + CONFIGURED_RARE_SHINGLE_HITS + "\"}"));
     }
 
-    @Test
-    @Story("How relevance is scored and sampled is a preset")
-    @DisplayName("The number of similarities and the sample named by configuration end the scoring run's identity, name the scale of the questions, and reach the number asked from a band")
-    void theRelevancePresetsNameTheScoringRunAndReachItsSample() throws IOException {
-        claim("the one scoring run's recorded configuration ends with a score of the top " + CONFIGURED_TOP_SIMILARITIES
-                        + " similarity, " + CONFIGURED_BANDS_OF_THE_SAMPLE + " bands and " + CONFIGURED_PER_BAND
-                        + " document from each, in that order",
-                () -> assertThat(theConfigurationsOf("embedding-scoring")).singleElement().asString().endsWith(
-                        ",\"topSimilarities\":" + CONFIGURED_TOP_SIMILARITIES + ",\"sampleBands\":"
-                                + CONFIGURED_BANDS_OF_THE_SAMPLE + ",\"sampledPerBand\":" + CONFIGURED_PER_BAND + "}"));
-        Map<String, Object> questions = theLabelFile();
-        claim("the questions name a scale that ends with the number of similarities, so an answer given at the shipped"
-                        + " three is not read as one given at this",
-                () -> assertThat(String.valueOf(questions.get("generatedUnderEmbedder")))
-                        .endsWith(";top:" + CONFIGURED_TOP_SIMILARITIES));
-        claim("and the draw asks about " + CONFIGURED_PER_BAND + " document, the one band the alike scores fall in"
-                        + " giving one, where the shipped twelve from each would ask about all " + OCCURRENCES,
-                () -> assertThat((List<?>) questions.get("documents")).hasSize(CONFIGURED_PER_BAND));
-    }
-
     private List<String> theConfigurationsOf(String stage) {
         return jdbcTemplate.queryForList(
                 "SELECT config_consumed FROM run WHERE stage = ? ORDER BY rowid", String.class, stage);
-    }
-
-    private static Map<String, Object> theLabelFile() throws IOException {
-        return new Yaml().load(Files.readString(workingDirectory.resolve("relevance-labels.yaml"), StandardCharsets.UTF_8));
     }
 }

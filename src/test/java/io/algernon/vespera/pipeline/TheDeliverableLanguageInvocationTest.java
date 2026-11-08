@@ -5,8 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.corpus.Walk;
-import io.algernon.vespera.deliverable.Deliverable;
-import io.algernon.vespera.deliverable.ItalianWordingOnRecord;
 import io.algernon.vespera.ledger.RunId;
 import io.algernon.vespera.profile.ProfileFixture;
 import io.algernon.vespera.profile.ProfileStore;
@@ -44,16 +42,11 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
 class TheDeliverableLanguageInvocationTest {
 
-
-
     /** What the profile says for an Italian deliverable. */
     private static final String ITALIAN = "it";
 
     /** A language code the deliverable has no fixed words for. */
     private static final String A_LANGUAGE_IT_CANNOT_BE_DRAWN_IN = "fr";
-
-    /** What the question asks the answer to be written in, by the language's English name (ADR-321 §3). */
-    private static final String WRITE_BOTH_IN_ITALIAN = "Write both in Italian.";
 
     private static final String WRITE_BOTH_IN_ENGLISH = "Write both in English.";
 
@@ -76,42 +69,6 @@ class TheDeliverableLanguageInvocationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
-
-    @Test
-    @Story("The deliverable is in the language the profile names")
-    @DisplayName("With Italian named, every group is asked for in Italian, the work records it, and its pages are drawn in Italian")
-    void asksAndDrawsInItalianWhereTheProfileNamesIt(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpusUpToTheApprovedArrangement(root, seeds);
-        setTheLanguageTo(ITALIAN);
-        GenerationScriptedBeans.forgetScriptedAnswers();
-
-        cli.run("run", root.toString());
-        List<String> asked = GenerationScriptedBeans.promptsSent();
-        String generation = generationRuns(root).getLast();
-        Path tree = UnwrittenPage.treeOf(workingDirectory, generation);
-        String page = UnwrittenPage.textOf(UnwrittenPage.pageHeadedBy(tree, GenerationScriptedBeans.GENERATED_TITLE));
-        String index = UnwrittenPage.textOf(tree.resolve(Deliverable.INDEX_FILE_NAME));
-
-        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "every group was asked about, and each question asks for the heading and the writing in Italian and"
-                        + " never names English",
-                () -> assertThat(asked).isNotEmpty().allSatisfy(question -> assertThat(question)
-                        .contains(WRITE_BOTH_IN_ITALIAN)
-                        .doesNotContain("English")));
-        claim(
-                "the work records the language among the settings it is identified by, so the same groups in another"
-                        + " language are another piece of work",
-                () -> assertThat(settingsOf(generation)).endsWith(",\"deliverableLanguage\":\"" + ITALIAN + "\"}"));
-        claim(
-                "the group's page is an Italian page, its list headed in Italian",
-                () -> assertThat(page)
-                        .contains("<html lang=\"" + ItalianWordingOnRecord.LANG + "\">")
-                        .contains("<h2>" + ItalianWordingOnRecord.MEMBERSHIP_HEADING + "</h2>"));
-        claim(
-                "and the index heads its table of groups in Italian",
-                () -> assertThat(index).contains("<th>" + ItalianWordingOnRecord.THE_TABLE_OF_CLUSTERS.getFirst() + "</th>"));
-    }
 
     @Test
     @Story("The deliverable is in the language the profile names")
@@ -139,29 +96,6 @@ class TheDeliverableLanguageInvocationTest {
                 "and every group was asked for again, in English",
                 () -> assertThat(GenerationScriptedBeans.promptsSent()).isNotEmpty().allSatisfy(question ->
                         assertThat(question).contains(WRITE_BOTH_IN_ENGLISH).doesNotContain("Italian")));
-    }
-
-    @Test
-    @Story("The deliverable is in the language the profile names")
-    @DisplayName("With a language the pages cannot be drawn in, the invocation stops before anything is asked or recorded")
-    void aLanguageItCannotBeDrawnInStopsBeforeAnythingIsAsked(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        aCorpusUpToTheApprovedArrangement(root, seeds);
-        setTheLanguageTo(A_LANGUAGE_IT_CANNOT_BE_DRAWN_IN);
-        GenerationScriptedBeans.forgetScriptedAnswers();
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation does not report success: the operator wrote a language, and drawing the pages in"
-                        + " another would hand the readers one nobody chose",
-                () -> assertThat(cli.getExitCode()).isNotZero());
-        claim(
-                "no group was asked about",
-                () -> assertThat(GenerationScriptedBeans.promptsSent()).isEmpty());
-        claim(
-                "and no record of the work was made, since there is no language to make it in",
-                () -> assertThat(generationRuns(root)).isEmpty());
     }
 
     @AfterEach

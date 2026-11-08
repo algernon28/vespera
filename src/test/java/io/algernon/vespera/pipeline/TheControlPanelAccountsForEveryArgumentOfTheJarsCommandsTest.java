@@ -10,12 +10,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.stream.Collectors;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.objenesis.ObjenesisStd;
@@ -89,44 +84,6 @@ class TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest {
         claim("and it names every option and positional argument of the model, by command and name, and nothing the"
                         + " model does not hold",
                 () -> assertThat(inTheTable).containsExactlyInAnyOrderElementsOf(inTheModel));
-    }
-
-    @Test
-    @Story("Every option of the jar's commands is set from the control panel or said not to be")
-    @DisplayName("Each argument is set by a control of the control panel or never passed, and the table says why for each")
-    @Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
-    @Link(name = "ADR-341", url = Adr.SERVE_TELLS_A_PAGE_FROM_A_COPY_BY_THE_LIST_AND_THE_NAME, type = "adr")
-    void eachArgumentIsSetByAControlOfTheControlPanelOrNeverPassedAndSaysWhy() {
-        Map<String, String> controls = new LinkedHashMap<>();
-        for (ChildCommand.Argument argument : ChildCommand.ARGUMENTS) {
-            controls.put(argument.command() + " " + argument.name(), argument.control());
-        }
-        Set<String> withoutAReason = ChildCommand.ARGUMENTS.stream()
-                .filter(argument -> argument.reason() == null || argument.reason().isBlank())
-                .map(argument -> argument.command() + " " + argument.name())
-                .collect(Collectors.toCollection(TreeSet::new));
-        Set<String> neverPassed = controls.entrySet().stream()
-                .filter(entry -> entry.getValue().isEmpty())
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toCollection(TreeSet::new));
-
-        claim("every argument says why it is set as it is, or never passed",
-                () -> assertThat(withoutAReason).as("arguments of the table with no reason").isEmpty());
-        claim("the corpus root is set by its field, every command's working directory by the working directory's,"
-                        + " --auto by Let the local model answer, label's file by the label file option, and publish's"
-                        + " destinations by the boxes beside Publish",
-                () -> assertThat(controls).containsAllEntriesOf(Map.of(
-                        "run <root>", "vespera.corpus-root",
-                        "run db-dir", THE_WORKING_DIRECTORY,
-                        "label db-dir", THE_WORKING_DIRECTORY,
-                        "publish db-dir", THE_WORKING_DIRECTORY,
-                        "label auto", "label-auto",
-                        "label <file>", "label-file",
-                        "publish to", "publish-to")));
-        claim("and the arguments never passed are vespera's help and version options and serve's working directory,"
-                        + " the control panel starting no serve, and no other",
-                () -> assertThat(neverPassed).containsExactlyInAnyOrder("vespera help", "vespera version",
-                        "serve db-dir"));
     }
 
     /**

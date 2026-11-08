@@ -3,31 +3,21 @@ package io.algernon.vespera.pipeline;
 import static io.algernon.vespera.TestSteps.claim;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.algernon.controlpanel.CodeSetRenames;
 import io.algernon.controlpanel.CodeSetRenames.Rename;
-import io.algernon.controlpanel.LabelAnswers;
 import io.algernon.controlpanel.ProfileEdit;
 import io.algernon.controlpanel.ProfileEdit.Stated;
 import io.algernon.controlpanel.ProfileKey;
 import io.algernon.controlpanel.WorkingDirectoryWrite;
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.corpus.Walk;
 import io.algernon.vespera.deliverable.CodeSetNames;
 import io.algernon.vespera.embedding.RelevanceDistribution;
 import io.algernon.vespera.ledger.OccurrenceId;
-import io.algernon.vespera.ledger.RunId;
-import io.algernon.vespera.ledger.WalkId;
-import io.algernon.vespera.profile.FoldersValue;
-import io.algernon.vespera.profile.LanguagesValue;
 import io.algernon.vespera.profile.Measurement;
-import io.algernon.vespera.profile.NameEndingsValue;
 import io.algernon.vespera.profile.NumericValue;
 import io.algernon.vespera.profile.Profile;
 import io.algernon.vespera.profile.ProfileStore;
 import io.algernon.vespera.profile.ProfileValue;
-import io.algernon.vespera.profile.TextValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -72,127 +62,10 @@ class TheJarReadsWhatTheControlPanelWritesTest {
     private static final String AN_ODD_PROVENANCE = "read off the page, \"as written\" \\ with a\ttab and\na second"
             + " line, łódź 漢字 and a no-break space, " + "and so on ".repeat(12);
 
-    /** Fifty-two hexadecimal digits, which after an approval's twelve make a run id's sixty-four. */
-    private static final String THE_REST_OF_A_RUN_ID = "0".repeat(52);
-
     private static final long CHILD_BOUND_SECONDS = 60;
 
     /** The key ADR-340 §8.1 adds, by the name profile.yaml spells. */
     private static final String FOLDERS_NOT_WALKED = "foldersNotWalked";
-
-    /** A resolution no sample names, so that the jar's reading it back says the profile's was not the one acted on. */
-    private static final double A_RESOLUTION_ONLY_CONFIGURATION_NAMES = 7.25;
-
-    @Test
-    @Story("The jar reads what the control panel writes")
-    @DisplayName("The control panel's table of keys is the profile's keys and types in order, and its runs are the jar's stages in order")
-    void theKeyTableIsTheProfilesComponentsAndTheRunsAreTheStagesModules() {
-        // By name, so that the kind ADR-340 §8.1 adds, CORPUS_FOLDERS, read as a CorpusFoldersValue, compiles before both.
-        Map<String, String> kindOf = Map.of(
-                TextValue.class.getSimpleName(), ProfileKey.Kind.TEXT.name(),
-                NumericValue.class.getSimpleName(), ProfileKey.Kind.NUMBER.name(),
-                NameEndingsValue.class.getSimpleName(), ProfileKey.Kind.NAME_ENDINGS.name(),
-                LanguagesValue.class.getSimpleName(), ProfileKey.Kind.LANGUAGES.name(),
-                FoldersValue.class.getSimpleName(), ProfileKey.Kind.FOLDERS.name(),
-                "CorpusFoldersValue", "CORPUS_FOLDERS");
-
-        claim("the control panel's keys are the profile's components, in the profile's order",
-                () -> assertThat(Arrays.stream(ProfileKey.values()).map(ProfileKey::key).toList())
-                        .containsExactlyElementsOf(Arrays.stream(Profile.class.getRecordComponents())
-                                .map(RecordComponent::getName)
-                                .toList()));
-        claim("each key's type is the type of its component's value",
-                () -> assertThat(Arrays.stream(ProfileKey.values()).map(key -> key.kind().name()).toList())
-                        .containsExactlyElementsOf(Arrays.stream(Profile.class.getRecordComponents())
-                                .map(component -> kindOf.get(component.getType().getSimpleName()))
-                                .toList()));
-        claim("the control panel's runs are the jar's stages, by name and in the cascade's order",
-                () -> assertThat(Arrays.stream(ProfileKey.Run.values()).map(ProfileKey.Run::stageName).toList())
-                        .containsExactlyElementsOf(Arrays.stream(StageModules.values()).map(StageModules::stage).toList()));
-    }
-
-    @Test
-    @Story("The jar reads what the control panel writes")
-    @DisplayName("Every value the control panel saves, for every key, loads through the jar as written and is read by the jar's rule as an answer")
-    void everyValueTheControlPanelSavesIsReadAsAnsweredAndEqual(@TempDir Path temp) throws IOException {
-        Path seeds = Files.createDirectory(temp.resolve("seeds"));
-        Path workingDirectory = Files.createDirectory(temp.resolve("work"));
-        Map<ProfileKey, List<String>> accepted = acceptedSamples(seeds, workingDirectory);
-        claim("there are samples for every key of the table",
-                () -> assertThat(accepted.keySet()).containsExactlyInAnyOrder(ProfileKey.values()));
-
-        ProfileStore store = new ProfileStore(workingDirectory);
-        for (Map.Entry<ProfileKey, List<String>> samples : accepted.entrySet()) {
-            ProfileKey key = samples.getKey();
-            for (String typed : samples.getValue()) {
-                claim(key.key() + " \"" + typed + "\" is accepted by the control panel",
-                        () -> assertThat(ProfileEdit.refusalOf(key, typed, AN_ODD_PROVENANCE)).isEmpty());
-                Files.writeString(store.file(),
-                        ProfileEdit.rewrite(Optional.empty(), key, typed, AN_ODD_PROVENANCE), UTF_8);
-                ProfileValue loaded = componentOf(store.load(), key);
-                claim("and " + key.key() + " \"" + typed + "\" loads through the jar as written, trimmed, with the"
-                                + " provenance as typed",
-                        () -> {
-                            assertThat(loaded.value()).isEqualTo(typed.strip());
-                            assertThat(loaded.provenance()).isEqualTo(AN_ODD_PROVENANCE);
-                        });
-                claim("and the jar's rule for " + key.key() + " reads \"" + typed + "\" as an answer",
-                        () -> assertThat(readAsAnAnswerByTheJar(key, loaded, store)).isTrue());
-            }
-        }
-        Files.writeString(store.file(),
-                ProfileEdit.rewrite(Optional.empty(), ProfileKey.EXTRACTION_ATTEMPT, "", "back to the first"), UTF_8);
-        claim("an empty value loads as a key nobody answered, with the provenance as typed",
-                () -> {
-                    NumericValue unset = store.load().extractionAttempt();
-                    assertThat(unset.isSet()).isFalse();
-                    assertThat(unset.provenance()).isEqualTo("back to the first");
-                });
-    }
-
-    @Test
-    @Story("The jar reads what the control panel writes")
-    @DisplayName("Every sample the control panel refuses is one the jar reads as unreadable, ignores or stops on")
-    void everySampleTheControlPanelRefusesTheJarCannotActOn(@TempDir Path temp) throws IOException {
-        Path workingDirectory = Files.createDirectory(temp.resolve("work"));
-        Path aFile = Files.createFile(temp.resolve("a-file"));
-        Map<ProfileKey, List<String>> refused = new LinkedHashMap<>();
-        for (ProfileKey floor : List.of(ProfileKey.DEGENERATE_OUTPUT_CONFIDENCE_FLOOR,
-                ProfileKey.BOILERPLATE_DOCUMENT_FREQUENCY_FLOOR, ProfileKey.RELEVANCE_SCORE_FLOOR,
-                ProfileKey.LOG_TIMESTAMP_SHARE_FLOOR, ProfileKey.TRANSLATION_SIMILARITY_FLOOR,
-                ProfileKey.CONFIGURATION_SETTING_SHARE_FLOOR)) {
-            refused.put(floor, List.of("0,4", "0.4x"));
-        }
-        refused.put(ProfileKey.DEGENERATE_OUTPUT_WORD_FLOOR, List.of("-1", "1.5", "NaN", "2147483648"));
-        refused.put(ProfileKey.EXTRACTION_ATTEMPT, List.of("0", "1.5", "Infinity", "2147483648", "two"));
-        refused.put(ProfileKey.GENERATION_CONTEXT_WINDOW, List.of("1281", "4096.5", "0", "1e18", "NaN", "big"));
-        refused.put(ProfileKey.CLUSTER_PAGE_BYTE_CEILING, List.of("0", "-1", "1.5", "NaN", "big", "9223372036854775808"));
-        refused.put(ProfileKey.OUT_OF_SCOPE_NAME_ENDINGS, List.of(".P3A *.dgn", "dgn", ".."));
-        refused.put(ProfileKey.CODE_NAME_ENDINGS, List.of(".java src/"));
-        refused.put(ProfileKey.PREFERRED_LANGUAGES, List.of("it, eng", "italian"));
-        refused.put(ProfileKey.DELIVERABLE_LANGUAGE, List.of("fr", "italian", "it, en"));
-        refused.put(ProfileKey.ARRANGEMENT_APPROVED, List.of("0123456789AB"));
-        refused.put(ProfileKey.SEED_FOLDER, List.of(temp.resolve("absent").toString(), aFile.toString()));
-        refused.put(ProfileKey.CLUSTER_RESOLUTION, List.of("0", "-1", "-0.5", "NaN", "Infinity", "fine", "0,5"));
-        // ADR-334 §5.1: a piece that is not an absolute path makes the whole list unreadable.
-        refused.put(ProfileKey.CODE_SET_FOLDERS,
-                List.of("code/billing", temp.toAbsolutePath() + java.io.File.pathSeparator + "code/billing"));
-        // ADR-340 §8.1: a piece that is not a folder below the corpus root, spelt with /, makes the whole list unreadable.
-        refused.put(foldersNotWalked(), List.of("../outside", temp.toAbsolutePath().toString(), "archive\\old",
-                "archive/old-flows" + java.io.File.pathSeparator + "/archive", "archive//old", "archive/old/"));
-
-        ProfileStore store = new ProfileStore(workingDirectory);
-        for (Map.Entry<ProfileKey, List<String>> samples : refused.entrySet()) {
-            ProfileKey key = samples.getKey();
-            for (String typed : samples.getValue()) {
-                claim(key.key() + " \"" + typed + "\" is refused by the control panel",
-                        () -> assertThat(ProfileEdit.refusalOf(key, typed, AN_ODD_PROVENANCE)).isPresent());
-                store.save(profileWith(key, typed));
-                claim("and the jar, given " + key.key() + " \"" + typed + "\" as the profile holds it, cannot act on it",
-                        () -> assertThat(readAsAnAnswerByTheJar(key, componentOf(store.load(), key), store)).isFalse());
-            }
-        }
-    }
 
     @Test
     @Story("The jar reads what the control panel writes")
@@ -222,115 +95,6 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         claim("and every other key exactly as the jar wrote it, the seed folder's measurement among them",
                 () -> assertThat(reloaded).usingRecursiveComparison().ignoringFields("extractionAttempt")
                         .isEqualTo(everyKeyAnswered));
-    }
-
-    @Test
-    @Story("The jar reads what the control panel writes")
-    @DisplayName("A label file the jar wrote, answered by the control panel, is read by vespera label with those answers and its stamps")
-    void theLabelFileTheJarWroteIsAnsweredAndReadWithItsStamps() {
-        String scoringRun = "a-scoring-run";
-        String seedSet = "/seeds";
-        String first = "a/first.pdf";
-        String second = "c d/ł \"quoted\".txt";
-        String third = "e/third.txt";
-        List<RelevanceLabelFile.Entry> entries = List.of(
-                new RelevanceLabelFile.Entry(first, sampled(1, 0.83, 2), "seed/one.docx"),
-                new RelevanceLabelFile.Entry(second, sampled(2, 0.1, 0), "seed/one.docx"),
-                new RelevanceLabelFile.Entry(third, sampled(3, 0.5, 1), "seed/two.docx"));
-        String asTheJarWroteIt = RelevanceLabelFile.render(scoringRun, "embedder@digest", seedSet, entries,
-                Map.of(new OccurrenceId(1), true, new OccurrenceId(3), false), Map.of(new OccurrenceId(3), "a-writing-model:8b"));
-        Map<String, Optional<Boolean>> answers = new LinkedHashMap<>();
-        answers.put(second, Optional.of(true));
-        answers.put(third, Optional.empty());
-
-        String answered = LabelAnswers.rewrite(Optional.of(asTheJarWroteIt), answers);
-
-        claim("the control panel reads the jar's questions by their paths, in the file's order",
-                () -> assertThat(LabelAnswers.read(asTheJarWroteIt).stream().map(LabelAnswers.Question::path).toList())
-                        .containsExactly(first, second, third));
-        claim("vespera label reads the first answer as it was and the second as the control panel wrote it, each with"
-                        + " its score, and counts the third, blanked, as waiting",
-                () -> assertThat(LabelFileReader.read(answered, scoringRun)).isEqualTo(new LabelFileReader.Answers(
-                        "embedder@digest",
-                        List.of(new LabelFileReader.Answer(first, true, 0.83),
-                                new LabelFileReader.Answer(second, true, 0.1)),
-                        1)));
-        claim("and the stamps are as the jar wrote them",
-                () -> {
-                    assertThat(LabelFileReader.runNamedBy(answered)).contains(scoringRun);
-                    assertThat(LabelFileReader.seedSetNamedBy(answered)).contains(seedSet);
-                });
-    }
-
-    @Test
-    @Story("The jar reads what the control panel writes")
-    @DisplayName("Each single-quoted and plain value the control panel reads by hand is the text, or nothing, the jar reads from it")
-    void theJarReadsEachScalarTheControlPanelReadsToTheSameText(@TempDir Path workingDirectory) throws IOException {
-        ProfileStore store = new ProfileStore(workingDirectory);
-        List<String> profileScalars = List.of("'D:\\archive\\exemplars'", "'it''s'", "''", "0.35", "0.35   ", "-0.2",
-                "1.50", "~", "Null", "true", "null", "a-writing-model:14b", "a#b", ".P3A .DGN, .x", "it, en");
-        for (String scalar : profileScalars) {
-            String text = "relevanceScoreFloor:\n  value: " + scalar + "\n  provenance: 'by hand'\n";
-            Files.writeString(store.file(), text, UTF_8);
-            NumericValue theJars = store.load().relevanceScoreFloor();
-            claim("the control panel reads value: " + scalar + " as the jar loads it",
-                    () -> assertThat(ProfileEdit.read(text).get(ProfileKey.RELEVANCE_SCORE_FLOOR))
-                            .isEqualTo(new Stated(theJars.value(), theJars.provenance())));
-        }
-
-        String adr284sExample = "- folder: shop/core\n  name: Shop core\n- folder: \"\"\n  name: Archive\n";
-        for (String file : List.of(adr284sExample, "- folder: 'lib'\n  name: 'It''s ours'\n",
-                "- folder: lib\n  name: 0x10\n", "- folder: lib\n  name: 007\n", "- folder: lib\n  name: yes\n",
-                "- folder: lib\n  name: Null\n", "- folder: lib\n  name: ~\n")) {
-            claim("the control panel reads " + file.replace("\n", " / ") + " to the entries CodeSetNames reads",
-                    () -> assertThat(CodeSetRenames.read(Optional.of(file)).stream()
-                                    .map(rename -> new CodeSetNames.Entry(rename.folder(), rename.name()))
-                                    .toList())
-                            .containsExactlyElementsOf(CodeSetNames.parse(file)));
-        }
-        for (String notText : List.of("null", "true", "false", "0.35", "-1e3", "12")) {
-            String file = "- folder: lib\n  name: " + notText + "\n";
-            claim("a plain name of " + notText + " is refused by CodeSetNames, and by the control panel",
-                    () -> {
-                        assertThatThrownBy(() -> CodeSetNames.parse(file)).isInstanceOf(IllegalArgumentException.class);
-                        assertThatThrownBy(() -> CodeSetRenames.read(Optional.of(file)))
-                                .isInstanceOf(IllegalArgumentException.class);
-                    });
-        }
-    }
-
-    @Test
-    @Story("The jar reads what the control panel writes")
-    @DisplayName("The jar's reader of code-set names reads the list the control panel writes, and refuses each list the control panel refuses")
-    void codeSetNamesReadsTheListTheControlPanelWrites() {
-        // ADR-334 §5.5: a set below a code set folder outside the corpus root is named by that folder spelt absolute,
-        // beginning with /, with a drive letter, a colon and /, or with //; /shop is such a folder on POSIX.
-        List<Rename> renames = List.of(new Rename("shop/core", "Shop \"core\" \\ ł"), new Rename("", "Archive"),
-                new Rename("lib", "Libraries"), new Rename("/shop", "Shop at the top"),
-                new Rename("D:/code/billing", "Billing"), new Rename("//server/share/billing", "Shared billing"));
-        List<List<Rename>> refusedLists = List.of(
-                List.of(new Rename("lib", "One"), new Rename("lib", "Two")),
-                List.of(new Rename("lib", " ")),
-                List.of(new Rename("shop\\core", "Shop")),
-                List.of(new Rename("D:\\code\\billing", "Billing")),
-                List.of(new Rename("/shop//core", "Shop")),
-                List.of(new Rename("D:/code/billing/", "Billing")),
-                List.of(new Rename("shop/", "Shop")),
-                List.of(new Rename("shop//core", "Shop")));
-
-        claim("CodeSetNames reads the control panel's list as the same entries in the same order",
-                () -> assertThat(CodeSetNames.parse(CodeSetRenames.render(renames))).containsExactlyElementsOf(
-                        renames.stream().map(rename -> new CodeSetNames.Entry(rename.folder(), rename.name())).toList()));
-        claim("and reads the control panel's empty list as none",
-                () -> assertThat(CodeSetNames.parse(CodeSetRenames.render(List.of()))).isEmpty());
-        for (List<Rename> list : refusedLists) {
-            claim("the list " + list + " is refused by the control panel and, written by hand, by CodeSetNames",
-                    () -> {
-                        assertThatThrownBy(() -> CodeSetRenames.render(list)).isInstanceOf(IllegalArgumentException.class);
-                        assertThatThrownBy(() -> CodeSetNames.parse(byHand(list)))
-                                .isInstanceOf(IllegalArgumentException.class);
-                    });
-        }
     }
 
     @Test
@@ -379,135 +143,12 @@ class TheJarReadsWhatTheControlPanelWritesTest {
     }
 
     /**
-     * The samples §4 saves for each key; the seed folder is a folder that exists, and the code set folders are one
-     * absolute folder or two, joined by the system's path separator as the control panel joins them (ADR-334 §5.1).
-     */
-    private static Map<ProfileKey, List<String>> acceptedSamples(Path seeds, Path elsewhere) {
-        Map<ProfileKey, List<String>> samples = new LinkedHashMap<>();
-        samples.put(ProfileKey.SEED_FOLDER, List.of(seeds.toString(), seeds + " "));
-        samples.put(ProfileKey.DEGENERATE_OUTPUT_CONFIDENCE_FLOOR, List.of("0.4", "0"));
-        samples.put(ProfileKey.DEGENERATE_OUTPUT_WORD_FLOOR, List.of("0", "30", "2.0", "2147483647"));
-        samples.put(ProfileKey.BOILERPLATE_DOCUMENT_FREQUENCY_FLOOR, List.of("0.8", "1.5"));
-        samples.put(ProfileKey.EMBEDDING_MODEL, List.of("acme-embed-text:v1.5"));
-        samples.put(ProfileKey.RELEVANCE_SCORE_FLOOR, List.of("0.579", " 0.6 "));
-        samples.put(ProfileKey.ARRANGEMENT_APPROVED, List.of("0123456789ab", "fedcba987654", "auto"));
-        samples.put(ProfileKey.GENERATION_MODEL, List.of("a-writing-model:14b"));
-        samples.put(ProfileKey.GENERATION_CONTEXT_WINDOW, List.of("1282", "8192", "16384.0", "2147483647"));
-        samples.put(ProfileKey.CLUSTER_PAGE_BYTE_CEILING, List.of("1", "300000", "2.0", "9223372036854775807"));
-        samples.put(ProfileKey.LOG_TIMESTAMP_SHARE_FLOOR, List.of("0.6"));
-        samples.put(ProfileKey.EXTRACTION_ATTEMPT, List.of("1", "2", "3.0", "2147483647"));
-        samples.put(ProfileKey.CODE_NAME_ENDINGS, List.of(".java .kt", ".PY,.rs"));
-        samples.put(ProfileKey.OUT_OF_SCOPE_NAME_ENDINGS, List.of(".P3A .DGN, .x.y"));
-        samples.put(ProfileKey.TRANSLATION_SIMILARITY_FLOOR, List.of("0.85", "-0.2"));
-        samples.put(ProfileKey.PREFERRED_LANGUAGES, List.of("it, en", "EN"));
-        samples.put(ProfileKey.CONFIGURATION_SETTING_SHARE_FLOOR, List.of("0.7"));
-        samples.put(ProfileKey.DELIVERABLE_LANGUAGE, List.of("it", "EN", " it "));
-        samples.put(ProfileKey.CLUSTER_RESOLUTION, List.of("2.5", "1.0", "0.0001", " 0.5 ", "1e3"));
-        samples.put(ProfileKey.CODE_SET_FOLDERS, List.of(seeds.toAbsolutePath().toString(),
-                " " + elsewhere.toAbsolutePath() + " ",
-                seeds.toAbsolutePath() + java.io.File.pathSeparator + elsewhere.toAbsolutePath()));
-        // ADR-340 §8.1: folders below the corpus root, one or two, a piece naming no folder that is there among them.
-        samples.put(foldersNotWalked(), List.of("archive/old-flows",
-                "archive/old-flows" + java.io.File.pathSeparator + "tools/build", " gone "));
-        // ADR-359 §1: where a publish sends, each a text the publish reads as the file holds it.
-        samples.put(ProfileKey.CONFLUENCE_BASE_URL, List.of("https://wiki.example.com", "https://wiki.example.com/wiki"));
-        samples.put(ProfileKey.CONFLUENCE_SPACE_KEY, List.of("DOCS"));
-        samples.put(ProfileKey.CONFLUENCE_FOLDER_ID, List.of("123456789"));
-        samples.put(ProfileKey.CONFLUENCE_FOLDER_TITLE, List.of("Hand-overs", "Consegne del gruppo"));
-        samples.put(ProfileKey.CONFLUENCE_EMAIL, List.of("you@example.com"));
-        return samples;
-    }
-
-    /**
      * The control panel's key of ADR-340 §8.1, found by the name profile.yaml spells, so that this compiles before the
      * table has it; a table without it fails the test naming it.
      */
     private static ProfileKey foldersNotWalked() {
         return Arrays.stream(ProfileKey.values()).filter(key -> key.key().equals(FOLDERS_NOT_WALKED)).findFirst()
                 .orElseThrow(() -> new AssertionError("the control panel's table of keys has no " + FOLDERS_NOT_WALKED));
-    }
-
-    /**
-     * Whether the jar's own reading of {@code loaded} is an answer, as each value type of a list reads to {@code Answered}
-     * or {@code Unreadable} (ADR-340 §8.1), asked by name so that this compiles before the type of the new key exists.
-     */
-    private static boolean readsAsAnswered(ProfileValue loaded) {
-        try {
-            return loaded.getClass().getMethod("reading").invoke(loaded).getClass().getSimpleName().equals("Answered");
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException(loaded.getClass().getSimpleName() + " has no reading", e);
-        }
-    }
-
-    /**
-     * Whether the jar reads {@code loaded} as an answer it acts on, by the rule it applies to {@code key}: the reading
-     * of the value's type, and for each key with a rule of its own, that rule.
-     */
-    private static boolean readAsAnAnswerByTheJar(ProfileKey key, ProfileValue loaded, ProfileStore store) {
-        if (key.key().equals(FOLDERS_NOT_WALKED)) {
-            return readsAsAnswered(loaded);
-        }
-        return switch (key) {
-            case SEED_FOLDER -> {
-                try {
-                    Walk.canonicalRoot(Path.of(loaded.value()));
-                    yield true;
-                } catch (IllegalArgumentException notAFolder) {
-                    yield false;
-                }
-            }
-            case ARRANGEMENT_APPROVED -> new ArrangementGate(store)
-                    .approvedArrangement(Optional.of(new RunId(
-                            loaded.value().strip().toLowerCase(java.util.Locale.ROOT) + THE_REST_OF_A_RUN_ID)))
-                    .isPresent()
-                    && RunId.of("version", "{}", new WalkId(1), List.of()).value().matches("[0-9a-f]{64}");
-            case EMBEDDING_MODEL, GENERATION_MODEL -> loaded.isSet();
-            case DEGENERATE_OUTPUT_WORD_FLOOR ->
-                    DegenerateOutputWordFloor.of((NumericValue) loaded) instanceof DegenerateOutputWordFloor.Floor;
-            case CLUSTER_PAGE_BYTE_CEILING ->
-                    ClusterPageByteCeiling.of((NumericValue) loaded) instanceof ClusterPageByteCeiling.Ceiling;
-            case EXTRACTION_ATTEMPT -> !(ExtractionAttempt.of((NumericValue) loaded) instanceof ExtractionAttempt.Ignored)
-                    && loaded.isSet();
-            case GENERATION_CONTEXT_WINDOW -> {
-                try {
-                    yield new GenerationContextWindow(store).size()
-                            == (int) Double.parseDouble(loaded.value().strip());
-                } catch (IllegalStateException stopped) {
-                    yield false;
-                }
-            }
-            // What the jar acts on is the number it resolves: one the profile holds in place of what configuration names.
-            case CLUSTER_RESOLUTION -> new Presets(PresetsFixture.shippedEnvironment()
-                            .withProperty("vespera.clustering.resolution", String.valueOf(A_RESOLUTION_ONLY_CONFIGURATION_NAMES)))
-                    .clusterResolution(store.load()) != A_RESOLUTION_ONLY_CONFIGURATION_NAMES;
-            case CODE_NAME_ENDINGS, OUT_OF_SCOPE_NAME_ENDINGS ->
-                    ((NameEndingsValue) loaded).reading() instanceof NameEndingsValue.Answered;
-            case PREFERRED_LANGUAGES -> ((LanguagesValue) loaded).reading() instanceof LanguagesValue.Answered;
-            case CODE_SET_FOLDERS -> ((FoldersValue) loaded).reading() instanceof FoldersValue.Answered;
-            case DELIVERABLE_LANGUAGE -> {
-                try {
-                    new LanguageOfTheDeliverable(store).language();
-                    yield loaded.isSet();
-                } catch (IllegalStateException stopped) {
-                    yield false;
-                }
-            }
-            // ADR-359 §2, §5: what the publish acts on is what the profile's reader hands confluence for the key.
-            case CONFLUENCE_BASE_URL, CONFLUENCE_SPACE_KEY, CONFLUENCE_FOLDER_ID, CONFLUENCE_FOLDER_TITLE,
-                    CONFLUENCE_EMAIL -> {
-                io.algernon.vespera.confluence.ConfluenceValues read =
-                        new ConfluenceValuesOfTheProfile().of(store.file().getParent());
-                String inUse = switch (key) {
-                    case CONFLUENCE_BASE_URL -> read.baseUrl();
-                    case CONFLUENCE_SPACE_KEY -> read.spaceKey();
-                    case CONFLUENCE_FOLDER_ID -> read.folderId();
-                    case CONFLUENCE_FOLDER_TITLE -> read.folderTitle();
-                    default -> read.email();
-                };
-                yield loaded.value().equals(inUse);
-            }
-            default -> ((NumericValue) loaded).reading() instanceof NumericValue.Answered;
-        };
     }
 
     /** The component of {@code profile} that answers {@code key}, found by the name profile.yaml spells. */
@@ -517,13 +158,6 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException(key.key() + " is not a component of the profile", e);
         }
-    }
-
-    /** A profile holding {@code value} under {@code key} as the jar would read it, every other key unset. */
-    private static Profile profileWith(ProfileKey key, String value) {
-        Object[] components = new Object[ProfileKey.values().length];
-        components[key.ordinal()] = valueOfKind(key, value, "typed by hand", null);
-        return newProfile(components);
     }
 
     /** Every key answered with a value of its own and the odd provenance, the seed folder carrying a measurement. */

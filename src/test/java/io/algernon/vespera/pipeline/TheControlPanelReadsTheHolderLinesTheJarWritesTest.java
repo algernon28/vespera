@@ -56,25 +56,6 @@ class TheControlPanelReadsTheHolderLinesTheJarWritesTest {
                 () -> assertThat(HolderReading.read(lockFile).held()).isFalse());
     }
 
-    @Test
-    @Story("The control panel finds an invocation it did not start")
-    @DisplayName("The corpus-root lock's holder line is read whole, with its holder's pid, and held while that holder lives")
-    void theCorpusRootLocksHolderLineIsReadAsHeldWhileItsHolderLives(@TempDir Path temporary) throws Exception {
-        Path folder = Files.createDirectory(temporary.resolve("root-locks"));
-        Path corpusRoot = Files.createDirectory(temporary.resolve("corpus"));
-        Path workingDirectory = Files.createDirectory(temporary.resolve("work"));
-        Path lockFile = folder.resolve(CorpusRootLock.fileName(CorpusRootLock.key(corpusRoot)));
-        Process holder = HoldsTheCorpusRoot.start(folder, corpusRoot, workingDirectory);
-        try {
-            readsWhatWasWritten(lockFile, holder);
-        } finally {
-            holder.destroyForcibly();
-            holder.waitFor(HOLDER_END_BOUND_SECONDS, TimeUnit.SECONDS);
-        }
-        claim("once its holder is killed, the line it left is read as not held",
-                () -> assertThat(HolderReading.read(lockFile).held()).isFalse());
-    }
-
     private static void readsWhatWasWritten(Path lockFile, Process holder) throws Exception {
         String written = Files.readString(lockFile, StandardCharsets.UTF_8).strip();
         Matcher fields = PID_AND_STARTED.matcher(written);

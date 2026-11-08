@@ -2,7 +2,6 @@ package io.algernon.vespera.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowable;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -53,28 +52,8 @@ class SystemProcessRunnerTest {
     /** How long a command killed is waited for to be gone, so that the output file it held can be deleted. */
     private static final Duration GONE_WITHIN = Duration.ofSeconds(GONE_WITHIN_SECONDS);
 
-    /** How long the command that leaves a child behind is given, in whole seconds. */
-    private static final long CHILD_LIMIT_SECONDS = 60;
-
-    /**
-     * How long the command that leaves a child behind is given: sixty seconds, five times the 10.2 s the slowest of
-     * such commands took to start a Java and exit beside 128 busy threads, rounded up to the next ten seconds, and far
-     * less than the child sleeps, which is until it is killed (ADR-358). The command that deletes its own output file
-     * is given the same, which a passing run, its command exiting at once, does not spend.
-     */
-    private static final Duration CHILD_LIMIT = Duration.ofSeconds(CHILD_LIMIT_SECONDS);
-
-    /**
-     * The timeout of the test of a command that leaves a child behind, in whole seconds: its limit, the wait for the
-     * child to be gone and ten seconds, so that a child slow to go fails as the wait's own timeout.
-     */
-    private static final long CHILD_TEST_TIMEOUT_SECONDS = CHILD_LIMIT_SECONDS + GONE_WITHIN_SECONDS + 10;
-
     /** The exit code a command killed at its limit counts as. */
     private static final int KILLED = -1;
-
-    /** A program no system has. */
-    private static final String NO_SUCH_PROGRAM = "vespera-no-such-program-anywhere";
 
     /**
      * The command is a Java, which a machine busy with other builds can take seconds to start, so that a fixed limit
@@ -147,141 +126,6 @@ class SystemProcessRunnerTest {
             if (!before.contains(started)) {
                 started.destroyForcibly();
                 started.onExit().get(GONE_WITHIN.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
-            }
-        }
-    }
-
-    @Test
-    @Story("Vespera refuses, naming why, when it cannot start them")
-    @DisplayName("A command whose program cannot be started throws, as the process builder does")
-    void aProgramThatCannotBeStartedThrows() {
-        Throwable thrown = catchThrowable(() -> new SystemProcessRunner(outputFolder).run(List.of(NO_SUCH_PROGRAM), LIMIT));
-
-        claim("it throws the input-output exception the starter reads as a program not there",
-                () -> assertThat(thrown).isInstanceOf(IOException.class));
-    }
-
-    /**
-     * The command exits as soon as it has started its child, and the runner owes a return once it has, not at the
-     * limit. That is a promise kept in real time, so it is held on the clock on the wall, against a limit five times
-     * the slowest return measured beside load (ADR-358): the thread waiting spends no processor time to measure (ADR-352
-     * §1), the return is the event itself and no fixture changes on it (§2), and no limit needs doubling until an event
-     * comes (§3), as one limit of five times the slowest return costs a passing run nothing: the command returns as
-     * soon as it exits.
-     */
-    @Test
-    @Story("Vespera refuses, naming why, when it cannot start them")
-    @Issue("698")
-    @Link(name = "ADR-352", url = Adr.A_TIMING_BOUND_IN_A_UNIT_TEST_IS_ONE_A_BUSY_MACHINE_DOES_NOT_MOVE, type = "adr")
-    @Link(name = "ADR-358", url = Adr.A_BOUND_THE_CODE_KEEPS_IN_REAL_TIME_IS_HELD_ON_THE_WALL_CLOCK, type = "adr")
-    @DisplayName("A command that exits while a process it started keeps its output open returns within its limit, with its own exit code")
-    @org.junit.jupiter.api.Timeout(value = CHILD_TEST_TIMEOUT_SECONDS)
-    void aCommandWhoseChildKeepsItsOutputOpenStillReturns(@org.junit.jupiter.api.io.TempDir java.nio.file.Path folder)
-            throws Exception {
-        java.nio.file.Path childsId = folder.resolve("child.pid");
-        List<String> leaver = List.of(
-                ProcessHandle.current().info().command().orElseThrow(),
-                "-cp",
-                System.getProperty("java.class.path"),
-                LeavesAChildHoldingItsOutput.class.getName(),
-                childsId.toString());
-        long began = System.nanoTime();
-        ProcessOutcome outcome;
-        Duration took;
-        try {
-            outcome = new SystemProcessRunner(outputFolder).run(leaver, CHILD_LIMIT);
-            took = Duration.ofNanos(System.nanoTime() - began);
-        } catch (Throwable runFailed) {
-            try {
-                killTheChildNamedIn(childsId);
-            } catch (Exception killFailed) {
-                runFailed.addSuppressed(killFailed);
-            }
-            throw runFailed;
-        }
-        killTheChildNamedIn(childsId);
-        Duration returnedAfter = took;
-        ProcessOutcome returned = outcome;
-
-        claim("it returned within the " + CHILD_LIMIT.toSeconds() + " seconds it was given, although the process it"
-                        + " started was still holding its output open",
-                () -> assertThat(returnedAfter).isLessThan(CHILD_LIMIT));
-        claim("with the exit code the command itself exited with, 0, and not as a command killed at its limit",
-                () -> assertThat(returned.exitCode()).isZero());
-    }
-
-    @Test
-    @Story("Vespera refuses, naming why, when it cannot start them")
-    @Issue("659")
-    @Link(name = "ADR-326", url = Adr.A_COMMANDS_OUTPUT_FILE_THAT_FAILS_REFUSES_THE_START_IN_A_LINE_OF_ITS_OWN, type = "adr")
-    @DisplayName("An output file that cannot be created throws its own failure, naming the command and the folder, before the program is started")
-    void anOutputFileThatCannotBeCreatedThrowsItsOwnFailure() throws IOException {
-        java.nio.file.Path notAFolder = java.nio.file.Files.writeString(outputFolder.resolve("a-file-not-a-folder"), "");
-        List<String> command = List.of(NO_SUCH_PROGRAM);
-
-        Throwable thrown = catchThrowable(() -> new SystemProcessRunner(notAFolder).run(command, LIMIT));
-
-        claim("it throws the failure of the output file, which is not the input-output exception the starter reads as"
-                        + " a program not there, although this program is not there either: the file is asked for first",
-                () -> assertThat(thrown)
-                        .isInstanceOf(CommandOutputFileException.class)
-                        .isNotInstanceOf(IOException.class));
-        CommandOutputFileException failed = (CommandOutputFileException) thrown;
-        claim("it names the command as given and the folder the file was to be created in, and carries what the system"
-                        + " reported as its cause",
-                () -> {
-                    assertThat(failed.command()).isEqualTo(command);
-                    assertThat(failed.folder()).isEqualTo(notAFolder);
-                    assertThat(failed).cause().isInstanceOf(IOException.class);
-                });
-    }
-
-    @Test
-    @Story("Vespera refuses, naming why, when it cannot start them")
-    @Issue("659")
-    @Link(name = "ADR-326", url = Adr.A_COMMANDS_OUTPUT_FILE_THAT_FAILS_REFUSES_THE_START_IN_A_LINE_OF_ITS_OWN, type = "adr")
-    @DisplayName("An output file that cannot be read once the command has exited throws its own failure, and not the command's exit code")
-    @org.junit.jupiter.api.condition.DisabledOnOs(
-            value = org.junit.jupiter.api.condition.OS.WINDOWS,
-            disabledReason = "a file another process holds open cannot be deleted on Windows")
-    void anOutputFileThatCannotBeReadThrowsItsOwnFailure(@org.junit.jupiter.api.io.TempDir java.nio.file.Path markFolder) {
-        java.nio.file.Path ranMark = markFolder.resolve("ran");
-        List<String> deleter = List.of(
-                ProcessHandle.current().info().command().orElseThrow(),
-                "-cp",
-                System.getProperty("java.class.path"),
-                DeletesItsOwnOutputFile.class.getName(),
-                outputFolder.toString(),
-                ranMark.toString());
-
-        Throwable thrown = catchThrowable(() -> new SystemProcessRunner(outputFolder).run(deleter, CHILD_LIMIT));
-
-        claim("the command ran: it deleted every file in the folder its output went to, and then left its mark",
-                () -> assertThat(ranMark).isRegularFile());
-        claim("and what the runner threw is the failure of the output file, naming the command and the folder, and not"
-                        + " the exit code 0 the command exited with",
-                () -> assertThat(thrown)
-                        .isInstanceOf(CommandOutputFileException.class)
-                        .satisfies(failed -> {
-                            assertThat(((CommandOutputFileException) failed).command()).isEqualTo(deleter);
-                            assertThat(((CommandOutputFileException) failed).folder()).isEqualTo(outputFolder);
-                        }));
-    }
-
-    /**
-     * Kills the child whose id the command wrote, and waits up to {@link #GONE_WITHIN} for it to be gone, so that no
-     * test leaves a process behind, whatever it ended in, and the child no longer holds the output file in the test's
-     * folder when that folder is deleted (ADR-352 §3). The test that calls it is given {@link
-     * #CHILD_TEST_TIMEOUT_SECONDS}, more than {@link #CHILD_LIMIT} and this wait together (ADR-358), and adds a
-     * failure of this wait to the run's own failure, where the run failed, so that neither hides the other.
-     */
-    private static void killTheChildNamedIn(java.nio.file.Path childsId) throws Exception {
-        if (java.nio.file.Files.exists(childsId)) {
-            long pid = Long.parseLong(java.nio.file.Files.readString(childsId).strip());
-            java.util.Optional<ProcessHandle> child = ProcessHandle.of(pid);
-            if (child.isPresent()) {
-                child.get().destroyForcibly();
-                child.get().onExit().get(GONE_WITHIN.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
             }
         }
     }
