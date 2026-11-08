@@ -76,6 +76,28 @@ final class ControlPanelState {
         this.values = LaunchValues.load(launchValuesFile, userName, notes::add);
     }
 
+    /** Whether the operator chose the dark theme, kept beside the launch values; light where none was kept or it cannot be read. */
+    boolean darkChosen() {
+        try {
+            Path file = launchValuesFile.resolveSibling("theme");
+            return Files.exists(file) && "dark".equals(Files.readString(file, java.nio.charset.StandardCharsets.UTF_8).strip());
+        } catch (IOException | RuntimeException unreadable) {
+            return false;
+        }
+    }
+
+    /** Keeps the theme chosen, only in a folder of the user's own that already exists; the window keeps it for the session where it cannot. */
+    void keepDark(boolean dark) {
+        try {
+            Path folder = launchValuesFile.toAbsolutePath().getParent();
+            if (Files.isDirectory(folder) && LaunchValues.refusalOfFolder(folder, userName).isEmpty()) {
+                Files.writeString(folder.resolve("theme"), dark ? "dark" : "light", java.nio.charset.StandardCharsets.UTF_8);
+            }
+        } catch (IOException | RuntimeException unwritten) {
+            // the theme is a convenience
+        }
+    }
+
     /** The launch values as held: what the launch values file said as the control panel started, then what each start kept. */
     LaunchValues values() {
         return values;

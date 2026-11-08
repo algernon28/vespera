@@ -272,6 +272,9 @@ final class Cockpit {
         this.state = state;
         this.dialogs = dialogs;
         root.getStyleClass().add("cockpit");
+        if (state.darkChosen()) {
+            root.getStyleClass().add("dark");
+        }
         root.setLeft(sidebarPane());
         root.setCenter(mainPane());
         loadFiles();
@@ -290,7 +293,38 @@ final class Cockpit {
     // ---- the main pane
 
     private Node mainPane() {
-        VBox header = new VBox(where, child);
+        javafx.scene.control.ToggleButton dark = new javafx.scene.control.ToggleButton();
+        dark.setId("theme-toggle");
+        dark.getStyleClass().add("theme-switch");
+        javafx.scene.shape.Circle knob = new javafx.scene.shape.Circle(8);
+        knob.getStyleClass().add("knob");
+        dark.setGraphic(knob);
+        dark.setAccessibleText("Dark mode");
+        dark.setFocusTraversable(true);
+        dark.setSelected(root.getStyleClass().contains("dark"));
+        dark.setAlignment(dark.isSelected() ? javafx.geometry.Pos.CENTER_RIGHT : javafx.geometry.Pos.CENTER_LEFT);
+        dark.selectedProperty().addListener((observed, was, now) -> {
+            root.getStyleClass().remove("dark");
+            if (now) {
+                root.getStyleClass().add("dark");
+            }
+            dark.setAlignment(now ? javafx.geometry.Pos.CENTER_RIGHT : javafx.geometry.Pos.CENTER_LEFT);
+            state.keepDark(now);
+        });
+        VBox titles = new VBox(where, child);
+        HBox.setHgrow(titles, Priority.ALWAYS);
+        Label lightWords = new Label("Light");
+        lightWords.setOnMouseClicked(event -> dark.setSelected(false));
+        Label darkWords = new Label("Dark");
+        darkWords.setOnMouseClicked(event -> dark.setSelected(true));
+        HBox switchRow = new HBox(8, lightWords, dark, darkWords);
+        switchRow.setAlignment(javafx.geometry.Pos.CENTER);
+        Label themeWords = new Label("Theme");
+        themeWords.getStyleClass().add("field-name");
+        VBox themeBox = new VBox(4, themeWords, switchRow);
+        themeBox.setAlignment(javafx.geometry.Pos.TOP_CENTER);
+        HBox header = new HBox(titles, themeBox);
+        header.setAlignment(javafx.geometry.Pos.TOP_RIGHT);
         header.getStyleClass().add("header");
         where.setId("where");
         child.setId("child");
