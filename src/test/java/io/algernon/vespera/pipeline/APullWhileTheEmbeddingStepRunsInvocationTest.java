@@ -45,9 +45,8 @@ import org.springframework.test.context.DynamicPropertySource;
  *
  * <p><b>A seed that never had a vector to lose is not here any more.</b> A fifth test held that a seed whose
  * only text is a page header is usable, is left out of the seeds scoring reads with a line, and is not
- * refused (ADR-231 section 2a). Since ADR-232 (#499) such a seed is an unusable seed, and {@link
- * AFileOfPageHeadersAndFootersOnlyInvocationTest} holds that. The leave-out and its line stay for a usable
- * seed with no chunk stored, a state no conversion makes any more, so the last test here makes it by hand.
+ * refused (ADR-231 section 2a). Since ADR-232 (#499) such a seed is an unusable seed. The leave-out and its
+ * line stay for a usable seed with no chunk stored, a state no conversion makes any more, so the last test here makes it by hand.
  *
  * <p><b>Every file is written with its folder's name in it.</b> A vector is keyed by content and not by
  * walk, and the tests of every class sharing this context share one database, so a file with the bytes of

@@ -22,9 +22,7 @@ import org.junit.jupiter.api.io.TempDir;
  *
  * <p>An earlier stage only hashes content that shares a size with something else, so content with no
  * same-size peer arrives here never hashed, and the cache has to be filed under a content hash either way.
- * That the hash is the published SHA-256 of the bytes, by this method and by the census's alike, is held
- * by {@link AFileOfAnySizeIsHashedTest}; this holds that the two agree, and that it is a hash of the content
- * and not of the file.
+ * This holds that the two agree, and that it is a hash of the content and not of the file.
  */
 @Epic("Extraction")
 @Feature("Hashing content that arrived unhashed")

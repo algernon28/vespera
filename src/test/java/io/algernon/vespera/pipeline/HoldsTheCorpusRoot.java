@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * A second process that holds a corpus root the way {@code vespera run} does, for {@link CorpusRootLockTest}
- * and {@link CorpusRootInUseIT} to be refused by, and to kill (ADR-279).
+ * to be refused by, and to kill (ADR-279).
  *
  * <p>A file lock belongs to the process that took it, and within one JVM a second take fails differently from
  * the way it fails between two, so the case of two invocations needs a real second process. This one takes the

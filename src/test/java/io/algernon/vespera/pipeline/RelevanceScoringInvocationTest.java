@@ -29,9 +29,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * survivor is scored against the resident seed set and the result lands under the scoring run gate 3
  * already minted -- one row, no verdict, and never a row at all for a document with no chunks.
  *
- * <p>A sibling of {@link EmbeddingScoringInvocationTest} for the same reason that class is a sibling
- * of {@link SeedCorpusComparisonInvocationTest}: this ticket's own step reads what #107's already
- * wrote rather than re-deriving it.
+ * <p>A sibling of {@link SeedCorpusComparisonInvocationTest}: this ticket's own step reads what the
+ * steps before it already wrote rather than re-deriving it.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)

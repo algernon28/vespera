@@ -36,7 +36,7 @@ import org.springframework.test.context.ActiveProfiles;
  * the walk and does not enter it, so nothing below it is recorded, and the walk still accounts for every entry it met;
  * the list the walk was given is recorded with it, and a walk given another list is another walk.
  *
- * <p>Assembled by hand as {@code ACodeSetFolderOutsideTheCorpusRootIsWalkedWithTheCorpusTest} is. The profile is
+ * <p>Assembled by hand. The profile is
  * written as text and the tables read by their names, so this compiles before {@code Profile} has the key; until it
  * does, the census fails on the first load of a profile naming it.
  */

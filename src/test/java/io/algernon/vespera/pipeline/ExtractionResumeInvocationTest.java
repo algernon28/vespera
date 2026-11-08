@@ -65,8 +65,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * order</b> (ADR-199 section 2, ADR-193 section 6, ADR-204 section 3, #411): the two reads the reader makes
  * first, of the faults the stopped run recorded and of the occurrences it measured, each said only where the
  * run holds a row of its table and over the span of the run's rows, and then the count of the survivors still
- * to read and the read for the review list. {@code UncoveredStatementsInvocationTest} holds the two reads'
- * lines on their own; what is added here is the order of all four and each read's total.
+ * to read and the read for the review list.
  */
 @CascadeSliceTest
 @ExtendWith(OutputCaptureExtension.class)

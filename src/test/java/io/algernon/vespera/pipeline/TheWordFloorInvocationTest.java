@@ -38,9 +38,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * usable seed under the same floor, since a seed is held to tier 1 alone (ADR-083).
  *
  * <p>The one-word file is {@link SeedScriptedExtractionBeans#ONE_WORD}, whose conversion is "OK". <b>Every file is
- * written with its folder's name in it</b>, as in {@link AFileOfPageHeadersAndFootersOnlyInvocationTest} and for its
- * reason: conversions and vectors are keyed by content, and the tests of every class sharing this context share one
- * database.
+ * written with its folder's name in it</b>: conversions and vectors are keyed by content, and the tests of every
+ * class sharing this context share one database.
  */
 @CascadeSliceTest
 @ExtendWith(OutputCaptureExtension.class)

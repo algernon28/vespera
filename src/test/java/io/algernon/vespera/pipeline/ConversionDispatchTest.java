@@ -59,9 +59,8 @@ import org.springframework.test.context.ActiveProfiles;
  * <p>The ledger is real and stage 1 really runs first, as in {@link ExtractionItemProcessorTest}: the
  * reader dispatches only a document stage 1 recorded a format for, under stage 1's run.
  *
- * <p>That the processor still meets failures in the order the documents were read is {@link
- * ExtractionConcurrencyTest}'s claim and {@code ExtractionCircuitBreakerTest}'s, and neither is changed
- * by this record.
+ * <p>That the processor still meets failures in the order the documents were read is {@code
+ * ExtractionCircuitBreakerTest}'s claim, and it is not changed by this record.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

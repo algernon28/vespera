@@ -30,8 +30,8 @@ import org.junit.jupiter.api.Test;
  *
  * <p>A method that reads a whole run cannot be called by {@code src/main} once it is not there, which is a
  * shorter thing to hold than every caller's text. What replaced each is held where it can be exercised: a
- * partition's rows and a cluster's by key in {@code synthesis.PartitionsOfAnArrangementTest}, {@code
- * synthesis.AClusterIsAskedForByItsKeyTest} and {@code embedding.MembersAreReadAPartitionOrAPageAtATimeTest}.
+ * partition's rows and a cluster's by key in {@code synthesis.PartitionsOfAnArrangementTest} and {@code
+ * synthesis.AClusterIsAskedForByItsKeyTest}.
  *
  * <p><b>By reflection, and by name where a type is not public</b>, so that this class compiles against the
  * tree as it stood before ADR-223 was built, where every claim here fails.

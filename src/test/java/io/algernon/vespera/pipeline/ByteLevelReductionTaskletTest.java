@@ -37,8 +37,8 @@ import org.springframework.test.context.ActiveProfiles;
 /**
  * Stage 1's wiring and ordering: that it mints its own run over census's survivors, verdicts what
  * {@link io.algernon.vespera.corpus.BrokenCheck} catches, then resolves duplicates among what
- * remains. {@code BrokenCheckTest} and {@code DuplicateResolutionTest} already pin every per-format
- * and per-comparison branch, so what is worth proving here is that the step reaches the ledger
+ * remains. {@code BrokenCheckTest} already pins every per-format
+ * branch, so what is worth proving here is that the step reaches the ledger
  * correctly and in order, not either capability's own logic again.
  */
 @JdbcTest

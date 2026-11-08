@@ -48,9 +48,8 @@ import org.junit.jupiter.api.io.TempDir;
  *
  * <p>Every drawing here lays out {@code <base>/archive}, which holds nothing, so every copy is {@code gone} and every
  * entry is a path and a reason: what this class claims is about the pages. The expected pages are built from the page
- * written whole, so a claim reads the bytes the writer itself wrote for each entry. Citations across pages are {@code
- * ACitationLinksToThePageItsEntryIsOnTest}'s; the links of a split tree, {@code TheTreeIsHtmlTest}'s; the report,
- * {@code TheClusterPageSizesReportTest}'s.
+ * written whole, so a claim reads the bytes the writer itself wrote for each entry. The links of a split tree are
+ * {@code TheTreeIsHtmlTest}'s; the report, {@code TheClusterPageSizesReportTest}'s.
  *
  * <p><b>The report says <em>group</em> and the code says <em>cluster</em></b> (ADR-122).
  */

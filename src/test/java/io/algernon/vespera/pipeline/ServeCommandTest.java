@@ -45,8 +45,7 @@ import picocli.CommandLine.IFactory;
  * is not there, one holding no published website, a port in use and a value for the port that is no port (ADR-341
  * §3). Arguments it cannot read end it with exit 2, a blank value is unset in each of the three sources, a blank
  * {@code --db-dir=} excepted, which the mixin reads as the folder started in and so refuses, and the environment's
- * names are found as Spring relaxes them, {@code DB_DIR} among them (ADR-341 §4, §5). That a working
- * directory not there is refused and not made on the packaged jar too is {@code ServeHoldsNoLockIT}'s.
+ * names are found as Spring relaxes them, {@code DB_DIR} among them (ADR-341 §4, §5).
  *
  * <p>What {@code ServeCommand} reads is handed to it here, a {@link Properties} for the system properties and a map for
  * the environment, so that each source is set alone and the process's own are not touched. Where the working directory

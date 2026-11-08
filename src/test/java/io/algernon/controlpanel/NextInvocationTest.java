@@ -28,8 +28,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * wanted and the arrangement to approve; no file is no next act, and a file not in the shape the jar writes is refused.
  *
  * <p>The files here are written by hand in {@code java.util.Properties} form, since the control panel's tests see no
- * class of the jar; {@code TheControlPanelReadsTheNextInvocationTheJarWritesTest} holds this reading to the jar's
- * writer.
+ * class of the jar.
  */
 @Epic("Operation")
 @Feature("The control panel")

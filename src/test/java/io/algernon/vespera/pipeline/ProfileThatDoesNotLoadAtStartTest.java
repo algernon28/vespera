@@ -26,8 +26,7 @@ import org.springframework.mock.env.MockEnvironment;
  * The start-up half of #321: a {@code profile.yaml} that does not load is caught before the context
  * exists, and said in place of Spring's account of the failure — and nothing else is.
  *
- * <p>{@code ProfileThatDoesNotLoadIT} launches the jar and sees the whole invocation. What it cannot
- * see is the two edges this pins: that the reporter claims no other failure, so a start-up that fails
+ * <p>This pins two edges: that the reporter claims no other failure, so a start-up that fails
  * for any other reason still shows its stack, and that the profile's fault is still recognised when it
  * arrives wrapped in a bean's creation failure, as it would if the file changed after the check.
  */

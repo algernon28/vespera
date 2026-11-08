@@ -39,9 +39,8 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * The assembled stage-2 step (ADR-071), driven through the real job rather than through its parts in
- * isolation. {@code extraction.OccurrenceJudgeTest} pins the per-occurrence judgement,
- * {@link ExtractionCircuitBreakerTest} pins the streak counter on its own, and {@link
- * EarlyStageRunsInvocationTest} pins what the run records — none of them drives {@link ExtractionJobConfiguration}'s own {@code extractionStep}
+ * isolation. {@code extraction.OccurrenceJudgeTest} pins the per-occurrence judgement and
+ * {@link ExtractionCircuitBreakerTest} pins the streak counter on its own — neither drives {@link ExtractionJobConfiguration}'s own {@code extractionStep}
  * bean, so nothing claims the reader, processor, writer and listeners are actually wired to each
  * other rather than merely each individually correct. This class is that claim.
  *
@@ -62,10 +61,8 @@ import org.springframework.test.context.DynamicPropertySource;
  *
  * <p><b>One claim here exists because no unit can make it</b> (ADR-140): that the assembled step really
  * converts several documents at once, and really does so on threads other than the one it was invoked
- * on. {@link ExtractionConcurrencyTest} pins the rule those conversions' outcomes are read by and the
- * width the code fixes; neither says anything about how the step is wired, and the wiring is where the
- * width is either honoured or quietly absent. The second half of that claim — that the converting
- * threads are not the invoking one — is what catches the width being wired out, not a step-level task
+ * on. The wiring is where the width the code fixes is either honoured or quietly absent. The second half
+ * of that claim — that the converting threads are not the invoking one — is what catches the width being wired out, not a step-level task
  * executor: under one, Spring Batch still reads on the step thread and hands only the processing to
  * the executor, so the reader still dispatches to its own workers and both halves pass unchanged. The
  * data race ADR-140 section 3 refuses is caught by the other claim here, made through {@link

@@ -18,9 +18,8 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * The scale a relevance score is on (ADR-330 §9): the embedder identity and, where the number of similarities resolved
- * is not 3, {@code ;top:<n>} after it. Composed here because it decides whether a floor removes (ADR-222). {@code
- * AFloorReadAtAnotherNumberOfSimilaritiesTest} writes the text out and holds what the classes that compare it do with
- * it; this holds that composing it arrives at that text, and that what is composed is what they compare.
+ * is not 3, {@code ;top:<n>} after it. Composed here because it decides whether a floor removes (ADR-222). This holds
+ * that composing it arrives at that text, and that what is composed is what the classes that compare it compare.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

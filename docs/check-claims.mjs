@@ -828,6 +828,25 @@ function markerPattern(source, whole = false) {
   else pass(NAME, `${checked} names of test classes and methods, in the Tests sections from ADR-0${FIRST} on, every one under ${TEST} but the ${retiredSeen.size} ${RETIRED_FILE} lists as retired by ADR-367`);
 }
 
+/* ---------- the suite's ceiling ---------- */
+
+// ADR-367: the Java suite holds at most 700 tests. What is counted here is the methods annotated as tests, each once;
+// a parameterized test's cases, which surefire counts one by one, are not, so this is the floor of what a build runs.
+{
+  const NAME = "the suite's ceiling";
+  const CEILING = 700;
+  const ANNOTATION = /^\s*@(?:Test|ParameterizedTest|RepeatedTest|TestFactory)\b/gm;
+  let count = 0;
+  (function walk(dir) {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.isDirectory()) walk(join(dir, e.name));
+      else if (e.name.endsWith(".java")) count += (readFileSync(join(dir, e.name), "utf8").match(ANNOTATION) ?? []).length;
+    }
+  })(TEST);
+  if (count > CEILING) fail(NAME, `${count} test methods under ${TEST}, past the ${CEILING} ADR-367 allows: cut one for each added`);
+  else pass(NAME, `${count} test methods under ${TEST}, of the ${CEILING} ADR-367 allows`);
+}
+
 /* ---------- how an agent works under the guard ---------- */
 
 // The guard refuses a command by what its text names, and an agent that did not know how found out by being refused,

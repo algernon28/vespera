@@ -69,9 +69,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * claims on the trigger's record hold. The last claim of {@link
  * #aStageThreeStoppedOverOneCorpusRootGroupsWithTheHashIndexAnotherCorpusRootsStageFourBBuilt} holds what
  * the clause is for: with the index there, the grouping as {@link #GROUPING} writes it is planned through
- * {@code shingle_by_run_id} and sorts for its {@code GROUP BY}. That {@code DocumentFrequency} sends the
- * clause is {@code DocumentFrequencyIsCountedInTheDatabaseTest}'s to hold; the text planned here is this
- * class's own copy.
+ * {@code shingle_by_run_id} and sorts for its {@code GROUP BY}. The text planned here is this class's own copy.
  */
 @CascadeSliceTest
 @Import({ConverterStopsPartwayBeans.class, SuccessiveBuildsBeans.class})

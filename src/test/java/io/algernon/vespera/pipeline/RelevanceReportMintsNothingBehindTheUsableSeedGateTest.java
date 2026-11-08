@@ -38,8 +38,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * with no embedding model named. There the relevance-report step shuts on the model gate before it can
  * reach anything, so nothing showed that, with a model named, the step went on to resolve the scoring
  * run — and through it the seed measurement run — and minted both behind a gate every other stage-5
- * step reports as shut (ADR-080). {@code EmbeddingScoringInvocationTest} names a model for ADR-155's
- * case, but checks that embedding scoring is not recorded finished, not that no scoring run exists.
+ * step reports as shut (ADR-080).
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)

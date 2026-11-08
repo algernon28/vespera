@@ -26,9 +26,7 @@ import org.junit.jupiter.api.io.TempDir;
  * <p>The reader is strict about shape (ADR-120): a key written flat, as {@code seedFolder: /seeds},
  * fails the load, and so does a file that is not YAML at all. Both used to reach the operator as
  * Jackson's own message, naming a Java type the operator never wrote and no file, from whichever
- * start-up component asked for the profile first. These pin what the load says instead; that the
- * operator sees it as the whole of the invocation's output, with the exit code reaching the shell, is
- * {@code ProfileThatDoesNotLoadIT}'s, since only a launched process can show it.
+ * start-up component asked for the profile first. These pin what the load says instead.
  */
 @Epic("Census")
 @Feature("Profile")

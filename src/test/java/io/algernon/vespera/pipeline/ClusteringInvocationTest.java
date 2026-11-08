@@ -29,9 +29,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * seed, each seed's partition is divided into clusters under that same scoring run — rows, a size
  * report, and nothing else.
  *
- * <p>A sibling of {@link RelevanceScoringInvocationTest} for the reason that class is a sibling of
- * {@link EmbeddingScoringInvocationTest}: this ticket's own step reads what the step before it wrote
- * rather than re-deriving it.
+ * <p>A sibling of {@link RelevanceScoringInvocationTest}: this ticket's own step reads what the step
+ * before it wrote rather than re-deriving it.
  *
  * <p><b>What this step must be shown not to do matters as much as what it does.</b> Clustering
  * arranges what survived, so no verdict may appear because of it, and its two parameters are code

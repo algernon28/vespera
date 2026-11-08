@@ -41,7 +41,7 @@ import picocli.CommandLine;
  * rendering is never sent in place of one whose drawing did not finish.
  *
  * <p>This is the class ADR-333's Tests table, as corrected in ADR-333 step 1, and ADR-338 §3 name. It lies in {@code
- * pipeline} beside {@code PublishFindsTheLastDrawnRenderingIT}, because the run a publish takes is found by {@code
+ * pipeline}, because the run a publish takes is found by {@code
  * VesperaCommand.Publish}, whose constructor this package alone reaches; and it is a test of the build and untagged,
  * since its publisher sends nothing and reaches no site, so CI runs it. Step 1 of ADR-333 §13 keeps that
  * constructor and its {@link Publisher}; a bare publish is Confluence, the only destination before {@code --to} (§6).

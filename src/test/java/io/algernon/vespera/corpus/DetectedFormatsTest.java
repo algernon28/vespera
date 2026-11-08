@@ -29,8 +29,7 @@ import org.springframework.test.context.ActiveProfiles;
  * itself: the same content examined under a changed rule is a different answer, so the answer is
  * kept under the run that produced it (ADR-095).
  *
- * <p>Read back through the same seam a real caller uses rather than through the columns underneath,
- * matching {@code ContentIdentityTest}'s pattern for corpus's other side tables.
+ * <p>Read back through the same seam a real caller uses rather than through the columns underneath.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

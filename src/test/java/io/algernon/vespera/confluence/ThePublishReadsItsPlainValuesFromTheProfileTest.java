@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
  * profile; the parent taken whole from one side; and the token from {@code VESPERA_CONFLUENCE_TOKEN} alone. Read
  * through {@link ConfluenceSite#of}, which sends nothing.
  *
- * <p>Untagged: it sends nothing, as {@code ConfluencePluginTest} sends nothing (ADR-320 §6).
+ * <p>Untagged: it sends nothing (ADR-320 §6).
  */
 @Epic("Operation")
 @Feature("The publish")

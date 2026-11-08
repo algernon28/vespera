@@ -22,8 +22,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>The same shape as a profile that does not load (#321), for the same reason: the refusal happens
  * while the environment is prepared, so there is no banner, no bean and no context to report, and
- * the reporter claims only its own fault. {@code WorkingDirectoryInUseIT} pins what reaches the
- * terminal and the shell from the packaged jar; this pins the reporter on its own.
+ * the reporter claims only its own fault. This pins the reporter on its own.
  */
 @Epic("Architecture")
 @Feature("One invocation per working directory")

@@ -45,8 +45,7 @@ import org.junit.jupiter.api.io.TempDir;
  * working directory, the tree drawn at the working directory's {@code deliverable/} folder. The pictures and images
  * are real PNGs, JPEGs and GIFs, written by the JDK, so the bytes carry the signature of their kind. The rules of
  * furniture and the budget are {@code DeliverablePicturesTest}'s; every page's sources and links, {@code
- * TheTreeIsHtmlTest}'s; the names a copy yields to, {@code CopyNamesTest}'s; the closing line, {@code
- * pipeline.TheClosingLineSaysWhatAnEarlierDrawingLeftTest}'s.
+ * TheTreeIsHtmlTest}'s; the names a copy yields to, {@code CopyNamesTest}'s.
  *
  * <p><b>The report says <em>group</em> and the code says <em>cluster</em></b> (ADR-122).
  */

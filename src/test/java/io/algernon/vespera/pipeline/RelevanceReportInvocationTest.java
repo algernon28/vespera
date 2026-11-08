@@ -42,8 +42,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * tests beside this class cannot make.
  *
  * <p>A sibling of {@code RelevanceScoringInvocationTest}, on the same scripted extraction and
- * embedding beans, so the whole pipeline runs here without a Docker daemon. What the real sidecars
- * add is checked separately by {@code RelevanceReportIT}.
+ * embedding beans, so the whole pipeline runs here without a Docker daemon.
  */
 @Epic("Relevance")
 @Feature("Labelling")

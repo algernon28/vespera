@@ -44,8 +44,7 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
  * grouping does without ADR-219's clause, which is why ADR-219 pins it; and the fourth holds that the
  * grouping with the clause, {@code INDEXED BY shingle_by_run_id}, is answered through the index on the run
  * in both states. The clause is in {@code DocumentFrequency}: it shipped with the change to {@code
- * similarity} that ADR-220 records (ADR-219 section 2), and {@code
- * DocumentFrequencyIsCountedInTheDatabaseTest} holds that the grouping sent carries it.
+ * similarity} that ADR-220 records (ADR-219 section 2).
  *
  * <p><b>Since ADR-221 the index is over the rows of one stage-2 run</b>, on the granularity and the hash,
  * and every test here that builds it builds that one, for a run id of the minted form. Three things are held

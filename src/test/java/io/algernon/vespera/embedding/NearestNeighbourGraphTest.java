@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
  * (ADR-087, under ADR-085's memory contract).
  *
  * <p><b>The ceiling is asserted on the shape of memory use, not on a byte count</b>, for the reason
- * ADR-085 gives and {@code RelevanceScoringMemoryCeilingTest} already follows: a measurement from one
+ * ADR-085 gives: a measurement from one
  * machine is a fact about that machine, useful for choosing a design and misleading once committed
  * as a test. What is asserted here is the invariant holding everything resident would violate: the
  * partition is read in blocks of a bounded size, and the bound does not move when the partition

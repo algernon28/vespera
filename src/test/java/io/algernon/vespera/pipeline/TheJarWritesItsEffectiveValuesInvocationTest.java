@@ -34,10 +34,7 @@ import org.springframework.test.context.DynamicPropertySource;
 /**
  * The file the control panel reads for what the jar would use where the profile names nothing (ADR-330 §1), reached
  * through real invocations: {@code vespera run} and {@code vespera label}, with or without {@code --auto}, write it
- * before their first step, of a closed list of keys holding no path, no credential and nothing of a document. That an
- * invocation refused at its start leaves it as it was is {@code ARefusedInvocationWritesNoEffectiveValuesInvocationTest}'s,
- * that {@code vespera publish} writes none is {@code VesperaPublishWritesNoEffectiveValuesInvocationTest}'s, and where each value came from is {@code
- * TheJarSaysWhereEachValueCameFromInvocationTest}'s.
+ * before their first step, of a closed list of keys holding no path, no credential and nothing of a document.
  *
  * <p>A claim of the source {@code shipped} fails where the shell names the value, so the image's, which runs on this
  * machine set by {@code VESPERA_DOCLING_IMAGE}, is made only where that variable is not set.

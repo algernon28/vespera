@@ -50,12 +50,9 @@ import org.sqlite.ProgressHandler;
  * that difference, so that nobody measures on a bare connection again.
  *
  * <p>A newer SQLite that takes more steps for any of the shapes fails this, and that is when the declared
- * figure changes; one that takes fewer fails nothing, the share only ending a little earlier. {@link
- * StatementStepsPerRowAreTheDeclaredOnesTest} holds the declaration to the figure here. The statement is
+ * figure changes; one that takes fewer fails nothing, the share only ending a little earlier. The statement is
  * written out below as ADR-211 section 3 gives it, with the clause ADR-219 section 1 adds after the table's
- * name, which leaves the steps as they were measured without it; {@code
- * DocumentFrequencyIsCountedInTheDatabaseTest} holds
- * what the code issues to the same shape.
+ * name, which leaves the steps as they were measured without it.
  *
  * <p>Green before ADR-211 is built: it measures SQLite, not the application.
  */

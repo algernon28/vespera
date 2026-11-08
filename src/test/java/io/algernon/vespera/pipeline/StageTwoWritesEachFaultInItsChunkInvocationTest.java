@@ -34,8 +34,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * Stage 2's fault row is written in the chunk its occurrence was set aside in, on the shipped step, and stands
  * or falls with that chunk (ADR-220 section 14).
  *
- * <p>{@code ASetAsideIsHeardInsideItsChunksTransactionTest} holds the library to hearing a set-aside inside the
- * chunk's transaction, on a step built to stage 2's shape. This class holds the step {@link
+ * <p>This class holds the step {@link
  * ExtractionJobConfiguration} builds, driven through the whole command: {@link SetAsideProbe} listens beside the
  * fault recorder on the {@code extractionStep} bean itself, so a change to how that step is built that moved
  * the set-aside out of the chunk's transaction, onto another thread or into a transaction of its own fails here.

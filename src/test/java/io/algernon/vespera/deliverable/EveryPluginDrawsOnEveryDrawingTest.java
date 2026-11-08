@@ -23,9 +23,7 @@ import org.junit.jupiter.api.io.TempDir;
  * scripted plugins, handed in the reverse of their names' order, write every call they hear into one list.
  *
  * <p>The state of each drawing is written by {@code Deliverable} in {@code <plugin folder>/drawing.txt} (ADR-333 §11),
- * {@code drawn} once its {@code finish} and {@code close} have returned. That a recorded generation step draws the
- * plugins too, the path {@code vespera run} takes over a run whose writing is recorded (ADR-333 §12), is {@code
- * pipeline.EveryPluginDrawsOnTheRecordedPathInvocationTest}'s: this module knows no step.
+ * {@code drawn} once its {@code finish} and {@code close} have returned.
  */
 @Epic("The deliverable")
 @Feature("The plugins")
