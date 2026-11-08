@@ -22,7 +22,7 @@ When a test is added past the ceiling, or the suite is cut to it, a test goes by
 
 1. A claim held twice: a unit test and an invocation test holding the same rule, near-identical variants of one test, a claim also held by a neighbour.
 2. Of two tests holding one decision, the dearer: an invocation test, which starts a Spring context, gives way to a plain unit test.
-3. Then the least valuable. What stays holds verdict logic, the minting of run identities, the ledger's integrity, the refusals and failure paths that protect the operator's data, the census's identity rules on NTFS, the architecture rules `AGENTS.md` names, the website's sandbox and the publish's host, token and foreign pages, and each copy the control panel holds as text of a table of the jar's, held to the jar's by a test (ADR-361 §2, ADR-324 §6).
+3. Then the least valuable. What stays holds verdict logic, the minting of run identities, the ledger's integrity, the refusals and failure paths that protect the operator's data, the census's identity rules on NTFS, the architecture rules `AGENTS.md` names, the website's sandbox and the publish's host, token and foreign pages, and each copy the control panel holds as text of a table of the jar's, held to the jar's by a test (ADR-361 §2, ADR-344 §6).
 
 A parameterized test keeps one or two representative cases: folding several tests into one parameterized test of as many cases saves nothing.
 

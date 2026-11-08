@@ -2,6 +2,7 @@ package io.algernon.vespera.engine.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.abort;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -9,6 +10,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.net.URI;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +42,7 @@ class SystemPageOpenerTest {
     @Story("The page is opened by the system's own command")
     @DisplayName("A working directory whose name holds a space, an ampersand, a percent sign, a caret and an accented letter is still handed over as one argument with no space in it")
     void aPathWithCharactersAShellReadsIsHandedOverAsOneArgument() {
-        Path page = Path.of("vespera runs", "a b & 100% ^ café", "progress.html").toAbsolutePath();
+        Path page = pathOrAbort("vespera runs", "a b & 100% ^ café", "progress.html").toAbsolutePath();
         URI address = page.toUri();
         List<List<String>> commands = List.of(
                 SystemPageOpener.command(address, WINDOWS, NOTHING_SET).orElseThrow(),
@@ -62,6 +64,19 @@ class SystemPageOpenerTest {
                         assertThat(handedOver).doesNotContainPattern("\\s");
                         assertThat(Path.of(URI.create(handedOver))).isEqualTo(page);
                     });
+        }
+    }
+
+    /**
+     * The path named by {@code first} and {@code more}, or the test skipped where the platform's encoding cannot name
+     * it: under a POSIX locale the JDK encodes file names in ASCII and refuses the accented letter before any command is
+     * chosen, and a test that cannot build its path has nothing to say about how the path is handed over.
+     */
+    private static Path pathOrAbort(String first, String... more) {
+        try {
+            return Path.of(first, more);
+        } catch (InvalidPathException e) {
+            return abort("this file system will not name " + String.join("/", List.of(more)) + ": " + e.getMessage());
         }
     }
 }

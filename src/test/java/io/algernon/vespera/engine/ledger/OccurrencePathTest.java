@@ -79,20 +79,26 @@ class OccurrencePathTest {
      * The same, for a name this filesystem may refuse to make a {@link Path} of at all.
      *
      * <p>An unpaired surrogate is a valid NTFS name, and on NTFS these cases are real. Elsewhere the
-     * JDK throws before any file is touched, and a test that cannot even name its subject has
-     * nothing to say about how the subject is relativized. Aborting keeps that honest: the case is
-     * checked where it exists (ADR-065) and skipped, loudly, where it cannot be built.
+     * JDK throws before any file is touched, as it does for any name outside the platform's encoding
+     * where that encoding is not Unicode (a POSIX locale's ASCII). A test that cannot even name its
+     * subject has nothing to say about how the subject is relativized. Aborting keeps that honest: the
+     * case is checked where it exists (ADR-065) and skipped, loudly, where it cannot be built.
      */
     private static Path resolveOrAbort(String... more) {
         try {
             return resolve(more);
         } catch (InvalidPathException e) {
-            return abort("this filesystem will not name a file with an unpaired surrogate: " + e.getMessage());
+            return abort("this filesystem will not name " + readable(String.join("/", more)) + ": "
+                    + e.getMessage());
         }
     }
 
     private static String stored(String... more) {
-        Result result = OccurrencePath.relativize(ROOT, resolve(more));
+        return stored(resolve(more));
+    }
+
+    private static String stored(Path path) {
+        Result result = OccurrencePath.relativize(ROOT, path);
         assertThat(result).isInstanceOf(Stored.class);
         return ((Stored) result).path().value();
     }
@@ -135,6 +141,9 @@ class OccurrencePathTest {
     @Story("Distinct files stay distinct")
     @DisplayName("Case is preserved exactly as observed, including the case pairs the JDK wrongly folds")
     void preservesCaseExactlyAsObserved() {
+        Path dotlessI = resolveOrAbort(DOTLESS_I + ".txt");
+        Path microSign = resolveOrAbort(MICRO_SIGN + ".txt");
+        Path greekMu = resolveOrAbort(GREEK_MU + ".txt");
         claim(
                 "the upper-case name Reports/Q1.PDF and the lower-case name reports/q1.pdf are each stored with"
                         + " their case untouched",
@@ -146,15 +155,15 @@ class OccurrencePathTest {
                 "U+0131 (dotless i) and I are each stored exactly as observed, so they are two occurrences,"
                         + " because NTFS holds two different files",
                 () -> {
-                    assertThat(readable(stored(DOTLESS_I + ".txt"))).isEqualTo(readable(DOTLESS_I + ".txt"));
+                    assertThat(readable(stored(dotlessI))).isEqualTo(readable(DOTLESS_I + ".txt"));
                     assertThat(readable(stored("I.txt"))).isEqualTo("I.txt");
                 });
         claim(
                 "U+00B5 (micro sign) and U+03BC (greek mu) are each stored exactly as observed, for the same"
                         + " reason",
                 () -> {
-                    assertThat(readable(stored(MICRO_SIGN + ".txt"))).isEqualTo(readable(MICRO_SIGN + ".txt"));
-                    assertThat(readable(stored(GREEK_MU + ".txt"))).isEqualTo(readable(GREEK_MU + ".txt"));
+                    assertThat(readable(stored(microSign))).isEqualTo(readable(MICRO_SIGN + ".txt"));
+                    assertThat(readable(stored(greekMu))).isEqualTo(readable(GREEK_MU + ".txt"));
                 });
     }
 
@@ -165,14 +174,16 @@ class OccurrencePathTest {
     void keepsComposedAndDecomposedFormsApart() {
         String composed = "caf" + E_ACUTE + ".txt";
         String decomposed = "cafe" + COMBINING_ACUTE + ".txt";
+        Path composedPath = resolveOrAbort(composed);
+        Path decomposedPath = resolveOrAbort(decomposed);
 
         claim(
                 "neither form is normalised on the way in: cafe with U+00E9 and cafe with e + U+0301 are each"
                         + " stored exactly as observed, so they are two occurrences, because NTFS holds two"
                         + " different files",
                 () -> {
-                    assertThat(readable(stored(composed))).isEqualTo(readable(composed));
-                    assertThat(readable(stored(decomposed))).isEqualTo(readable(decomposed));
+                    assertThat(readable(stored(composedPath))).isEqualTo(readable(composed));
+                    assertThat(readable(stored(decomposedPath))).isEqualTo(readable(decomposed));
                     assertThat(readable(composed)).isNotEqualTo(readable(decomposed));
                 });
     }

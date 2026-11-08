@@ -273,6 +273,7 @@ class RedundancyResolutionTest {
     @Test
     @Story("A document is inside another from the cut up, and not below it")
     @DisplayName("A document with 95 of its 100 shingles in a far larger one is judged inside it, and one with 94 is not")
+    @Link(name = "ADR-081", url = Adr.MINHASH_RETRIEVES_SHINGLE_SETS_JUDGE, type = "adr")
     void aDocumentAtTheContainmentCutIsJudgedAndOneJustBelowItIsNot() {
         Fixture fixture = fixture();
         OccurrenceId atTheCut = fixture.document(
