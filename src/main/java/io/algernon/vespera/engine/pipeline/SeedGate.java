@@ -83,5 +83,16 @@ class SeedGate {
      * <p>Both together because an occurrence path is stored relative to the root it was walked from
      * (ADR-051), so the walk id alone cannot reach a file.
      */
+    /**
+     * The profile value whose absence shuts {@link #seedWalk()}: stage 4's floor, else the seed folder; none where
+     * both are set and the walk is unfinished or unresolvable (ADR-362 section 3).
+     */
+    Optional<String> valueWhoseAbsenceShuts() {
+        if (redundancyGate.floor().isEmpty()) {
+            return Optional.of("boilerplateDocumentFrequencyFloor");
+        }
+        return profileStore.load().seedFolder().isSet() ? Optional.empty() : Optional.of("seedFolder");
+    }
+
     record SeedWalk(WalkId walkId, Path canonicalRoot) {}
 }

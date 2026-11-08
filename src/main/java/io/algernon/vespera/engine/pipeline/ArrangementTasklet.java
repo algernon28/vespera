@@ -132,7 +132,7 @@ class ArrangementTasklet implements Tasklet {
                 "the arrangement step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
-            ShutGates.in(chunkContext).record(StepNames.ARRANGEMENT);
+            ShutGates.in(chunkContext).record(StepNames.ARRANGEMENT, preamble.key().orElse(null));
             return RepeatStatus.FINISHED;
         }
 

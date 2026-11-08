@@ -49,6 +49,25 @@ public class VesperaJobConfiguration {
      */
     static final String ACCOUNT_DIRECTORY_PROPERTY = "vespera.account-dir";
 
+    /**
+     * The invocation report (ADR-362 section 3), shared by the job and by {@code vespera label}. A display seam is
+     * the system's own unless a context gives another.
+     */
+    @Bean
+    InvocationReport invocationReport(
+            @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
+            @Value("${vespera.progress-interval:5s}") Duration progressInterval,
+            @Value("${" + VesperaCommand.Run.DELIVERABLE_ROOT_PROPERTY + ":}") String deliverableRoot,
+            ObjectProvider<InvocationReport.Display> display,
+            Clock clock) {
+        return new InvocationReport(
+                workingDirectory,
+                progressInterval,
+                clock,
+                display.getIfAvailable(() -> DisplayPresence::ofThisProcess),
+                deliverableRoot);
+    }
+
     /** The progress page, shared by the job and by {@code vespera label} (ADR-266 section 3). */
     @Bean
     ProgressPage progressPage(
@@ -57,14 +76,17 @@ public class VesperaJobConfiguration {
             ObjectProvider<PageOpener> opener,
             @Value("${vespera.open-browser:true}") boolean openBrowser,
             Clock clock,
-            Ledger ledger) {
-        return new ProgressPage(
+            Ledger ledger,
+            InvocationReport invocationReport) {
+        ProgressPage page = new ProgressPage(
                 workingDirectory,
                 progressInterval,
                 clock,
                 openBrowser ? opener.getIfAvailable() : null, // false: no opener is asked anything (ADR-327 section 5)
                 () -> ledger.verdicts().recorded(),
                 () -> ProgressPage.readRuns(ledger));
+        page.handTo(invocationReport);
+        return page;
     }
 
     @Bean
@@ -72,6 +94,7 @@ public class VesperaJobConfiguration {
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
             @Value("${" + ACCOUNT_DIRECTORY_PROPERTY + ":}") String accountDirectory,
             ProgressPage progressPage,
+            InvocationReport invocationReport,
             JdbcTemplate jdbcTemplate,
             Clock clock,
             JobRepository jobRepository,
@@ -112,7 +135,8 @@ public class VesperaJobConfiguration {
                         workingDirectory,
                         accountDirectory == null || accountDirectory.isBlank() ? null : Path.of(accountDirectory.strip()),
                         jdbcTemplate,
-                        clock))
+                        clock,
+                        invocationReport))
                 .listener(progressPage)
                 .build();
     }

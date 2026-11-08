@@ -5,7 +5,7 @@ import org.springframework.batch.infrastructure.item.ExecutionContext;
 
 /**
  * The steps of this invocation that ended at a shut gate (ADR-265 section 3): having done nothing for want of
- * a value, their own or one an earlier step's gate required. The progress page reads it to tell such a step
+ * a value, their own or one an earlier step's gate required. The progress page and the invocation report read it to tell such a step
  * from one that finished. It decides nothing: the gates are where they are, and each calls {@link #record}
  * after it has decided.
  *
@@ -28,9 +28,23 @@ final class ShutGates {
                 chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext());
     }
 
-    /** Records that {@code step} ended at a shut gate. */
+    /** Records that {@code step} ended at a shut gate that no profile value's absence shut. */
     void record(String step) {
-        executionContext.putString(KEY_PREFIX + step, step);
+        record(step, null);
+    }
+
+    /**
+     * Records that {@code step} ended at a shut gate, and the profile value whose absence shut it, or {@code null}
+     * where no absent value did (ADR-362 section 3).
+     */
+    void record(String step, String key) {
+        executionContext.putString(KEY_PREFIX + step, key == null ? "" : key);
+    }
+
+    /** The profile value whose absence shut {@code step}'s gate, where it recorded one. */
+    java.util.Optional<String> keyOf(String step) {
+        String recorded = executionContext.containsKey(KEY_PREFIX + step) ? executionContext.getString(KEY_PREFIX + step) : "";
+        return recorded.isEmpty() || recorded.equals(step) ? java.util.Optional.empty() : java.util.Optional.of(recorded);
     }
 
     /** Whether {@code step} recorded that it ended at a shut gate. */

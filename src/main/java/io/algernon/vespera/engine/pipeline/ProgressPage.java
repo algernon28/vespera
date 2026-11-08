@@ -209,18 +209,6 @@ final class ProgressPage implements JobExecutionListener {
 
     private static final String[] TAB_FILES = {FILE_NAME, "progress-steps.html", "progress-samples.html", RUNS_FILE_NAME};
 
-    /** The steps that record their completion under a run of each stage, in job order (ADR-269 section 5). */
-    static final Map<String, List<String>> STEPS_OF_A_STAGE = Map.of(
-            StageModules.BYTE_LEVEL_REDUCTION.stage(), List.of(StepNames.BYTE_LEVEL_REDUCTION),
-            StageModules.EXTRACTION.stage(), List.of(StepNames.EXTRACTION),
-            StageModules.CONTENT_CENSUS.stage(), List.of(StepNames.CONTENT_CENSUS),
-            StageModules.CONTENT_REDUNDANCY.stage(), List.of(StepNames.REDUNDANCY_SIGNATURE, StepNames.CONTENT_REDUNDANCY),
-            StageModules.SEED_MEASUREMENT.stage(), List.of(StepNames.SEED_EXTRACTION, StepNames.SEED_CORPUS_COMPARISON),
-            StageModules.EMBEDDING_SCORING.stage(),
-            List.of(StepNames.EMBEDDING_SCORING, StepNames.TRANSLATION, StepNames.RELEVANCE_SCORING, StepNames.CLUSTERING),
-            StageModules.ARRANGEMENT.stage(), List.of(StepNames.ARRANGEMENT),
-            StageModules.GENERATION.stage(), List.of(StepNames.GENERATION));
-
     /** The runs a working directory holds, as one reading of the ledger made them (ADR-269 section 5). */
     record RunsRead(List<Runs.Listed> listed, Map<String, Set<String>> finished, Map<String, Map<String, Long>> kinds) {}
 
@@ -251,23 +239,7 @@ final class ProgressPage implements JobExecutionListener {
 
     private static final String WRITE_AHEAD_LOG_FILE = "vespera.db-wal";
 
-    private static final List<String> STEPS_IN_JOB_ORDER = List.of(
-            StepNames.CENSUS,
-            StepNames.BYTE_LEVEL_REDUCTION,
-            StepNames.EXTRACTION,
-            StepNames.CONTENT_CENSUS,
-            StepNames.REDUNDANCY_SIGNATURE,
-            StepNames.CONTENT_REDUNDANCY,
-            StepNames.SEED_EXTRACTION,
-            StepNames.SEED_CORPUS_COMPARISON,
-            StepNames.EMBEDDING_SCORING,
-            StepNames.TRANSLATION,
-            StepNames.RELEVANCE_SCORING,
-            StepNames.RELEVANCE_FLOOR,
-            StepNames.CLUSTERING,
-            StepNames.RELEVANCE_REPORT,
-            StepNames.ARRANGEMENT,
-            StepNames.GENERATION);
+    private static final List<String> STEPS_IN_JOB_ORDER = InvocationReport.STEPS_IN_JOB_ORDER;
 
     /** What the row of tiles on the progress page shows (ADR-275 section 2). */
     private static final String JOB_TILES_HOVER = "The figures of the job so far.";
@@ -369,6 +341,12 @@ final class ProgressPage implements JobExecutionListener {
 
     private final PageOpener opener;
 
+    /** The report the job's writes are handed to, set where the application builds it (ADR-362 section 3). */
+    private InvocationReport report;
+
+    /** Guarded by {@link #writing}: the reading the last render made, for the report; null before and after a failed one. */
+    private InvocationReport.Reading lastReading;
+
     private final Supplier<RunsRead> runsReader;
 
     /** The reading of the runs the tab shows, set on the job's thread and read by the writer; null before the first. */
@@ -445,6 +423,11 @@ final class ProgressPage implements JobExecutionListener {
         heldRuns = new HeldRuns(reading, read);
     }
 
+    /** Hands every write of the job's pages to {@code report} as well (ADR-362 section 3). */
+    void handTo(InvocationReport report) {
+        this.report = report;
+    }
+
     /** The page's absolute, normalised path in {@code workingDirectory} (ADR-266 section 1). */
     static Path pathIn(Path workingDirectory) {
         return workingDirectory.toAbsolutePath().normalize().resolve(FILE_NAME);
@@ -512,6 +495,9 @@ final class ProgressPage implements JobExecutionListener {
                 appenders.add(appender);
             }
         }
+        if (report != null) {
+            report.jobStarts();
+        }
         boolean written;
         synchronized (writing) {
             command = null;
@@ -575,6 +561,15 @@ final class ProgressPage implements JobExecutionListener {
     }
 
     private boolean write(boolean last, String outcome, Map<String, Integer> counts) {
+        lastReading = null;
+        boolean written = writePages(last, outcome, counts);
+        if (report != null && command == null && lastReading != null) {
+            report.job(lastReading);
+        }
+        return written;
+    }
+
+    private boolean writePages(boolean last, String outcome, Map<String, Integer> counts) {
         try {
             if (command == null) {
                 String[] pages = render(last); // steps, samples, runs, progress: the order they are moved into place
@@ -701,6 +696,8 @@ final class ProgressPage implements JobExecutionListener {
         }
         Sample latest = samples.getLast();
         Sample base = rateBase();
+        lastReading = reading(last, job, executions, states, shutGates, zone, now, bytes, outcomeStep, entered, survivors,
+                latest, base);
 
         String startedAt = WRITTEN_AT.format(LocalDateTime.ofInstant(started, zone));
         String status = last
@@ -792,6 +789,137 @@ final class ProgressPage implements JobExecutionListener {
         };
     }
 
+    /** What the report is handed of this write: the same reading the pages are drawn from (ADR-362 section 3). */
+    private InvocationReport.Reading reading(
+            boolean last, JobExecution job, Map<String, StepExecution> executions, Map<String, String> states,
+            ShutGates shutGates, ZoneId zone, Instant now, long bytes, String outcomeStep, long entered, long survivors,
+            Sample latest, Sample base) {
+        List<InvocationReport.Step> steps = new ArrayList<>();
+        Map<String, java.util.Optional<String>> gateKeys = new LinkedHashMap<>();
+        List<InvocationReport.Fault> faults = new ArrayList<>();
+        for (String step : STEPS_IN_JOB_ORDER) {
+            StepExecution execution = executions.get(step);
+            String state = states.get(step);
+            Matcher counter = COUNTER.matcher(lastLine.getOrDefault(step, ""));
+            boolean counted = counter.matches();
+            Instant start = execution == null || execution.getStartTime() == null
+                    ? null : execution.getStartTime().atZone(zone).toInstant();
+            Instant end = execution == null || execution.getEndTime() == null
+                    ? null : execution.getEndTime().atZone(zone).toInstant();
+            steps.add(new InvocationReport.Step(
+                    step,
+                    state,
+                    execution == null ? 0 : execution.getReadCount(),
+                    execution == null ? 0 : execution.getWriteCount(),
+                    execution == null ? 0 : execution.getSkipCount(),
+                    start,
+                    end,
+                    start == null ? null : Math.max(0, Duration.between(start, end == null ? now : end).getSeconds()),
+                    lastLine.get(step),
+                    counted ? Long.parseLong(counter.group(2).replace(",", "")) : null,
+                    counted && counter.group(3) != null ? Long.parseLong(counter.group(3).replace(",", "")) : null));
+            if ("stopped at a gate".equals(state)) {
+                gateKeys.put(step, shutGates.keyOf(step));
+            }
+            if ("failed".equals(state) && execution != null && !execution.getFailureExceptions().isEmpty()) {
+                Throwable failure = StepFailure.firstBeneathTheFramework(execution.getFailureExceptions().getFirst());
+                List<String> causes = new ArrayList<>();
+                Throwable cause = failure.getCause();
+                for (int i = 0; i < 3 && cause != null; i++, cause = cause.getCause()) {
+                    causes.add(cause.getClass().getName());
+                }
+                faults.add(new InvocationReport.Fault(step, failure.getClass().getName(), causes));
+            }
+        }
+        InvocationReport.Removing removing = null;
+        if (outcomeStep != null) {
+            Map<String, Long> verdicts = new LinkedHashMap<>();
+            Map<String, Double> perMinute = new LinkedHashMap<>();
+            for (String kind : OUTCOME_STEPS.get(outcomeStep)) {
+                int at = BLOCKING.indexOf(kind);
+                verdicts.put(kind, latest.kinds()[at]);
+                if (base != null) {
+                    perMinute.put(kind, (latest.kinds()[at] - base.kinds()[at]) * 60.0 / (latest.seconds() - base.seconds()));
+                }
+            }
+            removing = new InvocationReport.Removing(outcomeStep, entered, survivors, verdicts, perMinute);
+        }
+        List<InvocationReport.Chart> charts = new ArrayList<>();
+        for (ChartData chart : Arrays.asList(databaseData(), countsData(), verdictsData())) {
+            if (chart != null) {
+                charts.add(new InvocationReport.Chart(
+                        chart.key(),
+                        chart.title(),
+                        chart.axis().title(),
+                        chart.seconds(),
+                        chart.lines().stream()
+                                .map(line -> new InvocationReport.Line(line.name().isEmpty() ? "size" : line.name(), line.values()))
+                                .toList()));
+            }
+        }
+        Map<String, String> arrivedAt = new LinkedHashMap<>();
+        new InvocationRuns(job.getExecutionContext()).all().forEach((stage, run) -> {
+            if (run.matches("[0-9a-f]{8,128}")) {
+                arrivedAt.put(stage, run);
+            }
+        });
+        String outcome = !last ? null
+                : job.getStatus() == BatchStatus.COMPLETED ? "completed"
+                : job.getStatus() == BatchStatus.STOPPED || job.getStatus() == BatchStatus.STOPPING ? "stopped"
+                : "failed";
+        return new InvocationReport.Reading(
+                last, outcome, steps, gateKeys, bytes, removing, charts, runsOf(job), arrivedAt, faults);
+    }
+
+    /** The runs as the held reading shows them, in the order the tab of runs lists them (ADR-269 section 5). */
+    private InvocationReport.Runs runsOf(JobExecution job) {
+        HeldRuns held = heldRuns;
+        if (held == null) {
+            return new InvocationReport.Runs("none", List.of());
+        }
+        String reading = held.reading() == 1 ? "start" : "end";
+        if (held.read() == null) {
+            return new InvocationReport.Runs("failed", List.of());
+        }
+        Set<String> arrivedAt = new java.util.HashSet<>(new InvocationRuns(job.getExecutionContext()).all().values());
+        Map<String, Integer> ordinals = new java.util.HashMap<>();
+        List<Object[]> runs = new ArrayList<>();
+        for (Runs.Listed run : held.read().listed()) {
+            int ordinal = ordinals.merge(run.walk() + "|" + run.stage(), 1, Integer::sum);
+            runs.add(new Object[] {run, ordinal});
+        }
+        List<String> cascade = Arrays.stream(StageModules.values()).map(StageModules::stage).toList();
+        runs.sort(java.util.Comparator.<Object[]>comparingLong(r -> ((Runs.Listed) r[0]).walk())
+                .thenComparingInt(r -> {
+                    int rank = cascade.indexOf(((Runs.Listed) r[0]).stage());
+                    return rank < 0 ? cascade.size() : rank;
+                })
+                .thenComparing(r -> ((Runs.Listed) r[0]).stage())
+                .thenComparingInt(r -> (Integer) r[1]));
+        List<InvocationReport.RunRow> rows = new ArrayList<>();
+        for (Object[] entry : runs) {
+            Runs.Listed run = (Runs.Listed) entry[0];
+            List<String> steps = InvocationReport.STEPS_OF_A_STAGE.get(run.stage());
+            Set<String> done = held.read().finished().getOrDefault(run.id(), Set.of());
+            int finished = steps == null ? 0 : (int) steps.stream().filter(done::contains).count();
+            Map<String, Long> kinds = held.read().kinds().getOrDefault(run.id(), Map.of());
+            Map<String, Long> verdicts = new LinkedHashMap<>();
+            for (String kind : BLOCKING) {
+                verdicts.put(kind, kinds.getOrDefault(kind, 0L));
+            }
+            rows.add(new InvocationReport.RunRow(
+                    run.walk(),
+                    run.stage(),
+                    (Integer) entry[1],
+                    steps == null ? null : finished,
+                    steps == null ? null : steps.size(),
+                    steps == null ? null : finished == steps.size() ? "finished" : "not finished",
+                    arrivedAt.contains(run.id()),
+                    verdicts));
+        }
+        return new InvocationReport.Runs(reading, rows);
+    }
+
     /** The bar of the four tabs, relative links, the page's own marked (ADR-269 section 1). */
     private static String tabBar(int current) {
         StringBuilder bar = new StringBuilder("<nav class=\"tabs\" aria-label=\"Progress pages\">");
@@ -836,7 +964,7 @@ final class ProgressPage implements JobExecutionListener {
         StringBuilder rows = new StringBuilder();
         for (Object[] entry : runs) {
             Runs.Listed run = (Runs.Listed) entry[0];
-            List<String> steps = STEPS_OF_A_STAGE.get(run.stage());
+            List<String> steps = InvocationReport.STEPS_OF_A_STAGE.get(run.stage());
             Set<String> done = held.read().finished().getOrDefault(run.id(), Set.of());
             long finished = steps == null ? 0 : steps.stream().filter(done::contains).count();
             String[] cells = new String[6 + BLOCKING.size()];
@@ -953,44 +1081,6 @@ final class ProgressPage implements JobExecutionListener {
         return String.format(Locale.ROOT, "%,.1f", perMinute) + over(base, latest);
     }
 
-    /** The four legs of the timeline, each with its steps in job order, every step in exactly one (ADR-324 section 1). */
-    private static final Map<String, List<String>> LEGS = legs();
-
-    private static Map<String, List<String>> legs() {
-        Map<String, List<String>> legs = new LinkedHashMap<>();
-        legs.put("deduplication", List.of(
-                StepNames.CENSUS, StepNames.BYTE_LEVEL_REDUCTION, StepNames.EXTRACTION, StepNames.CONTENT_CENSUS,
-                StepNames.REDUNDANCY_SIGNATURE, StepNames.CONTENT_REDUNDANCY));
-        legs.put(StepNames.TRANSLATION, List.of(
-                StepNames.SEED_EXTRACTION, StepNames.SEED_CORPUS_COMPARISON, StepNames.EMBEDDING_SCORING,
-                StepNames.TRANSLATION));
-        legs.put(StepNames.CLUSTERING, List.of(
-                StepNames.RELEVANCE_SCORING, StepNames.RELEVANCE_FLOOR, StepNames.CLUSTERING, StepNames.RELEVANCE_REPORT));
-        legs.put(StepNames.GENERATION, List.of(StepNames.ARRANGEMENT, StepNames.GENERATION));
-        return Collections.unmodifiableMap(legs);
-    }
-
-    /** A leg's state, read off its steps' states at the write by the first rule that holds (ADR-324 section 3). */
-    private static String legState(List<String> steps, Map<String, String> states, boolean last) {
-        List<String> of = steps.stream().map(states::get).toList();
-        if (of.stream().allMatch("not started"::equals)) {
-            return "not started";
-        }
-        if (of.stream().allMatch("finished"::equals)) {
-            return "finished";
-        }
-        if (of.contains("failed")) {
-            return "failed";
-        }
-        if (of.contains("stopped at a gate")) {
-            return "stopped at a gate";
-        }
-        if (of.contains("running")) {
-            return "running";
-        }
-        return last ? "failed" : "running";
-    }
-
     /**
      * The timeline's card (ADR-324): one time axis, then a leg each, each holding a summary with the leg's bar and
      * the drawing of its steps, one bar a step on the same axis of time from the job's start to this write (ADR-267
@@ -1016,9 +1106,9 @@ final class ProgressPage implements JobExecutionListener {
                 .append("\" y=\"").append(axis + 20).append("\">Elapsed (h:mm:ss)</text>\n</svg>\n");
         String firstGated = STEPS_IN_JOB_ORDER.stream()
                 .filter(step -> "stopped at a gate".equals(states.get(step))).findFirst().orElse(null);
-        for (Map.Entry<String, List<String>> leg : LEGS.entrySet()) {
+        for (Map.Entry<String, List<String>> leg : InvocationReport.LEGS.entrySet()) {
             String name = leg.getKey();
-            String state = legState(leg.getValue(), states, last);
+            String state = InvocationReport.legState(leg.getValue(), states, last);
             boolean open = "running".equals(state) || "failed".equals(state)
                     || (firstGated != null && leg.getValue().contains(firstGated));
             Instant from = null;

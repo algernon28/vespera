@@ -113,7 +113,7 @@ class ClusteringTasklet implements Tasklet {
                 "stage 5's clustering step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
-            ShutGates.in(chunkContext).record(StepNames.CLUSTERING);
+            ShutGates.in(chunkContext).record(StepNames.CLUSTERING, preamble.key().orElse(null));
             return RepeatStatus.FINISHED;
         }
 

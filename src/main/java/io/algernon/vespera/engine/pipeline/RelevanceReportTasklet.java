@@ -144,7 +144,7 @@ class RelevanceReportTasklet implements Tasklet {
                 "stage 5's relevance-report step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
-            ShutGates.in(chunkContext).record(StepNames.RELEVANCE_REPORT);
+            ShutGates.in(chunkContext).record(StepNames.RELEVANCE_REPORT, preamble.key().orElse(null));
             return RepeatStatus.FINISHED;
         }
 

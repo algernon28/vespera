@@ -142,6 +142,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "GenerationModel",
             "GenerationTasklet",
             "InvocationAccount",
+            // ADR-362: writes report.json from typed values the progress page and the commands hand it; it decides no
+            // verdict, cache key, cluster or text of the deliverable.
+            "InvocationReport",
             "InvocationRuns",
             "LabelFileReader",
             "LabelIngestion",

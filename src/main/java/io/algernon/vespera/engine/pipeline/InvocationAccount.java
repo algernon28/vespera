@@ -89,6 +89,7 @@ final class InvocationAccount implements JobExecutionListener {
     private final Path accountDirectory;
     private final JdbcTemplate jdbcTemplate;
     private final Clock clock;
+    private final InvocationReport report;
 
     private BufferedWriter out;
     private Path file;
@@ -102,6 +103,14 @@ final class InvocationAccount implements JobExecutionListener {
      *     account is always written in {@code <workingDirectory>/logs}
      */
     InvocationAccount(Path workingDirectory, Path accountDirectory, JdbcTemplate jdbcTemplate, Clock clock) {
+        this(workingDirectory, accountDirectory, jdbcTemplate, clock, null);
+    }
+
+    /** As above, handing its counts to {@code report} as well as to its file (ADR-362 section 3). */
+    InvocationAccount(
+            Path workingDirectory, Path accountDirectory, JdbcTemplate jdbcTemplate, Clock clock,
+            InvocationReport report) {
+        this.report = report;
         this.workingDirectory = workingDirectory;
         this.accountDirectory = accountDirectory;
         this.jdbcTemplate = jdbcTemplate;
@@ -197,6 +206,8 @@ final class InvocationAccount implements JobExecutionListener {
             return;
         }
         Object[] args = ids.toArray();
+        Map<String, Object> held = new java.util.LinkedHashMap<>();
+        held.put("occurrences", null);
         // The run ids' placeholders, which each statement brackets after its own IN, so that a test planning
         // the text reads a list there (ADR-224).
         String runIds = Placeholders.of(args.length);
@@ -206,36 +217,42 @@ final class InvocationAccount implements JobExecutionListener {
                     Long.class,
                     run.value());
             writeQuietly("counts occurrences=" + occurrences);
+            held.put("occurrences", occurrences);
         });
         // ADR-224 section 1: a total and a sum for each constant in declaration order, each text written out
         // whole so that a test plans it, NOCASE because a category is stored in lower case.
-        counted("SELECT COUNT(*), SUM(kind = 'BROKEN' COLLATE NOCASE),"
+        held.put("verdicts", counted("SELECT COUNT(*), SUM(kind = 'BROKEN' COLLATE NOCASE),"
                 + " SUM(kind = 'DUPLICATE_OF' COLLATE NOCASE), SUM(kind = 'SUPERSEDED_BY' COLLATE NOCASE),"
                 + " SUM(kind = 'OUT_OF_SCOPE' COLLATE NOCASE), SUM(kind = 'CODE' COLLATE NOCASE),"
                 + " SUM(kind = 'EXTRACTION_FAILED' COLLATE NOCASE),"
                 + " SUM(kind = 'DEGENERATE_OUTPUT' COLLATE NOCASE), SUM(kind = 'REDUNDANT_WITH' COLLATE NOCASE),"
                 + " SUM(kind = 'TRANSLATION_OF' COLLATE NOCASE),"
                 + " SUM(kind = 'BELOW_THRESHOLD' COLLATE NOCASE), SUM(kind = 'PASSED' COLLATE NOCASE)"
-                + " FROM verdict WHERE run_id IN (" + runIds + ")", args, "verdict kind", VerdictKind.class, false);
-        counted("SELECT COUNT(*),"
+                + " FROM verdict WHERE run_id IN (" + runIds + ")", args, "verdict kind", VerdictKind.class, false));
+        held.put("extractionFaults", counted("SELECT COUNT(*),"
                 + " SUM(category = 'POLICY' COLLATE NOCASE), SUM(category = 'CAPACITY' COLLATE NOCASE),"
                 + " SUM(category = 'SOURCE_UNAVAILABLE' COLLATE NOCASE),"
                 + " SUM(category = 'TARGET_UNAVAILABLE' COLLATE NOCASE), SUM(category = 'TIMEOUT' COLLATE NOCASE),"
                 + " SUM(category = 'INTERNAL' COLLATE NOCASE), SUM(category = 'BACKEND_FAILURE' COLLATE NOCASE),"
                 + " SUM(category = 'INFERENCE_FAILURE' COLLATE NOCASE), SUM(category = 'UNKNOWN' COLLATE NOCASE)"
                 + " FROM extraction_fault WHERE run_id IN (" + runIds + ")", args, "extraction-fault category",
-                FailureCategory.class, true);
-        counted("SELECT COUNT(*),"
+                FailureCategory.class, true));
+        held.put("clusterFaults", counted("SELECT COUNT(*),"
                 + " SUM(kind = 'PROMPT_EVALUATION_CEILING' COLLATE NOCASE),"
                 + " SUM(kind = 'ANSWER_RAN_OUT_OF_ROOM' COLLATE NOCASE), SUM(kind = 'SCHEMA_VIOLATION' COLLATE NOCASE),"
                 + " SUM(kind = 'CITATION_NOT_IN_RANGE' COLLATE NOCASE)"
                 + " FROM cluster_fault WHERE run_id IN (" + runIds + ")", args, "cluster-fault kind",
-                ClusterFaultKind.class, false);
+                ClusterFaultKind.class, false));
         Long clusters = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM cluster WHERE run_id IN (" + runIds + ")", Long.class, args);
         Long written = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM synthesis_doc WHERE run_id IN (" + runIds + ")", Long.class, args);
         line("counts clusters arranged=" + clusters + " written=" + written);
+        held.put("clusters", clusters);
+        held.put("synthesisDocs", written);
+        if (report != null) {
+            report.counted(held);
+        }
         if (runs.clustersStanding() > 0) {
             line("counts clusters standing-without-writing=" + runs.clustersStanding());
         }
@@ -246,9 +263,10 @@ final class InvocationAccount implements JobExecutionListener {
      * carry none: the total less the sums, so a stored value is never written (ADR-224 section 1). The sums
      * come in the order the constants are declared, which the text names.
      */
-    private <E extends Enum<E>> void counted(String sql, Object[] args, String what, Class<E> type, boolean lowerCase)
-            throws IOException {
+    private <E extends Enum<E>> Map<String, Object> counted(
+            String sql, Object[] args, String what, Class<E> type, boolean lowerCase) throws IOException {
         Map<String, Long> totals = new TreeMap<>();
+        Map<String, Object> held = new java.util.LinkedHashMap<>();
         jdbcTemplate.query(sql, resultSet -> {
             long other = resultSet.getLong(1);
             E[] kinds = type.getEnumConstants();
@@ -256,14 +274,17 @@ final class InvocationAccount implements JobExecutionListener {
                 long sum = resultSet.getLong(i + 2); // NULL over no rows reads as 0
                 other -= sum;
                 totals.put(lowerCase ? kinds[i].name().toLowerCase(Locale.ROOT) : kinds[i].name(), sum);
+                held.put(kinds[i].name().toLowerCase(Locale.ROOT).replace('_', '-'), sum);
             }
             totals.put("other", other);
+            held.put("other", other);
         }, args);
         for (Map.Entry<String, Long> total : totals.entrySet()) {
             if (total.getValue() > 0) {
                 line("counts " + what + "=" + total.getKey() + " count=" + total.getValue());
             }
         }
+        return held;
     }
 
     /** A run id is a hexadecimal digest; anything else is not written. */

@@ -94,7 +94,7 @@ class RelevanceScoringTasklet implements Tasklet {
                 "stage 5's relevance-scoring step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
-            ShutGates.in(chunkContext).record(StepNames.RELEVANCE_SCORING);
+            ShutGates.in(chunkContext).record(StepNames.RELEVANCE_SCORING, preamble.key().orElse(null));
             return RepeatStatus.FINISHED;
         }
         SeedGate.SeedWalk seedWalk = preamble.seedWalk().orElseThrow();

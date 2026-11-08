@@ -87,7 +87,7 @@ class RelevanceFloorTasklet implements Tasklet {
                 "stage 5's relevance-floor step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
-            ShutGates.in(chunkContext).record(StepNames.RELEVANCE_FLOOR);
+            ShutGates.in(chunkContext).record(StepNames.RELEVANCE_FLOOR, preamble.key().orElse(null));
             return RepeatStatus.FINISHED;
         }
 
