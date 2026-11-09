@@ -34,7 +34,8 @@ public final class Reports {
             "word-count-distribution",
             "document-frequency",
             "seed-corpus-comparison",
-            "translations");
+            "translations",
+            "cluster-sizes");
 
     /** The reports each key is read off, in the order the README's table of values names them. */
     public static final Map<String, List<String>> OF_A_KEY = Map.ofEntries(
