@@ -131,7 +131,8 @@ final class InvocationReport {
             Map.entry(SeedCorpusComparisonReport.NAME, 1),
             Map.entry(TranslationReport.NAME, TranslationReport.FORMAT),
             Map.entry(ClusterSizeReport.NAME, ClusterSizeReport.FORMAT),
-            Map.entry(RelevanceLabellingReport.NAME, RelevanceLabellingReport.FORMAT));
+            Map.entry(RelevanceLabellingReport.NAME, RelevanceLabellingReport.FORMAT),
+            Map.entry(ArrangementReport.NAME, AnalysisReportJson.FORMAT));
 
     /** The command {@code vespera run} begins as: written from a capital, as no literal of this class names a table (ADR-362 section 3). */
     static final String RUN = "Run".toLowerCase(Locale.ROOT);

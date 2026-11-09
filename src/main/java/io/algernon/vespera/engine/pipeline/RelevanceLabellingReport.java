@@ -55,7 +55,10 @@ final class RelevanceLabellingReport {
      */
     record IgnoredFloor(double value, String calibratedUnder, String currentIdentity) {}
 
-    /** The name of the page's JSON beside it, {@code relevance-labelling.json} (ADR-362 section 9). */
+    /** The file name of the page's JSON beside it (ADR-362 section 9). */
+    static final String JSON_FILE_NAME = "relevance-labelling.json";
+
+    /** The report's name, which its JSON carries as {@code analysisReport}. */
     static final String NAME = "relevance-labelling";
 
     /** The format of the page's JSON, raised by a change that removes, renames or retypes a field. */
@@ -89,7 +92,7 @@ final class RelevanceLabellingReport {
             IgnoredFloor ignoredFloor,
             Instant writtenAt)
             throws IOException {
-        AnalysisReportJson.write(directory.resolve(NAME + ".json"), json(distribution, previews, spread, ignoredFloor, writtenAt));
+        AnalysisReportJson.write(directory.resolve(JSON_FILE_NAME), json(distribution, previews, spread, ignoredFloor, writtenAt));
         Files.writeString(
                 directory.resolve(FILE_NAME), render(distribution, previews, spread, ignoredFloor), StandardCharsets.UTF_8);
     }

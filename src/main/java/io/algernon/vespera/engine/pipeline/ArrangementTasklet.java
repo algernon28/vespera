@@ -27,6 +27,7 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -88,6 +89,9 @@ class ArrangementTasklet implements Tasklet {
      * not a report over somebody else's run (ADR-110).
      */
     static final String ARRANGEMENT_FILE_NAME = "arrangement.html";
+
+    /** Its JSON, beside it, written from the same values (ADR-362 section 9). */
+    static final String ARRANGEMENT_JSON_FILE_NAME = "arrangement.json";
 
     private final SeedGate seedGate;
     private final UsableSeedGate usableSeedGate;
@@ -220,10 +224,19 @@ class ArrangementTasklet implements Tasklet {
             boolean recording) {
         Path file = workingDirectory.resolve(ARRANGEMENT_FILE_NAME);
         Path part = workingDirectory.resolve(ARRANGEMENT_FILE_NAME + ".part");
+        Path jsonFile = workingDirectory.resolve(ARRANGEMENT_JSON_FILE_NAME);
+        Path jsonPart = workingDirectory.resolve(ARRANGEMENT_JSON_FILE_NAME + ".part");
         int clustersShown = 0;
+        long documentsShown = 0;
         try {
             Files.createDirectories(workingDirectory);
-            try (Writer page = Files.newBufferedWriter(part, StandardCharsets.UTF_8)) {
+            try (Writer page = Files.newBufferedWriter(part, StandardCharsets.UTF_8);
+                    Writer jsonPage = Files.newBufferedWriter(jsonPart, StandardCharsets.UTF_8);
+                    AnalysisReportJson json = ArrangementReport.openJson(
+                            jsonPage,
+                            ArrangementGate.shortNameOf(arrangement),
+                            Walk.canonicalRoot(root).toString(),
+                            Instant.now())) {
                 ArrangementReport.open(
                         page, ArrangementGate.shortNameOf(arrangement), Walk.canonicalRoot(root).toString());
                 StageProgress partitionsDrawn =
@@ -259,14 +272,19 @@ class ArrangementTasklet implements Tasklet {
                             STAGE, "reading", "read", "the recorded clusters of " + whichPartition,
                             () -> clusters.ofPartition(arrangement, seed));
                     clustersShown += recorded.size();
-                    ArrangementReport.partition(
-                            page,
-                            new ArrangementReport.Partition(
-                                    seedPaths.get(seed), rowsOf(recorded, leads, documents, place, of)));
+                    ArrangementReport.Partition shown = new ArrangementReport.Partition(
+                            seedPaths.get(seed), rowsOf(recorded, leads, documents, place, of));
+                    documentsShown += shown.documentCount();
+                    ArrangementReport.partitionJson(json, place, shown);
+                    ArrangementReport.partition(page, shown);
                     partitionsDrawn.itemDone();
                 }
+                ArrangementReport.closeJson(json, of, clustersShown, documentsShown);
                 ArrangementReport.close(page, of);
             }
+            // The JSON is moved into place before the page is (ADR-362 section 9): a JSON that cannot be moved
+            // leaves the earlier pair, and a page that cannot be moved leaves the new JSON beside the earlier page.
+            ReplacingMove.ATOMIC.intoPlace(jsonPart, jsonFile);
             ReplacingMove.ATOMIC.intoPlace(part, file);
         } catch (IOException e) {
             throw new UncheckedIOException("could not write " + file, e);

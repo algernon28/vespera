@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonGenerator;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -30,10 +32,17 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>A report whose rows are too many to hold writes them a row at a time instead, through the streaming
  * {@link #write(Writer, String, int, String, Instant, List, StreamedSection, boolean, Rows)} (ADR-220).
  *
+ * <p>A report whose sections are written as they come, the headline last because a streamed page knows its numbers only
+ * at its end, writes through an instance: {@link #begin}, {@link #section} and {@link #end}. The caller owns the file:
+ * it opens the {@code .part}, hands the writer here, and moves the part into place.
+ *
  * <p>It holds no rule: what a report says, and under which sections, is its writer's, and each report's schema in
  * {@code docs/report} names its headline's keys, its sections' ids and each table's columns.
  */
-final class AnalysisReportJson {
+final class AnalysisReportJson implements AutoCloseable {
+
+    /** The report's own format (ADR-362 section 9). */
+    static final int FORMAT = 1;
 
     /** What a headline figure's value is counted in (ADR-362 section 9). */
     static final List<String> UNITS = List.of("count", "share", "bytes", "seconds", "number");
@@ -43,7 +52,11 @@ final class AnalysisReportJson {
     private static final DateTimeFormatter INSTANT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT).withZone(ZoneOffset.UTC);
 
-    private AnalysisReportJson() {}
+    private final JsonGenerator out;
+
+    private AnalysisReportJson(JsonGenerator out) {
+        this.out = out;
+    }
 
     /** One number the page states first: its {@code key}, {@code label}, {@code value} and {@code unit} from {@link #UNITS}. */
     record Figure(String key, String label, Number value, String unit) {}
@@ -151,6 +164,113 @@ final class AnalysisReportJson {
 
     private static String quoted(String text) {
         return MAPPER.writeValueAsString(text);
+    }
+
+    /** Begins the report on {@code target}: everything before its first section. */
+    static AnalysisReportJson begin(Writer target, String analysisReport, String title, Instant writtenAt)
+            throws IOException {
+        try {
+            AnalysisReportJson json = new AnalysisReportJson(MAPPER.createGenerator(target));
+            json.out.writeStartObject();
+            json.out.writeNumberProperty("format", FORMAT);
+            json.out.writeStringProperty("analysisReport", analysisReport);
+            json.out.writeStringProperty("title", title);
+            json.out.writeStringProperty("writtenAt", instant(writtenAt));
+            json.out.writeName("sections");
+            json.out.writeStartArray();
+            return json;
+        } catch (JacksonException e) {
+            throw new IOException(e);
+        }
+    }
+
+    /** One section; {@code columns} is {@code null} where it holds no table, and each row is a list of cells in the columns' order. */
+    void section(String id, String title, List<String> text, List<Column> columns, List<List<Object>> rows)
+            throws IOException {
+        try {
+            out.writeStartObject();
+            out.writeStringProperty("id", id);
+            out.writeStringProperty("title", title);
+            out.writeName("text");
+            out.writeStartArray();
+            for (String paragraph : text) {
+                out.writeString(paragraph);
+            }
+            out.writeEndArray();
+            out.writeNullProperty("chart");
+            out.writeName("table");
+            if (columns == null) {
+                out.writeNull();
+            } else {
+                out.writeStartObject();
+                out.writeName("columns");
+                out.writeStartArray();
+                for (Column column : columns) {
+                    out.writeStartObject();
+                    out.writeStringProperty("id", column.id());
+                    out.writeStringProperty("label", column.label());
+                    out.writeStringProperty("kind", column.kind());
+                    out.writeEndObject();
+                }
+                out.writeEndArray();
+                out.writeName("rows");
+                out.writeStartArray();
+                for (List<Object> row : rows) {
+                    out.writeStartArray();
+                    for (Object cell : row) {
+                        cellOf(cell);
+                    }
+                    out.writeEndArray();
+                }
+                out.writeEndArray();
+                out.writeEndObject();
+            }
+            out.writeEndObject();
+        } catch (JacksonException e) {
+            throw new IOException(e);
+        }
+    }
+
+    private void cellOf(Object cell) {
+        switch (cell) {
+            case null -> out.writeNull();
+            case String text -> out.writeString(text);
+            case Double number -> out.writeNumber(number);
+            case Number number -> out.writeNumber(number.longValue());
+            default -> throw new IllegalArgumentException("not a cell: " + cell.getClass().getName());
+        }
+    }
+
+    /** Ends the sections, writes the headline and closes the generator and the writer under it. */
+    void end(List<Figure> headline) throws IOException {
+        try {
+            out.writeEndArray();
+            out.writeName("headline");
+            out.writeStartArray();
+            for (Figure figure : headline) {
+                out.writeStartObject();
+                out.writeStringProperty("key", figure.key());
+                out.writeStringProperty("label", figure.label());
+                out.writeName("value");
+                if (figure.value() instanceof Double number) {
+                    out.writeNumber(number);
+                } else {
+                    out.writeNumber(figure.value().longValue());
+                }
+                out.writeStringProperty("unit", figure.unit());
+                out.writeEndObject();
+            }
+            out.writeEndArray();
+            out.writeEndObject();
+            out.close();
+        } catch (JacksonException e) {
+            throw new IOException(e);
+        }
+    }
+
+    @Override
+    public void close() {
+        out.close();
     }
 
     /**
