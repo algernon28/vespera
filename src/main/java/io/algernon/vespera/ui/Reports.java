@@ -20,6 +20,12 @@ public final class Reports {
             "seed-corpus-comparison", "translations", "cluster-sizes", "relevance-labelling",
             "arrangement", "cluster-page-sizes");
 
+    /**
+     * The analysis reports the window draws natively from their JSON (ADR-362 §10); every other opens in its viewer, until
+     * the viewer goes. Each report's ticket of step 7 adds its name.
+     */
+    public static final java.util.Set<String> OPENING_NATIVELY = java.util.Set.of("format-mix");
+
     /** The reports each key is read off, in the order the README's table of values names them. */
     public static final Map<String, List<String>> OF_A_KEY = Map.ofEntries(
             Map.entry("boilerplateDocumentFrequencyFloor", List.of("document-frequency")),
