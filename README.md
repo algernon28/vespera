@@ -171,6 +171,7 @@ seed-corpus-comparison.html      how far your exemplars resemble the archive
 translations.html                the documents held in several languages, and how alike they are
 translations.json                 the same report's numbers and rows as data, written beside its page; report.json copies its headline
 relevance-labelling.html         the report you read to choose the threshold
+relevance-labelling.json         the same report's numbers and rows as data, written beside its page; report.json copies its headline
 relevance-labels.yaml            the questions you answer, sixty as Vespera ships
 cluster-sizes.html               how the survivors grouped under each exemplar
 cluster-page-sizes.html          how large each group's page is, in bytes, written each time the tree is drawn
