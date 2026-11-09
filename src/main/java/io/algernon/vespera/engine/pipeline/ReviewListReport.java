@@ -4,6 +4,8 @@ import io.algernon.vespera.engine.ledger.RemovedOccurrence;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.io.Writer;
+import java.time.Instant;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -26,7 +28,56 @@ final class ReviewListReport {
 
     private static final String TITLE = "Files stage 2 could not read";
 
+    /** The name of the report, its page's with {@code .html} for {@code .json}. */
+    static final String NAME = "extraction-failures";
+
     private ReviewListReport() {}
+
+    /** The paragraph the page and its JSON open with where {@code count} files could not be read. */
+    private static String somethingWasFound(long count) {
+        return "Files that could not be read: " + count
+                + ". Each was marked and skipped; the run went on. They stay removed under this"
+                + " run. A file whose reason begins with could not be read, rejected, crashed the converter, timeout,"
+                + " capacity, target_unavailable or internal left nothing stored, so the next run of"
+                + " this stage asks the converter about it again.";
+    }
+
+    /**
+     * Writes the page to {@code page} and its JSON to {@code json} in one pass over the rows (ADR-362 section 9),
+     * each from the same values: the JSON holds the count as its headline and each failure's path and reason as a
+     * row of its one table, which a list of nothing leaves {@code null} as its page leaves none.
+     *
+     * @throws IOException if either writer refuses a write, including while {@code eachFailure} is handing over rows
+     */
+    static void write(
+            Writer page,
+            Writer json,
+            long count,
+            Instant writtenAt,
+            Consumer<Consumer<RemovedOccurrence>> eachFailure)
+            throws IOException {
+        String paragraph =
+                count == 0 ? "No file failed. Stage 2 read every file it was given." : somethingWasFound(count);
+        AnalysisReportJson.Section section = new AnalysisReportJson.Section(
+                "failures",
+                TITLE,
+                List.of(paragraph),
+                List.of(
+                        new AnalysisReportJson.Column("path", "Path", "path"),
+                        new AnalysisReportJson.Column("reason", "Why", "text")));
+        List<AnalysisReportJson.Figure> headline =
+                List.of(new AnalysisReportJson.Figure("failed", "Files that could not be read", count, "count"));
+        if (count == 0) {
+            AnalysisReportJson.write(json, NAME, 1, TITLE, writtenAt, headline, section, false, rows -> {});
+            write(page, count, eachFailure);
+            return;
+        }
+        AnalysisReportJson.write(json, NAME, 1, TITLE, writtenAt, headline, section, true, rows ->
+                write(page, count, each -> eachFailure.accept(failure -> {
+                    rows.accept(List.of(failure.path(), failure.reason()));
+                    each.accept(failure);
+                })));
+    }
 
     /**
      * Writes the page for {@code count} failures to {@code out}, the rows as {@code eachFailure} hands them
@@ -44,11 +95,7 @@ final class ReviewListReport {
         if (count == 0) {
             out.write(ReportPage.paragraph("No file failed. Stage 2 read every file it was given."));
         } else {
-            out.write(ReportPage.paragraph("Files that could not be read: " + count
-                    + ". Each was marked and skipped; the run went on. They stay removed under this"
-                    + " run. A file whose reason begins with could not be read, rejected, crashed the converter, timeout,"
-                    + " capacity, target_unavailable or internal left nothing stored, so the next run of"
-                    + " this stage asks the converter about it again."));
+            out.write(ReportPage.paragraph(somethingWasFound(count)));
             out.write(ReportPage.tableOpened());
             out.write(ReportPage.headerRow("Path", "Why"));
             try {

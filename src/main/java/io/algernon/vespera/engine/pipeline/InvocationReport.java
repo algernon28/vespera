@@ -766,12 +766,13 @@ final class InvocationReport {
         List<Object> tree = new ArrayList<>();
         for (String name : ANALYSIS_REPORTS) {
             Path html = workingDirectory.resolve(name + ".html");
+            Path json = workingDirectory.resolve(name + ".json");
             tree.add(object(
                     "name", name,
                     "html", html.toString(),
-                    "json", workingDirectory.resolve(name + ".json").toString(),
+                    "json", json.toString(),
                     "written", Files.isRegularFile(html),
-                    "headline", null));
+                    "headline", AnalysisReportJson.headlineOf(name, json)));
         }
         return tree;
     }
