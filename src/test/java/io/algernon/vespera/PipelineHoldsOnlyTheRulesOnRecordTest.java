@@ -90,6 +90,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
      * {@code RelevanceFloorTasklet} and {@code GenerationTasklet}.
      */
     private static final Set<String> HOLDING_NO_RULE = Set.of(
+            // ADR-362 section 9: the shape the analysis reports' JSON share, built from the numbers each report hands it.
+            "AnalysisReportJson",
             "ArchiveGoneException",
             "ArrangementGate",
             "ArrangementReport",

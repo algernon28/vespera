@@ -762,6 +762,17 @@ final class InvocationReport {
                 ARRANGEMENT, contents.arrangement().orElse(null));
     }
 
+    /** The format of each analysis report's JSON the jar reads a headline from; a report joins when its writer does. */
+    private static final Map<String, Integer> ANALYSIS_REPORT_FORMATS = Map.of(ClusterSizeReport.NAME, ClusterSizeReport.FORMAT);
+
+    /** The {@code headline} of a report's JSON, {@code null} where it is not there, cannot be read or is of another format. */
+    private List<Object> headlineOf(String name) {
+        Integer format = ANALYSIS_REPORT_FORMATS.get(name);
+        return format == null
+                ? null
+                : AnalysisReportJson.headlineIn(workingDirectory.resolve(name + AnalysisReportJson.ENDING), format);
+    }
+
     private List<Object> analysisReportsTree() {
         List<Object> tree = new ArrayList<>();
         for (String name : ANALYSIS_REPORTS) {
@@ -771,7 +782,7 @@ final class InvocationReport {
                     "html", html.toString(),
                     "json", workingDirectory.resolve(name + ".json").toString(),
                     "written", Files.isRegularFile(html),
-                    "headline", null));
+                    "headline", headlineOf(name)));
         }
         return tree;
     }
@@ -861,7 +872,7 @@ final class InvocationReport {
     }
 
     /** JSON text of a tree of maps, lists, strings, numbers, booleans and nulls. */
-    private static final class Json {
+    static final class Json {
 
         private Json() {}
 

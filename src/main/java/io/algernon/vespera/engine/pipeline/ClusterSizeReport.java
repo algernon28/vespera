@@ -1,9 +1,11 @@
 package io.algernon.vespera.engine.pipeline;
 
 import io.algernon.vespera.engine.embedding.RetainedEdgeSpread;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -22,6 +24,71 @@ import java.util.Optional;
  * document belongs to.
  */
 final class ClusterSizeReport {
+
+    /** This report's name: its page's without the ending, and its JSON's (ADR-362 section 9). */
+    static final String NAME = "cluster-sizes";
+
+    /** The format of {@code cluster-sizes.json}, raised by a change that removes, renames or retypes a field. */
+    static final int FORMAT = 1;
+
+    private static final String TITLE = "How the documents grouped under each exemplar";
+
+    private static final String INTRO =
+            "Each document was matched to one exemplar, and the"
+            + " documents matched to the same exemplar were then grouped among themselves"
+            + " by how alike they are. Nobody said how many groups to look for: the groups"
+            + " are whatever the documents turned out to form, and this page is what they"
+            + " turned out to be. Nothing here was removed, merged or renamed.";
+
+    private static final String NONE =
+            "No document was matched to an exemplar, so there was nothing"
+            + " to group.";
+
+    private static final String GROUPS_OF_ONE =
+            "<em>Groups of one</em> is the number to look at first. A"
+            + " document alone in its group is a real answer rather than a mistake: it"
+            + " means the exemplar collected that document on its own merits and not"
+            + " because it belongs with the others. An exemplar whose documents are nearly"
+            + " all alone is telling you something about the exemplar, and no amount of"
+            + " regrouping would change it.";
+
+    private static final String MIDDLE =
+            "The <em>middle group</em> sits halfway up the sizes,"
+            + " which says more than an average would: one group holding most of an"
+            + " exemplar's documents pulls an average upwards and leaves the impression of"
+            + " evenly-sized groups that are not there.";
+
+    private static final String LINKS =
+            "The three <em>link</em> columns are how alike the"
+            + " documents actually were, where 1 is a pair saying the same thing and 0 is a"
+            + " pair with nothing in common. A link is one pair of documents the grouping"
+            + " treated as belonging together, and every document is linked to its nearest"
+            + " few <em>whether or not they are close</em> — nothing here requires a pair"
+            + " to be alike before grouping them.";
+
+    private static final String STRONGEST =
+            "<b>That is why the strongest link is worth reading"
+            + " first.</b> If even it is low, the documents in that exemplar's groups were"
+            + " put together for want of anything better and not because they resemble one"
+            + " another, and the groups will read as lists of unrelated documents under one"
+            + " heading. Where the weakest link is already high, the documents genuinely"
+            + " belong together and the groups are describing the archive rather than the"
+            + " arithmetic. No number here is a cut: nothing was removed or merged on"
+            + " account of a low link, and what a low one is worth doing about is for"
+            + " whoever has read the documents.";
+
+    private static final String ONE_DOCUMENT =
+            "An exemplar with one document has no link at all, shown"
+            + " as <code>&mdash;</code>: there is no pair for a number to describe.";
+
+    private static final String CANNOT_SEE =
+            "Whether a group reads as one coherent subject to a"
+            + " person. The link columns narrow this: a group of forty documents that"
+            + " resemble nothing no longer looks the same as a group of forty that resemble"
+            + " each other, which is all the sizes alone could say. What resemblance cannot"
+            + " say is what the documents are about — forty documents alike enough to be"
+            + " linked can still be forty things nobody would file under one heading, and"
+            + " only reading them settles that.";
 
     private ClusterSizeReport() {}
 
@@ -68,21 +135,89 @@ final class ClusterSizeReport {
         }
     }
 
+    /**
+     * What the page shows, as {@code cluster-sizes.json} holds it (ADR-362 section 9): the same partitions, the same
+     * numbers, in the same order, and the paragraphs the page reads, stripped of their markup. A link the page shows
+     * as a dash is {@code null}, and one it shows to two places is those two places.
+     */
+    static String renderJson(List<Partition> partitions, Instant writtenAt) {
+        List<String> intro = new ArrayList<>(List.of(plain(INTRO)));
+        List<Map<String, Object>> sections = new ArrayList<>();
+        if (partitions.isEmpty()) {
+            intro.add(plain(NONE));
+            sections.add(AnalysisReportJson.section("partitions", TITLE, intro, null, null));
+            return AnalysisReportJson.render(NAME, FORMAT, TITLE, writtenAt, headline(partitions), sections);
+        }
+        List<List<Object>> rows = new ArrayList<>();
+        for (Partition partition : partitions) {
+            List<Object> row = new ArrayList<>();
+            row.add(partition.seedPath());
+            row.add((long) partition.documentCount());
+            row.add((long) partition.clusterCount());
+            row.add((long) partition.largest());
+            row.add((long) partition.median());
+            row.add((long) partition.singletons());
+            row.add(shown(partition.spread().map(RetainedEdgeSpread::lowest).orElse(null)));
+            row.add(shown(partition.spread().map(RetainedEdgeSpread::middle).orElse(null)));
+            row.add(shown(partition.spread().map(RetainedEdgeSpread::highest).orElse(null)));
+            rows.add(row);
+        }
+        List<Map<String, Object>> columns = List.of(
+                AnalysisReportJson.column("exemplar", "Exemplar", "path"),
+                AnalysisReportJson.column("documents", "Documents", "count"),
+                AnalysisReportJson.column("groups", "Groups", "count"),
+                AnalysisReportJson.column("largest-group", "Largest group", "count"),
+                AnalysisReportJson.column("middle-group", "Middle group", "count"),
+                AnalysisReportJson.column("groups-of-one", "Groups of one", "count"),
+                AnalysisReportJson.column("weakest-link", "Weakest link", "number"),
+                AnalysisReportJson.column("middle-link", "Middle link", "number"),
+                AnalysisReportJson.column("strongest-link", "Strongest link", "number"));
+        sections.add(AnalysisReportJson.section("partitions", TITLE, intro, null, AnalysisReportJson.table(columns, rows)));
+        sections.add(AnalysisReportJson.section(
+                "how-to-read",
+                "How to read this",
+                List.of(plain(GROUPS_OF_ONE), plain(MIDDLE), plain(LINKS), plain(STRONGEST), plain(ONE_DOCUMENT)),
+                null,
+                null));
+        sections.add(AnalysisReportJson.section(
+                "what-this-page-cannot-see", "What this page cannot see", List.of(plain(CANNOT_SEE)), null, null));
+        return AnalysisReportJson.render(NAME, FORMAT, TITLE, writtenAt, headline(partitions), sections);
+    }
+
+    /** The numbers the page states first: what the exemplars' partitions came to between them. */
+    private static List<Map<String, Object>> headline(List<Partition> partitions) {
+        return List.of(
+                AnalysisReportJson.figure("partitions", "Exemplars grouped", (long) partitions.size(), "count"),
+                AnalysisReportJson.figure(
+                        "documents", "Documents grouped",
+                        partitions.stream().mapToLong(Partition::documentCount).sum(), "count"),
+                AnalysisReportJson.figure(
+                        "groups", "Groups",
+                        partitions.stream().mapToLong(Partition::clusterCount).sum(), "count"),
+                AnalysisReportJson.figure(
+                        "groups-of-one", "Groups of one",
+                        partitions.stream().mapToLong(Partition::singletons).sum(), "count"));
+    }
+
+    /** A resemblance as the page shows it, to two places, or {@code null} where it shows a dash. */
+    private static Double shown(Double value) {
+        return value == null ? null : Double.valueOf(String.format(Locale.ROOT, "%.2f", value));
+    }
+
+    /** A paragraph of the page as the words a reader reads: its markup taken off, its dash as a dash. */
+    private static String plain(String html) {
+        return html.replaceAll("<[^>]*>", "").replace("&mdash;", "\u2014");
+    }
+
     static String render(List<Partition> partitions) {
         StringBuilder body = new StringBuilder();
         body.append(ReportPage.heading(1, "How the documents grouped under each exemplar"))
-                .append(ReportPage.paragraph("Each document was matched to one exemplar, and the"
-                        + " documents matched to the same exemplar were then grouped among themselves"
-                        + " by how alike they are. Nobody said how many groups to look for: the groups"
-                        + " are whatever the documents turned out to form, and this page is what they"
-                        + " turned out to be. Nothing here was removed, merged or renamed."));
+                .append(ReportPage.paragraph(INTRO));
 
         if (partitions.isEmpty()) {
             return ReportPage.render(
                     "How the documents grouped under each exemplar",
-                    body.append(ReportPage.paragraph(
-                                    "No document was matched to an exemplar, so there was nothing"
-                                            + " to group."))
+                    body.append(ReportPage.paragraph(NONE))
                             .toString());
         }
 
@@ -108,41 +243,13 @@ final class ClusterSizeReport {
         body.append(ReportPage.table(headers, rows.toString()));
 
         body.append(ReportPage.heading(2, "How to read this"))
-                .append(ReportPage.paragraph("<em>Groups of one</em> is the number to look at first. A"
-                        + " document alone in its group is a real answer rather than a mistake: it"
-                        + " means the exemplar collected that document on its own merits and not"
-                        + " because it belongs with the others. An exemplar whose documents are nearly"
-                        + " all alone is telling you something about the exemplar, and no amount of"
-                        + " regrouping would change it."))
-                .append(ReportPage.paragraph("The <em>middle group</em> sits halfway up the sizes,"
-                        + " which says more than an average would: one group holding most of an"
-                        + " exemplar's documents pulls an average upwards and leaves the impression of"
-                        + " evenly-sized groups that are not there."))
-                .append(ReportPage.paragraph("The three <em>link</em> columns are how alike the"
-                        + " documents actually were, where 1 is a pair saying the same thing and 0 is a"
-                        + " pair with nothing in common. A link is one pair of documents the grouping"
-                        + " treated as belonging together, and every document is linked to its nearest"
-                        + " few <em>whether or not they are close</em> — nothing here requires a pair"
-                        + " to be alike before grouping them."))
-                .append(ReportPage.paragraph("<b>That is why the strongest link is worth reading"
-                        + " first.</b> If even it is low, the documents in that exemplar's groups were"
-                        + " put together for want of anything better and not because they resemble one"
-                        + " another, and the groups will read as lists of unrelated documents under one"
-                        + " heading. Where the weakest link is already high, the documents genuinely"
-                        + " belong together and the groups are describing the archive rather than the"
-                        + " arithmetic. No number here is a cut: nothing was removed or merged on"
-                        + " account of a low link, and what a low one is worth doing about is for"
-                        + " whoever has read the documents."))
-                .append(ReportPage.paragraph("An exemplar with one document has no link at all, shown"
-                        + " as <code>&mdash;</code>: there is no pair for a number to describe."))
+                .append(ReportPage.paragraph(GROUPS_OF_ONE))
+                .append(ReportPage.paragraph(MIDDLE))
+                .append(ReportPage.paragraph(LINKS))
+                .append(ReportPage.paragraph(STRONGEST))
+                .append(ReportPage.paragraph(ONE_DOCUMENT))
                 .append(ReportPage.heading(2, "What this page cannot see"))
-                .append(ReportPage.paragraph("Whether a group reads as one coherent subject to a"
-                        + " person. The link columns narrow this: a group of forty documents that"
-                        + " resemble nothing no longer looks the same as a group of forty that resemble"
-                        + " each other, which is all the sizes alone could say. What resemblance cannot"
-                        + " say is what the documents are about — forty documents alike enough to be"
-                        + " linked can still be forty things nobody would file under one heading, and"
-                        + " only reading them settles that."));
+                .append(ReportPage.paragraph(CANNOT_SEE));
 
         return ReportPage.render("How the documents grouped under each exemplar", body.toString());
     }
