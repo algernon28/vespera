@@ -18,7 +18,8 @@ public final class AnalysisReportFile {
 
     /**
      * The {@code format} the window reads for each analysis report, by name: an entry is added with each report's
-     * native view (ADR-362 §13 step 7). A report with no entry is read as {@link #FIRST_FORMAT}.
+     * native view (ADR-362 §13 step 7), and its names are the reports the window draws natively. A report with no
+     * entry is read as {@link #FIRST_FORMAT}.
      */
     public static final Map<String, Integer> FORMATS = Map.ofEntries(
             Map.entry("extraction-failures", 1),
@@ -27,7 +28,8 @@ public final class AnalysisReportFile {
             Map.entry("confidence-distribution", 1),
             Map.entry("word-count-distribution", 1),
             Map.entry("document-frequency", 1),
-            Map.entry("seed-corpus-comparison", 1));
+            Map.entry("seed-corpus-comparison", 1),
+            Map.entry("translations", 1));
 
     /** The format every report's JSON is first written in. */
     static final int FIRST_FORMAT = 1;

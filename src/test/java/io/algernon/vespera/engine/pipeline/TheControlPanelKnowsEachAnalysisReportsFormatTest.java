@@ -35,6 +35,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Issue("751")
 @Issue("752")
 @Issue("753")
+@Issue("754")
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
 class TheControlPanelKnowsEachAnalysisReportsFormatTest {
 
@@ -105,5 +106,16 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
     void theReportsTheWindowDrawsNativelyHoldTheContentCensus() {
         claim("each of the three is in the set the shipped window is given", () -> assertThat(Reports.OPENING_NATIVELY)
                 .containsAll(THE_CONTENT_CENSUS));
+    }
+
+    @Test
+    @Story("The operator reads the reports inside the window")
+    @DisplayName("The window reads the translation report's JSON in the format the jar writes it in")
+    void theTranslationReportIsReadInTheFormatTheJarWritesIt() {
+        claim("the window's entry for the translation report is the format its writer writes, " + TranslationReport.FORMAT,
+                () -> assertThat(AnalysisReportFile.FORMATS).containsEntry(TranslationReport.NAME,
+                        TranslationReport.FORMAT));
+        claim("the translation report is among the reports the window draws natively",
+                () -> assertThat(Reports.OPENING_NATIVELY).contains(TranslationReport.NAME));
     }
 }

@@ -33,7 +33,8 @@ public final class Reports {
             "confidence-distribution",
             "word-count-distribution",
             "document-frequency",
-            "seed-corpus-comparison");
+            "seed-corpus-comparison",
+            "translations");
 
     /** The reports each key is read off, in the order the README's table of values names them. */
     public static final Map<String, List<String>> OF_A_KEY = Map.ofEntries(
