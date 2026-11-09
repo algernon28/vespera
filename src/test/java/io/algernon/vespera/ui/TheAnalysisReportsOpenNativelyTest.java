@@ -36,7 +36,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * An analysis report opens in the window drawn by JavaFX's controls from its JSON (ADR-362 §10), in a tab
  * {@code analysis-report-<name>}: its headline's tiles, and each section's chart and table, with a cell that leads
- * where its column's kind says. The window as shipped draws none natively, so each test gives the state the set of names
+ * where its column's kind says. Each test gives the state the set of names
  * that do; a report outside it still opens in its viewer, under the new tab id, until the viewer goes (ADR-362 §13).
  *
  * <p>The window runs on the Headless platform as every window test does (ADR-342 §6), and what is handed to the system
