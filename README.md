@@ -161,6 +161,7 @@ progress-steps.html              the same progress page's steps, as a table
 progress-samples.html            the same progress page's samples over time, as a table
 progress-runs.html               every run this working directory holds, as a table
 format-mix.html                  what kinds of file the archive holds
+format-mix.json                  the same report's numbers and rows as data, written beside its page; report.json copies its headline
 extraction-failures.html         the files that could not be read, and why
 extraction-survivors.html        the files that were read and kept
 confidence-distribution.html     how well the text came out
