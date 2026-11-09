@@ -3,8 +3,11 @@ package io.algernon.vespera.engine.pipeline;
 import io.algernon.vespera.engine.corpus.DetectedFormat;
 import io.algernon.vespera.engine.extraction.WordCountDistribution;
 import io.algernon.vespera.engine.ledger.RunId;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Renders {@link WordCountDistribution.Distribution} as {@code word-count-distribution.html}, the page the word
@@ -86,6 +89,79 @@ final class WordCountDistributionReport {
                         + "</code> in the profile, and say in its <code>provenance</code> how you arrived at it."
                         + " The key ships unset, and while it is unset no file is removed for having too few words.");
         return ReportPage.render("Word counts", body);
+    }
+
+    /** The name of the page, and of its JSON, without the ending (ADR-362 section 9). */
+    static final String NAME = "word-count-distribution";
+
+    /**
+     * The same distribution as {@link #render} draws, as the JSON written beside the page: the files counted, and the
+     * rows of both its tables, from the same values (ADR-362 section 9).
+     */
+    static Map<String, Object> json(WordCountDistribution.Distribution distribution, Instant writtenAt) {
+        List<DetectedFormat> formats = distribution.formats();
+        List<Map<String, Object>> bandColumns = new ArrayList<>();
+        bandColumns.add(AnalysisReportJson.column("words", "Words", "text"));
+        List<Map<String, Object>> floorColumns = new ArrayList<>();
+        floorColumns.add(AnalysisReportJson.column("floor", "Word floor", "count"));
+        for (DetectedFormat format : formats) {
+            String id = "format-" + format.name().toLowerCase(Locale.ROOT);
+            bandColumns.add(AnalysisReportJson.column(id, FormatMixReport.labelOf(format), "count"));
+            floorColumns.add(AnalysisReportJson.column(id, FormatMixReport.labelOf(format), "count"));
+        }
+        bandColumns.add(AnalysisReportJson.column("all", "All formats", "count"));
+        floorColumns.add(AnalysisReportJson.column("all", "All formats", "count"));
+
+        List<List<Object>> bandRows = new ArrayList<>();
+        long[] totals = new long[formats.size() + 1];
+        for (WordCountDistribution.Band band : WordCountDistribution.BANDS) {
+            List<Object> cells = new ArrayList<>();
+            cells.add(label(band));
+            for (int column = 0; column < formats.size(); column++) {
+                long survivors = distribution.survivors(formats.get(column), band);
+                totals[column] += survivors;
+                cells.add(survivors);
+            }
+            long all = distribution.survivors(band);
+            totals[formats.size()] += all;
+            cells.add(all);
+            bandRows.add(cells);
+        }
+        List<Object> totalCells = new ArrayList<>();
+        totalCells.add("All");
+        for (long total : totals) {
+            totalCells.add(total);
+        }
+        bandRows.add(totalCells);
+
+        List<List<Object>> floorRows = new ArrayList<>();
+        for (long floor : WordCountDistribution.CANDIDATE_FLOORS) {
+            List<Object> cells = new ArrayList<>();
+            cells.add(floor);
+            for (DetectedFormat format : formats) {
+                cells.add(distribution.removedBy(floor, format));
+            }
+            cells.add(distribution.removedBy(floor));
+            floorRows.add(cells);
+        }
+        return AnalysisReportJson.tree(
+                NAME,
+                "Word counts",
+                writtenAt,
+                List.of(AnalysisReportJson.figure("filesCounted", "Files counted", totals[formats.size()], "count")),
+                List.of(
+                        AnalysisReportJson.section(
+                                "files-by-words",
+                                "Files by their words",
+                                List.of("The words of every file text extraction kept, by the kind of file stage 1 found."),
+                                null,
+                                AnalysisReportJson.table(bandColumns, bandRows)),
+                        AnalysisReportJson.section(
+                                "word-floors",
+                                "What a word floor would remove",
+                                List.of("Each row is a word floor, and each cell the number of files of that kind it would remove."),
+                                null,
+                                AnalysisReportJson.table(floorColumns, floorRows))));
     }
 
     private static String[] headers(String first, List<String> columns) {

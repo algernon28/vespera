@@ -1,7 +1,11 @@
 package io.algernon.vespera.engine.pipeline;
 
 import io.algernon.vespera.engine.extraction.ConfidenceDistribution;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Renders a {@link ConfidenceDistribution.Distribution} as one self-contained HTML file (ADR-075) —
@@ -73,6 +77,48 @@ final class ConfidenceDistributionReport {
                         + "distribution is what a first run measures so that the number can be read off "
                         + "it rather than guessed.");
         return ReportPage.render("Confidence-score distribution", body);
+    }
+
+    /** The name of the page, and of its JSON, without the ending (ADR-362 section 9). */
+    static final String NAME = "confidence-distribution";
+
+    /**
+     * The same distribution as {@link #render} draws, as the JSON written beside the page: the figures the page states
+     * first and one row for each grade, from the same values (ADR-362 section 9).
+     */
+    static Map<String, Object> json(ConfidenceDistribution.Distribution distribution, Instant writtenAt) {
+        long total = distribution.totalCounted();
+        List<List<Object>> rows = new ArrayList<>();
+        for (ConfidenceDistribution.Bucket bucket : distribution.buckets()) {
+            rows.add(List.of(
+                    bucket.grade(),
+                    formatRange(bucket.lowerBound(), bucket.upperBound()),
+                    bucket.documentCount(),
+                    total == 0 ? 0.0 : (double) bucket.documentCount() / total));
+        }
+        return AnalysisReportJson.tree(
+                NAME,
+                "Confidence-score distribution",
+                writtenAt,
+                List.of(
+                        AnalysisReportJson.figure("documentsCounted", "Documents counted", total, "count"),
+                        AnalysisReportJson.figure(
+                                "refusedConversions",
+                                "Occurrences the converter could not answer for",
+                                distribution.refusedConversionCount(),
+                                "count")),
+                List.of(AnalysisReportJson.section(
+                        "grades",
+                        "Documents by grade",
+                        List.of("The mean score of every stage-2 survivor, by grade."),
+                        AnalysisReportJson.bars("grade", List.of("documents")),
+                        AnalysisReportJson.table(
+                                List.of(
+                                        AnalysisReportJson.column("grade", "Grade", "text"),
+                                        AnalysisReportJson.column("range", "Score range", "text"),
+                                        AnalysisReportJson.column("documents", "Documents", "count"),
+                                        AnalysisReportJson.column("proportion", "Proportion", "share")),
+                                rows))));
     }
 
     private static String formatRange(double lowerBound, double upperBound) {

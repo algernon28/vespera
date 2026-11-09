@@ -771,7 +771,7 @@ final class InvocationReport {
                     "html", html.toString(),
                     "json", workingDirectory.resolve(name + ".json").toString(),
                     "written", Files.isRegularFile(html),
-                    "headline", null));
+                    "headline", AnalysisReportJson.headlineOf(workingDirectory.resolve(name + ".json"), name)));
         }
         return tree;
     }
@@ -861,7 +861,7 @@ final class InvocationReport {
     }
 
     /** JSON text of a tree of maps, lists, strings, numbers, booleans and nulls. */
-    private static final class Json {
+    static final class Json {
 
         private Json() {}
 
