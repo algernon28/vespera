@@ -32,7 +32,8 @@ public final class AnalysisReportFile {
             Map.entry("translations", 1),
             Map.entry("cluster-sizes", 1),
             Map.entry("relevance-labelling", 1),
-            Map.entry("arrangement", 1));
+            Map.entry("arrangement", 1),
+            Map.entry("cluster-page-sizes", 1));
 
     /** The format every report's JSON is first written in. */
     static final int FIRST_FORMAT = 1;

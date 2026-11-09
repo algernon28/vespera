@@ -15,6 +15,7 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
 import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -37,6 +39,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Issue("753")
 @Issue("754")
 @Issue("756")
+@Issue("758")
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
 class TheControlPanelKnowsEachAnalysisReportsFormatTest {
 
@@ -124,5 +127,19 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
                         .containsEntry(RelevanceLabellingReport.NAME, RelevanceLabellingReport.FORMAT));
         claim("the relevance labelling report is among the reports the window draws natively",
                 () -> assertThat(Reports.OPENING_NATIVELY).contains(RelevanceLabellingReport.NAME));
+    }
+
+    @Test
+    @Story("The window reads the report's JSON in the format the jar writes")
+    @DisplayName("The window reads the group page sizes' JSON in the format the jar writes it in")
+    void theGroupPageSizesAreReadInTheFormatTheJarWritesThem(@TempDir Path base) throws IOException {
+        Path work = ClusterPageSizesDrawn.under(base);
+        long written = MAPPER.readTree(Files.readString(work.resolve("cluster-page-sizes.json"), StandardCharsets.UTF_8))
+                .get("format").asLong();
+
+        claim("the window holds a format for the group page sizes, the one its JSON is written in",
+                () -> assertThat(AnalysisReportFile.FORMATS).containsEntry("cluster-page-sizes", (int) written));
+        claim("the group page sizes are among the reports the window draws natively",
+                () -> assertThat(Reports.OPENING_NATIVELY).contains("cluster-page-sizes"));
     }
 }
