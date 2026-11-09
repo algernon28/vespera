@@ -3,7 +3,14 @@ package io.algernon.vespera.engine.pipeline;
 import io.algernon.vespera.engine.embedding.LabelledSpread;
 import io.algernon.vespera.engine.embedding.RelevanceDistribution;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -47,6 +54,179 @@ final class RelevanceLabellingReport {
      * @param currentIdentity the scale this run scored on
      */
     record IgnoredFloor(double value, String calibratedUnder, String currentIdentity) {}
+
+    /** The name of the page's JSON beside it, {@code relevance-labelling.json} (ADR-362 section 9). */
+    static final String NAME = "relevance-labelling";
+
+    /**
+     * Writes the page's JSON and then the page in {@code directory}, from the one set of values, and throws where
+     * either cannot be written. The JSON is moved into place first, so that a JSON that cannot be moved leaves the
+     * earlier page, and the earlier JSON, as they were (ADR-362 section 9).
+     */
+    static void write(
+            Path directory,
+            RelevanceDistribution.Distribution distribution,
+            List<Preview> previews,
+            LabelledSpread.Spread spread,
+            IgnoredFloor ignoredFloor,
+            Instant writtenAt)
+            throws IOException {
+        AnalysisReportJson.write(directory, NAME, json(distribution, previews, spread, ignoredFloor, writtenAt));
+        Files.writeString(
+                directory.resolve(FILE_NAME), render(distribution, previews, spread, ignoredFloor), StandardCharsets.UTF_8);
+    }
+
+    /**
+     * What the page shows as JSON: the headline numbers, then the page's parts in its order, each table's rows in the
+     * page's order. A document is named by its path and its opening as the page names it, and no number is
+     * rounded: the page rounds the scores it draws to two places, the JSON holds them whole.
+     */
+    static Map<String, Object> json(
+            RelevanceDistribution.Distribution distribution,
+            List<Preview> previews,
+            LabelledSpread.Spread spread,
+            IgnoredFloor ignoredFloor,
+            Instant writtenAt) {
+        List<AnalysisReportJson.Figure> headline = List.of(
+                new AnalysisReportJson.Figure("scored", "Documents scored", distribution.scoredDocumentCount(), "count"),
+                new AnalysisReportJson.Figure("lowest", "Lowest score", distribution.lowestScore(), "number"),
+                new AnalysisReportJson.Figure("highest", "Highest score", distribution.highestScore(), "number"),
+                new AnalysisReportJson.Figure("bands", "Bands", distribution.bands().size(), "count"),
+                new AnalysisReportJson.Figure("sampled", "Documents put to a person", distribution.sample().size(), "count"),
+                new AnalysisReportJson.Figure("judged", "Documents judged so far", spread.labelled(), "count"));
+        List<AnalysisReportJson.Section> sections = new ArrayList<>();
+        if (ignoredFloor != null) {
+            sections.add(AnalysisReportJson.Section.prose(
+                    "threshold-not-applied",
+                    "Your threshold is not being applied",
+                    List.of("The profile sets a relevance cut of " + ignoredFloor.value()
+                            + ", and this run kept every document anyway. The answers this number was read off were"
+                            + " given while " + ignoredFloor.calibratedUnder() + " was in use, and the scores below were"
+                            + " produced by " + ignoredFloor.currentIdentity() + ".")));
+        }
+        sections.add(spreadSection(distribution));
+        sections.add(AnalysisReportJson.Section.prose(
+                "if-the-bands-look-alike",
+                "If the bands look alike",
+                List.of("A spread where every band holds much the same documents, and the ones you judge relevant are"
+                        + " scattered evenly through all of them, is telling you something about the seed set rather than"
+                        + " about the threshold: a different seed folder and another scoring run, not a cut chosen"
+                        + " from this page anyway.")));
+        sections.addAll(answerSections(spread));
+        sections.add(documentsSection(distribution, previews));
+        return AnalysisReportJson.tree(NAME, "Choosing the relevance cut", writtenAt, headline, sections);
+    }
+
+    private static AnalysisReportJson.Section spreadSection(RelevanceDistribution.Distribution distribution) {
+        List<List<Object>> rows = new ArrayList<>();
+        for (RelevanceDistribution.Band band : distribution.bands()) {
+            rows.add(List.of(
+                    "Band " + (band.ordinal() + 1),
+                    band.lowerBound(),
+                    band.upperBound(),
+                    band.documentCount(),
+                    band.sampledCount(),
+                    band.shortfall()));
+        }
+        return new AnalysisReportJson.Section(
+                "score-spread",
+                "How the scores are spread",
+                List.of(distribution.scoredDocumentCount() + " document(s) were scored, between "
+                                + format(distribution.lowestScore()) + " and " + format(distribution.highestScore())
+                                + ", divided into " + distribution.bands().size() + " equal bands.",
+                        "A band holding fewer documents than were asked for supplies what it has, and the difference"
+                                + " is shown rather than made up from a neighbouring band."),
+                new AnalysisReportJson.Chart("bars", "band", List.of("documents", "asked")),
+                List.of(
+                        new AnalysisReportJson.Column("band", "Band", "text"),
+                        new AnalysisReportJson.Column("from", "From", "number"),
+                        new AnalysisReportJson.Column("to", "To", "number"),
+                        new AnalysisReportJson.Column("documents", "Documents", "count"),
+                        new AnalysisReportJson.Column("asked", "Being asked about", "count"),
+                        new AnalysisReportJson.Column("short", "Short by", "count")),
+                rows);
+    }
+
+    private static List<AnalysisReportJson.Section> answerSections(LabelledSpread.Spread spread) {
+        if (spread.labelled() == 0) {
+            return List.of(AnalysisReportJson.Section.prose(
+                    "what-the-answers-say-so-far",
+                    "What the answers say so far",
+                    List.of("Nobody has answered any of the questions yet.")));
+        }
+        List<List<Object>> judgedRows = new ArrayList<>();
+        for (LabelledSpread.BandLabels band : spread.bandLabels()) {
+            judgedRows.add(List.of("Band " + (band.bandOrdinal() + 1), band.labelled(), band.labelledRelevant()));
+        }
+        List<List<Object>> cutRows = new ArrayList<>();
+        for (LabelledSpread.CandidateCut cut : spread.cuts()) {
+            cutRows.add(List.of(
+                    cut.score(),
+                    cut.surviving(),
+                    cut.labelledAbove(),
+                    cut.labelledRelevantAbove(),
+                    cut.discarded(),
+                    cut.labelledBelow(),
+                    cut.labelledRelevantBelow()));
+        }
+        return List.of(
+                new AnalysisReportJson.Section(
+                        "what-the-answers-say-so-far",
+                        "What the answers say so far",
+                        List.of(spread.labelled() + " document(s) judged so far, spread across the bands."),
+                        new AnalysisReportJson.Chart("bars", "band", List.of("judged", "relevant")),
+                        List.of(
+                                new AnalysisReportJson.Column("band", "Band", "text"),
+                                new AnalysisReportJson.Column("judged", "Judged", "count"),
+                                new AnalysisReportJson.Column("relevant", "Judged relevant", "count")),
+                        judgedRows),
+                new AnalysisReportJson.Section(
+                        "what-each-cut-would-cost",
+                        "What each cut would cost",
+                        List.of("One line per place the cut could go. Nothing here recommends one."),
+                        null,
+                        List.of(
+                                new AnalysisReportJson.Column("cut", "Cut at", "number"),
+                                new AnalysisReportJson.Column("surviving", "Documents that survive", "count"),
+                                new AnalysisReportJson.Column("judgedAbove", "Judged above it", "count"),
+                                new AnalysisReportJson.Column("relevantAbove", "Relevant above it", "count"),
+                                new AnalysisReportJson.Column("discarded", "Documents discarded", "count"),
+                                new AnalysisReportJson.Column("judgedBelow", "Judged below it", "count"),
+                                new AnalysisReportJson.Column("relevantBelow", "Relevant below it", "count")),
+                        cutRows));
+    }
+
+    private static AnalysisReportJson.Section documentsSection(
+            RelevanceDistribution.Distribution distribution, List<Preview> previews) {
+        List<List<Object>> rows = new ArrayList<>();
+        for (RelevanceDistribution.Sampled sampled : distribution.sample()) {
+            Optional<Preview> preview = previews.stream()
+                    .filter(candidate -> candidate.occurrenceId().equals(sampled.occurrenceId()))
+                    .findFirst();
+            rows.add(List.of(
+                    "Band " + (sampled.bandOrdinal() + 1),
+                    preview.map(Preview::path).orElse("(path not recorded)"),
+                    sampled.score(),
+                    preview.map(Preview::winningSeedPath).orElse("(seed not recorded)"),
+                    preview.map(Preview::textOpening).orElse("(no text was extracted)")));
+        }
+        return new AnalysisReportJson.Section(
+                "the-documents-to-judge",
+                "The documents to judge",
+                List.of(distribution.sample().isEmpty()
+                        ? "No document was sampled, because nothing was scored."
+                        : "Each one below is drawn from a band, and the same run always asks about the same documents."),
+                null,
+                distribution.sample().isEmpty()
+                        ? List.of()
+                        : List.of(
+                                new AnalysisReportJson.Column("band", "Band", "text"),
+                                new AnalysisReportJson.Column("document", "Document", "text"),
+                                new AnalysisReportJson.Column("score", "Score", "number"),
+                                new AnalysisReportJson.Column("seed", "Closest seed", "text"),
+                                new AnalysisReportJson.Column("opening", "How it begins", "text")),
+                rows);
+    }
 
     static String render(
             RelevanceDistribution.Distribution distribution,
