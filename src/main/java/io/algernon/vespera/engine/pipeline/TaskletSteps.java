@@ -14,11 +14,11 @@ import org.springframework.transaction.interceptor.DefaultTransactionAttribute;
 
 /**
  * The one place a plain tasklet step is built (ADR-131): a name, the job repository, the transaction
- * manager, and the tasklet to run. Every stage whose step is a single corpus-wide tasklet reaches
+ * manager, the holder of the closing lines a tasklet records (ADR-364 §4), and the tasklet to run. Every stage whose step is a single corpus-wide tasklet reaches
  * here rather than repeating the same three {@link StepBuilder} lines in its own configuration.
  *
- * <p>A <b>deep module</b> in the sense of the codebase-design vocabulary: a small interface — three
- * of the four parameters are what every call site already has to hand — behind the two facts a
+ * <p>A <b>deep module</b> in the sense of the codebase-design vocabulary: a small interface — four
+ * of the five parameters are what every call site already has to hand — behind the two facts a
  * caller would otherwise have to know, that a tasklet step is a {@code StepBuilder} tasklet and how
  * it is made to run outside a transaction. The <b>leverage</b> is that a new plain tasklet step is
  * one call; the <b>locality</b> is that the transaction attribute census needs is written once.

@@ -88,6 +88,13 @@ class RecordedClosingLinesTest {
         return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
     }
 
+    /** The events logged on the operator logger since the last {@link #run}, with their level and logger. */
+    private List<ILoggingEvent> operatorEvents() {
+        return logged.list.stream()
+                .filter(event -> event.getLoggerName().equals(OperatorLines.LOGGER_NAME))
+                .toList();
+    }
+
     private static Tasklet recordingThenReturning(RecordedClosingLines holder, String... lines) {
         return (contribution, chunkContext) -> {
             for (String line : lines) {
@@ -105,6 +112,7 @@ class RecordedClosingLinesTest {
 
         List<String> recording = run(
                 holder, recordingThenReturning(holder, "the first stop {}", "the second stop"), new ResourcelessTransactionManager());
+        List<ILoggingEvent> onTheOperatorLogger = operatorEvents();
         logged.list.clear();
         List<String> silent = run(holder, recordingThenReturning(holder), new ResourcelessTransactionManager());
 
@@ -116,6 +124,13 @@ class RecordedClosingLinesTest {
                     assertThat(recording.subList(recording.size() - 2, recording.size()))
                             .containsExactly("the first stop {}", "the second stop");
                     assertThat(recording.get(recording.size() - 3)).contains("executed in");
+                });
+        claim(
+                "the recorded lines are the only events on the operator logger, each at ERROR",
+                () -> {
+                    assertThat(onTheOperatorLogger).extracting(ILoggingEvent::getFormattedMessage)
+                            .containsExactly("the first stop {}", "the second stop");
+                    assertThat(onTheOperatorLogger).extracting(ILoggingEvent::getLevel).containsOnly(Level.ERROR);
                 });
         claim("a step that recorded nothing logs only Spring Batch's own two lines", () -> assertThat(silent)
                 .hasSize(2)
@@ -135,6 +150,7 @@ class RecordedClosingLinesTest {
         };
 
         List<String> lines = run(holder, recordingThenReturning(holder, "the stop the tasklet recorded"), commitFails);
+        List<ILoggingEvent> onTheOperatorLogger = operatorEvents();
 
         claim(
                 "the recorded stop is logged after Spring Batch's own lines for the step and before StepFailureClosingLine's"
@@ -147,6 +163,14 @@ class RecordedClosingLinesTest {
                     assertThat(lines.indexOf(lines.getLast())).isGreaterThan(stop);
                     assertThat(lines.indexOf(lines.stream().filter(line -> line.contains("executed in")).findFirst().orElseThrow()))
                             .isLessThan(stop);
+                });
+        claim(
+                "the recorded stop and the failed step's line are on the operator logger, both at ERROR",
+                () -> {
+                    assertThat(onTheOperatorLogger).extracting(ILoggingEvent::getFormattedMessage)
+                            .anyMatch("the stop the tasklet recorded"::equals)
+                            .anyMatch(line -> line.startsWith("Step " + THE_STEP + " failed"));
+                    assertThat(onTheOperatorLogger).extracting(ILoggingEvent::getLevel).containsOnly(Level.ERROR);
                 });
         claim("no entry is left held once the step has ended", () -> {
             StepExecution anyStep = new StepExecution(

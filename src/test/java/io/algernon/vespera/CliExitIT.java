@@ -201,7 +201,9 @@ class CliExitIT {
 
         claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds", () -> assertThat(launched.finished()).isTrue());
         claim("standard error's last line is the refusal, its words whole with nothing before them on the line",
-                () -> assertThat(lastLineOf(launched.standardError())).startsWith("vespera run named no root and "));
+                () -> assertThat(lastLineOf(launched.standardError()))
+                        .startsWith("vespera run named no root and ")
+                        .endsWith("A root is never guessed, because a census of the wrong tree reports success."));
         claim("standard output holds none of its words",
                 () -> assertThat(String.join("\n", launched.standardOutput())).doesNotContain("vespera run named no root"));
         claim("and the exit code is picocli's usage code",
@@ -221,10 +223,16 @@ class CliExitIT {
         claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds", () -> assertThat(launched.finished()).isTrue());
         claim("standard output holds picocli's usage, its first line beginning Usage: vespera with nothing before it",
                 () -> assertThat(usageStarts).isGreaterThanOrEqualTo(0));
-        claim("no line of the usage is in the console's pattern, and the usage ends on no blank line",
+        claim("the usage names the commands it offers: run, label, publish and serve, one line to a command, and no line"
+                        + " of it is in the console's pattern, and it ends on no blank line (the usage is not compared with"
+                        + " picocli's own rendering, which needs the Spring beans the commands are built from)",
                 () -> {
                     List<String> usage = output.subList(Math.max(usageStarts, 0), output.size());
                     assertThat(usage).noneMatch(line -> IN_THE_CONSOLES_PATTERN.matcher(line).matches());
+                    assertThat(usage).anyMatch(line -> line.strip().startsWith("run"))
+                            .anyMatch(line -> line.strip().startsWith("label"))
+                            .anyMatch(line -> line.strip().startsWith("publish"))
+                            .anyMatch(line -> line.strip().startsWith("serve"));
                     assertThat(lastLineOf(usage)).isNotBlank();
                 });
         claim("and the exit code is picocli's usage code",
@@ -240,8 +248,14 @@ class CliExitIT {
         Streams launched = launchSplit("run", "--bogus-option");
 
         claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds", () -> assertThat(launched.finished()).isTrue());
-        claim("picocli's refusal is a line of standard error of its words alone",
-                () -> assertThat(launched.standardError()).contains("Unknown option: '--bogus-option'"));
+        claim("picocli's refusal is a line of standard error of its words alone, and the usage it writes with it is on"
+                        + " standard error too, its first line beginning Usage: vespera run",
+                () -> {
+                    assertThat(launched.standardError()).contains("Unknown option: '--bogus-option'");
+                    assertThat(launched.standardError()).anyMatch(line -> line.startsWith("Usage: vespera run"));
+                });
+        claim("and standard output holds none of that usage",
+                () -> assertThat(launched.standardOutput()).noneMatch(line -> line.startsWith("Usage: vespera run")));
         claim("no line of standard error is in the console's pattern, and standard output holds no word of the refusal",
                 () -> {
                     assertThat(launched.standardError()).noneMatch(line -> IN_THE_CONSOLES_PATTERN.matcher(line).matches());
@@ -263,7 +277,8 @@ class CliExitIT {
         claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds", () -> assertThat(launched.finished()).isTrue());
         claim("standard error's last line is stage 2's failure line, its words alone with nothing before them",
                 () -> assertThat(lastLineOf(launched.standardError()))
-                        .startsWith("Stage 2 (extraction) failed and is not recorded as finished"));
+                        .startsWith("Stage 2 (extraction) failed and is not recorded as finished")
+                        .endsWith("and run the same command again."));
         claim("and the exit code is 1", () -> assertThat(launched.exitCode()).isEqualTo(1));
     }
 

@@ -145,7 +145,7 @@ public class VesperaCommand implements Callable<Integer> {
     /**
      * Serves the website folder of the working directory on loopback (ADR-333 §8). An entry of the tree so that help
      * lists it and so that {@link ServeCommand} parses the same {@code --db-dir} mixin; it is never executed through
-     * Spring, since {@code VesperaApplication.main} hands {@code serve} to {@link ServeCommand} before any context
+     * Spring, since {@code EntryPoint.main} hands {@code serve} to {@link ServeCommand} before any context
      * exists.
      */
     @Command(name = ServeCommand.NAME, description = "Serves the website folder of the working directory at"

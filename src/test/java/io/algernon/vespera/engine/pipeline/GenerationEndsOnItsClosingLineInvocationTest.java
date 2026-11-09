@@ -290,8 +290,14 @@ class GenerationEndsOnItsClosingLineInvocationTest {
                     assertThat(lines.get(failed).getLevel()).isEqualTo(Level.ERROR);
                 });
         claim(
-                "the five-in-a-row line is logged by the recorded lines and the failed step's line after it",
-                () -> assertThat(failed).isGreaterThan(stopped));
+                "the five-in-a-row line is logged by the recorded lines, so it stands after Spring Batch's own"
+                        + " `executed in` line for the step, and the failed step's line after it",
+                () -> {
+                    int batch = indexOfBatchLine(lines);
+                    assertThat(batch).as("Spring Batch's own line").isNotNegative();
+                    assertThat(stopped).isGreaterThan(batch);
+                    assertThat(failed).isGreaterThan(stopped);
+                });
         claim(
                 "and the failed step's line is the last line that does not start " + A_REPORT_LINE,
                 () -> assertThat(lastLineNotAReport(lines)).isSameAs(lines.get(failed)));

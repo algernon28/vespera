@@ -62,6 +62,10 @@ sealed interface SelectableText permits SelectableText.Line, SelectableText.Wrap
     }
 
     private static double height(String text, Font font, double wrappingWidth) {
+        if (text == null || text.isEmpty()) {
+            // The empty Label this replaces draws no text and so has no text height, only its padding.
+            return 0;
+        }
         Text measure = new Text(text == null ? "" : text);
         measure.setFont(font);
         measure.setWrappingWidth(wrappingWidth);
