@@ -11,6 +11,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.OptionalLong;
 import java.util.function.LongConsumer;
@@ -178,6 +179,10 @@ class SeedCorpusComparisonTasklet implements Tasklet {
         Path reportFile = workingDirectory.resolve(SEED_CORPUS_COMPARISON_FILE_NAME);
         try {
             Files.createDirectories(workingDirectory);
+            // the JSON first, so that a JSON that cannot be moved leaves the earlier page as it was (ADR-362 section 9)
+            AnalysisReportJson.write(
+                    reportFile.resolveSibling(SeedCorpusComparisonReport.NAME + ".json"),
+                    SeedCorpusComparisonReport.json(comparison, Instant.now()));
             Files.writeString(
                     reportFile, SeedCorpusComparisonReport.render(comparison), StandardCharsets.UTF_8);
         } catch (IOException e) {

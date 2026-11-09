@@ -127,7 +127,8 @@ final class InvocationReport {
     static final Map<String, Integer> FORMAT_OF_A_REPORT = Map.ofEntries(
             Map.entry(FormatMixReport.NAME, FormatMixReport.FORMAT),
             Map.entry(ReviewListReport.NAME, 1),
-            Map.entry(SurvivorListReport.NAME, 1));
+            Map.entry(SurvivorListReport.NAME, 1),
+            Map.entry(SeedCorpusComparisonReport.NAME, 1));
 
     /** The command {@code vespera run} begins as: written from a capital, as no literal of this class names a table (ADR-362 section 3). */
     static final String RUN = "Run".toLowerCase(Locale.ROOT);
