@@ -132,7 +132,8 @@ final class InvocationReport {
             Map.entry(TranslationReport.NAME, TranslationReport.FORMAT),
             Map.entry(ClusterSizeReport.NAME, ClusterSizeReport.FORMAT),
             Map.entry(RelevanceLabellingReport.NAME, RelevanceLabellingReport.FORMAT),
-            Map.entry(ArrangementReport.NAME, AnalysisReportJson.FORMAT));
+            Map.entry(ArrangementReport.NAME, AnalysisReportJson.FORMAT),
+            Map.entry("cluster-page-sizes", 1));
 
     /** The command {@code vespera run} begins as: written from a capital, as no literal of this class names a table (ADR-362 section 3). */
     static final String RUN = "Run".toLowerCase(Locale.ROOT);

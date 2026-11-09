@@ -175,6 +175,7 @@ relevance-labelling.json         the same report's numbers and rows as data, wri
 relevance-labels.yaml            the questions you answer, sixty as Vespera ships
 cluster-sizes.html               how the survivors grouped under each exemplar
 cluster-page-sizes.html          how large each group's page is, in bytes, written each time the tree is drawn
+cluster-page-sizes.json          the same report's numbers and rows as data, written beside its page; report.json copies its headline
 arrangement.html                 the groups, named and in order, for you to approve
 arrangement.json                 the same report's numbers and rows as data, written beside its page; report.json copies its headline
 confluence-not-carried.csv       the copies a vespera publish could not send because the site refused them as too large, written only when it refused one
