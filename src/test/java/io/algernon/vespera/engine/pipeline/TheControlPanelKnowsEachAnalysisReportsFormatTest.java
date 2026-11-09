@@ -34,6 +34,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Issue("750")
 @Issue("751")
 @Issue("752")
+@Issue("753")
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
 class TheControlPanelKnowsEachAnalysisReportsFormatTest {
 
@@ -46,6 +47,9 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
         claim("the window reads each report whose writer is listed in the format its writer writes",
                 () -> written.forEach((name, format) ->
                         assertThat(AnalysisReportFile.FORMATS).containsEntry(name, format)));
+        claim("the seed/corpus comparison's entry is the format its writer writes",
+                () -> assertThat(AnalysisReportFile.FORMATS)
+                        .containsEntry(SeedCorpusComparisonReport.NAME, SeedCorpusComparisonReport.FORMAT));
         claim("the window names no report that is not one of the twelve",
                 () -> assertThat(Reports.ALL).containsAll(AnalysisReportFile.FORMATS.keySet()));
 

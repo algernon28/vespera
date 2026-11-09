@@ -32,7 +32,8 @@ public final class Reports {
             "format-mix",
             "confidence-distribution",
             "word-count-distribution",
-            "document-frequency");
+            "document-frequency",
+            "seed-corpus-comparison");
 
     /** The reports each key is read off, in the order the README's table of values names them. */
     public static final Map<String, List<String>> OF_A_KEY = Map.ofEntries(
