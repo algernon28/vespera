@@ -23,7 +23,10 @@ public final class AnalysisReportFile {
     public static final Map<String, Integer> FORMATS = Map.ofEntries(
             Map.entry("extraction-failures", 1),
             Map.entry("extraction-survivors", 1),
-            Map.entry("format-mix", 1));
+            Map.entry("format-mix", 1),
+            Map.entry("confidence-distribution", 1),
+            Map.entry("word-count-distribution", 1),
+            Map.entry("document-frequency", 1));
 
     /** The format every report's JSON is first written in. */
     static final int FIRST_FORMAT = 1;
@@ -69,7 +72,7 @@ public final class AnalysisReportFile {
     }
 
     /** The format the window reads for {@code name}. */
-    static int formatOf(String name) {
+    public static int formatOf(String name) {
         return FORMATS.getOrDefault(name, FIRST_FORMAT);
     }
 

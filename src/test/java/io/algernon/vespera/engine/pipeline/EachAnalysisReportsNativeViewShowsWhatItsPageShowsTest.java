@@ -10,26 +10,29 @@ import io.algernon.vespera.engine.corpus.DetectedFormats;
 import io.algernon.vespera.engine.corpus.WalkRecorder;
 import io.algernon.vespera.engine.ledger.ImplementationVersions;
 import io.algernon.vespera.engine.ledger.Ledger;
-import io.algernon.vespera.engine.profile.ProfileStore;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.RemovedOccurrence;
+import io.algernon.vespera.engine.profile.ProfileStore;
 import io.algernon.vespera.ui.AnalysisReportFile;
-import java.io.StringWriter;
-import java.math.BigDecimal;
-import java.time.Instant;
 import io.algernon.vespera.ui.NativeViewForTests;
+import io.algernon.vespera.ui.NativeViewProbe;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.io.StringWriter;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,6 +52,9 @@ import tools.jackson.databind.json.JsonMapper;
  * number, section, chart and table, and every row, is in its view, in order. This holds the format mix's, written by
  * {@code ByteLevelReductionTasklet}; the view's texts are compared with the JSON the page is written beside, whose
  * numbers and rows are the page's (held by {@code EveryAnalysisReportWritesItsNumbersTest}).
+ *
+ * <p>It also holds the three reports of {@link ContentCensusTasklet} over {@link ContentCensusFixture}, each
+ * compared with the HTML page it is written beside; a ticket of step 7 adds the case of its report's class.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -57,6 +63,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Feature("The control panel")
 @Issue("750")
 @Issue("751")
+@Issue("752")
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
 class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
 
@@ -67,6 +74,19 @@ class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
 
     /** What the survivor page shows where a file has no page count. */
     private static final String A_DASH_ON_THE_PAGE = "&mdash;";
+
+    /** The three reports of stage 3, by the name of the page each writes. */
+    private static final List<String> THE_CONTENT_CENSUS = List.of("confidence-distribution", "word-count-distribution",
+            "document-frequency");
+
+    private static final JsonMapper MAPPER = JsonMapper.builder().build();
+
+    private static final Pattern A_TABLE = Pattern.compile("<table>(.*?)</table>", Pattern.DOTALL);
+    private static final Pattern A_ROW = Pattern.compile("<tr>(.*?)</tr>", Pattern.DOTALL);
+    private static final Pattern A_CELL = Pattern.compile("<td[^>]*>(.*?)</td>", Pattern.DOTALL);
+
+    @TempDir
+    Path stage1Working;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -230,5 +250,122 @@ class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
                     assertThat(survivorPage.toString().indexOf("a/kept"))
                             .isLessThan(survivorPage.toString().indexOf("b/kept"));
                 });
+    }
+
+    @Test
+    @Story("The window shows what the page shows")
+    @DisplayName("The view of each report of the content census holds every number and row of its page, in order, and each chart and paragraph its sections name")
+    void theViewOfEachReportOfTheContentCensusHoldsEveryNumberAndRowOfItsPage(@TempDir Path root, @TempDir Path workingDirectory)
+            throws Exception {
+        new ContentCensusFixture(jdbcTemplate, dataSource, stage1Working).tasklet(root, workingDirectory).execute(null,
+                null);
+
+        for (String name : THE_CONTENT_CENSUS) {
+            JsonNode json = MAPPER.readTree(Files.readString(workingDirectory.resolve(name + ".json")));
+            List<List<List<String>>> pageTables = new ArrayList<>();
+            Matcher table = A_TABLE.matcher(Files.readString(workingDirectory.resolve(name + ".html")));
+            while (table.find()) {
+                pageTables.add(rowsOf(table.group(1)));
+            }
+
+            NativeViewProbe.Shown shown = NativeViewProbe.open(workingDirectory, name);
+
+            claim(name + ": the tab is titled by the page's title and draws a tile for each headline number, in order",
+                    () -> {
+                        assertThat(shown.tab()).isEqualTo(json.get("title").asString());
+                        List<String> labels = new ArrayList<>();
+                        json.get("headline").forEach(figure -> labels.add(figure.get("label").asString()));
+                        assertThat(shown.tiles()).hasSameSizeAs(labels);
+                        for (int at = 0; at < labels.size(); at++) {
+                            assertThat(shown.tiles().get(at)).startsWith(labels.get(at) + ": ")
+                                    .doesNotEndWith(": ").doesNotEndWith("null");
+                        }
+                    });
+            claim(name + ": it draws each section of the JSON in order, with its paragraphs, its chart of the kind named and the series it draws",
+                    () -> {
+                        assertThat(shown.sections()).hasSize(json.get("sections").size());
+                        for (int at = 0; at < shown.sections().size(); at++) {
+                            JsonNode section = json.get("sections").get(at);
+                            NativeViewProbe.SectionShown drawn = shown.sections().get(at);
+                            List<String> text = new ArrayList<>();
+                            section.get("text").forEach(paragraph -> text.add(paragraph.asString()));
+                            assertThat(drawn.id()).isEqualTo(section.get("id").asString());
+                            assertThat(drawn.title()).isEqualTo(section.get("title").asString());
+                            assertThat(drawn.paragraphs()).isEqualTo(text);
+                            if (section.get("chart").isNull()) {
+                                assertThat(drawn.chart()).isNull();
+                            } else {
+                                assertThat(drawn.chart()).isEqualTo(section.get("chart").get("kind").asString());
+                                assertThat(drawn.chartSeries()).hasSize(section.get("chart").get("series").size());
+                            }
+                        }
+                    });
+            List<NativeViewProbe.SectionShown> withTable = shown.sections().stream()
+                    .filter(section -> !section.columns().isEmpty()).toList();
+            claim(name + ": its view draws a table for each table of its page",
+                    () -> assertThat(withTable).hasSameSizeAs(pageTables));
+            for (int at = 0; at < pageTables.size(); at++) {
+                List<List<String>> pageRows = pageTables.get(at);
+                NativeViewProbe.SectionShown drawn = withTable.get(at);
+                claim(name + ": table " + at + " draws a row for each of the page's, each cell of the page's in the row, in order",
+                        () -> {
+                            assertThat(drawn.rows()).hasSameSizeAs(pageRows);
+                            for (int row = 0; row < pageRows.size(); row++) {
+                                assertThat(inOrder(pageRows.get(row), drawn.rows().get(row)))
+                                        .as("row " + row + " of the page " + pageRows.get(row) + " in the view "
+                                                + drawn.rows().get(row))
+                                        .isTrue();
+                            }
+                        });
+            }
+        }
+    }
+
+    /** Whether each cell of {@code page} is the next cell of {@code view} that says the same, the view having more. */
+    private static boolean inOrder(List<String> page, List<String> view) {
+        int at = 0;
+        for (String cell : page) {
+            while (at < view.size() && !same(cell, view.get(at))) {
+                at++;
+            }
+            if (at == view.size()) {
+                return false;
+            }
+            at++;
+        }
+        return true;
+    }
+
+    /** Two cells that say the same: the same text, or numbers equal to the page's two decimals once grouping is put aside, a view's percentage being the page's fraction of one. */
+    private static boolean same(String page, String view) {
+        if (page.equals(view)) {
+            return true;
+        }
+        try {
+            double a = Double.parseDouble(page.replace(",", "").replace("%", "").trim());
+            double b = Double.parseDouble(view.replace(",", "").replace("%", "").trim());
+            return view.contains("%") ? Math.abs(a * 100 - b) <= 0.51 : Math.abs(a - b) < 0.051;
+        } catch (NumberFormatException notNumbers) {
+            return false;
+        }
+    }
+
+    /** The cells of each body row of {@code table}, tags taken out, a cell that holds only a bar left out. */
+    private static List<List<String>> rowsOf(String table) {
+        List<List<String>> rows = new ArrayList<>();
+        Matcher row = A_ROW.matcher(table);
+        while (row.find()) {
+            List<String> cells = new ArrayList<>();
+            Matcher cell = A_CELL.matcher(row.group(1));
+            while (cell.find()) {
+                if (!cell.group(1).contains("class=\"bar\"")) {
+                    cells.add(cell.group(1).replaceAll("<[^>]*>", "").trim());
+                }
+            }
+            if (!cells.isEmpty()) {
+                rows.add(cells);
+            }
+        }
+        return rows;
     }
 }

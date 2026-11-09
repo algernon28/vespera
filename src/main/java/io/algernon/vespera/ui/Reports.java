@@ -26,7 +26,13 @@ public final class Reports {
      * {@link AnalysisReportFile#FORMATS}; every other opens in its viewer, until the viewer goes. Each report's ticket of
      * step 7 adds its name.
      */
-    public static final Set<String> OPENING_NATIVELY = Set.of("extraction-failures", "extraction-survivors", "format-mix");
+    public static final Set<String> OPENING_NATIVELY = Set.of(
+            "extraction-failures",
+            "extraction-survivors",
+            "format-mix",
+            "confidence-distribution",
+            "word-count-distribution",
+            "document-frequency");
 
     /** The reports each key is read off, in the order the README's table of values names them. */
     public static final Map<String, List<String>> OF_A_KEY = Map.ofEntries(

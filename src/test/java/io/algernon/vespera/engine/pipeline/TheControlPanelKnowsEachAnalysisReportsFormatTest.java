@@ -15,10 +15,14 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
 import java.io.StringWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The window reads each analysis report's JSON in the {@code format} its writer writes it in (ADR-362 section 10):
@@ -29,6 +33,7 @@ import org.junit.jupiter.api.Test;
 @Feature("The control panel")
 @Issue("750")
 @Issue("751")
+@Issue("752")
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
 class TheControlPanelKnowsEachAnalysisReportsFormatTest {
 
@@ -67,5 +72,34 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
 
     private static int formatOf(String json) {
         return Integer.parseInt(json.replaceFirst("(?s)^\\{\"format\":(\\d+).*$", "$1"));
+    }
+
+    /** The three reports of {@link ContentCensusTasklet}. */
+    private static final List<String> THE_CONTENT_CENSUS = List.of("confidence-distribution", "word-count-distribution",
+            "document-frequency");
+
+    private static final JsonMapper MAPPER = JsonMapper.builder().build();
+
+    @Test
+    @Story("The window reads each report in the format its writer writes")
+    @DisplayName("The format the window reads for each report of the content census is the one the jar writes, which its schema names")
+    void eachFormatOfTheContentCensusIsTheOneTheJarWrites() throws IOException {
+        for (String name : THE_CONTENT_CENSUS) {
+            long inItsSchema = MAPPER.readTree(Files.readString(Path.of("docs", "report", name + ".schema.json")))
+                    .get("properties").get("format").get("const").asLong();
+            claim(name + ": the window has an entry for it, holding the format its writer writes, its schema's",
+                    () -> {
+                        assertThat(AnalysisReportFile.FORMATS).containsEntry(name, AnalysisReportJson.FORMAT);
+                        assertThat(AnalysisReportFile.formatOf(name)).isEqualTo((int) inItsSchema);
+                    });
+        }
+    }
+
+    @Test
+    @Story("The window draws each landed report natively")
+    @DisplayName("The reports the window draws natively hold the three of the content census")
+    void theReportsTheWindowDrawsNativelyHoldTheContentCensus() {
+        claim("each of the three is in the set the shipped window is given", () -> assertThat(Reports.OPENING_NATIVELY)
+                .containsAll(THE_CONTENT_CENSUS));
     }
 }
