@@ -123,6 +123,10 @@ final class InvocationReport {
     static final List<String> ANALYSIS_REPORTS =
             ANALYSIS_PAGES.stream().map(page -> page.substring(0, page.length() - ".html".length())).toList();
 
+    /** The analysis reports whose JSON is written, each with the format its writer writes (ADR-362 section 9); a ticket of step 5 adds its own. */
+    private static final Map<String, Integer> FORMAT_OF_A_REPORT = Map.ofEntries(
+            Map.entry("cluster-page-sizes", 1));
+
     /** The command {@code vespera run} begins as: written from a capital, as no literal of this class names a table (ADR-362 section 3). */
     static final String RUN = "Run".toLowerCase(Locale.ROOT);
 
@@ -771,9 +775,18 @@ final class InvocationReport {
                     "html", html.toString(),
                     "json", workingDirectory.resolve(name + ".json").toString(),
                     "written", Files.isRegularFile(html),
-                    "headline", null));
+                    "headline", headlineOf(name, workingDirectory.resolve(name + ".json"))));
         }
         return tree;
+    }
+
+    /**
+     * The headline the report's JSON holds, copied and no row of it (ADR-362 section 9), where the report's writer has
+     * landed and the file is of the format it writes; {@code null} otherwise, as for a report none writes yet.
+     */
+    private static List<Object> headlineOf(String name, Path json) {
+        Integer format = FORMAT_OF_A_REPORT.get(name);
+        return format == null ? null : AnalysisReportJson.headlineOf(json, name, format);
     }
 
     /** The root the tree is drawn at, where this invocation drew one. */
