@@ -129,7 +129,8 @@ final class InvocationReport {
             Map.entry(ReviewListReport.NAME, 1),
             Map.entry(SurvivorListReport.NAME, 1),
             Map.entry(SeedCorpusComparisonReport.NAME, 1),
-            Map.entry(TranslationReport.NAME, TranslationReport.FORMAT));
+            Map.entry(TranslationReport.NAME, TranslationReport.FORMAT),
+            Map.entry(ClusterSizeReport.NAME, ClusterSizeReport.FORMAT));
 
     /** The command {@code vespera run} begins as: written from a capital, as no literal of this class names a table (ADR-362 section 3). */
     static final String RUN = "Run".toLowerCase(Locale.ROOT);
@@ -879,7 +880,7 @@ final class InvocationReport {
     }
 
     /** JSON text of a tree of maps, lists, strings, numbers, booleans and nulls. */
-    static final class Json {
+    private static final class Json {
 
         private Json() {}
 

@@ -16,6 +16,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -225,6 +226,8 @@ class ClusteringTasklet implements Tasklet {
                         partitionsDone.itemDone();
                     }
 
+                    // The JSON is moved into place before the page is written (ADR-362 section 9).
+                    writeJson(ClusterSizeReport.document(reported, Clock.systemUTC().instant()));
                     write(CLUSTER_SIZES_FILE_NAME, ClusterSizeReport.render(reported));
                     LOG.info(
                             "Stage 5f (clustering) finished under scoring run {}: {} partition(s), {}"
@@ -331,6 +334,16 @@ class ClusteringTasklet implements Tasklet {
         return ledger.occurrences().factsFor(occurrenceId)
                 .map(facts -> facts.path().value())
                 .orElse("(path not recorded)");
+    }
+
+    private void writeJson(AnalysisReportJson.Document document) {
+        Path file = workingDirectory.resolve(ClusterSizeReport.NAME + ".json");
+        try {
+            Files.createDirectories(workingDirectory);
+            AnalysisReportJson.write(file, document);
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not write " + file, e);
+        }
     }
 
     private void write(String fileName, String content) {
