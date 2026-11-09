@@ -20,7 +20,10 @@ public final class AnalysisReportFile {
      * The {@code format} the window reads for each analysis report, by name: an entry is added with each report's
      * native view (ADR-362 §13 step 7). A report with no entry is read as {@link #FIRST_FORMAT}.
      */
-    static final Map<String, Integer> FORMATS = Map.of();
+    public static final Map<String, Integer> FORMATS = Map.of(
+            "confidence-distribution", 1,
+            "word-count-distribution", 1,
+            "document-frequency", 1);
 
     /** The format every report's JSON is first written in. */
     static final int FIRST_FORMAT = 1;
@@ -66,7 +69,7 @@ public final class AnalysisReportFile {
     }
 
     /** The format the window reads for {@code name}. */
-    static int formatOf(String name) {
+    public static int formatOf(String name) {
         return FORMATS.getOrDefault(name, FIRST_FORMAT);
     }
 

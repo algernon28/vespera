@@ -2,6 +2,7 @@ package io.algernon.vespera.ui;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The reports the jar writes in the working directory, and the ones each profile key is read off (ADR-344 §6, which
@@ -19,6 +20,15 @@ public final class Reports {
             "confidence-distribution", "document-frequency", "word-count-distribution",
             "seed-corpus-comparison", "translations", "cluster-sizes", "relevance-labelling",
             "arrangement", "cluster-page-sizes");
+
+    /**
+     * The analysis reports, by name, that the window draws natively from their JSON (ADR-362 §10); every other opens
+     * in its viewer until the viewer goes (ADR-362 §13). Each report's ticket of step 7 adds its names.
+     */
+    public static final Set<String> NATIVE = Set.of(
+            "confidence-distribution",
+            "word-count-distribution",
+            "document-frequency");
 
     /** The reports each key is read off, in the order the README's table of values names them. */
     public static final Map<String, List<String>> OF_A_KEY = Map.ofEntries(

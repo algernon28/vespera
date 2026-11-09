@@ -62,7 +62,7 @@ import tools.jackson.databind.json.JsonMapper;
  * the page is touched, each follows its schema, and {@code report.json} copies the headline and no row.
  *
  * <p>The fixture is three text documents of 3, 30 and 300 words with a score each and the shingles of {@link
- * #SHINGLES}, taken through byte-level reduction and given the rows stage 2 would have written.
+ * ContentCensusFixture#SHINGLES}, taken through byte-level reduction and given the rows stage 2 would have written.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -75,21 +75,6 @@ class EveryContentCensusReportWritesItsNumbersTest {
 
     /** The three reports of stage 3, by the name of the page each writes. */
     private static final List<String> THE_THREE = List.of("confidence-distribution", "word-count-distribution", "document-frequency");
-
-    /** The words of each document of the fixture. */
-    private static final long[] WORDS = {3, 30, 300};
-
-    /** The mean score of each document of the fixture: poor, good and excellent. */
-    private static final double[] SCORES = {0.10, 0.85, 0.95};
-
-    /** The shingle hashes of each document: 11 is in all three, 21 in the first two, 31 and 41 in one each. */
-    private static final List<List<Long>> SHINGLES = List.of(List.of(11L, 21L), List.of(11L, 21L, 41L), List.of(11L, 31L));
-
-    private static final String FIVE_WORDS = "word:5";
-
-    private static final ExtractorIdentity IDENTITY = new ExtractorIdentity("docling-serve;base-url=http://example");
-
-    private static final Instant RAN_AT = Instant.parse("2026-11-09T10:00:00Z");
 
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
 
@@ -104,13 +89,13 @@ class EveryContentCensusReportWritesItsNumbersTest {
     @TempDir
     Path stage1Working;
 
-    private final Map<Path, ExecutionContext> invocations = new HashMap<>();
-
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private DataSource dataSource;
+
+    private ContentCensusFixture fixture;
 
     @Test
     @Story("Each writes its JSON beside its page")
@@ -127,7 +112,7 @@ class EveryContentCensusReportWritesItsNumbersTest {
                         assertThat(page).isRegularFile();
                         assertThat(json.get("analysisReport").asString()).isEqualTo(name);
                         assertThat(json.get("format").asLong()).isEqualTo(1L);
-                        assertThat(json.get("writtenAt").asString()).isEqualTo(AnalysisReportJson.instant(RAN_AT));
+                        assertThat(json.get("writtenAt").asString()).isEqualTo(AnalysisReportJson.instant(ContentCensusFixture.RAN_AT));
                     });
             List<String> tables = tablesOf(Files.readString(page));
             List<JsonNode> tablesOfJson = new ArrayList<>();
@@ -380,105 +365,11 @@ class EveryContentCensusReportWritesItsNumbersTest {
         };
     }
 
-    /** Stage 3's tasklet over the fixture of {@code root}, writing in {@code workingDirectory} at {@link #RAN_AT}. */
+    /** Stage 3's tasklet over the fixture of {@code root}, writing in {@code workingDirectory} at {@link ContentCensusFixture#RAN_AT}. */
     private ContentCensusTasklet tasklet(Path root, Path workingDirectory) throws Exception {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        ImplementationVersions versions = new ImplementationVersions();
-        walkedThroughExtraction(ledger, versions, root);
-        StageRuns stageRuns = new StageRuns(
-                ledger,
-                versions,
-                new StaticListableBeanFactory(Map.of("extractorIdentity", IDENTITY))
-                        .getBeanProvider(ExtractorIdentity.class),
-                new DegenerateOutputConfidenceFloor(null),
-                null,
-                null,
-                null,
-                new ProfileStore(stage1Working),
-                null,
-                null,
-                null,
-                null,
-                PresetsFixture.shipped(),
-                root,
-                invocations.get(root));
-        return new ContentCensusTasklet(
-                new DocumentFrequency(jdbcTemplate, ledger),
-                new ConfidenceDistribution(jdbcTemplate, ledger),
-                new WordCountDistribution(jdbcTemplate, ledger),
-                new DetectedFormats(jdbcTemplate),
-                stageRuns,
-                ledger,
-                new ProfileStore(workingDirectory),
-                Clock.fixed(RAN_AT, ZoneOffset.UTC),
-                workingDirectory);
-    }
-
-    /** Walks {@code root} over the three documents, runs byte-level reduction, and writes each one's rows under stage 2's run. */
-    private void walkedThroughExtraction(Ledger ledger, ImplementationVersions versions, Path root) throws Exception {
-        for (int i = 0; i < WORDS.length; i++) {
-            Files.writeString(root.resolve("document-" + i + ".txt"), "the content of document " + i + " in " + root.getFileName());
+        if (fixture == null) {
+            fixture = new ContentCensusFixture(jdbcTemplate, dataSource, stage1Working);
         }
-        WalkId walkId = new WalkRecorder(ledger, new AnomalyLog(jdbcTemplate), new JdbcTransactionManager(dataSource))
-                .walk(root);
-        ChunkContext step = InvocationRecordFixture.aStepOfAFreshInvocation();
-        new ByteLevelReductionTasklet(
-                        ledger,
-                        new ContentIdentity(jdbcTemplate),
-                        new DetectedFormats(jdbcTemplate),
-                        versions,
-                        new ProfileStore(stage1Working),
-                        root,
-                        stage1Working)
-                .execute(null, step);
-        invocations.put(root, InvocationRecordFixture.recordOf(step));
-        RunId extractionRunId = new StageRuns(
-                        ledger,
-                        versions,
-                        new StaticListableBeanFactory(Map.of("extractorIdentity", IDENTITY))
-                                .getBeanProvider(ExtractorIdentity.class),
-                        new DegenerateOutputConfidenceFloor(null),
-                        null,
-                        null,
-                        null,
-                        new ProfileStore(stage1Working),
-                        null,
-                        null,
-                        null,
-                        null,
-                        PresetsFixture.shipped(),
-                        root,
-                        invocations.get(root))
-                .extraction();
-        for (int i = 0; i < WORDS.length; i++) {
-            OccurrenceId occurrenceId =
-                    ledger.occurrences().occurrenceId(walkId, new OccurrencePath("document-" + i + ".txt")).orElseThrow();
-            jdbcTemplate.update(
-                    "INSERT INTO extraction_metric"
-                            + " (occurrence_id, run_id, status, processing_time, character_count,"
-                            + " alphanumeric_char_count, word_count, word_character_length_total,"
-                            + " vowelless_word_count, single_character_word_count, mean_score)"
-                            + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    occurrenceId.value(),
-                    extractionRunId.value(),
-                    "success",
-                    0.5,
-                    100,
-                    90,
-                    WORDS[i],
-                    80,
-                    0,
-                    0,
-                    SCORES[i]);
-            for (long hash : SHINGLES.get(i)) {
-                jdbcTemplate.update(
-                        "INSERT INTO shingle (occurrence_id, run_id, shingle_parameter_identity, shingle_hash)"
-                                + " VALUES (?, ?, ?, ?)",
-                        occurrenceId.value(),
-                        extractionRunId.value(),
-                        FIVE_WORDS,
-                        hash);
-            }
-        }
+        return fixture.tasklet(root, workingDirectory);
     }
 }

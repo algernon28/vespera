@@ -77,7 +77,7 @@ final class ControlPanelState {
 
     /**
      * As above, with {@code reportsOpeningNatively}, the names of the analysis reports the window draws from their JSON
-     * (ADR-362 §10); every other opens in its viewer. The window as shipped has none.
+     * (ADR-362 §10); every other opens in its viewer. The control panel gives it {@link Reports#NATIVE}.
      */
     ControlPanelState(ChildRuntime runtime, Path launchValuesFile, Path corpusRootLockFolder, String userName,
             Set<String> reportsOpeningNatively) {
