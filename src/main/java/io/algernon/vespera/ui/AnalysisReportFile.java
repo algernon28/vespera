@@ -18,9 +18,11 @@ public final class AnalysisReportFile {
 
     /**
      * The {@code format} the window reads for each analysis report, by name: an entry is added with each report's
-     * native view (ADR-362 §13 step 7). A report with no entry is read as {@link #FIRST_FORMAT}.
+     * native view (ADR-362 §13 step 7), and the window draws, from their JSON, the reports named here
+     * and no other; a report with no entry is read as {@link #FIRST_FORMAT}.
      */
-    static final Map<String, Integer> FORMATS = Map.of();
+    public static final Map<String, Integer> FORMATS = Map.ofEntries(
+            Map.entry("relevance-labelling", 1));
 
     /** The format every report's JSON is first written in. */
     static final int FIRST_FORMAT = 1;

@@ -47,7 +47,7 @@ class EveryRelevanceLabellingReportWritesItsNumbersTest {
     private static final String RELEVANCE_LABELLING = "relevance-labelling";
 
     /** A word no part of the report's own wording holds, put in each document's path. */
-    private static final String MARKER = "ZXQ-private-path-word";
+    private static final String MARKER = JarWrittenAnalysisReports.MARKER;
 
     private static final String LABEL_FILE = "relevance-labels.yaml";
 
@@ -74,9 +74,9 @@ class EveryRelevanceLabellingReportWritesItsNumbersTest {
     @Story("Each analysis report writes its numbers")
     @DisplayName("The relevance labelling page's JSON holds every number and row its page holds, in the page's order, and the page is still written")
     void eachWritesItsJsonBesideItsPageWithTheSameNumbersAndRows(@TempDir Path directory) throws IOException {
-        RelevanceDistribution.Distribution distribution = aDistribution();
-        LabelledSpread.Spread spread = aSpread();
-        List<RelevanceLabellingReport.Preview> previews = previews();
+        RelevanceDistribution.Distribution distribution = JarWrittenAnalysisReports.aDistribution();
+        LabelledSpread.Spread spread = JarWrittenAnalysisReports.aSpread();
+        List<RelevanceLabellingReport.Preview> previews = JarWrittenAnalysisReports.previews();
 
         RelevanceLabellingReport.write(directory, distribution, previews, spread, null, WRITTEN_AT);
 
@@ -156,7 +156,7 @@ class EveryRelevanceLabellingReportWritesItsNumbersTest {
     @Story("Each analysis report writes its numbers")
     @DisplayName("A relevance labelling JSON that cannot be moved in place fails the step as its page does, and the earlier page and JSON stay as they were")
     void aJsonThatCannotBeWrittenIsHandledAsItsPagesFailureIsAndLeavesTheEarlierPair(@TempDir Path directory) throws IOException {
-        RelevanceLabellingReport.write(directory, aDistribution(), previews(), aSpread(), null, WRITTEN_AT);
+        RelevanceLabellingReport.write(directory, JarWrittenAnalysisReports.aDistribution(), JarWrittenAnalysisReports.previews(), JarWrittenAnalysisReports.aSpread(), null, WRITTEN_AT);
         Path json = directory.resolve(RELEVANCE_LABELLING + ".json");
         Path page = directory.resolve(RELEVANCE_LABELLING + ".html");
         String earlierPage = Files.readString(page, StandardCharsets.UTF_8);
@@ -187,7 +187,7 @@ class EveryRelevanceLabellingReportWritesItsNumbersTest {
     @Story("Each analysis report writes its numbers")
     @DisplayName("Each analysis report's JSON follows its schema, its headline numbers alone, and the schema uses only the eight keywords")
     void eachJsonFollowsItsSchema(@TempDir Path directory) throws IOException {
-        RelevanceLabellingReport.write(directory, aDistribution(), previews(), aSpread(),
+        RelevanceLabellingReport.write(directory, JarWrittenAnalysisReports.aDistribution(), JarWrittenAnalysisReports.previews(), JarWrittenAnalysisReports.aSpread(),
                 new RelevanceLabellingReport.IgnoredFloor(0.9, "an-older-model", "a-newer-model"), WRITTEN_AT);
         JsonNode schema = TheReportFile.parse(Files.readString(Path.of("docs", "report", RELEVANCE_LABELLING + ".schema.json"), StandardCharsets.UTF_8));
         JsonNode json = TheReportFile.parse(Files.readString(directory.resolve(RELEVANCE_LABELLING + ".json"), StandardCharsets.UTF_8));
@@ -256,31 +256,5 @@ class EveryRelevanceLabellingReportWritesItsNumbersTest {
 
     private static String two(double score) {
         return String.format(Locale.ROOT, "%.2f", score);
-    }
-
-    private static RelevanceDistribution.Distribution aDistribution() {
-        List<RelevanceDistribution.Band> bands = List.of(
-                new RelevanceDistribution.Band(0, 0.80, 0.82, 40, 12, 0),
-                new RelevanceDistribution.Band(1, 0.82, 0.84, 44, 12, 1),
-                new RelevanceDistribution.Band(2, 0.84, 0.86, 39, 12, 2),
-                new RelevanceDistribution.Band(3, 0.86, 0.88, 41, 12, 0),
-                new RelevanceDistribution.Band(4, 0.88, 0.90, 36, 12, 3));
-        return new RelevanceDistribution.Distribution(200, 0.80, 0.90, bands,
-                List.of(new RelevanceDistribution.Sampled(new OccurrenceId(1), 0.83, new OccurrenceId(2), 1)));
-    }
-
-    private static LabelledSpread.Spread aSpread() {
-        return new LabelledSpread.Spread(
-                List.of(new LabelledSpread.BandLabels(0, 1, 1), new LabelledSpread.BandLabels(1, 2, 1)),
-                List.of(new LabelledSpread.CandidateCut(0.84, 120, 80, 3, 2, 1, 0)),
-                3);
-    }
-
-    private static List<RelevanceLabellingReport.Preview> previews() {
-        return List.of(new RelevanceLabellingReport.Preview(
-                new OccurrenceId(1),
-                "reports/" + MARKER + ".pdf",
-                "seeds/exemplar.pdf",
-                "The quarterly figures were tabled on the third."));
     }
 }
