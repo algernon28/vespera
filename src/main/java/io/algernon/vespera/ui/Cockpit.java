@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -86,8 +88,14 @@ final class Cockpit {
     private ProfileRow seedRow;
     private boolean seedStated;
 
+    private final LiveReport live;
     private Ending reportedEnding;
     private int ticksSinceProgress;
+    /** Who the report is read for: the child's pid and start, or a foreign holder's; null before any is watched. */
+    private ControlPanelState.Watched watching;
+    /** Whether a report of the watched invocation's own has been drawn since it was first watched. */
+    private boolean watchedReportDrawn;
+    private InvocationReportFile.Invocation lastDrawn;
     private boolean sawChild;
     private boolean wasShown;
     private Timeline timeline;
@@ -99,6 +107,7 @@ final class Cockpit {
         this.dialogs = dialogs;
         this.options = new OptionsPane(state, dialogs, this::showCommandLines);
         this.reports = new ReportsPane(tabs, dialogs, folders, this::say);
+        this.live = new LiveReport(this::openReport, dialogs::handToTheSystem);
         this.preflight = new PreflightPane(state, folders, property -> fields.get(property).text());
         this.codeSets = new CodeSetsPane(state, dialogs, folders, this::foldersToKeepApart, this::loadFiles);
         this.inclusions = new InclusionsTab(state, dialogs, folders, this::loadFiles);
@@ -178,7 +187,7 @@ final class Cockpit {
         inclusionsTab.setClosable(false);
         profileTab.setContent(profile.content());
         inclusionsTab.setContent(inclusions.content());
-        tabs.getTabs().addAll(profileTab, inclusionsTab);
+        tabs.getTabs().addAll(live.tab(), profileTab, inclusionsTab);
         tabs.getStyleClass().add("form-tabs");
 
         VBox main = new VBox(header, outcome, actionCard, split, charts, tabs);
@@ -588,7 +597,7 @@ final class Cockpit {
                 output.scrollTo(tail.size() - 1);
             }
         }
-        readProgress(runs, ending);
+        readReport(runs, ending, holders);
         if (ending.isPresent() && ending.get() != wantedFor) {
             wantedFor = ending.get();
             Map<String, Boolean> written = folders.writtenReports();
@@ -635,30 +644,87 @@ final class Cockpit {
         wanted.draw(next);
     }
 
-    private void readProgress(boolean runs, Optional<Ending> ending) {
+    /**
+     * Reads the working directory's {@code report.json} for the invocation the window watches (ADR-362 §8): its own
+     * child's while that runs, once as it ends, and a foreign holder's while its holder line is held. A report is drawn
+     * only where it is that invocation's; until then the rows, the legs and the charts stand as before any report.
+     */
+    private void readReport(boolean runs, Optional<Ending> ending, ControlPanelState.Holders holders) {
         Optional<Path> folder = workingDirectory();
-        boolean justEnded = ending.isPresent() && ending.get() != reportedEnding;
-        if (folder.isEmpty() || !(runs || justEnded)) {
+        if (folder.isEmpty()) {
             return;
         }
+        Optional<ControlPanelState.Watched> child = state.watchedChild();
+        boolean justEnded = ending.isPresent() && ending.get() != reportedEnding;
+        ControlPanelState.Watched who;
+        boolean ownChild = child.isPresent() && (runs || justEnded);
+        if (ownChild) {
+            who = child.get();
+        } else {
+            Optional<ControlPanelState.Watched> foreign = state.watchedHolder(folder);
+            if (foreign.isEmpty()) {
+                if (lastDrawn != null && !(child.isPresent() && ending.isPresent())) {
+                    live.refreshStale(Instant.now());
+                }
+                return;
+            }
+            who = foreign.get();
+        }
+        boolean fresh = !who.equals(watching);
+        if (fresh) {
+            watching = who;
+            watchedReportDrawn = false;
+            lastDrawn = null;
+            steps.show(InvocationReportFile.Report.none());
+            charts.show(InvocationReportFile.Report.none());
+            live.says(LiveReport.WAITING);
+            ticksSinceProgress = options.intervalSeconds();
+        }
+        if (!ownChild) {
+            justEnded = false;
+        }
         ticksSinceProgress++;
-        if (!justEnded && ticksSinceProgress < options.intervalSeconds()) {
+        if (!fresh && !justEnded && ticksSinceProgress < options.intervalSeconds()) {
+            live.refreshStale(Instant.now());
             return;
         }
         ticksSinceProgress = 0;
+        String how = ownChild && ending.isPresent() ? childWords(false, ending)
+                : ownChild ? "" : "held by " + holders.workingDirectory().orElse("another invocation");
+        boolean drawn = readOnce(folder.get(), who, justEnded, how);
+        watchedReportDrawn = watchedReportDrawn || drawn;
         if (justEnded) {
             reportedEnding = ending.get();
-        }
-        try {
-            Path file = folder.get().resolve(ProgressFile.FILE_NAME);
-            if (Files.isRegularFile(file)) {
-                ProgressFile.Progress progress = ProgressFile.read(Files.readString(file, StandardCharsets.UTF_8));
-                steps.show(progress);
-                charts.show(progress);
+            if (!watchedReportDrawn) {
+                live.wroteNone(how);
             }
+        }
+    }
+
+    /** Reads the file once; whether a report that is the watched invocation's was drawn. */
+    private boolean readOnce(Path folder, ControlPanelState.Watched who, boolean childEnded, String howItEnded) {
+        try {
+            Path file = folder.resolve(InvocationReportFile.FILE_NAME);
+            if (!Files.isRegularFile(file)) {
+                return false;
+            }
+            InvocationReportFile.Report report = InvocationReportFile.read(Files.readString(file, StandardCharsets.UTF_8));
+            InvocationReportFile.Invocation invocation = report.invocation();
+            if (invocation.pid() != who.pid()
+                    || invocation.started().isBefore(who.notBefore().truncatedTo(ChronoUnit.MILLIS))) {
+                return false;
+            }
+            steps.show(report);
+            charts.show(report);
+            live.shows(report, Instant.now(), childEnded, howItEnded);
+            lastDrawn = invocation;
+            return true;
+        } catch (InvocationReportFile.FormatNotKnownException notKnown) {
+            say(notKnown.getMessage());
         } catch (IOException | IllegalArgumentException unreadable) {
             // a file not there, not readable or not that JSON leaves the window as it was
         }
+        return false;
     }
 
     /** Whether the child runs now, which closing the window asks about once (ADR-344 §7). */

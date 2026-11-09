@@ -111,10 +111,10 @@ class TheChartsCarryALegendAndEachSampleItsValueTest {
         formatLocaleBefore = Locale.getDefault(Locale.Category.FORMAT);
         Locale.setDefault(Locale.ITALY);
         try (WindowForTests window = WindowForTests.readingEverySecond(folder)) {
-            WindowForTests.progressWritten(folder, byteLevelReductionRunning());
+            window.reportWritten(folder, byteLevelReductionRunning());
             first = window.awaiting(TheChartsCarryALegendAndEachSampleItsValueTest::chartsOf,
                     seen -> seen.get("counts-chart").lines().equals(List.of("read", "written")));
-            WindowForTests.progressWritten(folder, extractionRunning());
+            window.reportWritten(folder, extractionRunning());
             second = window.awaiting(TheChartsCarryALegendAndEachSampleItsValueTest::chartsOf,
                     seen -> seen.get("counts-chart").lines().equals(List.of("done")));
         }

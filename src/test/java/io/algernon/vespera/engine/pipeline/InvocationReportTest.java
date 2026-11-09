@@ -1,6 +1,12 @@
 package io.algernon.vespera.engine.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
+import static io.algernon.vespera.engine.pipeline.SixJobsForTests.NO_SCHEDULED_WRITE_MEANWHILE;
+import static io.algernon.vespera.engine.pipeline.SixJobsForTests.STEPS_IN_JOB_ORDER;
+import static io.algernon.vespera.engine.pipeline.SixJobsForTests.aClock;
+import static io.algernon.vespera.engine.pipeline.SixJobsForTests.aJob;
+import static io.algernon.vespera.engine.pipeline.SixJobsForTests.aReport;
+import static io.algernon.vespera.engine.pipeline.SixJobsForTests.aStep;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.qos.logback.classic.Level;
@@ -48,33 +54,6 @@ import tools.jackson.databind.JsonNode;
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
 @Link(name = "ADR-324", url = Adr.THE_TIMELINE_FOLDS_INTO_FOUR_LEGS, type = "adr")
 class InvocationReportTest {
-
-    /** Long enough that no scheduled write lands while a test runs: the writes these tests read are the listener's. */
-    private static final Duration NO_SCHEDULED_WRITE_MEANWHILE = Duration.ofMinutes(5);
-
-    private static final ZoneId ZONE = ZoneId.systemDefault();
-
-    private static final Instant JOB_START = Instant.parse("2026-11-06T08:00:00Z");
-
-    private static final long WRITTEN_AT = 100;
-
-    private static final List<String> STEPS_IN_JOB_ORDER = List.of(
-            StepNames.CENSUS,
-            StepNames.BYTE_LEVEL_REDUCTION,
-            StepNames.EXTRACTION,
-            StepNames.CONTENT_CENSUS,
-            StepNames.REDUNDANCY_SIGNATURE,
-            StepNames.CONTENT_REDUNDANCY,
-            StepNames.SEED_EXTRACTION,
-            StepNames.SEED_CORPUS_COMPARISON,
-            StepNames.EMBEDDING_SCORING,
-            StepNames.TRANSLATION,
-            StepNames.RELEVANCE_SCORING,
-            StepNames.RELEVANCE_FLOOR,
-            StepNames.CLUSTERING,
-            StepNames.RELEVANCE_REPORT,
-            StepNames.ARRANGEMENT,
-            StepNames.GENERATION);
 
     /** ADR-324 section 1's four legs, written out here and not read from the jar's constant. */
     private static final Map<String, List<String>> THE_FOUR_LEGS = Map.of(
@@ -158,13 +137,7 @@ class InvocationReportTest {
     @DisplayName("For six jobs, each leg's state and whether it is open are ADR-324's, the six draw all five states and open a leg for each of three reasons, and each step carries its leg")
     void eachLegsStateAndWhetherItIsOpenAreAdr324sInEveryJob() throws IOException {
         Map<String, JsonNode> written = new LinkedHashMap<>();
-        written.put("running past a gate", firstWrite(runningPastAGate(), "running-past-a-gate"));
-        written.put("failed beside a gate", firstWrite(failedBesideAGate(), "failed-beside-a-gate"));
-        written.put("between two steps while running", firstWrite(betweenTwoSteps(), "between-running"));
-        written.put("between two steps at the last write", lastWrite(betweenTwoSteps(), BatchStatus.FAILED, "between-last"));
-        written.put("every step finished", lastWrite(everyStepFinished(), BatchStatus.COMPLETED, "finished"));
-        written.put("first stopped at a gate in translation",
-                lastWrite(firstStoppedAtAGateInTranslation(), BatchStatus.COMPLETED, "gate"));
+        SixJobsForTests.sixReports(workingDirectory).forEach((job, text) -> written.put(job, TheReportFile.parse(text)));
 
         Set<String> statesDrawn = new LinkedHashSet<>();
         Set<String> openFor = new LinkedHashSet<>();
@@ -229,116 +202,5 @@ class InvocationReportTest {
         List<String> names = new ArrayList<>();
         array.forEach(each -> names.add(each.get("name").asString()));
         return names;
-    }
-
-    private static JobExecution runningPastAGate() {
-        JobExecution job = aJob();
-        long second = 0;
-        for (String step : STEPS_IN_JOB_ORDER.subList(0, STEPS_IN_JOB_ORDER.indexOf(StepNames.SEED_EXTRACTION))) {
-            aStep(job, step, BatchStatus.COMPLETED, second, ++second);
-        }
-        aStep(job, StepNames.SEED_EXTRACTION, BatchStatus.COMPLETED, second, ++second);
-        gated(job, aStep(job, StepNames.SEED_CORPUS_COMPARISON, BatchStatus.COMPLETED, second, ++second));
-        aStep(job, StepNames.EMBEDDING_SCORING, BatchStatus.COMPLETED, second, ++second);
-        gated(job, aStep(job, StepNames.TRANSLATION, BatchStatus.COMPLETED, second, ++second));
-        aStep(job, StepNames.RELEVANCE_SCORING, BatchStatus.COMPLETED, second, ++second);
-        aStep(job, StepNames.RELEVANCE_FLOOR, BatchStatus.STARTED, second, null);
-        return job;
-    }
-
-    private static JobExecution failedBesideAGate() {
-        JobExecution job = aJob();
-        gated(job, aStep(job, StepNames.CENSUS, BatchStatus.COMPLETED, 0, 1L));
-        aStep(job, StepNames.BYTE_LEVEL_REDUCTION, BatchStatus.FAILED, 1, 2L);
-        gated(job, aStep(job, StepNames.SEED_EXTRACTION, BatchStatus.COMPLETED, 2, 3L));
-        aStep(job, StepNames.SEED_CORPUS_COMPARISON, BatchStatus.STARTED, 3, null);
-        return job;
-    }
-
-    private static JobExecution betweenTwoSteps() {
-        JobExecution job = aJob();
-        aStep(job, StepNames.CENSUS, BatchStatus.COMPLETED, 0, 10L);
-        aStep(job, StepNames.BYTE_LEVEL_REDUCTION, BatchStatus.COMPLETED, 10, 15L);
-        return job;
-    }
-
-    private static JobExecution everyStepFinished() {
-        JobExecution job = aJob();
-        long second = 0;
-        for (String step : STEPS_IN_JOB_ORDER) {
-            aStep(job, step, BatchStatus.COMPLETED, second, ++second);
-        }
-        return job;
-    }
-
-    private static JobExecution firstStoppedAtAGateInTranslation() {
-        JobExecution job = aJob();
-        long second = 0;
-        for (String step : STEPS_IN_JOB_ORDER.subList(0, STEPS_IN_JOB_ORDER.indexOf(StepNames.SEED_CORPUS_COMPARISON))) {
-            aStep(job, step, BatchStatus.COMPLETED, second, ++second);
-        }
-        for (String step : STEPS_IN_JOB_ORDER.subList(
-                STEPS_IN_JOB_ORDER.indexOf(StepNames.SEED_CORPUS_COMPARISON), STEPS_IN_JOB_ORDER.size())) {
-            gated(job, aStep(job, step, BatchStatus.COMPLETED, second, ++second));
-        }
-        return job;
-    }
-
-    /** The first write of {@code job}'s report, in a working directory of its own named {@code which}. */
-    private JsonNode firstWrite(JobExecution job, String which) throws IOException {
-        Path directory = Files.createDirectories(workingDirectory.resolve(which));
-        ProgressPage page = new ProgressPage(directory, NO_SCHEDULED_WRITE_MEANWHILE, aClock());
-        page.handTo(aReport(directory));
-        page.beforeJob(job);
-        JsonNode written = TheReportFile.in(directory);
-        job.setStatus(BatchStatus.COMPLETED);
-        page.afterJob(job);
-        return written;
-    }
-
-    /** The last write of {@code job}'s report, the job ended {@code ending}, in a working directory named {@code which}. */
-    private JsonNode lastWrite(JobExecution job, BatchStatus ending, String which) throws IOException {
-        Path directory = Files.createDirectories(workingDirectory.resolve(which));
-        ProgressPage page = new ProgressPage(directory, NO_SCHEDULED_WRITE_MEANWHILE, aClock());
-        page.handTo(aReport(directory));
-        page.beforeJob(job);
-        job.setStatus(ending);
-        page.afterJob(job);
-        return TheReportFile.in(directory);
-    }
-
-    private static InvocationReport aReport(Path directory) {
-        return new InvocationReport(
-                directory, NO_SCHEDULED_WRITE_MEANWHILE, aClock(),
-                () -> new DisplayPresence.Answer(true, "display-variable", null), "");
-    }
-
-    private static Clock aClock() {
-        return Clock.fixed(JOB_START.plusSeconds(WRITTEN_AT), ZONE);
-    }
-
-    private static LocalDateTime at(long seconds) {
-        return LocalDateTime.ofInstant(JOB_START.plusSeconds(seconds), ZONE);
-    }
-
-    private static JobExecution aJob() {
-        JobExecution job = new JobExecution(1L, new JobInstance(1L, VesperaJobConfiguration.JOB_NAME), new JobParameters());
-        job.setStartTime(at(0));
-        job.setStatus(BatchStatus.STARTED);
-        return job;
-    }
-
-    private static StepExecution aStep(JobExecution job, String step, BatchStatus status, long start, Long end) {
-        StepExecution execution = new StepExecution(step, job);
-        execution.setStatus(status);
-        execution.setStartTime(at(start));
-        execution.setEndTime(end == null ? null : at(end));
-        job.addStepExecution(execution);
-        return execution;
-    }
-
-    private static StepExecution gated(JobExecution job, StepExecution step) {
-        new ShutGates(job.getExecutionContext()).record(step.getStepName());
-        return step;
     }
 }

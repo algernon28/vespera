@@ -122,12 +122,12 @@ final class StepsChart extends VBox {
     }
 
     /** Draws each step's bar and state and each leg's summary from what the progress page holds. */
-    void show(ProgressFile.Progress progress) {
-        Map<String, ProgressFile.Step> byName = new HashMap<>();
+    void show(InvocationReportFile.Report progress) {
+        Map<String, InvocationReportFile.Step> byName = new HashMap<>();
         progress.steps().forEach(step -> byName.put(step.name(), step));
         Map<String, Double> fractions = new HashMap<>();
         stepRows.forEach((name, row) -> {
-            ProgressFile.Step step = byName.get(name);
+            InvocationReportFile.Step step = byName.get(name);
             String words = step == null ? "waiting" : step.state();
             boolean running = words.equals("running");
             row.state().setText(running && step.done() != null && step.total() != null && step.total() > 0

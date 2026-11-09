@@ -8,16 +8,16 @@ import java.util.Map;
 
 /**
  * The four legs the job's steps fold into (ADR-361 §1): ADR-324 §1's table held as text, because the control panel
- * links no class of the jar (ADR-285 §3); {@code pipeline.TheControlPanelsLegsAreTheProgressPagesTest} holds it, and the
- * rules of a leg's state and of which legs are open, to the progress page's.
+ * links no class of the jar (ADR-285 §3); {@code pipeline.TheControlPanelsLegsAreTheReportsTest} holds it, and the
+ * rules of a leg's state and of which legs are open, to the report's.
  */
 public final class Legs {
 
-    /** One leg: its name as the progress page writes it and its steps in the order the job runs them. */
+    /** One leg: its name as the report writes it and its steps in the order the job runs them. */
     public record Leg(String name, List<String> steps) {
     }
 
-    /** The four legs, in the page's order; their steps together are {@link StopCosts#ROWS}, in its order. */
+    /** The four legs, in the report's order; their steps together are {@link StopCosts#ROWS}, in its order. */
     public static final List<Leg> ALL = List.of(
             new Leg("deduplication", List.of("census", "byte-level-reduction", "extraction", "content-census",
                     "redundancy-signature", "content-redundancy")),
@@ -37,7 +37,7 @@ public final class Legs {
     }
 
     /** Each leg's state in words, by leg name, in {@link #ALL}'s order (ADR-361 §4). */
-    public static Map<String, String> statesOf(ProgressFile.Progress progress) {
+    public static Map<String, String> statesOf(InvocationReportFile.Report progress) {
         Map<String, String> byStep = new HashMap<>();
         progress.steps().forEach(step -> byStep.put(step.name(), step.state()));
         Map<String, String> states = new LinkedHashMap<>();
@@ -73,7 +73,7 @@ public final class Legs {
     }
 
     /** The legs that are open (ADR-361 §5): running or failed, or holding the first step stopped at a gate. */
-    public static List<String> openOf(ProgressFile.Progress progress) {
+    public static List<String> openOf(InvocationReportFile.Report progress) {
         Map<String, String> states = statesOf(progress);
         Map<String, String> byStep = new HashMap<>();
         progress.steps().forEach(step -> byStep.put(step.name(), step.state()));

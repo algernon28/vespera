@@ -74,8 +74,8 @@ final class WindowForTests implements AutoCloseable {
     /**
      * The window over a corpus root {@code corpus} and a working directory {@code working} under {@code folder}, its
      * progress interval set to one second in Command options, as the operator can, the shortest it takes, and
-     * {@link SleepingJar}'s child started as Run starts it: so that a {@code progress.json} the test writes with
-     * {@link #progressWritten} is read within a second. The test is skipped where the child does not start.
+     * {@link SleepingJar}'s child started as Run starts it: so that a {@code report.json} the test writes with
+     * {@link #reportWritten} is read within a second. The test is skipped where the child does not start.
      */
     static WindowForTests readingEverySecond(Path folder) throws Exception {
         ControlPanelState state = aState(folder, SleepingJar.runtime());
@@ -83,7 +83,7 @@ final class WindowForTests implements AutoCloseable {
                 Files.createDirectories(folder.resolve("working")).toString(), "", "", "", "", "", ""));
         WindowForTests window = shown(state);
         try {
-            window.act(root -> intervalOf(root).getValueFactory().setValue(1));
+            window.readEverySecond();
             Optional<String> refusal = state.start(ControlPanelState.Start.RUN, new ArrayList<>());
             Assumptions.assumeThat(refusal).as("the sleeping child is started").isEmpty();
             return window;
@@ -93,9 +93,18 @@ final class WindowForTests implements AutoCloseable {
         }
     }
 
-    /** Writes {@code json} as the {@code progress.json} of the working directory {@link #readingEverySecond} reads under {@code folder}. */
-    static void progressWritten(Path folder, String json) throws IOException {
-        Files.writeString(folder.resolve("working").resolve(ProgressFile.FILE_NAME), json, StandardCharsets.UTF_8);
+    /**
+     * Writes {@code job}, the steps and charts a test describes (see {@link ReportFixtures}), as the {@code report.json}
+     * the child this window started has just written, in the working directory {@link #readingEverySecond} reads under
+     * {@code folder}.
+     */
+    void reportWritten(Path folder, String job) throws IOException {
+        ReportFixtures.write(folder.resolve("working"), state.watchedChild().orElseThrow().pid(), job);
+    }
+
+    /** Sets the progress interval to one second in Command options, as the operator can, the shortest it takes. */
+    void readEverySecond() throws Exception {
+        act(root -> intervalOf(root).getValueFactory().setValue(1));
     }
 
     @SuppressWarnings("unchecked")

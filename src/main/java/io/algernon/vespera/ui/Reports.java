@@ -10,9 +10,11 @@ import java.util.Map;
  */
 public final class Reports {
 
-    /** The sixteen file names of ADR-302 §3 and ADR-306 §2, in that table's order. */
-    public static final List<String> ALL = List.of("progress.html", "progress-steps.html", "progress-samples.html",
-            "progress-runs.html", "format-mix.html", "extraction-failures.html", "extraction-survivors.html",
+    /**
+     * The twelve analysis reports by file name, in the order of ADR-302 §3 and ADR-306 §2, without the progress pages the
+     * Report tab replaces (ADR-362 §8).
+     */
+    public static final List<String> ALL = List.of("format-mix.html", "extraction-failures.html", "extraction-survivors.html",
             "confidence-distribution.html", "document-frequency.html", "word-count-distribution.html",
             "seed-corpus-comparison.html", "translations.html", "cluster-sizes.html", "relevance-labelling.html",
             "arrangement.html", "cluster-page-sizes.html");

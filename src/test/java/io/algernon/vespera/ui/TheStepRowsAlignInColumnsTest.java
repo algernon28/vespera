@@ -42,7 +42,7 @@ import org.junit.jupiter.api.io.TempDir;
  * shows the window as the control panel shows it, on the Headless platform (ADR-342 §6), and reads where each row's
  * parts begin in the scene.
  *
- * <p>The running step's row, as {@code progress.json} names it, also shows its Stop and what a stop there costs, so it
+ * <p>The running step's row, as {@code report.json} names it, also shows its Stop and what a stop there costs, so it
  * asks for more width than any other row; in a steps pane narrower than that, it alone is laid out short of its width,
  * and its bar is the one part of it that could give way. The columns hold there too.
  *
@@ -106,14 +106,13 @@ class TheStepRowsAlignInColumnsTest {
         ControlPanelState state = WindowForTests.aState(folder, SleepingJar.runtime());
         state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(),
                 Files.createDirectories(folder.resolve("working")).toString(), "", "", "", "", "", ""));
-        Files.writeString(folder.resolve("working").resolve(ProgressFile.FILE_NAME), EXTRACTION_RUNNING,
-                StandardCharsets.UTF_8);
         boolean shownRunning;
         Map<String, Width> widths;
         Map<String, Row> rows;
         try (WindowForTests window = WindowForTests.shown(state)) {
             Optional<String> refusal = state.start(ControlPanelState.Start.RUN, new ArrayList<>());
             assumeThat(refusal).as("the sleeping child is started").isEmpty();
+            ReportFixtures.write(folder.resolve("working"), state.watchedChild().orElseThrow().pid(), EXTRACTION_RUNNING);
             shownRunning = window.awaiting(TheStepRowsAlignInColumnsTest::theRunningRowShowsStopAndItsCost,
                     Boolean::booleanValue);
             window.act(TheStepRowsAlignInColumnsTest::openEveryLeg);
@@ -128,7 +127,7 @@ class TheStepRowsAlignInColumnsTest {
             }
         });
 
-        claim("the running step's row, as progress.json names it, shows its Stop and what a stop there costs",
+        claim("the running step's row, as report.json names it, shows its Stop and what a stop there costs",
                 () -> assertThat(shownRunning).as("the row of %s shows its Stop and its cost words", RUNNING_STEP)
                         .isTrue());
         claim("the steps pane is narrower than the running step's row asks to be, so that row alone is laid out short"

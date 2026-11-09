@@ -190,7 +190,7 @@ class ARunningStepSaysHowFarItHasGotTest {
 
     /** Writes {@code json}, waits until {@code shown} holds of what the window shows, and keeps that as {@code file}. */
     private static void read(WindowForTests window, String file, String json, Predicate<Seen> shown) throws Exception {
-        WindowForTests.progressWritten(folder, json);
+        window.reportWritten(folder, json);
         READ.put(file, window.awaiting(ARunningStepSaysHowFarItHasGotTest::seenOf, shown));
     }
 

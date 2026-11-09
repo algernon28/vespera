@@ -28,7 +28,7 @@ import org.junit.jupiter.api.io.TempDir;
  * Stop, and closing the window while its child runs, ask first (ADR-278 §6, ADR-285 §5, ADR-344 §7): each asks with the
  * one sentence a stop is confirmed by, {@link Child#STOP_CONFIRMATION}, through the window's dialogs, which a test
  * answers (ADR-342 §6). Stop ends the child only on the answer that goes on, from the action card's {@code stop} and from
- * the running step's {@code stop-step} alike, which stands shown on that step's row, as {@code progress.json} names it,
+ * the running step's {@code stop-step} alike, which stands shown on that step's row, as {@code report.json} names it,
  * and on no other: every row holds a {@code stop-step}, so it is looked up inside the row. Closing asks once, with the two answers ADR-344 §7 names; Keep the window
  * keeps it open and the child running. A close with no child running asks nothing.
  *
@@ -61,8 +61,6 @@ class StopAndCloseAskFirstTest {
     @DisplayName("Stop asks with the one sentence a stop is confirmed by, and stops the child only on the answer that goes on")
     void stopAsksWithItsSentenceAndStopsTheChildOnlyOnTheAnswerThatGoesOn(@TempDir Path folder) throws Exception {
         ControlPanelState state = aStateOver(folder);
-        Files.writeString(folder.resolve("working").resolve(ProgressFile.FILE_NAME), EXTRACTION_RUNNING,
-                StandardCharsets.UTF_8);
         List<String> askedOnNo;
         boolean runsAfterNo;
         boolean endedAfterYes;
@@ -71,6 +69,7 @@ class StopAndCloseAskFirstTest {
         List<String> rowsShowingAStop;
         try (WindowForTests window = WindowForTests.shown(state)) {
             started(window);
+            ReportFixtures.write(folder.resolve("working"), state.watchedChild().orElseThrow().pid(), EXTRACTION_RUNNING);
             shownOnTheRunningRow = window.awaiting(root -> stopOfTheRow(root, RUNNING_STEP).isVisible(),
                     Boolean::booleanValue);
             rowsShowingAStop = window.read(root -> StopCosts.ROWS.stream().map(StopCosts.StopCost::step)
@@ -90,7 +89,7 @@ class StopAndCloseAskFirstTest {
             ending = window.state.ending();
         }
 
-        claim("the running step's row, as progress.json names it, shows its own Stop, and no other row shows one",
+        claim("the running step's row, as report.json names it, shows its own Stop, and no other row shows one",
                 () -> {
                     assertThat(shownOnTheRunningRow).isTrue();
                     assertThat(rowsShowingAStop).containsExactly(RUNNING_STEP);

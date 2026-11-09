@@ -59,9 +59,6 @@ final class ProgressPage implements JobExecutionListener {
 
     static final String FILE_NAME = "progress.html";
 
-    /** What the page's steps and charts are written as beside it, for the control panel's window (ADR-344 section 2). */
-    static final String NUMBERS_FILE_NAME = "progress.json";
-
     private static final Logger log = LoggerFactory.getLogger(ProgressPage.class);
 
     static final String STEPS_FILE_NAME = "progress-steps.html";
@@ -577,15 +574,13 @@ final class ProgressPage implements JobExecutionListener {
                 put(SAMPLES_FILE_NAME, pages[1]);
                 put(RUNS_FILE_NAME, pages[2]);
                 put(FILE_NAME, pages[3]);
-                put(NUMBERS_FILE_NAME, pages[4]);
             } else {
                 put(FILE_NAME, renderCommand(last, outcome, counts));
-                put(NUMBERS_FILE_NAME, commandData(last));
             }
             warned = false;
             return true;
         } catch (IOException | RuntimeException e) {
-            for (String name : List.of(STEPS_FILE_NAME, SAMPLES_FILE_NAME, RUNS_FILE_NAME, FILE_NAME, NUMBERS_FILE_NAME)) {
+            for (String name : List.of(STEPS_FILE_NAME, SAMPLES_FILE_NAME, RUNS_FILE_NAME, FILE_NAME)) {
                 try {
                     Files.deleteIfExists(workingDirectory.resolve(name + ".part"));
                 } catch (IOException | RuntimeException ignored) {
@@ -611,7 +606,7 @@ final class ProgressPage implements JobExecutionListener {
         }
     }
 
-    /** The pages of one write and progress.json beside them, from one reading: steps, samples, runs, progress, numbers. */
+    /** The pages of one write and the report's reading beside them, from one reading: steps, samples, runs, progress. */
     private String[] render(boolean last) {
         JobExecution job = jobExecution;
         Instant now = clock.instant();
@@ -785,7 +780,7 @@ final class ProgressPage implements JobExecutionListener {
                 + chartRow();
         return new String[] {
             page("steps", stepsBody, seconds), page("samples", samplesBody, seconds),
-            page("runs", runsBody, seconds), page("", progressBody, seconds), dataOf(last, states)
+            page("runs", runsBody, seconds), page("", progressBody, seconds)
         };
     }
 
@@ -1178,7 +1173,7 @@ final class ProgressPage implements JobExecutionListener {
                 + databaseChart() + (card ? counts : "") + verdictsChart() + "</div>\n" + (card ? "" : counts);
     }
 
-    /** A chart's numbers before they are drawn: the page draws them as a figure and progress.json writes them (ADR-344 section 2). */
+    /** A chart's numbers before they are drawn: the page draws them as a figure and the report copies them (ADR-362 section 3). */
     private record ChartData(
             String key, String title, String caption, List<Long> seconds, List<Line> lines, Axis axis,
             DoubleFunction<String> show) {}
@@ -1491,84 +1486,6 @@ final class ProgressPage implements JobExecutionListener {
                     .append(f1(labelY[k])).append("\">").append(ReportPage.escape(labels[byHeight.get(k)])).append("</text>\n");
         }
         return svg.append("</svg>\n</figure>\n").toString();
-    }
-
-    /**
-     * The file the window reads, progress.json, of a write, from the reading the page was drawn from (ADR-344 section 2): whether the invocation
-     * has ended, each step of the job in order with its state and, where its last progress line is a counter, how far
-     * it has got, and the charts the page draws now with the series the page's own rules picked. Numbers and the
-     * page's own words: no path and no text of a document.
-     */
-    private String dataOf(boolean last, Map<String, String> states) {
-        StringBuilder json = new StringBuilder("{\"ended\":").append(last).append(",\"steps\":[");
-        boolean first = true;
-        for (String step : STEPS_IN_JOB_ORDER) {
-            Matcher counter = COUNTER.matcher(lastLine.getOrDefault(step, ""));
-            boolean counted = counter.matches();
-            json.append(first ? "" : ",").append("{\"name\":").append(quoted(step))
-                    .append(",\"state\":").append(quoted(states.getOrDefault(step, "not started")))
-                    .append(",\"done\":").append(counted ? counter.group(2).replace(",", "") : "null")
-                    .append(",\"total\":")
-                    .append(counted && counter.group(3) != null ? counter.group(3).replace(",", "") : "null")
-                    .append('}');
-            first = false;
-        }
-        json.append("],\"charts\":[");
-        first = true;
-        for (ChartData chart : Arrays.asList(databaseData(), countsData(), verdictsData())) {
-            if (chart == null) {
-                continue;
-            }
-            json.append(first ? "" : ",").append("{\"id\":").append(quoted(chart.key()))
-                    .append(",\"title\":").append(quoted(chart.title()))
-                    .append(",\"axis\":").append(quoted(chart.axis().title()))
-                    .append(",\"seconds\":").append(chart.seconds()).append(",\"lines\":[");
-            for (int i = 0; i < chart.lines().size(); i++) {
-                Line line = chart.lines().get(i);
-                json.append(i == 0 ? "" : ",").append("{\"name\":")
-                        .append(quoted(line.name().isEmpty() ? "size" : line.name())).append(",\"values\":[");
-                for (int v = 0; v < line.values().length; v++) {
-                    json.append(v == 0 ? "" : ",")
-                            .append(Double.isFinite(line.values()[v]) ? Double.toString(line.values()[v]) : "0");
-                }
-                json.append("]}");
-            }
-            json.append("]}");
-            first = false;
-        }
-        return json.append("]}\n").toString();
-    }
-
-    /** The file the window reads, for a command that starts no job: every step waiting and no chart to draw. */
-    private static String commandData(boolean last) {
-        StringBuilder json = new StringBuilder("{\"ended\":").append(last).append(",\"steps\":[");
-        for (int i = 0; i < STEPS_IN_JOB_ORDER.size(); i++) {
-            json.append(i == 0 ? "" : ",").append("{\"name\":").append(quoted(STEPS_IN_JOB_ORDER.get(i)))
-                    .append(",\"state\":\"not started\",\"done\":null,\"total\":null}");
-        }
-        return json.append("],\"charts\":[]}\n").toString();
-    }
-
-    /** {@code text} as a JSON string. */
-    private static String quoted(String text) {
-        StringBuilder quoted = new StringBuilder("\"");
-        for (char c : text.toCharArray()) {
-            switch (c) {
-                case '"' -> quoted.append("\\\"");
-                case '\\' -> quoted.append("\\\\");
-                case '\n' -> quoted.append("\\n");
-                case '\r' -> quoted.append("\\r");
-                case '\t' -> quoted.append("\\t");
-                default -> {
-                    if (c < 0x20) {
-                        quoted.append(String.format(Locale.ROOT, "\\u%04x", (int) c));
-                    } else {
-                        quoted.append(c);
-                    }
-                }
-            }
-        }
-        return quoted.append('"').toString();
     }
 
     /** The page of a command that starts no job (ADR-266 section 3): numbers and fixed words, nothing it was given. */

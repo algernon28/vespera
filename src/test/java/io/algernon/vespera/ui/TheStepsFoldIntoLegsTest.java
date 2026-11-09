@@ -163,11 +163,11 @@ class TheStepsFoldIntoLegsTest {
         Map<String, LegSeen> failed;
         Map<String, LegSeen> gate;
         try (WindowForTests window = readingEverySecond(folder)) {
-            written(working, extractionRunning());
+            written(window, working, extractionRunning());
             running = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("deduplication", DEDUPLICATION_RUNNING));
-            written(working, byteLevelReductionFailed());
+            written(window, working, byteLevelReductionFailed());
             failed = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("deduplication", "failed"));
-            written(working, firstStoppedAtAGateInTranslation());
+            written(window, working, firstStoppedAtAGateInTranslation());
             gate = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("translation", "stopped at a gate"));
         }
 
@@ -201,7 +201,7 @@ class TheStepsFoldIntoLegsTest {
         Path working = Files.createDirectories(folder.resolve("working"));
         Map<String, LegSeen> seen;
         try (WindowForTests window = readingEverySecond(folder)) {
-            written(working, extractionRunning());
+            written(window, working, extractionRunning());
             seen = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("deduplication", DEDUPLICATION_RUNNING));
         }
 
@@ -231,18 +231,18 @@ class TheStepsFoldIntoLegsTest {
         Map<String, LegSeen> translationRunning;
         Map<String, LegSeen> clusteringRunning;
         try (WindowForTests window = readingEverySecond(folder)) {
-            written(working, extractionRunning());
+            written(window, working, extractionRunning());
             before = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("deduplication", DEDUPLICATION_RUNNING));
             window.act(root -> {
                 WindowForTests.node(root, "leg-deduplication", TitledPane.class).setExpanded(false);
                 WindowForTests.node(root, "leg-generation", TitledPane.class).setExpanded(true);
             });
-            written(working, byteLevelReductionFailed());
+            written(window, working, byteLevelReductionFailed());
             deduplicationFailed = window.awaiting(TheStepsFoldIntoLegsTest::legsOf, stateIs("deduplication", "failed"));
-            written(working, translationRunning());
+            written(window, working, translationRunning());
             translationRunning = window.awaiting(TheStepsFoldIntoLegsTest::legsOf,
                     stateIs("translation", RUNNING_AT_NOTHING));
-            written(working, clusteringRunning());
+            written(window, working, clusteringRunning());
             clusteringRunning = window.awaiting(TheStepsFoldIntoLegsTest::legsOf,
                     stateIs("clustering", RUNNING_AT_NOTHING));
         }
@@ -298,8 +298,8 @@ class TheStepsFoldIntoLegsTest {
         return WindowForTests.readingEverySecond(folder);
     }
 
-    private static void written(Path working, String json) throws IOException {
-        Files.writeString(working.resolve(ProgressFile.FILE_NAME), json, StandardCharsets.UTF_8);
+    private static void written(WindowForTests window, Path working, String job) throws IOException {
+        ReportFixtures.write(working, window.state.watchedChild().orElseThrow().pid(), job);
     }
 
     /** {@code progress.json} while extraction runs at {@link #DONE} of {@link #TOTAL}, the census and byte-level reduction finished. */

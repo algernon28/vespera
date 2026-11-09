@@ -52,17 +52,17 @@ class TheReportsOpenInTheWindowTest {
     /** A report the jar writes in the working directory, read off the boilerplate floor. */
     private static final String A_REPORT = "document-frequency.html";
 
-    /** The progress page's first tab, which links the others by their bare file names. */
-    private static final String OVERVIEW = "progress.html";
+    /** A report that links another by its bare file name. */
+    private static final String OVERVIEW = "format-mix.html";
 
-    /** The progress page's second tab, linked from the first. */
-    private static final String STEPS = "progress-steps.html";
+    /** A report linked from {@link #OVERVIEW}. */
+    private static final String STEPS = "extraction-failures.html";
 
     /** The report whose every lead document is a link to the document where it lies. */
     private static final String ARRANGEMENT = "arrangement.html";
 
-    /** The progress page's fourth tab, which the working directory of the test does not hold. */
-    private static final String NOT_WRITTEN = "progress-runs.html";
+    /** A report of the twelve that the working directory of the test does not hold. */
+    private static final String NOT_WRITTEN = "translations.html";
 
     /** An address of the web, under a top-level domain reserved never to resolve. */
     private static final String A_WEB_ADDRESS = "https://example.invalid/";
@@ -89,7 +89,7 @@ class TheReportsOpenInTheWindowTest {
     private static final String TITLE_ITS_SCRIPT_SETS = "drawn by its own script";
 
     /** The tabs the window opens with, before any report is opened. */
-    private static final List<String> THE_FORM_TABS = List.of("profile", "inclusions");
+    private static final List<String> THE_FORM_TABS = List.of("live-report", "profile", "inclusions");
 
     @Test
     @Story("The operator reads the reports inside the window")
@@ -110,7 +110,7 @@ class TheReportsOpenInTheWindowTest {
         }
 
         claim("pressing the report's link in the Reports section opens a tab of its own after Profile and Inclusions",
-                () -> assertThat(tabs).containsExactly("profile", "inclusions", "report-" + A_REPORT));
+                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "report-" + A_REPORT));
         claim("the tab is selected, and its viewer shows that report of the working directory",
                 () -> assertThat(opened).hasValueSatisfying(tab -> {
                     assertThat(tab.selected()).isTrue();
@@ -150,7 +150,7 @@ class TheReportsOpenInTheWindowTest {
 
         assumeThat(selectedBeforeTheSecond).as("the Profile tab is selected before the report is opened again").isFalse();
         claim("the report opened again, from the boilerplate floor's row on the Profile tab, opens no second tab",
-                () -> assertThat(tabs).containsExactly("profile", "inclusions", "report-" + A_REPORT));
+                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "report-" + A_REPORT));
         claim("and its one tab is selected again, on the same report",
                 () -> assertThat(again).hasValueSatisfying(tab -> {
                     assertThat(tab.selected()).isTrue();
@@ -183,7 +183,7 @@ class TheReportsOpenInTheWindowTest {
         }
 
         claim("the link to the Steps tab opens that report in a tab of its own, after the overview's",
-                () -> assertThat(tabs).containsExactly("profile", "inclusions", "report-" + OVERVIEW, "report-" + STEPS));
+                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "report-" + OVERVIEW, "report-" + STEPS));
         claim("which is selected, its viewer showing that report of the working directory",
                 () -> assertThat(steps).hasValueSatisfying(tab -> {
                     assertThat(tab.selected()).isTrue();
@@ -229,7 +229,7 @@ class TheReportsOpenInTheWindowTest {
                 () -> assertThat(arrangement).hasValueSatisfying(
                         tab -> assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(ARRANGEMENT))));
         claim("and no tab is opened for it",
-                () -> assertThat(tabs).containsExactly("profile", "inclusions", "report-" + ARRANGEMENT));
+                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "report-" + ARRANGEMENT));
     }
 
     @Test
@@ -265,7 +265,7 @@ class TheReportsOpenInTheWindowTest {
         claim("the link to a web address is answered on the outcome line, naming the address",
                 () -> assertThat(saidOfTheWeb).isEqualTo("not opened: " + A_WEB_ADDRESS + " is not a file of this computer"));
         claim("neither opens a tab",
-                () -> assertThat(tabs).containsExactly("profile", "inclusions", "report-" + OVERVIEW));
+                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "report-" + OVERVIEW));
         claim("the viewer stays on the overview",
                 () -> assertThat(overview).hasValueSatisfying(
                         tab -> assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(OVERVIEW))));
@@ -312,7 +312,7 @@ class TheReportsOpenInTheWindowTest {
                 () -> assertThat(arrangement).hasValueSatisfying(
                         tab -> assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(ARRANGEMENT))));
         claim("and no tab is opened for either",
-                () -> assertThat(tabs).containsExactly("profile", "inclusions", "report-" + ARRANGEMENT));
+                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "report-" + ARRANGEMENT));
     }
 
     @Test

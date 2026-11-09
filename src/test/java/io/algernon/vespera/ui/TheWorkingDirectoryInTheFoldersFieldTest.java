@@ -36,7 +36,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 /**
  * The working directory the Folders section's field names is the one whose files the window reads and writes (ADR-344
  * §1, §3): the profile, the folders not walked it states, which the Inclusions tab's tree draws and writes (ADR-345 §2),
- * the reports and {@code progress.json}. That holds where the field started from the environment or from {@code .env}
+ * the reports and {@code report.json}. That holds where the field started from the environment or from {@code .env}
  * and no launch value names it, after a Run that kept nothing of it (ADR-344 §3's "What is kept"), where the operator
  * types another folder in the field, and where no source names one, the field then standing for the folder the jar
  * would use on this machine (ADR-345 §1, keeping ADR-340 §6). Publish stands beside Run and Stop where the folders the
@@ -74,7 +74,6 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
         Path workingDirectory = aWorkingDirectory(folder.resolve("working"), "a-writing-model:8b");
         notWalked(workingDirectory, "Old");
         Files.writeString(workingDirectory.resolve(A_REPORT), "<html></html>", StandardCharsets.UTF_8);
-        Files.writeString(workingDirectory.resolve(ProgressFile.FILE_NAME), PROGRESS, StandardCharsets.UTF_8);
         Map<String, String> named = Map.of("VESPERA_CORPUS_ROOT", corpus.toString(), "VESPERA_WORKING_DIR",
                 workingDirectory.toString());
         ControlPanelState state = WindowForTests.aState(folder, SleepingJar.runtime());
@@ -96,6 +95,7 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
             window.act(root -> WindowForTests.node(root, "run", Button.class).fire());
             boolean started = WindowForTests.within(state::childRuns);
             assumeThat(started).as("Run started the sleeping child").isTrue();
+            ReportFixtures.write(workingDirectory, state.watchedChild().orElseThrow().pid(), PROGRESS);
             state.stop();
             bar = window.awaiting(root -> barOf(root, "step-extraction"), progress -> progress == 0.75);
 
@@ -114,7 +114,7 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
         claim("and the Inclusions tab draws Old unticked, as the working directory's profile lists it among the folders"
                         + " not walked, and Other ticked",
                 () -> assertThat(List.of(before.oldTicked(), before.otherTicked())).containsExactly(false, true));
-        claim("once the Run has ended, the steps are drawn from the working directory's progress.json: extraction's bar"
+        claim("once the Run has ended, the steps are drawn from the working directory's report.json: extraction's bar"
                         + " at three of four",
                 () -> assertThat(bar).isEqualTo(0.75));
         claim("and after the Run the Profile tab's Save writes the working directory's profile.yaml",
