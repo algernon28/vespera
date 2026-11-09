@@ -92,6 +92,10 @@ class ReviewListRefusedForAMomentIsStillPutInPlaceTest {
         int[] attempts = {0};
         ReplacingMove refusedTwice = new ReplacingMove(
                 (part, target) -> {
+                    if (target.toString().endsWith(".json")) { // the JSON beside the page goes in place at once; it is the page's move that is refused
+                        Files.move(part, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                        return;
+                    }
                     attempts[0]++;
                     if (attempts[0] <= REFUSED_TWICE) {
                         throw new AccessDeniedException(part.toString(), target.toString(), null);

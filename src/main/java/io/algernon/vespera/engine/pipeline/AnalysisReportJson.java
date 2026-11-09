@@ -2,6 +2,8 @@ package io.algernon.vespera.engine.pipeline;
 
 import io.algernon.vespera.engine.ledger.ReplacingMove;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -23,6 +26,9 @@ import tools.jackson.databind.json.JsonMapper;
  * {@code headline} and {@code sections}. Each report's writer builds its {@link Document} from the values it draws its
  * page from, and {@link #write} puts it in place through {@code .part} and {@code ReplacingMove}; {@link #headlineOf}
  * is what {@code report.json} copies of it, the headline alone and nothing of a section.
+ *
+ * <p>A report whose rows are too many to hold writes them a row at a time instead, through the streaming
+ * {@link #write(Writer, String, int, String, Instant, List, StreamedSection, boolean, Rows)} (ADR-220).
  *
  * <p>It holds no rule: what a report says, and under which sections, is its writer's, and each report's schema in
  * {@code docs/report} names its headline's keys, its sections' ids and each table's columns.
@@ -57,6 +63,95 @@ final class AnalysisReportJson {
     /** One report's JSON, before it is written. */
     record Document(
             int format, String analysisReport, String title, Instant writtenAt, List<Figure> headline, List<Section> sections) {}
+
+    /** The one section of a report whose rows are streamed, as its page streams them (ADR-220): its id, title and paragraphs, and its table's columns. */
+    record StreamedSection(String id, String title, List<String> paragraphs, List<Column> columns) {}
+
+    /** Hands each row, a list of cells in the columns' order, to the consumer it is given, once. */
+    @FunctionalInterface
+    interface Rows {
+        void handOver(Consumer<List<Object>> row) throws IOException;
+    }
+
+    /** The instant as the reports write it, ISO 8601 in UTC with {@code Z}, to the millisecond. */
+    static String instant(Instant instant) {
+        return INSTANT.format(instant);
+    }
+
+    /**
+     * Writes the report whole to {@code out}: the rows as {@code eachRow} hands them over, each a list of cells in the
+     * columns' order, and {@code table} {@code null} where {@code withTable} is false.
+     *
+     * @throws IOException if {@code out} refuses a write, including while {@code eachRow} is handing over rows
+     */
+    static void write(
+            Writer out,
+            String name,
+            int format,
+            String title,
+            Instant writtenAt,
+            List<Figure> headline,
+            StreamedSection section,
+            boolean withTable,
+            Rows eachRow)
+            throws IOException {
+        out.write("{\"format\":" + format + ",\"analysisReport\":" + quoted(name) + ",\"title\":" + quoted(title)
+                + ",\"writtenAt\":" + quoted(instant(writtenAt)) + ",\"headline\":[");
+        for (int i = 0; i < headline.size(); i++) {
+            Figure figure = headline.get(i);
+            out.write((i == 0 ? "" : ",") + "{\"key\":" + quoted(figure.key()) + ",\"label\":" + quoted(figure.label())
+                    + ",\"value\":" + figure.value() + ",\"unit\":" + quoted(figure.unit()) + "}");
+        }
+        out.write("],\"sections\":[{\"id\":" + quoted(section.id()) + ",\"title\":" + quoted(section.title())
+                + ",\"text\":[");
+        for (int i = 0; i < section.paragraphs().size(); i++) {
+            out.write((i == 0 ? "" : ",") + quoted(section.paragraphs().get(i)));
+        }
+        out.write("],\"chart\":null,\"table\":");
+        if (!withTable) {
+            out.write("null");
+        } else {
+            out.write("{\"columns\":[");
+            for (int i = 0; i < section.columns().size(); i++) {
+                Column column = section.columns().get(i);
+                out.write((i == 0 ? "" : ",") + "{\"id\":" + quoted(column.id()) + ",\"label\":" + quoted(column.label())
+                        + ",\"kind\":" + quoted(column.kind()) + "}");
+            }
+            out.write("],\"rows\":[");
+            boolean[] first = {true};
+            try {
+                eachRow.handOver(row -> {
+                    try {
+                        out.write(first[0] ? "[" : ",[");
+                        first[0] = false;
+                        for (int i = 0; i < row.size(); i++) {
+                            out.write((i == 0 ? "" : ",") + cell(row.get(i)));
+                        }
+                        out.write("]");
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+            } catch (UncheckedIOException e) {
+                throw e.getCause();
+            }
+            out.write("]}");
+        }
+        out.write("}]}\n");
+    }
+
+    private static String cell(Object cell) {
+        return switch (cell) {
+            case null -> "null";
+            case String text -> quoted(text);
+            case Number number -> Long.toString(number.longValue());
+            default -> throw new IllegalArgumentException("not a cell: " + cell.getClass().getName());
+        };
+    }
+
+    private static String quoted(String text) {
+        return MAPPER.writeValueAsString(text);
+    }
 
     /**
      * Writes {@code document} whole into {@code <file>.part} and moves it over {@code file}. It throws where either
@@ -112,7 +207,7 @@ final class AnalysisReportJson {
         tree.put("format", document.format());
         tree.put("analysisReport", document.analysisReport());
         tree.put("title", document.title());
-        tree.put("writtenAt", INSTANT.format(document.writtenAt().truncatedTo(ChronoUnit.MILLIS)));
+        tree.put("writtenAt", instant(document.writtenAt().truncatedTo(ChronoUnit.MILLIS)));
         List<Object> headline = new ArrayList<>();
         for (Figure figure : document.headline()) {
             headline.add(InvocationReport.object(

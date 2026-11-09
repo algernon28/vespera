@@ -124,8 +124,10 @@ final class InvocationReport {
             ANALYSIS_PAGES.stream().map(page -> page.substring(0, page.length() - ".html".length())).toList();
 
     /** The analysis reports whose JSON is written, each with the format its writer writes (ADR-362 section 9); a ticket of step 5 adds its own. */
-    private static final Map<String, Integer> FORMAT_OF_A_REPORT = Map.ofEntries(
-            Map.entry(FormatMixReport.NAME, FormatMixReport.FORMAT));
+    static final Map<String, Integer> FORMAT_OF_A_REPORT = Map.ofEntries(
+            Map.entry(FormatMixReport.NAME, FormatMixReport.FORMAT),
+            Map.entry(ReviewListReport.NAME, 1),
+            Map.entry(SurvivorListReport.NAME, 1));
 
     /** The command {@code vespera run} begins as: written from a capital, as no literal of this class names a table (ADR-362 section 3). */
     static final String RUN = "Run".toLowerCase(Locale.ROOT);
@@ -770,10 +772,11 @@ final class InvocationReport {
         List<Object> tree = new ArrayList<>();
         for (String name : ANALYSIS_REPORTS) {
             Path html = workingDirectory.resolve(name + ".html");
+            Path json = workingDirectory.resolve(name + ".json");
             tree.add(object(
                     "name", name,
                     "html", html.toString(),
-                    "json", workingDirectory.resolve(name + ".json").toString(),
+                    "json", json.toString(),
                     "written", Files.isRegularFile(html),
                     "headline", headlineOf(name, workingDirectory.resolve(name + ".json"))));
         }
