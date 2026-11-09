@@ -74,9 +74,13 @@ class TheWindowFollowsTheReadmesTableOfValuesTest {
             }
         });
 
-        claim("the control panel links each value to exactly the reports the guide's table names for it, in the"
-                        + " guide's order, and a value the table names none for to none",
-                () -> assertThat(new TreeMap<>(Reports.OF_A_KEY)).isEqualTo(readme));
+        Map<String, List<String>> pagesOfTheNames = new TreeMap<>();
+        Reports.OF_A_KEY.forEach((key, names) -> pagesOfTheNames.put(key, names.stream().map(Reports::pageOf).toList()));
+
+        claim("the control panel links each value to exactly the reports the guide's table names for it, each by its"
+                        + " name where the guide gives the page's file name, in the guide's order, and a value the"
+                        + " table names none for to none",
+                () -> assertThat(pagesOfTheNames).isEqualTo(readme));
     }
 
     /** Each row of the README's table of values, by its key, split into its cells. */

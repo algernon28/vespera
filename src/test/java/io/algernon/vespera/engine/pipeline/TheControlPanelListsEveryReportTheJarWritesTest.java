@@ -57,11 +57,13 @@ class TheControlPanelListsEveryReportTheJarWritesTest {
 
         claim("the jar's classes name reports at all, so the comparison below reads something",
                 () -> assertThat(written).contains("format-mix.html", "cluster-page-sizes.html"));
+        List<String> pages = Reports.ALL.stream().map(Reports::pageOf).toList();
         claim("the progress pages are no report of the list: the Report tab is the window's view of the invocation",
-                () -> assertThat(Reports.ALL).doesNotContain("progress.html", "progress-steps.html",
-                        "progress-samples.html", "progress-runs.html"));
-        claim("and the control panel's list holds each of them once, and no other",
-                () -> assertThat(Reports.ALL).doesNotHaveDuplicates().containsExactlyInAnyOrderElementsOf(written));
+                () -> assertThat(Reports.ALL).doesNotContain("progress", "progress-steps", "progress-samples",
+                        "progress-runs"));
+        claim("and the control panel's list holds each of them once, by name, its page being the name's {@code .html},"
+                        + " and no other",
+                () -> assertThat(pages).doesNotHaveDuplicates().containsExactlyInAnyOrderElementsOf(written));
     }
 
     private static Set<String> reportFileNames() {

@@ -29,7 +29,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * A report opens inside the control panel's window and never in a browser (ADR-344 §6): pressing its link, in the
- * Reports section or beside a key, opens it in a closable tab of its own, {@code report-<file name>}, beside Profile
+ * Reports section or beside a key, opens it in a closable tab of its own, {@code analysis-report-<name>}, beside Profile
  * and Inclusions, whose viewer {@code viewer-<file name>} runs the report's own script and whose
  * {@code reload-<file name>} reads it again; a report already open is selected, not opened twice. A link inside a
  * report to another report of the working directory opens that report in its own tab; a link to any other file, one of
@@ -50,19 +50,19 @@ import org.junit.jupiter.api.io.TempDir;
 class TheReportsOpenInTheWindowTest {
 
     /** A report the jar writes in the working directory, read off the boilerplate floor. */
-    private static final String A_REPORT = "document-frequency.html";
+    private static final String A_REPORT = "document-frequency";
 
     /** A report that links another by its bare file name. */
-    private static final String OVERVIEW = "format-mix.html";
+    private static final String OVERVIEW = "format-mix";
 
     /** A report linked from {@link #OVERVIEW}. */
-    private static final String STEPS = "extraction-failures.html";
+    private static final String STEPS = "extraction-failures";
 
     /** The report whose every lead document is a link to the document where it lies. */
-    private static final String ARRANGEMENT = "arrangement.html";
+    private static final String ARRANGEMENT = "arrangement";
 
     /** A report of the twelve that the working directory of the test does not hold. */
-    private static final String NOT_WRITTEN = "translations.html";
+    private static final String NOT_WRITTEN = "translations";
 
     /** An address of the web, under a top-level domain reserved never to resolve. */
     private static final String A_WEB_ADDRESS = "https://example.invalid/";
@@ -96,7 +96,7 @@ class TheReportsOpenInTheWindowTest {
     @DisplayName("A report's link in the Reports section opens it in a tab of the window that runs its script, and hands nothing to the system")
     void aReportsLinkOpensItInATabOfTheWindowAndNothingIsHandedToTheSystem(@TempDir Path folder) throws Exception {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
-        write(workingDirectory.resolve(A_REPORT), "as written",
+        write(workingDirectory.resolve(A_REPORT + ".html"), "as written",
                 "<script>document.title = '" + TITLE_ITS_SCRIPT_SETS + "';</script>");
 
         Optional<WindowForTests.ReportTab> opened;
@@ -110,11 +110,11 @@ class TheReportsOpenInTheWindowTest {
         }
 
         claim("pressing the report's link in the Reports section opens a tab of its own after Profile and Inclusions",
-                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "report-" + A_REPORT));
+                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "analysis-report-" + A_REPORT));
         claim("the tab is selected, and its viewer shows that report of the working directory",
                 () -> assertThat(opened).hasValueSatisfying(tab -> {
                     assertThat(tab.selected()).isTrue();
-                    assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(A_REPORT));
+                    assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(A_REPORT + ".html"));
                 }));
         claim("the viewer runs the report's own script, as the progress page needs to reload itself and draw its hover",
                 () -> assertThat(opened).hasValueSatisfying(
@@ -128,7 +128,7 @@ class TheReportsOpenInTheWindowTest {
     @DisplayName("A report opened from the Reports section and again from its value's row on the Profile tab has one tab, selected again")
     void theSameReportOpenedTwiceSelectsItsOneTab(@TempDir Path folder) throws Exception {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
-        write(workingDirectory.resolve(A_REPORT), "as written", "");
+        write(workingDirectory.resolve(A_REPORT + ".html"), "as written", "");
 
         boolean selectedBeforeTheSecond;
         List<String> tabs;
@@ -150,11 +150,11 @@ class TheReportsOpenInTheWindowTest {
 
         assumeThat(selectedBeforeTheSecond).as("the Profile tab is selected before the report is opened again").isFalse();
         claim("the report opened again, from the boilerplate floor's row on the Profile tab, opens no second tab",
-                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "report-" + A_REPORT));
+                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "analysis-report-" + A_REPORT));
         claim("and its one tab is selected again, on the same report",
                 () -> assertThat(again).hasValueSatisfying(tab -> {
                     assertThat(tab.selected()).isTrue();
-                    assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(A_REPORT));
+                    assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(A_REPORT + ".html"));
                 }));
     }
 
@@ -163,8 +163,8 @@ class TheReportsOpenInTheWindowTest {
     @DisplayName("A link inside a report to another report opens that report in its own tab of the window, and the first stays on its report")
     void aLinkToAnotherReportInsideAReportOpensThatReportInItsOwnTab(@TempDir Path folder) throws Exception {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
-        write(workingDirectory.resolve(OVERVIEW), "Overview", "<a id=\"" + THE_LINK + "\" href=\"" + STEPS + "\">Steps</a>");
-        write(workingDirectory.resolve(STEPS), "Steps", "");
+        write(workingDirectory.resolve(OVERVIEW + ".html"), "Overview", "<a id=\"" + THE_LINK + "\" href=\"" + STEPS + ".html\">Steps</a>");
+        write(workingDirectory.resolve(STEPS + ".html"), "Steps", "");
 
         Optional<WindowForTests.ReportTab> steps;
         Optional<WindowForTests.ReportTab> overview;
@@ -183,15 +183,15 @@ class TheReportsOpenInTheWindowTest {
         }
 
         claim("the link to the Steps tab opens that report in a tab of its own, after the overview's",
-                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "report-" + OVERVIEW, "report-" + STEPS));
+                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "analysis-report-" + OVERVIEW, "analysis-report-" + STEPS));
         claim("which is selected, its viewer showing that report of the working directory",
                 () -> assertThat(steps).hasValueSatisfying(tab -> {
                     assertThat(tab.selected()).isTrue();
-                    assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(STEPS));
+                    assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(STEPS + ".html"));
                 }));
         claim("the overview's tab stays on the overview",
                 () -> assertThat(overview).hasValueSatisfying(
-                        tab -> assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(OVERVIEW))));
+                        tab -> assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(OVERVIEW + ".html"))));
         claim("and nothing is handed to the system to open: the report linked stays in the window",
                 () -> assertThat(handed).isEmpty());
     }
@@ -204,7 +204,7 @@ class TheReportsOpenInTheWindowTest {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
         Path leadOutside = Files.writeString(Files.createDirectories(folder.resolve("elsewhere")).resolve("lead.txt"),
                 "written by the test", StandardCharsets.UTF_8);
-        write(workingDirectory.resolve(ARRANGEMENT), "Arrangement",
+        write(workingDirectory.resolve(ARRANGEMENT + ".html"), "Arrangement",
                 "<a id=\"" + THE_LINK + "\" href=\"" + leadOutside.toUri() + "\">lead</a>");
 
         List<URI> handed;
@@ -227,9 +227,9 @@ class TheReportsOpenInTheWindowTest {
                         .satisfies(address -> assertThat(Path.of(address)).isEqualTo(leadOutside)));
         claim("the viewer stays on the arrangement, and does not load the file linked",
                 () -> assertThat(arrangement).hasValueSatisfying(
-                        tab -> assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(ARRANGEMENT))));
+                        tab -> assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(ARRANGEMENT + ".html"))));
         claim("and no tab is opened for it",
-                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "report-" + ARRANGEMENT));
+                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "analysis-report-" + ARRANGEMENT));
     }
 
     @Test
@@ -237,8 +237,8 @@ class TheReportsOpenInTheWindowTest {
     @DisplayName("A link inside a report to a report not written yet, or to a web address, opens nothing and the outcome line says so")
     void aLinkToAReportNotWrittenOrToAnotherSchemeOpensNothing(@TempDir Path folder) throws Exception {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
-        write(workingDirectory.resolve(OVERVIEW), "Overview",
-                "<a id=\"" + THE_LINK + "\" href=\"" + NOT_WRITTEN + "\">Runs</a>"
+        write(workingDirectory.resolve(OVERVIEW + ".html"), "Overview",
+                "<a id=\"" + THE_LINK + "\" href=\"" + NOT_WRITTEN + ".html\">Runs</a>"
                         + "<a id=\"" + THE_WEB_LINK + "\" href=\"" + A_WEB_ADDRESS + "\">web</a>");
 
         String saidOfTheReport;
@@ -265,10 +265,10 @@ class TheReportsOpenInTheWindowTest {
         claim("the link to a web address is answered on the outcome line, naming the address",
                 () -> assertThat(saidOfTheWeb).isEqualTo("not opened: " + A_WEB_ADDRESS + " is not a file of this computer"));
         claim("neither opens a tab",
-                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "report-" + OVERVIEW));
+                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "analysis-report-" + OVERVIEW));
         claim("the viewer stays on the overview",
                 () -> assertThat(overview).hasValueSatisfying(
-                        tab -> assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(OVERVIEW))));
+                        tab -> assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(OVERVIEW + ".html"))));
         claim("and nothing is handed to the system to open",
                 () -> assertThat(handed).isEmpty());
     }
@@ -279,11 +279,11 @@ class TheReportsOpenInTheWindowTest {
     void aFileOfTheWorkingDirectoryThatIsNoReportIsHandedToTheSystem(@TempDir Path folder) throws Exception {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
         Path profile = Files.writeString(workingDirectory.resolve(PROFILE), "# written by the test\n", StandardCharsets.UTF_8);
-        Path below = Files.createDirectories(workingDirectory.resolve("deliverable")).resolve(OVERVIEW);
+        Path below = Files.createDirectories(workingDirectory.resolve("deliverable")).resolve(OVERVIEW + ".html");
         write(below, "a page named as a report, in a folder below the working directory", "");
-        write(workingDirectory.resolve(ARRANGEMENT), "Arrangement",
+        write(workingDirectory.resolve(ARRANGEMENT + ".html"), "Arrangement",
                 "<a id=\"" + THE_LINK + "\" href=\"" + PROFILE + "\">profile</a>"
-                        + "<a id=\"" + THE_OTHER_LINK + "\" href=\"deliverable/" + OVERVIEW + "\">below</a>");
+                        + "<a id=\"" + THE_OTHER_LINK + "\" href=\"deliverable/" + OVERVIEW + ".html\">below</a>");
 
         List<URI> handed;
         Optional<WindowForTests.ReportTab> arrangement;
@@ -310,9 +310,9 @@ class TheReportsOpenInTheWindowTest {
                 () -> assertThat(handed).map(Path::of).containsExactly(profile, below));
         claim("the viewer stays on the arrangement",
                 () -> assertThat(arrangement).hasValueSatisfying(
-                        tab -> assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(ARRANGEMENT))));
+                        tab -> assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(ARRANGEMENT + ".html"))));
         claim("and no tab is opened for either",
-                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "report-" + ARRANGEMENT));
+                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", "analysis-report-" + ARRANGEMENT));
     }
 
     @Test
@@ -320,9 +320,9 @@ class TheReportsOpenInTheWindowTest {
     @DisplayName("A link a viewer does not follow loads its own report again from its file, by the file's address alone")
     void aLinkNotFollowedLoadsTheViewersReportAgainFromItsFile(@TempDir Path folder) throws Exception {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
-        Path overviewFile = workingDirectory.resolve(OVERVIEW);
+        Path overviewFile = workingDirectory.resolve(OVERVIEW + ".html");
         String links = "<a id=\"" + THE_FRAGMENT_LINK + "\" href=\"#" + THE_FRAGMENT + "\">below</a>"
-                + "<a id=\"" + THE_LINK + "\" href=\"" + NOT_WRITTEN + "\">Runs</a>"
+                + "<a id=\"" + THE_LINK + "\" href=\"" + NOT_WRITTEN + ".html\">Runs</a>"
                 + "<p id=\"" + THE_FRAGMENT + "\">below</p>";
         write(overviewFile, "Overview", links);
 
@@ -360,7 +360,7 @@ class TheReportsOpenInTheWindowTest {
     @DisplayName("A report's Reload reads it again from the working directory")
     void reloadReadsTheReportAgain(@TempDir Path folder) throws Exception {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
-        write(workingDirectory.resolve(A_REPORT), "as first written", "");
+        write(workingDirectory.resolve(A_REPORT + ".html"), "as first written", "");
 
         String before;
         Optional<WindowForTests.ReportTab> after;
@@ -368,7 +368,7 @@ class TheReportsOpenInTheWindowTest {
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", A_REPORT));
             before = window.awaiting(root -> WindowForTests.reportTab(root, A_REPORT), WindowForTests::loaded)
                     .map(WindowForTests.ReportTab::title).orElse(null);
-            write(workingDirectory.resolve(A_REPORT), "as written again", "");
+            write(workingDirectory.resolve(A_REPORT + ".html"), "as written again", "");
             window.act(root -> WindowForTests.node(root, "reload-" + A_REPORT, Button.class).fire());
             after = window.awaiting(root -> WindowForTests.reportTab(root, A_REPORT),
                     tab -> WindowForTests.loaded(tab) && "as written again".equals(tab.get().title()));
@@ -385,7 +385,7 @@ class TheReportsOpenInTheWindowTest {
     void anotherWorkingDirectoryInTheFieldClosesTheReportTabs(@TempDir Path folder) throws Exception {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
         Path another = Files.createDirectories(folder.resolve("another"));
-        write(workingDirectory.resolve(A_REPORT), "as written", "");
+        write(workingDirectory.resolve(A_REPORT + ".html"), "as written", "");
 
         List<String> open;
         List<String> after;
@@ -398,7 +398,7 @@ class TheReportsOpenInTheWindowTest {
             after = window.read(WindowForTests::tabIds);
         }
 
-        assumeThat(open).as("the report's tab is open").contains("report-" + A_REPORT);
+        assumeThat(open).as("the report's tab is open").contains("analysis-report-" + A_REPORT);
         claim("with another working directory set in the field, only Profile and Inclusions are left",
                 () -> assertThat(after).containsExactlyElementsOf(THE_FORM_TABS));
     }

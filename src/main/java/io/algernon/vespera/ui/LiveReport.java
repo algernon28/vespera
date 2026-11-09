@@ -57,7 +57,7 @@ final class LiveReport {
     private final Consumer<String> openReport;
     private final Consumer<URI> handToTheSystem;
 
-    /** {@code openReport} opens an analysis report's tab by its file name; {@code handToTheSystem} opens a document outside. */
+    /** {@code openReport} opens an analysis report's tab by its name; {@code handToTheSystem} opens a document outside. */
     LiveReport(Consumer<String> openReport, Consumer<URI> handToTheSystem) {
         this.openReport = openReport;
         this.handToTheSystem = handToTheSystem;
@@ -143,7 +143,7 @@ final class LiveReport {
         for (InvocationReportFile.AnalysisReport each : report.analysisReports()) {
             if (each.written()) {
                 Hyperlink link = new Hyperlink(each.name());
-                link.setOnAction(event -> openReport.accept(each.name() + ".html"));
+                link.setOnAction(event -> openReport.accept(each.name()));
                 analysis.getChildren().add(link);
             } else {
                 Label grey = new Label(each.name() + " (not written yet)");

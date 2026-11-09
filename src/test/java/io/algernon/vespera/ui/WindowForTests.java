@@ -194,9 +194,9 @@ final class WindowForTests implements AutoCloseable {
     record ReportTab(boolean selected, Path shows, String title, boolean loaded) {
     }
 
-    /** The tab of {@code report}, a file name of the working directory, and what its viewer shows; empty where none is open. */
+    /** The tab of {@code report}, an analysis report's name, and what its viewer shows; empty where none is open. */
     static Optional<ReportTab> reportTab(Parent root, String report) {
-        Optional<Tab> tab = HeadlessToolkit.tabWithId(root, "report-" + report);
+        Optional<Tab> tab = HeadlessToolkit.tabWithId(root, "analysis-report-" + report);
         if (tab.isEmpty()) {
             return Optional.empty();
         }

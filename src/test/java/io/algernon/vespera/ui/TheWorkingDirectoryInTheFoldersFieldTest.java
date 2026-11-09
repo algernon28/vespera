@@ -53,7 +53,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 class TheWorkingDirectoryInTheFoldersFieldTest {
 
     /** A report the working directory holds, which a key's row and the Reports section name. */
-    private static final String A_REPORT = "format-mix.html";
+    private static final String A_REPORT = "format-mix";
 
     /** A generation run's folder, as the trees under the working directory's {@code deliverable} folder are named. */
     private static final String A_RUN = "abcdef0123456789";
@@ -73,7 +73,7 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
         Files.createDirectories(corpus.resolve("Other"));
         Path workingDirectory = aWorkingDirectory(folder.resolve("working"), "a-writing-model:8b");
         notWalked(workingDirectory, "Old");
-        Files.writeString(workingDirectory.resolve(A_REPORT), "<html></html>", StandardCharsets.UTF_8);
+        Files.writeString(workingDirectory.resolve(Reports.pageOf(A_REPORT)), "<html></html>", StandardCharsets.UTF_8);
         Map<String, String> named = Map.of("VESPERA_CORPUS_ROOT", corpus.toString(), "VESPERA_WORKING_DIR",
                 workingDirectory.toString());
         ControlPanelState state = WindowForTests.aState(folder, SleepingJar.runtime());
@@ -140,7 +140,7 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
         Path first = aWorkingDirectory(folder.resolve("first"), "a-writing-model:8b");
         Path second = aWorkingDirectory(folder.resolve("second"), "another-writing-model:8b");
         notWalked(second, "Old");
-        Files.writeString(second.resolve(A_REPORT), "<html></html>", StandardCharsets.UTF_8);
+        Files.writeString(second.resolve(Reports.pageOf(A_REPORT)), "<html></html>", StandardCharsets.UTF_8);
         ControlPanelState state = WindowForTests.aState(folder,
                 new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")));
         state.hold(new LaunchValues(corpus.toString(), first.toString(), "", "", "", "", "", ""));

@@ -47,7 +47,7 @@ import org.junit.jupiter.api.io.TempDir;
 class TheValuesTheNextInvocationWantsTest {
 
     /** The report the boilerplate floor is read off, as the README's table of values names it. */
-    private static final String ITS_REPORT = "document-frequency.html";
+    private static final String ITS_REPORT = "document-frequency";
 
     /** The short name of an arrangement, as {@code next-invocation.properties} gives it: twelve characters, 0 to 9 or a to f. */
     private static final String AN_ARRANGEMENT = "0123456789ab";
@@ -59,7 +59,7 @@ class TheValuesTheNextInvocationWantsTest {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
         Files.writeString(workingDirectory.resolve(NextInvocation.FILE_NAME),
                 "invocation=run\nwants=boilerplateDocumentFrequencyFloor\nanswer=false\n", StandardCharsets.UTF_8);
-        Files.writeString(workingDirectory.resolve(ITS_REPORT), "<html></html>", StandardCharsets.UTF_8);
+        Files.writeString(workingDirectory.resolve(Reports.pageOf(ITS_REPORT)), "<html></html>", StandardCharsets.UTF_8);
         ControlPanelState state = WindowForTests.aState(folder, EndingJar.runtime());
         state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(),
                 workingDirectory.toString(), "", "", "", "", "", ""));
@@ -86,7 +86,7 @@ class TheValuesTheNextInvocationWantsTest {
                 () -> assertThat(links).containsExactly(ITS_REPORT));
         claim("and pressing it opens that report of the working directory in its own tab of the window, selected",
                 () -> assertThat(opened).hasValueSatisfying(tab -> {
-                    assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(ITS_REPORT));
+                    assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(Reports.pageOf(ITS_REPORT)));
                     assertThat(tab.selected()).isTrue();
                 }));
         claim("and hands nothing to the system to open, so no browser is started",

@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -18,9 +19,18 @@ final class WorkingFolders {
     private final Supplier<Optional<Path>> workingDirectory;
     private final Supplier<Optional<Path>> corpusRoot;
 
+    private final Supplier<Set<String>> natives;
+
     WorkingFolders(Supplier<Optional<Path>> workingDirectory, Supplier<Optional<Path>> corpusRoot) {
+        this(workingDirectory, corpusRoot, Set::of);
+    }
+
+    /** {@code natives} gives the reports that open drawn by the window from their JSON (ADR-362 §10). */
+    WorkingFolders(Supplier<Optional<Path>> workingDirectory, Supplier<Optional<Path>> corpusRoot,
+            Supplier<Set<String>> natives) {
         this.workingDirectory = workingDirectory;
         this.corpusRoot = corpusRoot;
+        this.natives = natives;
     }
 
     /** The working directory the field names; where it is empty, the folder the jar would use (ADR-345 §1). */
@@ -42,12 +52,17 @@ final class WorkingFolders {
         return Optional.of(Files.readString(folder.get().resolve(name), StandardCharsets.UTF_8));
     }
 
-    /** Which of the reports the working directory holds now. */
+    /**
+     * Which of the reports, by name, the working directory holds now: a report that opens natively by its JSON, any
+     * other by its page.
+     */
     Map<String, Boolean> writtenReports() {
         Map<String, Boolean> written = new HashMap<>();
         Optional<Path> folder = workingDirectory();
+        Set<String> drawnByTheWindow = natives.get();
         for (String report : Reports.ALL) {
-            written.put(report, folder.isPresent() && Files.isRegularFile(folder.get().resolve(report)));
+            String file = drawnByTheWindow.contains(report) ? Reports.jsonOf(report) : Reports.pageOf(report);
+            written.put(report, folder.isPresent() && Files.isRegularFile(folder.get().resolve(file)));
         }
         return written;
     }
