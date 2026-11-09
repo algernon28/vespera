@@ -336,8 +336,6 @@ final class ProgressPage implements JobExecutionListener {
     /** Guarded by {@link #writing}: whether the last write failed, so that the warning is not said again. */
     private boolean warned;
 
-    private final PageOpener opener;
-
     /** The report the job's writes are handed to, set where the application builds it (ADR-362 section 3). */
     private InvocationReport report;
 
@@ -361,34 +359,27 @@ final class ProgressPage implements JobExecutionListener {
     private Instant commandStarted;
 
     ProgressPage(Path workingDirectory, Duration interval, Clock clock) {
-        this(workingDirectory, interval, clock, null);
-    }
-
-    ProgressPage(Path workingDirectory, Duration interval, Clock clock, PageOpener opener) {
-        this(workingDirectory, interval, clock, opener, Map::of);
+        this(workingDirectory, interval, clock, Map::of);
     }
 
     ProgressPage(
             Path workingDirectory,
             Duration interval,
             Clock clock,
-            PageOpener opener,
             Supplier<Map<String, Long>> recorded) {
-        this(workingDirectory, interval, clock, opener, recorded, () -> new RunsRead(List.of(), Map.of(), Map.of()));
+        this(workingDirectory, interval, clock, recorded, () -> new RunsRead(List.of(), Map.of(), Map.of()));
     }
 
     ProgressPage(
             Path workingDirectory,
             Duration interval,
             Clock clock,
-            PageOpener opener,
             Supplier<Map<String, Long>> recorded,
             Supplier<RunsRead> runsReader) {
         this.workingDirectory = workingDirectory.toAbsolutePath().normalize();
         this.page = this.workingDirectory.resolve(FILE_NAME);
         this.interval = interval;
         this.clock = clock;
-        this.opener = opener;
         this.recorded = recorded;
         this.runsReader = runsReader;
     }
@@ -441,17 +432,15 @@ final class ProgressPage implements JobExecutionListener {
         }
     }
 
-    /** A command that starts no job writes its first page (reloading) and has it opened once (ADR-266 section 3). */
+    /** A command that starts no job writes its first page (reloading) (ADR-266 section 3, and nothing is opened, ADR-362 section 2). */
     void commandStarts(String commandLine) {
-        boolean written;
         synchronized (writing) {
             command = commandLine;
             commandStarted = clock.instant();
             firstWrite = null;
             ended = false;
-            written = write(false);
+            write(false);
         }
-        openOnce(written);
     }
 
     /**
@@ -462,18 +451,6 @@ final class ProgressPage implements JobExecutionListener {
         synchronized (writing) {
             ended = true;
             write(true, outcome, counts);
-        }
-    }
-
-    /** Hands the page to the opener, outside the lock; nothing is opened after a first write that failed. */
-    private void openOnce(boolean written) {
-        if (!written || opener == null) {
-            return;
-        }
-        try {
-            opener.open(page.toUri());
-        } catch (IOException | RuntimeException e) {
-            log.warn("the progress page could not be opened: {}", e.getClass().getName());
         }
     }
 
@@ -495,7 +472,6 @@ final class ProgressPage implements JobExecutionListener {
         if (report != null) {
             report.jobStarts();
         }
-        boolean written;
         synchronized (writing) {
             command = null;
             ended = false;
@@ -504,9 +480,8 @@ final class ProgressPage implements JobExecutionListener {
             firstWrite = null;
             heldRuns = null;
             warnedOfRuns = false;
-            written = write(false);
+            write(false);
         }
-        openOnce(written);
         try {
             if (interval.isZero() || interval.isNegative()) {
                 throw new IllegalArgumentException("vespera.progress-interval is not above zero");

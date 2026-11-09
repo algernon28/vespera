@@ -145,7 +145,7 @@ class ProgressPageChartsOnOneRowTest {
         Path three = Files.createDirectories(workingDirectories.resolve("three-charts"));
         AtomicReference<Map<String, Long>> recorded = new AtomicReference<>(Map.of());
         ProgressPage page = new ProgressPage(
-                three, NO_SCHEDULED_WRITE_MEANWHILE, Clock.systemDefaultZone(), null, recorded::get);
+                three, NO_SCHEDULED_WRITE_MEANWHILE, Clock.systemDefaultZone(), recorded::get);
         JobExecution job = anExecution();
         StepExecution reduction = aRunningStep(job, StepNames.BYTE_LEVEL_REDUCTION);
         reduction.setReadCount(READ_AND_WRITTEN);

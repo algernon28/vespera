@@ -39,9 +39,6 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-278", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_AS_ITS_CHILD_AND_STOPS_ONLY_ITS_OWN, type = "adr")
 class WhatTheControlPanelReadsOfAnInvocationTest {
 
-    /** The value the control panel gives {@code CI} in its child's environment. */
-    private static final Map<String, String> AS_THE_CONTROL_PANEL_SETS_IT = Map.of("CI", "1", "DISPLAY", ":0");
-
     /** How far after {@code started} a process may have started and still be the holder: {@code started} is to the second. */
     private static final Duration ONE_SECOND = Duration.ofSeconds(1);
 
@@ -80,17 +77,6 @@ class WhatTheControlPanelReadsOfAnInvocationTest {
         } finally {
             holder.destroyForcibly();
             holder.waitFor(HOLDER_END_BOUND_SECONDS, TimeUnit.SECONDS);
-        }
-    }
-
-    @Test
-    @Story("The control panel shows the pages itself")
-    @DisplayName("CI=1, a display set, opens no page on Windows, macOS or Linux")
-    void ciSetToOneOpensNoPage() {
-        URI page = Path.of("progress.html").toAbsolutePath().toUri();
-        for (String system : List.of("Windows 11", "Mac OS X", "Linux")) {
-            claim("on " + system + " with CI=1, no command is started",
-                    () -> assertThat(SystemPageOpener.command(page, system, AS_THE_CONTROL_PANEL_SETS_IT)).isEmpty());
         }
     }
 }

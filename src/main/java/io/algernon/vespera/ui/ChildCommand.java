@@ -103,7 +103,6 @@ public final class ChildCommand {
      * panel's test holds that no option of {@link #OPTIONS} is among them.
      */
     public static final Map<String, String> NOT_OFFERED = Map.of(
-            "vespera.open-browser", "The child runs with CI=1 and opens no browser whatever it says (ADR-278 §1).",
             "vespera.relevance.sample.bands",
             "It enters the scoring run's identity where it is not its default, and ADR-330 refuses a value of that kind"
                     + " passed from a file named for a machine.",

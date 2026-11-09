@@ -162,8 +162,6 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "NoGenerationModelNamedException",
             "NoUpstreamRunException",
             "OccurrenceReader",
-            // ADR-266: hands the progress page to the system to open, and decides nothing it shows.
-            "PageOpener",
             "PendingConversions",
             // ADR-330 §9: reads the presets and the profile's resolution; what it resolves names the run.
             "Presets",
@@ -248,8 +246,6 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-250: the survivor list reads who survived and what was measured, and decides neither.
             "SurvivorListListener",
             "SurvivorListReport",
-            // ADR-266: chooses the system's command for opening a page, and decides nothing it shows.
-            "SystemPageOpener",
             "TaskletSteps",
             "TemporaryFilesInTheWorkingDirectory",
             "TimedStatement",

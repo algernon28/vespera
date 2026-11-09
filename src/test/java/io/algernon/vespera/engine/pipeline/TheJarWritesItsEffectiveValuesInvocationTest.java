@@ -107,7 +107,6 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
             "vespera.sidecars.start", "vespera.sidecars.start.source",
             "vespera.sidecars.wait-at-most", "vespera.sidecars.wait-at-most.source",
             "vespera.progress-interval", "vespera.progress-interval.source",
-            "vespera.open-browser", "vespera.open-browser.source",
             "vespera.clustering.neighbours", "vespera.clustering.neighbours.source"),
                     THE_TECHNICAL_PRESETS.keySet().stream().flatMap(key -> Stream.of(key, key + ".source")))
             .collect(Collectors.toUnmodifiableSet());
@@ -185,9 +184,9 @@ class TheJarWritesItsEffectiveValuesInvocationTest {
                         + " the file never says an empty value",
                 () -> assertThat(said).doesNotContainKeys("embeddingModel", "embeddingModel.source"));
         claim("a value of the application's own file is there, as the shipped file holds it",
-                () -> assertThat(List.of(said.getProperty("vespera.open-browser"),
-                                said.getProperty("vespera.open-browser.source")))
-                        .containsExactly("true", "shipped"));
+                () -> assertThat(List.of(said.getProperty("vespera.progress-interval"),
+                                said.getProperty("vespera.progress-interval.source")))
+                        .containsExactly("5s", "shipped"));
         assumingThat(System.getenv("VESPERA_DOCLING_IMAGE") == null,
                 () -> claim("the image the launch page checks against, as the shipped file holds it",
                         () -> assertThat(List.of(said.getProperty("vespera.docling.image"),

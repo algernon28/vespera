@@ -482,7 +482,7 @@ class ProgressPageTabsTest {
     void everyPageIsAsWideAsTheWindowAndOnlyAChartOrATableScrolls(@TempDir Path labelDirectory) throws IOException {
         // one run held, so that the tab of runs draws its table
         ProgressPage progressPage = new ProgressPage(
-                workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, Clock.systemDefaultZone(), null, Map::of,
+                workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, Clock.systemDefaultZone(), Map::of,
                 () -> new ProgressPage.RunsRead(
                         List.of(new io.algernon.vespera.engine.ledger.Runs.Listed(
                                 "a-run-held-by-this-test", StageModules.EXTRACTION.stage(), 1L)),
@@ -569,7 +569,7 @@ class ProgressPageTabsTest {
     void theRunsAreReadTwiceOnTheJobsThreadAndAtNoOtherWrite() throws IOException {
         CountingClock clock = new CountingClock();
         List<String> readOn = new java.util.concurrent.CopyOnWriteArrayList<>();
-        ProgressPage progressPage = new ProgressPage(workingDirectory, MANY_WRITES_MEANWHILE, clock, null, Map::of, () -> {
+        ProgressPage progressPage = new ProgressPage(workingDirectory, MANY_WRITES_MEANWHILE, clock, Map::of, () -> {
             readOn.add(Thread.currentThread().getName());
             return new ProgressPage.RunsRead(List.of(), Map.of(), Map.of());
         });
@@ -603,7 +603,7 @@ class ProgressPageTabsTest {
     @DisplayName("When the runs cannot be read, as the job starts and as it ends, the tab says so in place of its table, one warning names the exception's class, and every page is written and ends as before")
     void aReadingOfTheRunsThatFailsFailsNothingAndIsWarnedOfOnce() throws IOException {
         ProgressPage progressPage = new ProgressPage(
-                workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, Clock.systemDefaultZone(), null, Map::of, () -> {
+                workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, Clock.systemDefaultZone(), Map::of, () -> {
                     throw new IllegalStateException(MARKED_MESSAGE);
                 });
         JobExecution execution = anExecution(1L, LocalDateTime.now());

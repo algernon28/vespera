@@ -164,50 +164,6 @@ class ProgressPageListenerTest {
         claim("and nothing was warned of", () -> assertThat(warnings()).isEmpty());
     }
 
-    /**
-     * When the first write of an invocation fails, nothing is opened in that invocation, not even once a later write
-     * succeeds (ADR-266 section 2): a page that appears in the middle of a long run is no reason to open a browser.
-     * Held for a run, through the job's listener, and for the label command, through the command's own two writes.
-     */
-    @Test
-    @Link(name = "ADR-266", url = Adr.EVERY_INVOCATION_NAMES_AND_OPENS_ITS_PROGRESS_PAGE, type = "adr")
-    @Story("A page whose first write failed is not opened")
-    @DisplayName("When the page's first write fails because its folder is not there yet, nothing is opened, not even once the folder appears and a later write succeeds")
-    void aFirstWriteThatFailsOpensNothingInThatInvocation() throws IOException {
-        Path notYetMade = workingDirectory.resolve("not yet made");
-        List<URI> asked = new ArrayList<>();
-        PageOpener opener = asked::add;
-        ProgressPage run = new ProgressPage(notYetMade, NO_SCHEDULED_WRITE_MEANWHILE, Clock.systemUTC(), opener);
-        JobExecution execution = anExecution(1L);
-
-        run.beforeJob(execution);
-        Files.createDirectory(notYetMade);
-        execution.setStatus(BatchStatus.COMPLETED);
-        run.afterJob(execution);
-
-        claim(
-                "the run's last write succeeded once its folder was there, saying the invocation completed",
-                () -> assertThat(Files.readString(notYetMade.resolve(PAGE), StandardCharsets.UTF_8))
-                        .contains(ENDED_COMPLETED));
-        claim(
-                "and the opener was never asked: the run's first write had failed",
-                () -> assertThat(asked).isEmpty());
-
-        Path labelsNotYetMade = workingDirectory.resolve("label's folder, not yet made");
-        ProgressPage label = new ProgressPage(labelsNotYetMade, NO_SCHEDULED_WRITE_MEANWHILE, Clock.systemUTC(), opener);
-
-        label.commandStarts("vespera label");
-        Files.createDirectory(labelsNotYetMade);
-        label.commandEnds("recorded", Map.of());
-
-        claim(
-                "the label command's last write succeeded once its folder was there",
-                () -> assertThat(labelsNotYetMade.resolve(PAGE)).isRegularFile());
-        claim(
-                "and the opener was never asked: the label command's first write had failed",
-                () -> assertThat(asked).isEmpty());
-    }
-
     private static JobExecution anExecution(long id) {
         return new JobExecution(id, new JobInstance(id, VesperaJobConfiguration.JOB_NAME), new JobParameters());
     }

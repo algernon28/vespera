@@ -77,8 +77,6 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
 
     private static final String PROGRESS_INTERVAL = "vespera.progress-interval";
 
-    private static final String OPEN_BROWSER = "vespera.open-browser";
-
     private static final String DOCLING_ADDRESS = "vespera.docling.base-url";
 
     private static final String OLLAMA_ADDRESS = "spring.ai.ollama.base-url";
@@ -142,7 +140,6 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
                 START, "true",
                 WAIT_AT_MOST, "5m",
                 PROGRESS_INTERVAL, "30s",
-                OPEN_BROWSER, "true",
                 DOCLING_ADDRESS, "http://localhost:5001",
                 "vespera.clustering.resolution", "1.0"));
         values.putAll(THE_PRESETS);
@@ -169,7 +166,6 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
                                 START, new Said("true", "shipped"),
                                 WAIT_AT_MOST, new Said("5m", "shipped"),
                                 PROGRESS_INTERVAL, new Said("30s", "shipped"),
-                                OPEN_BROWSER, new Said("true", "shipped"),
                                 DOCLING_ADDRESS, new Said("http://localhost:5001", "shipped"),
                                 LABEL_MODEL, new Said(A_GENERATION_MODEL_OF_THE_JARS_FILE, "shipped"))))),
                 Arguments.of("the label model named itself, over the generation model it would fall back to",
@@ -181,7 +177,6 @@ class TheControlPanelReadsTheEffectiveValuesTheJarWritesTest {
                                 START, new Said("true", "shipped"),
                                 WAIT_AT_MOST, new Said("5m", "shipped"),
                                 PROGRESS_INTERVAL, new Said("30s", "shipped"),
-                                OPEN_BROWSER, new Said("true", "shipped"),
                                 DOCLING_ADDRESS, new Said("http://localhost:5001", "shipped"),
                                 LABEL_MODEL, new Said("a-label-model:4b", "environment"))))),
                 Arguments.of("a value of each other source",

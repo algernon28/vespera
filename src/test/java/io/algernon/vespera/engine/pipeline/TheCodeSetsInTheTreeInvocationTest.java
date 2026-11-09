@@ -116,16 +116,12 @@ class TheCodeSetsInTheTreeInvocationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @Autowired
-    private RecordingPageOpener opener;
-
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger applicationLogger;
 
     @BeforeEach
     void forgetWhatAnEarlierClassScripted() {
         GenerationScriptedBeans.forgetScriptedAnswers();
-        opener.forget();
         logged = new ListAppender<>();
         logged.start();
         applicationLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(APPLICATION_LOGGER);
@@ -135,7 +131,6 @@ class TheCodeSetsInTheTreeInvocationTest {
     @AfterEach
     void forgetWhatWasScripted() {
         GenerationScriptedBeans.forgetScriptedAnswers();
-        opener.forget();
         applicationLogger.detachAppender(logged);
         logged.stop();
     }

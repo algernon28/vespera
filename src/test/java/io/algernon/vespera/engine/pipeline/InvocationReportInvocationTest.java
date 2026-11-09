@@ -263,9 +263,9 @@ class InvocationReportInvocationTest {
     }
 
     @Test
-    @Story("The report says whether a display is present, and that nothing was opened")
-    @DisplayName("With the display seam answering present, answering none and with the headless property set, display is as the seam gave it, asked once for the invocation, and opened is null in every write")
-    void theDisplayIsAskedOnceAndOpenedIsNullUntilTheOpenersGo(@TempDir Path root) throws IOException {
+    @Story("The report says whether a display is present")
+    @DisplayName("With the display seam answering present, answering none and with the headless property set, display is as the seam gave it, asked once for the invocation")
+    void theDisplayIsAskedOnce(@TempDir Path root) throws IOException {
         Files.writeString(root.resolve(MARKER + ".txt"), "a text");
 
         ScriptedDisplay.answer = new DisplayPresence.Answer(true, "display-variable", null);
@@ -303,14 +303,10 @@ class InvocationReportInvocationTest {
                     assertThat(headless.get("display").get("reason").asString()).isEqualTo("headless");
                     assertThat(askedForHeadless).isZero();
                 });
-        for (JsonNode report : List.of(present, none, headless)) {
-            claim("opened is null in the report, since the openers still open the pages",
-                    () -> assertThat(report.has("opened") && report.get("opened").isNull()).isTrue());
-        }
     }
 
     @Test
-    @Story("The report says whether a display is present, and that nothing was opened")
+    @Story("The report says whether a display is present")
     @DisplayName("With VESPERA_HEADLESS in the environment and vespera.headless in configuration and the seam answering present, display.present is true; with the JVM property set, display.reason is headless")
     void theHeadlessPropertyIsReadFromTheJvmAndNotFromTheEnvironment(@TempDir Path root) throws IOException {
         Files.writeString(root.resolve(MARKER + ".txt"), "a text");

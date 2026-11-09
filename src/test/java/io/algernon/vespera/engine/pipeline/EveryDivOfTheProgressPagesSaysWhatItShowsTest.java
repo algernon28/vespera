@@ -110,7 +110,6 @@ class EveryDivOfTheProgressPagesSaysWhatItShowsTest {
                     directory,
                     NO_SCHEDULED_WRITE_MEANWHILE,
                     Clock.systemDefaultZone(),
-                    null,
                     recorded::get,
                     () -> new ProgressPage.RunsRead(
                             List.of(new Runs.Listed(A_RUN_HELD_BY_THIS_TEST, StageModules.EXTRACTION.stage(), 1L)),

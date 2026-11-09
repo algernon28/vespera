@@ -130,11 +130,8 @@
       "additionalProperties": false
     },
     "opened": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "description": "What the invocation opened; null in every report written before the commands open nothing.",
+      "type": "object",
+      "description": "What the invocation opened: no file, and the reason, since no command opens anything.",
       "properties": {
         "files": {
           "type": "array",

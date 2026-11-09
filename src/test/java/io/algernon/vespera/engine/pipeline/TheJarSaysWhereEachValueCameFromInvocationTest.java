@@ -54,7 +54,7 @@ import org.springframework.test.context.TestPropertySource;
 class TheJarSaysWhereEachValueCameFromInvocationTest {
 
     /** The value the command line names, against the shipped true. */
-    private static final String ON_THE_COMMAND_LINE = "vespera.open-browser";
+    private static final String ON_THE_COMMAND_LINE = "vespera.sidecars.start";
 
     private static final String THE_COMMAND_LINES_VALUE = "false";
 

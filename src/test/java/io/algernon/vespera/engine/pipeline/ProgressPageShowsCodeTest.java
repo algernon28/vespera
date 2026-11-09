@@ -92,7 +92,7 @@ class ProgressPageShowsCodeTest {
     void byteLevelReductionShowsCodeAsAKindOfItsOwn() throws IOException {
         AtomicReference<Map<String, Long>> recorded = new AtomicReference<>(Map.of());
         ProgressPage progressPage = new ProgressPage(
-                workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, Clock.systemDefaultZone(), null, recorded::get,
+                workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, Clock.systemDefaultZone(), recorded::get,
                 () -> new ProgressPage.RunsRead(
                         List.of(new Runs.Listed(A_RUN, StageModules.BYTE_LEVEL_REDUCTION.stage(), 1L)),
                         Map.of(),

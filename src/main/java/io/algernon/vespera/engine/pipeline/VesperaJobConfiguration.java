@@ -75,8 +75,6 @@ public class VesperaJobConfiguration {
     ProgressPage progressPage(
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
             @Value("${vespera.progress-interval:5s}") Duration progressInterval,
-            ObjectProvider<PageOpener> opener,
-            @Value("${vespera.open-browser:true}") boolean openBrowser,
             Clock clock,
             Ledger ledger,
             InvocationReport invocationReport) {
@@ -84,7 +82,6 @@ public class VesperaJobConfiguration {
                 workingDirectory,
                 progressInterval,
                 clock,
-                openBrowser ? opener.getIfAvailable() : null, // false: no opener is asked anything (ADR-327 section 5)
                 () -> ledger.verdicts().recorded(),
                 () -> ProgressPage.readRuns(ledger));
         page.handTo(invocationReport);

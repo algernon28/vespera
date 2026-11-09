@@ -548,7 +548,7 @@ final class InvocationReport {
         invocation.put("interval", Math.max(1L, (interval.toMillis() + 999) / 1000));
         report.put("invocation", invocation);
         report.put("display", object("present", displayAnswer.present(), "reason", displayAnswer.reason()));
-        report.put("opened", null);
+        report.put("opened", object("files", List.of(), "because", displayAnswer.present() ? "commands-open-nothing" : "no-display"));
         Map<String, Object> places = new LinkedHashMap<>();
         places.put("workingDirectory", workingDirectory.toString());
         places.put("corpusRoot", corpusRoot == null ? null : corpusRoot.toString());

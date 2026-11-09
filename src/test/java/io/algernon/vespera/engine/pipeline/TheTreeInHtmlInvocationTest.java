@@ -72,9 +72,6 @@ class TheTreeInHtmlInvocationTest {
     /** The one document of the corpus taken away before the tree is written, so not copied. */
     private static final int ONE_NOT_COPIED = 1;
 
-    /** How many times the index is opened in an invocation that writes the tree. */
-    private static final int ONCE = 1;
-
     /** What each line the generation step writes of the tree's copies opens with. */
     private static final String COPY_LINES = "Stage 6b (generation, copies)";
 
@@ -105,9 +102,6 @@ class TheTreeInHtmlInvocationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private RecordingPageOpener opener;
-
-    @Autowired
     private Ledger ledger;
 
     private ListAppender<ILoggingEvent> logged;
@@ -116,7 +110,6 @@ class TheTreeInHtmlInvocationTest {
     @BeforeEach
     void forgetWhatAnEarlierClassScripted() {
         GenerationScriptedBeans.forgetScriptedAnswers();
-        opener.forget();
         logged = new ListAppender<>();
         logged.start();
         applicationLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(APPLICATION_LOGGER);
@@ -126,7 +119,6 @@ class TheTreeInHtmlInvocationTest {
     @AfterEach
     void forgetWhatWasScripted() {
         GenerationScriptedBeans.forgetScriptedAnswers();
-        opener.forget();
         applicationLogger.detachAppender(logged);
         logged.stop();
     }
@@ -178,7 +170,6 @@ class TheTreeInHtmlInvocationTest {
         Files.delete(index);
         Files.delete(firstCopy);
         int questionsBefore = GenerationScriptedBeans.callsMade();
-        opener.forget();
 
         cli.run("run", root.toString());
 
@@ -199,49 +190,31 @@ class TheTreeInHtmlInvocationTest {
                     assertThat(columnByPath(root, "copy_outcome")).containsEntry(FIRST, "copied");
                 });
         claim(
-                "and the opener was asked " + ONCE + " time for an index, this tree's, with the page in place: the"
-                        + " path that finds the writing recorded opens what it drew as the other three do",
-                () -> {
-                    List<RecordingPageOpener.Request> indexOpened = indexRequests();
-                    assertThat(indexOpened).hasSize(ONCE);
-                    assertThat(indexOpened.getFirst().page()).isEqualTo(index.toUri());
-                    assertThat(indexOpened.getFirst().thePageWasThere()).isTrue();
-                });
+                "and the index is handed to no opener, so the report lists no file as opened: the path that finds the"
+                        + " writing recorded opens nothing, as the other three do",
+                () -> assertThat(TheReportFile.in(workingDirectory).get("opened").get("files")).isEmpty());
     }
 
     @Test
     @Story("The last thing an invocation says is what it produced and what is missing from it")
-    @DisplayName("The closing line names the tree's index, and the invocation opens two pages, the progress page first and the index last, once it is in place")
-    @Link(name = "ADR-266", url = Adr.EVERY_INVOCATION_NAMES_AND_OPENS_ITS_PROGRESS_PAGE, type = "adr")
-    void theClosingLineNamesTheIndexAndTheIndexIsOpenedOnce(@TempDir Path root, @TempDir Path seeds)
+    @DisplayName("The closing line names the tree's index, and the invocation opens nothing: the report lists no file as opened")
+    @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
+    void theClosingLineNamesTheIndexAndNothingIsOpened(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         anApprovedCorpus(root, seeds);
-        opener.forget();
         logged.list.clear();
 
         cli.run("run", root.toString());
 
         Path index = theTreeOf(root).resolve("index.html");
-        List<RecordingPageOpener.Request> indexOpened = opener.requests().stream()
-                .filter(request -> request.page().getPath().endsWith("/index.html"))
-                .toList();
         claim(
                 "the last line the invocation writes names the index by its whole path, and says that no group was"
                         + " left unwritten and no document left uncopied, stating both counts at nothing",
                 () -> assertThat(operatorLines().getLast())
                         .contains(index + ", with 0 groups left unwritten and 0 documents not copied."));
         claim(
-                "the opener was asked for exactly two pages: the progress page, when the job started, and this tree's"
-                        + " index, once, last",
-                () -> assertThat(opener.requests())
-                        .extracting(request -> Path.of(request.page()))
-                        .containsExactly(
-                                workingDirectory.resolve(PROGRESS_PAGE).toAbsolutePath().normalize(),
-                                index.toAbsolutePath().normalize()));
-        claim(
-                "and the index was in place when it was asked for",
-                () -> assertThat(indexOpened).singleElement().satisfies(request -> assertThat(request.thePageWasThere())
-                        .isTrue()));
+                "and the index is handed to no opener, so the report lists no file as opened",
+                () -> assertThat(TheReportFile.in(workingDirectory).get("opened").get("files")).isEmpty());
     }
 
     @Test
@@ -409,13 +382,6 @@ class TheTreeInHtmlInvocationTest {
 
     private List<String> operatorLines() {
         return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
-    }
-
-    /** Every request the opener was given for a tree's index since it was last told to forget. */
-    private List<RecordingPageOpener.Request> indexRequests() {
-        return opener.requests().stream()
-                .filter(request -> request.page().getPath().endsWith("/index.html"))
-                .toList();
     }
 
     /** Whether the writing step is recorded finished under this corpus's one generation run. */
