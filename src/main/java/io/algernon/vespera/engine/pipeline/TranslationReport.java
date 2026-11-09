@@ -2,6 +2,10 @@ package io.algernon.vespera.engine.pipeline;
 
 import io.algernon.vespera.engine.embedding.Translations;
 import io.algernon.vespera.engine.ledger.RunId;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -14,7 +18,106 @@ import java.util.Map;
  */
 final class TranslationReport {
 
+    /** The report's name, as {@code report.json} and its schema call it (ADR-362 section 9). */
+    static final String NAME = "translations";
+
+    /** The page's title. */
+    static final String TITLE = "Copies in another language";
+
     private TranslationReport() {}
+
+    /**
+     * Writes the numbers and rows of the page as the JSON beside it holds them (ADR-362 section 9), from the same
+     * values and in the page's order; the words are the page's, without its markup.
+     */
+    static void writeJson(
+            Path file,
+            Instant writtenAt,
+            Translations.Resolution resolution,
+            RunId scoringRunId,
+            String embeddingModel,
+            long survivors,
+            long removed,
+            String floorReading,
+            String languagesReading,
+            boolean preferred)
+            throws IOException {
+        List<List<Object>> languages = new ArrayList<>();
+        for (Map.Entry<String, Long> language : resolution.detectedLanguages().entrySet()) {
+            languages.add(List.<Object>of(language.getKey(), language.getValue()));
+        }
+        List<List<Object>> likenesses = new ArrayList<>();
+        for (Translations.SimilarityRow row : resolution.rows()) {
+            likenesses.add(List.<Object>of(row.similarity().doubleValue(), row.likenesses(), row.confirmed(), row.refuted()));
+        }
+        long waiting = resolution.sets() - resolution.setsStanding();
+        List<AnalysisReportJson.Section> sections = List.of(
+                new AnalysisReportJson.Section(
+                        "scoring",
+                        "Scoring run",
+                        List.of("Scoring run " + scoringRunId.value() + ", embedding model " + embeddingModel
+                                + ". Survivors entering the step: " + survivors + "."),
+                        null),
+                new AnalysisReportJson.Section(
+                        "languages",
+                        "Languages detected",
+                        List.of("The survivors with a detected language, by its ISO 639-1 code."),
+                        new AnalysisReportJson.Table(
+                                List.of(
+                                        new AnalysisReportJson.Column("language", "Language", "text"),
+                                        new AnalysisReportJson.Column("survivors", "Survivors", "count")),
+                                languages)),
+                new AnalysisReportJson.Section(
+                        "paths",
+                        "Translations by their paths",
+                        List.of("Sets of survivors whose paths differ only in a folder named for a language: "
+                                + resolution.setsByPaths() + "."),
+                        null),
+                new AnalysisReportJson.Section(
+                        "likenesses",
+                        "Likenesses by their embeddings",
+                        List.of("Each row is a hundredth of similarity, the cosine of two mean vectors rounded down"
+                                + " from its exact value, with the likenesses of two survivors in different languages"
+                                + " that lie on it, of which those their paths confirm and those their paths refute."),
+                        new AnalysisReportJson.Table(
+                                List.of(
+                                        new AnalysisReportJson.Column("similarity", "Similarity", "number"),
+                                        new AnalysisReportJson.Column("likenesses", "Likenesses", "count"),
+                                        new AnalysisReportJson.Column("confirmed", "Confirmed by paths", "count"),
+                                        new AnalysisReportJson.Column("refuted", "Refuted by paths", "count")),
+                                likenesses)),
+                new AnalysisReportJson.Section(
+                        "sets",
+                        "Translation sets",
+                        List.of(
+                                "Translation sets found: " + resolution.sets(),
+                                "Standing whole, holding two copies in one language: " + resolution.setsStanding(),
+                                preferred
+                                        ? "Copies removed as translation-of: " + removed
+                                        : "Sets waiting for preferredLanguages, from which nothing was removed: "
+                                                + waiting),
+                        null),
+                new AnalysisReportJson.Section(
+                        "keys",
+                        "The two keys",
+                        List.of(
+                                "translationSimilarityFloor: " + floorReading,
+                                "preferredLanguages: " + languagesReading),
+                        null));
+        AnalysisReportJson.write(
+                file,
+                NAME,
+                TITLE,
+                writtenAt,
+                List.of(
+                        new AnalysisReportJson.Figure(
+                                "survivors", "Survivors entering the step", survivors, AnalysisReportJson.Unit.COUNT),
+                        new AnalysisReportJson.Figure(
+                                "sets", "Translation sets found", resolution.sets(), AnalysisReportJson.Unit.COUNT),
+                        new AnalysisReportJson.Figure(
+                                "removed", "Copies removed as translation-of", removed, AnalysisReportJson.Unit.COUNT)),
+                sections);
+    }
 
     /**
      * @param survivors how many survivors entered the step
@@ -46,7 +149,7 @@ final class TranslationReport {
         }
         long waiting = resolution.sets() - resolution.setsStanding();
 
-        String body = ReportPage.heading(1, "Copies in another language")
+        String body = ReportPage.heading(1, TITLE)
                 + ReportPage.paragraph("Scoring run <code>" + ReportPage.escape(scoringRunId.value())
                         + "</code>, embedding model <code>" + ReportPage.escape(embeddingModel)
                         + "</code>. Survivors entering the step: " + survivors + ".")
@@ -86,6 +189,6 @@ final class TranslationReport {
                 + ReportPage.bulletList(List.of(
                         "translationSimilarityFloor: " + floorReading,
                         "preferredLanguages: " + languagesReading));
-        return ReportPage.render("Copies in another language", body);
+        return ReportPage.render(TITLE, body);
     }
 }

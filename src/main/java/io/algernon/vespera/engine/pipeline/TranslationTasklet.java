@@ -69,6 +69,9 @@ class TranslationTasklet implements Tasklet {
     /** The page's name in the working directory (ADR-271 section 7). */
     static final String PAGE_FILE_NAME = "translations.html";
 
+    /** The JSON beside the page, which carries its numbers and rows (ADR-362 section 9). */
+    static final String JSON_FILE_NAME = TranslationReport.NAME + ".json";
+
     /** What a removal records as its reason; it names no path. */
     private static final String REASON = "the content is carried, in another language, by an occurrence that survives";
 
@@ -293,11 +296,24 @@ class TranslationTasklet implements Tasklet {
                 languagesReading,
                 !preferred.isEmpty());
         Path file = workingDirectory.resolve(PAGE_FILE_NAME);
+        Path json = workingDirectory.resolve(JSON_FILE_NAME);
         try {
             Files.createDirectories(workingDirectory);
+            // The JSON is moved into place before the page is written (ADR-362 section 9).
+            TranslationReport.writeJson(
+                    json,
+                    clock.instant(),
+                    resolution,
+                    scoring,
+                    modelName,
+                    survivors,
+                    resolution.removals().size(),
+                    floorReading,
+                    languagesReading,
+                    !preferred.isEmpty());
             Files.writeString(file, html, StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new UncheckedIOException("could not write the report at " + file, e);
+            throw new UncheckedIOException("could not write the report at " + file + " or " + json, e);
         }
         return file;
     }
