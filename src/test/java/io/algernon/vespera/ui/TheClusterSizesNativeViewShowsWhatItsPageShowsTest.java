@@ -98,10 +98,10 @@ class TheClusterSizesNativeViewShowsWhatItsPageShowsTest {
         claim("the table has the page's nine columns, in its order",
                 () -> assertThat(headers).containsExactly("Exemplar", "Documents", "Groups", "Largest group",
                         "Middle group", "Groups of one", "Weakest link", "Middle link", "Strongest link"));
-        claim("it has a row for each exemplar in the page's order: the counts as they are, three links to two places, and blanks where the exemplar holds one document and has no link",
+        claim("it has a row for each exemplar in the page's order: the counts as they are, three links to two places, and a dash where the exemplar holds one document and has no link",
                 () -> assertThat(rows).containsExactly(
                         List.of("seeds/contracts.pdf", "53", "3", "40", "12", "1", "0.62", "0.81", "0.95"),
-                        List.of("seeds/lonely.pdf", "1", "1", "1", "1", "1", "", "", "")));
+                        List.of("seeds/lonely.pdf", "1", "1", "1", "1", "1", "—", "—", "—")));
     }
 
     /** The title and paragraph labels directly in the section {@code id}, in order. */
