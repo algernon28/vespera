@@ -46,6 +46,11 @@ final class AnalysisReportView {
     private static final int ROWS_IN_VIEW = 12;
     private static final DateTimeFormatter INSTANT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
 
+    /** What stands where a number's cell holds none, as a page of the jar shows it. */
+    private static final String A_DASH = "\u2014";
+
+    private static final java.util.Set<String> NUMBER_KINDS = java.util.Set.of("count", "share", "number", "bytes", "seconds");
+
     private AnalysisReportView() {
     }
 
@@ -200,7 +205,7 @@ final class AnalysisReportView {
     /** {@code cell}, of a column of {@code kind}, as the table shows it. */
     static String cell(Object cell, String kind) {
         if (cell == null) {
-            return "";
+            return NUMBER_KINDS.contains(kind) ? A_DASH : "";
         }
         if (cell instanceof BigDecimal number) {
             return number(number, kind);

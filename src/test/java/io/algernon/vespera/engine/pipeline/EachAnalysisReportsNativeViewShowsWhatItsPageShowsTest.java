@@ -11,6 +11,12 @@ import io.algernon.vespera.engine.corpus.WalkRecorder;
 import io.algernon.vespera.engine.ledger.ImplementationVersions;
 import io.algernon.vespera.engine.ledger.Ledger;
 import io.algernon.vespera.engine.profile.ProfileStore;
+import io.algernon.vespera.engine.ledger.OccurrenceId;
+import io.algernon.vespera.engine.ledger.RemovedOccurrence;
+import io.algernon.vespera.ui.AnalysisReportFile;
+import java.io.StringWriter;
+import java.math.BigDecimal;
+import java.time.Instant;
 import io.algernon.vespera.ui.NativeViewForTests;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -50,6 +56,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("750")
+@Issue("751")
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
 class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
 
@@ -57,6 +64,9 @@ class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
 
     /** A pdf that opens and stops before its end marker, so the format mix counts a kind other than text. */
     private static final String TRUNCATED_PDF = "%PDF-1.4\n1 0 obj\n<< >>\nendobj\n";
+
+    /** What the survivor page shows where a file has no page count. */
+    private static final String A_DASH_ON_THE_PAGE = "&mdash;";
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -161,5 +171,64 @@ class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
         Files.writeString(root.resolve("notes.md"), "# a heading\n\na note");
         Files.writeString(root.resolve("broken.pdf"), TRUNCATED_PDF);
         Files.write(root.resolve("blob.bin"), new byte[] {0x01, 0x02, 0x03, 0x04, 0x00, 0x7f, 0x05});
+    }
+
+    @Test
+    @Story("The operator reads the reports inside the window")
+    @DisplayName("What the window reads of the review list and the survivor list holds every number and row of their pages, in order")
+    void theReadingOfTheReviewAndSurvivorListsHoldsEveryNumberAndRowOfTheirPages() throws IOException {
+        List<RemovedOccurrence> failures = List.of(
+                new RemovedOccurrence(new OccurrenceId(1), "a/first", "timeout"),
+                new RemovedOccurrence(new OccurrenceId(2), "b/second", "could not be read"));
+        StringWriter reviewPage = new StringWriter();
+        StringWriter reviewJson = new StringWriter();
+        ReviewListReport.write(reviewPage, reviewJson, failures.size(), Instant.now(), each -> failures.forEach(each));
+        List<SurvivorListReport.Row> survivors = List.of(
+                new SurvivorListReport.Row("a/kept", 4, 900), new SurvivorListReport.Row("b/kept", null, 12));
+        StringWriter survivorPage = new StringWriter();
+        StringWriter survivorJson = new StringWriter();
+        SurvivorListReport.write(
+                survivorPage, survivorJson, survivors.size(), Instant.now(), each -> survivors.forEach(each));
+
+        AnalysisReportFile.Report review = AnalysisReportFile.read(ReviewListReport.NAME, reviewJson.toString());
+        AnalysisReportFile.Report survivor = AnalysisReportFile.read(SurvivorListReport.NAME, survivorJson.toString());
+
+        claim("the review list's headline is the count its page states first, and its page says it",
+                () -> {
+                    assertThat(review.headline()).hasSize(1);
+                    assertThat(review.headline().get(0).value())
+                            .isEqualByComparingTo(BigDecimal.valueOf(failures.size()));
+                    assertThat(reviewPage.toString()).contains("Files that could not be read: " + failures.size());
+                });
+        claim("its one table holds each file and its reason, each as the page shows it and in the page's order",
+                () -> {
+                    List<List<Object>> rows = review.sections().get(0).table().rows();
+                    assertThat(rows).hasSize(failures.size());
+                    int from = 0;
+                    for (List<Object> row : rows) {
+                        for (Object cell : row) {
+                            int at = reviewPage.toString().indexOf(cell.toString(), from);
+                            assertThat(at).as("the page shows %s after the cell before it", cell)
+                                    .isGreaterThanOrEqualTo(from);
+                            from = at;
+                        }
+                    }
+                });
+        claim("the survivor list's headline is the count of files that came through, as its page states it",
+                () -> {
+                    assertThat(survivor.headline().get(0).value())
+                            .isEqualByComparingTo(BigDecimal.valueOf(survivors.size()));
+                    assertThat(survivorPage.toString()).contains("Files that came through: " + survivors.size());
+                });
+        claim("its table holds each file's path, pages and words in the page's order, null where the page holds a dash",
+                () -> {
+                    List<List<Object>> rows = survivor.sections().get(0).table().rows();
+                    List<String> read = new ArrayList<>();
+                    rows.forEach(row -> read.add(row.get(0) + "|" + row.get(1) + "|" + row.get(2)));
+                    assertThat(read).containsExactly("a/kept|4|900", "b/kept|null|12");
+                    assertThat(survivorPage.toString()).contains(A_DASH_ON_THE_PAGE);
+                    assertThat(survivorPage.toString().indexOf("a/kept"))
+                            .isLessThan(survivorPage.toString().indexOf("b/kept"));
+                });
     }
 }

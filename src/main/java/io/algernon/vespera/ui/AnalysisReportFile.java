@@ -21,6 +21,8 @@ public final class AnalysisReportFile {
      * native view (ADR-362 §13 step 7). A report with no entry is read as {@link #FIRST_FORMAT}.
      */
     public static final Map<String, Integer> FORMATS = Map.ofEntries(
+            Map.entry("extraction-failures", 1),
+            Map.entry("extraction-survivors", 1),
             Map.entry("format-mix", 1));
 
     /** The format every report's JSON is first written in. */
