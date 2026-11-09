@@ -771,9 +771,51 @@ final class InvocationReport {
                     "html", html.toString(),
                     "json", workingDirectory.resolve(name + ".json").toString(),
                     "written", Files.isRegularFile(html),
-                    "headline", null));
+                    "headline", headlineOf(workingDirectory.resolve(name + ".json"))));
         }
         return tree;
+    }
+
+    private static final tools.jackson.databind.json.JsonMapper HEADLINES =
+            tools.jackson.databind.json.JsonMapper.builder().build();
+
+    /** What each analysis report's JSON held when last read, by file, with its size and time: a file unchanged is not read again. */
+    private final Map<Path, HeadlineRead> headlinesRead = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private record HeadlineRead(long size, long modified, List<Object> headline) {}
+
+    /**
+     * The {@code headline} of an analysis report's JSON (ADR-362 section 9), copied and no row with it; {@code null}
+     * where the file is not there, cannot be read or is of a format the jar does not know.
+     */
+    private List<Object> headlineOf(Path json) {
+        try {
+            long size = Files.size(json);
+            long modified = Files.getLastModifiedTime(json).toMillis();
+            HeadlineRead known = headlinesRead.get(json);
+            if (known != null && known.size() == size && known.modified() == modified) {
+                return known.headline();
+            }
+            List<Object> headline = null;
+            tools.jackson.databind.JsonNode report = HEADLINES.readTree(Files.readString(json, StandardCharsets.UTF_8));
+            if (report.path("format").asLong(-1) == AnalysisReportJson.FORMAT && report.path("headline").isArray()) {
+                headline = new ArrayList<>();
+                for (tools.jackson.databind.JsonNode figure : report.get("headline")) {
+                    Object value = figure.path("value").isIntegralNumber()
+                            ? (Object) figure.get("value").asLong()
+                            : (Object) figure.path("value").asDouble();
+                    headline.add(object(
+                            "key", figure.path("key").asString(""),
+                            "label", figure.path("label").asString(""),
+                            "value", value,
+                            "unit", figure.path("unit").asString("")));
+                }
+            }
+            headlinesRead.put(json, new HeadlineRead(size, modified, headline));
+            return headline;
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
     }
 
     /** The root the tree is drawn at, where this invocation drew one. */

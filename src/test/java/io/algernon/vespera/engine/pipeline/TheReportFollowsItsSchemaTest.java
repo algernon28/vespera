@@ -123,7 +123,7 @@ class TheReportFollowsItsSchemaTest {
     }
 
     /** Every schema position holds only the eight keywords, and every property is described. */
-    private static void keywords(JsonNode schema, String path, List<String> problems) {
+    static void keywords(JsonNode schema, String path, List<String> problems) {
         schema.propertyNames().forEach(name -> {
             if (!KEYWORDS.contains(name)) {
                 problems.add(path + " uses the keyword " + name);
@@ -142,7 +142,7 @@ class TheReportFollowsItsSchemaTest {
     }
 
     /** The instance against the schema: type, enum, const, properties, required, additionalProperties and items. */
-    private static void validate(JsonNode instance, JsonNode schema, String path, List<String> problems) {
+    static void validate(JsonNode instance, JsonNode schema, String path, List<String> problems) {
         if (schema.has("type")) {
             List<String> types = new ArrayList<>();
             if (schema.get("type").isArray()) {
