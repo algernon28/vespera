@@ -36,6 +36,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Issue("752")
 @Issue("753")
 @Issue("754")
+@Issue("756")
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
 class TheControlPanelKnowsEachAnalysisReportsFormatTest {
 
@@ -117,5 +118,11 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
                         TranslationReport.FORMAT));
         claim("the translation report is among the reports the window draws natively",
                 () -> assertThat(Reports.OPENING_NATIVELY).contains(TranslationReport.NAME));
+        claim("the relevance labelling page's JSON is read in the format its writer writes, "
+                        + RelevanceLabellingReport.FORMAT,
+                () -> assertThat(AnalysisReportFile.FORMATS)
+                        .containsEntry(RelevanceLabellingReport.NAME, RelevanceLabellingReport.FORMAT));
+        claim("the relevance labelling report is among the reports the window draws natively",
+                () -> assertThat(Reports.OPENING_NATIVELY).contains(RelevanceLabellingReport.NAME));
     }
 }

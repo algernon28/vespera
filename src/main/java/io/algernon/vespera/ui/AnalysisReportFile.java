@@ -30,7 +30,8 @@ public final class AnalysisReportFile {
             Map.entry("document-frequency", 1),
             Map.entry("seed-corpus-comparison", 1),
             Map.entry("translations", 1),
-            Map.entry("cluster-sizes", 1));
+            Map.entry("cluster-sizes", 1),
+            Map.entry("relevance-labelling", 1));
 
     /** The format every report's JSON is first written in. */
     static final int FIRST_FORMAT = 1;
