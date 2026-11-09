@@ -16,6 +16,7 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
+import javafx.util.StringConverter;
 
 /** The progress page's three charts side by side, each drawn again whole at each reading (ADR-344 §1, ADR-365). */
 final class ProgressCharts extends HBox {
@@ -36,6 +37,17 @@ final class ProgressCharts extends HBox {
         NumberAxis value = new NumberAxis();
         value.setLabel(axis);
         value.setForceZeroInRange(false);
+        value.setTickLabelFormatter(new StringConverter<>() {
+            @Override
+            public String toString(Number tick) {
+                return shortened(tick.doubleValue());
+            }
+
+            @Override
+            public Number fromString(String text) {
+                throw new UnsupportedOperationException("tick labels are only drawn");
+            }
+        });
         LineChart<Number, Number> chart = new LineChart<>(time, value);
         chart.setId(id);
         chart.setTitle(title);
@@ -47,6 +59,28 @@ final class ProgressCharts extends HBox {
         HBox.setHgrow(chart, Priority.ALWAYS);
         charts.put(id, chart);
         return chart;
+    }
+
+    /** A value axis tick shortened: 1.5K from 1,500, 2M from 2,000,000, then B and T; below 1,000 as it is. */
+    static String shortened(double value) {
+        double magnitude = Math.abs(value);
+        String sign = value < 0 ? "-" : "";
+        if (magnitude < 1000) {
+            return sign + trimmed(String.format(Locale.ROOT, "%.2f", magnitude));
+        }
+        String[] suffixes = {"K", "M", "B", "T"};
+        double scaled = magnitude / 1000;
+        int step = 0;
+        // 999,950 rounds to 1000.0K at one decimal, so it moves up to 1M
+        while (Math.round(scaled * 10) >= 10_000 && step < suffixes.length - 1) {
+            scaled /= 1000;
+            step++;
+        }
+        return sign + trimmed(String.format(Locale.ROOT, "%.1f", scaled)) + suffixes[step];
+    }
+
+    private static String trimmed(String decimal) {
+        return decimal.contains(".") ? decimal.replaceAll("0+$", "").replaceAll("\\.$", "") : decimal;
     }
 
     /** Draws each chart from the chart of the progress page that has its id, or empties it where the page has none. */
