@@ -19,7 +19,7 @@ import java.util.Objects;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
-import javafx.scene.control.Label;
+import javafx.scene.control.TextInputControl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -93,7 +93,7 @@ class PublishOffersEachDestinationDrawnTest {
         try (WindowForTests window = WindowForTests.shown(state)) {
             boxes = window.awaiting(PublishOffersEachDestinationDrawnTest::boxes, drawn -> !drawn.isEmpty());
             window.act(root -> WindowForTests.node(root, "publish", Button.class).fire());
-            refusal = window.read(root -> WindowForTests.node(root, "outcome", Label.class).getText());
+            refusal = window.read(root -> WindowForTests.node(root, "outcome", TextInputControl.class).getText());
             window.act(root -> WindowForTests.node(root, "publish-to-website", CheckBox.class).setSelected(true));
             shown = window.awaiting(PublishOffersEachDestinationDrawnTest::publishLine,
                     line -> line.contains("--to website"));
@@ -146,7 +146,7 @@ class PublishOffersEachDestinationDrawnTest {
     }
 
     private static String publishLine(Parent root) {
-        return WindowForTests.node(root, "command-line-publish", Label.class).getText();
+        return WindowForTests.node(root, "command-line-publish", TextInputControl.class).getText();
     }
 
     /** An argument as {@code ChildCommand.shown()} writes it: in double quotes where it holds a space. */

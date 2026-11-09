@@ -80,8 +80,36 @@
     -fx-spacing: 8px;
 }
 
-.header .label {
+.header .label,
+.header .selectable-text {
     -fx-font-size: 15px;
+}
+
+/*
+ * A text of the window outside a control, selected and copied but not edited (ADR-364 section 8): drawn as the label
+ * it replaces, with no border and no background and the label's font, colour and padding. It stands before the rules of
+ * the classes a text carries, .outcome, .small, .dim, .grey and .command-line, so that their colour and font win.
+ */
+.selectable-text,
+.selectable-text:focused,
+.selectable-text .scroll-pane,
+.selectable-text .scroll-pane .viewport,
+.selectable-text .content {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+}
+
+.selectable-text {
+    -fx-text-fill: -fx-text-background-color;
+}
+
+.selectable-text.text-area .scroll-pane {
+    -fx-hbar-policy: never;
+    -fx-vbar-policy: never;
 }
 
 .card {

@@ -12,7 +12,6 @@ import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
-import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.Priority;
@@ -55,7 +54,7 @@ final class ReportsPane {
                 link.setOnAction(event -> open(report));
                 reportsList.getChildren().add(link);
             } else {
-                Label grey = new Label(report + " (not written yet)");
+                SelectableText.Line grey = SelectableText.line(report + " (not written yet)");
                 grey.getStyleClass().add("grey");
                 reportsList.getChildren().add(grey);
             }

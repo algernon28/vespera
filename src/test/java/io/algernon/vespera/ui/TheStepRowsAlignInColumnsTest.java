@@ -23,7 +23,7 @@ import javafx.geometry.Bounds;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
-import javafx.scene.control.Label;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TitledPane;
@@ -148,8 +148,9 @@ class TheStepRowsAlignInColumnsTest {
             Parent row = WindowForTests.node(root, "step-" + cost.step(), Parent.class);
             List<Node> parts = row.getChildrenUnmodifiable();
             ProgressBar bar = WindowForTests.every(root, "step-" + cost.step(), ProgressBar.class).getFirst();
-            List<Label> labels = parts.stream().filter(Label.class::isInstance).map(Label.class::cast).toList();
-            Label state = (Label) parts.get(parts.indexOf(bar) + 1);
+            List<TextInputControl> labels = parts.stream().filter(TextInputControl.class::isInstance)
+                    .map(TextInputControl.class::cast).toList();
+            TextInputControl state = (TextInputControl) parts.get(parts.indexOf(bar) + 1);
             seen.put(cost.step(), new Row(x(labels.get(0)), x(labels.get(1)), x(bar), x(state),
                     bar.getLayoutBounds().getWidth()));
         }
@@ -207,7 +208,7 @@ class TheStepRowsAlignInColumnsTest {
     /** Whether the running step's row shows its Stop and, last in the row, the words saying what a stop there costs. */
     private static boolean theRunningRowShowsStopAndItsCost(Parent root) {
         List<Node> parts = WindowForTests.node(root, "step-" + RUNNING_STEP, Parent.class).getChildrenUnmodifiable();
-        return stopOfTheRow(root, RUNNING_STEP).isVisible() && parts.getLast() instanceof Label cost
+        return stopOfTheRow(root, RUNNING_STEP).isVisible() && parts.getLast() instanceof TextInputControl cost
                 && cost.isVisible() && cost.getText().startsWith("A stop here costs");
     }
 

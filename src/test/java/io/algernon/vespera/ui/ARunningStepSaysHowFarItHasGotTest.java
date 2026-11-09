@@ -20,6 +20,7 @@ import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.control.TitledPane;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -209,11 +210,11 @@ class ARunningStepSaysHowFarItHasGotTest {
             List<Node> parts = row.getChildrenUnmodifiable();
             ProgressBar bar = WindowForTests.every(root, "step-" + step, ProgressBar.class).getFirst();
             Node state = parts.get(parts.indexOf(bar) + 1);
-            words.put(step, state instanceof Label label ? label.getText() : null);
+            words.put(step, state instanceof TextInputControl text ? text.getText() : null);
             bars.put(step, bar.getProgress());
             boolean stopShown = WindowForTests.every(root, "step-" + step, Button.class).stream()
                     .anyMatch(button -> "stop-step".equals(button.getId()) && button.isVisible());
-            boolean costShown = parts.getLast() instanceof Label costWords && costWords.isVisible()
+            boolean costShown = parts.getLast() instanceof TextInputControl costWords && costWords.isVisible()
                     && costWords.getText().startsWith("A stop here costs");
             stops.put(step, stopShown && costShown);
         }

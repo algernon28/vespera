@@ -12,7 +12,6 @@ import java.util.Map;
 import java.util.Optional;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
-import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
@@ -27,7 +26,7 @@ final class NotRelevantPane {
     private final WorkingFolders folders;
     private final ListView<String> notRelevantList = new ListView<>();
     private final TextField notRelevantFolder = new TextField();
-    private final Label notRelevantOutcome = new Label();
+    private final SelectableText.Wrapping notRelevantOutcome = SelectableText.wrapping("");
 
     NotRelevantPane(ControlPanelState state, Dialogs dialogs, WorkingFolders folders) {
         this.state = state;
@@ -53,11 +52,9 @@ final class NotRelevantPane {
         remove.setId("not-relevant-remove");
         remove.setOnAction(event -> changeNotRelevant(false, notRelevantList.getSelectionModel().getSelectedItem()));
         notRelevantOutcome.setId("not-relevant-outcome");
-        notRelevantOutcome.setWrapText(true);
-        Label words = new Label("Folders not relevant are still read: the relevance questions below them are answered"
-                + " not relevant, and no run changes.");
-        words.setWrapText(true);
-        VBox pane = new VBox(new Label("Folders not relevant"), words, notRelevantList,
+        SelectableText.Wrapping words = SelectableText.wrapping("Folders not relevant are still read: the relevance questions below them are"
+                + " answered not relevant, and no run changes.");
+        VBox pane = new VBox(SelectableText.line("Folders not relevant"), words, notRelevantList,
                 row(notRelevantFolder, browse, add, remove), notRelevantOutcome);
         pane.getStyleClass().add("section");
         return pane;

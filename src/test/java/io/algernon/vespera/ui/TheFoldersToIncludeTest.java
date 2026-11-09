@@ -24,7 +24,7 @@ import java.util.stream.Stream;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBoxTreeItem;
-import javafx.scene.control.Label;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
@@ -306,7 +306,7 @@ class TheFoldersToIncludeTest {
         try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
             seen = window.read(root -> new Seen(List.of(WindowForTests.folder(root, "A").isSelected(),
                     WindowForTests.folder(root, "B").isSelected()),
-                    WindowForTests.node(root, "inclusions-outcome", Label.class).getText()));
+                    WindowForTests.node(root, "inclusions-outcome", TextInputControl.class).getText()));
             save(window);
         }
 

@@ -20,7 +20,6 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
-import javafx.scene.control.Label;
 import javafx.scene.control.Labeled;
 import javafx.scene.control.TextInputControl;
 import org.junit.jupiter.api.DisplayName;
@@ -113,9 +112,9 @@ class PublishToConfluenceAsksForTheTokenTest {
             window.awaiting(PublishToConfluenceAsksForTheTokenTest::boxes, drawn -> drawn.contains("confluence"));
             for (Optional<String> typed : cancelledThenBlank) {
                 window.dialogs.typed = typed;
-                window.act(root -> WindowForTests.node(root, "outcome", Label.class).setText(""));
+                window.act(root -> WindowForTests.node(root, "outcome", TextInputControl.class).setText(""));
                 window.act(root -> WindowForTests.node(root, "publish", Button.class).fire());
-                said.add(window.read(root -> WindowForTests.node(root, "outcome", Label.class).getText()));
+                said.add(window.read(root -> WindowForTests.node(root, "outcome", TextInputControl.class).getText()));
                 started.add(state.childWasStarted());
             }
             asked = List.copyOf(window.dialogs.maskedAsked);

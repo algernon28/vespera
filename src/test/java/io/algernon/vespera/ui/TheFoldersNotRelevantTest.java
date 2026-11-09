@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import javafx.scene.control.Button;
-import javafx.scene.control.Label;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.control.ListView;
 import javafx.scene.control.TextField;
 import org.junit.jupiter.api.DisplayName;
@@ -156,7 +156,7 @@ class TheFoldersNotRelevantTest {
                 WindowForTests.node(root, "not-relevant-folder", TextField.class).setText("../Old");
                 WindowForTests.node(root, "not-relevant-add", Button.class).fire();
             });
-            seen = window.read(root -> new Seen(WindowForTests.node(root, "not-relevant-outcome", Label.class).getText(),
+            seen = window.read(root -> new Seen(WindowForTests.node(root, "not-relevant-outcome", TextInputControl.class).getText(),
                     WindowForTests.node(root, "not-relevant-folder", TextField.class).getText(), listed(root)));
         }
 
@@ -200,7 +200,7 @@ class TheFoldersNotRelevantTest {
                 WindowForTests.node(root, "not-relevant-folder", TextField.class).setText("Old");
                 WindowForTests.node(root, "not-relevant-remove", Button.class).fire();
             });
-            seen = window.read(root -> new Seen(WindowForTests.node(root, "not-relevant-outcome", Label.class).getText(),
+            seen = window.read(root -> new Seen(WindowForTests.node(root, "not-relevant-outcome", TextInputControl.class).getText(),
                     WindowForTests.node(root, "not-relevant-folder", TextField.class).getText(), listed(root)));
         }
 

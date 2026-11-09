@@ -11,6 +11,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.TitledPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 /**
@@ -22,7 +23,7 @@ import javafx.scene.layout.VBox;
 final class StepsChart extends VBox {
 
     /** One row of the steps chart: its stage, its name, one bar, its state and, on the running step, its own Stop. */
-    private record StepRow(HBox row, Label stage, Label name, ProgressBar bar, Label state, Label cost,
+    private record StepRow(HBox row, SelectableText.Line stage, SelectableText.Line name, ProgressBar bar, SelectableText.Line state, SelectableText.Line cost,
             Button stopHere) {
     }
 
@@ -56,9 +57,9 @@ final class StepsChart extends VBox {
     }
 
     /** Gives every label of {@code column} at least the width the widest of them asks for. */
-    private static void alignColumn(List<Label> column) {
+    private static void alignColumn(List<? extends Region> column) {
         double widest = column.stream().mapToDouble(label -> label.prefWidth(-1)).max().orElse(0);
-        column.forEach(label -> label.setMinWidth(widest));
+        column.forEach(text -> text.setMinWidth(widest));
     }
 
     /** A leg folded and waiting: its summary the pane's graphic, its rows the pane's content (ADR-361 §3). */
@@ -99,12 +100,12 @@ final class StepsChart extends VBox {
     }
 
     private StepRow stepRow(StopCosts.StopCost cost) {
-        Label stage = new Label(StopCosts.stageOf(cost.step()));
+        SelectableText.Line stage = SelectableText.line(StopCosts.stageOf(cost.step()));
         stage.getStyleClass().add("small");
-        Label name = new Label(cost.step());
+        SelectableText.Line name = SelectableText.line(cost.step());
         ProgressBar bar = new ProgressBar(0);
-        Label stateWords = new Label("waiting");
-        Label costWords = new Label("A stop here costs " + cost.cost() + ".");
+        SelectableText.Line stateWords = SelectableText.line("waiting");
+        SelectableText.Line costWords = SelectableText.line("A stop here costs " + cost.cost() + ".");
         costWords.getStyleClass().add("small");
         costWords.setVisible(false);
         costWords.setManaged(false);

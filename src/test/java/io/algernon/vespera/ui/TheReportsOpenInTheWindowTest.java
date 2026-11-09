@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Optional;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
-import javafx.scene.control.Label;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TextField;
 import javafx.scene.web.WebView;
@@ -405,7 +405,7 @@ class TheReportsOpenInTheWindowTest {
 
     /** The line the window's {@code outcome} shows. */
     private static String outcome(Parent root) {
-        return String.valueOf(WindowForTests.node(root, "outcome", Label.class).getText());
+        return String.valueOf(WindowForTests.node(root, "outcome", TextInputControl.class).getText());
     }
 
     /** The address {@code report}'s viewer is on, its fragment kept; null before it is on any. */

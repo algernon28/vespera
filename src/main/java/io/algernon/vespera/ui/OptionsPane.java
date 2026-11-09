@@ -12,7 +12,6 @@ import java.util.regex.Pattern;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
-import javafx.scene.control.Label;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
@@ -33,7 +32,7 @@ final class OptionsPane {
     private final Dialogs dialogs;
     private final Runnable changed;
     private final Map<String, Preset> presets = new LinkedHashMap<>();
-    private final Map<ControlPanelState.Start, Label> commandLines = new LinkedHashMap<>();
+    private final Map<ControlPanelState.Start, SelectableText.Wrapping> commandLines = new LinkedHashMap<>();
     private final TextField labelFile = new TextField();
 
     /** {@code changed} runs whenever a control of the pane changes what a command line would be. */
@@ -100,12 +99,12 @@ final class OptionsPane {
         browse.setOnAction(event -> dialogs.file("Choose the label file", "")
                 .ifPresent(chosen -> labelFile.setText(chosen.toString())));
         HBox.setHgrow(labelFile, Priority.ALWAYS);
-        VBox pane = new VBox(new Label("Label file"), row(labelFile, browse));
+        VBox pane = new VBox(SelectableText.line("Label file"), row(labelFile, browse));
         for (ChildCommand.Option option : ChildCommand.OPTIONS) {
             Preset preset = new Preset(option.property());
-            Label words = new Label(option.property() + "  (" + String.join(", ", option.commands()) + ")");
+            SelectableText.Line words = SelectableText.line(option.property() + "  (" + String.join(", ", option.commands()) + ")");
             words.getStyleClass().add("small");
-            Label from = new Label(LaunchField.startingWords(preset.starting));
+            SelectableText.Line from = SelectableText.line(LaunchField.startingWords(preset.starting));
             from.getStyleClass().add("small");
             pane.getChildren().add(tight(words, preset.control, from));
         }
@@ -118,8 +117,7 @@ final class OptionsPane {
         pane.getChildren().add(defaults);
         for (ControlPanelState.Start kind : List.of(ControlPanelState.Start.RUN, ControlPanelState.Start.LABEL,
                 ControlPanelState.Start.LABEL_AUTO, ControlPanelState.Start.PUBLISH)) {
-            Label shown = new Label();
-            shown.setWrapText(true);
+            SelectableText.Wrapping shown = SelectableText.wrapping("");
             shown.setId("command-line-" + switch (kind) {
                 case RUN -> "run";
                 case LABEL -> "label";

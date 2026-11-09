@@ -25,6 +25,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextInputControl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
@@ -193,9 +194,9 @@ class TheWorkingDirectoryInTheFoldersFieldTest {
         try (WindowForTests window = WindowForTests.shown(state)) {
             seen = window.read(root -> new Seen(
                     WindowForTests.node(root, "vespera.working-dir", TextField.class).getText(),
-                    WindowForTests.node(root, "status-vespera.working-dir", javafx.scene.control.Label.class).getText(),
+                    WindowForTests.node(root, "status-vespera.working-dir", TextInputControl.class).getText(),
                     model(root),
-                    WindowForTests.node(root, "command-line-run", javafx.scene.control.Label.class).getText()));
+                    WindowForTests.node(root, "command-line-run", TextInputControl.class).getText()));
         }
 
         claim("the working directory's field is empty, no source naming it",
