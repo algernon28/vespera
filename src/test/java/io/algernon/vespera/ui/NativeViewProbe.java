@@ -7,7 +7,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.chart.LineChart;
@@ -47,8 +46,7 @@ public final class NativeViewProbe {
             ControlPanelState state = new ControlPanelState(
                     new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")),
                     LaunchValues.fileIn(Files.createDirectories(folder.resolve("tmp")), System.getProperty("user.name")),
-                    Files.createDirectories(folder.resolve("root-locks")), System.getProperty("user.name"),
-                    Set.of(report));
+                    Files.createDirectories(folder.resolve("root-locks")), System.getProperty("user.name"));
             state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(),
                     workingDirectory.toString(), "", "", "", "", "", ""));
             try (WindowForTests window = WindowForTests.shown(state)) {

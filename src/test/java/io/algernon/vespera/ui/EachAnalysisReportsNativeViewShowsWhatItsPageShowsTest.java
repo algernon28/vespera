@@ -129,8 +129,7 @@ class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
         ControlPanelState state = new ControlPanelState(
                 new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")),
                 LaunchValues.fileIn(Files.createDirectories(folder.resolve("tmp")), System.getProperty("user.name")),
-                Files.createDirectories(folder.resolve("root-locks")), System.getProperty("user.name"),
-                AnalysisReportFile.FORMATS.keySet());
+                Files.createDirectories(folder.resolve("root-locks")), System.getProperty("user.name"));
         state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(),
                 workingDirectory.toString(), "", "", "", "", "", ""));
         return state;

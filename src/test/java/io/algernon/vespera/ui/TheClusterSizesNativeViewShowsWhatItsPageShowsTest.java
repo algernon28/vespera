@@ -19,7 +19,6 @@ import java.util.stream.Stream;
 import javafx.scene.Parent;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableView;
-import javafx.scene.web.WebView;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -48,7 +47,7 @@ class TheClusterSizesNativeViewShowsWhatItsPageShowsTest {
 
     @Test
     @Story("The operator reads the reports inside the window")
-    @DisplayName("The cluster sizes report opens as the window ships it, drawn from its JSON with its four figures, three sections and every row of its table, and no viewer")
+    @DisplayName("The cluster sizes report opens as the window ships it, drawn from its JSON with its four figures, three sections and every row of its table")
     void theViewOfTheClusterSizesReportHoldsEveryNumberAndRowOfItsPage(@TempDir Path folder) throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
         String json = Files.readString(FIXTURE, StandardCharsets.UTF_8);
@@ -61,7 +60,6 @@ class TheClusterSizesNativeViewShowsWhatItsPageShowsTest {
         List<String> labels = new ArrayList<>();
         List<List<String>> rows;
         List<String> headers;
-        boolean viewer;
         String title;
         try (WindowForTests window = WindowForTests.shown(shippedStateOver(folder, working))) {
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", NAME));
@@ -79,13 +77,11 @@ class TheClusterSizesNativeViewShowsWhatItsPageShowsTest {
             }
             rows = window.read(TheClusterSizesNativeViewShowsWhatItsPageShowsTest::rowsOfTheTable);
             headers = window.read(TheClusterSizesNativeViewShowsWhatItsPageShowsTest::headersOfTheTable);
-            viewer = window.read(root -> HeadlessToolkit.everyNodeUnder(root).stream().anyMatch(WebView.class::isInstance));
         }
 
-        claim("the report opens natively in its tab, with no viewer anywhere in the window",
+        claim("the report opens natively in its tab",
                 () -> {
                     assertThat(tabs).containsExactly("live-report", "profile", "inclusions", TAB);
-                    assertThat(viewer).isFalse();
                 });
         claim("the tab is titled by the report's title", () -> assertThat(title).isEqualTo(report.title()));
         claim("each of the four headline figures is drawn, a count grouped by thousands: 2 exemplars, 54 documents, 4 groups, 2 groups of one",
@@ -136,8 +132,7 @@ class TheClusterSizesNativeViewShowsWhatItsPageShowsTest {
         ControlPanelState state = new ControlPanelState(
                 new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")),
                 LaunchValues.fileIn(Files.createDirectories(folder.resolve("tmp")), System.getProperty("user.name")),
-                Files.createDirectories(folder.resolve("root-locks")), System.getProperty("user.name"),
-                Reports.OPENING_NATIVELY);
+                Files.createDirectories(folder.resolve("root-locks")), System.getProperty("user.name"));
         state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(), working.toString(),
                 "", "", "", "", "", ""));
         return state;

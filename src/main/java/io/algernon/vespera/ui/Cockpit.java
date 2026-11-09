@@ -75,8 +75,7 @@ final class Cockpit {
     private final Map<String, LaunchField> fields = new LinkedHashMap<>();
     private final HBox publishTo = new HBox();
     private final Label seedOutcome = new Label();
-    private final WorkingFolders folders = new WorkingFolders(this::workingDirectory, this::corpusRoot,
-            this::reportsOpeningNatively);
+    private final WorkingFolders folders = new WorkingFolders(this::workingDirectory, this::corpusRoot);
     private final StepsChart steps = new StepsChart(this::stopAfterConfirming);
     private final ProgressCharts charts = new ProgressCharts();
     private final OptionsPane options;
@@ -107,7 +106,7 @@ final class Cockpit {
         this.state = state;
         this.dialogs = dialogs;
         this.options = new OptionsPane(state, dialogs, this::showCommandLines);
-        this.reports = new ReportsPane(tabs, dialogs, folders, this::say, state.reportsOpeningNatively());
+        this.reports = new ReportsPane(tabs, dialogs, folders, this::say);
         this.live = new LiveReport(this::openReport, dialogs::handToTheSystem);
         this.preflight = new PreflightPane(state, folders, property -> fields.get(property).text());
         this.codeSets = new CodeSetsPane(state, dialogs, folders, this::foldersToKeepApart, this::loadFiles);
@@ -478,10 +477,6 @@ final class Cockpit {
         } else {
             sidebar.setExpandedPane(sections.get(chosen == ProfileKey.SEED_FOLDER ? "seed-folder" : "code-sets"));
         }
-    }
-
-    private java.util.Set<String> reportsOpeningNatively() {
-        return state.reportsOpeningNatively();
     }
 
     private void openReport(String report) {

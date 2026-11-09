@@ -10,11 +10,10 @@ import javafx.scene.chart.XYChart;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableView;
 import javafx.scene.layout.Pane;
-import javafx.scene.web.WebView;
 
 /**
- * What the window's native view of an analysis report shows (ADR-362 §10), read off a window as shipped, whose set of
- * reports drawn natively is {@link Reports#OPENING_NATIVELY}: it is public so that a test of the jar's reports, which
+ * What the window's native view of an analysis report shows (ADR-362 §10), read off a window as shipped, which draws every
+ * report in {@link Reports#ALL} so: it is public so that a test of the jar's reports, which
  * lies in another package, can open the report the jar wrote and compare what the window drew with what the page shows.
  */
 public final class NativeViewForTests {
@@ -31,8 +30,8 @@ public final class NativeViewForTests {
             List<List<String>> rows) {
     }
 
-    /** The tab's title, the tiles and the sections in order, and whether any {@code WebView} lies in the window. */
-    public record View(String title, List<Tile> tiles, List<Section> sections, boolean viewer) {
+    /** The tab's title, the tiles and the sections in order. */
+    public record View(String title, List<Tile> tiles, List<Section> sections) {
     }
 
     private NativeViewForTests() {
@@ -46,8 +45,7 @@ public final class NativeViewForTests {
         ControlPanelState state = new ControlPanelState(
                 new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")),
                 LaunchValues.fileIn(Files.createDirectories(folder.resolve("tmp")), System.getProperty("user.name")),
-                Files.createDirectories(folder.resolve("root-locks")), System.getProperty("user.name"),
-                Reports.OPENING_NATIVELY);
+                Files.createDirectories(folder.resolve("root-locks")), System.getProperty("user.name"));
         state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(),
                 workingDirectory.toString(), "", "", "", "", "", ""));
         try (WindowForTests window = WindowForTests.shown(state)) {
@@ -74,8 +72,7 @@ public final class NativeViewForTests {
                 sections.add(section(name, (Pane) each));
             }
         }
-        boolean viewer = HeadlessToolkit.everyNodeUnder(root).stream().anyMatch(WebView.class::isInstance);
-        return new View(title, List.copyOf(tiles), List.copyOf(sections), viewer);
+        return new View(title, List.copyOf(tiles), List.copyOf(sections));
     }
 
     @SuppressWarnings("unchecked")

@@ -88,9 +88,10 @@ class PackagedJarIT {
     private static final String SPRING_BOOTS_JAR_LAUNCHER = "org.springframework.boot.loader.launch.JarLauncher";
 
     /**
-     * The six OpenJFX jars of one platform's classifier, as the Boot plugin names them under {@code BOOT-INF/lib/}:
-     * {@code javafx-controls}' three, and {@code javafx-web}, which brings {@code javafx-media} and
-     * {@code jdk-jsobject}; the version ADR-342 §1 names, and the classifier of whichever platform built the jar.
+     * The OpenJFX jars of one platform's classifier, as the Boot plugin names them under {@code BOOT-INF/lib/}: the
+     * three {@code javafx-controls} brings, and the three {@code javafx-web} brought, {@code javafx-web} itself,
+     * {@code javafx-media} and {@code jdk-jsobject}, which a jar holds no more (ADR-362 §10); the version ADR-342 §1
+     * names, and the classifier of whichever platform built the jar.
      */
     private static final java.util.regex.Pattern JAVAFX_OF_ONE_PLATFORM = java.util.regex.Pattern.compile(
             "(javafx-(base|graphics|controls|media|web)|jdk-jsobject)-26\\.0\\.2-"
@@ -121,16 +122,19 @@ class PackagedJarIT {
     }
 
     /**
-     * The control panel ships inside the jar (ADR-342 §1, §2): its classes, the jar's entry point, and OpenJFX's six
-     * jars of the building platform's classifier, the web jar among them, which a report's viewer is (ADR-344 §6);
+     * The control panel ships inside the jar (ADR-342 §1, §2): its classes, the jar's entry point, and OpenJFX's
+     * base, graphics and controls jars of the building platform's classifier, and no web, media or script-object jar
+     * (ADR-362 §10);
      * Spring Boot's launcher stays the {@code Main-Class} and hands the start to the entry point, and the manifest lets
      * JavaFX load its native libraries.
      */
     @Test
     @Issue("700")
+    @Issue("759")
+    @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
     @Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
     @Story("The control panel ships inside the jar")
-    @DisplayName("The packaged jar carries the control panel, JavaFX of one platform with its web viewer, and starts at the entry point")
+    @DisplayName("The packaged jar carries the control panel, JavaFX of one platform with no web viewer, and starts at the entry point")
     void theJarCarriesTheControlPanelAndJavaFxAndStartsAtTheEntryPoint() throws IOException {
         List<String> entries = entriesOf(EXECUTABLE_JAR);
         List<String> javaFx = libraries().stream()
@@ -143,15 +147,12 @@ class PackagedJarIT {
                 () -> assertThat(entries).contains(CLASSES + A_CLASS_OF_THE_JAR, CLASSES + A_CLASS_OF_THE_CONTROL_PANEL,
                         CLASSES + THE_ENTRY_POINT));
         String classifier = theBuildPlatformsClassifier();
-        claim("it carries OpenJFX 26.0.2's base, graphics, controls, media and web, and the JavaScript object classes web"
-                        + " needs, each once, of the classifier of the platform it was built on, here " + classifier,
+        claim("it carries OpenJFX 26.0.2's base, graphics and controls, each once, of the classifier of the platform it was"
+                        + " built on, here " + classifier,
                 () -> assertThat(javaFx).allMatch(name -> JAVAFX_OF_ONE_PLATFORM.matcher(name).matches())
                         .containsExactly("javafx-base-26.0.2-" + classifier + ".jar",
                                 "javafx-controls-26.0.2-" + classifier + ".jar",
-                                "javafx-graphics-26.0.2-" + classifier + ".jar",
-                                "javafx-media-26.0.2-" + classifier + ".jar",
-                                "javafx-web-26.0.2-" + classifier + ".jar",
-                                "jdk-jsobject-26.0.2-" + classifier + ".jar"));
+                                "javafx-graphics-26.0.2-" + classifier + ".jar"));
         claim("its main class is still Spring Boot's launcher, which starts the entry point",
                 () -> {
                     assertThat(manifest.getValue(Attributes.Name.MAIN_CLASS)).isEqualTo(SPRING_BOOTS_JAR_LAUNCHER);

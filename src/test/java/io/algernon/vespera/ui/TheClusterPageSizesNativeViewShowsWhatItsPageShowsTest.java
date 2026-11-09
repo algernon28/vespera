@@ -217,13 +217,12 @@ class TheClusterPageSizesNativeViewShowsWhatItsPageShowsTest {
         return rows;
     }
 
-    /** A state holding a corpus root under {@code folder} and {@code workingDirectory}, drawing every report in {@code Reports.OPENING_NATIVELY} natively. */
+    /** A state holding a corpus root under {@code folder} and {@code workingDirectory}. */
     private static ControlPanelState aStateOver(Path folder, Path workingDirectory) throws IOException {
         ControlPanelState state = new ControlPanelState(
                 new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")),
                 LaunchValues.fileIn(Files.createDirectories(folder.resolve("tmp")), System.getProperty("user.name")),
-                Files.createDirectories(folder.resolve("root-locks")), System.getProperty("user.name"),
-                Reports.OPENING_NATIVELY);
+                Files.createDirectories(folder.resolve("root-locks")), System.getProperty("user.name"));
         state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(),
                 workingDirectory.toString(), "", "", "", "", "", ""));
         return state;

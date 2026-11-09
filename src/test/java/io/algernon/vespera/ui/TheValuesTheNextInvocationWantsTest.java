@@ -49,6 +49,10 @@ class TheValuesTheNextInvocationWantsTest {
     /** The report the boilerplate floor is read off, as the README's table of values names it. */
     private static final String ITS_REPORT = "document-frequency";
 
+    /** The JSON the working directory holds for that report: the window draws the report from it. */
+    private static final String ITS_JSON = "{\"format\":1,\"analysisReport\":\"document-frequency\","
+            + "\"title\":\"Document frequency\",\"writtenAt\":\"2026-05-01T10:00:00Z\",\"headline\":[],\"sections\":[]}";
+
     /** The short name of an arrangement, as {@code next-invocation.properties} gives it: twelve characters, 0 to 9 or a to f. */
     private static final String AN_ARRANGEMENT = "0123456789ab";
 
@@ -59,7 +63,7 @@ class TheValuesTheNextInvocationWantsTest {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
         Files.writeString(workingDirectory.resolve(NextInvocation.FILE_NAME),
                 "invocation=run\nwants=boilerplateDocumentFrequencyFloor\nanswer=false\n", StandardCharsets.UTF_8);
-        Files.writeString(workingDirectory.resolve(Reports.pageOf(ITS_REPORT)), "<html></html>", StandardCharsets.UTF_8);
+        Files.writeString(workingDirectory.resolve(Reports.jsonOf(ITS_REPORT)), ITS_JSON, StandardCharsets.UTF_8);
         ControlPanelState state = WindowForTests.aState(folder, EndingJar.runtime());
         state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(),
                 workingDirectory.toString(), "", "", "", "", "", ""));
@@ -77,7 +81,7 @@ class TheValuesTheNextInvocationWantsTest {
             links = window.read(root -> WindowForTests.every(root, "wanted", Hyperlink.class).stream()
                     .map(Hyperlink::getText).toList());
             window.act(root -> WindowForTests.pressReportLink(root, "wanted", ITS_REPORT));
-            opened = window.awaiting(root -> WindowForTests.reportTab(root, ITS_REPORT), WindowForTests::loaded);
+            opened = window.read(root -> WindowForTests.reportTab(root, ITS_REPORT));
             handed = List.copyOf(window.dialogs.handed);
         }
 
@@ -85,10 +89,7 @@ class TheValuesTheNextInvocationWantsTest {
                         + " link",
                 () -> assertThat(links).containsExactly(ITS_REPORT));
         claim("and pressing it opens that report of the working directory in its own tab of the window, selected",
-                () -> assertThat(opened).hasValueSatisfying(tab -> {
-                    assertThat(tab.shows()).isEqualTo(workingDirectory.resolve(Reports.pageOf(ITS_REPORT)));
-                    assertThat(tab.selected()).isTrue();
-                }));
+                () -> assertThat(opened).hasValueSatisfying(tab -> assertThat(tab.selected()).isTrue()));
         claim("and hands nothing to the system to open, so no browser is started",
                 () -> assertThat(handed).isEmpty());
     }

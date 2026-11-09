@@ -51,7 +51,7 @@ public final class ControlPanel {
         ControlPanelState state = new ControlPanelState(runtime,
                 LaunchValues.fileIn(Path.of(System.getProperty("java.io.tmpdir")), userName),
                 corpusRootLockFolder(System.getenv(CORPUS_ROOT_LOCK_FOLDER_VARIABLE), System.getProperty("user.home")),
-                userName, Reports.OPENING_NATIVELY);
+                userName);
         state.useSources(readSources());
         Map<String, String> properties = new HashMap<>();
         System.getProperties().stringPropertyNames().forEach(name -> properties.put(name, System.getProperty(name)));

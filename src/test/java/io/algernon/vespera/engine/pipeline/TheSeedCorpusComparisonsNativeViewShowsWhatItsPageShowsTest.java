@@ -88,11 +88,10 @@ class TheSeedCorpusComparisonsNativeViewShowsWhatItsPageShowsTest {
         claim("the headline's three tiles are the page's three counts, in the page's order, grouped by thousands",
                 () -> assertThat(List.copyOf(view.tiles().values())).containsExactly(
                         grouped(counts.group(1)), grouped(counts.group(2)), grouped(counts.group(3))));
-        claim("the view holds the report's four sections in the page's order, and no viewer lies in the window",
+        claim("the view holds the report's four sections in the page's order",
                 () -> {
                     assertThat(view.sections().stream().map(TheWindowsViewOfAnAnalysisReport.SectionView::id).toList())
                             .isEqualTo(THE_SECTIONS);
-                    assertThat(view.viewer()).isFalse();
                 });
         claim("the first section holds the page's paragraph of counts whole, and draws no chart",
                 () -> {

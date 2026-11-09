@@ -19,7 +19,6 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.chart.BarChart;
@@ -28,7 +27,6 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
-import javafx.scene.web.WebView;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,8 +34,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * An analysis report opens in the window drawn by JavaFX's controls from its JSON (ADR-362 §10), in a tab
  * {@code analysis-report-<name>}: its headline's tiles, and each section's chart and table, with a cell that leads
- * where its column's kind says. Each test gives the state the set of names
- * that do; a report outside it still opens in its viewer, under the new tab id, until the viewer goes (ADR-362 §13).
+ * where its column's kind says.
  *
  * <p>The window runs on the Headless platform as every window test does (ADR-342 §6), and what is handed to the system
  * is answered by the test's dialogs, so no program of the system is started.
@@ -78,7 +75,7 @@ class TheAnalysisReportsOpenNativelyTest {
 
     @Test
     @Story("The operator reads the reports inside the window")
-    @DisplayName("A report named in the set the window draws natively opens in a tab of its own drawn from its JSON, with no viewer, and hands nothing to the system")
+    @DisplayName("A report opens in a tab of its own drawn from its JSON, with no viewer, and hands nothing to the system")
     void anAnalysisReportsLinkOpensItsNativeViewInATabOfTheWindow(@TempDir Path folder) throws Exception {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
         writeJson(workingDirectory, THE_REPORT, "Format mix", WRITTEN_AT, FILES_COUNTED);
@@ -90,9 +87,8 @@ class TheAnalysisReportsOpenNativelyTest {
         String share;
         boolean chartDrawn;
         List<List<String>> rows;
-        boolean viewer;
         List<URI> handed;
-        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory, THE_REPORT))) {
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", THE_REPORT));
             tabs = window.read(WindowForTests::tabIds);
             opened = window.read(root -> WindowForTests.reportTab(root, THE_REPORT));
@@ -102,16 +98,14 @@ class TheAnalysisReportsOpenNativelyTest {
             chartDrawn = window.read(root -> WindowForTests.node(root, "chart-" + THE_REPORT + "-" + THE_SECTION,
                     Node.class) instanceof BarChart);
             rows = window.read(TheAnalysisReportsOpenNativelyTest::rowsOfTheTable);
-            viewer = window.read(root -> HeadlessToolkit.everyNodeUnder(root).stream().anyMatch(WebView.class::isInstance));
             handed = List.copyOf(window.dialogs.handed);
         }
 
         claim("the report's tab is the fourth, after the three the window opens with, by the new id",
                 () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", THE_TAB));
-        claim("it is selected, and holds no viewer, the tab being the JSON drawn",
+        claim("it is selected",
                 () -> assertThat(opened).hasValueSatisfying(each -> {
                     assertThat(each.selected()).isTrue();
-                    assertThat(each.shows()).isNull();
                 }));
         claim("the tab is titled by the report's own title", () -> assertThat(tab).isEqualTo("Format mix"));
         claim("the headline's count is drawn grouped by thousands, 51,732,300 files",
@@ -122,33 +116,7 @@ class TheAnalysisReportsOpenNativelyTest {
                 () -> assertThat(rows).containsExactly(
                         List.of("docx", "1,200", WRITTEN, A_FILE_OUTSIDE),
                         List.of("pdf", "3,400", NOT_WRITTEN, "")));
-        claim("no WebView lies anywhere in the window", () -> assertThat(viewer).isFalse());
         claim("and nothing is handed to the system", () -> assertThat(handed).isEmpty());
-    }
-
-    @Test
-    @Story("The operator reads the reports inside the window")
-    @DisplayName("A report outside the set still opens in its viewer, in a tab under the new id")
-    void anAnalysisReportNotInTheSetStillOpensInItsWebViewUnderItsNewId(@TempDir Path folder) throws Exception {
-        Path workingDirectory = Files.createDirectories(folder.resolve("working"));
-        Files.writeString(workingDirectory.resolve(Reports.pageOf(THE_REPORT)),
-                "<!DOCTYPE html><html><head><title>as written</title></head><body></body></html>", StandardCharsets.UTF_8);
-
-        Optional<WindowForTests.ReportTab> opened;
-        List<String> tabs;
-        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
-            window.act(root -> WindowForTests.pressReportLink(root, "reports-list", THE_REPORT));
-            opened = window.awaiting(root -> WindowForTests.reportTab(root, THE_REPORT), WindowForTests::loaded);
-            tabs = window.read(WindowForTests::tabIds);
-        }
-
-        claim("the tab is under the new id", () -> assertThat(tabs).containsExactly("live-report", "profile",
-                "inclusions", THE_TAB));
-        claim("its viewer shows the page of the working directory",
-                () -> assertThat(opened).hasValueSatisfying(each -> {
-                    assertThat(each.selected()).isTrue();
-                    assertThat(each.shows()).isEqualTo(workingDirectory.resolve(Reports.pageOf(THE_REPORT)));
-                }));
     }
 
     @Test
@@ -161,7 +129,7 @@ class TheAnalysisReportsOpenNativelyTest {
         boolean selectedBeforeTheSecond;
         boolean selectedAfter;
         List<String> tabs;
-        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory, ITS_KEYS_REPORT))) {
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", ITS_KEYS_REPORT));
             window.act(root -> {
                 Tab profile = HeadlessToolkit.tabWithId(root, "profile").orElseThrow();
@@ -195,7 +163,7 @@ class TheAnalysisReportsOpenNativelyTest {
         List<String> afterTheOther;
         String outcome;
         try (WindowForTests window = WindowForTests
-                .shown(aStateOver(folder, workingDirectory, THE_REPORT, WRITTEN, NOT_WRITTEN))) {
+                .shown(aStateOver(folder, workingDirectory))) {
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", THE_REPORT));
             window.act(root -> pressCell(root, WRITTEN));
             afterTheWritten = window.read(WindowForTests::tabIds);
@@ -226,7 +194,7 @@ class TheAnalysisReportsOpenNativelyTest {
         List<URI> handed;
         List<String> tabs;
         boolean selected;
-        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory, THE_REPORT))) {
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", THE_REPORT));
             window.act(root -> pressCell(root, A_FILE_OUTSIDE));
             handed = List.copyOf(window.dialogs.handed);
@@ -256,7 +224,7 @@ class TheAnalysisReportsOpenNativelyTest {
         String cut;
         String another;
         List<String> tabs;
-        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory, THE_REPORT, WRITTEN))) {
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", THE_REPORT));
             cut = window.read(TheAnalysisReportsOpenNativelyTest::outcome);
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", WRITTEN));
@@ -281,7 +249,7 @@ class TheAnalysisReportsOpenNativelyTest {
         String before;
         String after;
         String tile;
-        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory, THE_REPORT))) {
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", THE_REPORT));
             before = window.read(root -> textOf(root, "written-" + THE_REPORT));
             writeJson(workingDirectory, THE_REPORT, "Format mix", later, "7");
@@ -308,7 +276,7 @@ class TheAnalysisReportsOpenNativelyTest {
 
         List<String> open;
         List<String> after;
-        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory, THE_REPORT))) {
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", THE_REPORT));
             open = window.read(WindowForTests::tabIds);
             window.act(root -> WindowForTests.node(root, "vespera.working-dir", TextField.class)
@@ -331,7 +299,7 @@ class TheAnalysisReportsOpenNativelyTest {
         List<String> greyed;
         List<String> links;
         List<String> tabs;
-        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory, THE_REPORT))) {
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
             greyed = window.read(root -> WindowForTests.every(root, "reports-list", Label.class).stream()
                     .map(Label::getText).filter(text -> text.startsWith(THE_REPORT)).toList());
             links = window.read(root -> WindowForTests.every(root, "reports-list", Hyperlink.class).stream()
@@ -401,14 +369,13 @@ class TheAnalysisReportsOpenNativelyTest {
         return "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
-    /** A state holding a corpus root under {@code folder}, {@code workingDirectory}, and the reports the window draws natively. */
-    private static ControlPanelState aStateOver(Path folder, Path workingDirectory, String... natives)
+    /** A state holding a corpus root under {@code folder} and {@code workingDirectory}. */
+    private static ControlPanelState aStateOver(Path folder, Path workingDirectory)
             throws IOException {
         ControlPanelState state = new ControlPanelState(
                 new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")),
                 LaunchValues.fileIn(Files.createDirectories(folder.resolve("tmp")), System.getProperty("user.name")),
-                Files.createDirectories(folder.resolve("root-locks")), System.getProperty("user.name"),
-                Set.of(natives));
+                Files.createDirectories(folder.resolve("root-locks")), System.getProperty("user.name"));
         state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(),
                 workingDirectory.toString(), "", "", "", "", "", ""));
         return state;

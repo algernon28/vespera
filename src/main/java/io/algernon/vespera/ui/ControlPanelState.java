@@ -12,7 +12,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -54,7 +53,6 @@ final class ControlPanelState {
     private final Path launchValuesFile;
     private final Path corpusRootLockFolder;
     private final String userName;
-    private final Set<String> reportsOpeningNatively;
     private final WorkingDirectoryWrite writer;
     private final List<String> notes = new ArrayList<>();
 
@@ -72,27 +70,12 @@ final class ControlPanelState {
     private boolean controlPanelEnds;
 
     ControlPanelState(ChildRuntime runtime, Path launchValuesFile, Path corpusRootLockFolder, String userName) {
-        this(runtime, launchValuesFile, corpusRootLockFolder, userName, Set.of());
-    }
-
-    /**
-     * As above, with {@code reportsOpeningNatively}, the names of the analysis reports the window draws from their JSON
-     * (ADR-362 §10); every other opens in its viewer. The window as shipped passes {@link Reports#OPENING_NATIVELY}; the constructor above passes none.
-     */
-    ControlPanelState(ChildRuntime runtime, Path launchValuesFile, Path corpusRootLockFolder, String userName,
-            Set<String> reportsOpeningNatively) {
-        this.reportsOpeningNatively = Set.copyOf(reportsOpeningNatively);
         this.runtime = runtime;
         this.launchValuesFile = launchValuesFile;
         this.corpusRootLockFolder = corpusRootLockFolder;
         this.userName = userName;
         this.writer = new WorkingDirectoryWrite(this::childRuns, userName);
         this.values = LaunchValues.load(launchValuesFile, userName, notes::add);
-    }
-
-    /** The analysis reports, by name, that the window draws natively from their JSON (ADR-362 §10). */
-    Set<String> reportsOpeningNatively() {
-        return reportsOpeningNatively;
     }
 
     /** Whether the operator chose the dark theme, kept beside the launch values; light where none was kept or it cannot be read. */

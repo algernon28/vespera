@@ -80,21 +80,12 @@
     <dependencies>
         <!--
           ADR-342: the control panel's window. javafx-controls brings javafx-graphics and javafx-base; the pom names no
-          classifier, so the jar carries the native libraries of the platform it is built on.
+          classifier, so the jar carries the native libraries of the platform it is built on. ADR-362 section 10:
+          javafx-web, javafx-media and jdk-jsobject are not declared, the reports being drawn by these controls.
         -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
-            <version>${javafx.version}</version>
-        </dependency>
-        <dependency>
-            <!--
-              ADR-342 section 1, ADR-344 section 6: the reports open in a tab of the window, in a WebView. No classifier,
-              as for javafx-controls: the build platform's natives only. It adds about 37 MB to the jar, which the
-              operator approved.
-            -->
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-web</artifactId>
             <version>${javafx.version}</version>
         </dependency>
         <dependency>

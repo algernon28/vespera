@@ -119,9 +119,8 @@ class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
         List<NativeViewForTests.Section> sections = new ArrayList<>();
         report.get("sections").forEach(section -> sections.add(sectionOf(section)));
 
-        claim("the tab is titled by the page's title, and holds no viewer", () -> {
+        claim("the tab is titled by the page's title", () -> {
             assertThat(view.title()).isEqualTo(report.get("title").asString());
-            assertThat(view.viewer()).isFalse();
         });
         claim("each headline number is a tile in the page's order, its label above its count grouped by thousands",
                 () -> assertThat(view.tiles()).containsExactlyElementsOf(tiles));
@@ -394,7 +393,7 @@ class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
 
     @Test
     @Story("The operator reads the reports inside the window")
-    @DisplayName("The translation report's tab holds every number, section and row of its page, in its order, and draws no viewer")
+    @DisplayName("The translation report's tab holds every number, section and row of its page, in its order")
     void theViewOfTheTranslationReportHoldsEveryNumberAndRowOfItsPage(@TempDir Path folder) throws Exception {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
         List<Translations.Member> members = List.of(
@@ -427,11 +426,10 @@ class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
             section.rows().forEach(row -> viewText.append(' ').append(String.join(" ", row)));
         });
 
-        claim("the page states its title, and the tab is titled by it, the viewer being no part of the window",
+        claim("the page states its title, and the tab is titled by it",
                 () -> {
                     assertThat(page).contains("<title>Copies in another language</title>");
                     assertThat(view.title()).isEqualTo("Copies in another language");
-                    assertThat(view.viewer()).isFalse();
                 });
         claim("the tab's sections are the page's headings in the page's order, after the scoring run's, which the page"
                         + " states under its title",

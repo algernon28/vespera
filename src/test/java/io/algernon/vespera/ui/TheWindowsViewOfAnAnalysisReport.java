@@ -14,7 +14,6 @@ import javafx.scene.chart.LineChart;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableView;
 import javafx.scene.layout.VBox;
-import javafx.scene.web.WebView;
 
 /**
  * What the window draws for one analysis report it opens natively (ADR-362 section 10), read back as plain values, so a
@@ -28,8 +27,8 @@ public final class TheWindowsViewOfAnAnalysisReport {
             List<List<String>> rows) {
     }
 
-    /** The view: the tab's title, the headline's tiles by key as drawn, the sections in order and whether a viewer is anywhere. */
-    public record View(String tab, Map<String, String> tiles, List<SectionView> sections, boolean viewer) {
+    /** The view: the tab's title, the headline's tiles by key as drawn, the sections in order. */
+    public record View(String tab, Map<String, String> tiles, List<SectionView> sections) {
     }
 
     private TheWindowsViewOfAnAnalysisReport() {
@@ -40,7 +39,7 @@ public final class TheWindowsViewOfAnAnalysisReport {
         ControlPanelState state = new ControlPanelState(
                 new ChildRuntime(scratch.resolve("java"), scratch.resolve("vespera.jar")),
                 LaunchValues.fileIn(Files.createDirectories(scratch.resolve("tmp")), System.getProperty("user.name")),
-                Files.createDirectories(scratch.resolve("root-locks")), System.getProperty("user.name"), Set.of(name));
+                Files.createDirectories(scratch.resolve("root-locks")), System.getProperty("user.name"));
         state.hold(new LaunchValues(Files.createDirectories(scratch.resolve("corpus")).toString(),
                 workingDirectory.toString(), "", "", "", "", "", ""));
         try (WindowForTests window = WindowForTests.shown(state)) {
@@ -55,9 +54,7 @@ public final class TheWindowsViewOfAnAnalysisReport {
         Map<String, String> tiles = new LinkedHashMap<>();
         String tilePrefix = "headline-" + name + "-";
         List<SectionView> sections = new ArrayList<>();
-        boolean viewer = false;
         for (Node each : HeadlessToolkit.everyNodeUnder(root)) {
-            viewer |= each instanceof WebView;
             String id = each.getId();
             if (id == null) {
                 continue;
@@ -68,7 +65,7 @@ public final class TheWindowsViewOfAnAnalysisReport {
                 sections.add(section(name, id.substring(("section-" + name + "-").length()), box));
             }
         }
-        return new View(tab, tiles, sections, viewer);
+        return new View(tab, tiles, sections);
     }
 
     private static SectionView section(String name, String id, VBox box) {

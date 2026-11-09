@@ -73,10 +73,10 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
         claim("the survivor list is read in the format its JSON is written in",
                 () -> assertThat(AnalysisReportFile.FORMATS.get(SurvivorListReport.NAME))
                         .isEqualTo(formatOf(survivorJson.toString())));
-        claim("both lists are among the reports the window draws natively",
-                () -> assertThat(Reports.OPENING_NATIVELY).contains(ReviewListReport.NAME, SurvivorListReport.NAME));
-        claim("and no report is drawn natively that the window has no format for",
-                () -> assertThat(AnalysisReportFile.FORMATS.keySet()).containsAll(Reports.OPENING_NATIVELY));
+        claim("both lists are among the reports the window lists",
+                () -> assertThat(Reports.ALL).contains(ReviewListReport.NAME, SurvivorListReport.NAME));
+        claim("and the window has a format for every report it lists",
+                () -> assertThat(AnalysisReportFile.FORMATS.keySet()).containsAll(Reports.ALL));
     }
 
     private static int formatOf(String json) {
@@ -106,9 +106,9 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
 
     @Test
     @Story("The window draws each landed report natively")
-    @DisplayName("The reports the window draws natively hold the three of the content census")
-    void theReportsTheWindowDrawsNativelyHoldTheContentCensus() {
-        claim("each of the three is in the set the shipped window is given", () -> assertThat(Reports.OPENING_NATIVELY)
+    @DisplayName("The reports the window lists hold the three of the content census")
+    void theReportsTheWindowListsHoldTheContentCensus() {
+        claim("each of the three is a report the window lists", () -> assertThat(Reports.ALL)
                 .containsAll(THE_CONTENT_CENSUS));
     }
 
@@ -119,14 +119,14 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
         claim("the window's entry for the translation report is the format its writer writes, " + TranslationReport.FORMAT,
                 () -> assertThat(AnalysisReportFile.FORMATS).containsEntry(TranslationReport.NAME,
                         TranslationReport.FORMAT));
-        claim("the translation report is among the reports the window draws natively",
-                () -> assertThat(Reports.OPENING_NATIVELY).contains(TranslationReport.NAME));
+        claim("the translation report is among the reports the window lists",
+                () -> assertThat(Reports.ALL).contains(TranslationReport.NAME));
         claim("the relevance labelling page's JSON is read in the format its writer writes, "
                         + RelevanceLabellingReport.FORMAT,
                 () -> assertThat(AnalysisReportFile.FORMATS)
                         .containsEntry(RelevanceLabellingReport.NAME, RelevanceLabellingReport.FORMAT));
-        claim("the relevance labelling report is among the reports the window draws natively",
-                () -> assertThat(Reports.OPENING_NATIVELY).contains(RelevanceLabellingReport.NAME));
+        claim("the relevance labelling report is among the reports the window lists",
+                () -> assertThat(Reports.ALL).contains(RelevanceLabellingReport.NAME));
     }
 
     @Test
@@ -139,7 +139,7 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
 
         claim("the window holds a format for the group page sizes, the one its JSON is written in",
                 () -> assertThat(AnalysisReportFile.FORMATS).containsEntry("cluster-page-sizes", (int) written));
-        claim("the group page sizes are among the reports the window draws natively",
-                () -> assertThat(Reports.OPENING_NATIVELY).contains("cluster-page-sizes"));
+        claim("the group page sizes are among the reports the window lists",
+                () -> assertThat(Reports.ALL).contains("cluster-page-sizes"));
     }
 }

@@ -18,7 +18,6 @@ import java.util.List;
 import javafx.scene.Parent;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableView;
-import javafx.scene.web.WebView;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -61,7 +60,6 @@ class TheReviewAndSurvivorListsOpenNativelyTest {
         String survivorTile;
         List<List<String>> reviewRows;
         List<List<String>> survivorRows;
-        boolean viewer;
         try (WindowForTests window = WindowForTests.shown(aState(folder, workingDirectory))) {
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", THE_REVIEW_LIST));
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", THE_SURVIVOR_LIST));
@@ -70,7 +68,6 @@ class TheReviewAndSurvivorListsOpenNativelyTest {
             survivorTile = window.read(root -> textOf(root, "headline-" + THE_SURVIVOR_LIST + "-cameThrough"));
             reviewRows = window.read(root -> rows(root, THE_REVIEW_LIST, "failures"));
             survivorRows = window.read(root -> rows(root, THE_SURVIVOR_LIST, "survivors"));
-            viewer = window.read(root -> HeadlessToolkit.everyNodeUnder(root).stream().anyMatch(WebView.class::isInstance));
         }
 
         claim("each list opens in a tab of its own under the new id, after the first three",
@@ -83,7 +80,6 @@ class TheReviewAndSurvivorListsOpenNativelyTest {
         claim("the survivor list shows each file's pages and words, a dash where it has no page count as its page has one",
                 () -> assertThat(survivorRows)
                         .containsExactly(List.of("/a/kept", "4", "1,900"), List.of("/b/kept", A_DASH, "12")));
-        claim("no viewer lies in the window", () -> assertThat(viewer).isFalse());
     }
 
     @Test
@@ -109,11 +105,10 @@ class TheReviewAndSurvivorListsOpenNativelyTest {
 
     @Test
     @Story("The operator reads the reports inside the window")
-    @DisplayName("The window as shipped draws both lists natively")
-    void theShippedSetHoldsBothLists() {
-        claim("the set the control panel opens with names both lists", () -> assertThat(Reports.OPENING_NATIVELY)
+    @DisplayName("The window lists both lists")
+    void theWindowListsBothLists() {
+        claim("the reports the window lists name both lists", () -> assertThat(Reports.ALL)
                 .contains(THE_REVIEW_LIST, THE_SURVIVOR_LIST));
-        claim("each of them is a report the window lists", () -> assertThat(Reports.ALL).containsAll(Reports.OPENING_NATIVELY));
     }
 
     private static List<List<String>> rows(Parent root, String name, String section) {
@@ -150,8 +145,7 @@ class TheReviewAndSurvivorListsOpenNativelyTest {
         ControlPanelState state = new ControlPanelState(
                 new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")),
                 LaunchValues.fileIn(Files.createDirectories(folder.resolve("tmp")), System.getProperty("user.name")),
-                Files.createDirectories(folder.resolve("root-locks")), System.getProperty("user.name"),
-                Reports.OPENING_NATIVELY);
+                Files.createDirectories(folder.resolve("root-locks")), System.getProperty("user.name"));
         state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(),
                 workingDirectory.toString(), "", "", "", "", "", ""));
         return state;

@@ -24,7 +24,6 @@ import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableView;
 import javafx.scene.layout.VBox;
-import javafx.scene.web.WebView;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -57,7 +56,7 @@ class TheArrangementNativeViewShowsWhatItsPageShowsTest {
 
     @Test
     @Story("The operator reads the reports inside the window")
-    @DisplayName("The arrangement opens as the window ships it, drawn from its JSON with its three figures, four sections and every row of its two tables, and no viewer")
+    @DisplayName("The arrangement opens as the window ships it, drawn from its JSON with its three figures, four sections and every row of its two tables")
     void theViewOfTheArrangementHoldsEveryNumberAndRowOfItsPage(@TempDir Path folder) throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
         String json = Files.readString(FIXTURE, StandardCharsets.UTF_8);
@@ -71,7 +70,6 @@ class TheArrangementNativeViewShowsWhatItsPageShowsTest {
         List<List<String>> first;
         List<List<String>> second;
         List<String> headers;
-        boolean viewer;
         String title;
         try (WindowForTests window = WindowForTests.shown(shippedStateOver(folder, working))) {
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", NAME));
@@ -90,13 +88,11 @@ class TheArrangementNativeViewShowsWhatItsPageShowsTest {
             first = window.read(root -> rowsOfTheTable(root, "partition-1"));
             second = window.read(root -> rowsOfTheTable(root, "partition-2"));
             headers = window.read(root -> headersOfTheTable(root, "partition-1"));
-            viewer = window.read(root -> HeadlessToolkit.everyNodeUnder(root).stream().anyMatch(WebView.class::isInstance));
         }
 
-        claim("the report opens natively in its tab, with no viewer anywhere in the window",
+        claim("the report opens natively in its tab",
                 () -> {
                     assertThat(tabs).containsExactly("live-report", "profile", "inclusions", TAB);
-                    assertThat(viewer).isFalse();
                 });
         claim("the tab is titled by the report's title", () -> assertThat(title).isEqualTo(report.title()));
         claim("each of the three headline figures is drawn: 2 exemplars, 3 groups, 8 documents",
@@ -181,8 +177,7 @@ class TheArrangementNativeViewShowsWhatItsPageShowsTest {
         ControlPanelState state = new ControlPanelState(
                 new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")),
                 LaunchValues.fileIn(Files.createDirectories(folder.resolve("tmp")), System.getProperty("user.name")),
-                Files.createDirectories(folder.resolve("root-locks")), System.getProperty("user.name"),
-                Reports.OPENING_NATIVELY);
+                Files.createDirectories(folder.resolve("root-locks")), System.getProperty("user.name"));
         state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(), working.toString(),
                 "", "", "", "", "", ""));
         return state;

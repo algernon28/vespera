@@ -7,7 +7,6 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -19,18 +18,9 @@ final class WorkingFolders {
     private final Supplier<Optional<Path>> workingDirectory;
     private final Supplier<Optional<Path>> corpusRoot;
 
-    private final Supplier<Set<String>> natives;
-
     WorkingFolders(Supplier<Optional<Path>> workingDirectory, Supplier<Optional<Path>> corpusRoot) {
-        this(workingDirectory, corpusRoot, Set::of);
-    }
-
-    /** {@code natives} gives the reports that open drawn by the window from their JSON (ADR-362 §10). */
-    WorkingFolders(Supplier<Optional<Path>> workingDirectory, Supplier<Optional<Path>> corpusRoot,
-            Supplier<Set<String>> natives) {
         this.workingDirectory = workingDirectory;
         this.corpusRoot = corpusRoot;
-        this.natives = natives;
     }
 
     /** The working directory the field names; where it is empty, the folder the jar would use (ADR-345 §1). */
@@ -53,16 +43,15 @@ final class WorkingFolders {
     }
 
     /**
-     * Which of the reports, by name, the working directory holds now: a report that opens natively by its JSON, any
-     * other by its page.
+     * Which of the reports, by name, the working directory holds now: a report is held where its JSON is, which the
+     * window draws it from (ADR-362 §10).
      */
     Map<String, Boolean> writtenReports() {
         Map<String, Boolean> written = new HashMap<>();
         Optional<Path> folder = workingDirectory();
-        Set<String> drawnByTheWindow = natives.get();
         for (String report : Reports.ALL) {
-            String file = drawnByTheWindow.contains(report) ? Reports.jsonOf(report) : Reports.pageOf(report);
-            written.put(report, folder.isPresent() && Files.isRegularFile(folder.get().resolve(file)));
+            written.put(report, folder.isPresent()
+                    && Files.isRegularFile(folder.get().resolve(Reports.jsonOf(report))));
         }
         return written;
     }

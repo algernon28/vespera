@@ -25,7 +25,6 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
-import javafx.scene.web.WebView;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -78,12 +77,12 @@ class TheLiveReportTest {
 
     /** What the Report tab shows at one reading. */
     private record Seen(List<String> tabs, boolean closable, boolean selectedFirst, String status, boolean staleShown,
-            String gates, String faults, String closing, boolean aWebViewInIt) {
+            String gates, String faults, String closing) {
     }
 
     @Test
     @Story("The window shows the invocation from the report")
-    @DisplayName("The Report tab is the first tab and cannot be closed, and shows the gates, the faults and the closing line natively, with no web view in it")
+    @DisplayName("The Report tab is the first tab and cannot be closed, and shows the gates, the faults and the closing line natively")
     void theReportTabShowsTheInvocationNatively(@TempDir Path folder) throws Exception {
         Seen seen;
         try (WindowForTests window = WindowForTests.readingEverySecond(folder)) {
@@ -100,8 +99,6 @@ class TheLiveReportTest {
         claim("the fault shows the step that failed and its type",
                 () -> assertThat(seen.faults()).contains("extraction", "java.lang.IllegalStateException"));
         claim("the closing line is the report's", () -> assertThat(seen.closing()).isEqualTo("Run ended at a gate."));
-        claim("and nothing in the tab is a web view: it is drawn by the window's own controls",
-                () -> assertThat(seen.aWebViewInIt()).isFalse());
     }
 
     @Test
@@ -330,12 +327,9 @@ class TheLiveReportTest {
     private static Seen seenOf(Parent root) {
         Tab tab = HeadlessToolkit.tabWithId(root, "live-report").orElse(null);
         List<String> ids = tab == null ? List.of() : tab.getTabPane().getTabs().stream().map(Tab::getId).toList();
-        boolean webView = tab != null && tab.getContent() != null
-                && HeadlessToolkit.everyNodeUnder(tab.getContent()).stream().anyMatch(WebView.class::isInstance);
         return new Seen(ids, tab != null && tab.isClosable(), !ids.isEmpty() && ids.getFirst().equals("live-report"),
                 textOf(root, "report-status"), WindowForTests.node(root, "report-stale", Label.class).isVisible(),
-                textsUnder(root, "report-gates"), textsUnder(root, "report-faults"), textOf(root, "report-closing"),
-                webView);
+                textsUnder(root, "report-gates"), textsUnder(root, "report-faults"), textOf(root, "report-closing"));
     }
 
     private static Reading readingOf(Parent root) {
