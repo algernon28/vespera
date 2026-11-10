@@ -8,6 +8,7 @@ import io.algernon.vespera.engine.ledger.Ledger;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.OccurrencePath;
 import io.algernon.vespera.engine.ledger.RunId;
+import io.algernon.vespera.engine.ledger.VerdictKind;
 import io.algernon.vespera.engine.ledger.WalkId;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -16,6 +17,7 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,6 +49,41 @@ class UnusableSeedsTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Test
+    @Story("An unusable seed is data, not a verdict")
+    @DisplayName("A seed that produced no text is recorded with which occurrence it was and why")
+    void recordsWhichSeedWasUnusableAndWhy() {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        Fixture fixture = fixture(ledger);
+        UnusableSeeds unusableSeeds = new UnusableSeeds(jdbcTemplate);
+
+        unusableSeeds.record(fixture.seed(), fixture.runId(), REASON);
+
+        claim(
+                "the seed is recorded against the run that found it, carrying the reason it produced no"
+                        + " text -- an operator fixing a seed folder needs to know which file and what was"
+                        + " wrong with it, and a bare count answers neither",
+                () -> assertThat(unusableSeeds.forRun(fixture.runId()))
+                        .containsExactly(new UnusableSeed(fixture.seed(), REASON)));
+    }
+
+    @Test
+    @Story("An unusable seed is data, not a verdict")
+    @DisplayName("Recording an unusable seed writes no verdict of any kind against it")
+    void writesNoVerdictOfAnyKindAgainstASeedOccurrence() {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        Fixture fixture = fixture(ledger);
+
+        new UnusableSeeds(jdbcTemplate).record(fixture.seed(), fixture.runId(), REASON);
+
+        claim(
+                "no verdict row of any kind stands against the seed -- asserted against the whole closed"
+                        + " vocabulary rather than the plausible kinds, because the mistake to catch is a"
+                        + " later slice reaching for extraction-failed as the nearest-looking word for a"
+                        + " condition that is not a removal at all",
+                () -> assertThat(verdictKindsAgainst(fixture.seed())).isEmpty());
+    }
 
     @Test
     @Story("A corrected seed folder is a different run")
@@ -81,4 +118,15 @@ class UnusableSeedsTest {
     }
 
     private record Fixture(WalkId walkId, OccurrenceId seed, RunId runId) {}
+
+    /** Every verdict kind standing against an occurrence, whatever it says. */
+    private List<String> verdictKindsAgainst(OccurrenceId occurrenceId) {
+        List<String> kinds = jdbcTemplate.queryForList(
+                "SELECT kind FROM verdict WHERE occurrence_id = ?", String.class, occurrenceId.value());
+        List<String> vocabulary = Arrays.stream(VerdictKind.values()).map(Enum::name).toList();
+        if (!vocabulary.containsAll(kinds)) {
+            throw new IllegalStateException("a verdict row carries a kind outside the closed vocabulary: " + kinds);
+        }
+        return kinds;
+    }
 }

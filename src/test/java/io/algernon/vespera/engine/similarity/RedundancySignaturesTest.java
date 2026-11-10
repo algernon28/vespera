@@ -84,6 +84,28 @@ class RedundancySignaturesTest {
                 () -> assertThat(bandCount(document)).isEqualTo(EXPECTED_BAND_ROWS));
     }
 
+    @Test
+    @Story("A document that is entirely boilerplate is empty, not redundant")
+    @DisplayName("A document whose every shingle is boilerplate gets no signature and no bands")
+    void writesNothingForAnAllBoilerplateDocument() {
+        Fixture fixture = fixture();
+        OccurrenceId coverSheet = fixture.occurrence("cover-sheet.pdf", Set.of(BOILERPLATE_HASH));
+
+        boolean signed = fixture.sign(coverSheet, Set.of(BOILERPLATE_HASH));
+
+        claim(
+                "nothing distinctive remained, so nothing was signed -- a standard cover sheet or"
+                        + " disclaimer page is empty rather than redundant (ADR-080)",
+                () -> assertThat(signed).isFalse());
+        claim("no signature row was written", () -> assertThat(signatureCount(coverSheet))
+                .isZero());
+        claim(
+                "and no band rows either, so it never appears in a candidate bucket -- an empty set"
+                        + " matches everything or nothing depending on how the estimator is written, and"
+                        + " neither answer is true of it",
+                () -> assertThat(bandCount(coverSheet)).isZero());
+    }
+
     private int signatureCount(OccurrenceId occurrenceId) {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM minhash_signature WHERE occurrence_id = ?", Integer.class, occurrenceId.value());

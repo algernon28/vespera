@@ -11,9 +11,7 @@
 // --with-network for the numbers this branch adds NOT CHECKED, for the map NOT CHECKED on a pull request, and for the
 // map reading the tracker on a push and with no event; and docs/next-adr-number.mjs for its exit. The order of the
 // rows of docs/adr/README.md and of the constants of Adr.java (ADR-363 §2) is held on fixtures by adrOrderClaim, and on
-// this tree by the claim's line, against the rows and constants the test counts itself. The suite's ceiling of 700
-// methods annotated as tests (suiteCeilingClaim), and the reading of docs/retired-tests.txt against the names the
-// records' Tests sections yield as missing (retiredNames, reconcileRetired), are held on fixtures (ADR-368).
+// this tree by the claim's line, against the rows and constants the test counts itself.
 //
 //   node --test src/test/docs/check-claims.test.mjs
 
@@ -404,67 +402,6 @@ test("the slug is the file name between its number's dash and .md, and the over-
   const { overlongSlugs } = await lib();
   const found = overlongSlugs([`docs/adr/0352-${slug(130)}.md`, `docs/adr/0350-${slug(125)}.md`, `docs/adr/drafts/0353-${slug(200)}.md`]);
   assert.deepEqual(found.map(({ number, length }) => [number, length]), [[350, 125], [352, 130]]);
-});
-
-/* ---------- the suite's ceiling and the retired list (ADR-368) ---------- */
-
-// A source text holding `n` methods annotated as tests, one annotation of each kind in turn.
-const tests = (n) => Array.from({ length: n }, (_, i) => `    @${["Test", "ParameterizedTest", "RepeatedTest", "TestFactory"][i % 4]}\n    void t${i}() {}\n`).join("");
-
-test("700 methods annotated as tests across the sources pass the suite's ceiling, and 701 fail it, naming the count and the ceiling", async () => {
-  const { suiteCeilingClaim } = await lib();
-  assert.deepEqual(suiteCeilingClaim({ texts: [tests(400), tests(300)], dir: "src/test/java" }), {
-    state: "PASS",
-    detail: "700 test methods under src/test/java, of the 700 ADR-368 allows",
-  });
-  assert.deepEqual(suiteCeilingClaim({ texts: [tests(400), tests(301)], dir: "src/test/java" }), {
-    state: "FAIL",
-    detail: "701 test methods under src/test/java, past the 700 ADR-368 allows: cut one for each added",
-  });
-});
-
-const RETIRED = "docs/retired-tests.txt";
-
-test("a listed name a record yields as missing is retired, not reported missing, and the list's comments and blank lines are no names", async () => {
-  const { reconcileRetired, retiredNames } = await lib();
-  const retired = retiredNames("# a comment\n\nADR-157 GoneTest\r\nADR-200 GoneTest.aMethod\n");
-  assert.deepEqual(retired, ["ADR-157 GoneTest", "ADR-200 GoneTest.aMethod"]);
-  const { missing, retired: seen, faults } = reconcileRetired({
-    retired,
-    missing: ["ADR-157 GoneTest", "ADR-160 LostTest", "ADR-200 GoneTest.aMethod"],
-    file: RETIRED,
-  });
-  assert.deepEqual(missing, ["ADR-160 LostTest"]);
-  assert.deepEqual([...seen], ["ADR-157 GoneTest", "ADR-200 GoneTest.aMethod"]);
-  assert.deepEqual(faults, []);
-});
-
-test("a listed name of a test that exists, which no section yields as missing, fails as stale", async () => {
-  const { reconcileRetired } = await lib();
-  const { missing, faults } = reconcileRetired({ retired: ["ADR-157 GoneTest", "ADR-157 StillHereTest"], missing: ["ADR-157 GoneTest"], file: RETIRED });
-  assert.deepEqual(missing, []);
-  assert.deepEqual(faults, [`${RETIRED} lists 1 names no record names or that exist: ADR-157 StillHereTest`]);
-});
-
-test("a listed name no record holds, the record's number wrong, fails as stale, and the name the record does hold stays missing", async () => {
-  const { reconcileRetired } = await lib();
-  const { missing, faults } = reconcileRetired({ retired: ["ADR-158 GoneTest"], missing: ["ADR-157 GoneTest"], file: RETIRED });
-  assert.deepEqual(missing, ["ADR-157 GoneTest"]);
-  assert.deepEqual(faults, [`${RETIRED} lists 1 names no record names or that exist: ADR-158 GoneTest`]);
-});
-
-test("a line for ADR-368 or later is refused, retiring nothing, and the fault says a later record corrects its Tests section in place", async () => {
-  const { reconcileRetired } = await lib();
-  const { missing, retired, faults } = reconcileRetired({
-    retired: ["ADR-367 GoneTest", "ADR-368 GoneTest", "ADR-401 OtherTest"],
-    missing: ["ADR-367 GoneTest", "ADR-368 GoneTest"],
-    file: RETIRED,
-  });
-  assert.deepEqual(missing, ["ADR-368 GoneTest"]);
-  assert.deepEqual([...retired], ["ADR-367 GoneTest"]);
-  assert.deepEqual(faults, [
-    `${RETIRED} lists ADR-368 GoneTest; ADR-401 OtherTest, of ADR-368 or later, which the list does not retire: a later record corrects its Tests section in place, as ADR-337 §5 says`,
-  ]);
 });
 
 /* ---------- what docs/check-claims.mjs reports ---------- */

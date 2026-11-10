@@ -97,6 +97,36 @@ class TheCodeSetsAreReadForTheTreeTest {
                                 new CodeSets.ListedSet(TOOLS, TOOLS, ledger.lowest(TOOLS))));
     }
 
+    @Test
+    @Story("Each code set is copied whole in its own layout")
+    @DisplayName("A code set's files are handed over a thousand at a time in the order they were numbered, each with the size and time recorded when the archive was walked")
+    void aSetsMembersAreHandedOverAPageAtATimeWithTheWalksSizeAndTime() {
+        TwoRuns ledger = twoRunsOfOneWalk();
+        CodeSets reader = new DetectedFormats(jdbcTemplate).codeSets();
+        Ledger theLedger = new Ledger(jdbcTemplate);
+
+        List<List<CodeSets.ListedMember>> pagesOfTools = new ArrayList<>();
+        reader.eachPageOfMembers(theLedger, ledger.read(), TOOLS, pagesOfTools::add);
+        List<CodeSets.ListedMember> ofShopCore = new ArrayList<>();
+        reader.eachPageOfMembers(theLedger, ledger.read(), SHOP_CORE, ofShopCore::addAll);
+
+        claim(
+                "the " + MEMBERS_OF_TOOLS + " files of the large set come in two pages, the first of "
+                        + KeysetPages.ROWS_IN_A_PAGE + " and the second of the one left",
+                () -> assertThat(pagesOfTools).extracting(List::size).containsExactly(KeysetPages.ROWS_IN_A_PAGE, 1));
+        claim(
+                "and together they are every file of that set in ascending number, each with its path, role, size and"
+                        + " time as recorded",
+                () -> assertThat(pagesOfTools.stream().flatMap(List::stream).toList())
+                        .containsExactlyElementsOf(ledger.expected(TOOLS)));
+        claim(
+                "the small set's files come in ascending number, though recorded highest first, each with its own"
+                        + " role and generator under this run, not the other run's, and the size and time the walk"
+                        + " recorded, a time to the nanosecond, at a whole minute and at a half second each read back"
+                        + " equal; the other run's lower-numbered file of the same folder is not among them",
+                () -> assertThat(ofShopCore).containsExactlyElementsOf(ledger.expected(SHOP_CORE)));
+    }
+
     /**
      * One walk with two stage-1 runs. The other run's rows are written first, so its occurrences are numbered lowest:
      * a file of its own in {@link #SHOP_CORE}, and one in a set {@link #THE_OTHER_RUNS_SET}; it also lists a file of

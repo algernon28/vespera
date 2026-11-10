@@ -18,6 +18,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
@@ -71,6 +73,21 @@ class EmbeddingModelGateTest {
     @Autowired
     private ProfileStore profileStore;
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("unansweredModels")
+    @Story("Unset means the shipped model, not a stop")
+    @DisplayName("With no model written in the profile, or a blank one, documents are scored under the configured default")
+    void resolvesTheConfiguredDefaultWhenTheProfileNamesNone(String written) {
+        profile(written);
+
+        claim(
+                "an unanswered embeddingModel, never written or written and left empty, resolves to the name"
+                        + " application configuration carries rather than to a closed gate or a fault, so the gate"
+                        + " is open, scoring runs without the operator having had to name a model, and the name"
+                        + " handed on is never blank",
+                () -> assertThat(embeddingModelGate.modelName()).contains(CONFIGURED_DEFAULT));
+    }
+
     /** The two ways a profile leaves the model unanswered. */
     static Stream<Named<String>> unansweredModels() {
         return Stream.of(Named.of("no model written", null), Named.of("a blank model written", BLANK));
@@ -86,6 +103,33 @@ class EmbeddingModelGateTest {
                 "the key the operator answered wins over the shipped name: a corpus scored under another model is a"
                         + " judgement about that corpus, and the profile is where it travels with its provenance",
                 () -> assertThat(embeddingModelGate.modelName()).contains(AN_OPERATOR_CHOICE));
+    }
+
+    @Test
+    @Story("The gate opens only when everything it needs is there")
+    @DisplayName("With the configured default blanked, a model written into the profile still opens the gate")
+    void opensOnTheProfileAloneWhenConfigurationNamesNone() {
+        profile(AN_OPERATOR_CHOICE);
+        EmbeddingModelGate withNoDefault = new EmbeddingModelGate(profileStore, BLANK);
+
+        claim(
+                "the profile's model is enough on its own: an operator who blanked the shipped name and then named"
+                        + " a model scores under the one they named",
+                () -> assertThat(withNoDefault.modelName()).contains(AN_OPERATOR_CHOICE));
+    }
+
+    @Test
+    @Story("A gate closes rather than failing")
+    @DisplayName("With the configured default blanked and nothing in the profile, the gate closes")
+    void closesOnlyWhenNeitherTheProfileNorConfigurationNamesAModel() {
+        profile(null);
+        EmbeddingModelGate withNoDefault = new EmbeddingModelGate(profileStore, BLANK);
+
+        claim(
+                "with no model named anywhere there is nothing to score against, and the gate closes rather than"
+                        + " failing the invocation: the corpus can still be walked, extracted and deduplicated while"
+                        + " the operator holds scoring back until they have chosen a model",
+                () -> assertThat(withNoDefault.modelName()).isEmpty());
     }
 
     /** Writes {@code embeddingModel}, leaving every other key as census created it. */

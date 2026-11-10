@@ -100,6 +100,101 @@ class ContentCensusTaskletTest {
     private DataSource dataSource;
 
     @Test
+    @Story("The confidence-distribution report")
+    @DisplayName("The HTML report exists, is self-contained, and its numbers agree with the table's")
+    void writesAnHtmlReportAgreeingWithTheTable(@TempDir Path root, @TempDir Path workingDirectory) throws Exception {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        ImplementationVersions versions = new ImplementationVersions();
+        // Distinct per-bucket counts (poor=1, fair=2, good=0, excellent=3) rather than one score per
+        // grade -- a renderer bug that shuffled counts between grades, or a re-query landing on a
+        // different-but-still-uniform answer, would slip past a fixture where every bucket is 1. The
+        // empty "good" bucket also exercises that an unfilled grade still renders its own row.
+        RunId extractionRunId = walkedThroughExtractionWithScores(
+                ledger, versions, root, new double[] {0.10, 0.65, 0.65, 0.95, 0.95, 0.95});
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+        Clock clock = Clock.fixed(Instant.parse("2026-09-05T12:00:00Z"), ZoneOffset.UTC);
+
+        ContentCensusTasklet tasklet = contentCensusOver(ledger, versions, root, profileStore, clock, workingDirectory);
+
+        tasklet.execute(null, null);
+
+        Path reportFile = workingDirectory.resolve(ContentCensusTasklet.CONFIDENCE_DISTRIBUTION_FILE_NAME);
+        claim(
+                "the report exists in the working directory, beside the database and profile.yaml",
+                () -> assertThat(Files.exists(reportFile)).isTrue());
+        String html = Files.readString(reportFile);
+        claim(
+                "the file is a whole, standalone HTML document, openable without any other file present",
+                () -> assertThat(html).contains("<html").contains("</html>").contains("<!DOCTYPE html>"));
+        claim(
+                "the file names no other file and reaches for nothing over the network, so it opens on a"
+                        + " laptop with no connection",
+                () -> assertThat(html)
+                        .doesNotContain("<link")
+                        .doesNotContain("<script")
+                        .doesNotContain("src=")
+                        .doesNotContain("href=\"http")
+                        .doesNotContain("src=\"http"));
+        claim(
+                "the HTML's stated total agrees with the six survivors just measured -- one poor, two"
+                        + " fair, none good, three excellent",
+                () -> assertThat(html).contains("Total documents counted: 6."));
+
+        for (var entry : Map.of("poor", 1L, "fair", 2L, "good", 0L, "excellent", 3L).entrySet()) {
+            String grade = entry.getKey();
+            long expectedCount = entry.getValue();
+            long tableCount = jdbcTemplate.queryForObject(
+                    "SELECT document_count FROM confidence_distribution WHERE run_id = ? AND grade = ?",
+                    Long.class,
+                    theContentCensusRunOf(root).value(),
+                    grade);
+            claim(
+                    "the table itself measured what the fixture set up for " + grade,
+                    () -> assertThat(tableCount).isEqualTo(expectedCount));
+            claim(
+                    "the HTML file's row for " + grade + " carries exactly the same count the table row"
+                            + " does -- both come from the one computed value (ADR-075's acceptance"
+                            + " criterion 5)",
+                    () -> assertThat(html).contains(">" + grade + "</td>").contains(rowFragment(grade, tableCount)));
+        }
+    }
+
+    /** The exact {@code <td>grade</td><td>count</td>} fragment the renderer writes for one bucket. */
+    private String rowFragment(String grade, long count) {
+        return ">" + grade + "</td><td>[" + switch (grade) {
+                    case "poor" -> "0.00, 0.50)";
+                    case "fair" -> "0.50, 0.80)";
+                    case "good" -> "0.80, 0.90)";
+                    default -> "0.90, 1.00]";
+                } + "</td><td>" + count + "</td>";
+    }
+
+    @Test
+    @Story("The profile points at the report")
+    @DisplayName("The profile's degenerate-output-confidence-floor pointer is refreshed to the report's path")
+    void refreshesTheProfilePointerToTheReport(@TempDir Path root, @TempDir Path workingDirectory) throws Exception {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        ImplementationVersions versions = new ImplementationVersions();
+        walkedThroughExtractionWithScores(ledger, versions, root, new double[] {0.95});
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+        Instant ranAt = Instant.parse("2026-09-05T12:00:00Z");
+        Clock clock = Clock.fixed(ranAt, ZoneOffset.UTC);
+
+        contentCensusOver(ledger, versions, root, profileStore, clock, workingDirectory).execute(null, null);
+
+        Profile profile = profileStore.load();
+        Path reportFile = workingDirectory.resolve(ContentCensusTasklet.CONFIDENCE_DISTRIBUTION_FILE_NAME);
+        claim(
+                "the profile's measurement now names the HTML file's own path, not the raw table",
+                () -> assertThat(profile.degenerateOutputConfidenceFloor().measurement().source())
+                        .isEqualTo(reportFile.toString()));
+        claim(
+                "and it is stamped with the time this run wrote it",
+                () -> assertThat(profile.degenerateOutputConfidenceFloor().measurement().refreshedAt())
+                        .isEqualTo(ranAt));
+    }
+
+    @Test
     @Story("The profile points at the report")
     @DisplayName("An operator's own confidence-floor value and provenance survive a census run untouched")
     void neverTouchesAConfidenceFloorAnswerAlreadyInTheFile(@TempDir Path root, @TempDir Path workingDirectory)
@@ -135,6 +230,94 @@ class ContentCensusTaskletTest {
                 () -> assertThat(afterTheRun.degenerateOutputConfidenceFloor().measurement())
                         .isEqualTo(new Measurement(reportFile.toString(), ranAt)));
     }
+
+    /**
+     * The two outputs are regenerated differently on purpose (ADR-077, amending ADR-075): the file is
+     * what the profile points at by path and claims is current, so it is rewritten in place; a table
+     * row carries its own run id and makes no such claim, so it is added beside the earlier run's
+     * rather than replacing it.
+     */
+    @Test
+    @Story("Neither output is written once and left stale")
+    @DisplayName("A second run overwrites the HTML file and adds the second run's own table rows")
+    void aSecondRunOverwritesTheReportRatherThanAccumulating(
+            @TempDir Path firstRoot, @TempDir Path secondRoot, @TempDir Path workingDirectory) throws Exception {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        ImplementationVersions versions = new ImplementationVersions();
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+
+        RunId firstExtractionRun =
+                walkedThroughExtractionWithScores(ledger, versions, firstRoot, new double[] {0.10});
+        contentCensusOver(
+                        ledger,
+                        versions,
+                        firstRoot,
+                        profileStore,
+                        Clock.fixed(Instant.parse("2026-09-05T10:00:00Z"), ZoneOffset.UTC),
+                        workingDirectory)
+                .execute(null, null);
+
+        RunId secondExtractionRun =
+                walkedThroughExtractionWithScores(ledger, versions, secondRoot, new double[] {0.95, 0.95});
+        Instant secondRanAt = Instant.parse("2026-09-05T11:00:00Z");
+        contentCensusOver(ledger, versions, secondRoot, profileStore, Clock.fixed(secondRanAt, ZoneOffset.UTC), workingDirectory)
+                .execute(null, null);
+
+        Path reportFile = workingDirectory.resolve(ContentCensusTasklet.CONFIDENCE_DISTRIBUTION_FILE_NAME);
+        String html = Files.readString(reportFile);
+        claim(
+                "the file now reflects only the second run's numbers -- the excellent bucket carries the"
+                        + " second run's two documents and the poor bucket none, where a report counting both"
+                        + " runs would put the first run's one poor document back",
+                () -> assertThat(html).contains(rowFragment("excellent", 2)).contains(rowFragment("poor", 0)));
+        claim(
+                "and the first run's own count for excellent (zero, its one document was poor) is not"
+                        + " what the file shows instead",
+                () -> assertThat(html).doesNotContain(rowFragment("excellent", 0)));
+        claim(
+                "the profile's pointer was refreshed to the second run's own time",
+                () -> assertThat(profileStore.load().degenerateOutputConfidenceFloor().measurement().refreshedAt())
+                        .isEqualTo(secondRanAt));
+        claim(
+                "the first run's own table rows are untouched -- historical data under its own run_id,"
+                        + " never rewritten by a later run's rows under a different run_id",
+                () -> assertThat(jdbcTemplate.queryForObject(
+                                "SELECT document_count FROM confidence_distribution WHERE run_id = ? AND grade = ?",
+                                Long.class,
+                                theContentCensusRunOf(firstRoot).value(),
+                                "poor"))
+                        .isEqualTo(1));
+    }
+
+    /**
+     * Stage 3 states how many shingle rows it is about to read, and the two statements that find that
+     * out are {@code similarity}'s, beside the table it owns (ADR-191 section 3). The first version of
+     * that record had the tasklet hold a {@link JdbcTemplate} and name the table itself.
+     *
+     * <p>What is checked is the declared type of each field the tasklet declares: none is in a package
+     * under {@code org.springframework.jdbc} or {@code javax.sql}, which takes in {@code JdbcTemplate},
+     * {@code NamedParameterJdbcTemplate}, {@code JdbcClient} and {@code DataSource}. That stops the
+     * tasklet keeping such a handle. It does not check what a method body does with one a collaborator
+     * hands it, or with a field declared under a wider type.
+     */
+    @Test
+    @Story("The content census asks the module that owns a table about it")
+    @DisplayName("The content census step keeps no database handle of its own")
+    @Issue("410")
+    @Link(name = "ADR-191", url = Adr.STAGE_3_SAYS_HOW_MANY_SHINGLE_ROWS_IT_IS_ABOUT_TO_READ, type = "adr")
+    void theTaskletDeclaresNoFieldOfADatabaseHandleType() {
+        claim(
+                "no field the content census step declares has a type from the database packages "
+                        + DATABASE_HANDLE_PACKAGES + ", so it keeps no handle of its own to run a statement with",
+                () -> assertThat(ContentCensusTasklet.class.getDeclaredFields())
+                        .extracting(field -> field.getType().getPackageName())
+                        .noneMatch(declared -> DATABASE_HANDLE_PACKAGES.stream()
+                                .anyMatch(handles -> declared.equals(handles) || declared.startsWith(handles + "."))));
+    }
+
+    /** The packages whose types are database handles: Spring's JDBC classes, and the JDK's {@code DataSource}. */
+    private static final java.util.List<String> DATABASE_HANDLE_PACKAGES =
+            java.util.List.of("org.springframework.jdbc", "javax.sql");
 
     /**
      * Stage 3's tasklet as the step builds it, over the content-census run this invocation of {@code
@@ -186,6 +369,11 @@ class ContentCensusTaskletTest {
                 PresetsFixture.shipped(),
                 root,
                 invocations.get(root));
+    }
+
+    /** The content-census run the invocation over {@code root} recorded, read as later stages read it. */
+    private RunId theContentCensusRunOf(Path root) {
+        return new InvocationRuns(invocations.get(root)).runOf("content-census").orElseThrow();
     }
 
     /**

@@ -21,6 +21,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -65,13 +67,28 @@ class UpstreamRunOverAReusedWalkTest {
     private static final String BOILERPLATE_FLOOR = "1.0";
 
     /**
+     * A second boilerplate floor, different from the first so it names a different piece of stage 4's
+     * work. This fixture's documents share every fragment of text, so both floors strip all of them and
+     * the work under each removes nothing: the claim is about which piece of work is read, not what it
+     * removed.
+     */
+    private static final String A_RETUNED_BOILERPLATE_FLOOR = "0.9";
+
+    /**
      * A confidence floor for stage 2's second tier. The fixture's converter reports no confidence at
      * all, so this removes nothing either; what it changes is the configuration stage 2 records.
      */
     private static final String A_CONFIDENCE_FLOOR = "0.5";
 
+
     /** The bean holding stage 2's confidence floor, read once when a process's context starts. */
     private static final String THE_CONFIDENCE_FLOOR_BEAN = "degenerateOutputConfidenceFloor";
+
+    /** The key stage 2 records its confidence floor under, in the configuration its work is named by. */
+    private static final String CONFIDENCE_FLOOR_KEY = "degenerateOutputConfidenceFloor";
+
+    /** The key stage 4 records its boilerplate floor under, in the configuration its work is named by. */
+    private static final String BOILERPLATE_FLOOR_KEY = "boilerplateDocumentFrequencyFloor";
 
     /** How many corpus documents the fixture writes. */
     private static final int CORPUS_DOCUMENTS = 2;
@@ -101,6 +118,132 @@ class UpstreamRunOverAReusedWalkTest {
         SuccessiveBuildsBeans.theFirstBuild();
         profileStore.save(ProfileFixture.profile().build());
         aNewProcessReadsTheProfile();
+    }
+
+    @ParameterizedTest(name = "a commit to the {0} code")
+    @CsvSource({
+        "corpus,     byte-level-reduction, extraction",
+        "extraction, extraction,           content-census",
+        "similarity, extraction,           content-census",
+        "embedding,  seed-measurement,     embedding-scoring",
+    })
+    @Story("A new build of the application does not strand an archive part-way through")
+    @DisplayName("Invoking again under a new build of one part of the code completes")
+    void aNewBuildOfOneModuleDoesNotStopTheNextInvocation(
+            String module, String stageThatMoves, String stageAfterIt, @TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        everyGateOpen(seeds, BOILERPLATE_FLOOR);
+        invoke(root);
+        String firstRun = latestRunOf(root, stageThatMoves);
+
+        SuccessiveBuildsBeans.aCommitTo(module);
+        invoke(root);
+
+        claim(
+                "the second invocation reports success: the archive had not changed, so it was read"
+                        + " from the same observation, and the step after the moved one is not stopped by"
+                        + " the older build's work standing beside the new build's",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the new build's code for this part is different code, so its work is a second piece of"
+                        + " work beside the first rather than the first continued -- which is what the"
+                        + " second invocation had to get past",
+                () -> assertThat(runsOf(root, stageThatMoves)).hasSize(2).contains(firstRun));
+        claim(
+                "and the step after it reads the new build's work -- the piece this invocation did --"
+                        + " not the older build's",
+                () -> assertThat(upstreamOf(latestRunOf(root, stageAfterIt)))
+                        .containsExactly(latestRunOf(root, stageThatMoves))
+                        .doesNotContain(firstRun));
+    }
+
+    @Test
+    @Story("A new build of the application does not strand an archive part-way through")
+    @DisplayName("Invoking again under a new build of only the code that runs the stages does no piece of work again")
+    @Issue("479")
+    @Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
+    void aNewBuildOfTheCodeThatRunsTheStagesMintsNothing(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        everyGateOpen(seeds, BOILERPLATE_FLOOR);
+        invoke(root);
+        List<String> before = allRunsOf(root);
+        List<String> arrangements = runsOf(root, "arrangement");
+
+        SuccessiveBuildsBeans.aCommitTo("pipeline");
+        invoke(root);
+
+        claim(
+                "the first invocation reached the arrangement, so the claim below is about every stage up to it",
+                () -> assertThat(arrangements).hasSize(1));
+        claim(
+                "the second invocation reports success",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "and every piece of work it reached is the first invocation's, continued: no stage is identified"
+                        + " by the code that runs the stages, so a build that changes only that code, a progress"
+                        + " line or a command-line option, mints no run and does no stage's work again",
+                () -> assertThat(allRunsOf(root)).containsExactlyElementsOf(before));
+    }
+
+    @Test
+    @Story("A value read off the first report can be set without stranding the archive")
+    @DisplayName("Setting the conversion-quality floor after the first invocation lets the next one complete")
+    void settingTheConfidenceFloorAfterTheFirstInvocationDoesNotStopTheNext(
+            @TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        everyGateOpen(seeds, BOILERPLATE_FLOOR);
+        invoke(root);
+
+        setTheConfidenceFloorTo(A_CONFIDENCE_FLOOR);
+        invoke(root);
+
+        claim(
+                "the second invocation reports success, although the conversion-quality floor it was"
+                        + " given is one the first invocation's report invited the operator to set",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "setting that floor made extraction a second piece of work over the same observation of"
+                        + " the archive, one recording no floor and one recording " + A_CONFIDENCE_FLOOR,
+                () -> assertThat(configurationsOf(root, "extraction"))
+                        .hasSize(2)
+                        .anySatisfy(recorded -> assertThat(recorded).contains(recordedAs(CONFIDENCE_FLOOR_KEY, "null")))
+                        .anySatisfy(recorded -> assertThat(recorded)
+                                .contains(recordedAs(CONFIDENCE_FLOOR_KEY, A_CONFIDENCE_FLOOR))));
+        claim(
+                "and the content census that followed read the extraction done under the floor just set",
+                () -> assertThat(upstreamOf(latestRunOf(root, "content-census")))
+                        .containsExactly(theRunOf(root, "extraction", recordedAs(CONFIDENCE_FLOOR_KEY, A_CONFIDENCE_FLOOR))));
+    }
+
+    @Test
+    @Story("A value read off the first report can be set without stranding the archive")
+    @DisplayName("Retuning the boilerplate floor after relevance was scored lets the next invocation complete")
+    void retuningTheBoilerplateFloorAfterScoringDoesNotStopTheNext(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        everyGateOpen(seeds, BOILERPLATE_FLOOR);
+        invoke(root);
+        claim(
+                "the first invocation got as far as measuring the seeds against the corpus, which is the"
+                        + " step that reads the redundancy work -- so the retuning below comes after it",
+                () -> assertThat(runsOf(root, "seed-measurement")).hasSize(1));
+
+        everyGateOpen(seeds, A_RETUNED_BOILERPLATE_FLOOR);
+        invoke(root);
+
+        claim(
+                "the second invocation reports success after the boilerplate floor was changed from "
+                        + BOILERPLATE_FLOOR + " to " + A_RETUNED_BOILERPLATE_FLOOR,
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the redundancy work was done a second time under the new floor, beside the first",
+                () -> assertThat(runsOf(root, "content-redundancy")).hasSize(2));
+        claim(
+                "and the seed measurement that followed read the redundancy work done under the new floor",
+                () -> assertThat(upstreamOf(latestRunOf(root, "seed-measurement")))
+                        .containsExactly(theRunOf(
+                                root, "content-redundancy", recordedAs(BOILERPLATE_FLOOR_KEY, A_RETUNED_BOILERPLATE_FLOOR))));
     }
 
     @Test
@@ -185,6 +328,21 @@ class UpstreamRunOverAReusedWalkTest {
                 String.class,
                 stage,
                 walkRoot(root));
+    }
+
+    /** The configuration each run of {@code stage} over this corpus recorded, in the order written. */
+    private List<String> configurationsOf(Path root, String stage) {
+        return new RunsOver(jdbcTemplate, root).configConsumed(stage);
+    }
+
+    /** The run of {@code stage} written last over this corpus. */
+    private String latestRunOf(Path root, String stage) {
+        return runsOf(root, stage).getLast();
+    }
+
+    /** How a value appears in the configuration a run records: its key, then the value as JSON writes it. */
+    private static String recordedAs(String key, String value) {
+        return "\"" + key + "\":" + value;
     }
 
     /** The one run of {@code stage} over this corpus whose recorded configuration carries {@code fragment}. */

@@ -42,6 +42,34 @@ class NumericValueTest {
     /** A decimal comma: the likeliest real mistake, and the one that used to be silently ignored. */
     private static final String A_DECIMAL_COMMA = "0,42";
 
+    /** The four characters a quoted null arrives as, which is the risk ADR-061 was written against. */
+    private static final String A_QUOTED_NULL = "null";
+
+    @Test
+    @Story("A key nobody has answered is distinguishable from one answered wrongly")
+    @DisplayName("A key nobody has answered reads as unanswered")
+    void anUnansweredKeyReadsAsUnset() {
+        NumericValue unanswered = NumericValue.unset();
+
+        claim(
+                "a key census drafted and nobody filled in reads as unanswered, which is the state the"
+                        + " whole pipeline is already built around -- no threshold, nothing removed",
+                () -> assertThat(unanswered.reading()).isInstanceOf(NumericValue.Unset.class));
+    }
+
+    @Test
+    @Story("A key nobody has answered is distinguishable from one answered wrongly")
+    @DisplayName("A key holding only spaces reads as unanswered, not as a wrong answer")
+    void aBlankKeyReadsAsUnset() {
+        NumericValue blank = new NumericValue("   ", "typed and then thought better of", null);
+
+        claim(
+                "whitespace is nobody having answered rather than somebody answering badly: there is no"
+                        + " mistake to report back, and reporting one would send a person looking for a"
+                        + " value they never wrote",
+                () -> assertThat(blank.reading()).isInstanceOf(NumericValue.Unset.class));
+    }
+
     @Test
     @Story("A number that was written readably is read")
     @DisplayName("A number reads back as that number")
@@ -52,6 +80,20 @@ class NumericValueTest {
                 "the value reads back as the number " + A_READABLE_FLOOR + " that was written, which is"
                         + " the ordinary case every stage that applies a threshold depends on",
                 () -> assertThat(floor.reading())
+                        .isEqualTo(new NumericValue.Answered(A_READABLE_FLOOR_AS_A_NUMBER)));
+    }
+
+    @Test
+    @Story("A number that was written readably is read")
+    @DisplayName("Spaces around a number do not stop it being read")
+    void surroundingSpaceIsNotAMistake() {
+        NumericValue padded = new NumericValue("  " + A_READABLE_FLOOR + "  ", "pasted in", null);
+
+        claim(
+                "a value pasted in with spaces around it is the number the person meant: two of the five"
+                        + " readers this replaces trimmed and three did not, so the same file was readable"
+                        + " to one stage and fatal to another",
+                () -> assertThat(padded.reading())
                         .isEqualTo(new NumericValue.Answered(A_READABLE_FLOOR_AS_A_NUMBER)));
     }
 
@@ -69,5 +111,34 @@ class NumericValueTest {
                         + " describing it",
                 () -> assertThat(commaed.reading())
                         .isEqualTo(new NumericValue.Unreadable(A_DECIMAL_COMMA)));
+    }
+
+    @Test
+    @Story("A value nobody can read a number from is its own answer")
+    @DisplayName("The word null in quotes is a wrong answer, never a missing one")
+    void aQuotedNullIsUnreadableRatherThanUnset() {
+        NumericValue quotedNull = new NumericValue(A_QUOTED_NULL, "meant to clear the key", null);
+
+        claim(
+                "the four characters that arrive when somebody quotes the word null are treated as the"
+                        + " wrong answer they are: this is the exact mistake the profile's format was"
+                        + " chosen to catch, and for seven keys it was reaching the stages as ordinary"
+                        + " text nobody had checked; never read as nobody having answered, which would let a"
+                        + " person believe they had cleared a threshold when they had set a broken one",
+                () -> assertThat(quotedNull.reading())
+                        .isEqualTo(new NumericValue.Unreadable(A_QUOTED_NULL)));
+    }
+
+    @Test
+    @Story("A value nobody can read a number from is its own answer")
+    @DisplayName("A value that was written is reported as set even when no number can be read from it")
+    void anUnreadableValueIsStillSet() {
+        NumericValue commaed = new NumericValue(A_DECIMAL_COMMA, "read off the report", null);
+
+        claim(
+                "the key counts as answered, because somebody did answer it -- what is asked separately"
+                        + " is whether the answer can be acted on, and collapsing the two questions is how"
+                        + " a mistyped value would go unmentioned",
+                () -> assertThat(commaed.isSet()).isTrue());
     }
 }

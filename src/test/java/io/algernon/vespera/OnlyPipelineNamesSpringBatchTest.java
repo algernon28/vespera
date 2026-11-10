@@ -8,6 +8,9 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +45,9 @@ class OnlyPipelineNamesSpringBatchTest {
     /** The one module that assembles the job, and so the one that may name the framework the job runs on. */
     private static final String THE_MODULE_THAT_ASSEMBLES_THE_JOB = "pipeline";
 
+    /** The helper that read a whole reader into a set, which went with the readers it emptied. */
+    private static final String THE_HELPER_THAT_EMPTIED_A_READER = "io.algernon.vespera.engine.pipeline.ItemStreamReaders";
+
     @Test
     @Story("The batch framework is named only where the job is assembled")
     @DisplayName("No module but the one that assembles the job names a Spring Batch type")
@@ -69,5 +75,33 @@ class OnlyPipelineNamesSpringBatchTest {
                         + " own reader to whoever calls it, so every module that reads the surviving documents"
                         + " has to open, read and close it the way a batch step does",
                 () -> assertThat(naming).isEmpty());
+    }
+
+    @Test
+    @Story("The batch framework is named only where the job is assembled")
+    @DisplayName("No helper is left that empties a batch reader into a set")
+    void theHelperThatEmptiedAReaderIsGone() throws Exception {
+        Map<String, List<String>> names = ShippedClasses.namesByClass();
+        Set<String> emptyingAReader = new TreeSet<>();
+        for (String shipped : names.keySet()) {
+            for (Method method : Class.forName(shipped, false, Thread.currentThread().getContextClassLoader())
+                    .getDeclaredMethods()) {
+                if (Collection.class.isAssignableFrom(method.getReturnType())
+                        && Arrays.stream(method.getParameterTypes()).anyMatch(type ->
+                                type.getName().startsWith(SPRING_BATCH.replace('/', '.'))
+                                        && type.getSimpleName().endsWith("Reader"))) {
+                    emptyingAReader.add(shipped + "." + method.getName());
+                }
+            }
+        }
+
+        claim(
+                "no shipped class, the helper that read a whole batch reader into a set or any other, takes a batch"
+                        + " reader and hands back a collection: what it emptied is no longer a batch reader, and a"
+                        + " set of the surviving documents is built where one is needed by going through them",
+                () -> {
+                    assertThat(names).doesNotContainKey(THE_HELPER_THAT_EMPTIED_A_READER);
+                    assertThat(emptyingAReader).isEmpty();
+                });
     }
 }

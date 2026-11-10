@@ -92,6 +92,48 @@ class ACodeSetFolderOverlappingTheDeliverableRootIsRefusedInvocationTest {
         claim("nothing was walked", () -> assertThat(walksOver(corpusRoot)).isZero());
     }
 
+    @Test
+    @Story("A folder of code that overlaps what Vespera writes or walks is refused")
+    @DisplayName("A folder above the deliverable root named is refused in one line as above it")
+    void aFolderAboveTheDeliverableRootIsRefused(@TempDir Path corpusRoot) throws IOException {
+        Files.writeString(corpusRoot.resolve("corpus.txt"), "a corpus document");
+        TheProfileAsText.write(profileStore, base.toAbsolutePath().toString(), Optional.empty());
+
+        String printed = standardErrorOf(() -> cli.run("run", corpusRoot.toString()));
+
+        claim("the invocation exits " + REFUSED, () -> assertThat(cli.getExitCode()).isEqualTo(REFUSED));
+        claim("and says why in " + ONE_LINE + " line on standard error, naming the deliverable root below it, by the"
+                        + " real path of the folder above it where it is not made yet",
+                () -> assertThat(printed.lines().toList())
+                        .containsExactly("vespera run refused the code set folder " + base.toRealPath()
+                                + ": it is above the deliverable root "
+                                + base.toRealPath().resolve(deliverableRoot().getFileName()) + NAME_A_FOLDER_APART));
+        claim("nothing was walked", () -> assertThat(walksOver(corpusRoot)).isZero());
+    }
+
+    /**
+     * The deliverable root named lies inside the seed folder, which its own check refuses (ADR-276 §2), and the code
+     * set folder is not there: the code set folders are checked first (ADR-334 §5.1), so theirs is the line said.
+     */
+    @Test
+    @Story("A folder of code that overlaps what Vespera writes or walks is refused")
+    @DisplayName("Where the code set folder and the deliverable root would both be refused, the code set folder's line is the one said")
+    void theCodeSetFoldersAreCheckedBeforeTheDeliverableRoot(@TempDir Path corpusRoot, @TempDir Path elsewhere)
+            throws IOException {
+        Files.writeString(corpusRoot.resolve("corpus.txt"), "a corpus document");
+        Path nowhere = elsewhere.resolve("nowhere");
+        TheProfileAsText.write(profileStore, nowhere.toAbsolutePath().toString(), Optional.of(base));
+
+        String printed = standardErrorOf(() -> cli.run("run", corpusRoot.toString()));
+
+        claim("the invocation exits " + REFUSED, () -> assertThat(cli.getExitCode()).isEqualTo(REFUSED));
+        claim("and says only the code set folder's line, not the deliverable root's",
+                () -> assertThat(printed.lines().toList())
+                        .containsExactly("vespera run refused the code set folder " + elsewhere.toRealPath().resolve("nowhere")
+                                + ": it is no folder that is there. Name a folder that is there in codeSetFolders."));
+        claim("nothing was walked", () -> assertThat(walksOver(corpusRoot)).isZero());
+    }
+
     private static Path deliverableRoot() {
         return base.resolve("the deliverable root");
     }

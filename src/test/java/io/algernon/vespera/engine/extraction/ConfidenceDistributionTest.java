@@ -47,8 +47,86 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-078", url = Adr.TIER_2_IS_A_FLOOR_ON_THE_MEAN_CONFIDENCE_SCORE, type = "adr")
 class ConfidenceDistributionTest {
 
+    /**
+     * A 300-page scan whose mean is excellent on Docling's scale ({@code >= 0.9}) while its one folded
+     * page leaves the worst-page score poor ({@code < 0.5}) — the case that separates a distribution
+     * over {@code mean_score} from one over {@code low_score}.
+     */
+    private static final double EXCELLENT_MEAN_SCORE = 0.91;
+
+    private static final double POOR_WORST_PAGE_SCORE = 0.22;
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Test
+    @Story("The corpus-wide confidence distribution")
+    @DisplayName("Each survivor's mean_score lands in the bucket its own QualityGrade cut-point names, a score on a cut-point in the bucket above it")
+    void bucketsEachSurvivorByItsOwnQualityGradeCutPoint() {
+        Fixture fixture = fixture();
+        // Docling's scale cuts at 0.5, 0.8 and 0.9, each the lowest score of the grade above it: one survivor
+        // below the first cut, and one on each cut.
+        fixture.survivorWithScore("poor.pdf", 0.30);
+        fixture.survivorWithScore("fair.pdf", 0.5);
+        fixture.survivorWithScore("good.pdf", 0.8);
+        fixture.survivorWithScore("excellent.pdf", 0.9);
+
+        ConfidenceDistribution.Distribution distribution = fixture.measure();
+
+        claim(
+                "the poor bucket counts exactly the one survivor whose score sits below 0.5, and not the one at 0.5",
+                () -> assertThat(bucketCount(distribution, "poor")).isEqualTo(1));
+        claim(
+                "the fair bucket, [0.5, 0.8), counts exactly the one survivor scored 0.5, and not the one at 0.8",
+                () -> assertThat(bucketCount(distribution, "fair")).isEqualTo(1));
+        claim(
+                "the good bucket, [0.8, 0.9), counts exactly the one survivor scored 0.8, and not the one at 0.9",
+                () -> assertThat(bucketCount(distribution, "good")).isEqualTo(1));
+        claim(
+                "the excellent bucket counts exactly the one survivor scored 0.9, at or above which a score is"
+                        + " excellent",
+                () -> assertThat(bucketCount(distribution, "excellent")).isEqualTo(1));
+    }
+
+    @Test
+    @Story("A never-computed confidence score is not a zero")
+    @DisplayName("An occurrence whose mean_score is NULL is excluded from every bucket, not counted as poor")
+    void aNullMeanScoreIsExcludedRatherThanCountedAsZero() {
+        Fixture fixture = fixture();
+        fixture.survivorWithScore("scored.pdf", 0.95);
+        fixture.survivorWithNullScore("unscored.txt");
+
+        ConfidenceDistribution.Distribution distribution = fixture.measure();
+
+        claim(
+                "the null-score occurrence adds nothing to the poor bucket -- a null score is never read"
+                        + " as a zero",
+                () -> assertThat(bucketCount(distribution, "poor")).isZero());
+        claim(
+                "only the one occurrence carrying an actual score is counted anywhere at all",
+                () -> assertThat(distribution.totalCounted()).isEqualTo(1));
+    }
+
+    @Test
+    @Story("The distribution is over the mean score alone")
+    @DisplayName("A document with an excellent mean and a poor worst page is counted as excellent, and once")
+    void aPoorWorstPageScoreIsNotDistributedAlongsideTheMean() {
+        Fixture fixture = fixture();
+        fixture.survivorWithMeanAndWorstPageScore("folded-page.pdf", EXCELLENT_MEAN_SCORE, POOR_WORST_PAGE_SCORE);
+
+        ConfidenceDistribution.Distribution distribution = fixture.measure();
+
+        claim(
+                "the one document lands in the bucket its mean of 0.91 names",
+                () -> assertThat(bucketCount(distribution, "excellent")).isEqualTo(1));
+        claim(
+                "and its worst-page score of 0.22 puts nothing in the poor bucket -- only the mean is"
+                        + " distributed, since only the mean calibrates a threshold anyone can set",
+                () -> assertThat(bucketCount(distribution, "poor")).isZero());
+        claim(
+                "so the document is counted exactly once across the whole distribution, not once per score",
+                () -> assertThat(distribution.totalCounted()).isEqualTo(1));
+    }
 
     @Test
     @Story("Only survivors are measured")
@@ -66,6 +144,81 @@ class ConfidenceDistributionTest {
         claim(
                 "and the total counted reflects only the one survivor",
                 () -> assertThat(distribution.totalCounted()).isEqualTo(1));
+    }
+
+    /**
+     * The one number this value carries that no bucket could hold, and the one run ambiguity it has.
+     * The refusals are counted under stage 2's run; every bucket row this class writes is filed under
+     * stage 3's. The page rendered from this value states which run the refusals were counted under
+     * (ADR-139 section 7), so the value carries that run rather than leaving the page to name
+     * whichever run happens to be within its reach.
+     */
+    @Test
+    @Story("A page over stage 2's measurements also reports what stage 2 never measured")
+    @DisplayName("The refusals are counted under the extraction run, and the value names that run")
+    @Issue("265")
+    @Link(name = "ADR-139", url = Adr.A_REFUSED_CONVERSION_LEAVES_A_FAULT_ROW, type = "adr")
+    void theRefusalCountNamesTheExtractionRunItWasCountedUnder() {
+        Fixture fixture = fixture();
+        fixture.survivorWithScore("readable.pdf", 0.95);
+        fixture.refusedConversion("legacy-container.xls");
+
+        ConfidenceDistribution.Distribution distribution = fixture.measure();
+
+        claim(
+                "the one occurrence the converter refused is counted, and counted off its fault row rather"
+                        + " than off a bucket -- nothing was ever measured for it, so no bucket could have"
+                        + " held it",
+                () -> assertThat(distribution.refusedConversionCount()).isEqualTo(1));
+        claim(
+                "and the value names the extraction run those refusals were counted under, not the"
+                        + " stage-3 run its own bucket rows are written under. The two are different runs in"
+                        + " every invocation, and naming the wrong one on the page would attribute stage 2's"
+                        + " refusals to the pass that merely counted them",
+                () -> assertThat(distribution.extractionRunId()).isEqualTo(fixture.stage2RunId));
+    }
+
+    @Test
+    @Story("The new table agrees with the value the report renders")
+    @DisplayName("The confidence_distribution table gets exactly the rows the computed distribution carries")
+    void theTableGetsTheRowsTheDistributionComputed() {
+        Fixture fixture = fixture();
+        fixture.survivorWithScore("poor.pdf", 0.10);
+        fixture.survivorWithScore("another-poor.pdf", 0.20);
+        fixture.survivorWithScore("excellent.pdf", 0.99);
+
+        ConfidenceDistribution.Distribution distribution = fixture.measure();
+
+        for (ConfidenceDistribution.Bucket bucket : distribution.buckets()) {
+            long tableCount = jdbcTemplate.queryForObject(
+                    "SELECT document_count FROM confidence_distribution WHERE run_id = ? AND grade = ?",
+                    Long.class,
+                    fixture.stage3RunId.value(),
+                    bucket.grade());
+            claim(
+                    "the row this class wrote for grade " + bucket.grade() + " agrees with the value the"
+                            + " same computation returned to the caller",
+                    () -> assertThat(tableCount).isEqualTo(bucket.documentCount()));
+        }
+    }
+
+    @Test
+    @Story("The report writes exactly one row per grade")
+    @DisplayName("One run's rows are exactly the four QualityGrade buckets, never more, never fewer")
+    void oneRunWritesExactlyFourBuckets() {
+        Fixture fixture = fixture();
+        fixture.survivorWithScore("first.pdf", 0.95);
+
+        fixture.measure();
+
+        long rowsForThisRun = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM confidence_distribution WHERE run_id = ?",
+                Long.class,
+                fixture.stage3RunId.value());
+        claim(
+                "the run's own rows are exactly the four buckets this report always writes, whatever the"
+                        + " corpus contained -- poor, fair, good, excellent, each written once",
+                () -> assertThat(rowsForThisRun).isEqualTo(4));
     }
 
     private long bucketCount(ConfidenceDistribution.Distribution distribution, String grade) {

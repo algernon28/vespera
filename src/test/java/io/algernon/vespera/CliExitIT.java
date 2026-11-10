@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -60,6 +61,9 @@ class CliExitIT {
     private static final String NO_WINDOW =
             "the control panel cannot open a window here, so the jar answers as its command line: ";
 
+    /** The words JavaFX's line about its classes coming from the class path begins with (ADR-360). */
+    private static final String UNSUPPORTED_CONFIGURATION = "Unsupported JavaFX configuration";
+
     /** What a launch returned: whether it exited within the bound, and its code. */
     private record Launched(boolean finished, int exitCode) {
     }
@@ -77,6 +81,18 @@ class CliExitIT {
                 () -> assertThat(launched.finished()).isTrue());
         claim("and its exit code is picocli's usage code for the rejected option, not success",
                 () -> assertThat(launched.exitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
+    }
+
+    @Test
+    @Story("A command ends the process")
+    @DisplayName("A version command exits within a bound, carrying success")
+    void aVersionCommandExitsWithinItsBoundWithSuccess() throws Exception {
+        Launched launched = launch("--version");
+
+        claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds rather than staying alive",
+                () -> assertThat(launched.finished()).isTrue());
+        claim("and its exit code is success, so the command's zero reaches the shell too",
+                () -> assertThat(launched.exitCode()).isZero());
     }
 
     /**
@@ -103,6 +119,167 @@ class CliExitIT {
                 () -> assertThat(output).contains("Usage: vespera"));
         claim("and exits with picocli's usage code, as that start does",
                 () -> assertThat(launched.exitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
+    }
+
+    /**
+     * The jar's start of the window writes no line of JavaFX's about its class path (ADR-360 §1): the control panel's
+     * start drops the record from JavaFX's logger before the toolkit starts, and JavaFX writes it as its start begins,
+     * before a platform it does not have makes the toolkit throw, so a start where the window cannot open writes it
+     * as a start that opens the window does. Measured without the filter on JavaFX's jars on a plain class path, not in
+     * the packaged jar: the line is written, then the toolkit throws. The jar's logging configuration is the JDK's, as
+     * the operator's is.
+     */
+    @Test
+    @Issue("723")
+    @Link(name = "ADR-360", url = Adr.THE_CONTROL_PANEL_DROPS_JAVAFXS_CLASS_PATH_LINE, type = "adr")
+    @Story("A start with no window answers as the command line")
+    @DisplayName("Started with no argument, the jar writes no line of JavaFX's about its class path as the toolkit starts")
+    void aJarThatCannotOpenTheWindowWritesNoLineOfJavaFxsAboutItsClassPath() throws Exception {
+        Launched launched = launchWith(List.of(NO_SUCH_PLATFORM));
+        String output = Files.readString(workingDirectory.resolve(OUTPUT), StandardCharsets.UTF_8)
+                .replaceAll("\u001B\\[[0-9;]*m", "");
+
+        claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds, having tried the toolkit and said the window"
+                        + " cannot open",
+                () -> assertThat(List.<Object>of(launched.finished(), output.contains(NO_WINDOW)))
+                        .containsExactly(true, true));
+        claim("and nothing it wrote holds JavaFX's words about its classes coming from the class path",
+                () -> assertThat(output).doesNotContain(UNSUPPORTED_CONFIGURATION));
+    }
+
+    /** The start of a line in the console's pattern, {@code HH:mm:ss.SSS LEVEL}, which a line of the jar's own lacks. */
+    private static final Pattern IN_THE_CONSOLES_PATTERN = Pattern.compile("^\\d{2}:\\d{2}:\\d{2}\\.\\d{3} [A-Z]+ .*");
+
+    /** What a launch returned with its two streams kept apart. */
+    private record Streams(boolean finished, int exitCode, List<String> standardOutput, List<String> standardError) {
+    }
+
+    /** As {@link #launch}, standard output and standard error kept in two files, so the stream a line is on is read. */
+    private static Streams launchSplit(String... args) throws Exception {
+        Path out = Files.createTempFile(workingDirectory, "split", ".out");
+        Path err = Files.createTempFile(workingDirectory, "split", ".err");
+        ProcessBuilder builder = new ProcessBuilder(
+                        Stream.of(
+                                        Stream.of(
+                                                javaExecutable(),
+                                                "-Dspring.docker.compose.enabled=false",
+                                                "-Dvespera.sidecars.start=false",
+                                                "-Dvespera.sidecars.wait-at-most=1s",
+                                                "-Dvespera.working-dir=" + workingDirectory.resolve("split-" + out.getFileName()),
+                                                "-jar",
+                                                EXECUTABLE_JAR.toString()),
+                                        Stream.of(args))
+                                .flatMap(each -> each)
+                                .toList())
+                .redirectOutput(out.toFile())
+                .redirectError(err.toFile());
+        builder.environment().put("CI", "true");
+        Process process = builder.start();
+        boolean finished = process.waitFor(EXIT_BOUND_SECONDS, TimeUnit.SECONDS);
+        if (!finished) {
+            process.destroyForcibly();
+            process.waitFor();
+        }
+        return new Streams(
+                finished,
+                finished ? process.exitValue() : -1,
+                Files.readAllLines(out, StandardCharsets.UTF_8),
+                Files.readAllLines(err, StandardCharsets.UTF_8));
+    }
+
+    private static String lastLineOf(List<String> lines) {
+        return lines.isEmpty() ? "" : lines.getLast();
+    }
+
+    @Test
+    @Issue("773")
+    @Link(name = "ADR-364", url = Adr.THE_OUTPUT_PANEL_IS_COPYABLE_TEXT_AND_EVERY_LINE_GOES_THROUGH_LOGBACK, type = "adr")
+    @Story("A refusal reads as its words alone")
+    @DisplayName("A refusal is printed on standard error as its words alone")
+    void aRefusalIsPrintedOnStandardErrorAsItsWordsAlone() throws Exception {
+        Streams launched = launchSplit("run");
+
+        claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds", () -> assertThat(launched.finished()).isTrue());
+        claim("standard error's last line is the refusal, its words whole with nothing before them on the line",
+                () -> assertThat(lastLineOf(launched.standardError()))
+                        .startsWith("vespera run named no root and ")
+                        .endsWith("A root is never guessed, because a census of the wrong tree reports success."));
+        claim("standard output holds none of its words",
+                () -> assertThat(String.join("\n", launched.standardOutput())).doesNotContain("vespera run named no root"));
+        claim("and the exit code is picocli's usage code",
+                () -> assertThat(launched.exitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
+    }
+
+    @Test
+    @Issue("773")
+    @Link(name = "ADR-364", url = Adr.THE_OUTPUT_PANEL_IS_COPYABLE_TEXT_AND_EVERY_LINE_GOES_THROUGH_LOGBACK, type = "adr")
+    @Story("A refusal reads as its words alone")
+    @DisplayName("The usage of the bare command is printed on standard output as its words alone")
+    void theUsageIsPrintedOnStandardOutputAsItsWordsAlone() throws Exception {
+        Streams launched = launchSplit("--headless");
+        List<String> output = launched.standardOutput();
+        int usageStarts = output.indexOf(output.stream().filter(line -> line.startsWith("Usage: vespera")).findFirst().orElse(""));
+
+        claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds", () -> assertThat(launched.finished()).isTrue());
+        claim("standard output holds picocli's usage, its first line beginning Usage: vespera with nothing before it",
+                () -> assertThat(usageStarts).isGreaterThanOrEqualTo(0));
+        claim("the usage names the commands it offers: run, label, publish and serve, one line to a command, and no line"
+                        + " of it is in the console's pattern, and it ends on no blank line (the usage is not compared with"
+                        + " picocli's own rendering, which needs the Spring beans the commands are built from)",
+                () -> {
+                    List<String> usage = output.subList(Math.max(usageStarts, 0), output.size());
+                    assertThat(usage).noneMatch(line -> IN_THE_CONSOLES_PATTERN.matcher(line).matches());
+                    assertThat(usage).anyMatch(line -> line.strip().startsWith("run"))
+                            .anyMatch(line -> line.strip().startsWith("label"))
+                            .anyMatch(line -> line.strip().startsWith("publish"))
+                            .anyMatch(line -> line.strip().startsWith("serve"));
+                    assertThat(lastLineOf(usage)).isNotBlank();
+                });
+        claim("and the exit code is picocli's usage code",
+                () -> assertThat(launched.exitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
+    }
+
+    @Test
+    @Issue("773")
+    @Link(name = "ADR-364", url = Adr.THE_OUTPUT_PANEL_IS_COPYABLE_TEXT_AND_EVERY_LINE_GOES_THROUGH_LOGBACK, type = "adr")
+    @Story("A refusal reads as its words alone")
+    @DisplayName("An argument picocli refuses is said on standard error as its words alone")
+    void anArgumentPicocliRefusesIsSaidOnStandardErrorAsItsWordsAlone() throws Exception {
+        Streams launched = launchSplit("run", "--bogus-option");
+
+        claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds", () -> assertThat(launched.finished()).isTrue());
+        claim("picocli's refusal is a line of standard error of its words alone, and the usage it writes with it is on"
+                        + " standard error too, its first line beginning Usage: vespera run",
+                () -> {
+                    assertThat(launched.standardError()).contains("Unknown option: '--bogus-option'");
+                    assertThat(launched.standardError()).anyMatch(line -> line.startsWith("Usage: vespera run"));
+                });
+        claim("and standard output holds none of that usage",
+                () -> assertThat(launched.standardOutput()).noneMatch(line -> line.startsWith("Usage: vespera run")));
+        claim("no line of standard error is in the console's pattern, and standard output holds no word of the refusal",
+                () -> {
+                    assertThat(launched.standardError()).noneMatch(line -> IN_THE_CONSOLES_PATTERN.matcher(line).matches());
+                    assertThat(String.join("\n", launched.standardOutput())).doesNotContain("Unknown option");
+                });
+        claim("and the exit code is picocli's usage code",
+                () -> assertThat(launched.exitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
+    }
+
+    @Test
+    @Issue("773")
+    @Link(name = "ADR-364", url = Adr.THE_OUTPUT_PANEL_IS_COPYABLE_TEXT_AND_EVERY_LINE_GOES_THROUGH_LOGBACK, type = "adr")
+    @Story("A closing line reads as its words alone")
+    @DisplayName("A closing line that used to be logged is its words alone, with no converter answering")
+    void aClosingLineThatWasLoggedIsItsWordsAlone(@TempDir Path root) throws Exception {
+        Files.writeString(root.resolve("a document.txt"), "a document of the corpus");
+        Streams launched = launchSplit("run", root.toString());
+
+        claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds", () -> assertThat(launched.finished()).isTrue());
+        claim("standard error's last line is stage 2's failure line, its words alone with nothing before them",
+                () -> assertThat(lastLineOf(launched.standardError()))
+                        .startsWith("Stage 2 (extraction) failed and is not recorded as finished")
+                        .endsWith("and run the same command again."));
+        claim("and the exit code is 1", () -> assertThat(launched.exitCode()).isEqualTo(1));
     }
 
     /** Launches the packaged jar with the given arguments and waits up to the bound for it to end. */

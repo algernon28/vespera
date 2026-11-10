@@ -149,6 +149,69 @@ class TheDeliverableRootInvocationTest {
     }
 
     @Test
+    @Story("The tree is drawn at the folder the operator names, or in the working directory")
+    @DisplayName("With a folder named, the tree is drawn there and the last line names its index, which is opened once")
+    @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+    void aNamedRootHoldsTheTreeAndTheClosingLineNamesItsIndex(@TempDir Path corpusRoot, @TempDir Path seeds)
+            throws IOException {
+        anApprovedCorpus(corpusRoot, seeds);
+        opener.forget();
+        logged.list.clear();
+
+        cli.run("run", corpusRoot.toString());
+
+        Path index = deliverableRoot().toAbsolutePath().normalize().resolve("index.html");
+        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the tree's index and listing are at the top of the named folder",
+                () -> {
+                    assertThat(index).isRegularFile();
+                    assertThat(deliverableRoot().resolve("documents.csv")).isRegularFile();
+                });
+        claim(
+                "its marker names this working directory and the generation this corpus minted",
+                () -> assertThat(Files.readString(deliverableRoot().resolve(MARKER), StandardCharsets.UTF_8))
+                        .isEqualTo("working-directory=" + workingDirectory.toRealPath() + "\n"
+                                + "generation-run=" + generationRuns(corpusRoot).getLast() + "\n"));
+        claim(
+                "nothing was drawn under the working directory's deliverable folder",
+                () -> assertThat(workingDirectory.resolve("deliverable")).doesNotExist());
+        claim(
+                "the last line the invocation writes names the index at the named folder by its whole path",
+                () -> assertThat(operatorLines().getLast())
+                        .contains(index + ", with 0 groups left unwritten and 0 documents not copied."));
+        claim(
+                "and the opener was asked " + ONCE + " time for an index, that one, with the page in place",
+                () -> {
+                    List<RecordingPageOpener.Request> indexOpened = indexRequests();
+                    assertThat(indexOpened).hasSize(ONCE);
+                    assertThat(indexOpened.getFirst().page()).isEqualTo(index.toUri());
+                    assertThat(indexOpened.getFirst().thePageWasThere()).isTrue();
+                });
+    }
+
+    @Test
+    @Story("A folder that holds anything but this tree is refused")
+    @DisplayName("An invocation of the same generation draws its tree again in the folder that holds it")
+    void aSecondInvocationOfTheSameRunRedrawsTheRootInPlace(@TempDir Path corpusRoot, @TempDir Path seeds)
+            throws IOException {
+        anApprovedCorpus(corpusRoot, seeds);
+        cli.run("run", corpusRoot.toString());
+        Path index = deliverableRoot().resolve("index.html");
+        claim("the precondition: the first invocation drew the index, which is taken away below", () -> assertThat(index)
+                .isRegularFile());
+        Files.delete(index);
+
+        cli.run("run", corpusRoot.toString());
+
+        claim("the second invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim("it drew the index again in the same folder", () -> assertThat(index).isRegularFile());
+        claim(
+                "under the " + ONE_RUN + " generation that drew the folder's tree before",
+                () -> assertThat(generationRuns(corpusRoot)).hasSize(ONE_RUN));
+    }
+
+    @Test
     @Story("A folder that holds anything but this tree is refused")
     @DisplayName("A folder holding another generation's tree is not drawn over, and the invocation says so in one line and exits 1")
     void aRootHoldingAnotherRunsTreeIsNotDrawnOver(@TempDir Path corpusRoot, @TempDir Path seeds) throws IOException {
@@ -179,6 +242,52 @@ class TheDeliverableRootInvocationTest {
         claim(
                 "and the tree was not drawn under the working directory instead",
                 () -> assertThat(workingDirectory.resolve("deliverable")).doesNotExist());
+    }
+
+    @Test
+    @Story("A folder that holds anything but this tree is refused")
+    @DisplayName("A drawing refused keeps what was written, and the next invocation draws it in an empty folder without asking the model")
+    void aRefusedDrawingKeepsTheWritingAndAnEmptyRootDrawsItWithoutAQuestion(@TempDir Path corpusRoot, @TempDir Path seeds)
+            throws IOException {
+        anotherRunsTreeInTheRoot();
+        anApprovedCorpus(corpusRoot, seeds);
+
+        cli.run("run", corpusRoot.toString());
+
+        claim(
+                "the precondition: the invocation was refused at the drawing, under the " + ONE_RUN + " generation this"
+                        + " corpus minted",
+                () -> {
+                    assertThat(cli.getExitCode()).isEqualTo(REFUSED);
+                    assertThat(generationRuns(corpusRoot)).hasSize(ONE_RUN);
+                });
+        claim(
+                "the writing step is recorded finished under that generation all the same: its work was done, and only"
+                        + " the drawing was refused",
+                () -> assertThat(ledger.runs().stepFinished(
+                                new RunId(generationRuns(corpusRoot).getLast()), StepNames.GENERATION))
+                        .isTrue());
+        int questionsBefore = GenerationScriptedBeans.callsMade();
+        takeAway(deliverableRoot());
+
+        cli.run("run", corpusRoot.toString());
+
+        claim("with the folder emptied, the next invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "it drew the tree in the folder, the index at its top and the marker naming this working directory and"
+                        + " the same generation",
+                () -> {
+                    assertThat(deliverableRoot().resolve("index.html")).isRegularFile();
+                    assertThat(Files.readString(deliverableRoot().resolve(MARKER), StandardCharsets.UTF_8))
+                            .isEqualTo("working-directory=" + workingDirectory.toRealPath() + "\n"
+                                    + "generation-run=" + generationRuns(corpusRoot).getLast() + "\n");
+                });
+        claim(
+                "under the " + ONE_RUN + " generation that stood before",
+                () -> assertThat(generationRuns(corpusRoot)).hasSize(ONE_RUN));
+        claim(
+                "and it put no question to the model: what was written before the refusal is what was drawn",
+                () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(questionsBefore));
     }
 
     @Test

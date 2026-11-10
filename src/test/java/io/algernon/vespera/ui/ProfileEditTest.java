@@ -85,6 +85,9 @@ class ProfileEditTest {
     private static final String NOT_IN_FORM =
             "profile.yaml is not in the form the jar writes it, so the control panel does not change it";
 
+    /** The prefix of the provenance {@code vespera label --auto} writes, which lets it write over the floor. */
+    private static final String THE_AUTO_RULES_WORDS = "set by the rule that loses no documentation";
+
     @Test
     @Story("The control panel writes a profile value")
     @DisplayName("Saving one key replaces its value and provenance lines where they stand, and keeps every other byte")
@@ -113,6 +116,47 @@ class ProfileEditTest {
 
     @Test
     @Story("The control panel writes a profile value")
+    @DisplayName("An entry, a key's block or the whole file that is not there is added")
+    void anAbsentEntryBlockOrFileIsAdded() {
+        String readmeStyle = "seedFolder:\n  value: \"/seeds\"\n";
+
+        claim("an entry the key's block does not hold is added after the key's line, the one it holds replaced in place",
+                () -> assertThat(ProfileEdit.rewrite(Optional.of("extractionAttempt:\n  value: \"2\"\n"),
+                                ProfileKey.EXTRACTION_ATTEMPT, "3", PROVENANCE))
+                        .isEqualTo("extractionAttempt:\n  provenance: \"" + PROVENANCE + "\"\n  value: \"3\"\n"));
+        claim("a key the file does not hold is added at its end as a block of value, provenance and a null measurement",
+                () -> assertThat(ProfileEdit.rewrite(Optional.of(readmeStyle), ProfileKey.EXTRACTION_ATTEMPT, "3",
+                                PROVENANCE))
+                        .isEqualTo(readmeStyle + "extractionAttempt:\n  value: \"3\"\n  provenance: \"" + PROVENANCE
+                                + "\"\n  measurement: null\n"));
+        claim("a file that is not there is written as a document start and that one block",
+                () -> assertThat(ProfileEdit.rewrite(Optional.empty(), ProfileKey.EXTRACTION_ATTEMPT, "3", PROVENANCE))
+                        .isEqualTo("---\nextractionAttempt:\n  value: \"3\"\n  provenance: \"" + PROVENANCE
+                                + "\"\n  measurement: null\n"));
+        claim("a file holding nothing but white space holds no key: its bytes are kept and the block is added after them",
+                () -> assertThat(ProfileEdit.rewrite(Optional.of(" \n"), ProfileKey.EXTRACTION_ATTEMPT, "3", PROVENANCE))
+                        .isEqualTo(" \nextractionAttempt:\n  value: \"3\"\n  provenance: \"" + PROVENANCE
+                                + "\"\n  measurement: null\n"));
+    }
+
+    @Test
+    @Story("The control panel writes a profile value")
+    @DisplayName("An empty value unsets the key: null is written, with the operator's provenance")
+    void anEmptyValueUnsetsTheKeyWithTheProvenance() {
+        String unset = ProfileEdit.rewrite(
+                Optional.of(AS_THE_JAR_WROTE_IT), ProfileKey.EXTRACTION_ATTEMPT, " ", "back to the first attempt");
+
+        claim("the attempt's value is null and its provenance the operator's, and the other keys are as they were",
+                () -> assertThat(unset).isEqualTo(AS_THE_JAR_WROTE_IT.replace(
+                        "  value: \"2\"\n  provenance: \"a second attempt\"",
+                        "  value: null\n  provenance: \"back to the first attempt\"")));
+        claim("an empty value is not refused for its emptiness",
+                () -> assertThat(ProfileEdit.refusalOf(ProfileKey.EXTRACTION_ATTEMPT, "", "back to the first attempt"))
+                        .isEmpty());
+    }
+
+    @Test
+    @Story("The control panel writes a profile value")
     @DisplayName("A profile in a form the jar does not write is refused whole, with one line naming the file")
     void aFileInAnotherFormIsRefusedWhole() {
         Map<String, String> otherForms = new LinkedHashMap<>();
@@ -135,6 +179,73 @@ class ProfileEditTest {
                                 Optional.of(text), ProfileKey.EXTRACTION_ATTEMPT, "2", PROVENANCE))
                         .isInstanceOf(IllegalArgumentException.class)
                         .hasMessage(NOT_IN_FORM)));
+    }
+
+    @Test
+    @Story("The control panel writes a profile value")
+    @DisplayName("Single-quoted and plain values, as the README and a hand edit write them, are read as the jar reads them")
+    void singleQuotedAndPlainScalarsAreReadAsTheJarReadsThem(@TempDir Path temp) throws IOException {
+        Path seeds = Files.createDirectory(temp.resolve("seeds"));
+        String byHand = """
+                seedFolder:
+                  value: 'D:\\archive\\exemplars'
+                  provenance: "the twelve reports I would keep without reading them again"
+                relevanceScoreFloor:
+                  value: 0.35 \s
+                  provenance: read off the page
+                translationSimilarityFloor:
+                  value: -0.2
+                  provenance: 'it''s the lowest row with no refuted pair'
+                generationModel:
+                  value: null
+                  provenance: ''
+                embeddingModel:
+                  value: ~
+                  provenance: acme-embed-text:v1.5
+                """;
+
+        claim("the single-quoted Windows path is read with its backslashes, a plain number as its text without the"
+                        + " spaces after it, a plain -0.2 as its text, '' as one quote and as nothing, a plain null as"
+                        + " null and a plain ~ as its text",
+                () -> assertThat(ProfileEdit.read(byHand)).containsExactlyInAnyOrderEntriesOf(Map.of(
+                        ProfileKey.SEED_FOLDER, new Stated("D:\\archive\\exemplars",
+                                "the twelve reports I would keep without reading them again"),
+                        ProfileKey.RELEVANCE_SCORE_FLOOR, new Stated("0.35", "read off the page"),
+                        ProfileKey.TRANSLATION_SIMILARITY_FLOOR,
+                                new Stated("-0.2", "it's the lowest row with no refuted pair"),
+                        ProfileKey.GENERATION_MODEL, new Stated(null, ""),
+                        ProfileKey.EMBEDDING_MODEL, new Stated("~", "acme-embed-text:v1.5"))));
+        claim("and saving the seed folder replaces its single-quoted lines with double-quoted ones, every other byte kept",
+                () -> assertThat(ProfileEdit.rewrite(Optional.of(byHand), ProfileKey.SEED_FOLDER, seeds.toString(), "moved"))
+                        .isEqualTo(byHand.replace("""
+                                  value: 'D:\\archive\\exemplars'
+                                  provenance: "the twelve reports I would keep without reading them again"
+                                """, "  value: \"" + seeds.toString().replace("\\", "\\\\") + "\"\n  provenance: \"moved\"\n")));
+    }
+
+    /**
+     * ADR-295 §3 as ADR-331 §6 amends it, of the one key that names a folder. The value is read as the jar reads it, the
+     * absolute path of a folder that exists, so one with a space before it is refused, on every system, where a value
+     * read stripped would be saved. {@code RELEVANCE_SCORE_FLOOR}'s spaces at both ends are the test above's.
+     */
+    @Test
+    @Story("The control panel checks a profile value before saving it")
+    @Link(name = "ADR-331", url = Adr.THE_CONTROL_PANEL_OPENS_A_WINDOW_OF_ITS_OWN_AND_ITS_PAGES_ARE_A_COCKPIT, type = "adr")
+    @DisplayName("The seed folder keeps a space before it, so that one pasted so is refused as no absolute path, and loses a space after it")
+    void theSeedFolderKeepsASpaceBeforeItAndLosesOneAfterIt(@TempDir Path temp) throws IOException {
+        Path seeds = Files.createDirectory(temp.resolve("seeds"));
+        String pasted = " " + seeds;
+
+        claim("a space before the folder is part of what the check reads, and is refused in the one line with it",
+                () -> assertThat(ProfileEdit.refusalOf(ProfileKey.SEED_FOLDER, pasted, "moved")).contains(
+                        "seedFolder is not saved: \"" + pasted + "\" is not the absolute path of a folder that exists"));
+        claim("nothing is written for it",
+                () -> assertThatThrownBy(() -> ProfileEdit.rewrite(Optional.empty(), ProfileKey.SEED_FOLDER, pasted, "moved"))
+                        .isInstanceOf(IllegalArgumentException.class));
+        claim("and a space after the folder is written away",
+                () -> assertThat(ProfileEdit.read(ProfileEdit.rewrite(Optional.empty(), ProfileKey.SEED_FOLDER, seeds + "  ",
+                                "moved")).get(ProfileKey.SEED_FOLDER))
+                        .isEqualTo(new Stated(seeds.toString(), "moved")));
     }
 
     @Test
@@ -223,6 +334,29 @@ class ProfileEditTest {
                                 Optional.of(AS_THE_JAR_WROTE_IT), ProfileKey.EXTRACTION_ATTEMPT, "0", PROVENANCE))
                         .isInstanceOf(IllegalArgumentException.class)
                         .hasMessage("extractionAttempt is not saved: \"0\" is not a whole number from 1 to 2147483647"));
+    }
+
+    @Test
+    @Story("The control panel checks a profile value before saving it")
+    @DisplayName("Every key needs a provenance, and the relevance floor's is never the words the automatic labelling writes")
+    void theProvenanceIsRequiredAndNeverTheAutoRules() {
+        for (ProfileKey key : ProfileKey.values()) {
+            claim(key.key() + " with a blank provenance is refused, set or unset",
+                    () -> {
+                        assertThat(ProfileEdit.refusalOf(key, "", "  "))
+                                .contains(key.key() + " is not saved: write how you arrived at it in provenance");
+                        assertThat(ProfileEdit.refusalOf(key, "", null))
+                                .contains(key.key() + " is not saved: write how you arrived at it in provenance");
+                    });
+        }
+        claim("the relevance floor with a provenance in the automatic labelling's words is refused",
+                () -> assertThat(ProfileEdit.refusalOf(
+                                ProfileKey.RELEVANCE_SCORE_FLOOR, "0.5", THE_AUTO_RULES_WORDS + ", by hand"))
+                        .contains("relevanceScoreFloor is not saved: a provenance beginning \"" + THE_AUTO_RULES_WORDS
+                                + "\" is the one vespera label --auto writes, and would let it write over this value"));
+        claim("and the same words are no bar to another key",
+                () -> assertThat(ProfileEdit.refusalOf(ProfileKey.EXTRACTION_ATTEMPT, "2", THE_AUTO_RULES_WORDS))
+                        .isEmpty());
     }
 
     private record Sample(ProfileKey key, String value) {}

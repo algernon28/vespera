@@ -279,6 +279,58 @@ class AnEarlierRunsRowsStayInvocationTest {
                         .contains(TheRunsHashIndex.statementFor(fourthExtraction)));
     }
 
+    @Test
+    @Story("What is kept of an earlier extraction")
+    @DisplayName("With an extraction's word sequences gone from the database, a redundancy check made again over that extraction signs nothing, removes nothing and reports no error")
+    void aRunOfStageFourOverAStageTwoRunWhoseShingleRowsAreGoneSignsNothingAndFailsNothing(@TempDir Path root)
+            throws IOException {
+        writeCorpus(root, "gone", CORPUS_SIZE);
+        cli.run("run", root.toString());
+        String extraction = onlyRunOf(root, StageModules.EXTRACTION);
+        String firstRedundancy = onlyRunOf(root, StageModules.CONTENT_REDUNDANCY);
+
+        claim(
+                "the first redundancy check signs some of the texts",
+                () -> assertThat(rowsUnder("minhash_signature", firstRedundancy)).isPositive());
+
+        // What removing a run's rows would do, done here by the test: nothing that ships does it.
+        jdbcTemplate.update("DELETE FROM shingle WHERE run_id = ?", extraction);
+        openStageFoursGate(ANOTHER_BOILERPLATE_FLOOR);
+        ConverterStopsPartwayBeans.keepAnswering();
+        cli.run("run", root.toString());
+        List<String> redundancy = runsOf(root, StageModules.CONTENT_REDUNDANCY);
+
+        claim("the invocation after the rows are removed completes", () -> assertThat(cli.getExitCode())
+                .isZero());
+        claim(
+                "under the same extraction, which is recorded as finished and so writes nothing again",
+                () -> assertThat(runsOf(root, StageModules.EXTRACTION)).containsExactly(extraction));
+        claim("and converts nothing", () -> assertThat(ConverterStopsPartwayBeans.conversions())
+                .isZero());
+        claim(
+                "the changed answer has the redundancy check made again under a second run",
+                () -> assertThat(redundancy).hasSize(2).startsWith(firstRedundancy));
+        claim(
+                "which finds no word sequence to sign and signs nothing, where the first signed some",
+                () -> assertThat(rowsUnder("minhash_signature", redundancy.getLast()))
+                        .isZero());
+        claim(
+                "and removes nothing: no text is marked as saying what another says under that second check",
+                () -> assertThat(redundantWithVerdictsUnder(redundancy.getLast()))
+                        .isZero());
+        claim(
+                "nor is any text recorded as covered by another under it",
+                () -> assertThat(rowsUnder("redundant_with", redundancy.getLast()))
+                        .isZero());
+    }
+
+    /** The redundant-with verdicts a run of stage 4 wrote, which are what that stage removes. */
+    private long redundantWithVerdictsUnder(String run) {
+        Long verdicts = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM verdict WHERE run_id = ? AND kind = 'REDUNDANT_WITH'", Long.class, run);
+        return verdicts == null ? 0 : verdicts;
+    }
+
     /**
      * Writes {@code size} texts, each with bytes of its own, so stage 1 removes none as a copy of another.
      * {@code salt} keeps one test's corpus from sharing content with another's.

@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,6 +50,9 @@ class SurvivorsBySizeTest {
 
     /** Every seventh occurrence is ruled out, so the read has rows to leave out in every page. */
     private static final int EVERY_SEVENTH = 7;
+
+    /** Two full pages of 1,000 and a third of the 500 left, which being short of a page ends the read. */
+    private static final int PAGES_READ = 3;
 
     private static final Instant WHEN = Instant.parse("2026-01-01T00:00:00Z");
 
@@ -113,6 +117,52 @@ class SurvivorsBySizeTest {
                 "every one of the " + OCCURRENCES_RECORDED + " occurrences was handed out, each once, although each"
                         + " had a blocking verdict written the moment it arrived",
                 () -> assertThat(handedOut).containsExactlyInAnyOrderElementsOf(recorded));
+    }
+
+    @Test
+    @Story("Survivors read in size order")
+    @DisplayName("A page of the read is answered from the index on the walk and the size, with no sort")
+    void aPageNeedsNoSort() throws Exception {
+        StatementsIssued issued = new StatementsIssued(Objects.requireNonNull(jdbcTemplate.getDataSource()));
+        Ledger ledger = new Ledger(issued);
+        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus"));
+        for (int i = 0; i < OCCURRENCES_RECORDED; i++) {
+            ledger.occurrences().fileOccurrence(walk, new OccurrencePath("f" + i + ".txt"), i % DISTINCT_SIZES, WHEN, WHEN);
+        }
+        RunId run = ledger.runs().startRun("byte-level-reduction", "abc123", "{}", walk, List.of());
+        Iterable<SizedOccurrence> reader = ledger.verdicts().survivorsBySize(run);
+
+        // Only what the reader issues while it is read: the statement as shipped, with the arguments it was
+        // given, and not a copy of it kept here that a change to the shipped one would leave passing.
+        issued.keep = true;
+        readAll(reader);
+        issued.keep = false;
+        List<List<String>> plans = new ArrayList<>();
+        for (StatementsIssued.Statement page : issued.statements) {
+            plans.add(jdbcTemplate.query(
+                    "EXPLAIN QUERY PLAN " + page.sql(),
+                    (resultSet, rowNumber) -> resultSet.getString("detail"),
+                    page.arguments()));
+        }
+
+        claim(
+                "reading " + OCCURRENCES_RECORDED + " survivors issued " + PAGES_READ + " statements, one a page,"
+                        + " so the plans below are those of the statements the read really ran",
+                () -> assertThat(plans).hasSize(PAGES_READ));
+        claim(
+                "each page's plan searches file_occurrence_by_walk_and_size, so each page is a range of it, and its"
+                        + " search of that index is bounded below by the size as well as by the folder walked,"
+                        + " so a page starts where the last one ended; a search bounded by the walk alone names"
+                        + " the same index and sorts nothing, and goes through the walk from its smallest file"
+                        + " on every page",
+                () -> assertThat(plans)
+                        .allSatisfy(plan -> assertThat(plan)
+                                .anyMatch(detail -> detail.contains("file_occurrence_by_walk_and_size")
+                                        && detail.contains("size_bytes>"))));
+        claim(
+                "and no page's plan names a temp B-tree, so no page sorts the walk it reads from",
+                () -> assertThat(plans)
+                        .allSatisfy(plan -> assertThat(plan).noneMatch(detail -> detail.contains("TEMP B-TREE"))));
     }
 
     /** The application's own access to the database, keeping each statement asked of it while told to. */

@@ -22,7 +22,28 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-073", url = Adr.STAGE_2_WRITES_DERIVED_METRICS, type = "adr")
 class LanguageDetectionTest {
 
+    /** Well over Lingua's short-text range, and unambiguously one language. */
+    private static final String KNOWN_ENGLISH_TEXT =
+            "The quick brown fox jumps over the lazy dog near the riverbank every single morning before"
+                    + " the sun has fully risen above the distant hills, and the birds begin their song"
+                    + " as the village slowly wakes to another ordinary, unremarkable day of quiet work.";
+
     private final LanguageDetection detection = new LanguageDetection();
+
+    @Test
+    @Story("A known-language fixture")
+    @DisplayName("A long, unambiguous English passage is detected as English, with a confidence value")
+    void aKnownLanguageFixtureIsDetectedCorrectly() {
+        String normalized = TextMetrics.normalizeWhitespace(KNOWN_ENGLISH_TEXT);
+        long alphanumeric = TextMetrics.alphanumericCharacterCount(normalized);
+
+        LanguageDetection.Detected detected = detection.detect(normalized, alphanumeric);
+
+        claim("the long English passage is detected as English", () -> assertThat(detected.primaryLanguage()).isEqualTo("ENGLISH"));
+        claim(
+                "a genuine detection carries a non-null confidence value",
+                () -> assertThat(detected.confidence()).isNotNull());
+    }
 
     @Test
     @Story("Short or garbage text")
@@ -36,5 +57,20 @@ class LanguageDetectionTest {
         claim(
                 "two characters is nowhere near the minimum, so both fields come back null rather than a guess",
                 () -> assertThat(detected).isEqualTo(LanguageDetection.Detected.NONE));
+    }
+
+    @Test
+    @Story("Short or garbage text")
+    @DisplayName("Long but meaningless repeated-character text declines rather than guesses")
+    void garbageTextDeclinesRatherThanGuesses() {
+        String garbage = "x".repeat(LanguageDetection.MINIMUM_ALPHANUMERIC_CHARACTERS + 50);
+        String normalized = TextMetrics.normalizeWhitespace(garbage);
+        long alphanumeric = TextMetrics.alphanumericCharacterCount(normalized);
+
+        LanguageDetection.Detected detected = detection.detect(normalized, alphanumeric);
+
+        claim(
+                "long but meaningless text carries no real linguistic signal, so Lingua itself declines",
+                () -> assertThat(detected.primaryLanguage()).isNull());
     }
 }

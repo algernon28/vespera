@@ -11,7 +11,9 @@ import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -80,8 +82,23 @@ class SurvivorsByPathTest {
 
     private static final String BEGUN_BY_ANOTHER = "reports/a/b";
 
+    /** More than two pages of 1,000, so the read crosses two page boundaries. */
+    private static final int OCCURRENCES_RECORDED = 2_500;
+
+    /** Every tenth occurrence is ruled out, so the survivors are fewer than the walk's occurrences. */
+    private static final int EVERY_TENTH = 10;
+
+    /** The occurrences left once every tenth is ruled out. */
+    private static final int SURVIVORS = OCCURRENCES_RECORDED - OCCURRENCES_RECORDED / EVERY_TENTH;
+
     /** Two full pages and a short third: the 2,250 that survive. */
     private static final List<Integer> THE_SIZES_OF_THE_PAGES = List.of(1_000, 1_000, 250);
+
+    /**
+     * What the number in a path is multiplied by, modulo the occurrences recorded: it shares no factor with
+     * 2,500, so every path is distinct and the paths' order is not the order recorded.
+     */
+    private static final int A_STRIDE = 7;
 
     private static final Instant WHEN = Instant.parse("2026-10-13T10:15:30Z");
 
@@ -144,6 +161,68 @@ class SurvivorsByPathTest {
                 () -> assertThat(handedOver)
                         .extracting(OccurrenceAtPath::occurrenceId)
                         .containsExactlyInAnyOrderElementsOf(inIdOrder));
+    }
+
+    @Test
+    @Story("A long read is held a page at a time")
+    @DisplayName("Each page of the documents still standing, by name, goes on from the last name read and sorts nothing")
+    void eachPageGoesOnFromTheLastPathAndSortsNothing() {
+        StatementsIssued issued = new StatementsIssued(Objects.requireNonNull(jdbcTemplate.getDataSource()));
+        Ledger ledger = new Ledger(issued);
+        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-in-path-order-" + System.nanoTime()));
+        RunId run = ledger.runs().startRun("extraction", "v" + System.nanoTime(), "{}", walk, List.of());
+        for (int i = 0; i < OCCURRENCES_RECORDED; i++) {
+            String path = "f%04d.txt".formatted(i * A_STRIDE % OCCURRENCES_RECORDED);
+            ledger.occurrences().fileOccurrence(walk, new OccurrencePath(path), i, WHEN, WHEN);
+        }
+        int recorded = 0;
+        for (OccurrenceId occurrence : ledger.occurrences().occurrencesOf(walk)) {
+            if (recorded++ % EVERY_TENTH == 0) {
+                ledger.verdicts().verdict(occurrence, run, VerdictKind.BROKEN, "ruled out by this test");
+            }
+        }
+
+        List<List<OccurrenceAtPath>> pages = new ArrayList<>();
+        issued.keep = true;
+        ledger.verdicts().eachPageOfSurvivorsByPath(run, pages::add);
+        issued.keep = false;
+
+        claim(
+                "the " + SURVIVORS + " documents still standing, every tenth of " + OCCURRENCES_RECORDED
+                        + " being ruled out, are handed over as two pages of a thousand and a third of what is left",
+                () -> assertThat(pages).extracting(List::size).containsExactlyElementsOf(THE_SIZES_OF_THE_PAGES));
+        List<String> paths = pages.stream()
+                .flatMap(List::stream)
+                .map(survivor -> survivor.path().value())
+                .toList();
+        claim(
+                "taken together the pages are in the order of the names, each name once, so a page begins where"
+                        + " the one before it ended",
+                () -> assertThat(paths).doesNotHaveDuplicates().isSortedAccordingTo(Comparator.naturalOrder()));
+        List<List<String>> plans = new ArrayList<>();
+        for (StatementsIssued.Page page : issued.pages) {
+            plans.add(jdbcTemplate.query(
+                    "EXPLAIN QUERY PLAN " + page.sql(),
+                    (resultSet, rowNumber) -> resultSet.getString("detail"),
+                    page.arguments()));
+        }
+        claim(
+                "the read issued one statement a page, so the plans below are those of the statements it really"
+                        + " ran",
+                () -> assertThat(plans).hasSameSizeAs(THE_SIZES_OF_THE_PAGES));
+        claim(
+                "each page's plan searches the walk's files through an index on both the walk and the name,"
+                        + " starting after the last name read",
+                () -> assertThat(plans)
+                        .allSatisfy(plan -> assertThat(plan)
+                                .anyMatch(detail -> detail.startsWith("SEARCH file_occurrence USING")
+                                        && detail.contains("INDEX")
+                                        && detail.endsWith("(walk_id=? AND path>?)"))));
+        claim(
+                "and no page's plan sorts in a structure of its own, so no page goes through the whole walk to"
+                        + " keep a thousand of it",
+                () -> assertThat(plans)
+                        .allSatisfy(plan -> assertThat(plan).noneMatch(detail -> detail.contains("TEMP B-TREE"))));
     }
 
     private static OccurrenceId record(Ledger ledger, WalkId walk, String path) {

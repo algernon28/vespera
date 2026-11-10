@@ -17,6 +17,7 @@ import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.OccurrencePath;
 import io.algernon.vespera.engine.ledger.RunId;
 import io.algernon.vespera.engine.ledger.WalkId;
+import io.algernon.vespera.engine.profile.Measurement;
 import io.algernon.vespera.engine.profile.ProfileStore;
 import io.algernon.vespera.engine.similarity.DocumentFrequency;
 import io.qameta.allure.Epic;
@@ -103,6 +104,46 @@ class StageThreeWritesTheDocumentFrequencyPageTest {
 
     @Test
     @Story("The page the boilerplate floor is read off")
+    @DisplayName("The page names the run it measured and shows 2 of 3 documents as 0.66 and 3 of 3 as 1.00")
+    void thePageShowsEachShareOfTheRunItMeasured(@TempDir Path root, @TempDir Path workingDirectory)
+            throws Exception {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        ImplementationVersions versions = new ImplementationVersions();
+        walkedThroughExtractionWithShingles(ledger, versions, root);
+
+        contentCensusOver(ledger, versions, root, new ProfileStore(workingDirectory), aClock(), workingDirectory)
+                .execute(null, null);
+
+        Path page = workingDirectory.resolve(ContentCensusTasklet.DOCUMENT_FREQUENCY_FILE_NAME);
+        claim(
+                "the page is written in the working directory, under its fixed name document-frequency.html",
+                () -> assertThat(page).isRegularFile().hasFileName("document-frequency.html"));
+        String html = Files.readString(page);
+        String run = theContentCensusRunOf(root).value();
+        claim(
+                "it names the content census it was written for, as stage 3's line in the output names it",
+                () -> assertThat(html).withFailMessage("the page does not name run %s", run).contains(run));
+        claim(
+                "it is a whole page, from its doctype to its closing tag, reaching for no other file: no script,"
+                        + " no linked stylesheet, nothing loaded from a source and no url in its style",
+                () -> assertThat(html)
+                        .startsWith("<!DOCTYPE html>")
+                        .contains("</html>")
+                        .doesNotContain("<script", "<link", " src=", "url("));
+        claim(
+                "it has one row per share rounded down to the hundredth, in ascending order: 0.66 for the two"
+                        + " passages in 2 of the 3 documents, and 1.00 for the one in all 3; each row gives the"
+                        + " passages on it, the fewest documents any of them is in, and the documents measured;"
+                        + " the passages in one document are on no row",
+                () -> assertThat(rowsOf(html))
+                        .withFailMessage("the page's rows were %s", rowsOf(html))
+                        .containsExactly(
+                                List.of("0.66", "2", "2", "3"),
+                                List.of("1.00", "1", "3", "3")));
+    }
+
+    @Test
+    @Story("The page the boilerplate floor is read off")
     @DisplayName("The page holds no path and no text of a document, and names the key the floor is set in")
     void thePageHoldsNoPathAndNoTextOfADocument(@TempDir Path root, @TempDir Path workingDirectory) throws Exception {
         Ledger ledger = new Ledger(jdbcTemplate);
@@ -122,6 +163,52 @@ class StageThreeWritesTheDocumentFrequencyPageTest {
         claim(
                 "it names the profile key the share is written into",
                 () -> assertThat(html).contains("boilerplateDocumentFrequencyFloor"));
+    }
+
+    @Test
+    @Story("The profile points at the page")
+    @DisplayName("The boilerplate floor's measurement points at the page, at the time stage 3 wrote it")
+    void theProfilePointsTheFloorAtThePage(@TempDir Path root, @TempDir Path workingDirectory) throws Exception {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        ImplementationVersions versions = new ImplementationVersions();
+        walkedThroughExtractionWithShingles(ledger, versions, root);
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+        Instant ranAt = Instant.parse("2026-10-15T12:00:00Z");
+
+        contentCensusOver(ledger, versions, root, profileStore, Clock.fixed(ranAt, ZoneOffset.UTC), workingDirectory)
+                .execute(null, null);
+
+        Path page = workingDirectory.resolve(ContentCensusTasklet.DOCUMENT_FREQUENCY_FILE_NAME);
+        Measurement measurement = profileStore.load().boilerplateDocumentFrequencyFloor().measurement();
+        claim(
+                "profile.yaml's measurement for boilerplateDocumentFrequencyFloor names the page and the time it was"
+                        + " written, as degenerateOutputConfidenceFloor's names confidence-distribution.html",
+                () -> assertThat(measurement)
+                        .withFailMessage("the measurement was %s", measurement)
+                        .isEqualTo(new Measurement(page.toString(), ranAt)));
+    }
+
+    @Test
+    @Story("The page the boilerplate floor is read off")
+    @DisplayName("A content census already recorded leaves the page as it is")
+    void aStageAlreadyRecordedLeavesThePageAsItIs(@TempDir Path root, @TempDir Path workingDirectory)
+            throws Exception {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        ImplementationVersions versions = new ImplementationVersions();
+        walkedThroughExtractionWithShingles(ledger, versions, root);
+        ContentCensusTasklet tasklet =
+                contentCensusOver(ledger, versions, root, new ProfileStore(workingDirectory), aClock(), workingDirectory);
+        tasklet.execute(null, null);
+        Path page = workingDirectory.resolve(ContentCensusTasklet.DOCUMENT_FREQUENCY_FILE_NAME);
+        String leftThere = "a page this test left in place of the one stage 3 wrote";
+        Files.writeString(page, leftThere);
+
+        tasklet.execute(null, null);
+
+        claim(
+                "the step is recorded, so it measures nothing and rewrites nothing, as with"
+                        + " confidence-distribution.html: the page stays what was there",
+                () -> assertThat(Files.readString(page)).isEqualTo(leftThere));
     }
 
     /** The cells of each body row of {@code html}, tags taken out; a header row has no cell and is left out. */

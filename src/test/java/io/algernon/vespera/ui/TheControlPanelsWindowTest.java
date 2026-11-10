@@ -13,9 +13,19 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
+import javafx.geometry.Bounds;
+import javafx.geometry.Orientation;
+import javafx.scene.layout.HBox;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.chart.LineChart;
+import javafx.scene.control.Accordion;
+import javafx.scene.control.Button;
+import javafx.scene.control.ProgressBar;
+import javafx.scene.control.SplitPane;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TitledPane;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,6 +48,10 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
 class TheControlPanelsWindowTest {
 
+    /** The sidebar's sections, in the order the operator laid them out. */
+    private static final List<String> SIDEBAR = List.of(
+            "preflight", "folders", "services", "seed-folder", "code-sets", "command-options", "reports");
+
     /** The window's size as it opens, so that the parts are laid out as the operator sees them. */
     private static final int WIDTH = 1500;
 
@@ -45,6 +59,127 @@ class TheControlPanelsWindowTest {
 
     @TempDir
     static Path temporary;
+
+    @Test
+    @Story("The control panel is one window")
+    @DisplayName("Run and Stop stand side by side, and Stop is disabled while nothing runs")
+    void runAndStopStandSideBySideAndStopIsDisabledWithNoChild() throws Exception {
+        record Seen(boolean inARow, boolean sameRow, boolean spansOverlap, double runX, double stopX,
+                boolean stopDisabled, boolean runDisabled) {
+        }
+        Seen seen = inTheWindow(root -> {
+            Node run = HeadlessToolkit.nodeWithId(root, "run").orElseThrow();
+            Node stop = HeadlessToolkit.nodeWithId(root, "stop").orElseThrow();
+            Bounds runAt = run.localToScene(run.getBoundsInLocal());
+            Bounds stopAt = stop.localToScene(stop.getBoundsInLocal());
+            boolean overlap = runAt.getMinY() < stopAt.getMaxY() && stopAt.getMinY() < runAt.getMaxY();
+            return new Seen(run.getParent() instanceof HBox, run.getParent() == stop.getParent(), overlap,
+                    runAt.getMinX(), stopAt.getMinX(), stop.isDisabled(), run.isDisabled());
+        });
+
+        claim("Run and Stop stand in one row, a horizontal box of the two",
+                () -> assertThat(List.of(seen.inARow(), seen.sameRow())).containsExactly(true, true));
+        claim("laid out side by side: their heights on the window overlap, and Stop is to the right of Run",
+                () -> {
+                    assertThat(seen.spansOverlap()).isTrue();
+                    assertThat(seen.stopX()).isGreaterThan(seen.runX());
+                });
+        claim("and with no child running Stop is disabled while Run is not",
+                () -> assertThat(new boolean[] {seen.stopDisabled(), seen.runDisabled()}).containsExactly(true, false));
+    }
+
+    @Test
+    @Story("The control panel is one window")
+    @DisplayName("The steps are a chart of a row each, named in the order the job runs them, each with its bar, beside the output")
+    void theStepsAreAChartOfABarEachBesideTheOutput() throws Exception {
+        List<String> expected = StopCosts.ROWS.stream().map(row -> "step-" + row.step()).toList();
+        record Seen(List<String> rows, List<Long> barsOfEachRow, boolean oneSplit, Orientation orientation) {
+        }
+        Seen seen = inTheWindow(root -> {
+            Node steps = HeadlessToolkit.nodeWithId(root, "steps").orElseThrow();
+            Node output = HeadlessToolkit.nodeWithId(root, "output").orElseThrow();
+            List<Node> rows = HeadlessToolkit.everyNodeUnder(steps).stream()
+                    .filter(node -> expected.contains(node.getId()))
+                    .toList();
+            List<Long> bars = rows.stream()
+                    .map(row -> HeadlessToolkit.everyNodeUnder(row).stream().filter(ProgressBar.class::isInstance).count())
+                    .toList();
+            Optional<SplitPane> ofSteps = above(steps, SplitPane.class);
+            Optional<SplitPane> ofOutput = above(output, SplitPane.class);
+            return new Seen(rows.stream().map(Node::getId).toList(), bars,
+                    ofSteps.isPresent() && ofSteps.equals(ofOutput), ofSteps.map(SplitPane::getOrientation).orElse(null));
+        });
+
+        claim("the steps chart holds a row for each step the table of what a stop costs names, by the step's name, in"
+                        + " the order the job runs them",
+                () -> assertThat(seen.rows()).containsExactlyElementsOf(expected));
+        claim("each row holds one bar",
+                () -> assertThat(seen.barsOfEachRow()).hasSize(expected.size()).containsOnly(1L));
+        claim("and it stands beside the output, the two sides of one horizontal split",
+                () -> {
+                    assertThat(seen.oneSplit()).isTrue();
+                    assertThat(seen.orientation()).isEqualTo(Orientation.HORIZONTAL);
+                });
+    }
+
+    @Test
+    @Story("The control panel is one window")
+    @DisplayName("The progress page's three charts are in the window")
+    void theProgressPagesThreeChartsAreInTheWindow() throws Exception {
+        List<Boolean> lineCharts = inTheWindow(root -> List.of("database-chart", "counts-chart", "verdicts-chart").stream()
+                .map(id -> HeadlessToolkit.nodeWithId(root, id).filter(LineChart.class::isInstance).isPresent())
+                .toList());
+
+        claim("the database's size, the running step's count and the verdicts by kind are each a line chart of the"
+                        + " window, as the progress page draws them",
+                () -> assertThat(lineCharts).containsExactly(true, true, true));
+    }
+
+    @Test
+    @Story("The control panel is one window")
+    @DisplayName("The two commands that record answers are named as the operator chose")
+    void theTwoLabelCommandsAreNamedAsTheOperatorChose() throws Exception {
+        List<String> names = inTheWindow(root -> List.of("label", "label-auto").stream()
+                .map(id -> ((Button) HeadlessToolkit.nodeWithId(root, id).orElseThrow()).getText())
+                .toList());
+
+        claim("the command that records the operator's answers reads Record my answers, and the one that has the local"
+                        + " model answer reads Let the local model answer",
+                () -> assertThat(names).containsExactly("Record my answers", "Let the local model answer"));
+    }
+
+    @Test
+    @Story("The control panel is one window")
+    @DisplayName("The profile and the folders to include are two tabs of one pane")
+    void theProfileAndTheFoldersToIncludeAreTwoTabs() throws Exception {
+        record Seen(String profile, String inclusions, boolean onePane) {
+        }
+        Seen seen = inTheWindow(root -> {
+            Tab profile = HeadlessToolkit.tabWithId(root, "profile").orElseThrow();
+            Tab inclusions = HeadlessToolkit.tabWithId(root, "inclusions").orElseThrow();
+            return new Seen(profile.getText(), inclusions.getText(), profile.getTabPane() == inclusions.getTabPane());
+        });
+
+        claim("the two tabs are named Profile and Inclusions",
+                () -> assertThat(List.of(seen.profile(), seen.inclusions())).containsExactly("Profile", "Inclusions"));
+        claim("and they are tabs of one pane",
+                () -> assertThat(seen.onePane()).isTrue());
+    }
+
+    @Test
+    @Story("The control panel is one window")
+    @DisplayName("The sidebar holds its seven sections, in order")
+    void theSidebarHoldsItsSevenSectionsInOrder() throws Exception {
+        List<String> sections = inTheWindow(root -> {
+            TitledPane first = (TitledPane) HeadlessToolkit.nodeWithId(root, SIDEBAR.getFirst()).orElseThrow();
+            Accordion sidebar = above(first, Accordion.class).orElseThrow();
+            return sidebar.getPanes().stream().map(Node::getId).toList();
+        });
+
+        claim("the sidebar's sections are Preflight, Folders, Services, Seed folder, Code sets, Command options and"
+                        + " Reports, in that order, and no other",
+                () -> assertThat(sections).containsExactlyElementsOf(SIDEBAR));
+    }
 
     @Test
     @Story("Every option of the jar's commands is set from the control panel or said not to be")

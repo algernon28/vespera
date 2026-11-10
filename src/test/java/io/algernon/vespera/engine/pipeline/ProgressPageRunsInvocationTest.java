@@ -73,6 +73,10 @@ class ProgressPageRunsInvocationTest {
 
     private static final String RUNNING = "This invocation is running.";
 
+    private static final String READ_AS_IT_STARTED = "The runs this working directory held when this invocation started.";
+
+    private static final String READ_AS_IT_ENDED = "The runs this working directory held when this invocation ended.";
+
     private static final String ARRIVED_AT = "arrived at";
 
     /** The second invocation's floor, another value than the first's, so stage 4 mints a run anew. */
@@ -113,6 +117,34 @@ class ProgressPageRunsInvocationTest {
         STEPS_OF_A_STAGE.put(StageModules.GENERATION.stage(), List.of(StepNames.GENERATION));
     }
 
+    /**
+     * The tab's rows after the two invocations, as walk, stage and ordinal, written out from the rule the tab orders by
+     * (by walk, by stage in the cascade's order, by ordinal): one walk, three stages run once in front of stage 4's
+     * gate, and the four from content redundancy on each run again under the second floor.
+     */
+    private static final List<String> ROWS_IN_ORDER = List.of(
+            "1|byte-level-reduction|1",
+            "1|extraction|1",
+            "1|content-census|1",
+            "1|content-redundancy|1",
+            "1|content-redundancy|2",
+            "1|seed-measurement|1",
+            "1|seed-measurement|2",
+            "1|embedding-scoring|1",
+            "1|embedding-scoring|2",
+            "1|arrangement|1",
+            "1|arrangement|2");
+
+    /** The rows of {@link #ROWS_IN_ORDER} the first invocation left: each stage's first run. */
+    private static final List<String> LEFT_BY_THE_FIRST = List.of(
+            "1|byte-level-reduction|1",
+            "1|extraction|1",
+            "1|content-census|1",
+            "1|content-redundancy|1",
+            "1|seed-measurement|1",
+            "1|embedding-scoring|1",
+            "1|arrangement|1");
+
     private static final String MARKER = "ZXQ-the-operators-private-word";
 
     private static final Pattern ROW = Pattern.compile("<tr>(.*?)</tr>", Pattern.DOTALL);
@@ -145,6 +177,138 @@ class ProgressPageRunsInvocationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Test
+    @Story("The tab of runs lists every run the working directory holds")
+    @DisplayName("After two invocations over one root, the second under another boilerplate floor, the tab of runs lists every run of the ledger in order, each with its walk, stage, ordinal, steps finished, state and verdicts by kind")
+    void afterTwoInvocationsTheRunsTabListsEveryRunTheWorkingDirectoryHolds() throws IOException {
+        TwoInvocations made = theTwoInvocations();
+
+        claim(
+                "the second invocation, under another floor, minted a run of content redundancy of its own, so the"
+                        + " working directory holds two runs of one stage",
+                () -> assertThat(made.mintedBySecond()).extracting(Run::stage)
+                        .contains(StageModules.CONTENT_REDUNDANCY.stage()));
+        claim(
+                "the ledger holds a verdict under some run, so the tab's counts are held to a number other than nought",
+                () -> assertThat(made.kinds().values()).anySatisfy(counts -> assertThat(Arrays.stream(counts).sum()).isPositive()));
+        claim(
+                "the tab says it shows the runs as they were when the second invocation ended",
+                () -> assertThat(made.lastPage()).contains(READ_AS_IT_ENDED));
+        String header = ReportPage.headerRow(headers());
+        claim(
+                "its table's header row is the walk, the stage, the run's ordinal, the steps finished, the state, whether"
+                        + " this invocation arrived at it, and the ten kinds",
+                () -> assertThat(made.lastPage()).contains(header));
+        List<List<String>> expected = new ArrayList<>();
+        for (Run run : made.afterSecond()) {
+            List<String> cells = new ArrayList<>();
+            cells.add(count(run.walk()));
+            cells.add(run.stage());
+            cells.add(count(run.ordinal()));
+            List<String> steps = STEPS_OF_A_STAGE.get(run.stage());
+            if (steps == null) {
+                cells.add("");
+                cells.add("");
+            } else {
+                Set<String> finished = made.finished().getOrDefault(run.id(), Set.of());
+                long done = steps.stream().filter(finished::contains).count();
+                cells.add(done + " of " + steps.size());
+                cells.add(done == steps.size() ? "finished" : "not finished");
+            }
+            for (long kind : made.kinds().getOrDefault(run.id(), new long[BLOCKING.size()])) {
+                cells.add(count(kind));
+            }
+            expected.add(cells);
+        }
+        List<List<String>> shown = rows(made.lastPage()).stream().map(row -> {
+            List<String> cells = new ArrayList<>(row);
+            if (cells.size() > THIS_INVOCATION) {
+                cells.remove(THIS_INVOCATION);
+            }
+            return cells;
+        }).toList();
+        claim(
+                "its rows run by walk, then by stage in the cascade's order, then by ordinal, the order written out"
+                        + " here run by run: " + ROWS_IN_ORDER,
+                () -> assertThat(shown).extracting(row -> String.join("|", row.subList(0, Math.min(3, row.size()))))
+                        .containsExactlyElementsOf(ROWS_IN_ORDER));
+        claim(
+                "and its rows are the " + expected.size() + " runs of the ledger, each with its steps finished of those"
+                        + " its stage records, its state and its verdicts of each kind as the ledger holds them",
+                () -> assertThat(shown).containsExactlyElementsOf(expected));
+    }
+
+    @Test
+    @Story("The tab of runs marks the runs this invocation arrived at")
+    @DisplayName("After the second invocation, the runs it minted and the stage-1 run it continued are marked as arrived at, the first invocation's run of content redundancy is not, and no stage or other walk has a run marked twice")
+    void theRunsTabMarksTheRunsThisInvocationArrivedAt() throws IOException {
+        TwoInvocations made = theTwoInvocations();
+        Map<String, String> markOf = new HashMap<>();
+        for (List<String> row : rows(made.lastPage())) {
+            markOf.put(String.join("|", row.subList(0, Math.min(3, row.size()))),
+                    row.size() > THIS_INVOCATION ? row.get(THIS_INVOCATION) : null);
+        }
+        Run firstStageOne = made.mintedByFirst().stream()
+                .filter(run -> run.stage().equals(StageModules.BYTE_LEVEL_REDUCTION.stage())).findFirst().orElseThrow();
+        Run firstRedundancy = made.mintedByFirst().stream()
+                .filter(run -> run.stage().equals(StageModules.CONTENT_REDUNDANCY.stage())).findFirst().orElseThrow();
+
+        claim(
+                "every run the second invocation minted is marked as arrived at",
+                () -> assertThat(made.mintedBySecond()).allSatisfy(run -> assertThat(markOf.get(run.key())).isEqualTo(ARRIVED_AT)));
+        claim(
+                "the stage-1 run the first invocation minted, which the second continued, is marked as arrived at",
+                () -> assertThat(markOf.get(firstStageOne.key())).isEqualTo(ARRIVED_AT));
+        claim(
+                "the first invocation's run of content redundancy, which the second's floor left behind, is not",
+                () -> assertThat(markOf.get(firstRedundancy.key())).isEmpty());
+        List<Run> marked = made.afterSecond().stream().filter(run -> ARRIVED_AT.equals(markOf.get(run.key()))).toList();
+        claim(
+                "no stage has two runs marked, and every run marked is over the walk the second invocation made its"
+                        + " stage-1 run over",
+                () -> {
+                    assertThat(marked.stream().map(Run::stage).toList()).doesNotHaveDuplicates();
+                    assertThat(marked).allSatisfy(run -> assertThat(run.walk()).isEqualTo(firstStageOne.walk()));
+                });
+        claim(
+                "and every other row's mark is empty",
+                () -> assertThat(markOf.values()).allSatisfy(mark -> assertThat(mark).isIn(ARRIVED_AT, "")));
+    }
+
+    @Test
+    @Story("The tab of runs is read as the invocation starts and as it ends, and at no other write")
+    @DisplayName("While the second invocation is held at the start of content redundancy's work, its run already minted, the tab lists the runs the first left and marks the stage-1 run as arrived at; its last write lists the new run too")
+    void whileTheInvocationRunsTheRunsTabIsTheReadingMadeAsItStarted() throws IOException {
+        TwoInvocations made = theTwoInvocations();
+        Run firstStageOne = made.mintedByFirst().stream()
+                .filter(run -> run.stage().equals(StageModules.BYTE_LEVEL_REDUCTION.stage())).findFirst().orElseThrow();
+
+        claim(
+                "while content redundancy's work was held, a write of the tab said the invocation was running, showed"
+                        + " the runs as they were when it started, and marked the stage-1 run it had continued",
+                () -> assertThat(made.whileSecondRuns()).isNotNull().contains(RUNNING).contains(READ_AS_IT_STARTED));
+        List<String> heldKeys = rows(made.whileSecondRuns()).stream()
+                .map(row -> String.join("|", row.subList(0, Math.min(3, row.size())))).toList();
+        claim(
+                "that write lists exactly the runs the first invocation left, in order, and not the run of content"
+                        + " redundancy the second had just minted: the tab is not read again at every write",
+                () -> assertThat(heldKeys).containsExactlyElementsOf(LEFT_BY_THE_FIRST));
+        claim(
+                "it marks the stage-1 run as arrived at all the same: whether this invocation reached a run is known"
+                        + " without reading the database",
+                () -> assertThat(rows(made.whileSecondRuns())).anySatisfy(row -> {
+                    assertThat(String.join("|", row.subList(0, 3))).isEqualTo(firstStageOne.key());
+                    assertThat(row.get(THIS_INVOCATION)).isEqualTo(ARRIVED_AT);
+                }));
+        List<String> lastKeys = rows(made.lastPage()).stream()
+                .map(row -> String.join("|", row.subList(0, Math.min(3, row.size())))).toList();
+        claim(
+                "and the last write, read as the invocation ended, lists every run, the ones the second minted among them",
+                () -> assertThat(lastKeys)
+                        .containsExactlyElementsOf(made.afterSecond().stream().map(Run::key).toList())
+                        .containsAll(made.mintedBySecond().stream().map(Run::key).toList()));
+    }
 
     @Test
     @Story("The tab of runs can be sent to anyone: it names no run id, no path and no document")
@@ -278,6 +442,12 @@ class ProgressPageRunsInvocationTest {
         Set<String> known = new HashSet<>();
         before.forEach(run -> known.add(run.id()));
         return after.stream().filter(run -> !known.contains(run.id())).toList();
+    }
+
+    private static String[] headers() {
+        List<String> headers = new ArrayList<>(List.of("Walk", "Stage", "Run", "Steps finished", "State", "This invocation"));
+        headers.addAll(BLOCKING);
+        return headers.toArray(new String[0]);
     }
 
     /** Each body row of the page's tables, as the text of its cells; a header row's cells are {@code <th>}. */

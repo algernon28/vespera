@@ -2,6 +2,7 @@ package io.algernon.vespera.engine.embedding;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.ledger.Ledger;
@@ -78,6 +79,18 @@ class RelevanceDistributionTest {
 
     /** Comfortably more than twelve in every band, so nothing is short and no shortfall arises. */
     private static final int DOCUMENTS_PER_FULL_BAND = 20;
+
+    /** The band left deliberately short, so the shortfall rule has something to report. */
+    private static final int SHORT_BAND = 1;
+
+    /** How many documents that band is left holding, which is fewer than a full band supplies. */
+    private static final int DOCUMENTS_IN_THE_SHORT_BAND = 4;
+
+    /** What the short band lacks of its sample: the twelve asked for less the four it holds. */
+    private static final int THE_SHORT_BANDS_SHORTFALL = 8;
+
+    /** The sitting the short band leaves: sixty less the eight it could not supply. */
+    private static final int THE_SHORTENED_SAMPLE = 52;
 
     /** Scores are compared with a tolerance because they are stored and read back as doubles. */
     private static final Offset<Double> ROUNDING = Offset.offset(1e-9);
@@ -157,6 +170,90 @@ class RelevanceDistributionTest {
                                 .isNotEqualTo(theFirstTwelveTheBandHolds(scoringRun, band))));
     }
 
+    @Test
+    @Story("Sixty documents, chosen the same way every time")
+    @DisplayName("A band with too few documents gives what it has, the shortfall is recorded, and no neighbour makes it up")
+    void aShortBandGivesWhatItHasAndRecordsTheShortfall() {
+        RunId scoringRun = aScoringRunScoring(scoresLeavingTheSecondBandShort());
+
+        RelevanceDistribution.Distribution distribution = new RelevanceDistribution(jdbcTemplate).measure(scoringRun, BANDS, PER_BAND);
+
+        RelevanceDistribution.Band shortBand = distribution.bands().get(SHORT_BAND);
+        claim(
+                "the short band offers every document it holds and no more, because there are no others"
+                        + " in it to offer",
+                () -> assertThat(shortBand.sampledCount()).isEqualTo(DOCUMENTS_IN_THE_SHORT_BAND));
+        claim(
+                "the " + THE_SHORT_BANDS_SHORTFALL + " it could not supply are recorded as"
+                        + " missing rather than passed over in silence: a reader comparing proportions"
+                        + " across bands has to know which of them rests on a handful of answers",
+                () -> assertThat(shortBand.shortfall()).isEqualTo(THE_SHORT_BANDS_SHORTFALL));
+        claim(
+                "no other band is asked to make up the difference -- every other band supplies exactly"
+                        + " twelve, so the total falls short of sixty rather than being topped up from a"
+                        + " neighbour whose documents answer a different question",
+                () -> assertThat(distribution.bands().stream()
+                                .filter(band -> band.ordinal() != SHORT_BAND)
+                                .map(RelevanceDistribution.Band::sampledCount)
+                                .toList())
+                        .containsOnly(PER_BAND));
+        claim(
+                "so the sitting is " + THE_SHORTENED_SAMPLE + " documents, shorter than sixty by exactly what"
+                        + " the short band lacked",
+                () -> assertThat(distribution.sample()).hasSize(THE_SHORTENED_SAMPLE));
+    }
+
+    /**
+     * The two numbers are what is given and not constants of the class (ADR-330 §8, §9): the scores that fill the shipped
+     * five bands of twelve, divided otherwise, so a class ignoring either would draw the shipped shape.
+     */
+    @Test
+    @Story("The sample takes the shape it is asked for")
+    @DisplayName("Asked for another shape of sample, it cuts that many bands and draws that many from each, and says what each lacked of that many")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void theBandsAndTheNumberFromEachAreWhatItIsGiven() {
+        RunId scoringRun = aScoringRunScoring(scoresFillingEveryBand());
+        int twoBands = 2;
+        int threeFromEach = 3;
+
+        RelevanceDistribution.Distribution distribution =
+                new RelevanceDistribution(jdbcTemplate).measure(scoringRun, twoBands, threeFromEach);
+
+        claim("the range is cut into the " + twoBands + " bands asked for",
+                () -> assertThat(distribution.bands()).hasSize(twoBands));
+        claim("each supplies the " + threeFromEach + " asked for, so " + (twoBands * threeFromEach) + " in all",
+                () -> {
+                    assertThat(distribution.bands().stream().map(RelevanceDistribution.Band::sampledCount).toList())
+                            .containsOnly(threeFromEach);
+                    assertThat(distribution.sample()).hasSize(twoBands * threeFromEach);
+                });
+
+        int moreThanABandHolds = 200;
+        int whatTheOneBandLacks = 100;
+        RelevanceDistribution.Distribution asking = new RelevanceDistribution(jdbcTemplate).measure(scoringRun, 1, moreThanABandHolds);
+        claim("and what a band could not supply is measured against the number asked for, whatever that is:"
+                        + " one band over the hundred scored documents, asked for " + moreThanABandHolds + ", lacks "
+                        + whatTheOneBandLacks,
+                () -> assertThat(asking.bands().getFirst().shortfall()).isEqualTo(whatTheOneBandLacks));
+    }
+
+    /** A sample of no bands or of none from each divides nothing and asks nothing (ADR-330 §9). */
+    @Test
+    @Story("The sample takes the shape it is asked for")
+    @DisplayName("A sample of no bands, or of no document from each, is refused")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void aSampleOfNoBandsOrNoneFromEachIsRefused() {
+        RunId scoringRun = aScoringRunScoring(SCORES);
+        RelevanceDistribution distribution = new RelevanceDistribution(jdbcTemplate);
+
+        claim("no bands are refused",
+                () -> assertThatThrownBy(() -> distribution.measure(scoringRun, 0, PER_BAND))
+                        .isInstanceOf(IllegalArgumentException.class));
+        claim("and so is none from each",
+                () -> assertThatThrownBy(() -> distribution.measure(scoringRun, BANDS, 0))
+                        .isInstanceOf(IllegalArgumentException.class));
+    }
+
     private static List<OccurrenceId> occurrencesOf(RelevanceDistribution.Distribution distribution) {
         return distribution.sample().stream()
                 .map(RelevanceDistribution.Sampled::occurrenceId)
@@ -200,6 +297,21 @@ class RelevanceDistributionTest {
         scores.set(0, LOWEST_SCORE);
         scores.set(scores.size() - 1, HIGHEST_SCORE);
         return asArray(scores);
+    }
+
+    /** The same, except the second band is left holding fewer documents than a full sample needs. */
+    private static double[] scoresLeavingTheSecondBandShort() {
+        List<Double> kept = new ArrayList<>();
+        int seenInShortBand = 0;
+        for (double score : scoresFillingEveryBand()) {
+            boolean inShortBand = score >= LOWEST_SCORE + SHORT_BAND * BAND_WIDTH
+                    && score < LOWEST_SCORE + (SHORT_BAND + 1) * BAND_WIDTH;
+            if (inShortBand && ++seenInShortBand > DOCUMENTS_IN_THE_SHORT_BAND) {
+                continue;
+            }
+            kept.add(score);
+        }
+        return asArray(kept);
     }
 
     private static double[] asArray(List<Double> values) {

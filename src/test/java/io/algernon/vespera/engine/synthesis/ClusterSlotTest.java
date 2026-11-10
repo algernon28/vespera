@@ -27,7 +27,40 @@ class ClusterSlotTest {
 
     private static final OccurrenceId THE_SEED = new OccurrenceId(1);
 
+    private static final OccurrenceId ANOTHER_SEED = new OccurrenceId(2);
+
     private static final int THE_ORDINAL = 4;
+
+    private static final int ANOTHER_ORDINAL = 5;
+
+    @Test
+    @Story("One key names a cluster")
+    @DisplayName("A cluster gives the key of its seed and its ordinal")
+    void anArrangedClusterGivesItsKey() {
+        // A synthesis doc and a fault no longer travel with their cluster's identity: since ADR-223 each is
+        // asked for by this key, so the key is what the asker already holds and nothing reads one off them. A
+        // survivor's key is the tree's, read by ListedSurvivor.slot in deliverable (ADR-274 §4), and held there.
+        claim(
+                "the arranged cluster gives the key of seed 1, ordinal 4, by which its writing and its fault are"
+                        + " asked for",
+                () -> assertThat(ClusterSlot.of(arranged(THE_SEED, THE_ORDINAL)))
+                        .isEqualTo(new ClusterSlot(THE_SEED, THE_ORDINAL)));
+    }
+
+    @Test
+    @Story("One key names a cluster")
+    @DisplayName("Two clusters differing in seed or in ordinal give different keys")
+    void tellsTwoClustersApart() {
+        claim(
+                "the same ordinal under another seed is another cluster, since an ordinal counts within its"
+                        + " partition",
+                () -> assertThat(ClusterSlot.of(arranged(ANOTHER_SEED, THE_ORDINAL)))
+                        .isNotEqualTo(ClusterSlot.of(arranged(THE_SEED, THE_ORDINAL))));
+        claim(
+                "another ordinal under the same seed is another cluster",
+                () -> assertThat(ClusterSlot.of(arranged(THE_SEED, ANOTHER_ORDINAL)))
+                        .isNotEqualTo(ClusterSlot.of(arranged(THE_SEED, THE_ORDINAL))));
+    }
 
     @Test
     @Story("One key names a cluster")
@@ -42,5 +75,9 @@ class ClusterSlotTest {
                 "order is a judgement 6a makes and identity never moves (ADR-112), so the key reads neither the"
                         + " partition order, the cluster order, the document count nor the label",
                 () -> assertThat(ClusterSlot.of(placedFirst)).isEqualTo(ClusterSlot.of(placedLast)));
+    }
+
+    private static RecordedCluster arranged(OccurrenceId seed, int ordinal) {
+        return new RecordedCluster(new ArrangedCluster(seed, ordinal, 2, 1, 1), new ClusterLabel("Sprinklers"));
     }
 }

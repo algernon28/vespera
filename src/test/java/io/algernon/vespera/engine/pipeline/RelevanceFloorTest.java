@@ -69,12 +69,15 @@ class RelevanceFloorTest {
             "model=a-comparing-model:0.6b;digest=d34db33f;dtype=F16;dimension=8;instruction=none";
     private static final String ANOTHER_MODELS_IDENTITY =
             "model=acme-embed-text;digest=0ff0ff0f;dtype=F32;dimension=768;instruction=none";
+    private static final String A_THIRD_MODELS_IDENTITY =
+            "model=a-fifth-comparing-model;digest=7e117e11;dtype=F16;dimension=1024;instruction=none";
 
     /**
      * The step the floor is asked by, whose name opens the lines around the one read the floor makes
      * (ADR-204 section 3). No claim here is about those lines; the floor's answer does not depend on it.
      */
     private static final String THE_STEP_THAT_ASKS = "Stage 5e (relevance floor)";
+
 
     @TempDir
     static Path workingDirectory;
@@ -155,6 +158,87 @@ class RelevanceFloorTest {
                 "the floor applies, and the number it removes below is the number the operator wrote: this is"
                         + " the one case in which stage 5 removes anything at all",
                 () -> assertThat(reach.removesBelow()).hasValue(0.42));
+    }
+
+    @Test
+    @Story("A floor on this run's own scale is the only one that removes")
+    @DisplayName("A threshold nobody labelled is applied, because nothing checks that one was labelled")
+    void anUnlabelledFloorIsApplied() {
+        profileWithFloor("0.42");
+
+        FloorReach reach = reachFor(Optional.of(THIS_RUNS_IDENTITY));
+
+        claim(
+                "a floor with no answers behind it applies: ADR-088 is explicit that nothing checks a"
+                        + " threshold was ever labelled, because provenance is free text and that is what"
+                        + " provenance has been for since ADR-031. What is refused is not a floor nobody"
+                        + " labelled but one whose answers were given under a different model",
+                () -> assertThat(reach.removesBelow()).hasValue(0.42));
+    }
+
+    @Test
+    @Story("A floor with no number removes nothing and does not stop the run")
+    @DisplayName("A threshold that is not a number removes nothing rather than failing the run")
+    void aThresholdThatIsNotANumberRemovesNothing() {
+        profileWithFloor("about a half");
+
+        FloorReach reach = reachFor(Optional.of(THIS_RUNS_IDENTITY));
+
+        claim(
+                "the run is not lost to a typo in one key of a file a person edits by hand: ADR-047 says"
+                        + " an invocation ends having recorded what it learned, and removing nothing is the"
+                        + " safe reading of a value nobody can parse",
+                () -> assertThat(reach.removesBelow()).isEmpty());
+        claim(
+                "and the floor handed over carries no number, the same reading the run's identity makes of it",
+                () -> assertThat(reach.floor()).isEmpty());
+    }
+
+    @Test
+    @Story("A floor answered for under another model removes nothing, and the reason is stated")
+    @DisplayName("Labels spanning two models, neither of them this run's, record no single scale, so the floor removes nothing")
+    void labelsSpanningTwoOtherModelsRemoveNothing() {
+        profileWithFloor("0.42");
+        aLabelGivenUnder(ANOTHER_MODELS_IDENTITY);
+        aLabelGivenUnder(A_THIRD_MODELS_IDENTITY);
+
+        FloorReach reach = reachFor(Optional.of(THIS_RUNS_IDENTITY));
+
+        claim(
+                "answers spanning two models, neither the one this run scored with, are a half-repeated"
+                        + " labelling, and the honest reading is that they record no single scale rather than"
+                        + " whichever one was met first -- so nothing is removed, which is the direction that"
+                        + " loses no part of the corpus",
+                () -> assertThat(reach.removesBelow()).isEmpty());
+        claim(
+                "and both are named, so the report can say what the answers were given under",
+                () -> assertThat(reach.answeredUnder())
+                        .containsExactlyInAnyOrder(ANOTHER_MODELS_IDENTITY, A_THIRD_MODELS_IDENTITY));
+    }
+
+    /**
+     * A floor joins the scoring run's identity, so the number is never read off the run it names: answers given
+     * under the run's own scale, from whichever run's label file, are the ones that say which scale the number
+     * is on, whatever was answered under another (ADR-244, applying ADR-228 section 5).
+     */
+    @Test
+    @Story("A floor on this run's own scale is the only one that removes")
+    @DisplayName("Labels given under this run's model decide, whatever was answered under another model before")
+    @Link(name = "ADR-244", url = Adr.THE_FLOORS_ANSWERS_ARE_UNDER_THE_RUNS_IDENTITY_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN, type = "adr")
+    void labelsUnderThisRunsModelDecideWhateverWasAnsweredUnderAnother() {
+        profileWithFloor("0.42");
+        aLabelGivenUnder(THIS_RUNS_IDENTITY);
+        aLabelGivenUnder(ANOTHER_MODELS_IDENTITY);
+
+        FloorReach reach = reachFor(Optional.of(THIS_RUNS_IDENTITY));
+
+        claim(
+                "the floor applies: an answer was given on the scale this run's scores are on, and the answer"
+                        + " given under another model before is not read beside it",
+                () -> {
+                    assertThat(reach.removesBelow()).hasValue(0.42);
+                    assertThat(reach.answeredUnder()).containsExactly(THIS_RUNS_IDENTITY);
+                });
     }
 
     /**

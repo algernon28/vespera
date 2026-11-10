@@ -50,6 +50,9 @@ class LogsAreOutOfScopeInvocationTest {
     /** The floor this class runs under: the share the operator chose for the archive ADR-171 surveyed. */
     private static final String FLOOR = "0.9";
 
+    /** How many of the archive's files are logs at that floor: the four the claims below name. */
+    private static final int LOGS = 4;
+
     /** The length of the files that must count: twice the ten non-blank lines a share needs before it is called one. */
     private static final int ENOUGH_LINES = 20;
 
@@ -102,6 +105,31 @@ class LogsAreOutOfScopeInvocationTest {
 
     @Test
     @Story("A log is out of scope, told from its content")
+    @DisplayName("Files whose lines begin with timestamps are removed as logs, whatever they are called")
+    void removesTheLogsWhateverTheyAreCalled() {
+        claim(
+                "a file with no extension, a file named as comma-separated values, a file at exactly the floor"
+                        + " of 90% and a large file read only at its two ends are each removed as out of scope",
+                () -> assertThat(List.of(
+                                stageOneVerdictsOn("server-output"),
+                                stageOneVerdictsOn("events.csv"),
+                                stageOneVerdictsOn("at-the-floor.txt"),
+                                stageOneVerdictsOn("windows.txt")))
+                        .containsOnly(List.of("OUT_OF_SCOPE")));
+        claim(
+                "every timestamp form is read: a file whose lines use each of them is 100% timestamped",
+                () -> assertThat(stageOneReasonsOn("server-output")).containsExactly(logReason(100)));
+        claim(
+                "and the share in a reason is the one measured, so a file at the floor says 90%",
+                () -> assertThat(stageOneReasonsOn("at-the-floor.txt")).containsExactly(logReason(90)));
+        claim(
+                "the large file's middle, where no line begins with a timestamp, was never read: only its"
+                        + " first and last 64 KB were",
+                () -> assertThat(stageOneReasonsOn("windows.txt")).containsExactly(logReason(100)));
+    }
+
+    @Test
+    @Story("A log is out of scope, told from its content")
     @DisplayName("Prose named as a log, a file under the floor, a file too short and numbered prose are kept")
     void keepsWhatIsNotALog() {
         claim(
@@ -116,9 +144,50 @@ class LogsAreOutOfScopeInvocationTest {
                         .containsOnly(List.of()));
     }
 
+    @Test
+    @Story("A log is out of scope, told from its content")
+    @DisplayName("Stage 1 records the floor it ran under, and the page shows what it measured")
+    void recordsTheFloorAndShowsTheMeasurement() throws IOException {
+        claim(
+                "the settings stage 1 records name the floor of " + FLOOR + " this profile sets, so a changed"
+                        + " floor is a new piece of work",
+                () -> assertThat(new RunsOver(jdbcTemplate, root).configConsumed("byte-level-reduction"))
+                        .singleElement()
+                        .asString()
+                        .contains("\"logTimestampShareFloor\":" + FLOOR));
+
+        String html = Files.readString(workingDirectory.resolve(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME));
+        claim(
+                "the page counts the " + LOGS + " logs among the files left out",
+                () -> {
+                    assertThat(countIn(html, "left out as out of scope")).isEqualTo(LOGS);
+                    assertThat(countIn(html, "Of those, logs")).isEqualTo(LOGS);
+                });
+        claim(
+                "and its table of how much of each text file begins with a timestamp puts those " + LOGS
+                        + " in the top band",
+                () -> assertThat(countIn(html, "<td>90% to 100%</td>")).isEqualTo(LOGS));
+        String profile = Files.readString(workingDirectory.resolve("profile.yaml"));
+        claim(
+                "the profile's floor now points at that page, where the measurement it was set from is",
+                () -> assertThat(profile.substring(profile.indexOf("logTimestampShareFloor:")))
+                        .contains(ByteLevelReductionTasklet.FORMAT_MIX_FILE_NAME));
+    }
+
+    /** The reason a log is left out with, word for word, for a share of {@code percent}. */
+    private static String logReason(int percent) {
+        return "a log, and logs are out of scope: " + percent
+                + "% of the lines read from its start and end begin with a timestamp";
+    }
+
     /** Stage 1's verdicts on the file named {@code fileName} in this archive, by kind. */
     private List<String> stageOneVerdictsOn(String fileName) {
         return stageOne("v.kind", fileName);
+    }
+
+    /** Stage 1's reasons for its verdicts on the file named {@code fileName} in this archive. */
+    private List<String> stageOneReasonsOn(String fileName) {
+        return stageOne("v.reason", fileName);
     }
 
     private List<String> stageOne(String column, String fileName) {
@@ -129,6 +198,17 @@ class LogsAreOutOfScopeInvocationTest {
                 String.class,
                 Walk.canonicalRoot(root).toString(),
                 fileName);
+    }
+
+    /** The count the page prints on the line for {@code label}. */
+    private static int countIn(String html, String label) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(
+                        java.util.regex.Pattern.quote(label) + "[^0-9]{0,80}?([0-9]+)")
+                .matcher(html);
+        if (!matcher.find()) {
+            throw new IllegalStateException("the page has no line for " + label + ": " + html);
+        }
+        return Integer.parseInt(matcher.group(1));
     }
 
     /**

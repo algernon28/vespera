@@ -36,7 +36,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { adrCollisionClaim, adrOrderClaim, agentsMdSize, readsTrackerState, reconcileRetired, retiredNames, sharedNumbers, slugClaim, suiteCeilingClaim, unreadPullRequests } from "./check-claims-lib.mjs";
+import { adrCollisionClaim, adrOrderClaim, agentsMdSize, readsTrackerState, sharedNumbers, slugClaim, unreadPullRequests } from "./check-claims-lib.mjs";
 
 const AGENTS = "AGENTS.md";
 const README = "README.md";
@@ -509,7 +509,7 @@ function readmeSection(heading, name) {
 // compose.yaml is read with patterns, not a YAML parser, so as to keep this file dependency-free.
 // It is a short file of one shape: two-space service keys under services:, quoted 'host:container'
 // ports, and possibly other top-level keys after the services, which are cut off before reading them.
-// Only what the section names is read out of it.
+// DoclingSidecarImageTest reads the same file with a real parser, for what the tests rely on.
 {
   const NAME = "how README says to run it";
   const section = readmeSection("## Running it", NAME);
@@ -726,12 +726,6 @@ function markerPattern(source, whole = false) {
   const FIRST = 50;
   // Accepted records whose code is not built yet. A number leaves this set in the change that builds its record.
   const NOT_YET_BUILT = new Set([362, 364]);
-  // ADR-368: the names the cut of the suite deleted, one `ADR-NNN Name` a line as this check prints it. A record keeps
-  // naming them as the tests that held it; this list says they are gone, and a line naming a test that exists is stale.
-  // It speaks for records before ADR-368 only: a later record's section is corrected in place (ADR-337 §5).
-  const RETIRED_FILE = "docs/retired-tests.txt";
-  const retired = existsSync(RETIRED_FILE) ? retiredNames(readFileSync(RETIRED_FILE, "utf8")) : [];
-  const named = []; // `ADR-NNN Name` for each name a section holds that is not under TEST, in the order found
   const testFiles = new Map();
   (function walk(dir) {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -779,6 +773,8 @@ function markerPattern(source, whole = false) {
   // Or the label right before it: "Retired: `Name`", "**Deleted**: `Name`", "in place of `Name`".
   const GONE_BEFORE = /\b(?:Retired|Deleted|Removed|Dropped)\**:\s*\**$|\bin place of\s*\**$/;
 
+  const missing = [];
+  const unbuilt = [];
   let checked = 0;
   for (const [number, file] of [...adrById].sort((a, b) => a[0] - b[0])) {
     if (number < FIRST) continue;
@@ -790,7 +786,7 @@ function markerPattern(source, whole = false) {
     const section = end < 0 ? rest : rest.slice(0, end);
     const adr = `ADR-${String(number).padStart(3, "0")}`;
     const built = !NOT_YET_BUILT.has(number);
-    const said = (what) => named.push(`${adr} ${what}`);
+    const said = (what) => (built ? missing : unbuilt).push(`${adr} names ${what}, which does not exist`);
     let last = null; // the class the last qualified name of the section named, for `…method`
     let bullet = null; // the class a top-level bullet names first, for the bare methods nested under it
     /** One method, of the class whose files are given or, with none, of any test class. */
@@ -828,37 +824,12 @@ function markerPattern(source, whole = false) {
       }
     }
   }
-  const reconciled = reconcileRetired({ retired, missing: named, file: RETIRED_FILE });
-  const missing = [];
-  const unbuilt = [];
-  for (const name of reconciled.missing) {
-    const [, adr, what] = /^(ADR-(?:\d+)) (.*)$/s.exec(name);
-    (NOT_YET_BUILT.has(Number(adr.slice(4))) ? unbuilt : missing).push(`${adr} names ${what}, which does not exist`);
-  }
-  missing.push(...reconciled.faults);
   if (unbuilt.length) {
     const records = [...new Set(unbuilt.map((u) => u.slice(0, 7)))];
     skip(`${NAME}, by records not yet built`, `${unbuilt.length} not under ${TEST}, of ${records.join(", ")}: ${unbuilt.slice(0, 2).join("; ")}; …`);
   }
   if (missing.length) fail(NAME, `${missing.length} of ${checked}: ${missing.join("; ")}`);
-  else pass(NAME, `${checked} names of test classes and methods, in the Tests sections from ADR-0${FIRST} on, every one under ${TEST} but the ${reconciled.retired.size} ${RETIRED_FILE} lists as retired by ADR-368`);
-}
-
-/* ---------- the suite's ceiling ---------- */
-
-// ADR-368: the Java suite holds at most 700 tests. What is counted here is the methods annotated as tests, each once;
-// a parameterized test's cases, which surefire counts one by one, are not, so this is the floor of what a build runs.
-{
-  const NAME = "the suite's ceiling";
-  const texts = [];
-  (function walk(dir) {
-    for (const e of readdirSync(dir, { withFileTypes: true })) {
-      if (e.isDirectory()) walk(join(dir, e.name));
-      else if (e.name.endsWith(".java")) texts.push(readFileSync(join(dir, e.name), "utf8"));
-    }
-  })(TEST);
-  const { state, detail } = suiteCeilingClaim({ texts, dir: TEST });
-  (state === "PASS" ? pass : fail)(NAME, detail);
+  else pass(NAME, `${checked} names of test classes and methods, in the Tests sections from ADR-0${FIRST} on, every one under ${TEST}`);
 }
 
 /* ---------- how an agent works under the guard ---------- */

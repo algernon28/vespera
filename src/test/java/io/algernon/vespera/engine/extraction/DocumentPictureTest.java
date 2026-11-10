@@ -55,6 +55,8 @@ class DocumentPictureTest {
 
     private static final String CAPTION_SECOND_PART = "The settlement flow";
 
+    private static final String THE_JOINED_CAPTION = "Fig. 1 The settlement flow";
+
     /** How many of the fixture's seven pictures carry pixels in the response itself. */
     private static final int FIVE_WITH_PIXELS = 5;
 
@@ -121,6 +123,171 @@ class DocumentPictureTest {
                 () -> assertThat(pictures)
                         .extracting(DocumentPicture::mediaType)
                         .containsExactly(PNG, PNG, JPEG, PNG, PNG));
+    }
+
+    @Test
+    @Story("A document's pictures are read in its reading order")
+    @DisplayName("A picture whose data does not decode, or which points at a file, is skipped and the rest still come back")
+    void skipsAPictureThatDoesNotDecodeOrPointsAtAFile() {
+        String response = """
+                {"document":{"json_content":{
+                  "body":{"children":[
+                    {"$ref":"#/pictures/0"},{"$ref":"#/pictures/1"},{"$ref":"#/pictures/2"},{"$ref":"#/pictures/3"}]},
+                  "pictures":[
+                    {"content_layer":"body","captions":[],"children":[],"image":{"mimetype":"image/png","uri":"%s"}},
+                    {"content_layer":"body","captions":[],"children":[],
+                      "image":{"mimetype":"image/png","uri":"data:image/png;base64,@@ not base64 @@"}},
+                    {"content_layer":"body","captions":[],"children":[],
+                      "image":{"mimetype":"image/png","uri":"file:///C:/Windows/win.ini"}},
+                    {"content_layer":"body","captions":[],"children":[],"image":{"mimetype":"image/png","uri":"%s"}}]}}}
+                """.formatted(dataUri(PNG, FIRST_IN_READING_ORDER), dataUri(PNG, INSIDE_A_GROUP));
+
+        claim(
+                "the picture whose data URI carries text that is not base64 is skipped rather than failing"
+                        + " the whole document, the one pointing at a file is skipped rather than read, and"
+                        + " the two good pictures on either side of them still come back, in order",
+                () -> assertThat(DocumentPicture.allOf(response))
+                        .extracting(picture -> new String(picture.pixels(), StandardCharsets.UTF_8))
+                        .containsExactly(text(FIRST_IN_READING_ORDER), text(INSIDE_A_GROUP)));
+    }
+
+    @Test
+    @Story("A document's pictures are read in its reading order")
+    @DisplayName("A picture's caption is the converter's caption text, and a picture without one has none")
+    void readsTheCaptionTheConverterGave() {
+        List<DocumentPicture> pictures = DocumentPicture.allOf(A_DOCUMENT_WITH_PICTURES);
+
+        claim(
+                "the picture with a caption made of two text items carries both, joined by one space",
+                () -> assertThat(pictures.getFirst().caption()).isEqualTo(THE_JOINED_CAPTION));
+        claim(
+                "and every picture without a caption carries an empty one, not a name made up for it",
+                () -> assertThat(pictures.subList(1, pictures.size()))
+                        .extracting(DocumentPicture::caption)
+                        .containsOnly(""));
+    }
+
+    @Test
+    @Story("A document's pictures are read in its reading order")
+    @DisplayName("A picture the converter placed in the page header or footer says so")
+    void readsWhetherThePictureIsInThePageFurniture() {
+        List<DocumentPicture> pictures = DocumentPicture.allOf(A_DOCUMENT_WITH_PICTURES);
+
+        claim(
+                "only the picture the converter placed in its furniture layer is marked as page furniture",
+                () -> assertThat(pictures)
+                        .extracting(DocumentPicture::inFurnitureLayer)
+                        .containsExactly(false, false, false, true, false));
+    }
+
+    @Test
+    @Story("A document's pictures are read in its reading order")
+    @DisplayName("A response with no body tree lists its pictures in the order the converter listed them")
+    void readsThePictureListWhereThereIsNoBodyTree() {
+        String response = """
+                {"document":{"json_content":{"pictures":[
+                  {"content_layer":"body","captions":[],"image":{"mimetype":"image/png","uri":"%s"}},
+                  {"content_layer":"body","captions":[],"image":{"mimetype":"image/png","uri":"%s"}}]}}}
+                """.formatted(dataUri(PNG, REACHED_BY_NOTHING), dataUri(PNG, INSIDE_A_GROUP));
+
+        claim(
+                "with no reading order to follow, the pictures come back in the order the converter listed"
+                        + " them",
+                () -> assertThat(DocumentPicture.allOf(response))
+                        .extracting(picture -> new String(picture.pixels(), StandardCharsets.UTF_8))
+                        .containsExactly(text(REACHED_BY_NOTHING), text(INSIDE_A_GROUP)));
+    }
+
+    @Test
+    @Story("A document's pictures are read in its reading order")
+    @DisplayName("A response carrying no document, or a document with no pictures, has no pictures")
+    void hasNoPicturesWhereTheResponseCarriesNone() {
+        claim(
+                "a failed conversion, whose response carries no document at all, has no pictures rather than"
+                        + " failing the reader",
+                () -> assertThat(DocumentPicture.allOf("{\"status\":\"failure\",\"document\":{\"json_content\":null}}"))
+                        .isEmpty());
+        claim(
+                "and a document with text and no pictures has none",
+                () -> assertThat(DocumentPicture.allOf(
+                                "{\"document\":{\"json_content\":{\"texts\":[{\"text\":\"Only words.\"}]}}}"))
+                        .isEmpty());
+    }
+
+    /**
+     * ADR-150 §5: a picture Docling cropped from a page says where on the page it sat, which the
+     * same-place rule compares within one document. Read from the first {@code prov} entry as the
+     * response gives it, with no conversion between coordinate origins.
+     */
+    @Test
+    @Story("A picture says where on its page it sat")
+    @DisplayName("A picture cropped from a page carries its page and its box, and one with no position carries none")
+    @Issue("286")
+    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
+    void readsWhereOnItsPageAPictureSat() {
+        String response = """
+                {"document":{"json_content":{"pictures":[
+                  {"content_layer":"body","captions":[],
+                    "prov":[{"page_no":2,"bbox":{"l":60.5,"t":795.5,"r":205.0,"b":761.0,"coord_origin":"BOTTOMLEFT"}},
+                            {"page_no":3,"bbox":{"l":1,"t":2,"r":3,"b":4,"coord_origin":"BOTTOMLEFT"}}],
+                    "image":{"mimetype":"image/png","uri":"%s"}},
+                  {"content_layer":"body","captions":[],"image":{"mimetype":"image/png","uri":"%s"}},
+                  {"content_layer":"body","captions":[],"prov":[{"page_no":1}],
+                    "image":{"mimetype":"image/png","uri":"%s"}}]}}}
+                """.formatted(
+                        dataUri(PNG, FIRST_IN_READING_ORDER), dataUri(PNG, INSIDE_A_GROUP), dataUri(PNG, A_PHOTOGRAPH));
+
+        List<DocumentPicture> pictures = DocumentPicture.allOf(response);
+
+        claim(
+                "the cropped picture carries the page number and the four edges of its first position,"
+                        + " exactly as the converter gave them",
+                () -> assertThat(pictures.get(0).place())
+                        .contains(new PicturePlace(2, 60.5, 795.5, 205.0, 761.0)));
+        claim(
+                "a picture with no position at all, as an office document's usually has, carries none",
+                () -> assertThat(pictures.get(1).place()).isEmpty());
+        claim(
+                "and neither does one whose position names a page but no box, since a place without edges"
+                        + " cannot be compared with another",
+                () -> assertThat(pictures.get(2).place()).isEmpty());
+    }
+
+    /**
+     * ADR-150 §5: a position that is there but broken gives no place, rather than a place at page 0 or
+     * at the page's corner. A place made up of defaults would be compared with every other such place,
+     * and two broken pictures on different pages of one document would look like one repeated at one
+     * place.
+     */
+    @Test
+    @Story("A picture says where on its page it sat")
+    @DisplayName("A picture whose position has an empty box, an empty entry or no page number carries no place")
+    @Issue("286")
+    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
+    void givesNoPlaceForAPositionThatIsThereButBroken() {
+        String response = """
+                {"document":{"json_content":{"pictures":[
+                  {"content_layer":"body","captions":[],"prov":[{"page_no":2,"bbox":null}],
+                    "image":{"mimetype":"image/png","uri":"%s"}},
+                  {"content_layer":"body","captions":[],"prov":[null],
+                    "image":{"mimetype":"image/png","uri":"%s"}},
+                  {"content_layer":"body","captions":[],
+                    "prov":[{"bbox":{"l":60.5,"t":795.5,"r":205.0,"b":761.0,"coord_origin":"BOTTOMLEFT"}}],
+                    "image":{"mimetype":"image/png","uri":"%s"}}]}}}
+                """.formatted(
+                        dataUri(PNG, FIRST_IN_READING_ORDER), dataUri(PNG, INSIDE_A_GROUP), dataUri(PNG, A_PHOTOGRAPH));
+
+        List<DocumentPicture> pictures = DocumentPicture.allOf(response);
+
+        claim(
+                "a position whose box is empty carries no place, not one with every edge at zero",
+                () -> assertThat(pictures.get(0).place()).isEmpty());
+        claim(
+                "a position list whose first entry is empty carries no place",
+                () -> assertThat(pictures.get(1).place()).isEmpty());
+        claim(
+                "and a position with a box but no page number carries no place, not one on page zero",
+                () -> assertThat(pictures.get(2).place()).isEmpty());
     }
 
     private static String dataUri(String mediaType, byte[] pixels) {

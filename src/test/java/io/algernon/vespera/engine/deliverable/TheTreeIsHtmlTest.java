@@ -78,15 +78,28 @@ class TheTreeIsHtmlTest {
     /** The writing over the first cluster, its call having sent occurrences 10 and then 11. */
     private static final String PROSE = "First line [1] & <more>.\n\n  Indented [2], as written.";
 
+    /** That writing as the page must carry it: escaped whole, two paragraphs, each citation a link. */
+    private static final String PROSE_ON_THE_PAGE = "<p>First line <a href=\"#document-1\">[1]</a> &amp; &lt;more&gt;.</p>\n"
+            + "<p>Indented <a href=\"#document-2\">[2]</a>, as written.</p>";
+
     /** The sentence ADR-174 gives a cluster none of whose documents could be sent, in its own words. */
     private static final String NO_SENDABLE_DOCUMENT = "Nothing was written over this group: none of its documents"
             + " could be read and sent to the writing model.";
+
+    /** What the index's cell says of a cluster with no writing. */
+    private static final String NOTHING_WAS_WRITTEN = "nothing was written over this group";
 
     /** Five characters, each of which the one escaping rule writes as an entity. */
     private static final String FIVE_HOSTILE = "<b>&\"'";
 
     /** Those five as the rule writes them. */
     private static final String FIVE_ESCAPED = "&lt;b&gt;&amp;&quot;&#39;";
+
+    /** The pages the fixture's tree holds: the index, and one for each of its two groups. */
+    private static final int PAGES_OF_THE_FIXTURE = 3;
+
+    /** A slug's longest length, in characters, after the order prefix. */
+    private static final int SLUG_LENGTH = 40;
 
     /** An element's tag, its name and its attributes, attribute values holding no {@code >} once escaped. */
     private static final Pattern A_TAG = Pattern.compile("<([a-zA-Z][a-zA-Z0-9]*)([^>]*)>");
@@ -104,6 +117,9 @@ class TheTreeIsHtmlTest {
     /** What every JPEG begins with. */
     private static final byte[] JPEG_SIGNATURE = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
 
+    /** A citation as the model wrote it, standing anywhere but as the text of the link it became. */
+    private static final Pattern A_RAW_CITATION = Pattern.compile("(?<!>)\\[\\d+\\](?!</a>)");
+
     /** The folders of the two renderings beside the HTML tree, which no claim here reads (ADR-333 §3). */
     private static final List<String> THE_PLUGINS_FOLDERS = List.of("confluence/", "website/");
 
@@ -113,6 +129,56 @@ class TheTreeIsHtmlTest {
      */
     private static final List<Plugin> BESIDE_THE_TREE =
             List.of(new PagesOfItsOwn("confluence"), new PagesOfItsOwn("website"));
+
+    @Test
+    @Story("The tree is a set of web pages")
+    @DisplayName("The tree is an HTML index and one HTML page for each group, with the listing beside them, and no Markdown")
+    void writesAnHtmlIndexAndAnHtmlPageForEachClusterAndNoMarkdown(@TempDir Path base) throws IOException {
+        Path tree = theFixtureWritten(base);
+
+        claim(
+                "the pages of the tree are exactly index.html at its root and one page for each of its groups,"
+                        + " index.html in the group's folder in the partition's folder, the group's folder named by its"
+                        + " place and its label",
+                () -> assertThat(htmlTreePagesOf(tree))
+                        .containsExactly(
+                                PARTITION_FOLDER + "/1-fire-doors/index.html",
+                                PARTITION_FOLDER + "/2-smoke-dampers/index.html",
+                                "index.html"));
+        claim(
+                "documents.csv is still at the root, for a program to load",
+                () -> assertThat(tree.resolve("documents.csv")).isRegularFile());
+        claim(
+                "and no file anywhere in the tree is Markdown: nothing downstream reads it",
+                () -> assertThat(filesUnder(tree)).noneMatch(name -> name.endsWith(".md")));
+    }
+
+    @Test
+    @Story("The tree is a set of web pages")
+    @DisplayName("Every page carries its own styling and no script, and loads no stylesheet from elsewhere")
+    void everyPageStandsAlone(@TempDir Path base) throws IOException {
+        Path tree = theFixtureWritten(base);
+        List<String> pages = htmlTreePagesOf(tree);
+
+        claim(
+                "the " + PAGES_OF_THE_FIXTURE + " pages, the index and one for each group, are there to be read, so the"
+                        + " claims below are about pages that exist",
+                () -> assertThat(pages).hasSize(PAGES_OF_THE_FIXTURE));
+        for (String name : pages) {
+            String page = Files.readString(tree.resolve(name), StandardCharsets.UTF_8);
+            claim(
+                    name + " opens as an HTML document in English with its character set, and carries exactly one"
+                            + " stylesheet of its own",
+                    () -> {
+                        assertThat(page).startsWith("<!DOCTYPE html>");
+                        assertThat(page).contains("<html lang=\"en\">", "<meta charset=\"UTF-8\">");
+                        assertThat(Pattern.compile("<style>").matcher(page).results().count()).isEqualTo(1);
+                    });
+            claim(
+                    name + " runs no script and loads no stylesheet from elsewhere",
+                    () -> assertThat(page).doesNotContain("<script", "<link"));
+        }
+    }
 
     /**
      * ADR-286 §5, the test of self-contained that replaces ADR-103's as ADR-135 bound it: every {@code src} and {@code
@@ -182,6 +248,83 @@ class TheTreeIsHtmlTest {
         }
     }
 
+    /**
+     * ADR-303 §6 read through ADR-286 §5's test: a tree whose written group is split at a ceiling of one byte, a page an
+     * entry, over an archive that holds every document. Its first page's citation of the second entry names the second
+     * page and the anchor on it, and every page links the others of its group.
+     */
+    @Test
+    @Story("The tree is a set of web pages")
+    @DisplayName("On a tree whose group is split into pages, every link lands on its page, on a file inside the tree, or on another page of its group and an id on it")
+    @Issue("571")
+    @Link(name = "ADR-303", url = Adr.A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES, type = "adr")
+    void everyLinkOfASplitClusterLandsOnASiblingPageAndAnIdOnIt(@TempDir Path base) throws IOException {
+        byte[] firstDocument = "the first document".getBytes(StandardCharsets.UTF_8);
+        byte[] secondDocument = "the second document".getBytes(StandardCharsets.UTF_8);
+        byte[] thirdDocument = "the third document".getBytes(StandardCharsets.UTF_8);
+        Path archive = base.resolve("archive");
+        Map<String, byte[]> originals = Map.of(
+                "reports/doors a.docx", firstDocument,
+                "reports/doors b.docx", secondDocument,
+                "reports/dampers.pdf", thirdDocument);
+        for (Map.Entry<String, byte[]> original : originals.entrySet()) {
+            Path file = archive.resolve(original.getKey());
+            Files.createDirectories(file.getParent());
+            Files.write(file, original.getValue());
+        }
+        List<ListedSurvivor> survivors = List.of(
+                survivor(10, "reports/doors a.docx", ListedTree.sha256Of(firstDocument), THE_SEED, SEED_PATH, 0, 0.9),
+                survivor(11, "reports/doors b.docx", ListedTree.sha256Of(secondDocument), THE_SEED, SEED_PATH, 0, 0.8),
+                survivor(12, "reports/dampers.pdf", ListedTree.sha256Of(thirdDocument), THE_SEED, SEED_PATH, 1, 0.7));
+        Path tree = ListedTree.writeWithCeiling(
+                base.resolve("work"),
+                archive,
+                List.of(WRITTEN, UNWRITTEN),
+                Map.of(slotOf(WRITTEN), writing("Fire doors and their inspection", PROSE, 10, 11)),
+                survivors,
+                Map.of(slotOf(UNWRITTEN), Unwritten.NO_SENDABLE_DOCUMENT),
+                SurvivorPictures.none(),
+                new ClusterPageCeiling.Bytes(1),
+                BESIDE_THE_TREE);
+        List<String> imagesNamingAFile = new ArrayList<>();
+
+        Set<String> kindsSeen = everySourceAndLinkOf(tree, imagesNamingAFile);
+
+        claim(
+                "the written group has two pages, a page an entry, and the other group, of one document, one",
+                () -> assertThat(htmlTreePagesOf(tree))
+                        .containsExactly(
+                                PARTITION_FOLDER + "/1-fire-doors/index-2.html",
+                                PARTITION_FOLDER + "/1-fire-doors/index.html",
+                                PARTITION_FOLDER + "/2-smoke-dampers/index.html",
+                                "index.html"));
+        claim(
+                "a fragment on its page, a file in the tree and a page of the same group with an id on it were each met,"
+                        + " so the claims above read each kind",
+                () -> assertThat(kindsSeen).containsExactly(
+                        "a file in the tree", "a fragment", "a fragment on another page of its group"));
+        claim(
+                "the first page's citation of the second entry names the second page and that entry's anchor",
+                () -> assertThat(Files.readString(tree.resolve(PARTITION_FOLDER + "/1-fire-doors/index.html"), StandardCharsets.UTF_8))
+                        .contains("<a href=\"./index-2.html#document-2\">[2]</a>"));
+        Map<String, List<String>> copiesByFolder = new TreeMap<>();
+        for (String copy : ListedTree.columnByPath(tree, "copy").values()) {
+            copiesByFolder.computeIfAbsent(copy.substring(0, copy.lastIndexOf('/')), folder -> new ArrayList<>())
+                    .add(copy.substring(copy.lastIndexOf('/') + 1));
+        }
+        Map<String, List<String>> pagesByFolder = Map.of(
+                PARTITION_FOLDER + "/1-fire-doors", List.of("index.html", "index-2.html"),
+                PARTITION_FOLDER + "/2-smoke-dampers", List.of("index.html"));
+        for (Map.Entry<String, List<String>> folder : pagesByFolder.entrySet()) {
+            List<String> expected = new ArrayList<>(copiesByFolder.getOrDefault(folder.getKey(), List.of()));
+            expected.addAll(folder.getValue());
+            claim(
+                    "the group's folder " + folder.getKey() + " holds its pages and the copies the listing names in it,"
+                            + " and nothing else",
+                    () -> assertThat(filesUnder(tree.resolve(folder.getKey()))).containsExactlyInAnyOrderElementsOf(expected));
+        }
+    }
+
     @Test
     @Story("Nothing a document or the model wrote is read as markup")
     @DisplayName("A name, a heading, a path, a seed and a picture's caption carrying markup are shown as text, in text and in attributes")
@@ -222,6 +365,80 @@ class TheTreeIsHtmlTest {
                     assertThat(index).doesNotContain("<b>");
                     assertThat(page).doesNotContain("<b>");
                 });
+    }
+
+    @Test
+    @Story("Nothing a document or the model wrote is read as markup")
+    @DisplayName("The writing is on its group's page as HTML, each citation a link to its document")
+    void rendersTheWritingOnItsPageWithEachCitationALink(@TempDir Path base) throws IOException {
+        Path tree = theFixtureWritten(base);
+        String page = Files.readString(tree.resolve(PARTITION_FOLDER + "/1-fire-doors/index.html"), StandardCharsets.UTF_8);
+
+        claim(
+                "the writing is on the page escaped whole and rendered as its two paragraphs, with both citations as"
+                        + " links to the entries they name, inside the block that holds the writing",
+                () -> {
+                    assertThat(page).contains(PROSE_ON_THE_PAGE);
+                    assertThat(page.indexOf("<div class=\"writing\" title=\""))
+                            .isNotNegative()
+                            .isLessThan(page.indexOf(PROSE_ON_THE_PAGE));
+                });
+        claim(
+                "no citation is left as the model's own notation",
+                () -> assertThat(A_RAW_CITATION.matcher(page).find()).isFalse());
+        claim(
+                "entry 1 is the first document the call sent and entry 2 the second, each carrying the id its"
+                        + " citation links to, in that order down the page",
+                () -> assertThat(List.of(
+                                page.indexOf("id=\"document-1\""),
+                                page.indexOf("reports/doors a.docx"),
+                                page.indexOf("id=\"document-2\""),
+                                page.indexOf("reports/doors b.docx")))
+                        .doesNotContain(-1)
+                        .isSorted());
+    }
+
+    @Test
+    @Story("A group nothing was written over is a hole a reader can see")
+    @DisplayName("A group nothing was written over says why in italics, and the index lists it with nothing to open")
+    void saysWhyNothingWasWrittenInItalics(@TempDir Path base) throws IOException {
+        Path tree = theFixtureWritten(base);
+        String page = Files.readString(tree.resolve(PARTITION_FOLDER + "/2-smoke-dampers/index.html"), StandardCharsets.UTF_8);
+        String row = theIndexRowNaming(tree, "Smoke dampers");
+
+        claim(
+                "the group's page carries the sentence for its reason in its own words, in italics",
+                () -> assertThat(page).contains("<em>" + NO_SENDABLE_DOCUMENT + "</em>"));
+        claim(
+                "with none of the asterisks that were Markdown's italics",
+                () -> assertThat(page).doesNotContain("*"));
+        claim(
+                "and its row of the index says nothing was written, in italics, and links to no page",
+                () -> assertThat(row).contains("<em>" + NOTHING_WAS_WRITTEN + "</em>").doesNotContain("<a "));
+    }
+
+    @Test
+    @Story("Every file of the tree has a name of bounded length")
+    @DisplayName("A long label and a long seed name give folders named by forty characters of slug")
+    void cutsEverySlugToFortyCharacters(@TempDir Path base) throws IOException {
+        String longSeed = "seeds/Building Regulations Approved Document B Fire Safety Volume 2.pdf";
+        RecordedCluster longLabel =
+                cluster(THE_SEED, 0, "Annual inspection of every fire door in the north and south stairwells", 1, 1);
+        ListedSurvivor member = survivor(10, "reports/a.docx", "0".repeat(64), THE_SEED, longSeed, 0, 0.9);
+
+        Path tree = ListedTree.writeWithCeiling(
+                base.resolve("work"), base.resolve("archive"), List.of(longLabel), Map.of(), List.of(member), Map.of(),
+                SurvivorPictures.none(), new ClusterPageCeiling.Unset(), BESIDE_THE_TREE);
+
+        claim(
+                "the partition's folder is its place and the first " + SLUG_LENGTH + " characters of its seed's"
+                        + " slug, and the group's folder, holding its page, its place and the first " + SLUG_LENGTH
+                        + " of its label's, less the hyphen the cut left at its end",
+                () -> assertThat(htmlTreePagesOf(tree))
+                        .containsExactly(
+                                "1-building-regulations-approved-document-b/1-annual-inspection-of-every-fire-door-in"
+                                        + "/index.html",
+                                "index.html"));
     }
 
     /**
@@ -299,6 +516,24 @@ class TheTreeIsHtmlTest {
         return kindsSeen;
     }
 
+    /** The two clusters of one partition, the first written over, the second with no document it could send. */
+    private static Path theFixtureWritten(Path base) {
+        List<ListedSurvivor> survivors = List.of(
+                survivor(10, "reports/doors a.docx", "0".repeat(64), THE_SEED, SEED_PATH, 0, 0.9),
+                survivor(11, "reports/doors b.docx", "1".repeat(64), THE_SEED, SEED_PATH, 0, 0.8),
+                survivor(12, "reports/dampers.pdf", "2".repeat(64), THE_SEED, SEED_PATH, 1, 0.7));
+        return ListedTree.writeWithCeiling(
+                base.resolve("work"),
+                base.resolve("archive"),
+                List.of(WRITTEN, UNWRITTEN),
+                Map.of(slotOf(WRITTEN), writing("Fire doors and their inspection", PROSE, 10, 11)),
+                survivors,
+                Map.of(slotOf(UNWRITTEN), Unwritten.NO_SENDABLE_DOCUMENT),
+                SurvivorPictures.none(),
+                new ClusterPageCeiling.Unset(),
+                BESIDE_THE_TREE);
+    }
+
     /**
      * The HTML tree's pages beneath {@code tree}, sorted: every {@code .html} file but those of the renderings beside
      * it, under {@code website/} and {@code confluence/} at its root (ADR-333 §3).
@@ -319,6 +554,16 @@ class TheTreeIsHtmlTest {
             throw new IllegalStateException("one group was arranged, and the tree holds pages " + pages);
         }
         return tree.resolve(pages.getFirst());
+    }
+
+    /** The one row of the index's tables naming {@code label}, from its {@code <tr>} to its {@code </tr>}. */
+    private static String theIndexRowNaming(Path tree, String label) throws IOException {
+        String index = Files.readString(tree.resolve("index.html"), StandardCharsets.UTF_8);
+        int at = index.indexOf(label);
+        if (at < 0) {
+            throw new IllegalStateException("the index names no group " + label);
+        }
+        return index.substring(index.lastIndexOf("<tr", at), index.indexOf("</tr>", at));
     }
 
     /**

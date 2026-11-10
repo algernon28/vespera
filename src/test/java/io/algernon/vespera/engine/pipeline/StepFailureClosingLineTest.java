@@ -73,4 +73,31 @@ class StepFailureClosingLineTest {
                     .endsWith("run the same command again.");
         });
     }
+
+    @Test
+    @Story("A failing step ends on its closing line")
+    @DisplayName("a step that completed logs nothing")
+    void aCompletedStepLogsNothing() {
+        new StepFailureClosingLine().afterStep(step(ExitStatus.COMPLETED, null));
+
+        claim("nothing was logged", () -> assertThat(logged.list).isEmpty());
+    }
+
+    @Test
+    @Story("A failing step ends on its closing line")
+    @DisplayName("a step that failed without an exception leaves the line its tasklet wrote")
+    void aFailureWithoutAnExceptionLogsNothing() {
+        new StepFailureClosingLine().afterStep(step(ExitStatus.FAILED, null));
+
+        claim("nothing was logged", () -> assertThat(logged.list).isEmpty());
+    }
+
+    @Test
+    @Story("A failing step ends on its closing line")
+    @DisplayName("stage 1's archive gone leaves the line the tasklet wrote")
+    void anArchiveGoneLogsNothing() {
+        new StepFailureClosingLine().afterStep(step(ExitStatus.FAILED, new ArchiveGoneException(java.nio.file.Path.of("archive"), new java.io.IOException("gone"))));
+
+        claim("nothing was logged", () -> assertThat(logged.list).isEmpty());
+    }
 }

@@ -11,9 +11,16 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
@@ -64,6 +71,12 @@ class LargestClusterRunsOutOfRoomTest {
     /** The document the operator supplied that the cluster sits under. */
     private static final String SEED_PATH = "Scontrini_1_19.docx";
 
+    /** The heading the scripted model writes, which only has to be there. */
+    private static final String A_HEADING = "Terminal records across fourteen supply files";
+
+    /** Writing citing the first document only, which is in range whatever the call carried. */
+    private static final String WRITING_CITING_THE_FIRST_DOCUMENT = "The records [1] are listed in full.";
+
     /** How many documents the cluster the defect was found on holds, and every one of them fits a call. */
     private static final int THE_LARGEST_CLUSTER = 14;
 
@@ -72,6 +85,12 @@ class LargestClusterRunsOutOfRoomTest {
      * number taken from the thing under test would agree with it whatever it changed to.
      */
     private static final int THE_ANSWER_ALLOWANCE = 1024;
+
+    /** A square-bracketed number: the form a citation is written in. */
+    private static final Pattern A_BRACKETED_NUMBER = Pattern.compile("\\[(\\d+)\\]");
+
+    /** A length named in words, the way an instruction names one. */
+    private static final Pattern A_LENGTH_IN_WORDS = Pattern.compile("(\\d+)\\s+words");
 
     /** How many calls an answer that ran out of room costs: the one that was made, and no second. */
     private static final int ONE_CALL = 1;
@@ -88,6 +107,81 @@ class LargestClusterRunsOutOfRoomTest {
      * so it was cut away. Kept as the number measured; inside the window it still is.
      */
     private static final int A_QUESTION_WELL_INSIDE_THE_WINDOW = 4098;
+
+    /**
+     * Fails on the shipped prompt, which ends with the last document: measured, a model handed 14
+     * documents of record rows under an instruction it read first copied the rows back or cited
+     * nothing, and one handed the same instruction after them cited in range 15 times in 15.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("documentsCarried")
+    @Story("The request says what to write after the documents, where the model reads it last")
+    @DisplayName("A request ends by saying how to cite, showing no number past the documents it carries")
+    void aRequestEndsBySayingHowToCite(int documents) {
+        claimTheRequestEndsBySayingHowToCite(aClusterOf(documents));
+    }
+
+    static Stream<Arguments> documentsCarried() {
+        return Stream.of(
+                Arguments.of(Named.of("one document, no number past 1", 1)),
+                Arguments.of(Named.of("two documents, no number past 2", 2)),
+                Arguments.of(Named.of("three documents, no number past 3", 3)),
+                Arguments.of(Named.of(
+                        "fourteen documents, the size the defect was found at, no number past 14",
+                        THE_LARGEST_CLUSTER)));
+    }
+
+    /**
+     * Fails on the shipped prompt, which names no length at all. The length is read from the text
+     * after the last document, and held against the allowance at the words-to-tokens ratio the
+     * document budget already uses (ADR-108), so a length the model obeys cannot on its own run the
+     * answer out of room.
+     */
+    @Test
+    @Story("The request names a length the answer's room can hold")
+    @DisplayName("After the documents, the request names a length in words that fits the room the answer has")
+    void afterTheDocumentsTheRequestNamesALengthTheAnswersRoomCanHold() {
+        ScriptedChatModel model = new ScriptedChatModel(answering(WRITING_CITING_THE_FIRST_DOCUMENT));
+        ClusterCall cluster = aClusterOf(THE_LARGEST_CLUSTER);
+        new ClusterSynthesis(model).docFor(cluster, MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW, DeliverableLanguage.ENGLISH);
+
+        Matcher length = A_LENGTH_IN_WORDS.matcher(whatFollowsTheLastDocument(model, cluster));
+
+        claim(
+                "after the last document, the request names how many words the writing may run to: the"
+                        + " shipped request named none, and a cluster of " + THE_LARGEST_CLUSTER
+                        + " documents was turned down for running out of room",
+                () -> assertThat(length.find()).isTrue());
+        int words = Integer.parseInt(length.group(1));
+        claim(
+                "the " + words + " words it names fit inside the " + THE_ANSWER_ALLOWANCE + " tokens the"
+                        + " answer is allowed, counting each word as " + ClusterSynthesis.TOKENS_PER_WORD
+                        + " tokens, the same cautious count the documents are measured by: a length that"
+                        + " would not fit is a length the answer runs out of room obeying",
+                () -> assertThat(words * ClusterSynthesis.TOKENS_PER_WORD)
+                        .isLessThanOrEqualTo(THE_ANSWER_ALLOWANCE));
+    }
+
+    /**
+     * Holds on the shipped code and on ADR-161's: it pins the alternative that record turned down. A
+     * larger allowance took room from the documents and fixed nothing measured, because the answers
+     * that ran out of room were copying the documents back, and a copy runs to whatever cap is set.
+     */
+    @Test
+    @Story("The request names a length the answer's room can hold")
+    @DisplayName("The room the answer is allowed is not raised to make a long answer fit")
+    void theRoomTheAnswerIsAllowedIsNotRaised() {
+        ScriptedChatModel model = new ScriptedChatModel(answering(WRITING_CITING_THE_FIRST_DOCUMENT));
+
+        new ClusterSynthesis(model).docFor(aClusterOf(THE_LARGEST_CLUSTER), MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW, DeliverableLanguage.ENGLISH);
+
+        claim(
+                "the call still allows the answer " + THE_ANSWER_ALLOWANCE + " tokens. Measured on the"
+                        + " cluster that ran out of room, twice that fixed nothing: 2 answers in 6 passed,"
+                        + " the rest cited nothing, and every token added to the answer is taken from the"
+                        + " room the documents are read in",
+                () -> assertThat(model.optionsUsed().getNumPredict()).isEqualTo(THE_ANSWER_ALLOWANCE));
+    }
 
     /**
      * Holds on the shipped code and on ADR-161's: it pins the second alternative that record turned
@@ -125,6 +219,50 @@ class LargestClusterRunsOutOfRoomTest {
     }
 
     /**
+     * Sends {@code cluster} and claims three things of what the request says after its last
+     * document's opening: that it names square brackets, that it shows at least one bracketed number,
+     * and that no number it shows is greater than the documents sent.
+     */
+    private static void claimTheRequestEndsBySayingHowToCite(ClusterCall cluster) {
+        ScriptedChatModel model = new ScriptedChatModel(answering(WRITING_CITING_THE_FIRST_DOCUMENT));
+        new ClusterSynthesis(model).docFor(cluster, MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW, DeliverableLanguage.ENGLISH);
+        int documentsSent = cluster.exemplars().size();
+
+        String afterTheDocuments = whatFollowsTheLastDocument(model, cluster).replaceAll("\\s+", " ");
+        List<Integer> numbersShown = A_BRACKETED_NUMBER.matcher(afterTheDocuments).results()
+                .map(shown -> Integer.parseInt(shown.group(1)))
+                .toList();
+
+        claim(
+                "after the last of the " + documentsSent + " document(s), the request says a citation is"
+                        + " written in square brackets: said only before them, it was lost under some 4,000"
+                        + " tokens of record rows, and the model copied the rows back or cited nothing",
+                () -> assertThat(afterTheDocuments).containsIgnoringCase("square brackets"));
+        claim(
+                "and it shows there how a citation looks, with at least one square-bracketed number",
+                () -> assertThat(numbersShown).isNotEmpty());
+        claim(
+                "and no number it shows there is greater than the " + documentsSent + " document(s) sent:"
+                        + " a model copying the example word for word would otherwise cite a document it"
+                        + " was never given, and be turned down for it",
+                () -> assertThat(numbersShown).allSatisfy(shown -> assertThat(shown)
+                        .isBetween(1, documentsSent)));
+    }
+
+    /**
+     * Everything the request says after the last document's opening, which is empty on a request that
+     * ends with it. The documents are sent in score order and this fixture scores them in the order it
+     * lists them, so the last one listed is the last one sent.
+     */
+    private static String whatFollowsTheLastDocument(ScriptedChatModel model, ClusterCall cluster) {
+        String asked = model.whatWasAsked();
+        String lastOpening = cluster.exemplars().getLast().leadingChunk();
+        int end = asked.lastIndexOf(lastOpening);
+        assertThat(end).as("the last document's opening is in the request").isNotNegative();
+        return asked.substring(end + lastOpening.length());
+    }
+
+    /**
      * The first {@code size} of fourteen short documents, opening the way the records of the cluster
      * the defect was found on open, in descending score so the order they are sent in is the order
      * they are listed in.
@@ -140,6 +278,12 @@ class LargestClusterRunsOutOfRoomTest {
                         0.9 - ordinal / 100.0))
                 .toList();
         return new ClusterCall(LABEL, SEED_PATH, documents);
+    }
+
+    /** A response carrying {@code prose} under a heading, finished of its own accord. */
+    private static ChatResponse answering(String prose) {
+        return new ChatResponse(List.of(new Generation(
+                new AssistantMessage("{\"title\":\"" + A_HEADING + "\",\"prose\":\"" + prose + "\"}"))));
     }
 
     /**

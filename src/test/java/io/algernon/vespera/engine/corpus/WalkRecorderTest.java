@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import javax.sql.DataSource;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -167,6 +168,29 @@ class WalkRecorderTest {
     }
 
     @Test
+    @Story("A walk resumes where it stopped")
+    @DisplayName("A walk that stopped partway is not finished, so nothing may be run against it")
+    @Issue("5")
+    @Link(name = "ADR-055", url = Adr.A_WALK_IS_RESUMED_UNDER_ITS_OWN_ID, type = "adr")
+    void leavesAnInterruptedWalkUnfinished(@TempDir Path root) throws IOException {
+        Files.createDirectories(root.resolve("one"));
+        Files.writeString(root.resolve("one/a.txt"), "a");
+        Files.createDirectories(root.resolve("two"));
+        Files.writeString(root.resolve("two/b.txt"), "b");
+        Ledger ledger = ledger();
+
+        WalkId stopped = recorder(stoppingAfterTheFirstDirectory()).walk(root);
+
+        claim(
+                "a walk that did not reach the end of the tree is not marked finished",
+                () -> assertThat(ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))).isEmpty());
+        claim(
+                "it is still offered for continuation, under the id it already has",
+                () -> assertThat(ledger.walks().unfinishedWalk(Walk.canonicalRoot(root)).orElseThrow().walkId())
+                        .isEqualTo(stopped));
+    }
+
+    @Test
     @Story("Nothing goes unaccounted for")
     @DisplayName("A finished walk whose counts do not add up aborts the invocation")
     @Issue("6")
@@ -185,6 +209,96 @@ class WalkRecorderTest {
                 () -> assertThatThrownBy(() -> recorder(miscounting).walk(root))
                         .isInstanceOf(ExcludesNothingViolationException.class)
                         .hasMessageContaining("unaccounted for"));
+    }
+
+    @Test
+    @Story("Nothing goes unaccounted for")
+    @DisplayName("A finished walk accounts for every entry it met, across both of its sessions")
+    @Issue("6")
+    @Link(name = "ADR-056", url = Adr.EXCLUDES_NOTHING_IS_RECONCILED, type = "adr")
+    void accountsForEveryEntryAcrossAResumedWalk(@TempDir Path root) throws IOException {
+        Files.createDirectories(root.resolve("one/deeper"));
+        Files.writeString(root.resolve("one/a.txt"), "a");
+        Files.writeString(root.resolve("one/deeper/b.txt"), "b");
+        Files.writeString(root.resolve("c.txt"), "c");
+        Ledger ledger = ledger();
+
+        recorder(stoppingAfterTheFirstDirectory()).walk(root);
+        WalkId walkId = recorder().walk(root);
+
+        claim(
+                "the three files written are recorded once each, no session having repeated another's work",
+                () -> assertThat(ledger.occurrences().occurrenceCount(walkId)).isEqualTo(3));
+        claim(
+                "reconciliation passed, which is the only way walk() returns at all once a walk finishes",
+                () -> assertThat(ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))).contains(walkId));
+    }
+
+    /**
+     * Each of the two folders holds a folder the first session's list names, so whichever the walk meets first, the
+     * session stops after it and the other is met by the continuation alone.
+     */
+    @Test
+    @Story("A walk resumes where it stopped")
+    @DisplayName("An unfinished walk is continued with the folders not read it recorded, though the profile now lists none")
+    @Link(name = "ADR-340", url = Adr.THE_CONTROL_PANEL_IS_A_HOME_PAGE_WITH_ITS_VALUES_IN_A_DRAWER_AND_A_FOLDER_NOT_WALKED, type = "adr")
+    @Link(name = "ADR-055", url = Adr.A_WALK_IS_RESUMED_UNDER_ITS_OWN_ID, type = "adr")
+    void anUnfinishedWalkIsContinuedWithTheFoldersNotWalkedItRecorded(@TempDir Path root) throws IOException {
+        for (String folder : List.of("one/old", "two/old")) {
+            Files.createDirectories(root.resolve(folder));
+        }
+        Files.writeString(root.resolve("one/a.txt"), "a");
+        Files.writeString(root.resolve("one/old/x.ok"), "x");
+        Files.writeString(root.resolve("two/b.txt"), "b");
+        Files.writeString(root.resolve("two/old/y.ok"), "y");
+        Ledger ledger = ledger();
+
+        WalkId stopped = recorder(stoppingAfterTheFirstDirectoryNotEnteringTheFoldersGiven())
+                .walk(root, List.of(), List.of("one/old", "two/old"));
+        WalkId resumed = recorder().walk(root, List.of(), List.of());
+
+        claim("the second session continued the walk that stopped",
+                () -> assertThat(resumed).isEqualTo(stopped));
+        claim("nothing below either folder not read was recorded, the continuation leaving out the one it met",
+                () -> assertThat(recordedAgainst(resumed)).extracting(RecordedOccurrence::path)
+                        .containsExactlyInAnyOrder(new OccurrencePath("one/a.txt"), new OccurrencePath("two/b.txt")));
+        claim("the walk still holds the list it was given first, and met both folders as not entered",
+                () -> assertThat(List.of(ledger.walks().foldersNotWalkedOf(resumed),
+                                ledger.walks().foldersNotEnteredCount(resumed)))
+                        .containsExactly(List.of("one/old", "two/old"), 2L));
+        claim("and it finished, reconciled with both folders in the arithmetic",
+                () -> assertThat(ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))).contains(resumed));
+    }
+
+    @Test
+    @Story("Nothing goes unaccounted for")
+    @DisplayName("A walk carrying an anomaly is reconciled with that anomaly in the arithmetic")
+    @Issue("6")
+    @Link(name = "ADR-056", url = Adr.EXCLUDES_NOTHING_IS_RECONCILED, type = "adr")
+    void reconciliationCountsAnomaliesAndNotOnlyOccurrences(@TempDir Path root) throws IOException {
+        Files.writeString(root.resolve("ordinary.txt"), "a");
+        Path unstorable;
+        try {
+            unstorable = root.resolve("orphan-" + (char) 0xD800 + ".txt");
+            Files.writeString(unstorable, "content");
+        } catch (InvalidPathException | IOException e) {
+            abort("this filesystem will not create a name with an unpaired surrogate: " + e.getMessage());
+        }
+        Ledger ledger = ledger();
+        AnomalyLog anomalyLog = anomalyLog();
+
+        WalkId walkId = new WalkRecorder(ledger, anomalyLog, transactionManager()).walk(root);
+
+        claim(
+                "one of the two files became an anomaly rather than an occurrence, so the anomaly term is"
+                        + " not zero and the check has to count it to balance",
+                () -> assertThat(anomalyLog.anomalyCount(walkId)).isEqualTo(1));
+        claim(
+                "the other became an occurrence",
+                () -> assertThat(ledger.occurrences().occurrenceCount(walkId)).isEqualTo(1));
+        claim(
+                "and the walk finished, which it only does once reconciliation has balanced",
+                () -> assertThat(ledger.walks().finishedWalkFor(Walk.canonicalRoot(root))).contains(walkId));
     }
 
     @Test
@@ -219,11 +333,15 @@ class WalkRecorderTest {
                         .containsExactlyInAnyOrder(new OccurrencePath("one/a.txt"), new OccurrencePath("two/b.txt")));
     }
 
+
     /** One look at a folder, which is what two looks that saw the same thing amount to. */
     private static final int ONE_LOOK = 1;
 
     /** Two looks, kept apart because they did not see the same thing. */
     private static final int TWO_LOOKS = 2;
+
+    /** Three looks: a folder that changed and changed back was looked at three times, not twice. */
+    private static final int THREE_LOOKS = 3;
 
     /** The single file these fixtures put in the folder before anyone looks at it. */
     private static final int THE_ONE_FILE = 1;
@@ -254,6 +372,63 @@ class WalkRecorderTest {
                 "and the one file that was there is recorded once beneath it, not " + TWO_LOOKS + " times:"
                         + " the second look's copy of it went with the look that was discarded",
                 () -> assertThat(recordedAgainst(first)).hasSize(THE_ONE_FILE));
+    }
+
+    /** The one entry the scripted look meets and cannot take in as a file, which it writes down instead. */
+    private static final int THE_ONE_NOTE = 1;
+
+    /** How the scripted look renders that entry, so its rows can be counted whichever look wrote them. */
+    private static final String THE_SCRIPTED_NOTE = "orphan-whose-name-has-no-utf-8-encoding.txt";
+
+    @Test
+    @Story("Looking twice at a folder nothing has happened to is one look")
+    @DisplayName("Looking again at an unchanged folder holding something not taken in as a file keeps one note of it")
+    @Issue("350")
+    @Link(name = "ADR-209", url = Adr.THE_LEDGER_IS_FOUR_RECORDS_AND_A_TABLES_SQL_IS_ITS_OWNERS, type = "adr")
+    @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
+    void aSecondLookAtAnUnchangedFolderHoldingAnAnomalyKeepsOneRecordOfIt(@TempDir Path root) throws IOException {
+        WalkId first = recorder(oneFileAndOneAnomaly()).walk(root);
+        WalkId second = recorder(oneFileAndOneAnomaly()).walk(root);
+
+        claim(
+                "the second look answers with the first look's own record: it met the same file, and the same"
+                        + " thing it could not take in as a file and wrote down instead, so it saw nothing new",
+                () -> assertThat(second).isEqualTo(first));
+        claim(
+                "exactly " + ONE_LOOK + " record of looking at this folder is kept, so the second look's own"
+                        + " record was removed",
+                () -> assertThat(looksAt(root)).isEqualTo(ONE_LOOK));
+        claim(
+                "and the note of what could not be taken in as a file is kept " + THE_ONE_NOTE + " time, not"
+                        + " " + TWO_LOOKS + ": the second look's copy of it was removed first, and only then the"
+                        + " look, which cannot be removed while a note still refers to it",
+                () -> assertThat(notesRenderedAs(THE_SCRIPTED_NOTE)).isEqualTo(THE_ONE_NOTE));
+        claim(
+                "the note kept is the first look's",
+                () -> assertThat(anomalyLog().anomalyCount(first)).isEqualTo(THE_ONE_NOTE));
+    }
+
+    @Test
+    @Story("Looking twice at a folder nothing has happened to is one look")
+    @DisplayName("An empty folder appearing is a second look, though no file changed")
+    @Issue("191")
+    @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
+    void anEmptyFolderAppearingMakesItASecondLook(@TempDir Path root) throws IOException {
+        Files.writeString(root.resolve("a.txt"), "hi");
+        WalkId first = recorder().walk(root);
+        Files.createDirectory(root.resolve("empty"));
+
+        WalkId second = recorder().walk(root);
+
+        claim(
+                "the files are the same files and nothing odd was met, and it is still a new look: a"
+                        + " folder that was not there before is part of what is out there, and a look that"
+                        + " went into one more place than the last look did saw something the last one"
+                        + " could not have",
+                () -> assertThat(second).isNotEqualTo(first));
+        claim(
+                "so " + TWO_LOOKS + " records are kept, for a difference no file and no oddity records",
+                () -> assertThat(looksAt(root)).isEqualTo(TWO_LOOKS));
     }
 
     @Test
@@ -306,6 +481,32 @@ class WalkRecorderTest {
                 () -> assertThat(looksAt(root)).isEqualTo(TWO_LOOKS));
     }
 
+    @Test
+    @Story("Looking twice at a folder nothing has happened to is one look")
+    @DisplayName("A folder that changed and changed back is looked at afresh, not restored to an older record")
+    @Issue("191")
+    @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
+    void aFolderThatChangedAndChangedBackIsLookedAtAfresh(@TempDir Path root) throws IOException {
+        Files.writeString(root.resolve("a.txt"), "hi");
+        WalkId first = recorder().walk(root);
+        Path added = Files.writeString(root.resolve("b.txt"), "and one more");
+        WalkId second = recorder().walk(root);
+        Files.delete(added);
+
+        WalkId third = recorder().walk(root);
+
+        claim(
+                "the third look is neither of the two before it: only the look immediately before is ever"
+                        + " compared, so a folder that came back to how it started gets a fresh record"
+                        + " rather than the oldest one handed back -- and anything a person approved while"
+                        + " the extra file was there stays expired, which is the truthful answer",
+                () -> assertThat(third).isNotEqualTo(first).isNotEqualTo(second));
+        claim(
+                "leaving " + THREE_LOOKS + " records: one per time the folder was seen to be different from"
+                        + " the time before",
+                () -> assertThat(looksAt(root)).isEqualTo(THREE_LOOKS));
+    }
+
     /** How many records of looking at {@code root} the database holds. */
     /**
      * What a walk recorded, read by a statement of this test's own, in the order it recorded it: since ADR-220
@@ -340,6 +541,26 @@ class WalkRecorderTest {
                 Walk.canonicalRoot(root).toString());
     }
 
+    /** How many walk anomaly rows, under any walk, carry {@code pathRendering}. */
+    private int notesRenderedAs(String pathRendering) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM walk_anomaly WHERE path_rendering = ?", Integer.class, pathRendering);
+    }
+
+    /**
+     * A finished look at a folder holding one file and one entry it cannot take in as a file, which it
+     * reports as an anomaly: two entries beneath the root and the root itself entered, so the walk's counts
+     * balance (ADR-056). Scripted, so that it runs on every file system.
+     */
+    private static WalkRecorder.Traversal oneFileAndOneAnomaly() {
+        return (root, observer, resumeFrom) -> {
+            observer.fileOccurrence(
+                    new OccurrencePath("a.txt"), 2, java.time.Instant.EPOCH, java.time.Instant.EPOCH);
+            observer.anomaly(THE_SCRIPTED_NOTE, WalkAnomalyKind.UNENCODABLE_PATH, "no UTF-8 encoding");
+            return new Walk.Outcome(root, new Walk.Progress(2, 1, 1, 1), true, null);
+        };
+    }
+
     /**
      * A session that reports an entry and then stops before any checkpoint is taken — the case the
      * recorder buffers for, and the one an interruption at a commit boundary never reaches.
@@ -364,6 +585,27 @@ class WalkRecorderTest {
                 return Walk.walk(root, stopping, resumeFrom);
             } catch (StopAfterTheFirstCheckpoint.Stop stop) {
                 return new Walk.Outcome(root, stopping.lastProgress, false, "the test stopped this session");
+            }
+        };
+    }
+
+    /** As {@link #stoppingAfterTheFirstDirectory()}, not entering the folders not walked the recorder gives it. */
+    private static WalkRecorder.Traversal stoppingAfterTheFirstDirectoryNotEnteringTheFoldersGiven() {
+        return new WalkRecorder.Traversal() {
+            @Override
+            public Walk.Outcome traverse(Path root, Walk.Observer observer, Checkpoint resumeFrom) throws IOException {
+                return traverse(root, observer, resumeFrom, List.of());
+            }
+
+            @Override
+            public Walk.Outcome traverse(Path root, Walk.Observer observer, Checkpoint resumeFrom,
+                    List<String> foldersNotWalked) throws IOException {
+                StopAfterTheFirstCheckpoint stopping = new StopAfterTheFirstCheckpoint(observer);
+                try {
+                    return Walk.walk(root, stopping, resumeFrom, null, foldersNotWalked);
+                } catch (StopAfterTheFirstCheckpoint.Stop stop) {
+                    return new Walk.Outcome(root, stopping.lastProgress, false, "the test stopped this session");
+                }
             }
         };
     }

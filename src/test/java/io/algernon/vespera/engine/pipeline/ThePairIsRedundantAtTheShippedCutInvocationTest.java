@@ -21,7 +21,8 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * At the shipped numbers the pair is judged (ADR-330 §9). It passes today and carries no {@code @Disabled}.
+ * What makes {@code AnotherCutLeavesThePairInvocationTest} able to fail: at the shipped numbers its pair is judged
+ * (ADR-330 §9). It passes today and carries no {@code @Disabled}.
  */
 @CascadeSliceTest
 @Import({SeedScriptedExtractionBeans.class, TwoDocumentsNearlyAlike.class})

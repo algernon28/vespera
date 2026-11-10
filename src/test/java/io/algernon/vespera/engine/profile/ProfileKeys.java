@@ -16,6 +16,10 @@ import java.util.Map;
  * {@code DeliverableInvocationTest} carried eight keys while the record carried ten, so the claim that
  * the index states every key passed with two missing. The record is the schema (ADR-061), so the
  * record is what every such claim is compared with.
+ *
+ * <p>{@code ProfileTest} keeps its own count of the constructor's parameters on purpose: that claim
+ * is about the record's one way in (ADR-119), it already fails when a key is added, and deriving it
+ * from the components would make it compare the record with itself.
  */
 public final class ProfileKeys {
 

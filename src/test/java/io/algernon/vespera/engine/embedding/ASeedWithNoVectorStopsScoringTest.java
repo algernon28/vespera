@@ -11,6 +11,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +66,9 @@ class ASeedWithNoVectorStopsScoringTest {
     /** A document whose text was cut into one chunk, which is one thing to embed: each seed and the corpus document here. */
     private static final int ONE_CHUNK = 1;
 
+    /** A seed whose text the chunker left out whole, so there is nothing of it to embed. */
+    private static final int NO_CHUNK = 0;
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -88,13 +92,15 @@ class ASeedWithNoVectorStopsScoringTest {
                         .hasMessageContaining("seed occurrence " + THE_SECOND_SEED.value()));
     }
 
-    /** A seed document, or a corpus document, whose text was cut into two chunks. */
+    /** A seed whose text was cut into two chunks, two things to embed. */
     private static final int TWO_CHUNKS = 2;
 
     /**
-     * A seed is refused when it has a vector under the run's identity for some of its chunks only (ADR-231
-     * sections 3 and 5): scored on the chunks that are left, it would measure every survivor against a part
-     * of itself, with no line.
+     * A pull and a pull back within one embedding step (ADR-231 section 5) leaves a seed whose chunks fell on
+     * both sides with a vector under the run's identity for some of its chunks only. Section 5 says scoring
+     * throws on a seed embedded between the two pulls, and section 3 that a missing seed is loud "whatever
+     * left it missing"; scored on the chunks that are left, the seed would measure every survivor against a
+     * part of itself, with no line.
      */
     @Test
     @Story("A seed document with no vector of the scoring's own model stops the scoring")
@@ -110,46 +116,51 @@ class ASeedWithNoVectorStopsScoringTest {
                 "the read stops and gives the number of the second seed document, "
                         + THE_SECOND_SEED.value() + ": it has " + TWO_CHUNKS + " pieces of text to embed, and"
                         + " the vector of the second is under the digest of another pull, so read under the"
-                        + " scoring's own it would stand for half of itself -- the refusal says it has a vector"
-                        + " for only " + ONE_CHUNK + " of its " + TWO_CHUNKS + " chunks",
+                        + " scoring's own it would stand for half of itself",
                 () -> assertThatThrownBy(() -> scoring()
                                 .residentSeedVectors(
                                         seeds(ONE_CHUNK, TWO_CHUNKS), CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER))
                         .isInstanceOf(IllegalStateException.class)
-                        .hasMessageContaining("seed occurrence " + THE_SECOND_SEED.value()
-                                + " has stored chunk vectors for only " + ONE_CHUNK + " of its " + TWO_CHUNKS
-                                + " chunks"));
+                        .hasMessageContaining("seed occurrence " + THE_SECOND_SEED.value()));
     }
 
-    /** A corpus document with a vector under the run's identity for the first of its two chunks only. */
-    private static final OccurrenceId A_PARTLY_EMBEDDED_DOCUMENT = new OccurrenceId(4024);
-
-    /** The survivor's side of the refusal above. */
     @Test
-    @Story("A document with no vector of the scoring's own model stops the scoring")
-    @DisplayName("Scoring a corpus document with two pieces of text to embed and a vector for only one of them stops and names it")
-    void aSurvivorWithAVectorForOnlySomeOfItsChunksIsRefused() {
-        store("a-partly-embedded-document", READ_UNDER);
-        Map<OccurrenceId, List<float[]>> oneResidentSeed = Map.of(THE_FIRST_SEED, List.of(new float[] {1f, 0f}));
+    @Story("A seed document with nothing to embed is left out and the scoring goes on")
+    @DisplayName("A seed document with no piece of text to embed and no vector is left out, the caller is told which, and the other is read")
+    void aSeedWithNoChunkIsLeftOutAndReported() {
+        store("the-first-seed", READ_UNDER);
+        List<String> told = new ArrayList<>();
+
+        Map<OccurrenceId, List<float[]>> resident = scoring()
+                .residentSeedVectors(
+                        seeds(ONE_CHUNK, NO_CHUNK), CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER, recording(told));
 
         claim(
-                "the scoring stops on document " + A_PARTLY_EMBEDDED_DOCUMENT.value() + " rather than score it"
-                        + " on the one chunk it has a vector for: the refusal says it has a vector for only "
-                        + ONE_CHUNK + " of its " + TWO_CHUNKS + " chunks",
-                () -> assertThatThrownBy(() -> scoring()
-                                .scoreAndRecord(
-                                        A_PARTLY_EMBEDDED_DOCUMENT,
-                                        new io.algernon.vespera.engine.ledger.RunId("a-scoring-run"),
-                                        "a-partly-embedded-document",
-                                        TWO_CHUNKS,
-                                        CHUNKER_IDENTITY,
-                                        CHUNKING_RULE_IDENTITY,
-                                        READ_UNDER,
-                                        oneResidentSeed, TOP_SIMILARITIES))
-                        .isInstanceOf(IllegalStateException.class)
-                        .hasMessageContaining("occurrence " + A_PARTLY_EMBEDDED_DOCUMENT.value()
-                                + " has stored chunk vectors for only " + ONE_CHUNK + " of its " + TWO_CHUNKS
-                                + " chunks"));
+                "only the first seed document is read: the second has nothing to embed, which is a fact about"
+                        + " that document and not a vector gone missing, so the read does not stop on it",
+                () -> assertThat(resident.keySet()).containsExactly(THE_FIRST_SEED));
+        claim(
+                "the caller is told the total of " + BOTH_SEEDS + " once, that the first was read, that the"
+                        + " second, number " + THE_SECOND_SEED.value() + ", was left out, and that it too was"
+                        + " gone through, so the count of seed documents ends at its total",
+                () -> assertThat(told)
+                        .containsExactly(
+                                "to-read " + BOTH_SEEDS, "read", "left-out " + THE_SECOND_SEED.value(), "read"));
+    }
+
+    @Test
+    @Story("A seed document with no vector of the scoring's own model stops the scoring")
+    @DisplayName("Where every seed document has a vector under the pull the scoring names, every one is read")
+    void everySeedWithAVectorIsResident() {
+        store("the-first-seed", READ_UNDER);
+        store("the-second-seed", READ_UNDER);
+
+        Map<OccurrenceId, List<float[]>> resident = scoring()
+                .residentSeedVectors(seeds(ONE_CHUNK, ONE_CHUNK), CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, READ_UNDER);
+
+        claim(
+                "both of the " + BOTH_SEEDS + " seed documents are read, in the order they were handed over",
+                () -> assertThat(resident.keySet()).containsExactly(THE_FIRST_SEED, THE_SECOND_SEED));
     }
 
     /** A corpus document that has no vector stored under any identity. */
@@ -195,6 +206,25 @@ class ASeedWithNoVectorStopsScoringTest {
         seeds.put(THE_FIRST_SEED, new SeedChunks("the-first-seed", chunksOfTheFirst));
         seeds.put(THE_SECOND_SEED, new SeedChunks("the-second-seed", chunksOfTheSecond));
         return seeds;
+    }
+
+    private static ScoringProgress recording(List<String> told) {
+        return new ScoringProgress() {
+            @Override
+            public void toReadSeedVectors(long seeds) {
+                told.add("to-read " + seeds);
+            }
+
+            @Override
+            public void seedVectorsRead() {
+                told.add("read");
+            }
+
+            @Override
+            public void seedLeftOutWithNoChunk(OccurrenceId seed) {
+                told.add("left-out " + seed.value());
+            }
+        };
     }
 
     /** One chunk's vector for {@code contentHash} under {@code embedderIdentity}. */

@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
+import io.algernon.vespera.engine.ledger.ReplacingMove;
 import io.algernon.vespera.engine.synthesis.ClusterSlot;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
 import io.algernon.vespera.engine.synthesis.SynthesisDoc;
@@ -76,6 +77,58 @@ class TheTreeIsDrawnAtTheDeliverableRootTest {
 
     /** No seed folder is set in the profile. */
     private static final Optional<Path> NO_SEED_FOLDER = Optional.empty();
+
+    @Test
+    @Story("Every tree says which working directory and which generation drew it")
+    @DisplayName("A tree drawn in the working directory carries a marker naming that working directory and its generation")
+    void everyTreeCarriesAMarkerNamingItsWorkingDirectoryAndItsGenerationRun(@TempDir Path base) throws IOException {
+        Path archive = anArchive(base);
+        Path work = Files.createDirectories(base.resolve("work"));
+
+        Path tree = drawAt(work, DeliverableRoot.UNNAMED, archive);
+
+        claim(
+                "the tree is drawn where it was before a root could be named",
+                () -> assertThat(tree).isEqualTo(work.resolve("deliverable").resolve(ListedTree.RUN_ID)));
+        claim(
+                "and at its top is the marker: two lines, the working directory's real path and the generation run",
+                () -> assertThat(Files.readString(tree.resolve(MARKER), StandardCharsets.UTF_8))
+                        .isEqualTo("working-directory=" + work.toRealPath() + "\n"
+                                + "generation-run=" + ListedTree.RUN_ID + "\n"));
+    }
+
+    @Test
+    @Story("The tree is drawn at the folder the operator names, or in the working directory")
+    @DisplayName("At a folder the operator names, the tree is drawn with its index at the top and nothing in the working directory")
+    void aNamedRootIsTheTreeWithItsIndexAtTheTop(@TempDir Path base) throws IOException {
+        Path archive = anArchive(base);
+        Path work = Files.createDirectories(base.resolve("work"));
+        Path root = base.resolve("handed over");
+
+        Path tree = drawAt(work, DeliverableRoot.named(root), archive);
+
+        claim("the tree is the root itself", () -> assertThat(tree).isEqualTo(root.toAbsolutePath().normalize()));
+        claim(
+                "the index and the listing are at the top of the root",
+                () -> {
+                    assertThat(root.resolve("index.html")).isRegularFile();
+                    assertThat(root.resolve("documents.csv")).isRegularFile();
+                });
+        claim(
+                "each copy is in its group's folder at the root, holding the bytes of its file in the archive",
+                () -> {
+                    assertThat(root.resolve(FIRST_COPY)).hasBinaryContent(FIRST_BYTES);
+                    assertThat(root.resolve(SECOND_COPY)).hasBinaryContent(SECOND_BYTES);
+                });
+        claim(
+                "the marker at the root names the working directory and the generation that drew it",
+                () -> assertThat(Files.readString(root.resolve(MARKER), StandardCharsets.UTF_8))
+                        .isEqualTo("working-directory=" + work.toRealPath() + "\n"
+                                + "generation-run=" + ListedTree.RUN_ID + "\n"));
+        claim(
+                "and nothing was drawn under the working directory's deliverable folder",
+                () -> assertThat(work.resolve("deliverable")).doesNotExist());
+    }
 
     @Test
     @Story("Every tree says which working directory and which generation drew it")
@@ -177,6 +230,44 @@ class TheTreeIsDrawnAtTheDeliverableRootTest {
         claim(
                 "and so is a file the operator put in the root",
                 () -> assertThat(theOperatorsNotes).hasContent("the operator's notes"));
+    }
+
+    /**
+     * The shipped reading of the drive's free space, through the form of the writer that reads it itself: the working
+     * directory lies beneath a file, so its drive's free space cannot be read, and the root lies beside it.
+     */
+    @Test
+    @Story("Copying never fills the drive the tree is drawn on")
+    @DisplayName("The free space a copy must leave is read on the drive the tree is drawn on, not the working directory's")
+    void theGibibyteIsReadOnTheDriveTheTreeIsWrittenTo(@TempDir Path base) throws IOException {
+        Path archive = anArchive(base);
+        Path aFile = Files.writeString(base.resolve("a-file"), "not a folder", StandardCharsets.UTF_8);
+        Path workBeneathAFile = aFile.resolve("work");
+        Path root = base.resolve("handed over");
+
+        claim(
+                "the precondition: the working directory's free space is read as none, and the drive the root lies on"
+                        + " as having room for both documents and the gibibyte a copy must leave",
+                () -> {
+                    assertThat(Deliverable.usableBytesAt(workBeneathAFile)).isZero();
+                    assertThat(Deliverable.usableBytesAt(base))
+                            .isGreaterThan(Deliverable.COPY_HEADROOM_BYTES + FIRST_BYTES.length + SECOND_BYTES.length);
+                });
+
+        Path tree = Deliverable.writeTo(
+                workBeneathAFile,
+                DeliverableRoot.named(root),
+                ListedTree.provenance(archive),
+                ListedTree.of(List.of(THE_CLUSTER), writtenFromBoth(), bothSurvivors(), Map.of()),
+                SurvivorPictures.none(),
+                DeliverableProgress.NONE,
+                ReplacingMove.ATOMIC);
+
+        claim(
+                "both documents are copied: the room was read on the root's drive, where reading the working"
+                        + " directory's would have left every copy unmade for want of room",
+                () -> assertThat(columnByPath(tree, "copy_outcome"))
+                        .containsExactly(Map.entry(FIRST_PATH, "copied"), Map.entry(SECOND_PATH, "copied")));
     }
 
     /** The two survivors' files beneath {@code <base>/archive}, which is returned. */

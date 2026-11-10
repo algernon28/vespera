@@ -145,11 +145,80 @@ class ReviewListThatFailsPartwayLeavesThePreviousOneTest {
                         .noneMatch(event -> event.getFormattedMessage().contains("they are listed in")));
     }
 
+    @Test
+    @Story("The list of files extraction could not read")
+    @DisplayName("When the count of the files extraction could not read fails, the list written before stands whole, one line says so, and nothing is thrown from the end of extraction")
+    void aFailedCountLeavesTheReviewListBeforeAndIsNotThrown(@TempDir Path root, @TempDir Path workingDirectory)
+            throws IOException {
+        listener(listingEvery(TWO_FAILURES), root, workingDirectory).afterStep(completed());
+        Path page = workingDirectory.resolve(THE_REVIEW_LIST);
+        String thePageBefore = Files.readString(page, StandardCharsets.UTF_8);
+        logged.list.clear();
+
+        StepExecution completed = completed();
+        Throwable thrown =
+                catchThrowable(() -> listener(failingToCount(), root, workingDirectory).afterStep(completed));
+
+        claim(
+                "nothing was thrown from the end of extraction: the failed count was said, not thrown",
+                () -> assertThat(thrown).isNull());
+        claim(
+                "the list in its place is the first invocation's, character for character",
+                () -> assertThat(Files.readString(page, StandardCharsets.UTF_8)).isEqualTo(thePageBefore));
+        claim(
+                "one line, written as an error, says that the files that could not be read could not be counted"
+                        + " and that the list of them could not be written to the page's place, with what the"
+                        + " database said",
+                () -> assertThat(logged.list)
+                        .filteredOn(event -> event.getLevel() == Level.ERROR)
+                        .singleElement()
+                        .satisfies(event -> assertThat(event.getFormattedMessage())
+                                .startsWith("Stage 2 (extraction): the files that could not be read could not be"
+                                        + " counted, and the list of them could not be written to "
+                                        + page.toAbsolutePath() + ": ")
+                                .contains(WHAT_THE_COUNT_SAID)));
+        claim(
+                "nothing claims the list was written",
+                () -> assertThat(logged.list)
+                        .noneMatch(event -> event.getFormattedMessage().contains("they are listed in")));
+    }
+
     private static StepExecution completed() {
         StepExecution completed = new StepExecution(
                 1L, "extraction", new JobExecution(1L, new JobInstance(1L, "vespera"), new JobParameters()));
         completed.setExitStatus(ExitStatus.COMPLETED);
         return completed;
+    }
+
+    @Test
+    @Story("The list of files extraction could not read")
+    @DisplayName("When the read of the files extraction could not read fails with an error that is not the database's, the list written before stands whole, one line says so, and nothing is thrown from the end of extraction")
+    @Link(name = "ADR-254", url = Adr.A_FAILURE_AT_THE_END_OF_STAGE_2_IS_SAID_WHATEVER_IT_WAS, type = "adr")
+    void anErrorOfAnyKindLeavesTheReviewListBeforeAndIsNotThrown(
+            @TempDir Path root, @TempDir Path workingDirectory) throws IOException {
+        listener(listingEvery(TWO_FAILURES), root, workingDirectory).afterStep(completed());
+        Path page = workingDirectory.resolve(THE_REVIEW_LIST);
+        String thePageBefore = Files.readString(page, StandardCharsets.UTF_8);
+        logged.list.clear();
+
+        StepExecution completed = completed();
+        Throwable thrown = catchThrowable(
+                () -> listener(failingWithAnError(), root, workingDirectory).afterStep(completed));
+
+        claim(
+                "nothing was thrown from the end of extraction: the error was said, not thrown",
+                () -> assertThat(thrown).isNull());
+        claim(
+                "the list in its place is the first invocation's, character for character",
+                () -> assertThat(Files.readString(page, StandardCharsets.UTF_8)).isEqualTo(thePageBefore));
+        claim(
+                "one line, written as an error, says that the list could not be written, with what the error said",
+                () -> assertThat(logged.list)
+                        .filteredOn(event -> event.getLevel() == Level.ERROR)
+                        .singleElement()
+                        .satisfies(event -> assertThat(event.getFormattedMessage())
+                                .contains("could not be written to " + page.toAbsolutePath())
+                                .contains(WHAT_THE_ERROR_SAID)));
     }
 
     /** Verdicts that count {@link #THREE_FAILURES} and then fail with an error no statement raised. */

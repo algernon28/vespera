@@ -35,6 +35,15 @@ class StageProgressTest {
     /** A twentieth of {@link #SMALL_TOTAL} — the 5% bound, and what the interval should be there. */
     private static final long FIVE_PERCENT_OF_SMALL_TOTAL = SMALL_TOTAL / 20;
 
+    /** A total large enough that a twentieth of it (5,000) is looser than the 1,000-item ceiling. */
+    private static final long LARGE_TOTAL = 100_000L;
+
+    /** Fewer than a twentieth of {@link #SMALL_TOTAL}, so no line is due yet. */
+    private static final long ITEMS_BELOW_THE_FIRST_REPORT = FIVE_PERCENT_OF_SMALL_TOTAL - 1;
+
+    /** Two full 1,000-item intervals and a bit, over {@link #LARGE_TOTAL}. */
+    private static final long ITEMS_PAST_TWO_THOUSAND = 2_500L;
+
     private ListAppender<ILoggingEvent> logged;
     private Logger progressLogger;
 
@@ -71,6 +80,42 @@ class StageProgressTest {
                         + " percentage an operator actually watches",
                 () -> assertThat(messages().getFirst())
                         .isEqualTo("Stage 1 (byte-level reduction): 10 of 200 (5%)"));
+    }
+
+    @Test
+    @Story("Nothing is logged before the first interval is crossed")
+    @DisplayName("Over a 200-item total, 9 items produce no progress line")
+    void reportsNothingBeforeTheFirstIntervalIsCrossed() {
+        StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction)", SMALL_TOTAL);
+
+        for (long item = 0; item < ITEMS_BELOW_THE_FIRST_REPORT; item++) {
+            progress.itemDone();
+        }
+
+        claim(
+                "no line has been logged after 9 of 200 items: the cadence is a floor on the gap between"
+                        + " lines, not a line per item",
+                () -> assertThat(messages()).isEmpty());
+    }
+
+    @Test
+    @Story("A large corpus is not buried under a line per twentieth")
+    @DisplayName("Over a 100,000-item total, lines land every 1,000 items rather than every 5,000")
+    void capsTheIntervalAtOneThousandItemsOnALargeTotal() {
+        StageProgress progress = StageProgress.over("Stage 2 (extraction)", LARGE_TOTAL);
+
+        for (long item = 0; item < ITEMS_PAST_TWO_THOUSAND; item++) {
+            progress.itemDone();
+        }
+
+        claim(
+                "two lines have been logged after 2,500 of 100,000 items — the 1,000-item ceiling won"
+                        + " over a twentieth of 100,000, which would have reported nothing yet",
+                () -> assertThat(messages()).hasSize(2));
+        claim(
+                "and the second reads 2,000 of 100,000 (2%), with both figures grouped for reading",
+                () -> assertThat(messages().getLast())
+                        .isEqualTo("Stage 2 (extraction): 2,000 of 100,000 (2%)"));
     }
 
     private List<String> messages() {

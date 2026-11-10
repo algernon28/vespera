@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -55,6 +56,11 @@ class WalkAlgorithmTest {
 
     /** Directories the fixture holds, all entered: the root, each branch, and each subdirectory. */
     private static final int DIRECTORIES_IN_THE_FIXTURE = 1 + BRANCHES + BRANCHES;
+
+    /** A flat tree big enough that walking it is a measurement rather than a formality. */
+    private static final int DIRECTORIES_AT_SCALE = 40;
+
+    private static final int FILES_PER_DIRECTORY_AT_SCALE = 25;
 
     /** Collects what the walk emits, and what it had counted at each point it offered to stop. */
     private static final class Recorder implements Walk.Observer {
@@ -191,6 +197,43 @@ class WalkAlgorithmTest {
 
     @Test
     @Story("A walk resumes where it stopped")
+    @DisplayName("Resuming holds over a thousand entries, not only over a handful")
+    @Issue("5")
+    @Link(name = "ADR-055", url = Adr.A_WALK_IS_RESUMED_UNDER_ITS_OWN_ID, type = "adr")
+    void resumingHoldsAtScale() throws IOException {
+        int files = DIRECTORIES_AT_SCALE * FILES_PER_DIRECTORY_AT_SCALE;
+        try (InMemoryCorpus corpus = InMemoryCorpus.open("at-scale")) {
+            for (int directory = 0; directory < DIRECTORIES_AT_SCALE; directory++) {
+                for (int file = 0; file < FILES_PER_DIRECTORY_AT_SCALE; file++) {
+                    corpus.file("dir%02d/file%02d.txt".formatted(directory, file), "x");
+                }
+            }
+
+            Recorder uninterrupted = new Recorder();
+            Walk.Outcome whole = Walk.walk(corpus.root(), uninterrupted);
+            Offer halfway = uninterrupted.offers.get(uninterrupted.offers.size() / 2);
+
+            Recorder resumed = new Recorder();
+            Walk.Outcome after = Walk.walk(corpus.root(), resumed, halfway.at());
+
+            claim(
+                    files + " files across " + DIRECTORIES_AT_SCALE + " directories were all recorded by"
+                            + " one uninterrupted walk",
+                    () -> assertThat(uninterrupted.occurrences).hasSize(files));
+            claim(
+                    "resuming halfway recorded exactly the occurrences that remained, in order",
+                    () -> assertThat(resumed.occurrences)
+                            .containsExactlyElementsOf(uninterrupted.occurrences.subList(
+                                    (int) halfway.progress().occurrences(), files)));
+            claim(
+                    "and the two sessions still account for every entry the whole walk met",
+                    () -> assertThat(halfway.progress().entriesSeen() + after.progress().entriesSeen())
+                            .isEqualTo(whole.progress().entriesSeen()));
+        }
+    }
+
+    @Test
+    @Story("A walk resumes where it stopped")
     @DisplayName("A checkpoint that no longer matches the tree stops the walk instead of skipping on")
     @Issue("5")
     @Link(name = "ADR-055", url = Adr.A_WALK_IS_RESUMED_UNDER_ITS_OWN_ID, type = "adr")
@@ -206,6 +249,26 @@ class WalkAlgorithmTest {
                                     () -> Walk.walk(corpus.root(), new Recorder(), pointingElsewhere))
                             .isInstanceOf(CheckpointMismatchException.class)
                             .hasMessageContaining("changed"));
+        }
+    }
+
+    @Test
+    @Story("A walk resumes where it stopped")
+    @DisplayName("A checkpoint pointing at what is now a file stops the walk rather than skipping on")
+    @Issue("5")
+    @Link(name = "ADR-055", url = Adr.A_WALK_IS_RESUMED_UNDER_ITS_OWN_ID, type = "adr")
+    void refusesToResumeWhenTheCheckpointedDirectoryIsNowAFile() throws IOException {
+        try (InMemoryCorpus corpus = InMemoryCorpus.open("now-a-file")) {
+            corpus.file("one", "what was a directory when the checkpoint was written");
+            Checkpoint pointingAtWhatIsNowAFile = new Checkpoint(List.of(0), "one");
+
+            claim(
+                    "the walk stops rather than carrying on past a position it never found, so a tree that"
+                            + " changed cannot quietly cost the corpus a subtree",
+                    () -> assertThatThrownBy(() -> Walk.walk(
+                                    corpus.root(), new Recorder(), pointingAtWhatIsNowAFile))
+                            .isInstanceOf(CheckpointMismatchException.class)
+                            .hasMessageContaining("no longer holds"));
         }
     }
 }

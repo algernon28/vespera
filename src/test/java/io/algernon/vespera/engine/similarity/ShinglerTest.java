@@ -2,6 +2,7 @@ package io.algernon.vespera.engine.similarity;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
@@ -17,7 +18,10 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
@@ -65,6 +69,58 @@ class ShinglerTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
+    @Story("Boilerplate detection needs matching hashes for a shared passage")
+    @DisplayName("Two documents sharing a passage produce matching shingle hashes for it")
+    void sharedPassageProducesMatchingHashes() {
+        Shingler shingler = new Shingler(jdbcTemplate);
+        String sharedPassage = "all rights reserved no part of this publication";
+        String documentOne = "Chapter One. " + sharedPassage + ". The story begins here.";
+        String documentTwo = "Appendix B. " + sharedPassage + ". Figures follow below.";
+
+        List<Long> hashesOne = shingler.hashesOf(documentOne, FIVE_WORD_SHINGLES);
+        List<Long> hashesTwo = shingler.hashesOf(documentTwo, FIVE_WORD_SHINGLES);
+
+        claim(
+                "the two documents' shingle sets intersect on at least one hash — the shared passage's —"
+                        + " which is what a later document-frequency pass counts against",
+                () -> assertThat(hashesOne).containsAnyElementsOf(hashesTwo));
+    }
+
+    @Test
+    @Story("A shingle set is comparable only within one granularity")
+    @DisplayName("A different window size produces a different shingle count over the same text")
+    void differentGranularityProducesADifferentHashCount() {
+        Shingler shingler = new Shingler(jdbcTemplate);
+        String text = "one two three four five six seven eight nine ten";
+
+        List<Long> fiveWordWindows = shingler.hashesOf(text, FIVE_WORD_SHINGLES);
+        List<Long> threeWordWindows = shingler.hashesOf(text, new ShingleParameters(3));
+
+        claim(
+                "a three-word window over a ten-word text slides across eight overlapping positions",
+                () -> assertThat(threeWordWindows).hasSize(8));
+        claim(
+                "the same ten-word text under the five-word default slides across six overlapping"
+                        + " positions instead -- the sliding-window mechanism actually running rather than a"
+                        + " fixed, ignored parameter",
+                () -> assertThat(fiveWordWindows).hasSize(6));
+    }
+
+    @Test
+    @Story("A shingle set is comparable only within one granularity")
+    @DisplayName("A text shorter than the window produces no shingles rather than a short, misleading one")
+    void aTextShorterThanTheWindowProducesNoShingles() {
+        Shingler shingler = new Shingler(jdbcTemplate);
+
+        claim(
+                "three words under a five-word window is not a partial shingle -- it is no shingle at"
+                        + " all, so it never contributes a hash that would collide with a genuine five-word"
+                        + " window elsewhere",
+                () -> assertThat(shingler.hashesOf("too short here", FIVE_WORD_SHINGLES))
+                        .isEmpty());
+    }
+
+    @Test
     @Story("What a stored shingle row is filed under")
     @DisplayName("A stored shingle set is read back under the run and granularity it was written with")
     void storesTheComputedHashesUnderTheirRunAndGranularity() {
@@ -81,6 +137,50 @@ class ShinglerTest {
                 () -> assertThat(storedHashes(occurrenceId, runId, FIVE_WORD_SHINGLES.identity()))
                         .containsExactlyInAnyOrderElementsOf(
                                 shingler.hashesOf(text, FIVE_WORD_SHINGLES)));
+    }
+
+    @Test
+    @Issue("367")
+    @Story("A document's shingle set keeps every repetition")
+    @DisplayName("A passage repeated within one document is stored as many times as it occurs")
+    void aRepeatedHashIsStoredOncePerOccurrence() {
+        Shingler shingler = new Shingler(jdbcTemplate);
+        OccurrenceId occurrenceId = anOccurrence();
+        RunId runId = aRun(occurrenceId);
+        String text = "alpha beta gamma delta epsilon ".repeat(3);
+        List<Long> computed = shingler.hashesOf(text, FIVE_WORD_SHINGLES);
+
+        shingler.write(occurrenceId, runId, text, FIVE_WORD_SHINGLES);
+
+        claim(
+                "the text is one five-word passage written out three times back to back, so its shingle"
+                        + " set holds the same hash more than once",
+                () -> assertThat(new HashSet<>(computed)).hasSizeLessThan(computed.size()));
+        claim(
+                "counted hash by hash, the rows stored for this occurrence and run occur exactly as often"
+                        + " as the function computed them, so no repetition was folded into a single row",
+                () -> assertThat(countedPerHash(
+                                storedHashes(occurrenceId, runId, FIVE_WORD_SHINGLES.identity())))
+                        .isEqualTo(countedPerHash(computed)));
+    }
+
+    @Test
+    @Issue("367")
+    @Story("A document with no shingles stores nothing")
+    @DisplayName("Writing an empty text stores no shingle rows and does not fail")
+    void anEmptyTextStoresNoRows() {
+        Shingler shingler = new Shingler(jdbcTemplate);
+        OccurrenceId occurrenceId = anOccurrence();
+        RunId runId = aRun(occurrenceId);
+
+        claim(
+                "writing an empty text completes without an error",
+                () -> assertThatCode(() -> shingler.write(occurrenceId, runId, "", FIVE_WORD_SHINGLES))
+                        .doesNotThrowAnyException());
+        claim(
+                "no shingle row is stored for this occurrence and run",
+                () -> assertThat(storedHashes(occurrenceId, runId, FIVE_WORD_SHINGLES.identity()))
+                        .isEmpty());
     }
 
     @Test
@@ -109,6 +209,32 @@ class ShinglerTest {
                         .isEqualTo(computed));
     }
 
+    @Test
+    @Story("A granularity change mints new rows instead of overwriting")
+    @DisplayName("Writing the same document under a second granularity adds rows rather than replacing the first")
+    void aSecondGranularityAddsRowsUnderItsOwnIdentity() {
+        Shingler shingler = new Shingler(jdbcTemplate);
+        OccurrenceId occurrenceId = anOccurrence();
+        RunId runId = aRun(occurrenceId);
+        String text = "the quick brown fox jumps over the lazy dog again";
+        ShingleParameters narrowWindow = new ShingleParameters(3);
+
+        shingler.write(occurrenceId, runId, text, FIVE_WORD_SHINGLES);
+        shingler.write(occurrenceId, runId, text, narrowWindow);
+
+        claim(
+                "the first granularity's rows are untouched by the second write -- still exactly what"
+                        + " the function computed for it",
+                () -> assertThat(storedHashes(occurrenceId, runId, FIVE_WORD_SHINGLES.identity()))
+                        .containsExactlyInAnyOrderElementsOf(
+                                shingler.hashesOf(text, FIVE_WORD_SHINGLES)));
+        claim(
+                "the second granularity's rows exist under their own identity, alongside the first"
+                        + " rather than in place of it",
+                () -> assertThat(storedHashes(occurrenceId, runId, narrowWindow.identity()))
+                        .containsExactlyInAnyOrderElementsOf(shingler.hashesOf(text, narrowWindow)));
+    }
+
     private List<Long> storedHashes(OccurrenceId occurrenceId, RunId runId, String parameterIdentity) {
         return jdbcTemplate.queryForList(
                 "SELECT shingle_hash FROM shingle WHERE occurrence_id = ? AND run_id = ?"
@@ -127,6 +253,10 @@ class ShinglerTest {
                 occurrenceId.value(),
                 runId.value(),
                 parameterIdentity);
+    }
+
+    private static Map<Long, Long> countedPerHash(List<Long> hashes) {
+        return hashes.stream().collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
     }
 
     private OccurrenceId anOccurrence() {

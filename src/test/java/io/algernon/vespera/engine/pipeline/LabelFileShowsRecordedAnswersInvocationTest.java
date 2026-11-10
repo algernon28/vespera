@@ -66,6 +66,15 @@ class LabelFileShowsRecordedAnswersInvocationTest {
     /** The document no test answers, so it shows what an unanswered question looks like after all this. */
     private static final String THIRD_DOCUMENT = "third.txt";
 
+    /** Every document the fixture corpus holds, and so every question the sample can ask. */
+    private static final List<String> EVERY_DOCUMENT = List.of(FIRST_DOCUMENT, SECOND_DOCUMENT, THIRD_DOCUMENT);
+
+    /** How the file writes an answer nobody has given. */
+    private static final String BLANK = "null";
+
+    /** What the file used to say when it had nothing answered, and what a file of recorded answers must not. */
+    private static final String NO_ANSWERS_YET = "no answers in it yet";
+
     private static final YAMLMapper YAML = YAMLMapper.builder().build();
 
     @TempDir
@@ -91,6 +100,156 @@ class LabelFileShowsRecordedAnswersInvocationTest {
         // otherwise still be there if this method's run stopped before writing its own.
         Files.deleteIfExists(labelFile());
         Files.deleteIfExists(workingDirectory.resolve(RelevanceLabellingReport.FILE_NAME));
+    }
+
+    @Test
+    @Story("The label file shows the answers already given")
+    @DisplayName("After answers are recorded, the next run writes them into the file, and leaves the rest blank")
+    void theNextRunWritesTheRecordedAnswersIntoTheFile(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aScoredCorpus(root, seeds);
+        claim(
+                "the fixture's three documents are all asked about, so each of the three answers below"
+                        + " has an entry to appear in",
+                () -> assertThat(pathsInTheFile()).containsExactlyInAnyOrderElementsOf(EVERY_DOCUMENT));
+        answerInTheFile(FIRST_DOCUMENT, true);
+        answerInTheFile(SECOND_DOCUMENT, false);
+        cli.run("label");
+
+        cli.run("run", root.toString());
+
+        claim("the second run reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the document answered as relevant shows that answer in the rewritten file, rather than"
+                        + " asking the person who gave it for it again",
+                () -> assertThat(answerShownFor(FIRST_DOCUMENT)).isEqualTo("true"));
+        claim(
+                "the document answered as not relevant shows that answer too: both answers are shown,"
+                        + " not only the ones that keep a document",
+                () -> assertThat(answerShownFor(SECOND_DOCUMENT)).isEqualTo("false"));
+        claim(
+                "and the document nobody answered is still blank, waiting for its answer",
+                () -> assertThat(answerShownFor(THIRD_DOCUMENT)).isEqualTo(BLANK));
+    }
+
+    @Test
+    @Story("A changed answer replaces the one recorded, and says so")
+    @DisplayName("An answer changed in the file replaces the recorded one, and the report names the document with both answers")
+    void aChangedAnswerReplacesTheRecordedOneAndIsNamed(CapturedOutput output, @TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aScoredCorpus(root, seeds);
+        answerInTheFile(FIRST_DOCUMENT, true);
+        cli.run("label");
+        cli.run("run", root.toString());
+        answerInTheFile(FIRST_DOCUMENT, false);
+
+        String said = whatLabelSays(output);
+
+        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the new answer replaced the old one: the file is the person's own statement, and changing"
+                        + " an answer in it is how they correct one",
+                () -> assertThat(answerRecordedFor(FIRST_DOCUMENT, seeds)).isEqualTo(false));
+        claim(
+                "the report counts it as the one changed answer, with nothing new and nothing unchanged,"
+                        + " because the file carried that one answer and no other",
+                () -> assertThat(said).contains("0 new, 1 changed, 0 unchanged"));
+        claim(
+                "and it names the document with the answer it had and the answer it has now, so a"
+                        + " correction is never made without the person seeing it",
+                () -> assertThat(said).contains(FIRST_DOCUMENT + " was true, now false"));
+    }
+
+    @Test
+    @Story("A blank answer takes nothing back")
+    @DisplayName("Blanking an answer in the file leaves the recorded answer standing")
+    void aBlankedAnswerLeavesTheRecordedOneStanding(CapturedOutput output, @TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aScoredCorpus(root, seeds);
+        answerInTheFile(FIRST_DOCUMENT, true);
+        cli.run("label");
+        cli.run("run", root.toString());
+        leaveBlankInTheFile(FIRST_DOCUMENT);
+        answerInTheFile(SECOND_DOCUMENT, false);
+
+        String said = whatLabelSays(output);
+
+        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the blanked answer is still recorded as it was: blank means not answered in this file,"
+                        + " and a person part-way through a file would otherwise lose answers from an"
+                        + " earlier sitting",
+                () -> assertThat(answerRecordedFor(FIRST_DOCUMENT, seeds)).isEqualTo(true));
+        claim(
+                "the report counts the one answer the file carried as new, and nothing as changed",
+                () -> assertThat(said).contains("1 new, 0 changed, 0 unchanged"));
+        claim(
+                "and it counts the blanked entry with the untouched one as the two questions still"
+                        + " blank, never as an answer taken back",
+                () -> assertThat(said)
+                        .contains("2 question(s) are still blank")
+                        .doesNotContain(FIRST_DOCUMENT + " was"));
+    }
+
+    @Test
+    @Story("A file of answers already recorded is not a file with no answers")
+    @DisplayName("Recording a rewritten file nobody edited records nothing new, and says so without claiming it holds no answers")
+    void anUneditedFileRecordsNothingNewAndSaysSo(CapturedOutput output, @TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aScoredCorpus(root, seeds);
+        answerInTheFile(FIRST_DOCUMENT, true);
+        answerInTheFile(SECOND_DOCUMENT, false);
+        cli.run("label");
+        cli.run("run", root.toString());
+
+        int before = output.getAll().length();
+        String said = whatLabelSays(output);
+        String everythingItPrinted = output.getAll().substring(before);
+
+        claim(
+                "the invocation reports success: every answer in the file is one already recorded, and"
+                        + " that is not a mistake to stop the person for",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the report says the file's two answers are unchanged and none is new",
+                () -> assertThat(said).contains("2 answer(s) unchanged, none new"));
+        claim(
+                "and nothing it printed says the file has no answers, which it plainly does",
+                () -> assertThat(everythingItPrinted).doesNotContain(NO_ANSWERS_YET));
+        claim(
+                "both answers stand as they were given",
+                () -> {
+                    assertThat(answerRecordedFor(FIRST_DOCUMENT, seeds)).isEqualTo(true);
+                    assertThat(answerRecordedFor(SECOND_DOCUMENT, seeds)).isEqualTo(false);
+                });
+    }
+
+    @Test
+    @Story("A changed answer replaces the one recorded, and says so")
+    @DisplayName("A file mixing a new answer with one already recorded counts both, the recorded one as unchanged")
+    void aNewAnswerBesideARecordedOneCountsBoth(CapturedOutput output, @TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aScoredCorpus(root, seeds);
+        answerInTheFile(FIRST_DOCUMENT, true);
+        cli.run("label");
+        cli.run("run", root.toString());
+        answerInTheFile(SECOND_DOCUMENT, false);
+
+        String said = whatLabelSays(output);
+
+        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the report's total counts every answer the file carried, the one shown back to the person"
+                        + " as well as the one they added, so the total matches the file they are looking at",
+                () -> assertThat(said).contains("recorded 2 answer(s) about the seed set at "));
+        claim(
+                "and it splits that total into the one new answer and the one unchanged, with nothing changed",
+                () -> assertThat(said).contains("1 new, 0 changed, 1 unchanged"));
+        claim(
+                "both answers are recorded as the file gives them",
+                () -> {
+                    assertThat(answerRecordedFor(FIRST_DOCUMENT, seeds)).isEqualTo(true);
+                    assertThat(answerRecordedFor(SECOND_DOCUMENT, seeds)).isEqualTo(false);
+                });
     }
 
     @Test
@@ -139,6 +298,39 @@ class LabelFileShowsRecordedAnswersInvocationTest {
                 () -> assertThat(stampShown).isEqualTo(generatedUnder));
     }
 
+    @Test
+    @Story("A file of answers about one seed set is refused under another")
+    @DisplayName("A file that names no seed set is read against the seed folder the profile names now, as it always was")
+    void aFileNamingNoSeedSetIsReadAgainstTheProfilesSeedSet(
+            @TempDir Path root, @TempDir Path seeds, @TempDir Path otherSeeds) throws IOException {
+        aScoredCorpus(root, seeds);
+        String generated = Files.readString(labelFile());
+        claim(
+                "the file as written names its seed set, so removing that line below is what makes it a"
+                        + " file written before ADR-169",
+                () -> assertThat(generated).containsPattern("(?m)^generatedUnderSeedSet: "));
+        Files.writeString(labelFile(), generated.replaceFirst("(?m)^generatedUnderSeedSet: .*\\R", ""));
+        answerInTheFile(FIRST_DOCUMENT, true);
+        Files.writeString(otherSeeds.resolve("seed.txt"), "a different seed document");
+        nameTheSeedFolder(otherSeeds);
+
+        cli.run("label");
+
+        claim(
+                "the invocation reports success: a file with no seed set named was written blank, so every"
+                        + " answer in it was typed by the operator, and refusing it would stop someone who"
+                        + " upgraded part-way through a file",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the answer is recorded against the seed set the profile names now, which is how such a"
+                        + " file was always read",
+                () -> assertThat(answerRecordedFor(FIRST_DOCUMENT, otherSeeds)).isEqualTo(true));
+        claim(
+                "and nothing is recorded against the seed set the file was generated under, since the file"
+                        + " no longer says which that was",
+                () -> assertThat(answerRecordedFor(FIRST_DOCUMENT, seeds)).isNull());
+    }
+
     /** Runs the pipeline far enough that a sample exists and a label file has been written. */
     private void aScoredCorpus(Path root, Path seeds) throws IOException {
         Files.writeString(root.resolve(FIRST_DOCUMENT), "a corpus document");
@@ -154,9 +346,21 @@ class LabelFileShowsRecordedAnswersInvocationTest {
         EveryGateOpen.throughStageFive(profileStore, seeds);
     }
 
+    /** What {@code vespera label} printed, and only that: the run before it printed to the same streams. */
+    private String whatLabelSays(CapturedOutput output) {
+        int before = output.getOut().length();
+        cli.run("label");
+        return output.getOut().substring(before);
+    }
+
     /** Writes an answer into one entry of the label file, the way a person editing it would. */
     private void answerInTheFile(String path, boolean relevant) throws IOException {
         entryFor(path, entry -> entry.put("relevant", relevant));
+    }
+
+    /** Empties one entry's answer, the way a person deleting what the file showed them would. */
+    private void leaveBlankInTheFile(String path) throws IOException {
+        entryFor(path, entry -> entry.putNull("relevant"));
     }
 
     private void entryFor(String path, java.util.function.Consumer<ObjectNode> edit) throws IOException {
@@ -172,6 +376,25 @@ class LabelFileShowsRecordedAnswersInvocationTest {
             throw new IllegalStateException("the label file has no entry for " + path + " to edit");
         }
         Files.writeString(labelFile(), YAML.writeValueAsString(root));
+    }
+
+    /** The answer the label file shows for {@code path}, as the file spells it. */
+    private String answerShownFor(String path) throws IOException {
+        for (JsonNode entry : YAML.readTree(Files.readString(labelFile())).path("documents")) {
+            if (path.equals(entry.path("path").asString())) {
+                JsonNode relevant = entry.path("relevant");
+                return relevant.isMissingNode() || relevant.isNull() ? BLANK : relevant.asString();
+            }
+        }
+        return "(no entry)";
+    }
+
+    private List<String> pathsInTheFile() throws IOException {
+        List<String> paths = new java.util.ArrayList<>();
+        for (JsonNode entry : YAML.readTree(Files.readString(labelFile())).path("documents")) {
+            paths.add(entry.path("path").asString());
+        }
+        return paths;
     }
 
     /** The answer recorded for {@code path} against this test's own seed folder, or null where none is. */

@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.corpus.Walk;
 import io.algernon.vespera.engine.extraction.ConverterStopsPartwayBeans;
+import io.algernon.vespera.engine.extraction.FailuresInARow;
+import io.algernon.vespera.engine.extraction.DoclingExtractor;
 import io.algernon.vespera.engine.ledger.SuccessiveBuildsBeans;
 import io.algernon.vespera.engine.profile.ProfileFixture;
 import io.algernon.vespera.engine.profile.ProfileStore;
@@ -71,6 +73,20 @@ class ServiceScopeRefusalInvocationTest {
     /** The one position the converter refuses while blaming itself. */
     private static final List<Integer> CONVERTER_FAULT_AT = List.of(5);
 
+    /**
+     * Five positions the converter refuses while blaming itself: two in each of the first two chunks
+     * and one in the third. Five of them cannot reach the drain in a row, in whatever order the workers
+     * reach the converter, so the first invocation completes. The first position falls to one of the
+     * first eleven occurrences read, because at most seven other workers can be holding an earlier
+     * one. The last falls to none of the first sixteen, because the reader has dispatched only
+     * thirty-two occurrences until the first chunk has been processed whole (ADR-176). Five is the
+     * number of consecutive refusals that stops the step.
+     */
+    private static final List<Integer> SPREAD_CONVERTER_FAULTS_AT = List.of(4, 12, 20, 28, 40);
+
+    /** The number of consecutive refusals that stops stage 2's step. */
+    private static final int REFUSALS_THAT_STOP_THE_STEP = FailuresInARow.CONSECUTIVE_SERVICE_SCOPE_FAILURE_COUNT;
+
     /** No row at all. */
     private static final long NONE = 0;
 
@@ -96,6 +112,9 @@ class ServiceScopeRefusalInvocationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private DoclingExtractor extractor;
 
     /**
      * Nothing scripted, the cache holding nothing from another test, the first build, and a profile
@@ -176,6 +195,135 @@ class ServiceScopeRefusalInvocationTest {
     }
 
     /**
+     * ADR-181's lost-end-of-step state, which is also the smallest discard that runs stage 2 again under
+     * the same run (ADR-183 section 6): the completion record of a stage that completed is deleted, so
+     * the next invocation deletes the faults and the removals that resolved them and reads exactly the
+     * faulted documents again. Every other document carries a measurement under the run and is not
+     * read, so the faulted ones reach the drain one after another, where in the first invocation each
+     * had converted documents between it and the next.
+     */
+    @Test
+    @Story("A refusal the converter blamed on itself is asked about again")
+    @DisplayName("Refusals spread through a completed extraction, read again together, are asked about again rather than stopping it")
+    void refusalsReadAgainTogetherAreAskedAgainRatherThanStoppingTheStage(@TempDir Path root) throws IOException {
+        ConverterStopsPartwayBeans.script(NOWHERE, NOWHERE, SPREAD_CONVERTER_FAULTS_AT);
+        writeCorpus(root, "read again together");
+
+        cli.run("run", root.toString());
+        String run = onlyExtractionRunOf(root);
+
+        claim(
+                "the first invocation completes, the " + SPREAD_CONVERTER_FAULTS_AT.size() + " documents the"
+                        + " converter blamed itself for having been spread through the stage, never "
+                        + REFUSALS_THAT_STOP_THE_STEP + " in a row",
+                () -> {
+                    assertThat(cli.getExitCode()).isEqualTo(COMPLETED);
+                    assertThat(stageTwoFinished(run)).isTrue();
+                    assertThat(faultedOccurrencesUnder(run)).hasSize(SPREAD_CONVERTER_FAULTS_AT.size());
+                });
+
+        jdbcTemplate.update("DELETE FROM finished_step WHERE run_id = ? AND step = ?", run, StepNames.EXTRACTION);
+        ConverterStopsPartwayBeans.script(NOWHERE, NOWHERE, NOWHERE);
+        cli.run("run", root.toString());
+
+        claim(
+                "with the record that the stage finished gone, the next invocation reads those "
+                        + SPREAD_CONVERTER_FAULTS_AT.size() + " documents again, together, and asks the"
+                        + " converter about each of them rather than reading its earlier refusal from storage",
+                () -> assertThat(ConverterStopsPartwayBeans.conversions()).isEqualTo(SPREAD_CONVERTER_FAULTS_AT.size()));
+        claim(
+                "so the invocation completes and records the stage as finished, where "
+                        + REFUSALS_THAT_STOP_THE_STEP + " stored refusals in a row would have stopped it",
+                () -> {
+                    assertThat(cli.getExitCode()).isEqualTo(COMPLETED);
+                    assertThat(stageTwoFinished(run)).isTrue();
+                });
+        claim(
+                "and the converter having converted all " + SPREAD_CONVERTER_FAULTS_AT.size() + ", none is held"
+                        + " as a fault or removed, and every one of the " + CORPUS_SIZE + " documents is measured",
+                () -> {
+                    assertThat(faultedOccurrencesUnder(run)).isEmpty();
+                    assertThat(verdictKindsUnder(run)).doesNotContain("EXTRACTION_FAILED");
+                    assertThat(metricRowsUnder(run)).isEqualTo(CORPUS_SIZE);
+                });
+    }
+
+    /**
+     * The upgrade's replay (ADR-183 section 3) over a working directory an earlier build left a refusal
+     * in. Stage 2's reader looks a row up through {@code DoclingExtractor.cached} and writes the answer
+     * back through {@code remember} inside the chunk's transaction, so this is the path on which a row
+     * that is served when it should be passed over, or a write that cannot replace it, shows. A write
+     * that throws on the existing key would fail the chunk, which is not a skip, and stop stage 2 on
+     * every invocation.
+     *
+     * <p>The refusal is planted by rewriting one converted document's row with SQL, into the columns
+     * the earlier build's {@code ExtractionCache.put} wrote for a {@code capacity} refusal. The document
+     * chosen is the lowest-numbered one, and it is found by its content hash, so the claim does not
+     * depend on which position the converter answered it at.
+     */
+    @Test
+    @Story("A refusal stored by an earlier version is asked about again")
+    @DisplayName("Extraction run again by a new version asks the converter again about a refusal an earlier version stored, and replaces it")
+    void aReplayAsksAgainAboutARefusalAnEarlierBuildStoredAndReplacesIt(@TempDir Path root) throws IOException {
+        writeCorpus(root, "stored by an earlier build");
+
+        cli.run("run", root.toString());
+        String first = onlyExtractionRunOf(root);
+
+        claim(
+                "the first invocation completes, converting every one of the " + CORPUS_SIZE + " documents",
+                () -> {
+                    assertThat(cli.getExitCode()).isEqualTo(COMPLETED);
+                    assertThat(metricRowsUnder(first)).isEqualTo(CORPUS_SIZE);
+                });
+
+        long planted = lowestOccurrenceUnder(first);
+        String plantedHash = contentHashOf(root, planted);
+        int rewritten = jdbcTemplate.update(
+                "UPDATE extraction_cache SET status = 'failure', errors_json = ?, confidence_json = NULL,"
+                        + " processing_time = 0.1, response_json = ? WHERE content_hash = ?",
+                "[{\"component_type\":\"document_backend\",\"module_name\":\"docling\","
+                        + "\"error_message\":\"" + ConverterStopsPartwayBeans.FAULT_MESSAGE + "\","
+                        + "\"category\":\"capacity\",\"page_no\":null}]",
+                "{\"status\":\"failure\"}",
+                plantedHash);
+
+        claim(
+                "one document's stored conversion now reads as a capacity refusal, as an earlier version"
+                        + " stored every refusal",
+                () -> {
+                    assertThat(rewritten).isEqualTo((int) ONCE);
+                    assertThat(storedStatusesFor(plantedHash)).containsExactly("failure");
+                });
+
+        ConverterStopsPartwayBeans.script(NOWHERE, NOWHERE, NOWHERE);
+        SuccessiveBuildsBeans.aCommitTo("extraction");
+        cli.run("run", root.toString());
+        String second = extractionRunsOf(root).getLast();
+
+        claim(
+                "the new version's run of the extraction asks the converter about that one document and about"
+                        + " none of the other " + (CORPUS_SIZE - 1) + ", which are answered from storage",
+                () -> assertThat(ConverterStopsPartwayBeans.conversions()).isEqualTo((int) ONCE));
+        claim(
+                "it completes, the stored refusal standing in the way of neither the call nor the answer",
+                () -> {
+                    assertThat(cli.getExitCode()).isEqualTo(COMPLETED);
+                    assertThat(stageTwoFinished(second)).isTrue();
+                });
+        claim(
+                "the conversion replaces the stored refusal, as the one answer stored for that content",
+                () -> assertThat(storedStatusesFor(plantedHash)).containsExactly("success"));
+        claim(
+                "and the document is measured under the new run, neither removed nor held as a fault there",
+                () -> {
+                    assertThat(metricRowsAgainst(planted, second)).isEqualTo(ONCE);
+                    assertThat(extractionFailedVerdictsAgainst(planted, second)).isEqualTo(NONE);
+                    assertThat(faultRowsAgainst(planted, second)).isEqualTo(NONE);
+                });
+    }
+
+    /**
      * Writes {@link #CORPUS_SIZE} files, each with bytes of its own. {@code salt} keeps one test's corpus
      * from sharing content, and so cache rows, with another's.
      */
@@ -231,6 +379,18 @@ class ServiceScopeRefusalInvocationTest {
                         + " ORDER BY v.occurrence_id",
                 Long.class,
                 run);
+    }
+
+    /** The lowest-numbered occurrence carrying a measurement under {@code run}. */
+    private long lowestOccurrenceUnder(String run) {
+        return jdbcTemplate.queryForObject(
+                "SELECT MIN(occurrence_id) FROM extraction_metric WHERE run_id = ?", Long.class, run);
+    }
+
+    /** The content hash the extraction cache files {@code occurrence}'s file under. */
+    private String contentHashOf(Path root, long occurrence) {
+        String path = jdbcTemplate.queryForObject("SELECT path FROM file_occurrence WHERE id = ?", String.class, occurrence);
+        return extractor.contentHashFor(Walk.canonicalRoot(root).resolve(path));
     }
 
     private List<String> storedStatusesFor(String contentHash) {

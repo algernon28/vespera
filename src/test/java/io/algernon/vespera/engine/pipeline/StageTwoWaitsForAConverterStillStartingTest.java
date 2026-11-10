@@ -106,6 +106,22 @@ class StageTwoWaitsForAConverterStillStartingTest {
 
     @Test
     @Story("A converter still starting is waited for")
+    @DisplayName("A converter that answers its health check with an error fails the start at once with that error, and is not waited for")
+    void anErrorAnswerFailsAtOnce() {
+        ScriptedConverter converter = ScriptedConverter.answeringUnavailable();
+
+        Throwable failed = catchThrowable(() -> listener(converter).beforeStep(null));
+
+        claim("the start check fails with the very error the converter answered with, which is what the closing line"
+                        + " names today",
+                () -> assertThat(failed).isSameAs(converter.checkFailures.getFirst()));
+        claim("the converter was not waited for: the wait asked it nothing", () -> assertThat(converter.waitQuestions.get())
+                .isZero());
+        claim("and no line says it is being waited for", () -> assertThat(lines(Level.WARN)).isEmpty());
+    }
+
+    @Test
+    @Story("A converter still starting is waited for")
     @DisplayName("A converter that still gives no answer when the wait is over is checked once more, and the start fails with what that check reported")
     void noAnswerAtTheBoundFailsWithTheLastCheck() {
         ScriptedConverter converter = ScriptedConverter.notAnswering(NEVER);
@@ -121,6 +137,84 @@ class StageTwoWaitsForAConverterStillStartingTest {
                 .isGreaterThan(1));
     }
 
+    /**
+     * ADR-323 §7: when the bound passes, the listener asks once more through the conversion client, and should that
+     * answer, the step goes on.
+     */
+    @Test
+    @Story("A converter still starting is waited for")
+    @DisplayName("A converter the wait never heard answer, but which answers the check made once the wait is over, lets the start go on")
+    void anAnswerToTheCheckAfterTheBoundLetsTheStartGoOn() {
+        ScriptedConverter converter = ScriptedConverter.notAnswering(NEVER);
+        converter.checksBeforeAnswering = 1;
+
+        claim("the start check returns without a failure",
+                () -> assertThatCode(() -> listener(converter).beforeStep(null)).doesNotThrowAnyException());
+        claim("the wait asked more than once and never heard it answer, and the converter failed the first check"
+                        + " alone, so it answered the one made after the wait",
+                () -> {
+                    assertThat(converter.waitQuestions.get()).isGreaterThan(1);
+                    assertThat(converter.checkFailures).hasSize(1);
+                });
+    }
+
+    @Test
+    @Story("A converter still starting is waited for")
+    @DisplayName("A converter that answers the first check is not waited for")
+    void anAnsweringConverterIsNotWaitedFor() {
+        ScriptedConverter converter = ScriptedConverter.notAnswering(0);
+        converter.checkAnswers = true;
+
+        claim("the start check returns without a failure",
+                () -> assertThatCode(() -> listener(converter).beforeStep(null)).doesNotThrowAnyException());
+        claim("the wait asked it nothing", () -> assertThat(converter.waitQuestions.get()).isZero());
+        claim("and no line says it is being waited for", () -> assertThat(lines(Level.WARN)).isEmpty());
+    }
+
+    @Test
+    @Story("A converter still starting is waited for")
+    @DisplayName("A converter whose port is open and which closes the connection without a status line gives no answer, to the production client")
+    void aConnectionClosedWithNoStatusLineIsNoAnswer() throws Exception {
+        try (ClosesThenAnswers converter = ClosesThenAnswers.closingEvery()) {
+            DoclingClient client = new DoclingClient(converter.baseUrl(), OCR_PRESET);
+
+            claim("the production client's health check throws the exception that reads as no answer, the one the"
+                            + " start check waits on, and not one that would fail the step at once",
+                    () -> assertThat(catchThrowable(client::checkHealth)).isInstanceOf(ResourceAccessException.class));
+            claim("and its quick question reads the same converter as not answering", () -> assertThat(client.isHealthy())
+                    .isFalse());
+        }
+    }
+
+    /**
+     * The converter closes every connection until the start check has written that it waits, and answers every one
+     * after: the first check, with each of the JDK client's own retries of a request whose connection was closed,
+     * meets only closed ones, as #651's did, however long a busy machine makes them take, and the wait is what hears
+     * it answer (ADR-352). A converter that stopped closing after a time on the clock answered the first check's late
+     * retries on a busy machine, and nothing was waited for.
+     */
+    @Test
+    @Story("A converter still starting is waited for")
+    @Issue("698")
+    @Link(name = "ADR-352", url = Adr.A_TIMING_BOUND_IN_A_UNIT_TEST_IS_ONE_A_BUSY_MACHINE_DOES_NOT_MOVE, type = "adr")
+    @DisplayName("A converter that closes every connection without a status line while it starts and then answers is waited for by the start check, through the production client")
+    void aConverterClosingConnectionsWhileItStartsIsWaitedFor() throws Exception {
+        try (ClosesThenAnswers converter = ClosesThenAnswers.closingUntil(() -> !linesSoFar(Level.WARN).isEmpty())) {
+            DoclingClient client = new DoclingClient(converter.baseUrl(), OCR_PRESET);
+            ExtractionHealthCheckListener listener =
+                    new ExtractionHealthCheckListener(client, new SidecarRecovery(client, WAIT_AT_MOST, CHECK_EVERY));
+
+            claim("the start check returns without a failure once the converter answers",
+                    () -> assertThatCode(() -> listener.beforeStep(null)).doesNotThrowAnyException());
+            claim("one warning said it was waited for", () -> assertThat(lines(Level.WARN)).hasSize(1));
+            claim("the converter had closed connections without a status line before it answered",
+                    () -> assertThat(converter.closed()).isPositive());
+            claim("and it answered a connection made once the warning was written, so the start went on because the"
+                            + " converter answered and not because the check let it through before",
+                    () -> assertThat(converter.answered()).isPositive());
+        }
+    }
+
     private static ExtractionHealthCheckListener listener(ScriptedConverter converter) {
         return new ExtractionHealthCheckListener(converter, new SidecarRecovery(converter, WAIT_AT_MOST, CHECK_EVERY));
     }
@@ -130,6 +224,16 @@ class StageTwoWaitsForAConverterStillStartingTest {
                 .filter(event -> event.getLevel().equals(level))
                 .map(ILoggingEvent::getFormattedMessage)
                 .toList();
+    }
+
+    /**
+     * The lines of {@code level} written so far, read from another thread than the one writing them: the appender
+     * adds each line holding its own lock, so the list is copied holding it too.
+     */
+    private List<String> linesSoFar(Level level) {
+        synchronized (logged) {
+            return lines(level);
+        }
     }
 
     /**
@@ -154,6 +258,10 @@ class StageTwoWaitsForAConverterStillStartingTest {
 
         static ScriptedConverter notAnswering(int notYet) {
             return new ScriptedConverter(notYet, false);
+        }
+
+        static ScriptedConverter answeringUnavailable() {
+            return new ScriptedConverter(0, true);
         }
 
         @Override
@@ -193,6 +301,14 @@ class StageTwoWaitsForAConverterStillStartingTest {
             this.server = new java.net.ServerSocket(0, 50, java.net.InetAddress.getLoopbackAddress());
             this.answering = answering;
             this.acceptor = Thread.ofVirtual().start(this::serve);
+        }
+
+        static ClosesThenAnswers closingEvery() throws java.io.IOException {
+            return new ClosesThenAnswers(() -> false);
+        }
+
+        static ClosesThenAnswers closingUntil(java.util.function.BooleanSupplier answering) throws java.io.IOException {
+            return new ClosesThenAnswers(answering);
         }
 
         String baseUrl() {

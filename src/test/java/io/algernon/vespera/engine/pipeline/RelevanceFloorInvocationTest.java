@@ -8,8 +8,10 @@ import io.algernon.vespera.engine.corpus.Walk;
 import io.algernon.vespera.engine.embedding.RelevanceLabels;
 import io.algernon.vespera.engine.ledger.OccurrencePath;
 import io.algernon.vespera.engine.ledger.RunId;
+import io.algernon.vespera.engine.profile.Profile;
 import io.algernon.vespera.engine.profile.ProfileFixture;
 import io.algernon.vespera.engine.profile.ProfileStore;
+import io.algernon.vespera.engine.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -19,9 +21,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -54,7 +61,25 @@ class RelevanceFloorInvocationTest {
     /** Above anything the scripted embedder can produce, so every scored document falls under it. */
     private static final String A_FLOOR_ABOVE_EVERY_SCORE = "1.5";
 
+    /** Below anything it can produce, so every scored document clears it. */
+    private static final String A_FLOOR_BELOW_EVERY_SCORE = "0.1";
+
+    private static final String ANOTHER_MODELS_IDENTITY =
+            "model=acme-embed-text;digest=0ff0ff0f;dtype=F32;dimension=768;instruction=none";
+
+    /** The same number as {@link #A_FLOOR_BELOW_EVERY_SCORE}, written the way a second person might. */
+    private static final String THE_SAME_FLOOR_WRITTEN_DIFFERENTLY = "0.10";
+
+    /** What a person types when they answer the key with a sentence instead of a number. */
+    private static final String A_FLOOR_THAT_IS_NOT_A_NUMBER = "about halfway";
+
     private static final int CORPUS_DOCUMENTS = 2;
+
+    /** One piece of scoring work, however many times the corpus is invoked over. */
+    private static final int ONE_SCORING_RUN = 1;
+
+    /** Two pieces of scoring work: one under no threshold, one under the threshold that followed it. */
+    private static final int TWO_SCORING_RUNS = 2;
 
     @TempDir
     static Path workingDirectory;
@@ -75,6 +100,58 @@ class RelevanceFloorInvocationTest {
 
     @Autowired
     private RelevanceLabels relevanceLabels;
+
+    @Test
+    @Story("An unset floor removes nothing and does not stop the run")
+    @DisplayName("With no threshold set, scores and clusters are written and no verdict is")
+    void anUnsetFloorRemovesNothing(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reports success -- an unset threshold is not a gate, because this run is"
+                        + " what produces the data the threshold is calibrated from and gating on it would"
+                        + " mean never producing the report that lets anyone set it",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "every document was scored",
+                () -> assertThat(relevanceScoreCountFor(root)).isEqualTo(CORPUS_DOCUMENTS));
+        claim(
+                "and clustered, so the run did all of its work",
+                () -> assertThat(documentClusterCountFor(root)).isEqualTo(CORPUS_DOCUMENTS));
+        claim(
+                "and no below-threshold verdict was written, because there is no threshold to be below",
+                () -> assertThat(belowThresholdCountFor(root)).isZero());
+    }
+
+    @Test
+    @Story("A floor calibrated against another model is ignored, and the reason is stated")
+    @DisplayName("A threshold read off another model's labels removes nothing, and the page says why")
+    void aFloorFromAnotherModelRemovesNothing(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        anAnswerGivenUnder(root, seeds, ANOTHER_MODELS_IDENTITY);
+        profile(seeds, A_FLOOR_ABOVE_EVERY_SCORE);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "no document was removed, though the threshold sits above every score here: a threshold is"
+                        + " a number on a scale, the model is the scale, and applying this one would remove"
+                        + " documents against a spread it was never read off",
+                () -> assertThat(belowThresholdCountFor(root)).isZero());
+        claim(
+                "and the page tells the operator their number is not being applied rather than ignoring it"
+                        + " silently -- a value that vanishes reads as an engine that lost it",
+                () -> assertThat(theLabellingPage()).contains("not being applied"));
+        claim(
+                "naming the model the answers were given under, so the reader knows which of the two"
+                        + " things to change",
+                () -> assertThat(theLabellingPage()).contains(ANOTHER_MODELS_IDENTITY));
+    }
 
     @Test
     @Story("A floor on this run's own scale is the only state that removes")
@@ -111,6 +188,33 @@ class RelevanceFloorInvocationTest {
     }
 
     @Test
+    @Story("The engine does the arithmetic and never writes the number")
+    @DisplayName("A run leaves the threshold exactly as the operator wrote it")
+    void neverWritesTheNumber(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, A_FLOOR_BELOW_EVERY_SCORE);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the number in the profile is the one the operator wrote, untouched: a threshold the"
+                        + " engine wrote would break both the rule that the profile is authored by a person"
+                        + " and ADR-062's census that never touches an existing value",
+                () -> assertThat(profileStore.load().relevanceScoreFloor().value())
+                        .isEqualTo(A_FLOOR_BELOW_EVERY_SCORE));
+        claim(
+                "and the provenance the operator wrote beside it is untouched too -- nothing checks that a"
+                        + " threshold was ever labelled, and what stands between a guess and the archive is"
+                        + " exactly this line (ADR-031)",
+                () -> assertThat(profileStore.load().relevanceScoreFloor().provenance())
+                        .isEqualTo("set by this test"));
+        claim(
+                "a floor under every score removes nothing, so an applicable threshold is not a blanket"
+                        + " removal -- it removes what falls under it and nothing else",
+                () -> assertThat(belowThresholdCountFor(root)).isZero());
+    }
+
+    @Test
     @Story("A floor on this run's own scale is the only state that removes")
     @DisplayName("A document with no text is never removed by the threshold, having no score to be below")
     void aDocumentWithNoTextIsNotRemovedByTheThreshold(@TempDir Path root, @TempDir Path seeds)
@@ -133,6 +237,243 @@ class RelevanceFloorInvocationTest {
                         + " for the wrong reason, and this confirms that set is empty rather than assuming"
                         + " it (#108)",
                 () -> assertThat(belowThresholdCountFor(root)).isEqualTo(CORPUS_DOCUMENTS));
+    }
+
+    @Test
+    @Story("A changed threshold is a different run")
+    @DisplayName("Setting a threshold where there was none is a scoring run of its own")
+    @Issue("199")
+    @Link(name = "ADR-117", url = Adr.THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY, type = "adr")
+    void aChangedFloorIsADifferentScoringRun(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        String theRunWithNoThreshold = scoringRunIdsFor(root).getFirst();
+        profile(seeds, A_FLOOR_ABOVE_EVERY_SCORE);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the second invocation scored under a run of its own, so this corpus now carries"
+                        + " " + TWO_SCORING_RUNS + " scoring runs rather than " + ONE_SCORING_RUN + ": a run"
+                        + " name is worked out from everything the run was given, and the threshold is"
+                        + " something it was given -- one that removes every document and one that removes"
+                        + " none cannot answer to the same name",
+                () -> assertThat(scoringRunIdsFor(root)).hasSize(TWO_SCORING_RUNS));
+        claim(
+                "and every removal is recorded under the newer of the two, never under the run that"
+                        + " scored with no threshold at all: the run a verdict sits under is the record of"
+                        + " what produced it, and nothing was produced by the earlier one",
+                () -> assertThat(belowThresholdRunIdsFor(root))
+                        .isNotEmpty()
+                        .doesNotContain(theRunWithNoThreshold));
+    }
+
+    /** Two thresholds, the first invocation's and the second's, that leave one scoring run between them. */
+    static Stream<Arguments> thresholdsThatAreOneRun() {
+        return Stream.of(
+                Arguments.of(Named.of("the same threshold twice: nothing the run reads had changed",
+                        A_FLOOR_BELOW_EVERY_SCORE), A_FLOOR_BELOW_EVERY_SCORE),
+                Arguments.of(Named.of("the same threshold written with a trailing zero: a run is named after the number"
+                        + " the removal is measured against, not the characters typed", A_FLOOR_BELOW_EVERY_SCORE),
+                        THE_SAME_FLOOR_WRITTEN_DIFFERENTLY),
+                Arguments.of(Named.of("no threshold, then one nobody can read as a number: the run does exactly what"
+                        + " it did when the key was blank, and the operator is told of the typo where they already"
+                        + " look", (String) null), A_FLOOR_THAT_IS_NOT_A_NUMBER));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("thresholdsThatAreOneRun")
+    @Story("A changed threshold is a different run")
+    @DisplayName("Invoking again with the same threshold, the same written two ways, or one that is not a number where there was none, stays one scoring run")
+    @Issue("199")
+    @Link(name = "ADR-117", url = Adr.THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY, type = "adr")
+    void thresholdsThatAreOneThresholdStayOneScoringRun(
+            String first, String second, @TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, first);
+        cli.run("run", root.toString());
+        profile(seeds, second);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the second invocation carried on under the run the first one made, leaving " + ONE_SCORING_RUN
+                        + " scoring run rather than two: a second run here would do exactly what the first did"
+                        + " under a second name",
+                () -> assertThat(scoringRunIdsFor(root)).hasSize(ONE_SCORING_RUN));
+        claim(
+                "and nothing was removed on the strength of either threshold",
+                () -> assertThat(belowThresholdCountFor(root)).isZero());
+    }
+
+    @Test
+    @Story("An answer given after the run is read by the next invocation")
+    @DisplayName("Re-answering under the model this run used gets the threshold applied on the next invocation")
+    @Issue("191")
+    @Link(name = "ADR-118", url = Adr.THE_ANSWERS_NEVER_JOIN_A_RUNS_IDENTITY, type = "adr")
+    void anAnswerReAnsweredUnderThisModelGetsTheThresholdApplied(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        anAnswerGivenUnder(root, seeds, ANOTHER_MODELS_IDENTITY);
+        profile(seeds, A_FLOOR_ABOVE_EVERY_SCORE);
+        cli.run("run", root.toString());
+        anAnswerGivenUnder(root, seeds, thisRunsIdentity());
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the third invocation changed nothing the run is named after, so this corpus still carries"
+                        + " " + TWO_SCORING_RUNS + " scoring runs: an answer is a fact about a document"
+                        + " rather than something the run was configured with, and naming it would mint a"
+                        + " fresh run every time a person replied to the page asking them to reply",
+                () -> assertThat(scoringRunIdsFor(root)).hasSize(TWO_SCORING_RUNS));
+        claim(
+                "and all " + CORPUS_DOCUMENTS + " documents were removed, the threshold now sitting on a"
+                        + " scale the answers were given on. Re-answering the sample under the model that"
+                        + " actually scored it is the one repair available to an operator whose number was"
+                        + " being ignored, and it has to take effect without them editing anything",
+                () -> assertThat(belowThresholdCountFor(root)).isEqualTo(CORPUS_DOCUMENTS));
+    }
+
+    @Test
+    @Story("An answer given after the run is read by the next invocation")
+    @DisplayName("An answer given under another model withdraws removals the threshold had already made")
+    @Issue("191")
+    @Link(name = "ADR-118", url = Adr.THE_ANSWERS_NEVER_JOIN_A_RUNS_IDENTITY, type = "adr")
+    void anAnswerGivenUnderAnotherModelWithdrawsTheRemovals(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        anAnswerGivenUnder(root, seeds, thisRunsIdentity());
+        profile(seeds, A_FLOOR_ABOVE_EVERY_SCORE);
+        cli.run("run", root.toString());
+        anAnswerGivenUnder(root, seeds, ANOTHER_MODELS_IDENTITY);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "nothing stands removed any more. The same answer that let the number be applied now says"
+                        + " it was read off another model's scores, and a removal a run can no longer"
+                        + " justify must not outlive the reason it was made -- the two directions are one"
+                        + " event, and leaving the removals standing would keep the harsher half of it",
+                () -> assertThat(belowThresholdCountFor(root)).isZero());
+        claim(
+                "and still " + TWO_SCORING_RUNS + " scoring runs, because withdrawing them is this run"
+                        + " deciding again rather than a second run deciding differently",
+                () -> assertThat(scoringRunIdsFor(root)).hasSize(TWO_SCORING_RUNS));
+    }
+
+    /**
+     * ADR-227's case as ADR-228 leaves it. The second identity is one of the same embedding model, digest
+     * and weight dtype as the run names, differing in the dimension alone: the only way left for the vectors
+     * a run reads to carry no single identity, since a run names its digest. Nothing the engine does stores
+     * such a pair; the test does, as ADR-227's did.
+     */
+    @Test
+    @Story("A second embedder identity under what the run names withdraws removals the threshold had already made")
+    @DisplayName("Once the vectors carry two embedder identities for the embedding model as the run names it, no removal the threshold made still stands")
+    @Issue("486")
+    @Issue("488")
+    @Link(name = "ADR-227", url = Adr.THE_FLOORS_STEP_WITHDRAWS_ITS_REMOVALS_IN_EVERY_CASE, type = "adr")
+    @Link(name = "ADR-118", url = Adr.THE_ANSWERS_NEVER_JOIN_A_RUNS_IDENTITY, type = "adr")
+    @Link(name = "ADR-228", url = Adr.A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY, type = "adr")
+    void aSecondEmbedderIdentityWithdrawsTheRemovals(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        anAnswerGivenUnder(root, seeds, thisRunsIdentity());
+        profile(seeds, A_FLOOR_ABOVE_EVERY_SCORE);
+        cli.run("run", root.toString());
+        long removedUnderOneIdentity = belowThresholdCountFor(root);
+        List<String> theScoringRunsBefore = scoringRunIdsFor(root);
+        String aSecondIdentity = thisRunsIdentity().replace(";dimension=", ";dimension=1");
+        everyVectorAlsoStoredUnder(aSecondIdentity);
+        try {
+            cli.run("run", root.toString());
+        } finally {
+            // The vectors are keyed by content and not by walk, and this class's tests share one
+            // database, so the second identity is taken away again before the next test reads them.
+            jdbcTemplate.update("DELETE FROM vector WHERE embedder_identity = ?", aSecondIdentity);
+        }
+
+        claim(
+                "the threshold had removed all " + CORPUS_DOCUMENTS + " documents while the vectors carried"
+                        + " one identity, so there were removals to withdraw",
+                () -> assertThat(removedUnderOneIdentity).isEqualTo(CORPUS_DOCUMENTS));
+        claim(
+                "the invocation fails, after the removals are withdrawn: the documents brought back have no"
+                        + " group, forming one needs their vectors, and with two identities there is no one"
+                        + " set of vectors to form it from",
+                () -> assertThat(cli.getExitCode()).isNotZero());
+        claim(
+                "nothing stands removed any more: with two identities under the embedding model as this run"
+                        + " names it there is no one scale for the threshold to be on, and a removal made on"
+                        + " a scale that is no longer known to be this one must not outlive it",
+                () -> assertThat(belowThresholdCountFor(root)).isZero());
+        claim(
+                "and the scoring runs are the ones there were before: the removals were withdrawn by the"
+                        + " run that made them deciding again, not left behind under a run nobody reads",
+                () -> assertThat(scoringRunIdsFor(root)).isEqualTo(theScoringRunsBefore));
+    }
+
+    @Test
+    @Story("The vectors another pull of the embedding model left take nothing back")
+    @DisplayName("Vectors stored under another digest of the embedding model leave the removals of a run that names its own digest standing")
+    @Issue("488")
+    @Link(name = "ADR-228", url = Adr.A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY, type = "adr")
+    @Link(name = "ADR-227", url = Adr.THE_FLOORS_STEP_WITHDRAWS_ITS_REMOVALS_IN_EVERY_CASE, type = "adr")
+    void vectorsUnderAnotherDigestLeaveTheRemovalsStanding(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        anAnswerGivenUnder(root, seeds, thisRunsIdentity());
+        profile(seeds, A_FLOOR_ABOVE_EVERY_SCORE);
+        cli.run("run", root.toString());
+        long removedBefore = belowThresholdCountFor(root);
+        List<String> theScoringRunsBefore = scoringRunIdsFor(root);
+        String anotherPullsIdentity = thisRunsIdentity().replace(";digest=", ";digest=0ff0");
+        everyVectorAlsoStoredUnder(anotherPullsIdentity);
+        try {
+            cli.run("run", root.toString());
+        } finally {
+            // As above: the vectors are shared by this class's tests, so the second identity goes again.
+            jdbcTemplate.update("DELETE FROM vector WHERE embedder_identity = ?", anotherPullsIdentity);
+        }
+
+        claim(
+                "the threshold had removed all " + CORPUS_DOCUMENTS + " documents before the other vectors"
+                        + " were stored",
+                () -> assertThat(removedBefore).isEqualTo(CORPUS_DOCUMENTS));
+        claim(
+                "and all " + CORPUS_DOCUMENTS + " still stand removed: the run names the digest its scores were"
+                        + " computed under, the serving runtime still reports that digest, and the vectors"
+                        + " under it carry one identity, so the scale the threshold was read off is known to"
+                        + " be this run's whatever another pull of the same name left in the database",
+                () -> assertThat(belowThresholdCountFor(root)).isEqualTo(CORPUS_DOCUMENTS));
+        claim(
+                "under the scoring runs there were before, the invocation having arrived at the same run",
+                () -> assertThat(scoringRunIdsFor(root)).isEqualTo(theScoringRunsBefore));
+    }
+
+    /** Every stored vector written once more under a second identity of the same embedding model. */
+    private void everyVectorAlsoStoredUnder(String aSecondIdentity) {
+        jdbcTemplate.update(
+                "INSERT INTO vector SELECT content_hash, chunker_identity, chunking_rule_identity, ordinal, ?,"
+                        + " embedding FROM vector",
+                aSecondIdentity);
+    }
+
+    private List<String> belowThresholdRunIdsFor(Path root) {
+        return jdbcTemplate.queryForList(
+                "SELECT DISTINCT v.run_id FROM verdict v JOIN file_occurrence f ON f.id = v.occurrence_id"
+                        + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ? AND v.kind = 'BELOW_THRESHOLD'",
+                String.class,
+                walkRoot(root));
     }
 
     private void aCorpus(Path root, Path seeds) throws IOException {
@@ -182,6 +523,10 @@ class RelevanceFloorInvocationTest {
                 walkRoot(root));
     }
 
+    private String theLabellingPage() throws IOException {
+        return Files.readString(workingDirectory.resolve(RelevanceLabellingReport.FILE_NAME));
+    }
+
     private String walkRoot(Path root) {
         return Walk.canonicalRoot(root).toString();
     }
@@ -206,6 +551,11 @@ class RelevanceFloorInvocationTest {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException(
                         "the second invocation minted no scoring run of its own"));
+    }
+
+    private long relevanceScoreCountFor(Path root) {
+        return count("SELECT COUNT(*) FROM relevance_score r JOIN file_occurrence f ON f.id = r.occurrence_id"
+                + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ?", walkRoot(root));
     }
 
     private long documentClusterCountFor(Path root) {

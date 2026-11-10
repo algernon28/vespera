@@ -85,6 +85,24 @@ class ExtractorIdentityCompositionTest {
 
     @Test
     @Story("A conversion is recorded only under the image that made it")
+    @DisplayName("A sidecar running the image configured gets its identity, which names the image both as configured and as the sidecar reported it")
+    @Issue("373")
+    @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
+    void composesTheIdentityForASidecarRunningTheConfiguredImage() {
+        ExtractorIdentity identity = new ExtractionJobConfiguration()
+                .extractorIdentity(reporting(versionsFrom(THE_CPU_IMAGE)), THE_CPU_IMAGE);
+
+        claim(
+                "the identity names the image as configured, in its image= segment, as it always has",
+                () -> assertThat(identity.value()).contains(CONFIGURED_IMAGE_SEGMENT + THE_CPU_IMAGE + ";"));
+        claim(
+                "and names it again among the versions the sidecar reported, because the whole report goes in"
+                        + " unfiltered",
+                () -> assertThat(identity.value()).contains(SidecarVersionReport.IMAGE_ENTRY + "=" + THE_CPU_IMAGE));
+    }
+
+    @Test
+    @Story("A conversion is recorded only under the image that made it")
     @DisplayName("A sidecar running another image than the one configured gets no identity, and the refusal names both images")
     @Issue("373")
     @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")

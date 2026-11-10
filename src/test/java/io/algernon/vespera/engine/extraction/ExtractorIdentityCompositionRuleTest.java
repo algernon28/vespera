@@ -55,4 +55,25 @@ class ExtractorIdentityCompositionRuleTest {
                         .isEqualTo("docling-serve;image=" + IMAGE + ";docling=2.124.0;docling-serve=1.32.0;vespera-image="
                                 + IMAGE + ";" + SENT_OPTIONS));
     }
+
+    @Test
+    @Story("The cache key carries the whole engine")
+    @DisplayName("The same versions reported in another order compose the same identity")
+    void theOrderTheSidecarReportsInDoesNotMatter() {
+        Map<String, String> oneOrder = new LinkedHashMap<>();
+        oneOrder.put("docling", "2.124.0");
+        oneOrder.put("docling-ibm-models", "3.9.0");
+        oneOrder.put("vespera-image", IMAGE);
+        Map<String, String> theReverse = new LinkedHashMap<>();
+        theReverse.put("vespera-image", IMAGE);
+        theReverse.put("docling-ibm-models", "3.9.0");
+        theReverse.put("docling", "2.124.0");
+
+        claim(
+                "two runs against one unchanged sidecar key the same cached conversions, however its answer"
+                        + " happened to list them -- an identity that reshuffled would convert the corpus again"
+                        + " for nothing",
+                () -> assertThat(ExtractorIdentity.composedOf(IMAGE, oneOrder, SENT_OPTIONS))
+                        .isEqualTo(ExtractorIdentity.composedOf(IMAGE, theReverse, SENT_OPTIONS)));
+    }
 }

@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,7 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -65,6 +67,9 @@ class LabelAutoNeedsNoRootInvocationTest {
 
     private static final String LABEL_FILE = "relevance-labels.yaml";
     private static final String ONE_DOCUMENT_IN_THE_SAMPLE = "the fixture corpus holds one document";
+
+    /** The words every scripted conversion carries, so finding them means a document's opening was put. */
+    private static final String WHAT_A_CONVERTED_DOCUMENT_OPENS_WITH = "stubbed but real content";
 
     /** The option ADR-208 removed from {@code label}. */
     private static final String THE_REMOVED_OPTION = "--root";
@@ -114,11 +119,69 @@ class LabelAutoNeedsNoRootInvocationTest {
     private ProfileStore profileStore;
 
     @Autowired
+    private Environment environment;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void forgetQuestions() {
         OPENINGS_PUT.clear();
+    }
+
+    @Test
+    @Story("Labelling opens nothing under the archive")
+    @DisplayName("With no folder named for the archive and none configured, the model labels")
+    void runsWithNoRootNamedAndNoneConfigured(@TempDir Path root, @TempDir Path seeds, CapturedOutput output)
+            throws IOException {
+        Assumptions.assumeTrue(
+                environment.getProperty(VesperaCommand.Run.ROOT_PROPERTY, "").isBlank(),
+                "no corpus root is bound in this context, the precondition the rest of this test rests"
+                        + " on: with one bound, the command was never refused in the first place");
+        aScoredCorpus(root, seeds);
+
+        cli.run("label", "--auto");
+
+        claim(
+                "the invocation reports success, as any labelling that recorded its answers does",
+                () -> assertThat(cli.getExitCode()).isEqualTo(CommandLine.ExitCode.OK));
+        claim(
+                "the model was asked about the one document in the sample (" + ONE_DOCUMENT_IN_THE_SAMPLE
+                        + "), and the question carried its opening",
+                () -> assertThat(OPENINGS_PUT)
+                        .singleElement()
+                        .satisfies(opening -> assertThat(opening)
+                                .hasValueSatisfying(text ->
+                                        assertThat(text).contains(WHAT_A_CONVERTED_DOCUMENT_OPENS_WITH))));
+        claim(
+                "and nothing at all is written to standard error, so nothing there asks for a folder",
+                () -> assertThat(output.getErr()).isEmpty());
+    }
+
+    @Test
+    @Story("A command accepts only what it uses")
+    @DisplayName("Labelling by the model, given a folder as the archive's, is refused as a usage error before anything is asked")
+    void refusesTheRemovedOptionWithAuto(@TempDir Path root, @TempDir Path seeds, CapturedOutput output)
+            throws IOException {
+        aScoredCorpus(root, seeds);
+        byte[] before = Files.readAllBytes(workingDirectory.resolve(LABEL_FILE));
+
+        cli.run("label", "--auto", THE_REMOVED_OPTION, root.toString());
+
+        claim(
+                "the invocation reports a usage error, which says the command line is what to change",
+                () -> assertThat(cli.getExitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
+        claim(
+                "standard error names the option that was not accepted",
+                () -> assertThat(output.getErr()).contains(THE_REMOVED_OPTION));
+        claim("the model was asked nothing", () -> assertThat(OPENINGS_PUT).isEmpty());
+        claim(
+                "no answer is recorded for this test's seed folder, and the label file is byte for byte"
+                        + " as the scoring left it",
+                () -> {
+                    assertThat(answersRecorded(seeds)).isZero();
+                    assertThat(Files.readAllBytes(workingDirectory.resolve(LABEL_FILE))).isEqualTo(before);
+                });
     }
 
     @Test
@@ -144,6 +207,20 @@ class LabelAutoNeedsNoRootInvocationTest {
                         + " command line that is refused does nothing",
                 () -> assertThat(answersRecorded(seeds)).isZero());
         claim("and no model was asked", () -> assertThat(OPENINGS_PUT).isEmpty());
+    }
+
+    @Test
+    @Story("A command accepts only what it uses")
+    @DisplayName("The help for recording labels no longer lists an option for the archive's folder")
+    void theLabelCommandNoLongerListsTheOption() {
+        CommandLine label = command.commandLine().getSubcommands().get("label");
+
+        claim(
+                "the command declares no such option",
+                () -> assertThat(label.getCommandSpec().findOption(THE_REMOVED_OPTION)).isNull());
+        claim(
+                "and the usage text an operator is shown does not mention it",
+                () -> assertThat(label.getUsageMessage()).doesNotContain(THE_REMOVED_OPTION));
     }
 
     /** One document, one seed, every gate up to the label file open; the root is named on the command line. */

@@ -16,7 +16,9 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * The folders not relevant, as the Inclusions tab writes and reads them (ADR-334 §6, which ADR-342 keeps and ADR-344
@@ -30,6 +32,30 @@ import org.junit.jupiter.params.provider.Arguments;
 @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
 @Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 class NotRelevantFoldersTest {
+
+    @Test
+    @Story("The operator leaves folders out of what is kept")
+    @DisplayName("The list written is read back as it was, in its order, and an empty list as none")
+    void theListWrittenIsReadBackAsItWas() {
+        List<String> folders = List.of("manuals/old", "D:/code/billing/legacy", "notes \"draft\"");
+
+        claim("the folders written are read back, the same and in the same order, a quote within one among them",
+                () -> assertThat(NotRelevantFolders.read(Optional.of(NotRelevantFolders.render(folders))))
+                        .containsExactlyElementsOf(folders));
+        claim("and an empty list is written as one, and read back as none",
+                () -> assertThat(NotRelevantFolders.read(Optional.of(NotRelevantFolders.render(List.of())))).isEmpty());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("folders")
+    @Story("The operator leaves folders out of what is kept")
+    @DisplayName("A folder is written as an occurrence's path spells one, or not at all")
+    void aFolderIsWrittenAsAnOccurrencesPathSpellsOne(String folder, boolean written) {
+        claim("a folder relative to the corpus root with a slash between its elements, or absolute below a code set's"
+                        + " folder, may be written; a backslash, an empty element, a dot or two, or a slash at the end"
+                        + " may not",
+                () -> assertThat(NotRelevantFolders.isWritten(folder)).isEqualTo(written));
+    }
 
     static Stream<Arguments> folders() {
         return Stream.of(

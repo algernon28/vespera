@@ -12,6 +12,7 @@ import io.algernon.vespera.engine.ledger.RunId;
 import io.algernon.vespera.engine.pipeline.GenerationScriptedBeans.ScriptedAnswer;
 import io.algernon.vespera.engine.profile.ProfileFixture;
 import io.algernon.vespera.engine.profile.ProfileStore;
+import io.algernon.vespera.engine.synthesis.ClusterFaultKind;
 import io.algernon.vespera.engine.synthesis.ClusterFaults;
 import io.algernon.vespera.engine.synthesis.ListedFault;
 import io.algernon.vespera.engine.synthesis.ListedDoc;
@@ -86,6 +87,7 @@ class GenerationBreakerInvocationTest {
     /** Where every line this invocation wrote for the archive's owner is read from. */
     private static final String APPLICATION_LOGGER = "io.algernon.vespera";
 
+
     /**
      * How much every call in this class may read, in tokens, written into the profile rather than
      * left at whatever the shipped default is: one answer here is scripted against this number, and a
@@ -95,6 +97,19 @@ class GenerationBreakerInvocationTest {
 
     /** The same number as an integer: the window every call in this class reads in. */
     private static final int THE_WINDOW = 4096;
+
+    /**
+     * The ceiling the first of the four checks reads against: the window less one (ADR-166), the count
+     * a question the engine cut to fit comes back at.
+     */
+    private static final int THE_CEILING = THE_WINDOW - 1;
+
+    /**
+     * What the counting call reports a cluster's question at, however few documents it carries: the
+     * ceiling, where the engine counts a question it had to cut (ADR-166). Past the room at every
+     * length, so no document of the cluster fits.
+     */
+    private static final int COUNTED_TOO_LONG_AT_ANY_LENGTH = THE_CEILING;
 
     /** A count past the window: more question read than the window holds, so it was cut down to fit. */
     private static final int A_COUNT_PAST_THE_CEILING = THE_WINDOW + 904;
@@ -142,8 +157,42 @@ class GenerationBreakerInvocationTest {
     /** How many of the four ways an answer can be turned down the stopping tests' five cover. */
     private static final int ALL_FOUR_WAYS_AN_ANSWER_IS_TURNED_DOWN = 4;
 
+    /**
+     * How many clusters the tests that put something in front of the streak arrange: the five, one cluster
+     * ahead of them, and one after them the step is never expected to reach.
+     */
+    private static final int A_CLUSTER_EITHER_SIDE_OF_THE_STREAK = THE_STREAK_THAT_STOPS_THE_STEP + 2;
+
+    /**
+     * What one believed answer and then the streak cost: a call each. One more than the streak, because
+     * the cluster ahead of it was asked about too, and one short of the arrangement, because the cluster
+     * after the fifth never was.
+     */
+    private static final int A_CALL_FOR_THE_BELIEVED_ANSWER_AND_ONE_EACH_FOR_THE_STREAK =
+            THE_STREAK_THAT_STOPS_THE_STEP + 1;
+
+    /**
+     * Where the cluster nothing could be sent for sits among the seven, counting from zero as the order
+     * of the arrangement itself does: the third cluster, which puts it inside the streak rather than
+     * before or after it.
+     */
+    private static final int THE_CLUSTER_NOTHING_COULD_BE_SENT_FOR_IS_THIRD = 2;
+
     /** Given to the fixture by a test whose clusters all hold a document of their own. */
     private static final int EVERY_CLUSTER_HOLDS_A_DOCUMENT = -1;
+
+    /** What the streak costs when a cluster nothing could be sent for sits in the middle of it. */
+    private static final int A_CALL_FOR_EACH_ANSWER_IN_THE_STREAK = THE_STREAK_THAT_STOPS_THE_STEP;
+
+    /**
+     * The six of the seven clusters whose answers are turned down when the third one's is believed,
+     * counting from zero as the order of the arrangement does.
+     *
+     * <p>The third is the one left out because it has to sit <em>inside</em> the streak: two answers
+     * turned down, then the cluster, then three more, is what says whether the cluster in the middle
+     * cleared the count or was walked past without touching it.
+     */
+    private static final List<Integer> EVERY_CLUSTER_BUT_THE_THIRD = List.of(0, 1, 3, 4, 5, 6);
 
     /**
      * How many clusters the carrying-on test arranges: four turned down, one believed, four turned
@@ -163,6 +212,12 @@ class GenerationBreakerInvocationTest {
 
     /** Nothing is written over a cluster whose answer was turned down. */
     private static final int NO_WRITING_AT_ALL = 0;
+
+    /** How many times the index is opened in an invocation that writes the tree (ADR-274 §7). */
+    private static final int ONCE = 1;
+
+    /** One line, and no second one: what "this and nothing else was said" comes to as a count. */
+    private static final int A_SINGLE_LINE = 1;
 
     @TempDir
     static Path workingDirectory;
@@ -272,6 +327,84 @@ class GenerationBreakerInvocationTest {
     }
 
     @Test
+    @Story("A page with nothing written on it says why, in words a reader of the tree can follow")
+    @DisplayName("When five turned-down answers stop the writing, each of those groups says why and the group after them says it was not reached")
+    @Issue("325")
+    @Link(name = "ADR-174", url = Adr.A_PAGE_NOTHING_WAS_WRITTEN_OVER_SAYS_WHY, type = "adr")
+    void saysOnEveryPageWhyNothingWasWrittenWhenTheStepStops(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedArrangementOf(ONE_MORE_CLUSTER_THAN_THE_STREAK, root, seeds);
+        fiveAnswersTurnedDownForFourDifferentReasons();
+
+        cli.run("run", root.toString());
+
+        Path tree = UnwrittenPage.treeOf(workingDirectory, generationRuns(root).getLast());
+        List<ListedFault> reasons = reasonsKept(root);
+        claim(
+                "the step stopped on " + THE_STREAK_THAT_STOPS_THE_STEP + " reasons, one for each group"
+                        + " whose answer was turned down, so the pages below are the pages of a stopped step",
+                () -> assertThat(reasons).hasSize(THE_STREAK_THAT_STOPS_THE_STEP));
+        claim(
+                "each of those groups says on its own page why its answer was turned down, in the words"
+                        + " its reason is given",
+                () -> assertThat(reasons).allSatisfy(reason -> assertThat(UnwrittenPage.lineUnderTheHeadingOf(
+                                UnwrittenPage.pageHeadedBy(tree, CLUSTER_NAMES.get(reason.clusterOrdinal()))))
+                        .isEqualTo(UnwrittenPage.forKind(reason.fault().kind()))));
+        claim(
+                "and the group after them, which was never asked about, says writing stopped before it and"
+                        + " that running again carries the writing on: it has no reason of its own, and"
+                        + " without this it would read like one whose answer was turned down",
+                () -> assertThat(UnwrittenPage.lineUnderTheHeadingOf(UnwrittenPage.pageHeadedBy(
+                                tree, CLUSTER_NAMES.get(THE_STREAK_THAT_STOPS_THE_STEP))))
+                        .isEqualTo(UnwrittenPage.WRITING_STOPPED_BEFORE_IT));
+    }
+
+    @Test
+    @Story("Answers nobody believes, one after another, stop the step")
+    @DisplayName("The line written when it stops says how many answers were turned down, and what for")
+    void saysWhatHappenedWhenItStops(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedArrangementOf(ONE_MORE_CLUSTER_THAN_THE_STREAK, root, seeds);
+        fiveAnswersTurnedDownForFourDifferentReasons();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "exactly one line is written at the level this run keeps for something having stopped:"
+                        + " the archive's owner scanning the output for what went wrong has to land on"
+                        + " the line saying the work stopped, not on the fifth of five lines that each"
+                        + " read as one group's bad luck",
+                () -> assertThat(linesSayingSomethingStopped()).hasSize(A_SINGLE_LINE));
+        claim(
+                "and each of the " + THE_STREAK_THAT_STOPS_THE_STEP + " groups whose answer was turned down"
+                        + " was reported a line of its own one level below it",
+                () -> assertThat(linesSayingAGroupsAnswerWasTurnedDown()).hasSize(THE_STREAK_THAT_STOPS_THE_STEP));
+        claim(
+                "and that line says " + THE_STREAK_THAT_STOPS_THE_STEP + " answers in a row were turned"
+                        + " down, with the count standing next to those words rather than merely somewhere"
+                        + " in the line: the reasons carried along with it hold numbers of their own --"
+                        + " how much question was read, how long the answer ran -- so a line that only had"
+                        + " the digit in it somewhere would say nothing about how many answers it took",
+                () -> assertThat(linesSayingSomethingStopped())
+                        .singleElement()
+                        .satisfies(line -> assertThat(line)
+                                .contains(THE_STREAK_THAT_STOPS_THE_STEP + " answers in a row were turned down")));
+        claim(
+                "and that same line names every one of the " + ALL_FOUR_WAYS_AN_ANSWER_IS_TURNED_DOWN
+                        + " ways those answers were turned down rather than the last one only: widening"
+                        + " the reading window, raising the answer allowance and naming a different"
+                        + " generating model are three different things to do, and which of them to do is"
+                        + " what the reasons say -- a line naming only how many leaves that unsaid and"
+                        + " sends the archive's owner to the database to find it",
+                () -> assertThat(linesSayingSomethingStopped())
+                        .singleElement()
+                        .satisfies(line -> assertThat(line)
+                                .contains(ClusterFaultKind.PROMPT_EVALUATION_CEILING.name())
+                                .contains(ClusterFaultKind.ANSWER_RAN_OUT_OF_ROOM.name())
+                                .contains(ClusterFaultKind.SCHEMA_VIOLATION.name())
+                                .contains(ClusterFaultKind.CITATION_NOT_IN_RANGE.name())));
+    }
+
+    @Test
     @Story("An answer that is believed clears what came before it")
     @DisplayName("Four answers turned down either side of a believed one do not stop the step")
     void carriesOnWhenAnAnswerBetweenThemIsBelieved(@TempDir Path root, @TempDir Path seeds)
@@ -299,6 +432,278 @@ class GenerationBreakerInvocationTest {
                 "and the one believed answer is written over its group, " + ONE_PIECE_OF_WRITING
                         + " piece of writing",
                 () -> assertThat(writingKept(root)).hasSize(ONE_PIECE_OF_WRITING));
+    }
+
+    @Test
+    @Story("Answers nobody believes, one after another, stop the step")
+    @DisplayName("Writing an earlier group earned is still there after the step stops")
+    void keepsTheWritingAnEarlierClusterEarnedWhenItStops(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedArrangementOf(A_CLUSTER_EITHER_SIDE_OF_THE_STREAK, root, seeds);
+        answersTurnedDownFor(List.of(1, 2, 3, 4, 5));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reports failure, though the first answer of the "
+                        + A_CLUSTER_EITHER_SIDE_OF_THE_STREAK + " was believed: " + THE_STREAK_THAT_STOPS_THE_STEP
+                        + " turned down one after another are counted from wherever the last believed answer"
+                        + " left off, not from the start of the archive",
+                () -> assertThat(cli.getExitCode()).isNotZero());
+        claim(
+                "the one piece of writing the first group earned is still kept after the step stopped: it"
+                        + " is the most expensive thing this system buys, it was paid for before anything"
+                        + " went wrong, and a stop that took it back down with it would have the archive's"
+                        + " owner buy it a second time on the next run",
+                () -> assertThat(writingKept(root)).hasSize(ONE_PIECE_OF_WRITING));
+        claim(
+                "all " + THE_STREAK_THAT_STOPS_THE_STEP + " reasons are kept beside it, one for each answer"
+                        + " turned down",
+                () -> assertThat(reasonsKept(root)).hasSize(THE_STREAK_THAT_STOPS_THE_STEP));
+        claim(
+                A_CALL_FOR_THE_BELIEVED_ANSWER_AND_ONE_EACH_FOR_THE_STREAK + " calls were made out of "
+                        + A_CLUSTER_EITHER_SIDE_OF_THE_STREAK + " groups arranged: one for the group whose"
+                        + " answer was believed and one for each of the " + THE_STREAK_THAT_STOPS_THE_STEP
+                        + " turned down, and the group after them was never asked about",
+                () -> assertThat(GenerationScriptedBeans.callsMade())
+                        .isEqualTo(A_CALL_FOR_THE_BELIEVED_ANSWER_AND_ONE_EACH_FOR_THE_STREAK));
+    }
+
+    @Test
+    @Story("Answers nobody believes, one after another, stop the step")
+    @DisplayName("A group nothing could be sent for neither adds to the count nor clears it")
+    @Link(name = "ADR-121", url = Adr.A_WINDOW_WITH_NO_ROOM_IS_REFUSED, type = "adr")
+    void doesNotClearTheCountForAClusterNothingCouldBeSentFor(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedArrangementOf(
+                A_CLUSTER_EITHER_SIDE_OF_THE_STREAK, THE_CLUSTER_NOTHING_COULD_BE_SENT_FOR_IS_THIRD, root, seeds);
+        answersTurnedDownFor(List.of(0, 1, 3, 4, 5));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reports failure, so the third group -- the one nothing could be sent for --"
+                        + " did not clear the count on its way past: nothing was asked there and nothing came"
+                        + " back, so it is no evidence that the generating model, the word budget and the"
+                        + " shape imposed on the answer are right, and treating it as a fresh start would"
+                        + " let an archive with a scattering of unsendable groups in it never stop at all",
+                () -> assertThat(cli.getExitCode()).isNotZero());
+        claim(
+                "exactly " + A_CALL_FOR_EACH_ANSWER_IN_THE_STREAK + " calls were made: one for each answer"
+                        + " turned down and none at all for the group nothing could be sent for -- which is"
+                        + " also what says that group did not count towards the stop, since counting it"
+                        + " would have stopped the step one call earlier",
+                () -> assertThat(GenerationScriptedBeans.callsMade())
+                        .isEqualTo(A_CALL_FOR_EACH_ANSWER_IN_THE_STREAK));
+        claim(
+                THE_STREAK_THAT_STOPS_THE_STEP + " reasons are kept, and none of them is for the group"
+                        + " nothing could be sent for: the ways an answer can be turned down are things a"
+                        + " returned answer did, and no answer was returned there",
+                () -> assertThat(reasonsKept(root)).hasSize(THE_STREAK_THAT_STOPS_THE_STEP));
+        claim(
+                "and nothing at all was written over the groups",
+                () -> assertThat(writingKept(root)).hasSize(NO_WRITING_AT_ALL));
+    }
+
+    @Test
+    @Story("Answers nobody believes, one after another, stop the step")
+    @DisplayName("A group none of whose documents fits the window with room left for the answer neither adds to the count nor clears it")
+    @Issue("332")
+    @Link(name = "ADR-166", url = Adr.THE_SERVING_ENGINE_COUNTS_A_QUESTION_BEFORE_IT_IS_SENT, type = "adr")
+    void doesNotClearTheCountForAClusterTheEngineFindsNoRoomFor(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedArrangementOf(A_CLUSTER_EITHER_SIDE_OF_THE_STREAK, root, seeds);
+        answersTurnedDownFor(EVERY_CLUSTER_BUT_THE_THIRD);
+        GenerationScriptedBeans.answerFor(
+                CLUSTER_NAMES.get(THE_CLUSTER_NOTHING_COULD_BE_SENT_FOR_IS_THIRD),
+                anOrdinaryAnswer().countedAt(COUNTED_TOO_LONG_AT_ANY_LENGTH));
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the invocation reports failure, so the third group -- whose question the engine counted too"
+                        + " long for the window however few of its documents it carried -- did not clear the"
+                        + " count on its way past: it was never asked for an answer, so it is no evidence that"
+                        + " the writing model and the shape imposed on the answer are right",
+                () -> assertThat(cli.getExitCode()).isNotZero());
+        claim(
+                "exactly " + A_CALL_FOR_EACH_ANSWER_IN_THE_STREAK + " answers were asked for, one for each"
+                        + " turned down -- which is also what says the third group did not count towards the"
+                        + " stop, since counting it would have stopped the step one answer earlier",
+                () -> assertThat(GenerationScriptedBeans.callsMade())
+                        .isEqualTo(A_CALL_FOR_EACH_ANSWER_IN_THE_STREAK));
+        claim(
+                "and a reason is kept for it too, " + (THE_STREAK_THAT_STOPS_THE_STEP + 1) + " in all: unlike"
+                        + " a group nothing could be sent for, this one was asked about, and what came back"
+                        + " -- the engine's count -- is the reason",
+                () -> assertThat(reasonsKept(root)).hasSize(THE_STREAK_THAT_STOPS_THE_STEP + 1));
+    }
+
+    @Test
+    @Story("Answers nobody believes, one after another, stop the step")
+    @DisplayName("Five groups in a row none of whose documents fits the window with room left for the answer do not stop the step")
+    @Issue("332")
+    @Link(name = "ADR-166", url = Adr.THE_SERVING_ENGINE_COUNTS_A_QUESTION_BEFORE_IT_IS_SENT, type = "adr")
+    void doesNotStopForFiveClustersTheEngineFindsNoRoomFor(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedArrangementOf(ONE_MORE_CLUSTER_THAN_THE_STREAK, root, seeds);
+        for (int cluster = 0; cluster < THE_STREAK_THAT_STOPS_THE_STEP; cluster++) {
+            GenerationScriptedBeans.answerFor(
+                    CLUSTER_NAMES.get(cluster), anOrdinaryAnswer().countedAt(COUNTED_TOO_LONG_AT_ANY_LENGTH));
+        }
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the group after the five is written: the five were left unwritten because their documents"
+                        + " are too long for the window by the engine's own count, which is the same on every"
+                        + " run -- so were they to stop the step, every later run would stop at the same five"
+                        + " and the groups after them would never be written",
+                () -> assertThat(writingKept(root)).hasSize(ONE_PIECE_OF_WRITING));
+        claim(
+                "and a reason is kept for each of the " + THE_STREAK_THAT_STOPS_THE_STEP + ", saying their"
+                        + " question could not reach the model whole",
+                () -> assertThat(reasonsKept(root))
+                        .hasSize(THE_STREAK_THAT_STOPS_THE_STEP)
+                        .allSatisfy(kept -> assertThat(kept.fault().kind())
+                                .isEqualTo(ClusterFaultKind.PROMPT_EVALUATION_CEILING)));
+        claim(
+                "and exactly " + ONE_PIECE_OF_WRITING + " answer was asked for, the sixth group's: none of"
+                        + " the five was asked to write",
+                () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(ONE_PIECE_OF_WRITING));
+    }
+
+    @Test
+    @Story("Answers nobody believes, one after another, stop the step")
+    @DisplayName("A group an earlier invocation already wrote neither adds to the count nor clears it")
+    @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
+    void doesNotClearTheCountForAClusterAnEarlierInvocationAlreadyWrote(
+            @TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedArrangementOf(A_CLUSTER_EITHER_SIDE_OF_THE_STREAK, root, seeds);
+        answersTurnedDownFor(EVERY_CLUSTER_BUT_THE_THIRD);
+
+        cli.run("run", root.toString());
+        GenerationScriptedBeans.forgetScriptedAnswers();
+        answersTurnedDownFor(EVERY_CLUSTER_BUT_THE_THIRD);
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the second invocation reports failure: the third group was walked past without a call,"
+                        + " because the first invocation had already written it, and walking past it did not"
+                        + " clear the count -- nothing was asked there, so it says nothing about whether the"
+                        + " generating model, the word budget and the shape imposed on the answer are right"
+                        + " now",
+                () -> assertThat(cli.getExitCode()).isNotZero());
+        claim(
+                "it made exactly " + A_CALL_FOR_EACH_ANSWER_IN_THE_STREAK + " calls of its own: one for"
+                        + " each answer turned down, none for the group already written, and none for the"
+                        + " group after the fifth -- where treating the one it walked past as a fresh start"
+                        + " would have carried it on to a sixth call",
+                () -> assertThat(GenerationScriptedBeans.callsMade())
+                        .isEqualTo(A_CALL_FOR_EACH_ANSWER_IN_THE_STREAK));
+        claim(
+                "and the " + ONE_PIECE_OF_WRITING + " piece of writing the first invocation earned is"
+                        + " still the only one kept: it was not asked for again, and stopping did not take"
+                        + " it away",
+                () -> assertThat(writingKept(root)).hasSize(ONE_PIECE_OF_WRITING));
+    }
+
+    @Test
+    @Story("Running again after it stopped starts the count over")
+    @DisplayName("After it stops, nothing is recorded as done and the next run asks about every group")
+    @Link(name = "ADR-116", url = Adr.A_RUNS_COMPLETION_IS_RECORDED_PER_STEP, type = "adr")
+    void asksAboutEveryClusterAgainOnTheInvocationAfterItStopped(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedArrangementOf(A_CLUSTER_EITHER_SIDE_OF_THE_STREAK, root, seeds);
+        answersTurnedDownFor(List.of(0, 1, 2, 3, 4));
+
+        cli.run("run", root.toString());
+        boolean recordedAsDoneWhenItStopped = theWorkIsRecordedAsDone(root);
+        GenerationScriptedBeans.forgetScriptedAnswers();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the work was not recorded as done when the step stopped: the record of it being done is"
+                        + " exactly what a later invocation reads to decide whether to walk past this step,"
+                        + " so writing it here would make the two groups nobody ever asked about permanently"
+                        + " unwritten while every run after it reported success",
+                () -> assertThat(recordedAsDoneWhenItStopped).isFalse());
+        claim(
+                "the next invocation asks about all " + A_CLUSTER_EITHER_SIDE_OF_THE_STREAK + " groups,"
+                        + " including the two the stopped run never reached: stopping is what the archive's"
+                        + " owner acts on, and a run that then walked past the groups it had never got to"
+                        + " would leave them unwritten with nothing left saying they were missing",
+                () -> assertThat(GenerationScriptedBeans.callsMade())
+                        .isEqualTo(A_CLUSTER_EITHER_SIDE_OF_THE_STREAK));
+        claim(
+                "every one of those " + A_CLUSTER_EITHER_SIDE_OF_THE_STREAK + " groups is written over this"
+                        + " time, the five that were turned down before included: the same question is put"
+                        + " again with nothing said about what came back last time, and what comes back now"
+                        + " is what stands",
+                () -> assertThat(writingKept(root)).hasSize(A_CLUSTER_EITHER_SIDE_OF_THE_STREAK));
+        claim(
+                "and that invocation reports success, because nothing in it was turned down",
+                () -> assertThat(cli.getExitCode()).isZero());
+    }
+
+    @Test
+    @Story("Answers nobody believes, one after another, stop the step")
+    @DisplayName("A step stopped by five answers turned down still draws the tree and opens its index once")
+    @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+    void aStoppedStepOpensTheTreesIndexOnce(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedArrangementOf(ONE_MORE_CLUSTER_THAN_THE_STREAK, root, seeds);
+        fiveAnswersTurnedDownForFourDifferentReasons();
+        opener.forget();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the precondition: the step stopped, so the invocation reports failure and the work is not recorded"
+                        + " as done",
+                () -> {
+                    assertThat(cli.getExitCode()).isNotZero();
+                    assertThat(theWorkIsRecordedAsDone(root)).isFalse();
+                });
+        claim(
+                "the opener was asked " + ONCE + " time for an index, this tree's, with the page in place",
+                () -> assertTheIndexWasOpenedOnceInPlace(root));
+    }
+
+    @Test
+    @Story("An answer that is believed clears what came before it")
+    @DisplayName("A step left unfinished by answers turned down still draws the tree and opens its index once")
+    @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+    void anUnfinishedStepOpensTheTreesIndexOnce(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedArrangementOf(FOUR_EITHER_SIDE_OF_A_BELIEVED_ANSWER, root, seeds);
+        everyAnswerTurnedDownExceptTheFifth();
+        opener.forget();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the precondition: the step was left unfinished, the invocation succeeding with its work not recorded"
+                        + " as done, since " + EIGHT_REASONS_KEPT + " groups stand with a fault",
+                () -> {
+                    assertThat(cli.getExitCode()).isZero();
+                    assertThat(theWorkIsRecordedAsDone(root)).isFalse();
+                    assertThat(reasonsKept(root)).hasSize(EIGHT_REASONS_KEPT);
+                });
+        claim(
+                "the opener was asked " + ONCE + " time for an index, this tree's, with the page in place",
+                () -> assertTheIndexWasOpenedOnceInPlace(root));
+    }
+
+    /** That the opener was handed this corpus's tree's index exactly once, and that the page was there then. */
+    private void assertTheIndexWasOpenedOnceInPlace(Path root) {
+        Path index = workingDirectory.resolve("deliverable").resolve(generationRuns(root).getLast()).resolve("index.html");
+        List<RecordingPageOpener.Request> indexOpened = opener.requests().stream()
+                .filter(request -> request.page().getPath().endsWith("/index.html"))
+                .toList();
+        assertThat(indexOpened).hasSize(ONCE);
+        assertThat(Path.of(indexOpened.getFirst().page())).isEqualTo(index.toAbsolutePath().normalize());
+        assertThat(indexOpened.getFirst().thePageWasThere()).isTrue();
     }
 
     /**
@@ -485,6 +890,31 @@ class GenerationBreakerInvocationTest {
         }
     }
 
+    /**
+     * The lines written at the level this run keeps for work having stopped, which is one louder than
+     * the level a single cluster left unwritten is reported at.
+     *
+     * <p>The level is the whole of the distinction being read here: every turned-down answer already
+     * writes a line, and those lines name a count and a reason too, so a claim that looked at all of
+     * them together would be met by the per-cluster lines alone and would say nothing about whether the
+     * step reported stopping at all.
+     */
+    private List<String> linesSayingSomethingStopped() {
+        return logged.list.stream()
+                .filter(event -> event.getLevel().isGreaterOrEqual(ch.qos.logback.classic.Level.ERROR))
+                .map(ILoggingEvent::getFormattedMessage)
+                .toList();
+    }
+
+    /** The lines written one level below that, each saying one cluster's answer was turned down. */
+    private List<String> linesSayingAGroupsAnswerWasTurnedDown() {
+        return logged.list.stream()
+                .filter(event -> event.getLevel() == ch.qos.logback.classic.Level.WARN)
+                .map(ILoggingEvent::getFormattedMessage)
+                .filter(line -> line.contains("had its answer turned down"))
+                .toList();
+    }
+
     /** Everything stage 6b wrote over the clusters of {@code root}, under whichever run it wrote them. */
     private List<ListedDoc> writingKept(Path root) {
         return generationRuns(root).stream()
@@ -500,6 +930,21 @@ class GenerationBreakerInvocationTest {
                 .flatMap(run -> WholeRun.clusterFaults(jdbcTemplate,run).stream())
                 .toList();
     }
+
+    /**
+     * Whether this step's own work over {@code root} is recorded as complete under the record it wrote,
+     * which is what every later invocation reads to decide whether to walk past this step.
+     */
+    private boolean theWorkIsRecordedAsDone(Path root) {
+        return generationRuns(root).stream()
+                .anyMatch(run -> jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM finished_step WHERE run_id = ? AND step = ?",
+                                Integer.class,
+                                run,
+                                "generation")
+                        > 0);
+    }
+
 
     /** The arrangement of {@code root} the profile's approval names. */
     private RunId theApprovedArrangement(Path root) {

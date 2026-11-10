@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,12 +46,65 @@ class ARefusedPublishSaysWhereToSetWhatIsMissingTest {
 
     private static final String SITE = "https://site.example";
 
+    private static final String FOLDER_ID = "7001";
+
     private static final String EMAIL = "operator@example.org";
 
     private static final String TOKEN = "TOKEN-0a9b8c7d-not-a-real-one";
 
     /** The generation run the rendering would be drawn for; no rendering is drawn, the publish refusing first. */
     private static final String RUN = "abcdef0123456789";
+
+    @Test
+    @Story("A publish missing a value says where to set it")
+    @DisplayName("On the command line, with the profile naming nothing, a missing space key is refused as before, and both templates are written in the working directory")
+    void fromTheCommandLineAMissingValueIsRefusedAsBeforeAndTheTemplatesAreWritten(@TempDir Path folder)
+            throws IOException {
+        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
+        List<String> printed = new ArrayList<>();
+
+        Publisher.Outcome outcome = publisher(Map.of(ConfluenceSite.EMAIL_VARIABLE, EMAIL,
+                        ConfluenceSite.TOKEN_VARIABLE, TOKEN), SITE, "", FOLDER_ID, "", ConfluenceValues.NONE)
+                .publish(folder.resolve("no-rendering"), RUN, workingDirectory, printed::add);
+
+        claim("the publish is refused with the whole line it gave before the profile held any of its values: the space"
+                        + " key's variable named, the templates pointed at and both said to be written",
+                () -> assertThat(List.of(String.valueOf(outcome.published()), outcome.closingLine())).containsExactly(
+                        "false",
+                        "vespera publish sent nothing: VESPERA_CONFLUENCE_SPACE_KEY is not set. Set the site, the space"
+                                + " and the parent in confluence-env.sh or confluence-env.ps1 in the working directory,"
+                                + " run it in this shell, and publish again. confluence-env.sh and confluence-env.ps1"
+                                + " were written in " + workingDirectory + ", naming each value and holding none."));
+        claim("both templates stand in the working directory",
+                () -> assertThat(Publisher.TEMPLATES).allSatisfy(template ->
+                        assertThat(workingDirectory.resolve(template)).isRegularFile()));
+        claim("and nothing was printed before the refusal", () -> assertThat(printed).isEmpty());
+    }
+
+    @Test
+    @Story("A publish missing a value says where to set it")
+    @DisplayName("On the command line, a space key the profile names is not missing: the token is named, and the templates are written")
+    void onTheCommandLineAValueTheProfileNamesIsNotMissing(@TempDir Path folder) throws IOException {
+        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
+        ConfluenceValues namingTheSpace = new ConfluenceValues(null, "DOCS", null, null, null);
+
+        Publisher.Outcome outcome = publisher(Map.of(ConfluenceSite.EMAIL_VARIABLE, EMAIL), SITE, "", FOLDER_ID, "",
+                namingTheSpace).publish(folder.resolve("no-rendering"), RUN, workingDirectory, line -> {});
+
+        claim("the publish is refused, the token being missing",
+                () -> assertThat(outcome.published()).isFalse());
+        claim("its line names the token's variable and not the space key's, which the profile named",
+                () -> {
+                    assertThat(outcome.closingLine()).contains(ConfluenceSite.TOKEN_VARIABLE);
+                    assertThat(outcome.closingLine()).doesNotContain("VESPERA_CONFLUENCE_SPACE_KEY");
+                });
+        claim("and, typed on the command line, it points at the templates and writes them",
+                () -> {
+                    assertThat(outcome.closingLine()).contains("confluence-env.sh");
+                    assertThat(Publisher.TEMPLATES).allSatisfy(template ->
+                            assertThat(workingDirectory.resolve(template)).isRegularFile());
+                });
+    }
 
     @Test
     @Story("A publish missing a value says where to set it")

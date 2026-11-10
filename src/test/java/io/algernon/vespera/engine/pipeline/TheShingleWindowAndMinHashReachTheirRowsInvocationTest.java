@@ -48,6 +48,9 @@ class TheShingleWindowAndMinHashReachTheirRowsInvocationTest {
     /** A window other than the shipped 5. */
     private static final int WINDOW = 6;
 
+    /** Each document's shingles: one for each place a window of {@value #WINDOW} words starts. */
+    private static final int SHINGLES_OF_A_DOCUMENT = WORDS - WINDOW + 1;
+
     /** Permutations other than the shipped 128, in bands of the shipped 8 rows. */
     private static final int PERMUTATIONS = 64;
 
@@ -57,6 +60,9 @@ class TheShingleWindowAndMinHashReachTheirRowsInvocationTest {
     private static final int ROWS = 8;
 
     private static final long SEED = 1L;
+
+    /** How long a minimum is stored, in bytes. */
+    private static final int BYTES_OF_A_MINIMUM = 4;
 
 
     /** Answers each document with words of its own. */
@@ -118,6 +124,26 @@ class TheShingleWindowAndMinHashReachTheirRowsInvocationTest {
 
     @Test
     @Story("How redundancy is measured is a preset")
+    @DisplayName("Every shingle is kept under the window configured")
+    void theShingleRowsAreKeyedByTheWindowConfigured() {
+        claim("the one identity the shingle rows carry names " + WINDOW + " words",
+                () -> assertThat(jdbcTemplate.queryForList(
+                                "SELECT DISTINCT shingle_parameter_identity FROM shingle", String.class))
+                        .containsExactly("word:" + WINDOW));
+    }
+
+    @Test
+    @Story("How redundancy is measured is a preset")
+    @DisplayName("The window configured is the one that cuts the text")
+    void theWindowConfiguredCutsTheText() {
+        claim("each of the " + DOCUMENTS + " documents of " + WORDS + " words gives " + SHINGLES_OF_A_DOCUMENT
+                        + " shingles, one for each place a window of " + WINDOW + " starts",
+                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM shingle", Integer.class))
+                        .isEqualTo(DOCUMENTS * SHINGLES_OF_A_DOCUMENT));
+    }
+
+    @Test
+    @Story("How redundancy is measured is a preset")
     @DisplayName("Each signature is under the identity of what configuration names")
     void eachSignatureIsUnderTheIdentityConfigured() {
         claim("the one identity of the signatures names the window, the permutations, the bands, the rows, the seed and"
@@ -126,5 +152,18 @@ class TheShingleWindowAndMinHashReachTheirRowsInvocationTest {
                                 "SELECT DISTINCT signature_identity FROM minhash_signature", String.class))
                         .containsExactly("word:" + WINDOW + ";perms:" + PERMUTATIONS + ";bands:" + BANDS + ";rows:" + ROWS
                                 + ";seed:" + SEED + ";floor:" + EveryGateOpen.BOILERPLATE_FLOOR));
+    }
+
+    @Test
+    @Story("How redundancy is measured is a preset")
+    @DisplayName("Each signature is of the numbers configured")
+    void eachSignatureIsOfTheNumbersConfigured() {
+        claim("each of the " + DOCUMENTS + " signatures holds " + PERMUTATIONS + " minima",
+                () -> assertThat(jdbcTemplate.queryForList(
+                                "SELECT LENGTH(signature) FROM minhash_signature", Integer.class))
+                        .hasSize(DOCUMENTS).containsOnly(PERMUTATIONS * BYTES_OF_A_MINIMUM));
+        claim("and each stands in " + BANDS + " bands",
+                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM signature_band", Integer.class))
+                        .isEqualTo(DOCUMENTS * BANDS));
     }
 }

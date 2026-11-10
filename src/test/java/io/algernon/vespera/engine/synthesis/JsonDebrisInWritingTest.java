@@ -64,6 +64,14 @@ class JsonDebrisInWritingTest {
     /** The writing exactly as the shipped page ended: a space and the answer's own closing brace. */
     private static final String WRITING_ENDING_IN_THE_CLOSING_BRACE = WRITING + " }";
 
+    /** The shape the probe answers took: the brace right after the full stop, then a space. */
+    private static final String WRITING_ENDING_IN_THE_CLOSING_BRACE_AND_A_SPACE =
+            "The specifications [1] and the process descriptions [2] describe operational oversight.} ";
+
+    /** Writing that ends in a brace which closes one it opened: content, not debris. */
+    private static final String WRITING_ENDING_IN_A_BALANCED_BRACE =
+            "The specifications [1] and the process descriptions [2] both address the terminal as {PORT}";
+
     /** The reason kept for writing carrying the answer's closing brace. */
     private static final String ENDS_WITH_A_STRAY_BRACE =
             "the answer's writing ends with a closing brace that belongs to no opening one";
@@ -81,6 +89,49 @@ class JsonDebrisInWritingTest {
                         + " machinery that produced it",
                 () -> assertThat(fault).isEqualTo(
                         new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, ENDS_WITH_A_STRAY_BRACE)));
+    }
+
+    @Test
+    @Story("Writing carrying a piece of the answer's own frame is turned down")
+    @DisplayName("A stray closing brace followed by blank space is the same stray brace")
+    void aStrayClosingBraceFollowedByBlankSpaceIsTurnedDown() {
+        ClusterFault fault = faultFrom(WRITING_ENDING_IN_THE_CLOSING_BRACE_AND_A_SPACE);
+
+        claim(
+                "writing whose last character before trailing blank space is a stray closing brace is"
+                        + " turned down the same way: this is the shape every such answer came back in"
+                        + " when measured",
+                () -> assertThat(fault).isEqualTo(
+                        new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, ENDS_WITH_A_STRAY_BRACE)));
+    }
+
+    @Test
+    @Story("Writing carrying a piece of the answer's own frame is turned down")
+    @DisplayName("Writing that ends by closing a brace it opened is believed as written")
+    void writingEndingWithABalancedBraceIsBelieved() {
+        SynthesisDoc doc = docFor(WRITING_ENDING_IN_A_BALANCED_BRACE);
+
+        claim(
+                "writing that ends in a closing brace it opened itself is believed, and kept exactly as"
+                        + " written: a technical archive writes placeholders in braces, and only a brace"
+                        + " belonging to nothing in the writing is the answer's own",
+                () -> assertThat(doc.prose()).isEqualTo(WRITING_ENDING_IN_A_BALANCED_BRACE));
+    }
+
+    @Test
+    @Story("Nothing the model wrote is trimmed off to make its answer pass")
+    @DisplayName("Writing that is believed is kept character for character, trailing space and all")
+    void believedWritingIsKeptCharacterForCharacter() {
+        String writingWithTrailingSpace = WRITING + "  ";
+
+        SynthesisDoc doc = docFor(writingWithTrailingSpace);
+
+        claim(
+                "the writing is kept exactly as it came back, down to the blank space after its last"
+                        + " sentence: nothing is removed from an answer to make it pass, because deciding"
+                        + " which of the model's characters to throw away is deciding which part of the"
+                        + " answer to believe",
+                () -> assertThat(doc.prose()).isEqualTo(writingWithTrailingSpace));
     }
 
     /** What turning down an answer carrying {@code prose} recorded, or {@code null} where it was believed. */

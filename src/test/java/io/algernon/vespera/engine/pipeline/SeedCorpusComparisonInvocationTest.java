@@ -13,6 +13,7 @@ import io.algernon.vespera.engine.profile.Profile;
 import io.algernon.vespera.engine.profile.ProfileFixture;
 import io.algernon.vespera.engine.profile.ProfileKeys;
 import io.algernon.vespera.engine.profile.ProfileStore;
+import io.algernon.vespera.engine.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -111,6 +112,90 @@ class SeedCorpusComparisonInvocationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
+    @Story("The measurement arrives before the money is spent")
+    @DisplayName("With no embedding model named, the invocation still measures the seed set and writes the report")
+    void measuresAndReportsWithNoModelNamed(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        profile(seeds);
+
+        cli.run("run", root.toString());
+
+        RunId measurementRun = theMeasurementRunOver(root);
+        claim(
+                "the invocation reported success: nobody has named a model to score with, and a value the"
+                        + " pipeline needs and does not have ends the run rather than failing it",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "the comparison was written as data, keyed by the run that measured it, so it can be"
+                        + " queried again rather than only read",
+                () -> assertThat(comparisonRowsFor(measurementRun)).isPositive());
+        claim(
+                "and the report was written as a file too, which is the half an operator deciding whether"
+                        + " to spend a day of compute actually reads, in the working directory beside the"
+                        + " database and the profile",
+                () -> assertThat(Files.exists(reportFile())).isTrue());
+    }
+
+    @Test
+    @Story("The report opens on its own")
+    @DisplayName("The report is a whole HTML document that names no other file and fetches nothing")
+    void writesASelfContainedReport(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        profile(seeds);
+
+        cli.run("run", root.toString());
+
+        String html = Files.readString(reportFile());
+        claim(
+                "the file is a whole, standalone HTML document, openable without any other file present",
+                () -> assertThat(html).contains("<!DOCTYPE html>").contains("<html").contains("</html>"));
+        claim(
+                "it names no other file and reaches for nothing over the network, so it opens on a laptop"
+                        + " with no connection to the machine that wrote it",
+                () -> assertThat(html)
+                        .doesNotContain("<link")
+                        .doesNotContain("<script")
+                        .doesNotContain("src=")
+                        .doesNotContain("href=\"http"));
+        claim(
+                "and nothing was written into the corpus or the seed folder: both hold exactly the files"
+                        + " this test put in them, and no page of any kind was left among the documents",
+                () -> assertThat(filesUnder(root, seeds))
+                        .containsExactlyInAnyOrder(root.resolve("corpus.txt"), seeds.resolve("seed.txt")));
+    }
+
+    @Test
+    @Story("A measurement, never a judgement")
+    @DisplayName("The report states no single figure for the whole comparison and judges none of it")
+    void statesNoSummarisingFigureAndNoJudgement(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        profile(seeds);
+
+        cli.run("run", root.toString());
+
+        String html = Files.readString(reportFile());
+        claim(
+                "the report carries no single figure standing for the whole comparison, and does not say"
+                        + " whether what it reports is close enough: a summarising figure would be a"
+                        + " threshold nobody has measured, and it would flatten the one fact anybody can"
+                        + " act on -- which of the four signals diverged -- into a number that cannot be"
+                        + " acted on at all",
+                () -> assertThat(html)
+                        .doesNotContainIgnoringCase(WORDING_THE_REPORT_REFUSES.toArray(String[]::new)));
+        claim(
+                "and no verdict of any kind stands against any document, on either side. Every word in"
+                        + " the fixed vocabulary exists to remove a document from the survivor set, and"
+                        + " this measurement removes nothing: the seeds were readable, the corpus document"
+                        + " converted, and a difference in form between the two is not grounds for"
+                        + " discarding either",
+                () -> assertThat(verdictKindsAgainstOccurrencesOf(theCorpusWalkOf(root), theSeedWalkOf(seeds)))
+                        .isEmpty());
+    }
+
+    @Test
     @Story("Nothing here is a threshold")
     @DisplayName("The profile gains no key, and the seed-folder key still answers the question census asked")
     void addsNoProfileKeyAndRepointsNothing(@TempDir Path root, @TempDir Path seeds) throws IOException {
@@ -148,6 +233,22 @@ class SeedCorpusComparisonInvocationTest {
     /** The report's own file, beside the database and the profile in the working directory. */
     private Path reportFile() {
         return workingDirectory.resolve(SeedCorpusComparisonTasklet.SEED_CORPUS_COMPARISON_FILE_NAME);
+    }
+
+    /**
+     * Stage 5's measurement run over this test's own corpus walk, scoped to that walk because the
+     * whole class shares one database and another test's fixture minted one too.
+     */
+    private RunId theMeasurementRunOver(Path root) {
+        List<String> ids = jdbcTemplate.queryForList(
+                "SELECT id FROM run WHERE stage = ? AND walk_id = ?",
+                String.class,
+                "seed-measurement",
+                theCorpusWalkOf(root).value());
+        if (ids.size() != 1) {
+            throw new IllegalStateException("this invocation minted " + ids.size() + " measurement runs, not one");
+        }
+        return new RunId(ids.getFirst());
     }
 
     private long comparisonRowsFor(RunId runId) {

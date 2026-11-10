@@ -88,6 +88,16 @@ class StageTwoRecordsItsCacheKeyInvocationTest {
     private static final String USABLE_SEED = "seed.txt";
     private static final String SEED_WITH_NO_TEXT = SeedScriptedExtractionBeans.EMPTY_SEED;
 
+    /** The seven kinds of run one invocation mints before anything is approved, as the ledger names them. */
+    private static final List<String> THE_STAGES_AS_RECORDED = List.of(
+            "byte-level-reduction",
+            "extraction",
+            "content-census",
+            "content-redundancy",
+            "seed-measurement",
+            "embedding-scoring",
+            "arrangement");
+
     /**
      * Records the thread every statement that inserts into the key table is prepared on, whichever
      * class issues it and however: the connections the pool hands out are wrapped, so nothing here
@@ -255,6 +265,111 @@ class StageTwoRecordsItsCacheKeyInvocationTest {
         }
     }
 
+    @Test
+    @Story("Each document's cache key is on record")
+    @DisplayName("A key is recorded for every document that was measured, and for no other")
+    void recordsAKeyWhereverAMeasurementIsRecorded() throws IOException {
+        Ran ran = ran();
+        Path root = theRoot;
+
+        claim("the invocation reports success", () -> assertThat(ran.exitCode()).isZero());
+        claim(
+                "the precondition: the converting stage measured the three documents it converted, the"
+                        + " one the converter refused and the one it reported a timeout on, each of which"
+                        + " is an answer about that file; and it measured nothing for the one the"
+                        + " converter failed on while blaming itself, which is no answer about the file",
+                () -> assertThat(pathsMeasured("extraction", root))
+                        .containsExactlyInAnyOrder(
+                                SAME_SIZE_A, SAME_SIZE_B, NO_PEER_OF_ITS_SIZE, REFUSED, TIMED_OUT));
+        claim(
+                "the documents with a key on record are exactly the documents with a measurement on"
+                        + " record: the refused one has its key, since its refusal is kept under it, and"
+                        + " the one that was set aside has none, since nothing is kept for it and nothing"
+                        + " later asks about it",
+                () -> assertThat(keysRecorded("extraction", root).keySet())
+                        .containsExactlyInAnyOrderElementsOf(pathsMeasured("extraction", root)));
+        claim(
+                "the refused document's key is the SHA-256 of its bytes, like any other",
+                () -> assertThat(keysRecorded("extraction", root))
+                        .containsEntry(REFUSED, sha256Of(root.resolve(REFUSED))));
+        String theTimedOutDocumentsHash = sha256Of(root.resolve(TIMED_OUT));
+        claim(
+                "the document the converter reported a timeout on has its key too, the SHA-256 of its"
+                        + " bytes, although no answer is kept under it: a reported timeout is measured and"
+                        + " is asked again next time, so the key is on record and the conversions hold"
+                        + " nothing for it",
+                () -> {
+                    assertThat(keysRecorded("extraction", root)).containsEntry(TIMED_OUT, theTimedOutDocumentsHash);
+                    assertThat(conversionsOnRecordUnder(theTimedOutDocumentsHash)).isZero();
+                });
+    }
+
+    @Test
+    @Story("Each document's cache key is on record")
+    @DisplayName("Seed extraction records each converted seed's key too, under its own run")
+    void recordsEachSeedsKeyUnderTheMeasurementRun() throws IOException {
+        Ran ran = ran();
+        Path seeds = theSeeds;
+
+        claim("the invocation reports success", () -> assertThat(ran.exitCode()).isZero());
+        claim(
+                "the precondition: seed extraction measured both seeds, the one with text and the one"
+                        + " the converter found no text in",
+                () -> assertThat(pathsMeasured("seed-measurement", seeds))
+                        .containsExactlyInAnyOrder(USABLE_SEED, SEED_WITH_NO_TEXT));
+        claim(
+                "both seeds have a key on record under the run that measured them, each the SHA-256 of"
+                        + " its file computed here with the JDK: the steps that embed and score against"
+                        + " the seeds read it from there and do not hash a seed again",
+                () -> assertThat(keysRecorded("seed-measurement", seeds))
+                        .containsOnly(
+                                Map.entry(USABLE_SEED, sha256Of(seeds.resolve(USABLE_SEED))),
+                                Map.entry(SEED_WITH_NO_TEXT, sha256Of(seeds.resolve(SEED_WITH_NO_TEXT)))));
+    }
+
+    @Test
+    @Story("One thread writes everything the converting stage records")
+    @DisplayName("Every key is written by the thread the command was invoked on, and by no conversion worker")
+    @Link(name = "ADR-140", url = Adr.STAGE_2_CONVERTS_EIGHT_AT_A_TIME, type = "adr")
+    void writesEveryKeyOnTheThreadTheCommandWasInvokedOn() throws IOException {
+        Ran ran = ran();
+
+        claim("the invocation reports success", () -> assertThat(ran.exitCode()).isZero());
+        claim(
+                "keys were written, and every statement that wrote one was issued from one thread, the one the"
+                        + " command was invoked on, and so from no conversion worker: conversions run on threads of"
+                        + " their own, and a write from one of them would need a second connection while the step"
+                        + " holds the only writer's",
+                () -> assertThat(ran.threadsThatWroteAKey()).containsExactly(ran.invokedOn()));
+    }
+
+    @Test
+    @Story("What is already recorded keeps its names")
+    @DisplayName("The runs and the converting stage's finished step are recorded under the names they had")
+    void keepsTheRecordedNames() throws IOException {
+        Ran ran = ran();
+        Path root = theRoot;
+
+        claim("the invocation reports success", () -> assertThat(ran.exitCode()).isZero());
+        claim(
+                "the " + THE_STAGES_AS_RECORDED.size() + " kinds of run this invocation mints are recorded"
+                        + " under the names they have always had, letter for letter: recording a key"
+                        + " renames nothing a database already holds",
+                () -> assertThat(jdbcTemplate.queryForList(
+                                "SELECT DISTINCT r.stage FROM run r JOIN walk w ON w.id = r.walk_id WHERE w.root = ?",
+                                String.class,
+                                Walk.canonicalRoot(root).toString()))
+                        .containsExactlyInAnyOrderElementsOf(THE_STAGES_AS_RECORDED));
+        claim(
+                "and the converting stage records its one finished step under the name \"extraction\"",
+                () -> assertThat(jdbcTemplate.queryForList(
+                                "SELECT f.step FROM finished_step f JOIN run r ON r.id = f.run_id"
+                                        + " JOIN walk w ON w.id = r.walk_id WHERE r.stage = 'extraction' AND w.root = ?",
+                                String.class,
+                                Walk.canonicalRoot(root).toString()))
+                        .containsExactly("extraction"));
+    }
+
     /** The key recorded for each file under {@code folder}, by path, under runs of {@code stage}. */
     private Map<String, String> keysRecorded(String stage, Path folder) {
         Map<String, String> byPath = new LinkedHashMap<>();
@@ -268,6 +383,17 @@ class StageTwoRecordsItsCacheKeyInvocationTest {
                 stage,
                 Walk.canonicalRoot(folder).toString());
         return byPath;
+    }
+
+    /** The paths of the files under {@code folder} with a metric row under a run of {@code stage}. */
+    private List<String> pathsMeasured(String stage, Path folder) {
+        return jdbcTemplate.queryForList(
+                "SELECT fo.path FROM extraction_metric m JOIN run r ON r.id = m.run_id"
+                        + " JOIN file_occurrence fo ON fo.id = m.occurrence_id JOIN walk w ON w.id = fo.walk_id"
+                        + " WHERE r.stage = ? AND w.root = ?",
+                String.class,
+                stage,
+                Walk.canonicalRoot(folder).toString());
     }
 
     private List<String> pathsTheFirstStageHashed(Path root) {

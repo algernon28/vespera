@@ -2,6 +2,7 @@ package io.algernon.vespera.engine.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.corpus.DetectedFormat;
@@ -47,6 +48,26 @@ class SeedConversionsTest {
 
     /** Any hash, for the same reason. */
     private static final String CONTENT_HASH = "0".repeat(64);
+
+    @Test
+    @Story("A seed is converted as what its bytes say")
+    @DisplayName("A seed whose bytes say nothing is still converted, rather than stopping the stage")
+    void convertsAnEmptySeedRatherThanRefusingIt(@TempDir Path seeds) throws IOException {
+        Path empty = Files.createFile(seeds.resolve("nothing-in-here.txt"));
+        ScriptedExtractor docling = new ScriptedExtractor().answering(converted());
+
+        claim(
+                "an empty file in the seed folder is an ordinary thing for an operator to have, and no"
+                        + " floor ran in front of that folder to stop it -- so it is converted like any other"
+                        + " seed, where a refusal would abort a stage that cannot skip the document",
+                () -> assertThatCode(() -> SeedConversions.convert(docling, empty, CONTENT_HASH, IDENTITY))
+                        .doesNotThrowAnyException());
+        claim(
+                "and it travels as content nothing recognised, which is what the bytes said: the reading"
+                        + " that belongs to stage 1's floor is not one a seed can carry, because the floor is"
+                        + " the thing a seed never passed through",
+                () -> assertThat(docling.formatsAsked()).containsExactly(DetectedFormat.UNRECOGNISED));
+    }
 
     @Test
     @Story("A seed is converted as what its bytes say")

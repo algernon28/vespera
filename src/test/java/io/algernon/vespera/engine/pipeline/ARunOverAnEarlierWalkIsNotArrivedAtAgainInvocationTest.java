@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -37,6 +39,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import picocli.CommandLine;
 
 /**
  * Which runs {@code vespera run} can never arrive at again, and what still reads them (ADR-229, #481).
@@ -72,6 +75,8 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-115", url = Adr.A_REPEATED_OBSERVATION_IS_DISCARDED_AND_A_RUN_IS_CONTINUED, type = "adr")
 class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
 
+    private static final String LABEL_FILE = "relevance-labels.yaml";
+
     /** How many texts the fixture's archive holds before one is added. */
     private static final int CORPUS_DOCUMENTS = 2;
 
@@ -80,6 +85,9 @@ class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
 
     /** The bean holding stage 2's confidence floor, read once when a process's context starts. */
     private static final String THE_CONFIDENCE_FLOOR_BEAN = "degenerateOutputConfidenceFloor";
+
+    /** The words every scripted conversion carries, so finding them means a conversion on record was read. */
+    private static final String WHAT_A_CONVERTED_DOCUMENT_OPENS_WITH = "stubbed but real content";
 
     /**
      * The stages an invocation reaches with every gate open but the arrangement's approval: all but
@@ -111,6 +119,8 @@ class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
             Map.entry("document_cluster", List.of("embedding-scoring")),
             Map.entry("relevance_score", List.of("embedding-scoring")),
             Map.entry("cluster", List.of("arrangement"))));
+
+    private static final Pattern THE_RUN_THE_LABEL_FILE_NAMES = Pattern.compile("generatedUnderRun: \"?([0-9a-f]{64})");
 
     /** The opening each question put to the scripted labeller, empty where none could be read. */
     static final List<Optional<String>> OPENINGS_PUT = new CopyOnWriteArrayList<>();
@@ -251,6 +261,72 @@ class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
                 () -> assertThat(runsOver(thirdWalk)).containsExactlyElementsOf(thirdRuns));
     }
 
+    @Test
+    @Story("What a changed folder leaves of the work done before the change")
+    @DisplayName("Labelling by the local labeller reads the scoring the label file names, though the folder has been observed again since, and with the conversion keys of that scoring's extraction removed it fails before asking anything")
+    void labellingReadsTheRunTheLabelFileNamesThoughItsWalkIsNoLongerTheLatest(
+            @TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        everyGateOpen(seeds);
+        invoke(root);
+        long firstWalk = theOnlyWalkOf(root);
+        String scoring = theRunTheLabelFileNames();
+
+        claim(
+                "the label file names the scoring made over the first observation of the folder",
+                () -> assertThat(walkOf(scoring)).isEqualTo(firstWalk));
+
+        // The archive changes, and the next invocation stops at stage 4's gate: a new walk, no stage 5.
+        Files.writeString(root.resolve(THE_ADDED_TEXT), "a corpus document that was not there before");
+        profileStore.save(ProfileFixture.profile()
+                .seedFolder(seeds.toString(), "set by this test")
+                .build());
+        invoke(root);
+        long latestWalk = walksOf(root).getLast();
+
+        claim(
+                "after one text is added and an invocation stops before the scoring, the folder has a later"
+                        + " observation than the one the label file's scoring was made over",
+                () -> assertThat(latestWalk).isGreaterThan(firstWalk));
+        claim(
+                "no scoring has been made over that later observation",
+                () -> assertThat(stagesOf(runsOver(latestWalk)))
+                        .doesNotContain(StageModules.EMBEDDING_SCORING.stage()));
+        claim(
+                "and the label file still names the first scoring",
+                () -> assertThat(theRunTheLabelFileNames()).isEqualTo(scoring));
+
+        cli.run("label", "--auto");
+
+        claim("labelling by the local labeller reports success", () -> assertThat(cli.getExitCode())
+                .isEqualTo(CommandLine.ExitCode.OK));
+        claim(
+                "the local labeller was put questions, each with the opening of its document, read from the"
+                        + " conversion the first extraction recorded a key for",
+                () -> assertThat(OPENINGS_PUT).isNotEmpty().allSatisfy(opening -> assertThat(opening)
+                        .hasValueSatisfying(text -> assertThat(text).contains(WHAT_A_CONVERTED_DOCUMENT_OPENS_WITH))));
+        int questions = OPENINGS_PUT.size();
+        claim(
+                "and every answer recorded for this seed folder is recorded under the first scoring, the work"
+                        + " over the earlier observation",
+                () -> assertThat(runsTheAnswersAreRecordedUnder(seeds)).containsExactly(scoring));
+
+        // What removing an earlier walk's rows would do, done here by the test: nothing that ships does it.
+        String firstExtraction = theRunOf(firstWalk, StageModules.EXTRACTION);
+        int removed = jdbcTemplate.update("DELETE FROM extraction_cache_key WHERE run_id = ?", firstExtraction);
+        OPENINGS_PUT.clear();
+        cli.run("label", "--auto");
+
+        claim(
+                "the first extraction had recorded conversion keys, so removing them removed something",
+                () -> assertThat(removed).isPositive());
+        claim(
+                "with those keys removed, labelling by the local labeller fails, where it had answered " + questions
+                        + " question(s) a moment before: it reports an error of the program's and not success",
+                () -> assertThat(cli.getExitCode()).isEqualTo(CommandLine.ExitCode.SOFTWARE));
+        claim("and it puts no question to the local labeller", () -> assertThat(OPENINGS_PUT).isEmpty());
+    }
+
     private void invoke(Path root) {
         aNewProcessReadsTheProfile();
         cli.run("run", root.toString());
@@ -291,6 +367,16 @@ class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
     /** Every run over {@code walk}, in the order they were minted. */
     private List<String> runsOver(long walk) {
         return jdbcTemplate.queryForList("SELECT id FROM run WHERE walk_id = ? ORDER BY rowid", String.class, walk);
+    }
+
+    private String theRunOf(long walk, StageModules stage) {
+        return jdbcTemplate.queryForObject(
+                "SELECT id FROM run WHERE walk_id = ? AND stage = ?", String.class, walk, stage.stage());
+    }
+
+    private long walkOf(String run) {
+        Long walk = jdbcTemplate.queryForObject("SELECT walk_id FROM run WHERE id = ?", Long.class, run);
+        return walk == null ? -1 : walk;
     }
 
     private List<String> stagesOf(List<String> runs) {
@@ -342,5 +428,19 @@ class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
                 "SELECT path || ' ' || size_bytes FROM file_occurrence WHERE walk_id = ? ORDER BY path",
                 String.class,
                 walk);
+    }
+
+    private String theRunTheLabelFileNames() throws IOException {
+        Matcher named = THE_RUN_THE_LABEL_FILE_NAMES.matcher(Files.readString(workingDirectory.resolve(LABEL_FILE)));
+        claim("the label file names the scoring it was written under", () -> assertThat(named.find())
+                .isTrue());
+        return named.group(1);
+    }
+
+    private List<String> runsTheAnswersAreRecordedUnder(Path seeds) {
+        return jdbcTemplate.queryForList(
+                "SELECT DISTINCT run_id FROM relevance_label WHERE seed_set = ?",
+                String.class,
+                Walk.canonicalRoot(seeds).toString());
     }
 }

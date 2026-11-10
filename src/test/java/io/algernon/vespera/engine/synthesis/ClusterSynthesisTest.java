@@ -2,6 +2,7 @@ package io.algernon.vespera.engine.synthesis;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
@@ -15,6 +16,8 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.ai.chat.metadata.DefaultUsage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
@@ -47,6 +50,15 @@ class ClusterSynthesisTest {
     private static final String GENERATED_PROSE =
             "The earliest audit [1] sets the pattern the later one [2] is measured against.";
 
+    /**
+     * The same writing for a call that was given one document: it points at that one and no further.
+     *
+     * <p>The answer above points at two, which is right for the calls that send two and wrong for the
+     * one that sends a single document — an answer pointing past what it was given is refused, so a
+     * fixture that did it would be testing the refusal rather than the thing it is about.
+     */
+    private static final String PROSE_POINTING_AT_THE_ONE_SENT = "The earliest audit [1] sets the pattern.";
+
     /** What the cluster is called before anything is generated for it: the name stage 6a derived. */
     private static final String LABEL = "2019 Site Safety Audit";
 
@@ -62,6 +74,16 @@ class ClusterSynthesisTest {
     /** How many the three-document cluster holds, which is what that call has to say it read. */
     private static final int THREE_DOCUMENTS = 3;
 
+    /** What a cluster costs: one call, however many documents are in it. */
+    private static final int ONE_CALL = 1;
+
+    /**
+     * How much the shipped code lets one call read, written out here rather than read off the code it
+     * is checking: a number taken from the thing under test would agree with it whatever it changed to,
+     * and the whole point of this one is that it does not move on its own.
+     */
+    private static final int READING_WINDOW = 8192;
+
     /** The opening chunk of the document sitting closest to the seed, heading and all. */
     private static final String CLOSEST_CHUNK =
             """
@@ -71,6 +93,13 @@ class ClusterSynthesisTest {
 
     /** How close that one sits: the highest score here, so it is sent first. */
     private static final double CLOSEST_SCORE = 0.81;
+
+    /** The opening chunk of a document sitting between the other two. */
+    private static final String MIDDLE_CHUNK =
+            """
+            # 2020 Site Safety Audit
+
+            The inspection nobody attended.""";
 
     /** How close that one sits: between the other two, so it is sent second of three. */
     private static final double MIDDLE_SCORE = 0.77;
@@ -116,6 +145,37 @@ class ClusterSynthesisTest {
     /** How many of those three fit: two at 150 words each, where a third would pass 384. */
     private static final int WHAT_FITS = 2;
 
+    /** Half the room exactly, so two such documents fill it to the word and neither is left out. */
+    private static final int HALF_THE_ROOM = ROOM_FOR / 2;
+
+    /**
+     * A document longer than the whole room, so no call in this window could ever carry it — not
+     * because others got there first, but because it does not fit an empty one.
+     */
+    private static final int TOO_BIG_FOR_ANY_CALL = ROOM_FOR + 1;
+
+    /**
+     * A document taking up most of the room on its own: {@link #ROOM_FOR} less this leaves 84 words
+     * free, which is room for a short document and not for a middling one.
+     */
+    private static final int FILLS_MOST_OF_THE_ROOM = 300;
+
+    /**
+     * A document that fits an empty call and does not fit what is left after the one above. It is not
+     * outsized -- a call carrying it alone would carry it -- so what happens to it is a statement about
+     * the fill rather than about the document.
+     */
+    private static final int MORE_THAN_THE_ROOM_LEFT = 200;
+
+    /**
+     * A document short enough to have fitted in the 84 words left over, and it sits furthest from the
+     * seed. It is the one document that tells a fill which stops from a fill which keeps looking.
+     */
+    private static final int SHORT_ENOUGH_FOR_WHAT_IS_LEFT = 50;
+
+    /** How many of those three go: the closest one, and the fill stops where the next will not fit. */
+    private static final int ONE_DOCUMENT = 1;
+
     /** What each long document opens with, which is how a claim tells them apart. */
     private static final String CLOSEST_HEADING = "AUDIT-2019";
 
@@ -135,11 +195,100 @@ class ClusterSynthesisTest {
     /** And which the furthest one is. */
     private static final OccurrenceId THE_FURTHEST_DOCUMENT = new OccurrenceId(13);
 
+    /**
+     * How many times a cluster no document of which fits is worth asking about: not once, because there
+     * would be nothing in the question.
+     */
+    private static final int NOTHING_WAS_ASKED = 0;
+
+    /** The reason kept for a call that came back with no answer in it at all (ADR-123). */
+    private static final String NO_ANSWER_AT_ALL = "the call came back carrying no answer at all";
+
+    /** The reason kept for an answer that came back with no text, or with nothing but blank (ADR-123). */
+    private static final String CAME_BACK_EMPTY = "the answer came back empty";
+
     /** How the reason for an answer nothing could read opens, before it names where reading stopped. */
     private static final String COULD_NOT_BE_READ_BACK = "the answer did not read back into";
 
+    /** An answer of nothing but blank space, which is the empty answer rather than an unreadable one. */
+    private static final String NOTHING_BUT_SPACES = "   ";
+
     /** An answer with something in it that is not the shape the call imposed, so reading it fails. */
     private static final String NOT_AN_ANSWER_AT_ALL = "I am afraid I cannot help with that.";
+
+    /**
+     * What a call reporting nothing about how much of the question it read arrives as: the serving
+     * engine's absent count is substituted before this code ever sees it, and {@code 0} is below every
+     * window, so such a call is never held against the ceiling (ADR-123).
+     */
+    private static final int NO_READING_REPORTED = 0;
+
+    /**
+     * A reading count at the ceiling, the window sent less one (ADR-166 section 3), which is already the
+     * ceiling failing: at or above it means the question was cut down to fit before the model ever read it.
+     *
+     * <p>Sitting on the boundary rather than over it is the stronger fixture, because a check written
+     * as {@code >} instead of {@code >=} passes a count above and fails this one.
+     */
+    private static final int A_COUNT_AT_THE_CEILING = THE_SHIPPED_WINDOW - 1;
+
+    /** How much a call that came back carrying no answer wrote, which is nothing. */
+    private static final int NOTHING_WRITTEN = 0;
+
+    /**
+     * An answer carrying a title and no writing at all: the key is simply absent, so reading it back
+     * into the shape the call imposed succeeds and leaves the writing missing (ADR-124).
+     */
+    private static final String AN_ANSWER_WITH_NO_WRITING_IN_IT = "{\"title\":\"" + GENERATED_TITLE + "\"}";
+
+    /**
+     * The same answer with the writing present and blank, which is the other way a serving engine
+     * returns no writing — and the same event, so the same reason is kept for it (ADR-124).
+     */
+    private static final String AN_ANSWER_WHOSE_WRITING_IS_BLANK =
+            "{\"title\":\"" + GENERATED_TITLE + "\",\"prose\":\"" + NOTHING_BUT_SPACES + "\"}";
+
+    /** The reason kept for an answer that came back with its writing missing or blank (ADR-124). */
+    private static final String NO_WRITING_AT_ALL = "the answer came back with no writing in it";
+
+    /**
+     * An answer whose writing is there, is real prose, and points at no document at all — which is a
+     * different thing from an answer with no writing in it, and is kept as a different failure.
+     */
+    private static final String AN_ANSWER_POINTING_AT_NOTHING_AT_ALL = "{\"title\":\"" + GENERATED_TITLE
+            + "\",\"prose\":\"The audits agree on every finding, and on what should follow from them.\"}";
+
+    /**
+     * An answer carrying its writing and no title at all: the key is simply absent, so reading it
+     * back into the shape the call imposed succeeds and leaves the title missing (ADR-125).
+     */
+    private static final String AN_ANSWER_WITH_NO_TITLE_ON_IT = "{\"prose\":\"" + GENERATED_PROSE + "\"}";
+
+    /**
+     * The same answer with the title present and blank, which is the other way a serving engine
+     * returns no title — and a different event, so a different reason is kept for it (ADR-125).
+     */
+    private static final String AN_ANSWER_WHOSE_TITLE_IS_BLANK = "{\"title\":\"" + NOTHING_BUT_SPACES
+            + "\",\"prose\":\"" + GENERATED_PROSE + "\"}";
+
+    /** An answer whose writing ends with the closing brace of its own JSON object, typed inside it (ADR-162). */
+    private static final String AN_ANSWER_ENDING_IN_A_STRAY_BRACE =
+            "{\"title\":\"" + GENERATED_TITLE + "\",\"prose\":\"" + GENERATED_PROSE + " }\"}";
+
+    /** An answer that read back perfectly well and carried neither of the two things asked for. */
+    private static final String AN_ANSWER_CARRYING_NEITHER = "{}";
+
+    /** The reason kept for an answer whose title never arrived (ADR-125). */
+    private static final String NO_TITLE_AT_ALL = "the answer came back with no heading on it";
+
+    /** The reason kept for an answer whose title arrived blank (ADR-125). */
+    private static final String A_BLANK_TITLE = "the answer came back with a blank heading";
+
+    /**
+     * How many ways one answer can be turned down: four, and the set is closed. Seven different reasons
+     * now share one of the four, which is honest only while the seven read differently from each other.
+     */
+    private static final int THE_WAYS_AN_ANSWER_IS_TURNED_DOWN = 4;
 
     @Test
     @Story("A group of documents becomes a piece of writing that connects them")
@@ -169,6 +318,63 @@ class ClusterSynthesisTest {
     }
 
     @Test
+    @Story("A group of documents is read in one go, never one document at a time")
+    @DisplayName("The whole group goes in one call, closest document first, each under the number to cite it by")
+    void sendsTheWholeClusterAtOnceInScoreOrderUnderTheNumbersToCiteThemBy() {
+        ScriptedChatModel model = new ScriptedChatModel();
+
+        new ClusterSynthesis(model).docFor(aClusterOfThreeOfferedOutOfOrder(), MODEL_NAME, THE_SHIPPED_WINDOW, DeliverableLanguage.ENGLISH);
+
+        claim(
+                "all " + THREE_DOCUMENTS + " documents went in " + ONE_CALL + " call: asking once per"
+                        + " document would cost one call per document across an archive of hundreds of"
+                        + " thousands, and what came back would be a summary of each -- which is the pile"
+                        + " this system exists to avoid, rebuilt one level up",
+                () -> assertThat(model.callsMade()).isEqualTo(ONE_CALL));
+        claim(
+                "the documents arrive closest-to-the-seed first, each under the number a reader will follow"
+                        + " it back by -- offered here in an order no rule would produce, because putting"
+                        + " them in order is this module's job and not the caller's to have done",
+                () -> assertThat(model.whatWasAsked())
+                        .containsSubsequence(
+                                "[1] " + CLOSEST_CHUNK, "[2] " + MIDDLE_CHUNK, "[3] " + FURTHEST_CHUNK));
+        claim(
+                "the call says what the group is called and what it sits under, so what comes back is about"
+                        + " this group of documents rather than about documents in general",
+                () -> assertThat(model.whatWasAsked())
+                        .contains("\"" + LABEL + "\"")
+                        .contains("\"" + SEED_PATH + "\""));
+        claim(
+                "and it says how many documents it is working from, all " + THREE_DOCUMENTS + " here: that"
+                        + " number is what a later call, working from fewer, will differ from",
+                () -> assertThat(model.whatWasAsked()).contains(THREE_DOCUMENTS + " document"));
+    }
+
+    @Test
+    @Story("What the writing was made under is decided here, not by whichever machine answered")
+    @DisplayName("Every call says how much it may read and what shape the answer has to come back in")
+    void saysHowMuchItMayReadAndWhatShapeTheAnswerTakes() {
+        ScriptedChatModel model = new ScriptedChatModel();
+
+        new ClusterSynthesis(model).docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW, DeliverableLanguage.ENGLISH);
+
+        claim(
+                "the call names the model it was told to use, rather than leaving the machine to pick one:"
+                        + " which model wrote something is half of what makes it re-checkable later",
+                () -> assertThat(model.optionsUsed().getModel()).isEqualTo(MODEL_NAME));
+        claim(
+                "and it says how much it may read -- " + READING_WINDOW + " -- on every single call."
+                        + " Left unsaid, that number is whatever the machine serving happened to decide at"
+                        + " startup, so the same archive written on two machines is two different pieces of"
+                        + " work and nobody can tell which they are holding",
+                () -> assertThat(model.optionsUsed().getNumCtx()).isEqualTo(READING_WINDOW));
+        claim(
+                "and it sets a shape for the answer to come back in, rather than hoping for one: text that"
+                        + " has to be guessed at is text that will be guessed at wrongly",
+                () -> assertThat(model.optionsUsed().getFormat()).isNotNull());
+    }
+
+    @Test
     @Issue("182")
     @Story("A group too big to read in one go sends what fits, rather than being skipped")
     @DisplayName("When the group will not fit, the closest documents go and the rest are left out")
@@ -195,6 +401,211 @@ class ClusterSynthesisTest {
     }
 
     @Test
+    @Issue("182")
+    @Story("A group too big to read in one go sends what fits, rather than being skipped")
+    @DisplayName("A group that fills the room exactly is sent whole, with nothing left out")
+    void sendsAClusterThatFillsTheRoomExactly() {
+        ScriptedChatModel model = new ScriptedChatModel();
+
+        SynthesisDoc doc = new ClusterSynthesis(model)
+                .docFor(
+                        new ClusterCall(
+                                LABEL,
+                                SEED_PATH,
+                                List.of(
+                                        aDocumentOf(HALF_THE_ROOM, CLOSEST_HEADING, CLOSEST_SCORE),
+                                        aDocumentOf(HALF_THE_ROOM, MIDDLE_HEADING, MIDDLE_SCORE))),
+                        MODEL_NAME,
+                        A_SMALL_WINDOW, DeliverableLanguage.ENGLISH);
+
+        claim(
+                "both documents went: together they come to exactly the " + ROOM_FOR + " words there is"
+                        + " room for, and a group that fits is a group that is sent whole -- dropping the"
+                        + " last one that fits would quietly cost every group a document for nothing",
+                () -> assertThat(doc.documentsSent()).isEqualTo(DOCUMENTS_SENT));
+        claim(
+                "and both of them really are in what was asked, rather than merely counted",
+                () -> assertThat(model.whatWasAsked()).contains(CLOSEST_HEADING).contains(MIDDLE_HEADING));
+    }
+
+    @Test
+    @Issue("182")
+    @Story("A group too big to read in one go sends what fits, rather than being skipped")
+    @DisplayName("A document too big for any call is passed over, and the rest of its group is still written about")
+    @Link(name = "ADR-133", url = Adr.THE_EXEMPLARS_ONE_CALL_SENT_ARE_RECORDED, type = "adr")
+    void passesOverADocumentTooBigForAnyCallAndWritesAboutTheRest() {
+        ScriptedChatModel model = new ScriptedChatModel();
+
+        SynthesisDoc doc = new ClusterSynthesis(model)
+                .docFor(
+                        new ClusterCall(
+                                LABEL,
+                                SEED_PATH,
+                                List.of(
+                                        aDocumentOf(TOO_BIG_FOR_ANY_CALL, CLOSEST_HEADING, CLOSEST_SCORE),
+                                        aDocumentOf(HALF_THE_ROOM, MIDDLE_HEADING, MIDDLE_SCORE),
+                                        aDocumentOf(HALF_THE_ROOM, FURTHEST_HEADING, FURTHEST_SCORE))),
+                        MODEL_NAME,
+                        A_SMALL_WINDOW, DeliverableLanguage.ENGLISH);
+
+        claim(
+                "the outsized document was left out even though it is the closest one to the seed: it does"
+                        + " not fit a call with nothing else in it, so there is no call that could ever"
+                        + " carry it, and sending it anyway would mean the reading gets cut off somewhere"
+                        + " in the middle with nobody told",
+                () -> assertThat(model.whatWasAsked()).doesNotContain(CLOSEST_HEADING));
+        claim(
+                "and the group is still written about from the " + DOCUMENTS_SENT + " documents that do"
+                        + " fit, rather than losing its writing because one member was too long -- stopping"
+                        + " at the outsized one would have left this group as a hole in the finished work,"
+                        + " which is the one outcome nobody reading it could account for",
+                () -> assertThat(model.whatWasAsked()).contains(MIDDLE_HEADING).contains(FURTHEST_HEADING));
+        claim(
+                "and it says it was written from those " + DOCUMENTS_SENT + ", which is what the finished"
+                        + " page discloses against a group of " + THREE_DOCUMENTS + ", and which two, in the"
+                        + " order their numbers were minted: the first number names"
+                        + " the document between the other two, not the closest one, because the closest"
+                        + " one was passed over -- the count alone would have left a reader of this"
+                        + " writing pointed at a document it was never made from",
+                () -> assertThat(doc.sent()).containsExactly(THE_MIDDLE_DOCUMENT, THE_FURTHEST_DOCUMENT));
+    }
+
+    @Test
+    @Issue("182")
+    @Story("A group too big to read in one go sends what fits, rather than being skipped")
+    @DisplayName("The fill stops at the first document that will not fit, rather than skipping down to a smaller one")
+    void stopsAtTheFirstDocumentThatWillNotFitRatherThanReachingPastIt() {
+        ScriptedChatModel model = new ScriptedChatModel(PROSE_POINTING_AT_THE_ONE_SENT);
+
+        SynthesisDoc doc = new ClusterSynthesis(model)
+                .docFor(
+                        new ClusterCall(
+                                LABEL,
+                                SEED_PATH,
+                                List.of(
+                                        aDocumentOf(FILLS_MOST_OF_THE_ROOM, CLOSEST_HEADING, CLOSEST_SCORE),
+                                        aDocumentOf(MORE_THAN_THE_ROOM_LEFT, MIDDLE_HEADING, MIDDLE_SCORE),
+                                        aDocumentOf(
+                                                SHORT_ENOUGH_FOR_WHAT_IS_LEFT,
+                                                FURTHEST_HEADING,
+                                                FURTHEST_SCORE))),
+                        MODEL_NAME,
+                        A_SMALL_WINDOW, DeliverableLanguage.ENGLISH);
+
+        claim(
+                "the closest document went, filling " + FILLS_MOST_OF_THE_ROOM + " of the " + ROOM_FOR
+                        + " words there is room for",
+                () -> assertThat(model.whatWasAsked()).contains(CLOSEST_HEADING));
+        claim(
+                "the second one did not, because " + MORE_THAN_THE_ROOM_LEFT + " words do not fit what is"
+                        + " left of the room",
+                () -> assertThat(model.whatWasAsked()).doesNotContain(MIDDLE_HEADING));
+        claim(
+                "and neither did the third, even though its " + SHORT_ENOUGH_FOR_WHAT_IS_LEFT + " words"
+                        + " would have fitted the room still free: what goes is a run of documents from the"
+                        + " closest one down, and picking a further-off document over a nearer one that was"
+                        + " passed by would mean the writing rests on the group's outskirts while a more"
+                        + " central document it skipped is nowhere in the call",
+                () -> assertThat(model.whatWasAsked()).doesNotContain(FURTHEST_HEADING));
+        claim(
+                "so the writing says it was made from " + ONE_DOCUMENT + " document of the "
+                        + THREE_DOCUMENTS + " in the group, which is the number the finished page"
+                        + " discloses",
+                () -> assertThat(doc.documentsSent()).isEqualTo(ONE_DOCUMENT));
+    }
+
+    @Test
+    @Issue("182")
+    @Story("Writing that rests on no document at all is never produced")
+    @DisplayName("Asked to write over a group none of whose documents fit, it refuses instead of asking")
+    @Link(name = "ADR-121", url = Adr.A_WINDOW_WITH_NO_ROOM_IS_REFUSED, type = "adr")
+    void refusesToWriteOverAClusterNoneOfWhoseDocumentsFit() {
+        ScriptedChatModel model = new ScriptedChatModel();
+        ClusterSynthesis synthesis = new ClusterSynthesis(model);
+        ClusterCall nothingFits = new ClusterCall(
+                LABEL,
+                SEED_PATH,
+                List.of(
+                        aDocumentOf(TOO_BIG_FOR_ANY_CALL, CLOSEST_HEADING, CLOSEST_SCORE),
+                        aDocumentOf(TOO_BIG_FOR_ANY_CALL, MIDDLE_HEADING, MIDDLE_SCORE)));
+
+        claim(
+                "being handed a group nothing of which fits the room is refused outright, rather than"
+                        + " quietly turning into a question about no documents: whoever owns the reading"
+                        + " budget is the only place that can know the fill came out empty, and a rule"
+                        + " enforced only by everyone who calls in is a habit rather than a rule",
+                () -> assertThatThrownBy(() -> synthesis.docFor(nothingFits, MODEL_NAME, A_SMALL_WINDOW, DeliverableLanguage.ENGLISH))
+                        .isInstanceOf(IllegalStateException.class));
+        claim(
+                "and the model was asked nothing at all -- " + NOTHING_WAS_ASKED + " calls: a piece of"
+                        + " writing made from no documents could point at nothing a reader can open, and"
+                        + " asking for one is the most expensive thing this system does",
+                () -> assertThat(model.callsMade()).isEqualTo(NOTHING_WAS_ASKED));
+    }
+
+    @Test
+    @Issue("222")
+    @Story("A call that answered nothing costs its group and nothing else")
+    @DisplayName("A call that came back carrying no answer leaves its group unwritten instead of throwing")
+    @Link(name = "ADR-123", url = Adr.AN_ANSWER_CARRYING_NOTHING_IS_A_SCHEMA_VIOLATION, type = "adr")
+    void turnsDownACallThatCameBackCarryingNoAnswer() {
+        ClusterSynthesis synthesis = new ClusterSynthesis(alwaysAnswering(carryingNoAnswerAtAll()));
+
+        claim(
+                "a call that came back with nothing in it is turned down the way any other unusable"
+                        + " answer is, rather than escaping as some other failure: the reasons kept for"
+                        + " the groups already dealt with are written in the same piece of work as this"
+                        + " one, and a failure that is not a turned-down answer takes every one of them"
+                        + " with it",
+                () -> assertThatThrownBy(
+                                () -> synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW, DeliverableLanguage.ENGLISH))
+                        .isInstanceOf(ClusterFaultException.class));
+        claim(
+                "and the reason kept says what came back could not be read into the shape that was asked"
+                        + " for, in the words \"" + NO_ANSWER_AT_ALL + "\": nothing at all is the smallest"
+                        + " case of unreadable rather than a different case, so it takes no new kind",
+                () -> assertThat(faultFrom(carryingNoAnswerAtAll()))
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, NO_ANSWER_AT_ALL)));
+    }
+
+    @Test
+    @Issue("222")
+    @Story("A call that answered nothing costs its group and nothing else")
+    @DisplayName("An answer with no text at all leaves its group unwritten instead of throwing")
+    @Link(name = "ADR-123", url = Adr.AN_ANSWER_CARRYING_NOTHING_IS_A_SCHEMA_VIOLATION, type = "adr")
+    void turnsDownAnAnswerWithNoTextAtAll() {
+        ClusterSynthesis synthesis = new ClusterSynthesis(alwaysAnswering(answeringWithNoText()));
+
+        claim(
+                "an answer arriving with no text is turned down rather than handed on to the reader that"
+                        + " would have to make sense of it: the reader asserts what it was given before"
+                        + " it reads a character of it, and what it raises for nothing is not the kind of"
+                        + " failure the catch around it is written for",
+                () -> assertThatThrownBy(
+                                () -> synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW, DeliverableLanguage.ENGLISH))
+                        .isInstanceOf(ClusterFaultException.class));
+        claim(
+                "and the reason kept is \"" + CAME_BACK_EMPTY + "\", which says the answer was empty"
+                        + " rather than describing where a reader of it gave up",
+                () -> assertThat(faultFrom(answeringWithNoText()))
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, CAME_BACK_EMPTY)));
+    }
+
+    @Test
+    @Issue("222")
+    @Story("A call that answered nothing costs its group and nothing else")
+    @DisplayName("An answer of nothing but spaces is the same empty answer, not a reading that failed")
+    @Link(name = "ADR-123", url = Adr.AN_ANSWER_CARRYING_NOTHING_IS_A_SCHEMA_VIOLATION, type = "adr")
+    void turnsDownAnAnswerOfNothingButSpaces() {
+        claim(
+                "an answer of nothing but blank space is kept as the empty answer it is, rather than as"
+                        + " a reader running out of input at line 1: both are the same thing to whoever"
+                        + " reads the reason, and only one of the two wordings says so",
+                () -> assertThat(faultFrom(answeringWith(NOTHING_BUT_SPACES)))
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, CAME_BACK_EMPTY)));
+    }
+
+    @Test
     @Issue("222")
     @Story("A call that answered nothing costs its group and nothing else")
     @DisplayName("The three answers nothing can be made of are told apart by the reason kept for each")
@@ -215,6 +626,215 @@ class ClusterSynthesisTest {
                 () -> assertThat(unreadable.detail()).startsWith(COULD_NOT_BE_READ_BACK));
     }
 
+    @Test
+    @Issue("222")
+    @Story("A call that answered nothing costs its group and nothing else")
+    @DisplayName("A call that both overran the question and came back empty is kept as the overrun")
+    @Link(name = "ADR-123", url = Adr.AN_ANSWER_CARRYING_NOTHING_IS_A_SCHEMA_VIOLATION, type = "adr")
+    void keepsTheOverrunForACallThatBothOverranAndCameBackWithNothing() {
+        claim(
+                "a call reporting it read " + A_COUNT_AT_THE_CEILING + " tokens of the question, the ceiling"
+                        + " one short of the window, and then coming back with nothing, is kept as the"
+                        + " question that did not arrive whole rather than as the empty answer: reading"
+                        + " that much means the question was"
+                        + " already cut down to fit, and that explains everything after it, the empty"
+                        + " answer included -- so the check for it runs first and the reason kept is the"
+                        + " one that explains the rest",
+                () -> assertThat(faultFrom(carryingNoAnswerAtAllHavingRead(A_COUNT_AT_THE_CEILING))
+                                .kind())
+                        .isEqualTo(ClusterFaultKind.PROMPT_EVALUATION_CEILING));
+    }
+
+    @Test
+    @Issue("222")
+    @Story("A call reporting nothing about how much it read is believed, not turned down")
+    @DisplayName("An answer reporting no reading count at all is believed rather than held against the ceiling")
+    @Link(name = "ADR-123", url = Adr.AN_ANSWER_CARRYING_NOTHING_IS_A_SCHEMA_VIOLATION, type = "adr")
+    void believesAnAnswerThatReportsNoReadingCountsAtAll() {
+        ClusterSynthesis synthesis = new ClusterSynthesis(new ScriptedChatModel());
+
+        SynthesisDoc doc = synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW, DeliverableLanguage.ENGLISH);
+
+        claim(
+                "a call whose answer reports no counts of its own is believed rather than failing on the"
+                        + " way to being checked: the count is read as a plain number with nothing"
+                        + " guarding it, and where a call reports none it arrives as "
+                        + NO_READING_REPORTED + " -- which is below every window, so silence about how"
+                        + " much was read costs a group nothing",
+                () -> assertThat(doc.title()).isEqualTo(GENERATED_TITLE));
+    }
+
+    @Test
+    @Issue("224")
+    @Story("An answer with no writing in it costs its group and nothing else")
+    @DisplayName("An answer that came back with a heading and no writing leaves its group unwritten instead of throwing")
+    @Link(name = "ADR-124", url = Adr.BOTH_FIELDS_OF_A_PARSED_ANSWER_ARE_REQUIRED, type = "adr")
+    void turnsDownAnAnswerWithNoWritingInIt() {
+        ClusterSynthesis synthesis =
+                new ClusterSynthesis(alwaysAnswering(answeringWith(AN_ANSWER_WITH_NO_WRITING_IN_IT)));
+
+        claim(
+                "an answer whose writing is simply not there is turned down the way any other unusable"
+                        + " answer is, rather than escaping as some other failure: the reasons kept for"
+                        + " the groups already dealt with are written in the same piece of work as this"
+                        + " one, and a failure that is not a turned-down answer takes every one of them"
+                        + " with it -- so one answer missing its writing would cost not its own group but"
+                        + " the record of every group turned down before it",
+                () -> assertThatThrownBy(
+                                () -> synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW, DeliverableLanguage.ENGLISH))
+                        .isInstanceOf(ClusterFaultException.class));
+        claim(
+                "and the reason kept is \"" + NO_WRITING_AT_ALL + "\", recorded as an answer that could"
+                        + " not be read into the shape that was asked for: the shape asked for a heading"
+                        + " and writing both, and an answer delivering one of the two did not arrive in"
+                        + " it",
+                () -> assertThat(faultFrom(answeringWith(AN_ANSWER_WITH_NO_WRITING_IN_IT)))
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, NO_WRITING_AT_ALL)));
+    }
+
+    @Test
+    @Issue("224")
+    @Story("An answer with no writing in it costs its group and nothing else")
+    @DisplayName("An answer whose writing is nothing but blank space is the same missing writing, not a different failure")
+    @Link(name = "ADR-124", url = Adr.BOTH_FIELDS_OF_A_PARSED_ANSWER_ARE_REQUIRED, type = "adr")
+    void turnsDownAnAnswerWhoseWritingIsNothingButBlankSpace() {
+        claim(
+                "an answer whose writing came back blank is kept as an answer that did not arrive in the"
+                        + " shape asked for, with the reason \"" + NO_WRITING_AT_ALL + "\" -- rather"
+                        + " than as writing that pointed at no document, which is what blank writing"
+                        + " would otherwise be turned down as. That reason would say the model wrote"
+                        + " something and attributed none of it, and the model wrote nothing",
+                () -> assertThat(faultFrom(answeringWith(AN_ANSWER_WHOSE_WRITING_IS_BLANK)))
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, NO_WRITING_AT_ALL)));
+    }
+
+    @Test
+    @Issue("224")
+    @Story("An answer with no writing in it costs its group and nothing else")
+    @DisplayName("An answer with no writing is told apart from one nothing could read and from writing that points at nothing")
+    @Link(name = "ADR-124", url = Adr.BOTH_FIELDS_OF_A_PARSED_ANSWER_ARE_REQUIRED, type = "adr")
+    void keepsAnAnswerWithNoWritingApartFromTheOtherReasonsForTurningOneDown() {
+        ClusterFault noWriting = faultFrom(answeringWith(AN_ANSWER_WITH_NO_WRITING_IN_IT));
+        ClusterFault pointingAtNothing = faultFrom(answeringWith(AN_ANSWER_POINTING_AT_NOTHING_AT_ALL));
+
+        claim(
+                "an answer with no writing in it is kept as one that did not arrive in the shape asked"
+                        + " for, and not as writing that pointed at no document, which is what it would"
+                        + " otherwise fall through to: that reason says the model wrote something and gave"
+                        + " the reader no thread back into the archive, and here the model wrote nothing at"
+                        + " all. The two want different things done about them",
+                () -> assertThat(List.of(noWriting.kind(), pointingAtNothing.kind()))
+                        .containsExactly(ClusterFaultKind.SCHEMA_VIOLATION, ClusterFaultKind.CITATION_NOT_IN_RANGE));
+    }
+
+    @Test
+    @Issue("216")
+    @Story("An answer with no heading on it costs its group and nothing else")
+    @DisplayName("An answer that came back with its writing and no heading leaves its group unwritten instead of throwing")
+    @Link(name = "ADR-125", url = Adr.AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART, type = "adr")
+    void turnsDownAnAnswerWithNoTitleOnIt() {
+        ClusterSynthesis synthesis =
+                new ClusterSynthesis(alwaysAnswering(answeringWith(AN_ANSWER_WITH_NO_TITLE_ON_IT)));
+
+        claim(
+                "an answer whose heading is simply not there is turned down the way any other unusable"
+                        + " answer is, rather than escaping as some other failure: a group has to be"
+                        + " given a heading before anything can be kept for it, so an answer without one"
+                        + " used to take the whole piece of work down -- and with it the reasons kept"
+                        + " for every group turned down before this one",
+                () -> assertThatThrownBy(
+                                () -> synthesis.docFor(aClusterOfTwo(), MODEL_NAME, THE_SHIPPED_WINDOW, DeliverableLanguage.ENGLISH))
+                        .isInstanceOf(ClusterFaultException.class));
+        claim(
+                "and the reason kept is \"" + NO_TITLE_AT_ALL + "\", recorded as an answer that could"
+                        + " not be read into the shape that was asked for: the shape asked for a heading"
+                        + " and writing both, and an answer delivering one of the two did not arrive in"
+                        + " it",
+                () -> assertThat(faultFrom(answeringWith(AN_ANSWER_WITH_NO_TITLE_ON_IT)))
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, NO_TITLE_AT_ALL)));
+    }
+
+    @Test
+    @Issue("216")
+    @Story("An answer with no heading on it costs its group and nothing else")
+    @DisplayName("An answer whose heading is nothing but blank space is kept apart from one whose heading never came")
+    @Link(name = "ADR-125", url = Adr.AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART, type = "adr")
+    void keepsABlankTitleApartFromATitleThatNeverCame() {
+        claim(
+                "an answer whose heading came back blank is turned down too, with the reason \""
+                        + A_BLANK_TITLE + "\" -- blank space is not a heading, and writing kept under"
+                        + " one would show in the finished work as an entry with nothing to click -- and not"
+                        + " the reason \"" + NO_TITLE_AT_ALL + "\" an answer with no heading at all keeps. The two are"
+                        + " different events to whoever has to act on them: a blank heading was accepted"
+                        + " and kept by earlier versions of this tool, so a finished work already handed"
+                        + " over may carry one and nothing will ever go back and mend it, while a heading"
+                        + " that never arrived could never be kept at all and so left nothing behind to"
+                        + " find",
+                () -> assertThat(faultFrom(answeringWith(AN_ANSWER_WHOSE_TITLE_IS_BLANK)))
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, A_BLANK_TITLE)));
+    }
+
+    @Test
+    @Issue("216")
+    @Story("An answer with no heading on it costs its group and nothing else")
+    @DisplayName("Every answer that arrived in the wrong shape keeps a reason of its own, under the one closed set of four")
+    @Link(name = "ADR-125", url = Adr.AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART, type = "adr")
+    void keepsEveryAnswerInTheWrongShapeApartFromTheOthers() {
+        ClusterFault noTitle = faultFrom(answeringWith(AN_ANSWER_WITH_NO_TITLE_ON_IT));
+        ClusterFault blankTitle = faultFrom(answeringWith(AN_ANSWER_WHOSE_TITLE_IS_BLANK));
+        ClusterFault noWriting = faultFrom(answeringWith(AN_ANSWER_WITH_NO_WRITING_IN_IT));
+        ClusterFault noAnswerAtAll = faultFrom(carryingNoAnswerAtAll());
+        ClusterFault emptyAnswer = faultFrom(answeringWithNoText());
+        ClusterFault unreadable = faultFrom(answeringWith(NOT_AN_ANSWER_AT_ALL));
+        ClusterFault strayBrace = faultFrom(answeringWith(AN_ANSWER_ENDING_IN_A_STRAY_BRACE));
+
+        claim(
+                "writing ending in the answer's own closing brace is kept, like an answer missing its heading"
+                        + " or one whose heading is blank, as an answer that did not arrive in the shape asked"
+                        + " for -- the same as an answer nothing could read, because what came back was"
+                        + " readable and still was not the shape",
+                () -> assertThat(strayBrace.kind()).isEqualTo(ClusterFaultKind.SCHEMA_VIOLATION));
+        claim(
+                "and the seven reasons now sharing that one way of being turned down all read differently"
+                        + " from one another, so somebody reading them can tell a call that answered"
+                        + " nothing from an answer with no text from an answer nothing could be made of"
+                        + " from an answer carrying no writing from one carrying no heading from one"
+                        + " whose heading was blank from writing ending in the answer's own closing brace"
+                        + " -- one way covering seven things is only honest while the seven stay"
+                        + " distinguishable",
+                () -> assertThat(List.of(
+                                noAnswerAtAll.detail(),
+                                emptyAnswer.detail(),
+                                unreadable.detail(),
+                                noWriting.detail(),
+                                noTitle.detail(),
+                                blankTitle.detail(),
+                                strayBrace.detail()))
+                        .doesNotHaveDuplicates());
+        claim(
+                "and there are still only " + THE_WAYS_AN_ANSWER_IS_TURNED_DOWN + " ways an answer is"
+                        + " turned down: a heading that did not arrive is one more thing an answer can"
+                        + " fail to be, not a new kind of failure, and it leaves the archive's owner the"
+                        + " same thing to do -- ask again, or accept the gap",
+                () -> assertThat(ClusterFaultKind.values()).hasSize(THE_WAYS_AN_ANSWER_IS_TURNED_DOWN));
+    }
+
+    @Test
+    @Issue("216")
+    @Story("An answer with no heading on it costs its group and nothing else")
+    @DisplayName("An answer carrying neither a heading nor any writing is reported on its heading, the first thing asked for")
+    @Link(name = "ADR-125", url = Adr.AN_ABSENT_TITLE_AND_A_BLANK_ONE_ARE_TOLD_APART, type = "adr")
+    void namesTheTitleFirstWhenNeitherOfTheTwoCameBack() {
+        claim(
+                "an answer carrying neither of the two things asked for is reported on the heading, which"
+                        + " is the first of them the shape asks for: reading the answer in the order the"
+                        + " shape lists is a rule that needs no case to be thought about, and without one"
+                        + " which of the two an operator is told about would be decided by the order the"
+                        + " code happens to read in",
+                () -> assertThat(faultFrom(answeringWith(AN_ANSWER_CARRYING_NEITHER)))
+                        .isEqualTo(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, NO_TITLE_AT_ALL)));
+    }
+
     /**
      * A model that hands back the same response to every call asking for the writing, whatever it was
      * asked.
@@ -230,6 +850,20 @@ class ClusterSynthesisTest {
     /** A response that came back carrying no answer at all, which is what {@code getResult} reads. */
     private static ChatResponse carryingNoAnswerAtAll() {
         return new ChatResponse(List.of());
+    }
+
+    /**
+     * The same response, reporting that it read {@code promptTokens} tokens of the question.
+     *
+     * <p>A response with nothing in it still reports what it read, which is what lets a call be both
+     * over the ceiling and empty — the one case that says which of the two checks runs first.
+     */
+    private static ChatResponse carryingNoAnswerAtAllHavingRead(int promptTokens) {
+        return new ChatResponse(
+                List.of(),
+                ChatResponseMetadata.builder()
+                        .usage(new DefaultUsage(promptTokens, NOTHING_WRITTEN))
+                        .build());
     }
 
     /** A response carrying an answer whose text is missing altogether. */
@@ -263,9 +897,19 @@ class ClusterSynthesisTest {
         return new ClusterCall(LABEL, SEED_PATH, List.of(closest(), furthest()));
     }
 
+    /** The same cluster with a third document in it, offered in an order no rule would produce. */
+    private static ClusterCall aClusterOfThreeOfferedOutOfOrder() {
+        return new ClusterCall(LABEL, SEED_PATH, List.of(furthest(), closest(), middle()));
+    }
+
     /** The document sitting closest to the seed, and therefore the one the call leads with. */
     private static Exemplar closest() {
         return new Exemplar(THE_CLOSEST_DOCUMENT, CLOSEST_CHUNK, A_HANDFUL_OF_WORDS, CLOSEST_SCORE);
+    }
+
+    /** The document sitting between the other two. */
+    private static Exemplar middle() {
+        return new Exemplar(THE_MIDDLE_DOCUMENT, MIDDLE_CHUNK, A_HANDFUL_OF_WORDS, MIDDLE_SCORE);
     }
 
     /** The document sitting furthest from the seed, and therefore the one the call sends last. */

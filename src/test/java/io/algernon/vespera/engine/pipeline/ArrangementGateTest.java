@@ -11,6 +11,7 @@ import io.algernon.vespera.engine.ledger.WalkId;
 import io.algernon.vespera.engine.profile.Profile;
 import io.algernon.vespera.engine.profile.ProfileFixture;
 import io.algernon.vespera.engine.profile.ProfileStore;
+import io.algernon.vespera.engine.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -77,6 +78,19 @@ class ArrangementGateTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Test
+    @Story("A gate closes rather than failing")
+    @DisplayName("Nothing approved closes the gate")
+    void closesWhenNothingIsApproved() {
+        RunId arrangement = anArrangement(aWalk());
+        approve(null);
+
+        claim(
+                "with nothing approved there is nothing to write over: the documents have been arranged"
+                        + " and the person who has to look at that arrangement has not said so yet",
+                () -> assertThat(arrangementGate.approvedArrangement(Optional.of(arrangement))).isEmpty());
+    }
 
     @Test
     @Story("A gate closes rather than failing")

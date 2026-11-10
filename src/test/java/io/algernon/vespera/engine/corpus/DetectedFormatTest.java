@@ -11,10 +11,14 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -55,11 +59,82 @@ class DetectedFormatTest {
     /** The eight bytes every PNG begins with, and the whole of what makes a file a PNG here. */
     private static final byte[] PNG_SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
 
-    /** A PDF with its trailer cut off, which is the one thing the structural check catches. */
+    /** The three bytes every JPEG begins with: the start-of-image marker and the next marker's lead. */
+    private static final byte[] JPEG_SIGNATURE = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
+
+    /** The detected format a BMP image is recorded as. */
+    private static final DetectedFormat BMP_FORMAT = DetectedFormat.BMP;
+
+    /**
+     * The length of a BMP's file header, which opens with {@code BM}; the header describing the
+     * picture starts right after it, with its own length.
+     */
+    private static final int BMP_FILE_HEADER_LENGTH = 14;
+
+    /** The picture header almost every BMP carries, and the one both files that crashed the converter carry. */
+    private static final int BITMAPINFOHEADER_LENGTH = 40;
+
+    /** The newest and longest picture header a BMP can carry. */
+    private static final int BITMAPV5HEADER_LENGTH = 124;
+
+    /** Shorter than the file header itself, so it ends before the picture header's length begins. */
+    private static final int TOO_SHORT_FOR_A_HEADER_LENGTH = 10;
+
+    /** The 14-byte file header and the 4 bytes of the picture header's length, and nothing after. */
+    private static final int JUST_LONG_ENOUGH_FOR_A_HEADER_LENGTH = BMP_FILE_HEADER_LENGTH + 4;
+
+    /** A length no BMP picture header has, so a file carrying it after {@code BM} is not a BMP. */
+    private static final int NO_BMP_HEADER_LENGTH = 0x2A2A2A2A;
+
+    /** The picture in each BMP below: 2 pixels by 2, 3 bytes a pixel, uncompressed. */
+    private static final int PIXELS_WIDE = 2;
+
+    private static final int PIXELS_HIGH = 2;
+
+    private static final int BITS_PER_PIXEL = 24;
+
+    /** Each row of pixels is padded to a multiple of 4 bytes: 2 pixels of 3 bytes is 6, padded to 8. */
+    private static final int BYTES_PER_ROW = 8;
+
+    /** 3,780 pixels per metre is 96 dots per inch, an ordinary screen resolution. */
+    private static final int PIXELS_PER_METRE = 3780;
+
+    /** The four bytes a little-endian TIFF begins with: {@code II}, then 42 as a 16-bit word. */
+    private static final byte[] LITTLE_ENDIAN_TIFF_SIGNATURE = {'I', 'I', 0x2A, 0x00};
+
+    /**
+     * The eight bytes every OLE compound file begins with, required at offset 0 by the format's
+     * specification. Shared by legacy Word, Excel and PowerPoint documents and by Thumbs.db alike,
+     * which is why this one class holds both real documents and material that is not a document.
+     */
+    private static final byte[] OLE_COMPOUND_SIGNATURE = {
+        (byte) 0xD0, (byte) 0xCF, (byte) 0x11, (byte) 0xE0, (byte) 0xA1, (byte) 0xB1, 0x1A, (byte) 0xE1
+    };
+
+    /**
+     * The four bytes a Windows shortcut begins with: the length of its own header, 76, written
+     * smallest byte first. A binary that matches no format this rule knows and does not read as
+     * words.
+     */
+    private static final byte[] WINDOWS_SHORTCUT_SIGNATURE = {0x4C, 0x00, 0x00, 0x00};
+
+    /** A complete, well-formed PDF: the header, one trivial object, and the trailer. */
+    private static final String WHOLE_PDF = "%PDF-1.4\n1 0 obj\n<< >>\nendobj\n%%EOF";
+
+    /** The same PDF with its trailer cut off, which is the one thing the structural check catches. */
     private static final String PDF_WITHOUT_ITS_TRAILER = "%PDF-1.4\n1 0 obj\n<< >>\nendobj\n";
 
     /** The entry a Word document always carries, and the only thing separating one from any zip. */
     private static final String WORD_MAIN_PART = "word/document.xml";
+
+    /** The equivalent entry in a spreadsheet, which is a zip but is not a Word document. */
+    private static final String SPREADSHEET_MAIN_PART = "xl/workbook.xml";
+
+    /** The same entry in a binary workbook, which Excel writes as {@code .xlsb}. */
+    private static final String BINARY_SPREADSHEET_MAIN_PART = "xl/workbook.bin";
+
+    /** The equivalent entry in a presentation, which is neither a Word document nor a spreadsheet. */
+    private static final String PRESENTATION_MAIN_PART = "ppt/presentation.xml";
 
     /**
      * Files whose name says one thing and whose content another, each with the format its content makes it and
@@ -67,6 +142,14 @@ class DetectedFormatTest {
      */
     static Stream<Arguments> filesNamedAsSomethingElse() throws IOException {
         return Stream.of(
+                Arguments.of(
+                        Named.of(
+                                "a PDF saved under a .png name is a PDF, checked as one, and with both its markers"
+                                        + " it is intact and kept",
+                                "holiday-photo.png"),
+                        WHOLE_PDF.getBytes(StandardCharsets.US_ASCII),
+                        DetectedFormat.PDF,
+                        false),
                 Arguments.of(
                         Named.of(
                                 "a truncated PDF saved under a .png name is still a PDF, gets the check a PDF gets,"
@@ -82,6 +165,14 @@ class DetectedFormatTest {
                                 "report.docx"),
                         signed(PNG_SIGNATURE, "image data follows"),
                         DetectedFormat.IMAGE,
+                        false),
+                Arguments.of(
+                        Named.of(
+                                "plain text saved under a .pdf name matches no known marker and reads cleanly as"
+                                        + " words, so it is text, which has no structure to validate",
+                                "invoice.pdf"),
+                        "Dear Sir,\n\nplease find enclosed.\n".getBytes(StandardCharsets.UTF_8),
+                        DetectedFormat.PLAIN_TEXT,
                         false));
     }
 
@@ -103,6 +194,62 @@ class DetectedFormatTest {
 
     @Test
     @Story("Archives are told apart by looking inside them")
+    @DisplayName("A Word document saved under a .txt name is recognised by the part it carries inside")
+    void aWordDocumentNamedAsTextIsRecognisedByItsInnerPart(@TempDir Path dir) throws IOException {
+        Path misnamed = zipHolding(dir.resolve("notes.txt"), WORD_MAIN_PART);
+
+        claim(
+                "an archive holding " + WORD_MAIN_PART + " is a word processing document; that entry is what"
+                        + " separates one from every other archive, since all of them open the same way",
+                () -> assertThat(BrokenCheck.check(misnamed).format()).isEqualTo(DetectedFormat.WORDPROCESSING));
+        claim(
+                "the archive opens cleanly, so it is kept — whatever the part inside it turns out to contain",
+                () -> assertThat(BrokenCheck.check(misnamed).broken()).isFalse());
+    }
+
+    /**
+     * ADR-146 moved spreadsheets out of scope, and stage 1 is where that is applied, so it has to know
+     * one when it sees one. Before that a spreadsheet read as an archive of another kind.
+     */
+    @Test
+    @Story("Archives are told apart by looking inside them")
+    @DisplayName("A spreadsheet is recognised by the workbook inside it, whatever it is named")
+    @Issue("278")
+    @Link(name = "ADR-146", url = Adr.SPREADSHEETS_ARE_OUT_OF_SCOPE, type = "adr")
+    void aSpreadsheetIsRecognisedByItsWorkbook(@TempDir Path dir) throws IOException {
+        Path spreadsheet = zipHolding(dir.resolve("figures.zip"), SPREADSHEET_MAIN_PART);
+        Path binaryWorkbook = zipHolding(dir.resolve("figures.xlsb"), BINARY_SPREADSHEET_MAIN_PART);
+
+        claim(
+                "an archive holding " + SPREADSHEET_MAIN_PART + " is a spreadsheet, read from the entry"
+                        + " inside it and not from a name that here says only zip",
+                () -> assertThat(BrokenCheck.check(spreadsheet).format()).isEqualTo(DetectedFormat.SPREADSHEET));
+        claim(
+                "and so is one holding the binary workbook, " + BINARY_SPREADSHEET_MAIN_PART + ", which Excel"
+                        + " writes as .xlsb",
+                () -> assertThat(BrokenCheck.check(binaryWorkbook).format()).isEqualTo(DetectedFormat.SPREADSHEET));
+        claim(
+                "recognising it removes nothing by itself: an intact spreadsheet is not broken",
+                () -> assertThat(BrokenCheck.check(spreadsheet).broken()).isFalse());
+        claim(
+                "and the filename is never consulted on this branch, so no finer label is taken from it",
+                () -> assertThat(BrokenCheck.check(spreadsheet).subtype()).isEmpty());
+    }
+
+    @Test
+    @Story("Archives are told apart by looking inside them")
+    @DisplayName("An archive that is neither a word processing document nor a spreadsheet is an archive of another kind")
+    void aPresentationIsAnArchiveOfAnotherKind(@TempDir Path dir) throws IOException {
+        Path presentation = zipHolding(dir.resolve("slides.pptx"), PRESENTATION_MAIN_PART);
+
+        claim(
+                "an archive holding neither " + WORD_MAIN_PART + " nor a workbook -- a presentation here --"
+                        + " is an archive of another kind, and kept",
+                () -> assertThat(BrokenCheck.check(presentation).format()).isEqualTo(DetectedFormat.ZIP_CONTAINER));
+    }
+
+    @Test
+    @Story("Archives are told apart by looking inside them")
     @DisplayName("An archive cut off part-way through is damaged, whatever it is named")
     void aTruncatedArchiveIsBroken(@TempDir Path dir) throws IOException {
         byte[] whole = Files.readAllBytes(zipHolding(dir.resolve("whole.docx"), WORD_MAIN_PART));
@@ -111,6 +258,225 @@ class DetectedFormatTest {
         claim(
                 "an archive whose index was cut off cannot be opened, so it is damaged and removed",
                 () -> assertThat(BrokenCheck.check(truncated).broken()).isTrue());
+    }
+
+    @Test
+    @Story("The set of recognised images is what the conversion step can read")
+    @DisplayName("A TIFF image is recognised, because the conversion step converts TIFF images")
+    void aTiffIsRecognisedAsAnImage(@TempDir Path dir) throws IOException {
+        Path tiff = Files.write(dir.resolve("scan-0001.tif"), signed(LITTLE_ENDIAN_TIFF_SIGNATURE, "scan data"));
+
+        claim(
+                "TIFF is one of the image formats the conversion step handles, so leaving it out would put"
+                        + " real documents in the branch kept for files that are not documents at all",
+                () -> assertThat(BrokenCheck.check(tiff).format()).isEqualTo(DetectedFormat.IMAGE));
+    }
+
+    /**
+     * ADR-167 left BMP images out of scope, so stage 1 has to tell one from every other image, and from
+     * its bytes: 224 of the 634 files named {@code .bmp} on the archive it was measured on are not BMP at
+     * all.
+     */
+    @Test
+    @Story("The set of recognised images is what the conversion step can read")
+    @DisplayName("A BMP image is told apart from other images by its two headers, whatever it is named")
+    @Link(name = "ADR-167", url = Adr.BMP_IMAGES_ARE_OUT_OF_SCOPE, type = "adr")
+    void aBmpImageIsRecognisedByItsTwoHeaders(@TempDir Path dir) throws IOException {
+        Path bmp = Files.write(dir.resolve("logo.png"), bmpWithHeaderOf(BITMAPINFOHEADER_LENGTH));
+        Path newestBmp = Files.write(dir.resolve("logo-v5.bmp"), bmpWithHeaderOf(BITMAPV5HEADER_LENGTH));
+        Path png = Files.write(dir.resolve("screen.bmp"), signed(PNG_SIGNATURE, "image data follows"));
+        Path jpeg = Files.write(dir.resolve("photo.bmp"), signed(JPEG_SIGNATURE, "image data follows"));
+        Path bmOnly = Files.write(dir.resolve("notes.bmp"), bmFollowedByNoHeader());
+
+        claim(
+                "a file opening with BM and then the length of the " + BITMAPINFOHEADER_LENGTH + "-byte header"
+                        + " almost every BMP carries is a BMP image, although it is named as a PNG",
+                () -> assertThat(BrokenCheck.check(bmp).format()).isEqualTo(BMP_FORMAT));
+        claim(
+                "and so is one carrying the newest, " + BITMAPV5HEADER_LENGTH + "-byte header",
+                () -> assertThat(BrokenCheck.check(newestBmp).format()).isEqualTo(BMP_FORMAT));
+        claim(
+                "recognising it removes nothing by itself: an intact BMP image is not damaged",
+                () -> assertThat(BrokenCheck.check(bmp).broken()).isFalse());
+        claim(
+                "and the name is not consulted, so no finer label is taken from it",
+                () -> assertThat(BrokenCheck.check(bmp).subtype()).isEmpty());
+        claim(
+                "a PNG and a JPEG stay ordinary images, although both are named as BMP",
+                () -> assertThat(List.of(BrokenCheck.check(png).format(), BrokenCheck.check(jpeg).format()))
+                        .containsOnly(DetectedFormat.IMAGE));
+        claim(
+                "and a file opening with BM that carries no header a BMP carries stays an ordinary image too:"
+                        + " two letters alone are too weak a marker to single a file out by",
+                () -> assertThat(BrokenCheck.check(bmOnly).format()).isEqualTo(DetectedFormat.IMAGE));
+    }
+
+    /**
+     * ADR-167's length check reads four bytes at offset 14, so a file shorter than 18 bytes cannot carry
+     * it. Such a file must fall back to an ordinary image rather than fail the read, and a file exactly
+     * long enough must be judged on those four bytes alone.
+     */
+    @Test
+    @Story("The set of recognised images is what the conversion step can read")
+    @DisplayName("A file too short to say how long its header is stays an ordinary image, and one just long enough is a BMP image")
+    @Link(name = "ADR-167", url = Adr.BMP_IMAGES_ARE_OUT_OF_SCOPE, type = "adr")
+    void aBmpTooShortToCarryItsHeaderLengthIsAnOrdinaryImage(@TempDir Path dir) throws IOException {
+        Path tooShort = Files.write(
+                dir.resolve("stub.bmp"), Arrays.copyOf(bmpWithHeaderOf(BITMAPINFOHEADER_LENGTH), TOO_SHORT_FOR_A_HEADER_LENGTH));
+        Path justLongEnough = Files.write(
+                dir.resolve("cut.bmp"), Arrays.copyOf(bmpWithHeaderOf(BITMAPINFOHEADER_LENGTH), JUST_LONG_ENOUGH_FOR_A_HEADER_LENGTH));
+
+        claim(
+                "a file of " + TOO_SHORT_FOR_A_HEADER_LENGTH + " bytes opening with BM ends before the four bytes"
+                        + " that give the header's length, so it is judged as an ordinary image, and reading it"
+                        + " fails nothing",
+                () -> assertThat(BrokenCheck.check(tooShort).format()).isEqualTo(DetectedFormat.IMAGE));
+        claim(
+                "a file of " + JUST_LONG_ENOUGH_FOR_A_HEADER_LENGTH + " bytes ends right after those four bytes,"
+                        + " and a length of " + BITMAPINFOHEADER_LENGTH + " there makes it a BMP image",
+                () -> assertThat(BrokenCheck.check(justLongEnough).format()).isEqualTo(BMP_FORMAT));
+    }
+
+    @Test
+    @Story("One marker, both documents and clutter behind it")
+    @DisplayName("A legacy Word document and a Windows thumbnail cache open with the same marker, and are separated by their names")
+    void theSharedOfficeContainerIsSeparatedByItsName(@TempDir Path dir) throws IOException {
+        Path legacyWord = Files.write(dir.resolve("minutes.doc"), signed(OLE_COMPOUND_SIGNATURE, "document streams"));
+        Path thumbnailCache = Files.write(dir.resolve("Thumbs.db"), signed(OLE_COMPOUND_SIGNATURE, "cached thumbnails"));
+
+        claim(
+                "an old Word document and a thumbnail cache open with exactly the same eight bytes, so the"
+                        + " content alone puts both in one container class and can say nothing further",
+                () -> assertThat(BrokenCheck.check(legacyWord).format())
+                        .isEqualTo(BrokenCheck.check(thumbnailCache).format())
+                        .isEqualTo(DetectedFormat.OLE_COMPOUND));
+        claim(
+                "inside that one class, and only inside it, the name is allowed to say which member this is",
+                () -> assertThat(BrokenCheck.check(legacyWord).subtype()).contains(DetectedSubtype.LEGACY_WORD));
+        claim(
+                "a name that identifies no member of the class leaves the file in the class unlabelled,"
+                        + " which is the honest answer and the one a thumbnail cache earns",
+                () -> assertThat(BrokenCheck.check(thumbnailCache).subtype()).isEmpty());
+        claim(
+                "both files are intact and open perfectly well, so neither is damaged and neither is"
+                        + " removed — being clutter rather than a document is a different question, and one"
+                        + " nothing answers until a real archive has been measured",
+                () -> assertThat(BrokenCheck.check(legacyWord).broken())
+                        .isEqualTo(BrokenCheck.check(thumbnailCache).broken())
+                        .isFalse());
+    }
+
+    @Test
+    @Story("One marker, both documents and clutter behind it")
+    @DisplayName("An old Word document under an unfamiliar name keeps its container but loses its finer label, and is still kept")
+    void aLegacyWordDocumentUnderAnUnknownNameLosesOnlyItsLabel(@TempDir Path dir) throws IOException {
+        Path renamed = Files.write(dir.resolve("archive-0042.dat"), signed(OLE_COMPOUND_SIGNATURE, "document streams"));
+
+        claim(
+                "the content still says which container this is, and no name can take that away",
+                () -> assertThat(BrokenCheck.check(renamed).format()).isEqualTo(DetectedFormat.OLE_COMPOUND));
+        claim(
+                "an unfamiliar name simply adds nothing, so the finer label is absent rather than guessed",
+                () -> assertThat(BrokenCheck.check(renamed).subtype()).isEmpty());
+        claim(
+                "the worst a misleading name can do is cost a finer label; it can never make a file damaged"
+                        + " and can never lose it",
+                () -> assertThat(BrokenCheck.check(renamed).broken()).isFalse());
+    }
+
+    /**
+     * Files whose name might narrow what their content makes them, each with that format and the finer label it
+     * ends with, or none: a name may only choose between members of the class the content already fixed.
+     */
+    static Stream<Arguments> namesThatMayNarrow() throws IOException {
+        return Stream.of(
+                Arguments.of(
+                        Named.of(
+                                "a PDF named as an old Word document stays a PDF and takes no label from that name:"
+                                        + " the name names a member of a different class, so it is ignored entirely",
+                                "minutes.doc"),
+                        WHOLE_PDF.getBytes(StandardCharsets.US_ASCII),
+                        DetectedFormat.PDF,
+                        Optional.empty()),
+                Arguments.of(
+                        Named.of(
+                                "Markdown is text by its content and Markdown by its name: nothing in the content of"
+                                        + " any text file distinguishes it, and the conversion step reads it"
+                                        + " structurally",
+                                "release-notes.md"),
+                        "# Release notes\n\n- first change\n".getBytes(StandardCharsets.UTF_8),
+                        DetectedFormat.PLAIN_TEXT,
+                        Optional.of(DetectedSubtype.MARKDOWN)),
+                Arguments.of(
+                        Named.of(
+                                "a web page saved under a .txt name is text that announces itself as a web page in its"
+                                        + " opening bytes, and where the content can answer, the name is not asked",
+                                "saved-page.txt"),
+                        "<!DOCTYPE html>\n<title>Notes</title>\n".getBytes(StandardCharsets.UTF_8),
+                        DetectedFormat.PLAIN_TEXT,
+                        Optional.of(DetectedSubtype.HTML)),
+                Arguments.of(
+                        Named.of(
+                                "text with no extension is text with no finer label, rather than guessed at, and"
+                                        + " travels onward as ordinary text",
+                                "README"),
+                        "Notes on the contents of this folder.\n".getBytes(StandardCharsets.UTF_8),
+                        DetectedFormat.PLAIN_TEXT,
+                        Optional.empty()));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("namesThatMayNarrow")
+    @Story("The name may narrow, but it may never cross a boundary the content has drawn")
+    @DisplayName("A name narrows a file only within the class its content fixed")
+    void aNameNarrowsOnlyWithinTheClassTheContentFixed(String fileName, byte[] content, DetectedFormat format,
+            Optional<DetectedSubtype> label, @TempDir Path dir) throws IOException {
+        Path file = Files.write(dir.resolve(fileName), content);
+
+        claim(
+                "the content makes the file " + format + ", and the name does not get to reopen that",
+                () -> assertThat(BrokenCheck.check(file).format()).isEqualTo(format));
+        claim(
+                "its finer label is " + label.map(DetectedSubtype::name).orElse("none"),
+                () -> assertThat(BrokenCheck.check(file).subtype()).isEqualTo(label));
+        claim(
+                "and nothing is removed for what the file is named",
+                () -> assertThat(BrokenCheck.check(file).broken()).isFalse());
+    }
+
+    @Test
+    @Story("Content that is not a document of any known kind")
+    @DisplayName("A Windows shortcut is recognised as no known format, and is still not removed")
+    void anUnrecognisedBinaryIsRecordedAndNotRemoved(@TempDir Path dir) throws IOException {
+        Path shortcut = Files.write(dir.resolve("Report - Shortcut.lnk"), signed(WINDOWS_SHORTCUT_SIGNATURE, "target"));
+
+        claim(
+                "content matching no known format marker, that does not read as words either, is recorded"
+                        + " as being of no known format",
+                () -> assertThat(BrokenCheck.check(shortcut).format()).isEqualTo(DetectedFormat.UNRECOGNISED));
+        claim(
+                "a shortcut is intact and perfectly valid — it is simply not a document — so calling it"
+                        + " damaged would be the wrong word, and nothing is removed on this ground until a"
+                        + " real archive has been measured to say how much of it there is",
+                () -> assertThat(BrokenCheck.check(shortcut).broken()).isFalse());
+    }
+
+    @Test
+    @Story("Content that is not a document of any known kind")
+    @DisplayName("A Windows folder settings file reads as text and passes, which is the honest limit of this rule")
+    void aTextualSystemFileStillPasses(@TempDir Path dir) throws IOException {
+        Path folderSettings = Files.writeString(dir.resolve("desktop.ini"), "[.ShellClassInfo]\nIconResource=x.dll,0\n");
+
+        claim(
+                "this file genuinely is text and reads as text, so the rule reports it as text; recognising"
+                        + " content is not the same as recognising usefulness, and this rule claims only the"
+                        + " first",
+                () -> assertThat(BrokenCheck.check(folderSettings).format()).isEqualTo(DetectedFormat.PLAIN_TEXT));
+        claim(
+                "it lands with no finer label, in the same place an ordinary written note lands, so a count"
+                        + " of text files cannot tell the two apart — which is what any later rule about"
+                        + " clutter has to be read against",
+                () -> assertThat(BrokenCheck.check(folderSettings).subtype()).isEmpty());
     }
 
     @Test
@@ -135,6 +501,44 @@ class DetectedFormatTest {
         bytes.write(signature);
         bytes.write(trailingText.getBytes(StandardCharsets.US_ASCII));
         return bytes.toByteArray();
+    }
+
+    /**
+     * A whole, well-formed BMP of 2 by 2 pixels whose picture header is {@code headerLength} bytes long:
+     * the file header, the picture header, then the rows of pixels. Every number in it is little-endian.
+     * Beyond the fields written here, a longer header is zeros, which is what a writer leaves unused.
+     */
+    private static byte[] bmpWithHeaderOf(int headerLength) {
+        int pixelsAt = BMP_FILE_HEADER_LENGTH + headerLength;
+        int pixelBytes = BYTES_PER_ROW * PIXELS_HIGH;
+        ByteBuffer bmp = ByteBuffer.allocate(pixelsAt + pixelBytes).order(ByteOrder.LITTLE_ENDIAN);
+        bmp.put((byte) 'B').put((byte) 'M');
+        bmp.putInt(pixelsAt + pixelBytes); // the whole file's length
+        bmp.putInt(0); // two reserved fields
+        bmp.putInt(pixelsAt); // where the pixels start
+        bmp.putInt(headerLength);
+        bmp.putInt(PIXELS_WIDE);
+        bmp.putInt(PIXELS_HIGH);
+        bmp.putShort((short) 1); // one colour plane, the only value allowed
+        bmp.putShort((short) BITS_PER_PIXEL);
+        bmp.putInt(0); // uncompressed
+        bmp.putInt(pixelBytes);
+        bmp.putInt(PIXELS_PER_METRE);
+        bmp.putInt(PIXELS_PER_METRE);
+        bmp.position(pixelsAt);
+        for (int i = 0; i < pixelBytes; i++) {
+            bmp.put((byte) 0x7F);
+        }
+        return bmp.array();
+    }
+
+    /** {@code BM}, a file header's worth of bytes, and then a length no BMP picture header has. */
+    private static byte[] bmFollowedByNoHeader() {
+        ByteBuffer bytes = ByteBuffer.allocate(64).order(ByteOrder.LITTLE_ENDIAN);
+        bytes.put((byte) 'B').put((byte) 'M');
+        bytes.position(BMP_FILE_HEADER_LENGTH);
+        bytes.putInt(NO_BMP_HEADER_LENGTH);
+        return bytes.array();
     }
 
     /** A well-formed archive whose single entry is named {@code entryName}. */

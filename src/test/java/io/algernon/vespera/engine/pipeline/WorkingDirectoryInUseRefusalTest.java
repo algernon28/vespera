@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import picocli.CommandLine;
 
 /**
  * A working directory already in use is said in one line on standard error, in place of Spring's
@@ -22,7 +23,8 @@ import org.junit.jupiter.api.Test;
  *
  * <p>The same shape as a profile that does not load (#321), for the same reason: the refusal happens
  * while the environment is prepared, so there is no banner, no bean and no context to report, and
- * the reporter claims only its own fault. This pins the reporter on its own.
+ * the reporter claims only its own fault. {@code WorkingDirectoryInUseIT} pins what reaches the
+ * terminal and the shell from the packaged jar; this pins the reporter on its own.
  */
 @Epic("Architecture")
 @Feature("One invocation per working directory")
@@ -62,6 +64,23 @@ class WorkingDirectoryInUseRefusalTest {
                     assertThat(WorkingDirectoryInUseRefusal.refuses(inUse)).isTrue();
                     assertThat(WorkingDirectoryInUseRefusal.refuses(new IllegalStateException("wrapped", inUse))).isTrue();
                 });
+    }
+
+    @Test
+    @Story("A second invocation on the same working directory is refused")
+    @DisplayName("Any other failed start is left to Spring, and the refusal's exit code is 1")
+    void anyOtherFailureIsLeftAlone() {
+        IllegalStateException unrelated = new IllegalStateException("something else failed");
+
+        Reported other = reported(() -> new WorkingDirectoryInUseRefusal().reportException(unrelated));
+
+        claim("a failure that is not a working directory in use is not claimed",
+                () -> assertThat(other.claimed()).isFalse());
+        claim("and nothing is printed for it here", () -> assertThat(other.printed()).isEmpty());
+        claim("the entry point lets it through rather than exiting as though the directory were in use",
+                () -> assertThat(WorkingDirectoryInUseRefusal.refuses(unrelated)).isFalse());
+        claim("the refusal exits with 1, the code a refused profile already returns, not picocli's usage code",
+                () -> assertThat(WorkingDirectoryInUseRefusal.EXIT_CODE).isEqualTo(CommandLine.ExitCode.SOFTWARE));
     }
 
     /** Whether the reporter claimed the failure, and what it printed on standard error meanwhile. */

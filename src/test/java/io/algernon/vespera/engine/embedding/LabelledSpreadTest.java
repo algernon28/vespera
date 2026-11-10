@@ -39,6 +39,37 @@ class LabelledSpreadTest {
     /** The bands the application ships (vespera.relevance.sample.bands). */
     private static final int BANDS = 5;
 
+    /** A score that is exactly the fourth of five bands' lower edge over 0.0 to 0.5, as a person reads it. */
+    private static final double ON_THE_FOURTH_BANDS_LOWER_EDGE = 0.3;
+
+    /** The fourth band, counted from zero. */
+    private static final int THE_FOURTH_BAND = 3;
+
+    /** The cuts are the edges between bands, so the cut at the fourth band's lower edge is the third, counted from zero. */
+    private static final int THE_CUT_AT_THE_FOURTH_BANDS_LOWER_EDGE = 2;
+
+    @Test
+    @Story("The engine does the arithmetic and never writes the number")
+    @DisplayName("Each candidate cut says how many documents it keeps and how many it discards")
+    void countsWhatEachCutKeepsAndDiscards() {
+        LabelledSpread.Spread spread = LabelledSpread.of(aDistributionFrom(0.0, 1.0), tenDocumentsFrom(0.05), noAnswers());
+
+        claim(
+                "there are four cuts for five bands, keeping 8, 6, 4 and 2 of the ten documents spread"
+                        + " two to a band: a cut at the lowest bound would discard nothing and is not a choice"
+                        + " anybody is making, so the candidates are the boundaries between bands, and a"
+                        + " higher cut keeps fewer, which is the whole shape of the trade being offered",
+                () -> assertThat(spread.cuts())
+                        .extracting(LabelledSpread.CandidateCut::surviving)
+                        .containsExactly(8, 6, 4, 2));
+        claim(
+                "and each discards the rest of the ten, 2, 4, 6 and 8, so a reader adding the two columns"
+                        + " gets the corpus back",
+                () -> assertThat(spread.cuts())
+                        .extracting(LabelledSpread.CandidateCut::discarded)
+                        .containsExactly(2, 4, 6, 8));
+    }
+
     @Test
     @Story("The engine does the arithmetic and never writes the number")
     @DisplayName("A document scoring exactly the cut survives it, as the verdict step would leave it")
@@ -56,6 +87,87 @@ class LabelledSpreadTest {
                         + " number. If the two disagreed, this page would promise a count the run then"
                         + " contradicts",
                 () -> assertThat(spread.cuts().getFirst().surviving()).isEqualTo(2));
+    }
+
+    @Test
+    @Story("The engine does the arithmetic and never writes the number")
+    @DisplayName("A document scoring a band's lower edge is on the same side of the cut at that edge as the band counts it")
+    @Link(name = "ADR-234", url = Adr.NO_REDUNDANCY_POINTER_NAMES_A_REMOVED_DOCUMENT, type = "adr")
+    void aDocumentOnABandsLowerEdgeSurvivesTheCutAtThatEdge() {
+        // Bands over 0.0 to 0.5 are 0.1 wide, and the third cut is the fourth band's lower bound, which the
+        // arithmetic gives as 0.30000000000000004 and which the page shows as 0.30.
+        Map<OccurrenceId, Boolean> answers = new LinkedHashMap<>();
+        answers.put(new OccurrenceId(1), true);
+        LabelledSpread.Spread spread = LabelledSpread.of(
+                aDistributionFrom(0.0, 0.5), List.of(scored(1, ON_THE_FOURTH_BANDS_LOWER_EDGE)), answers);
+        LabelledSpread.CandidateCut cutAtThatEdge = spread.cuts().get(THE_CUT_AT_THE_FOURTH_BANDS_LOWER_EDGE);
+
+        claim(
+                "the answer about the document scoring " + ON_THE_FOURTH_BANDS_LOWER_EDGE + " is counted in the"
+                        + " fourth band",
+                () -> assertThat(spread.bandLabels().get(THE_FOURTH_BAND).labelled()).isEqualTo(1));
+        claim(
+                "and the cut at that band's lower edge keeps it, as a threshold of 0.30 written from the page"
+                        + " would: a document the page counts in a band is never also counted below that band's"
+                        + " own edge",
+                () -> {
+                    assertThat(cutAtThatEdge.surviving()).isEqualTo(1);
+                    assertThat(cutAtThatEdge.labelledAbove()).isEqualTo(1);
+                });
+    }
+
+    @Test
+    @Story("Answers are counted per band, thinness and all")
+    @DisplayName("Answers are counted in the band the score puts them in, and reported as counts")
+    void countsAnswersInTheBandTheScorePutsThemIn() {
+        Map<OccurrenceId, Boolean> answers = new LinkedHashMap<>();
+        answers.put(new OccurrenceId(1), true);
+        answers.put(new OccurrenceId(2), false);
+        answers.put(new OccurrenceId(3), true);
+
+        LabelledSpread.Spread spread = LabelledSpread.of(
+                aDistributionFrom(0.0, 1.0),
+                List.of(scored(1, 0.9), scored(2, 0.1), scored(3, 0.95), scored(4, 0.5)),
+                answers);
+
+        claim(
+                "three answers were counted and the fourth document, which nobody judged, contributed"
+                        + " nothing rather than counting as not relevant -- an unanswered question is not"
+                        + " an answer of no",
+                () -> assertThat(spread.labelled()).isEqualTo(3));
+        claim(
+                "the two high-scoring answers land in the top band, both relevant",
+                () -> assertThat(spread.bandLabels().getLast())
+                        .isEqualTo(new LabelledSpread.BandLabels(4, 2, 2)));
+        claim(
+                "and the low-scoring one lands in the bottom band, judged not relevant -- which is the"
+                        + " shape a reader is looking for, and the reason bands are worth stratifying",
+                () -> assertThat(spread.bandLabels().getFirst())
+                        .isEqualTo(new LabelledSpread.BandLabels(0, 1, 0)));
+    }
+
+    @Test
+    @Story("Answers are counted per band, thinness and all")
+    @DisplayName("A cut reports what the labels either side of it said, not a rate")
+    void reportsWhatTheLabelsEitherSideSaid() {
+        Map<OccurrenceId, Boolean> answers = new LinkedHashMap<>();
+        answers.put(new OccurrenceId(1), true);
+        answers.put(new OccurrenceId(2), false);
+        answers.put(new OccurrenceId(3), true);
+
+        LabelledSpread.Spread spread = LabelledSpread.of(
+                aDistributionFrom(0.0, 1.0), List.of(scored(1, 0.9), scored(2, 0.1), scored(3, 0.15)), answers);
+        LabelledSpread.CandidateCut cut = spread.cuts().getFirst();
+
+        claim(
+                "above the cut, one judged and one relevant: the counts travel together so a page can say"
+                        + " '1 in 1' rather than '100%', because twelve answers in a band is a thin"
+                        + " measurement and a percentage hides how thin",
+                () -> assertThat(List.of(cut.labelledAbove(), cut.labelledRelevantAbove())).containsExactly(1, 1));
+        claim(
+                "below the cut, two judged and one of them relevant -- the loss the cut would cause, which"
+                        + " is the number a person is really deciding about, counted apart from the side above",
+                () -> assertThat(List.of(cut.labelledBelow(), cut.labelledRelevantBelow())).containsExactly(2, 1));
     }
 
     @Test
@@ -98,6 +210,15 @@ class LabelledSpreadTest {
                     0));
         }
         return new RelevanceDistribution.Distribution(0, lowest, highest, List.copyOf(bands), List.of());
+    }
+
+    /** Ten documents spread up the range, so a cut has something on both sides of it. */
+    private static List<RelevanceDistribution.Scored> tenDocumentsFrom(double lowest) {
+        List<RelevanceDistribution.Scored> scored = new java.util.ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            scored.add(scored(i + 1, lowest + i * 0.1));
+        }
+        return List.copyOf(scored);
     }
 
     private static RelevanceDistribution.Scored scored(long occurrenceId, double score) {

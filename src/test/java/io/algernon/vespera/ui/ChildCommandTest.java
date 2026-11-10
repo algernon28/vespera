@@ -2,6 +2,7 @@ package io.algernon.vespera.ui;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -9,14 +10,23 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.classfile.ClassFile;
+import java.lang.classfile.constantpool.PoolEntry;
+import java.lang.classfile.constantpool.StringEntry;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -60,6 +70,13 @@ class ChildCommandTest {
 
     private static final String DB_DIR = "--db-dir=" + absolute(WORKING_DIRECTORY);
 
+    private static final List<String> NEVER_SPELLED = List.of("--version", "--help");
+
+    /** A text the command line needs, which the scan of the compiled classes must find. */
+    private static final String A_TEXT_THE_COMMAND_LINE_NEEDS = "-Dstdout.encoding=UTF-8";
+
+    private static final String CONTROL_PANEL_FOLDER = "io/algernon/vespera/ui";
+
     /** The variable a publish's child reads the token from (ADR-308 §3), spelt as the jar spells it. */
     private static final String TOKEN_VARIABLE = "VESPERA_CONFLUENCE_TOKEN";
 
@@ -79,6 +96,64 @@ class ChildCommandTest {
                         + " --db-dir naming the working directory, every path absolute, in that order",
                 () -> assertThat(ChildCommand.run(JAVA, JAR, THE_TWO).command())
                         .containsExactlyElementsOf(with("run", absolute(CORPUS_ROOT), DB_DIR)));
+    }
+
+    @Test
+    @Story("The control panel starts the jar as shipped")
+    @DisplayName("Label is the jar's label command, with --auto only when asked, and the working directory absolute")
+    void labelIsTheJarsLabelCommandWithAutoOnlyWhenAsked() {
+        claim("asked for no model's answers, the command line ends with label and --db-dir",
+                () -> assertThat(ChildCommand.label(JAVA, JAR, false, THE_TWO).command())
+                        .containsExactlyElementsOf(with("label", DB_DIR)));
+        claim("asked for them, it ends with label, --auto and --db-dir",
+                () -> assertThat(ChildCommand.label(JAVA, JAR, true, THE_TWO).command())
+                        .containsExactlyElementsOf(with("label", "--auto", DB_DIR)));
+    }
+
+    @Test
+    @Story("The control panel starts the jar as shipped")
+    @DisplayName("The child gets CI=1 in its environment and the working directory as its current directory")
+    void theChildHasCiSetToOneAndTheWorkingDirectoryAsItsCurrentDirectory() {
+        ChildCommand command = ChildCommand.run(JAVA, JAR, THE_TWO);
+        ProcessBuilder builder = command.processBuilder();
+
+        claim("with no launch value but the corpus root and the working directory, what the control panel adds to"
+                        + " the child's environment is CI=1, and nothing else",
+                () -> assertThat(command.environment()).isEqualTo(Map.of("CI", "1")));
+        claim("the process builder starts that command line, with CI=1 in its environment",
+                () -> {
+                    assertThat(builder.command()).isEqualTo(command.command());
+                    assertThat(builder.environment()).containsEntry("CI", "1");
+                });
+        claim("and the working directory, absolute, is the child's current directory",
+                () -> {
+                    assertThat(command.directory()).isEqualTo(WORKING_DIRECTORY.toAbsolutePath());
+                    assertThat(builder.directory()).isEqualTo(WORKING_DIRECTORY.toAbsolutePath().toFile());
+                });
+    }
+
+    @Test
+    @Story("The control panel passes its launch values to the jar")
+    @DisplayName("The child of Run and of Label gets CI=1 and the launch values in its environment, and the same command line")
+    @Issue("564")
+    @Link(name = "ADR-292", url = Adr.THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES, type = "adr")
+    void theChildGetsCiAndTheLaunchValuesInItsEnvironment() {
+        Map<String, String> expected = new HashMap<>(EVERY_VALUE.toChildEnvironment());
+        expected.put("CI", "1");
+        for (ChildCommand command : List.of(ChildCommand.run(JAVA, JAR, EVERY_VALUE),
+                ChildCommand.label(JAVA, JAR, true, EVERY_VALUE))) {
+            claim("the child's environment adds CI=1 and the launch values' five variables, and nothing else",
+                    () -> assertThat(command.environment()).isEqualTo(expected));
+            claim("the process builder carries every one of them",
+                    () -> assertThat(command.processBuilder().environment()).containsAllEntriesOf(expected));
+        }
+        claim("and the command lines are those built from the corpus root and the working directory alone",
+                () -> {
+                    assertThat(ChildCommand.run(JAVA, JAR, EVERY_VALUE).command())
+                            .isEqualTo(ChildCommand.run(JAVA, JAR, THE_TWO).command());
+                    assertThat(ChildCommand.label(JAVA, JAR, true, EVERY_VALUE).command())
+                            .isEqualTo(ChildCommand.label(JAVA, JAR, true, THE_TWO).command());
+                });
     }
 
     /**
@@ -125,6 +200,53 @@ class ChildCommandTest {
                             .isEqualTo(command.environmentFrom(System.getenv()))
                             .doesNotContainKeys(theEight.toArray(String[]::new)));
         }
+    }
+
+    @Test
+    @Story("The control panel refuses what it cannot start")
+    @DisplayName("Run without a corpus root is not built, the refusal given")
+    @Issue("564")
+    @Link(name = "ADR-292", url = Adr.THE_CONTROL_PANEL_REMEMBERS_ITS_LAUNCH_VALUES, type = "adr")
+    void aRefusedCommandIsNotBuilt() {
+        LaunchValues noCorpusRoot = new LaunchValues("", WORKING_DIRECTORY.toString(), "", "", "", "", "", "");
+
+        claim("Run with no corpus root is refused, with Run's refusal as the message",
+                () -> assertThatThrownBy(() -> ChildCommand.run(JAVA, JAR, noCorpusRoot))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage(noCorpusRoot.refusalToRun().orElseThrow()));
+    }
+
+    @Test
+    @Story("The control panel starts the jar as shipped")
+    @Issue("633")
+    @DisplayName("Publish is the jar's publish command with its destinations and the working directory absolute, and adds no Confluence value to the child's environment")
+    @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
+    @Link(name = "ADR-345", url = Adr.THE_COCKPIT_REPLACES_THE_BROWSER_CONTROL_PANEL_AND_ITS_TREE_WRITES_THE_FOLDERS_NOT_WALKED, type = "adr")
+    void publishIsTheJarsPublishCommandAndAddsNoConfluenceValue() {
+        ChildCommand publish = ChildCommand.publish(JAVA, JAR, EVERY_VALUE, List.of("confluence"));
+
+        claim("the command line ends with publish, --to and the destinations checked, joined by commas in the order"
+                        + " given, and --db-dir",
+                () -> {
+                    assertThat(ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("confluence")).command())
+                            .containsExactlyElementsOf(with("publish", "--to", "confluence", DB_DIR));
+                    assertThat(ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("confluence", "website")).command())
+                            .containsExactlyElementsOf(with("publish", "--to", "confluence,website", DB_DIR));
+                    assertThat(ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("website")).command())
+                            .containsExactlyElementsOf(with("publish", "--to", "website", DB_DIR));
+                });
+        claim("and, given no token, no variable the control panel adds names Confluence: the four plain values are the"
+                        + " profile's, which the child reads itself, and the token is added only where it is typed",
+                () -> assertThat(publish.environment().keySet()).noneMatch(name -> name.contains("CONFLUENCE")));
+        claim("a publish to no destination, or to a name outside the control panel's closed list, is not built",
+                () -> {
+                    assertThatThrownBy(() -> ChildCommand.publish(JAVA, JAR, THE_TWO, List.of()))
+                            .isInstanceOf(IllegalArgumentException.class);
+                    assertThatThrownBy(() -> ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("confluence", "nowhere")))
+                            .isInstanceOf(IllegalArgumentException.class);
+                });
+        claim("the closed list is the two destinations, in the order the window offers them",
+                () -> assertThat(ChildCommand.DESTINATIONS).containsExactly("confluence", "website"));
     }
 
     /**
@@ -210,6 +332,25 @@ class ChildCommandTest {
                         .isEqualTo(typed.environmentFrom(System.getenv())));
     }
 
+    /**
+     * A publish the control panel starts writes no template and names the Profile tab's keys when a value is missing
+     * (ADR-359 §4), so its child is told the control panel started it.
+     */
+    @Test
+    @Story("The control panel passes the API token to its child alone")
+    @DisplayName("A publish's child is told in its environment that the control panel started it, with a token or without one")
+    @Link(name = "ADR-359", url = Adr.THE_PUBLISH_READS_ITS_CONFLUENCE_VALUES_FROM_THE_PROFILE_AND_THE_CONTROL_PANEL_PASSES_THE_TOKEN, type = "adr")
+    void aPublishsChildIsToldTheControlPanelStartedIt() {
+        ChildCommand publish = ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("confluence"));
+
+        claim("the publish's environment holds VESPERA_STARTED_BY set to control-panel, given a token or not",
+                () -> assertThat(List.of(publish, publish.withConfluenceToken(TOKEN))).allSatisfy(command ->
+                        assertThat(command.environment()).containsEntry(STARTED_BY_VARIABLE, THE_CONTROL_PANEL)));
+        claim("and so does a publish to the website alone",
+                () -> assertThat(ChildCommand.publish(JAVA, JAR, THE_TWO, List.of("website")).environment())
+                        .containsEntry(STARTED_BY_VARIABLE, THE_CONTROL_PANEL));
+    }
+
     @Test
     @Story("The control panel starts the jar as shipped")
     @DisplayName("Only the run, label and publish command lines can be built")
@@ -227,6 +368,18 @@ class ChildCommandTest {
                 () -> assertThat(factories).containsExactly("label", "publish", "run"));
     }
 
+    @Test
+    @Story("The control panel starts the jar as shipped")
+    @DisplayName("No class of the control panel holds the text --version or --help")
+    void noClassOfTheControlPanelSpellsVersionOrHelp() throws IOException, URISyntaxException {
+        List<String> texts = textsOfTheControlPanel();
+
+        claim("the scan read the control panel's compiled texts, checked by one the command line needs",
+                () -> assertThat(texts).anyMatch(text -> text.contains(A_TEXT_THE_COMMAND_LINE_NEEDS)));
+        claim("and none of them spells --version or --help, each of which boots the jar's context and takes its lock",
+                () -> assertThat(texts).noneMatch(text -> NEVER_SPELLED.stream().anyMatch(text::contains)));
+    }
+
     private static List<String> with(String... after) {
         List<String> command = new ArrayList<>(BEFORE_THE_COMMAND);
         command.addAll(List.of(after));
@@ -235,5 +388,30 @@ class ChildCommandTest {
 
     private static String absolute(Path path) {
         return path.toAbsolutePath().toString();
+    }
+
+    /** Every string text of every class compiled from {@code src/main} under {@code io.algernon.vespera.ui}. */
+    static List<String> textsOfTheControlPanel() throws IOException, URISyntaxException {
+        return textsOfEachClassOfTheControlPanel().values().stream().flatMap(List::stream).toList();
+    }
+
+    /** The same texts by the simple name of the class they were compiled from, a nested class's with its outer's. */
+    static Map<String, List<String>> textsOfEachClassOfTheControlPanel() throws IOException, URISyntaxException {
+        Path compiled = Path.of(ChildCommand.class.getProtectionDomain().getCodeSource().getLocation().toURI())
+                .resolve(CONTROL_PANEL_FOLDER);
+        Map<String, List<String>> texts = new TreeMap<>();
+        try (Stream<Path> files = Files.walk(compiled)) {
+            for (Path file : files.filter(path -> path.toString().endsWith(".class")).toList()) {
+                String className = file.getFileName().toString().replaceFirst("[$.].*", "");
+                try (InputStream in = Files.newInputStream(file)) {
+                    for (PoolEntry entry : ClassFile.of().parse(in.readAllBytes()).constantPool()) {
+                        if (entry instanceof StringEntry text) {
+                            texts.computeIfAbsent(className, name -> new ArrayList<>()).add(text.stringValue());
+                        }
+                    }
+                }
+            }
+        }
+        return texts;
     }
 }

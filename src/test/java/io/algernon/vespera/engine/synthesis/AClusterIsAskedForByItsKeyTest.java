@@ -109,6 +109,42 @@ class AClusterIsAskedForByItsKeyTest {
                 });
     }
 
+    @Test
+    @Story("A group's written text is read for that group alone")
+    @DisplayName("A group's written text comes back with its title, its words and the documents it was written from, in the order they were numbered")
+    void theDocOfOneCluster() {
+        claim(
+                "the text comes back whole, and the two documents its call carried come back in the order they"
+                        + " were numbered for the model, the second recorded first, so that [1] still lands on"
+                        + " the document it was written from",
+                () -> assertThat(synthesisDocs.forCluster(generation, seed, THE_WRITTEN_CLUSTER))
+                        .contains(new SynthesisDoc(
+                                "A title", "It says [1] and then [2].", List.of(recordedSecond, recordedFirst))));
+        claim(
+                "a group nothing was written over answers nothing, under this run or another",
+                () -> {
+                    assertThat(synthesisDocs.forCluster(generation, seed, THE_FAULTED_CLUSTER)).isEmpty();
+                    assertThat(synthesisDocs.forCluster(anotherGeneration, seed, THE_WRITTEN_CLUSTER)).isEmpty();
+                });
+    }
+
+    @Test
+    @Story("Why a group has no written text is read for that group alone")
+    @DisplayName("A group's recorded failure comes back with its kind and its detail, and a group with none answers nothing")
+    void theFaultOfOneCluster() {
+        claim(
+                "the failure kept against the group comes back as it was recorded",
+                () -> assertThat(clusterFaults.forCluster(generation, seed, THE_FAULTED_CLUSTER))
+                        .contains(new ClusterFault(ClusterFaultKind.SCHEMA_VIOLATION, "no closing brace")));
+        claim(
+                "the written group, the group never reached, and the same group under another run carry none",
+                () -> {
+                    assertThat(clusterFaults.forCluster(generation, seed, THE_WRITTEN_CLUSTER)).isEmpty();
+                    assertThat(clusterFaults.forCluster(generation, seed, A_CLUSTER_NEVER_REACHED)).isEmpty();
+                    assertThat(clusterFaults.forCluster(anotherGeneration, seed, THE_FAULTED_CLUSTER)).isEmpty();
+                });
+    }
+
     private static OccurrenceId anOccurrence(Ledger ledger, WalkId walk, String path) {
         ledger.occurrences().fileOccurrence(walk, new OccurrencePath(path), 1, Instant.EPOCH, Instant.EPOCH);
         return ledger.occurrences().occurrenceId(walk, new OccurrencePath(path)).orElseThrow();

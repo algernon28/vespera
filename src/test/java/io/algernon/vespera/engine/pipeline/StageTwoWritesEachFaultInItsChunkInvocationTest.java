@@ -23,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.batch.core.step.item.ChunkOrientedStep;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -34,7 +35,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * Stage 2's fault row is written in the chunk its occurrence was set aside in, on the shipped step, and stands
  * or falls with that chunk (ADR-220 section 14).
  *
- * <p>This class holds the step {@link
+ * <p>{@code ASetAsideIsHeardInsideItsChunksTransactionTest} holds the library to hearing a set-aside inside the
+ * chunk's transaction, on a step built to stage 2's shape. This class holds the step {@link
  * ExtractionJobConfiguration} builds, driven through the whole command: {@link SetAsideProbe} listens beside the
  * fault recorder on the {@code extractionStep} bean itself, so a change to how that step is built that moved
  * the set-aside out of the chunk's transaction, onto another thread or into a transaction of its own fails here.
@@ -58,6 +60,9 @@ class StageTwoWritesEachFaultInItsChunkInvocationTest {
 
     /** How many occurrences one commit of stage 2 holds. */
     private static final int CHUNK = ExtractionJobConfiguration.CHUNK_SIZE;
+
+    /** A few documents, all inside one chunk, for the stage that completes. */
+    private static final int A_FEW = 3;
 
     /** The second document the converter is asked about is the one it blames itself for. */
     private static final List<Integer> CONVERTER_FAULT_AT = List.of(2);
@@ -98,6 +103,48 @@ class StageTwoWritesEachFaultInItsChunkInvocationTest {
     @AfterEach
     void bringTheConverterBack() {
         ConverterStopsPartwayBeans.keepAnswering();
+    }
+
+    @Test
+    @Story("A file set aside is recorded when it is set aside, and resolved at the end of the stage")
+    @DisplayName("The shipped stage 2 hears a file set aside inside its chunk's transaction, which already holds the file's fault row and commits it")
+    void theShippedStepHearsASetAsideInsideTheChunkThatWritesItsRow(@TempDir Path root) throws IOException {
+        writeCorpus(root, A_FEW, "completed");
+        String invokedOn = Thread.currentThread().getName();
+
+        cli.run("run", root.toString());
+
+        claim(
+                "the probe listened on the step the job configuration built, a chunk-oriented step, and nothing"
+                        + " replaced it",
+                () -> assertThat(SetAsideProbe.STEP_PROBED.get()).isEqualTo(ChunkOrientedStep.class));
+        claim(
+                "the step heard one file set aside, the one the converter blamed itself for",
+                () -> assertThat(SetAsideProbe.HEARD).hasSize(1));
+        SetAsideProbe.Heard heard = SetAsideProbe.HEARD.getFirst();
+        claim(
+                "it heard it on the thread the command was invoked on, inside a transaction, and that"
+                        + " transaction already held the file's fault row, written where the set-aside was heard",
+                () -> {
+                    assertThat(heard.thread()).isEqualTo(invokedOn);
+                    assertThat(heard.inATransaction()).isTrue();
+                    assertThat(heard.faultRowsTheTransactionSaw()).isEqualTo(1);
+                });
+        claim(
+                "the transaction is the chunk's own, the one its other files were written in, and it committed",
+                () -> {
+                    assertThat(SetAsideProbe.WRITTEN_IN).anySatisfy(written -> assertThat(written)
+                            .isSameAs(heard.transaction()));
+                    assertThat(heard.howTheTransactionEnded().get()).isEqualTo("committed");
+                });
+        claim(
+                "and the stage having completed, the row stands and is resolved into extraction-failed, its reason"
+                        + " the category and the converter's message",
+                () -> {
+                    assertThat(faultRowsAgainst(heard)).isEqualTo(1);
+                    assertThat(verdictsAgainst(heard))
+                            .containsExactly(Map.of("kind", "EXTRACTION_FAILED", "reason", THE_WHOLE_FAULT_REASON));
+                });
     }
 
     @Test

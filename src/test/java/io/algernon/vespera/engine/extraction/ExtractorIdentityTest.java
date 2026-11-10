@@ -1,6 +1,7 @@
 package io.algernon.vespera.engine.extraction;
 
 import static io.algernon.vespera.TestSteps.claim;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
@@ -27,6 +28,9 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-012", url = Adr.EXTRACTION_ENGINE_IS_CONFIGURABLE, type = "adr")
 class ExtractorIdentityTest {
 
+    /** An identity composed the way whoever mints a run against a configured engine composes it. */
+    private static final String A_COMPOSED_IDENTITY = "docling-serve/1.9.0;pdf-pipeline=standard";
+
     @Test
     @Story("An engine identity is never empty")
     @DisplayName("An engine identity that was never supplied is refused")
@@ -37,5 +41,31 @@ class ExtractorIdentityTest {
                 () -> assertThatThrownBy(() -> new ExtractorIdentity(null))
                         .isInstanceOf(IllegalArgumentException.class)
                         .hasMessageContaining("identity"));
+    }
+
+    @Test
+    @Story("An engine identity is never empty")
+    @DisplayName("An engine identity that is empty, or only spacing, is refused too")
+    void refusesAnEmptyOrBlankIdentity() {
+        claim(
+                "an empty identity is refused, since it names no engine",
+                () -> assertThatThrownBy(() -> new ExtractorIdentity(""))
+                        .isInstanceOf(IllegalArgumentException.class));
+        claim(
+                "and so is one made only of spacing, which names no engine either but would otherwise"
+                        + " pass an emptiness check",
+                () -> assertThatThrownBy(() -> new ExtractorIdentity("   \t"))
+                        .isInstanceOf(IllegalArgumentException.class));
+    }
+
+    @Test
+    @Story("An engine identity is never empty")
+    @DisplayName("A supplied engine identity is carried exactly as composed")
+    void carriesAComposedIdentityVerbatim() {
+        claim(
+                "the composed identity is carried through untouched — this type refuses an empty value"
+                        + " and interprets nothing else, because what belongs in it is the caller's to"
+                        + " decide",
+                () -> assertThat(new ExtractorIdentity(A_COMPOSED_IDENTITY).value()).isEqualTo(A_COMPOSED_IDENTITY));
     }
 }

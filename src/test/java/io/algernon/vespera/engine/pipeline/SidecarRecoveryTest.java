@@ -2,6 +2,7 @@ package io.algernon.vespera.engine.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
@@ -39,8 +40,42 @@ class SidecarRecoveryTest {
     /** How often they ask it meanwhile. */
     private static final Duration CHECK_EVERY = Duration.ofMillis(20);
 
+    /** How many checks a converter that is on its way back fails before it answers. */
+    private static final int CHECKS_FAILED_BEFORE_IT_IS_BACK = 3;
+
     /** A converter that never answers, however often it is asked. */
     private static final int NEVER = Integer.MAX_VALUE;
+
+    @Test
+    @Story("Waiting for a converter that dropped a connection")
+    @DisplayName("A converter that already answers its health check is asked once and not waited for")
+    void aHealthyConverterIsNotWaitedFor() {
+        ScriptedHealth converter = unhealthyFor(0);
+
+        claim(
+                "the wait ends without a failure",
+                () -> assertThatCode(() -> new SidecarRecovery(converter, WAIT_AT_MOST, CHECK_EVERY).awaitHealthy())
+                        .doesNotThrowAnyException());
+        claim(
+                "it was asked once: an answer on the first check is all the wait there is",
+                () -> assertThat(converter.checks.get()).isEqualTo(1));
+    }
+
+    @Test
+    @Story("Waiting for a converter that dropped a connection")
+    @DisplayName("A converter that comes back within the bound is waited for until it answers")
+    void aConverterThatComesBackIsWaitedFor() {
+        ScriptedHealth converter = unhealthyFor(CHECKS_FAILED_BEFORE_IT_IS_BACK);
+
+        claim(
+                "the wait ends without a failure",
+                () -> assertThatCode(() -> new SidecarRecovery(converter, WAIT_AT_MOST, CHECK_EVERY).awaitHealthy())
+                        .doesNotThrowAnyException());
+        claim(
+                "it was asked until it answered: " + CHECKS_FAILED_BEFORE_IT_IS_BACK + " checks it failed,"
+                        + " and the one after them",
+                () -> assertThat(converter.checks.get()).isEqualTo(CHECKS_FAILED_BEFORE_IT_IS_BACK + 1));
+    }
 
     @Test
     @Story("Waiting for a converter that dropped a connection")

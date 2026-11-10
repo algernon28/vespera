@@ -100,6 +100,27 @@ class UnreadableFloorsTest {
     }
 
     @Test
+    @Story("A mistyped threshold costs the value, never the invocation")
+    @DisplayName("A mistyped conversion-quality floor still lets the tool start")
+    void aMistypedConfidenceFloorStillStarts(@TempDir Path workingDirectory) {
+        ProfileStore profileStore = new ProfileStore(workingDirectory);
+        profileStore.save(ProfileFixture.profile()
+                .degenerateOutputConfidenceFloor(A_DECIMAL_COMMA, WHY)
+                .build());
+        ExtractionJobConfiguration configuration = new ExtractionJobConfiguration();
+
+        claim(
+                "reading the floor does not raise, and that matters more here than anywhere else: this"
+                        + " value is read while the tool is still wiring itself up, so a single mistyped"
+                        + " character used to mean the tool would not start -- no invocation, no report,"
+                        + " and no line naming the key that stopped it. And no floor is applied, which is how"
+                        + " this key ships and how every corpus runs before anyone has measured a distribution"
+                        + " to set it from",
+                () -> assertThat(configuration.degenerateOutputConfidenceFloor(profileStore).value())
+                        .isNull());
+    }
+
+    @Test
     @Story("Two readers of one value never disagree about it")
     @DisplayName("A mistyped relevance floor reads the same to the step and to the record of the work")
     void theStepAndTheRunIdentityAgree(@TempDir Path workingDirectory) {

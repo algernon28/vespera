@@ -2,6 +2,7 @@ package io.algernon.vespera.engine.similarity;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.ledger.Ledger;
@@ -18,6 +19,7 @@ import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.OptionalLong;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -68,6 +70,19 @@ class DocumentFrequencyTest {
 
     @Test
     @Story("Document frequency over stage-2 survivors")
+    @DisplayName("A shingle hash seen in exactly one surviving document gets no row")
+    void aSingletonHashGetsNoRow() {
+        Fixture fixture = fixture();
+        RunId stage3RunId = fixture.measure();
+
+        claim(
+                "an absent row means exactly one surviving document, never zero -- so the singleton hash"
+                        + " earns nothing here",
+                () -> assertThat(documentFrequencyRow(stage3RunId, SINGLETON_HASH)).isNull());
+    }
+
+    @Test
+    @Story("Document frequency over stage-2 survivors")
     @DisplayName("A shingle hash seen in two or more surviving documents gets one row with distinct and total counts")
     void aSharedHashGetsOneRowWithCorrectCounts() {
         Fixture fixture = fixture();
@@ -102,6 +117,21 @@ class DocumentFrequencyTest {
     }
 
     @Test
+    @Story("Document frequency over stage-2 survivors")
+    @DisplayName("A partial_success occurrence's shingles are included, the same as any other survivor")
+    void aPartialSuccessOccurrenceIsIncluded() {
+        Fixture fixture = fixture();
+        partialSuccess(fixture.lonelySurvivor, fixture.stage2RunId);
+        RunId stage3RunId = fixture.measure();
+
+        claim(
+                "the lone survivor was converted only in part and carries no verdict, so it is a survivor"
+                        + " like an unconditional success: the corpus size counts it with the two others,"
+                        + " three shingled documents",
+                () -> assertThat(corpusSize(stage3RunId, PARAMETER_IDENTITY)).isEqualTo(3));
+    }
+
+    @Test
     @Story("The denominator a future proportion is computed against")
     @DisplayName("The corpus-size denominator equals the stage-2 survivors carrying at least one shingle")
     void corpusSizeIsTheSurvivorsWithAtLeastOneShingle() {
@@ -113,6 +143,121 @@ class DocumentFrequencyTest {
                         + " share " + SHARED_HASH + "/" + SINGLETON_HASH + " and the lone one carrying "
                         + ANOTHER_SINGLETON_HASH + " -- while the two blocked occurrences never enter this count",
                 () -> assertThat(corpusSize(stage3RunId, PARAMETER_IDENTITY)).isEqualTo(3));
+    }
+
+    @Test
+    @Story("Stage 3 measures; it does not judge")
+    @DisplayName("Stage 3 writes no verdict of any kind")
+    void writesNoVerdict() {
+        Fixture fixture = fixture();
+        long verdictsBefore = countVerdicts();
+
+        fixture.measure();
+
+        claim(
+                "the verdict table gains no rows from this run -- stage 3 measures document frequency, it"
+                        + " renders no judgement",
+                () -> assertThat(countVerdicts()).isEqualTo(verdictsBefore));
+    }
+
+    /**
+     * The bound stage 3 states before it reads a run's shingle rows (ADR-191 sections 2 and 3): the span
+     * of the rowids that run wrote, greatest less least plus one. It is the run's own, not the table's,
+     * so the run asked about is written second, after another run's rows.
+     */
+    @Test
+    @Story("How many rows a measurement is about to read")
+    @DisplayName("The most rows a run can hold is its own count where it was written in one stretch, and less than the table's")
+    @Issue("410")
+    @Link(name = "ADR-191", url = Adr.STAGE_3_SAYS_HOW_MANY_SHINGLE_ROWS_IT_IS_ABOUT_TO_READ, type = "adr")
+    void theBoundForARunWrittenInOneStretchIsItsOwnRowCount() {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus-bound-one-stretch"));
+        OccurrenceId occurrence = occurrence(ledger, walkId, "one.txt");
+        RunId earlier = ledger.runs().startRun("extraction", "earlier-build", "{}", walkId, List.of());
+        RunId later = ledger.runs().startRun("extraction", "later-build", "{}", walkId, List.of());
+        assumeTrue(!later.equals(earlier), "the fixture holds two different runs");
+        writeRows(occurrence, earlier, ROWS_OF_THE_EARLIER_RUN);
+        writeRows(occurrence, later, ROWS_OF_THE_LATER_RUN);
+
+        OptionalLong bound = new DocumentFrequency(jdbcTemplate, ledger).shingleRowsUpTo(later);
+
+        claim(
+                "the later run was written in one stretch, so the most rows it can hold is the "
+                        + ROWS_OF_THE_LATER_RUN + " it does hold, not the table's " + (ROWS_OF_THE_EARLIER_RUN
+                        + ROWS_OF_THE_LATER_RUN) + " that count the earlier run's " + ROWS_OF_THE_EARLIER_RUN
+                        + " too",
+                () -> assertThat(bound).hasValue(ROWS_OF_THE_LATER_RUN));
+    }
+
+    @Test
+    @Story("How many rows a measurement is about to read")
+    @DisplayName("A run that saved no rows has no most to state")
+    @Issue("410")
+    @Link(name = "ADR-191", url = Adr.STAGE_3_SAYS_HOW_MANY_SHINGLE_ROWS_IT_IS_ABOUT_TO_READ, type = "adr")
+    void theBoundForARunWithNoShingleRowIsEmpty() {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus-bound-no-rows"));
+        OccurrenceId occurrence = occurrence(ledger, walkId, "one.txt");
+        RunId withRows = ledger.runs().startRun("extraction", "earlier-build", "{}", walkId, List.of());
+        RunId withNone = ledger.runs().startRun("extraction", "later-build", "{}", walkId, List.of());
+        writeRows(occurrence, withRows, ROWS_OF_THE_EARLIER_RUN);
+
+        OptionalLong bound = new DocumentFrequency(jdbcTemplate, ledger).shingleRowsUpTo(withNone);
+
+        claim(
+                "the table holds another run's rows and none of this run's, so there is nothing to wait for"
+                        + " and no number to state",
+                () -> assertThat(bound).isEmpty());
+    }
+
+    /**
+     * Why the line says "up to": a run that was stopped, and resumed after another run had written, has
+     * the other run's rows between its own, and the span takes them in.
+     */
+    @Test
+    @Story("How many rows a measurement is about to read")
+    @DisplayName("A run another run wrote in between is given more than it holds, never less")
+    @Issue("410")
+    @Link(name = "ADR-191", url = Adr.STAGE_3_SAYS_HOW_MANY_SHINGLE_ROWS_IT_IS_ABOUT_TO_READ, type = "adr")
+    void theBoundForARunAnotherRunWroteInBetweenIsMoreThanItsRowCount() {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus-bound-interleaved"));
+        OccurrenceId occurrence = occurrence(ledger, walkId, "one.txt");
+        RunId resumed = ledger.runs().startRun("extraction", "earlier-build", "{}", walkId, List.of());
+        RunId between = ledger.runs().startRun("extraction", "later-build", "{}", walkId, List.of());
+        writeRows(occurrence, resumed, ROWS_OF_THE_EARLIER_RUN);
+        writeRows(occurrence, between, ROWS_OF_THE_LATER_RUN);
+        writeRows(occurrence, resumed, ROWS_OF_THE_EARLIER_RUN);
+
+        OptionalLong bound = new DocumentFrequency(jdbcTemplate, ledger).shingleRowsUpTo(resumed);
+
+        long held = 2L * ROWS_OF_THE_EARLIER_RUN;
+        assumeTrue(rowsOf(resumed) == held, "the run holds two stretches of its own rows");
+        claim(
+                "the most it is said to hold takes in the " + ROWS_OF_THE_LATER_RUN + " rows the other run wrote"
+                        + " between the two stretches, so it is an upper limit and not a count",
+                () -> assertThat(bound).hasValue(held + ROWS_OF_THE_LATER_RUN));
+    }
+
+    /** How many shingle rows the bound's tests write under the run written first. */
+    private static final long ROWS_OF_THE_EARLIER_RUN = 3;
+
+    /** How many they write under the run written second: a different number, so the two are told apart. */
+    private static final long ROWS_OF_THE_LATER_RUN = 4;
+
+    /** Writes {@code rows} shingle rows for {@code occurrenceId} under {@code runId}, each with a hash of its own. */
+    private void writeRows(OccurrenceId occurrenceId, RunId runId, long rows) {
+        for (long row = 0; row < rows; row++) {
+            shingle(occurrenceId, runId, row);
+        }
+    }
+
+    /** How many rows {@code runId} holds in {@code shingle}, counted. */
+    private long rowsOf(RunId runId) {
+        Long rows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM shingle WHERE run_id = ?", Long.class, runId.value());
+        return rows == null ? 0 : rows;
     }
 
     /** One walk, one stage-2 run, and the occurrences/shingle rows every test above shares. */
@@ -189,6 +334,16 @@ class DocumentFrequencyTest {
                 hash);
     }
 
+    /** Stage 2's metrics row for an occurrence Docling converted only in part, with no verdict beside it. */
+    private void partialSuccess(OccurrenceId occurrenceId, RunId stage2RunId) {
+        jdbcTemplate.update(
+                "INSERT INTO extraction_metric (occurrence_id, run_id, status, processing_time, character_count,"
+                        + " alphanumeric_char_count, word_count, word_character_length_total, vowelless_word_count,"
+                        + " single_character_word_count) VALUES (?, ?, 'partial_success', 1.0, 10, 10, 2, 10, 0, 0)",
+                occurrenceId.value(),
+                stage2RunId.value());
+    }
+
     private Row documentFrequencyRow(RunId runId, long hash) {
         return jdbcTemplate
                 .query(
@@ -215,6 +370,11 @@ class DocumentFrequencyTest {
                 .stream()
                 .findFirst()
                 .orElse(null);
+    }
+
+    private long countVerdicts() {
+        Long count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM verdict", Long.class);
+        return count == null ? 0 : count;
     }
 
     private record Row(int documentCount, int totalCount) {}

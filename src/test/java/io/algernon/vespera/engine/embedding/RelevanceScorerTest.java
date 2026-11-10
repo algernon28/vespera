@@ -31,6 +31,9 @@ class RelevanceScorerTest {
     /** The mean ADR-020 chose, which is what the application ships (vespera.relevance.top-similarities). */
     private static final int TOP_THREE = 3;
 
+    /** Seed A's top three pooled similarities, 1.0, 0.8 and 0.8, averaged by hand. */
+    private static final double SEED_A_POOLED_TOP_THREE_MEAN = 13.0 / 15.0;
+
     private static final OccurrenceId SEED_A = new OccurrenceId(1L);
     private static final OccurrenceId SEED_B = new OccurrenceId(2L);
 
@@ -62,6 +65,23 @@ class RelevanceScorerTest {
     }
 
     @Test
+    @Story("The score is the mean of the top 3, not the top 1 or the whole set")
+    @DisplayName("A fourth, weaker similarity against the winning seed does not lower its mean")
+    void onlyTheTopThreeSimilaritiesEnterTheMean() {
+        // Four chunks under one seed: the top 3 (0.9, 0.8, 0.7) mean to 0.8; a fourth similarity of
+        // 0.1 would drag a whole-set mean down to 0.625 if it were included.
+        List<float[]> seed = List.of(unit(0.9f), unit(0.8f), unit(0.7f), unit(0.1f));
+        List<float[]> survivorChunks = List.of(axisAligned());
+
+        RelevanceScore result = scorer.score(survivorChunks, Map.of(SEED_A, seed), TOP_THREE);
+
+        claim(
+                "the score is the top-3 mean of 0.8, not the four-similarity mean of 0.625 a whole-set"
+                        + " average would produce",
+                () -> assertThat(result.score()).isCloseTo(0.8, offset(1e-6)));
+    }
+
+    @Test
     @Story("Scoring against no resident seed has no maximum to take")
     @DisplayName("Scoring with an empty seed map fails loudly rather than returning a meaningless maximum")
     void scoringWithNoResidentSeedFails() {
@@ -72,6 +92,77 @@ class RelevanceScorerTest {
                         + " than silently returning a score against nothing",
                 () -> assertThatThrownBy(() -> scorer.score(survivorChunks, Map.of(), TOP_THREE))
                         .isInstanceOf(IllegalStateException.class));
+    }
+
+    /** No mean can be taken of no similarities, and it is this module's to refuse (ADR-330 §9). */
+    @Test
+    @Story("The score is the mean of as many similarities as it is asked for")
+    @DisplayName("A score of no similarities is refused")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void aScoreOfNoSimilaritiesIsRefused() {
+        List<float[]> seed = List.of(unit(0.9f));
+        List<float[]> survivorChunks = List.of(axisAligned());
+
+        for (int noSimilarities : List.of(0, -1)) {
+            claim("asked for " + noSimilarities + " similarities, it refuses rather than answering with no mean",
+                    () -> assertThatThrownBy(() -> scorer.score(survivorChunks, Map.of(SEED_A, seed), noSimilarities))
+                            .isInstanceOf(IllegalArgumentException.class));
+        }
+    }
+
+    /**
+     * The number is what is given and not a constant of the class (ADR-330 §8): the same chunks, the same seed, a mean
+     * of one and a mean of two, so a scorer that ignored its number would give each the top-three mean.
+     */
+    @Test
+    @Story("The score is the mean of as many similarities as it is asked for")
+    @DisplayName("Asked for another number of similarities, the score is the mean of that many")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void theMeanIsOfTheNumberItIsGiven() {
+        List<float[]> seed = List.of(unit(0.9f), unit(0.8f), unit(0.7f), unit(0.1f));
+        List<float[]> survivorChunks = List.of(axisAligned());
+
+        claim(
+                "asked for the top one, the score is the single best similarity, 0.9",
+                () -> assertThat(scorer.score(survivorChunks, Map.of(SEED_A, seed), 1).score())
+                        .isCloseTo(0.9, offset(1e-6)));
+        claim(
+                "asked for the top two, it is the mean of 0.9 and 0.8, 0.85",
+                () -> assertThat(scorer.score(survivorChunks, Map.of(SEED_A, seed), 2).score())
+                        .isCloseTo(0.85, offset(1e-6)));
+        claim(
+                "asked for more than there are pairs, it is the mean of all four, 0.625, and not a mean over empty places",
+                () -> assertThat(scorer.score(survivorChunks, Map.of(SEED_A, seed), 9).score())
+                        .isCloseTo(0.625, offset(1e-6)));
+    }
+
+    /**
+     * ADR-020 as amended by ADR-330: the top similarities are pooled across every survivor chunk against every chunk of
+     * one seed, cosine (not raw dot product, so the vectors here are deliberately not unit length), and the score is
+     * the maximum over seeds. Survivor chunks point along x and y; seed A's chunks along (0.8, 0.6), y and (-0.6, 0.8);
+     * seed B's along (0.6, 0.8) and (-0.8, 0.6). Seed A's six similarities are 0.8, 0, -0.6 (first survivor chunk) and
+     * 0.6, 1.0, 0.8 (second), top three 1.0, 0.8, 0.8, mean 13/15. Seed B's are 0.6, -0.8 and 0.8, 0.6, top three
+     * 0.8, 0.6, 0.6, mean 2/3. Reading only one survivor chunk gives 1/15 or 0.8; a mean of each survivor chunk's best
+     * gives 0.9; the minimum over seeds gives 2/3.
+     */
+    @Test
+    @Story("The top similarities are pooled across every chunk of the survivor, and the best seed's mean is the score")
+    @DisplayName("Two seeds against a survivor of two chunks score the best seed's mean of the top three pooled pairs")
+    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
+    void theTopSimilaritiesArePooledAcrossSurvivorChunksAndTheBestSeedWins() {
+        List<float[]> survivorChunks = List.of(new float[] {3f, 0f}, new float[] {0f, 2f});
+        List<float[]> seedA = List.of(new float[] {4f, 3f}, new float[] {0f, 5f}, new float[] {-3f, 4f});
+        List<float[]> seedB = List.of(new float[] {3f, 4f}, new float[] {-4f, 3f});
+
+        RelevanceScore result = scorer.score(survivorChunks, Map.of(SEED_A, seedA, SEED_B, seedB), TOP_THREE);
+
+        claim(
+                "the score is seed A's mean of 1.0, 0.8 and 0.8, taken from both survivor chunks, 13/15 -- not 0.8 or"
+                        + " 1/15 from one survivor chunk alone, 0.9 from each chunk's best, nor seed B's 2/3",
+                () -> assertThat(result.score()).isCloseTo(SEED_A_POOLED_TOP_THREE_MEAN, offset(1e-6)));
+        claim(
+                "the winning seed is seed A, whose mean is the higher of the two",
+                () -> assertThat(result.winningSeedOccurrenceId()).isEqualTo(SEED_A));
     }
 
     /**

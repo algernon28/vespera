@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.abort;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.ledger.OccurrencePath.Result;
@@ -38,6 +39,7 @@ import org.junit.jupiter.api.Test;
 class OccurrencePathTest {
 
     private static final Path ROOT = Path.of("D:", "Archive");
+    private static final boolean WINDOWS = System.getProperty("os.name", "").startsWith("Windows");
 
     /** The legacy Windows path ceiling, which the stored form is not bound by. */
     private static final int MAX_PATH = 260;
@@ -45,20 +47,23 @@ class OccurrencePathTest {
     /** Segments of this length, repeated, take the test path past {@link #MAX_PATH}. */
     private static final int SEGMENT_LENGTH = 60;
 
-    private static final String DOTLESS_I = ch(0x0131);   // dotless i -- the JDK upper-cases this to I
-    private static final String MICRO_SIGN = ch(0x00B5);  // micro sign -- the JDK folds this onto greek mu
-    private static final String GREEK_MU = ch(0x03BC);
-    private static final String E_ACUTE = ch(0x00E9);     // e acute, composed
+    private static final String DOTLESS_I = ch(0x0131);   // ı — the JDK upper-cases this to I
+    private static final String MICRO_SIGN = ch(0x00B5);  // µ — the JDK folds this onto greek mu
+    private static final String GREEK_MU = ch(0x03BC);    // μ
+    private static final String E_ACUTE = ch(0x00E9);     // é, composed
     private static final String COMBINING_ACUTE = ch(0x0301);
+    private static final String GRINNING_FACE = new String(Character.toChars(0x1F600));
     private static final String LONE_HIGH_SURROGATE = ch(0xD800);
+    private static final String LONE_LOW_SURROGATE = ch(0xDC00);
 
     private static String ch(int codePoint) {
         return String.valueOf((char) codePoint);
     }
 
     /**
-     * Non-ASCII rendered as code points, so that a failure message is legible: "expected X but was X"
-     * over two names that look alike tells nobody anything.
+     * Non-ASCII rendered as code points. Assertions compare these renderings so that a failure
+     * message is legible in a terminal or a report: an emoji or a lone surrogate printed raw is
+     * either unreadable or invisible, and "expected X but was X" tells nobody anything.
      */
     private static String readable(String value) {
         StringBuilder out = new StringBuilder();
@@ -79,26 +84,20 @@ class OccurrencePathTest {
      * The same, for a name this filesystem may refuse to make a {@link Path} of at all.
      *
      * <p>An unpaired surrogate is a valid NTFS name, and on NTFS these cases are real. Elsewhere the
-     * JDK throws before any file is touched, as it does for any name outside the platform's encoding
-     * where that encoding is not Unicode (a POSIX locale's ASCII). A test that cannot even name its
-     * subject has nothing to say about how the subject is relativized. Aborting keeps that honest: the
-     * case is checked where it exists (ADR-065) and skipped, loudly, where it cannot be built.
+     * JDK throws before any file is touched, and a test that cannot even name its subject has
+     * nothing to say about how the subject is relativized. Aborting keeps that honest: the case is
+     * checked where it exists (ADR-065) and skipped, loudly, where it cannot be built.
      */
     private static Path resolveOrAbort(String... more) {
         try {
             return resolve(more);
         } catch (InvalidPathException e) {
-            return abort("this filesystem will not name " + readable(String.join("/", more)) + ": "
-                    + e.getMessage());
+            return abort("this filesystem will not name a file with an unpaired surrogate: " + e.getMessage());
         }
     }
 
     private static String stored(String... more) {
-        return stored(resolve(more));
-    }
-
-    private static String stored(Path path) {
-        Result result = OccurrencePath.relativize(ROOT, path);
+        Result result = OccurrencePath.relativize(ROOT, resolve(more));
         assertThat(result).isInstanceOf(Stored.class);
         return ((Stored) result).path().value();
     }
@@ -119,52 +118,50 @@ class OccurrencePathTest {
     @DisplayName("A path past the legacy Windows limit is stored, not truncated")
     void acceptsAPathLongerThanTheLegacyWindowsLimit() {
         String segment = "x".repeat(SEGMENT_LENGTH);
-        String whole = String.join("/", segment, segment, segment, segment, segment, "leaf.txt");
         String value = stored(segment, segment, segment, segment, segment, "leaf.txt");
         claim(
                 "five " + SEGMENT_LENGTH + "-character segments and a leaf exceed the " + MAX_PATH
-                        + "-character legacy MAX_PATH, and are stored whole, every one of their " + whole.length()
-                        + " characters",
-                () -> {
-                    assertThat(whole.length()).isGreaterThan(MAX_PATH);
-                    assertThat(value).isEqualTo(whole);
-                });
+                        + "-character legacy MAX_PATH, and are stored whole",
+                () -> assertThat(value.length()).isGreaterThan(MAX_PATH));
+    }
+
+    @Test
+    @Story("Distinct files stay distinct")
+    @DisplayName("Case is preserved exactly as observed")
+    void preservesCaseExactlyAsObserved() {
+        claim(
+                "the upper-case name Reports/Q1.PDF is stored with its case untouched",
+                () -> assertThat(stored("Reports", "Q1.PDF")).isEqualTo("Reports/Q1.PDF"));
+        claim(
+                "the lower-case name reports/q1.pdf is stored with its case untouched",
+                () -> assertThat(stored("reports", "q1.pdf")).isEqualTo("reports/q1.pdf"));
     }
 
     /**
-     * Why comparison is exact rather than case-folded: the JDK's folding table disagrees with NTFS. U+0131
-     * and I, and U+00B5 and U+03BC, compare equal as {@link Path}s on Windows and are distinct files on disk,
-     * so any fold would merge two different files into one occurrence. The claims hold each name exactly as
-     * observed, which no fold leaves standing, on any platform.
+     * Why comparison is byte-exact rather than case-folded: the JDK's folding table disagrees
+     * with NTFS. These pairs compare equal as {@link Path}s and are distinct files on disk, so
+     * folding would merge two different files into one occurrence.
      */
     @Test
     @Story("Distinct files stay distinct")
-    @DisplayName("Case is preserved exactly as observed, including the case pairs the JDK wrongly folds")
-    void preservesCaseExactlyAsObserved() {
-        Path dotlessI = resolveOrAbort(DOTLESS_I + ".txt");
-        Path microSign = resolveOrAbort(MICRO_SIGN + ".txt");
-        Path greekMu = resolveOrAbort(GREEK_MU + ".txt");
+    @DisplayName("Case pairs the JDK wrongly folds are kept apart")
+    void keepsApartTheCasePairsTheJdkWronglyFolds() {
+        assumeTrue(WINDOWS, "Path.equals only folds case on Windows");
+
         claim(
-                "the upper-case name Reports/Q1.PDF and the lower-case name reports/q1.pdf are each stored with"
-                        + " their case untouched",
-                () -> {
-                    assertThat(stored("Reports", "Q1.PDF")).isEqualTo("Reports/Q1.PDF");
-                    assertThat(stored("reports", "q1.pdf")).isEqualTo("reports/q1.pdf");
-                });
+                "precondition: the JDK treats U+0131 (dotless i) and I as the same path, though NTFS holds two files",
+                () -> assertThat(resolve(DOTLESS_I + ".txt")).isEqualTo(resolve("I.txt")));
         claim(
-                "U+0131 (dotless i) and I are each stored exactly as observed, so they are two occurrences,"
-                        + " because NTFS holds two different files",
-                () -> {
-                    assertThat(readable(stored(dotlessI))).isEqualTo(readable(DOTLESS_I + ".txt"));
-                    assertThat(readable(stored("I.txt"))).isEqualTo("I.txt");
-                });
+                "precondition: the JDK treats U+00B5 (micro sign) and U+03BC (greek mu) as the same path",
+                () -> assertThat(resolve(MICRO_SIGN + ".txt")).isEqualTo(resolve(GREEK_MU + ".txt")));
+
         claim(
-                "U+00B5 (micro sign) and U+03BC (greek mu) are each stored exactly as observed, for the same"
-                        + " reason",
-                () -> {
-                    assertThat(readable(stored(microSign))).isEqualTo(readable(MICRO_SIGN + ".txt"));
-                    assertThat(readable(stored(greekMu))).isEqualTo(readable(GREEK_MU + ".txt"));
-                });
+                "U+0131 and I are stored as two different occurrences, because NTFS holds two different files",
+                () -> assertThat(readable(stored(DOTLESS_I + ".txt"))).isNotEqualTo(readable(stored("I.txt"))));
+        claim(
+                "U+00B5 and U+03BC are stored as two different occurrences, for the same reason",
+                () -> assertThat(readable(stored(MICRO_SIGN + ".txt")))
+                        .isNotEqualTo(readable(stored(GREEK_MU + ".txt"))));
     }
 
     /** NTFS normalises nothing, so a composed and a decomposed name are two different files. */
@@ -174,18 +171,27 @@ class OccurrencePathTest {
     void keepsComposedAndDecomposedFormsApart() {
         String composed = "caf" + E_ACUTE + ".txt";
         String decomposed = "cafe" + COMBINING_ACUTE + ".txt";
-        Path composedPath = resolveOrAbort(composed);
-        Path decomposedPath = resolveOrAbort(decomposed);
+
+        assumeTrue(
+                !composed.equals(decomposed),
+                "cafe with U+00E9 and cafe with e + U+0301 are different strings, though they look alike");
+        claim(
+                "the two forms are stored as two different occurrences, because NTFS holds two different files",
+                () -> assertThat(readable(stored(composed))).isNotEqualTo(readable(stored(decomposed))));
+        claim(
+                "neither form is normalised on the way in: what was observed is what is stored",
+                () -> assertThat(readable(stored(composed))).isEqualTo(readable(composed)));
+    }
+
+    @Test
+    @Story("Distinct files stay distinct")
+    @DisplayName("A well-formed astral character survives the round trip")
+    void acceptsWellFormedAstralCharacters() {
+        String name = "pair-" + GRINNING_FACE + ".txt";
 
         claim(
-                "neither form is normalised on the way in: cafe with U+00E9 and cafe with e + U+0301 are each"
-                        + " stored exactly as observed, so they are two occurrences, because NTFS holds two"
-                        + " different files",
-                () -> {
-                    assertThat(readable(stored(composedPath))).isEqualTo(readable(composed));
-                    assertThat(readable(stored(decomposedPath))).isEqualTo(readable(decomposed));
-                    assertThat(readable(composed)).isNotEqualTo(readable(decomposed));
-                });
+                "U+1F600 is a well-formed surrogate pair, so it encodes in UTF-8 and is stored unchanged",
+                () -> assertThat(readable(stored(name))).isEqualTo(readable(name)));
     }
 
     /**
@@ -211,12 +217,33 @@ class OccurrencePathTest {
     }
 
     @Test
+    @Story("Names that cannot survive UTF-8")
+    @DisplayName("An unpaired low surrogate is refused on the same grounds")
+    void refusesAnUnpairedLowSurrogateToo() {
+        Result result = OccurrencePath.relativize(ROOT, resolveOrAbort("orphan-" + LONE_LOW_SURROGATE + ".txt"));
+
+        claim(
+                "the low half of a pair, U+DC00, is as unstorable alone as the high half",
+                () -> assertThat(result).isInstanceOf(Unstorable.class));
+    }
+
+    @Test
     @Story("The corpus root bounds what is recorded")
     @DisplayName("An entry outside the corpus root is rejected")
     void rejectsAnEntryOutsideTheCorpusRoot() {
         claim(
                 "D:/Elsewhere/file.txt lies outside the root D:/Archive, so it has no stored form relative to it",
                 () -> assertThatThrownBy(() -> OccurrencePath.relativize(ROOT, Path.of("D:", "Elsewhere", "file.txt")))
+                        .isInstanceOf(IllegalArgumentException.class));
+    }
+
+    @Test
+    @Story("The corpus root bounds what is recorded")
+    @DisplayName("The root itself is rejected, being no entry beneath it")
+    void rejectsTheRootItselfBecauseItIsNotAnEntryBeneathIt() {
+        claim(
+                "the root is not a file occurrence, so relativizing it against itself is refused",
+                () -> assertThatThrownBy(() -> OccurrencePath.relativize(ROOT, ROOT))
                         .isInstanceOf(IllegalArgumentException.class));
     }
 }

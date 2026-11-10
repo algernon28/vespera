@@ -30,10 +30,16 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 
 /**
- * One bound of the table of refusals in ADR-330 §9, held of the whole job: a value named by configuration that no run
- * can be made under stops {@code vespera run} at its start, in the record's one line and with no stack trace, no run
- * made; and the same value stands aside when the profile names another. Each class nested here is a context of its own,
- * because the configuration is a property of the context.
+ * Every bound of the table of refusals in ADR-330 §9 not already held by a class of its own: a value named by
+ * configuration that no run can be made under stops {@code vespera run} at its start, in the record's one line and with
+ * no stack trace, no run made.
+ *
+ * <p>{@code AnOcrPresetTheConverterWouldResolveIsRefusedInvocationTest}, {@code
+ * MinHashBandsThatDoNotMakeItsPermutationsAreRefusedInvocationTest} and {@code
+ * ARelevanceScoreOfNoSimilaritiesIsRefusedInvocationTest} hold {@code auto}, bands times rows and no similarities. Each
+ * class nested here is a context of its own, because the configuration is a property of the context; what each adds is
+ * its value and its line. A value that is no number stands among them: it is refused by the same line, so it reaches
+ * the check at the start and is not a failure of the context to bind it.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -45,6 +51,29 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
 
     /** What a stack frame looks like in the output, which a refusal in one line does not print. */
     private static final String A_STACK_FRAME = "\tat ";
+
+    /** The line of a count that must be a whole number from 1 to the most an int holds. */
+    private static String aWholeNumber(String key, String value) {
+        return key + " is " + value + ": a whole number from 1 to 2147483647";
+    }
+
+    /** The line of a cut that must be above 0 and at most 1. */
+    private static String aCut(String key, String value) {
+        return key + " is " + value + ": a number above 0 and at most 1";
+    }
+
+    /** The line of the timeouts in a row. */
+    private static String theTimeouts(String value) {
+        return "vespera.docling.timeouts-in-a-row is " + value + ": a whole number from 2 to 4, so that one slow"
+                + " document can still earn its verdict and the count stays below the five failures in a row that stop"
+                + " the step";
+    }
+
+    /** The line of an OCR preset. */
+    private static String theOcrPreset(String value) {
+        return "vespera.docling.ocr-preset is \"" + value + "\": one preset's name, of letters, digits, '-', '_' and"
+                + " '.', and never auto, which the converter resolves where nothing records it";
+    }
 
     @TempDir
     static Path workingDirectory;
@@ -123,7 +152,266 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
 
     }
 
-    // ---- where nothing is refused
+    @Nested
+    @TestPropertySource(properties = "vespera.clustering.resolution=NaN")
+    @DisplayName("A resolution that is no finite number")
+    class AResolutionThatIsNoFiniteNumber extends Refused {
+        @Override
+        String theLine() {
+            return "vespera.clustering.resolution is NaN: a number above 0";
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.clustering.resolution=fine")
+    @DisplayName("A resolution that is no number")
+    class AResolutionThatIsNoNumber extends Refused {
+        @Override
+        String theLine() {
+            return "vespera.clustering.resolution is fine: a number above 0";
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.clustering.neighbours=3000000000")
+    @DisplayName("More neighbours than a whole number here can hold")
+    class MoreNeighboursThanAWholeNumberHolds extends Refused {
+        @Override
+        String theLine() {
+            return aWholeNumber("vespera.clustering.neighbours", "3000000000");
+        }
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.clustering.neighbours=0")
+    @DisplayName("No neighbours")
+    class NoNeighbours extends Refused {
+        @Override
+        String theLine() {
+            return aWholeNumber("vespera.clustering.neighbours", "0");
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.clustering.neighbours=1.5")
+    @DisplayName("Neighbours that are no whole number")
+    class NeighboursThatAreNoWholeNumber extends Refused {
+        @Override
+        String theLine() {
+            return aWholeNumber("vespera.clustering.neighbours", "1.5");
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.relevance.sample.bands=0")
+    @DisplayName("A sample of no bands")
+    class ASampleOfNoBands extends Refused {
+        @Override
+        String theLine() {
+            return aWholeNumber("vespera.relevance.sample.bands", "0");
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.relevance.sample.per-band=0")
+    @DisplayName("A sample of nothing from each band")
+    class ASampleOfNothingFromEachBand extends Refused {
+        @Override
+        String theLine() {
+            return aWholeNumber("vespera.relevance.sample.per-band", "0");
+        }
+
+    }
+
+    // ---- the extraction run
+
+    @Nested
+    @TestPropertySource(properties = "vespera.docling.ocr-preset=")
+    @DisplayName("A blank OCR preset")
+    class ABlankOcrPreset extends Refused {
+        @Override
+        String theLine() {
+            return theOcrPreset("");
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.docling.ocr-preset=a;b")
+    @DisplayName("An OCR preset that would misread in the extractor identity")
+    class AnOcrPresetThatWouldMisreadInTheIdentity extends Refused {
+        @Override
+        String theLine() {
+            return theOcrPreset("a;b");
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.docling.timeouts-in-a-row=1")
+    @DisplayName("One timeout in a row, below the bound")
+    class OneTimeoutInARow extends Refused {
+        @Override
+        String theLine() {
+            return theTimeouts("1");
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.docling.timeouts-in-a-row=5")
+    @DisplayName("Five timeouts in a row, above the bound")
+    class FiveTimeoutsInARow extends Refused {
+        @Override
+        String theLine() {
+            return theTimeouts("5");
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.redundancy.shingle-words=0")
+    @DisplayName("A shingle of no words")
+    class AShingleOfNoWords extends Refused {
+        @Override
+        String theLine() {
+            return aWholeNumber("vespera.redundancy.shingle-words", "0");
+        }
+
+    }
+
+    // ---- the content-redundancy run
+
+    @Nested
+    @TestPropertySource(properties = "vespera.redundancy.minhash.permutations=0")
+    @DisplayName("No permutations")
+    class NoPermutations extends Refused {
+        @Override
+        String theLine() {
+            return aWholeNumber("vespera.redundancy.minhash.permutations", "0");
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.redundancy.minhash.bands=0")
+    @DisplayName("No bands of a signature")
+    class NoBandsOfASignature extends Refused {
+        @Override
+        String theLine() {
+            return aWholeNumber("vespera.redundancy.minhash.bands", "0");
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.redundancy.minhash.rows-per-band=0")
+    @DisplayName("No rows in a band of a signature")
+    class NoRowsInABand extends Refused {
+        @Override
+        String theLine() {
+            return aWholeNumber("vespera.redundancy.minhash.rows-per-band", "0");
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.redundancy.minhash.seed=9223372036854775808")
+    @DisplayName("A seed one past what a long holds")
+    class ASeedPastALong extends Refused {
+        @Override
+        String theLine() {
+            return "vespera.redundancy.minhash.seed is 9223372036854775808: a whole number from -9223372036854775808"
+                    + " to 9223372036854775807";
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.redundancy.near-duplicate-jaccard=0")
+    @DisplayName("A near-duplicate cut of 0, which would judge every pair")
+    class ANearDuplicateCutOfZero extends Refused {
+        @Override
+        String theLine() {
+            return aCut("vespera.redundancy.near-duplicate-jaccard", "0");
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.redundancy.near-duplicate-jaccard=1.5")
+    @DisplayName("A near-duplicate cut above 1, which would judge no pair")
+    class ANearDuplicateCutAboveOne extends Refused {
+        @Override
+        String theLine() {
+            return aCut("vespera.redundancy.near-duplicate-jaccard", "1.5");
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.redundancy.containment-index=0")
+    @DisplayName("A containment cut of 0")
+    class AContainmentCutOfZero extends Refused {
+        @Override
+        String theLine() {
+            return aCut("vespera.redundancy.containment-index", "0");
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.redundancy.containment-index=1.5")
+    @DisplayName("A containment cut above 1")
+    class AContainmentCutAboveOne extends Refused {
+        @Override
+        String theLine() {
+            return aCut("vespera.redundancy.containment-index", "1.5");
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.redundancy.rare-shingle-sample=0")
+    @DisplayName("A sample of no rare shingles, which is named before the hits it would also leave without a sample")
+    class ASampleOfNoRareShingles extends Refused {
+        @Override
+        String theLine() {
+            return aWholeNumber("vespera.redundancy.rare-shingle-sample", "0");
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.redundancy.rare-shingle-hits=0")
+    @DisplayName("No hits among the rare shingles")
+    class NoHitsAmongTheRareShingles extends Refused {
+        @Override
+        String theLine() {
+            return "vespera.redundancy.rare-shingle-hits is 0: a whole number from 1 to"
+                    + " vespera.redundancy.rare-shingle-sample, 32";
+        }
+
+    }
+
+    @Nested
+    @TestPropertySource(properties = "vespera.redundancy.rare-shingle-hits=33")
+    @DisplayName("More hits than the sample of rare shingles")
+    class MoreHitsThanTheSample extends Refused {
+        @Override
+        String theLine() {
+            return "vespera.redundancy.rare-shingle-hits is 33: a whole number from 1 to"
+                    + " vespera.redundancy.rare-shingle-sample, 32";
+        }
+
+    }
+
+    // ---- where nothing is refused, or the file has already been written
 
     /** A resolution the profile stands in place of is used by no run, so nothing is refused of it. */
     @Nested
@@ -167,6 +455,37 @@ class APresetNoRunCanBeMadeUnderIsRefusedInvocationTest {
         @AfterEach
         void takeTheKeyOutOfTheProfile() throws IOException {
             Files.deleteIfExists(profileStore.file());
+        }
+    }
+
+    /** An invocation refused at its start writes no file (ADR-330 §1). */
+    @Nested
+    @TestPropertySource(properties = "vespera.relevance.top-similarities=0")
+    @DisplayName("A value refused at the start")
+    @Epic("Pipeline")
+    @Feature("What a piece of work is identified by")
+    class AValueRefusedAtTheStartWritesNoFile {
+
+        @Autowired
+        private VesperaCli cli;
+
+        @Autowired
+        private ProfileStore profileStore;
+
+        @Test
+        @Story("A value no run can be made under stops the invocation")
+        @DisplayName("The file of values the jar writes stays as the last invocation left it")
+        void leavesTheFileAsItWas() throws IOException {
+            everyGateOpen(profileStore);
+            Path file = workingDirectory.resolve("effective-values.properties");
+            Files.writeString(file, "left=by this test\n", StandardCharsets.UTF_8);
+
+            cli.run("run", root.toString());
+
+            claim("the invocation was stopped", () -> assertThat(cli.getExitCode()).isNotZero());
+            claim("and what this test left in the file is still all it holds, an invocation refused at its start"
+                            + " writing none",
+                    () -> assertThat(file).hasContent("left=by this test\n"));
         }
     }
 }

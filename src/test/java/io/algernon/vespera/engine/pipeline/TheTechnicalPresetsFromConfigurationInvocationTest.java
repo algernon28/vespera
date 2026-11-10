@@ -36,8 +36,10 @@ import org.yaml.snakeyaml.Yaml;
  * <p>Every value here differs from the shipped one and is one the record lets a run be made under. The corpus converts
  * to the one scripted text, whose shingles are boilerplate at every window, and their vectors are alike, so this class
  * holds what each run's identity says and the one band the sample falls in. That each number works in the step it names
- * is the business of {@code TheShingleWindowAndMinHashReachTheirRowsInvocationTest} and {@code
- * TheTimeoutsInARowConfiguredSetAnOccurrenceAsideInvocationTest}.
+ * is the business of {@code TheShingleWindowAndMinHashReachTheirRowsInvocationTest}, {@code
+ * AnotherCutLeavesThePairInvocationTest}, {@code AScoreIsTheMeanOfTheNumberConfiguredInvocationTest} and {@code
+ * TheTimeoutsInARowConfiguredSetAnOccurrenceAsideInvocationTest}; that the bands divide the draw is {@code
+ * TheSampleBandsReachTheDrawInvocationTest}'s.
  *
  * <p>{@code RunIdentityGoldenTest} holds the text of every run's identity with the presets at their shipped values, and
  * passes unchanged once they are presets: that is the claim that no recorded configuration moves.
@@ -85,6 +87,8 @@ class TheTechnicalPresetsFromConfigurationInvocationTest {
     private static final int CONFIGURED_BANDS_OF_THE_SAMPLE = 2;
 
     private static final int CONFIGURED_PER_BAND = 1;
+
+
 
     @TempDir
     static Path workingDirectory;

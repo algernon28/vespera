@@ -6,8 +6,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.corpus.ContentHash;
 import io.algernon.vespera.engine.corpus.Walk;
+import io.algernon.vespera.engine.embedding.RelevanceDistribution;
+import io.algernon.vespera.engine.embedding.RelevanceLabels;
 import io.algernon.vespera.engine.ledger.Ledger;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
+import io.algernon.vespera.engine.ledger.OccurrencePath;
 import io.algernon.vespera.engine.ledger.RunId;
 import io.algernon.vespera.engine.ledger.VerdictKind;
 import io.algernon.vespera.engine.profile.ProfileFixture;
@@ -56,6 +59,12 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-117", url = Adr.THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY, type = "adr")
 class SurvivalOverAReusedWalkTest {
 
+    /** Above anything the scripted embedder can produce, so every scored document falls under it. */
+    private static final String A_STRICT_FLOOR = "1.5";
+
+    /** Below anything it can produce, so every scored document clears it. */
+    private static final String A_LOOSE_FLOOR = "0.1";
+
     private static final int CORPUS_DOCUMENTS = 2;
 
     /** One scoring run under no floor, one under the strict floor, one under the loose floor. */
@@ -80,6 +89,84 @@ class SurvivalOverAReusedWalkTest {
 
     @Autowired
     private Ledger ledger;
+
+    @Autowired
+    private RelevanceDistribution relevanceDistribution;
+
+    @Autowired
+    private RelevanceLabels relevanceLabels;
+
+    @Test
+    @Story("Loosening a floor brings back what a stricter one removed")
+    @DisplayName("A floor lowered over a reused walk scores, clusters and arranges the documents a higher one removed, and putting the higher one back removes them again and mints nothing")
+    void aLoweredFloorBringsTheDocumentsBackAndTheStricterOneRemovesThemAgain(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        aCorpus(root, seeds);
+        profile(seeds, null);
+        cli.run("run", root.toString());
+        String theRunWithNoFloor = theOnlyScoringRun(root);
+        anAnswerGivenUnderThisRunsModel(root, seeds);
+        profile(seeds, A_STRICT_FLOOR);
+        cli.run("run", root.toString());
+        String theStrictRun = theScoringRunNotIn(root, List.of(theRunWithNoFloor));
+        profile(seeds, A_LOOSE_FLOOR);
+
+        cli.run("run", root.toString());
+
+        String theLooseRun = theScoringRunNotIn(root, List.of(theRunWithNoFloor, theStrictRun));
+        claim(
+                "the invocation completes, and the lowered floor is a scoring run of its own, so this corpus"
+                        + " now carries " + THREE_SCORING_RUNS + " scoring runs (ADR-117)",
+                () -> {
+                    assertThat(cli.getExitCode()).isZero();
+                    assertThat(scoringRunIdsFor(root)).hasSize(THREE_SCORING_RUNS);
+                });
+        claim(
+                "both documents were scored under the loose run. The strict run's below-threshold verdicts"
+                        + " sit under a run the loose run does not name upstream, so they remove nothing"
+                        + " from it -- before ADR-156 they removed both, and this run scored nothing",
+                () -> assertThat(relevanceScoreCountUnder(theLooseRun)).isEqualTo(CORPUS_DOCUMENTS));
+        claim(
+                "and both were clustered under it, which is what #297 measured as zero",
+                () -> assertThat(documentClusterCountUnder(theLooseRun)).isEqualTo(CORPUS_DOCUMENTS));
+        claim(
+                "and both reached the arrangement made over the loose run, so arrangement.html shows the"
+                        + " operator the documents the lower floor keeps",
+                () -> assertThat(documentsArrangedOver(theLooseRun)).isEqualTo(CORPUS_DOCUMENTS));
+        claim(
+                "the strict run's " + CORPUS_DOCUMENTS + " below-threshold verdicts are still recorded:"
+                        + " nothing is deleted, and putting the strict floor back picks them up again",
+                () -> assertThat(belowThresholdCountUnder(theStrictRun)).isEqualTo(CORPUS_DOCUMENTS));
+        claim(
+                "and they still remove both documents from the strict run's own survivors, so a verdict"
+                        + " under the run it was written under keeps its force",
+                () -> assertThat(ledger.verdicts().survivors(new RunId(theStrictRun)))
+                        .isEmpty());
+        claim(
+                "while the loose run's survivors hold both",
+                () -> assertThat(ledger.verdicts().survivors(new RunId(theLooseRun)))
+                        .hasSize(CORPUS_DOCUMENTS));
+
+        profile(seeds, A_STRICT_FLOOR);
+        cli.run("run", root.toString());
+
+        claim(
+                "putting the strict floor back completes and mints no scoring run: it re-derives the strict"
+                        + " run's id and continues it, so the corpus still carries " + THREE_SCORING_RUNS
+                        + " (ADR-115)",
+                () -> {
+                    assertThat(cli.getExitCode()).isZero();
+                    assertThat(scoringRunIdsFor(root)).hasSize(THREE_SCORING_RUNS);
+                });
+        claim(
+                "and both documents stand removed under the run it arrived at, by the verdicts written"
+                        + " there two invocations ago -- kept, not recomputed, and counting again because"
+                        + " that run is the one the profile names now",
+                () -> {
+                    assertThat(belowThresholdCountUnder(theStrictRun)).isEqualTo(CORPUS_DOCUMENTS);
+                    assertThat(ledger.verdicts().survivors(new RunId(theStrictRun)))
+                            .isEmpty();
+                });
+    }
 
     @Test
     @Story("A stage names the run whose verdicts it is meant to see")
@@ -151,6 +238,17 @@ class SurvivalOverAReusedWalkTest {
                 .build());
     }
 
+    /** One answer recorded under the model this run scored with, which makes a floor applicable. */
+    private void anAnswerGivenUnderThisRunsModel(Path root, Path seeds) {
+        relevanceLabels.record(
+                new OccurrencePath(aDocumentIn(root)),
+                Walk.canonicalRoot(seeds).toString(),
+                true,
+                new RunId(scoringRunIdsFor(root).getFirst()),
+                1.0,
+                jdbcTemplate.queryForObject("SELECT DISTINCT embedder_identity FROM vector", String.class));
+    }
+
     private String aDocumentIn(Path root) {
         return jdbcTemplate.queryForObject(
                 "SELECT f.path FROM file_occurrence f JOIN walk w ON w.id = f.walk_id"
@@ -203,8 +301,39 @@ class SurvivalOverAReusedWalkTest {
         return theOnlyRunOf(root, "embedding-scoring");
     }
 
+    /**
+     * The scoring run that is none of {@code earlier} -- the one the latest invocation minted.
+     *
+     * <p>Named by exclusion rather than by taking the last row: a run id is content-derived (ADR-048),
+     * so ordering by it says nothing about which invocation came first.
+     */
+    private String theScoringRunNotIn(Path root, List<String> earlier) {
+        return scoringRunIdsFor(root).stream()
+                .filter(run -> !earlier.contains(run))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("the latest invocation minted no scoring run"));
+    }
+
     private long relevanceScoreCountUnder(String runId) {
         return count("SELECT COUNT(*) FROM relevance_score WHERE run_id = ?", runId);
+    }
+
+    private long documentClusterCountUnder(String runId) {
+        return count("SELECT COUNT(*) FROM document_cluster WHERE run_id = ?", runId);
+    }
+
+    private long belowThresholdCountUnder(String runId) {
+        return count("SELECT COUNT(*) FROM verdict WHERE run_id = ? AND kind = 'BELOW_THRESHOLD'", runId);
+    }
+
+    /** How many documents the arrangement made over {@code scoringRunId} places in its clusters. */
+    private long documentsArrangedOver(String scoringRunId) {
+        return count(
+                "SELECT COALESCE(SUM(c.document_count), 0) FROM cluster c"
+                        + " JOIN run r ON r.id = c.run_id"
+                        + " JOIN run_upstream u ON u.run_id = r.id"
+                        + " WHERE r.stage = 'arrangement' AND u.upstream_run_id = ?",
+                scoringRunId);
     }
 
     /** The corpus side's document count the seed/corpus comparison recorded under {@code runId}. */
