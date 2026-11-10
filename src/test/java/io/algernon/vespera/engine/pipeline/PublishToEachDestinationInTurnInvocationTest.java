@@ -100,7 +100,7 @@ class PublishToEachDestinationInTurnInvocationTest {
                 () -> assertThat(destinations.asked).containsExactly(CONFLUENCE + " " + run.value()));
         claim("and its closing line is the invocation's last line, on standard output",
                 () -> {
-                    assertThat(invocation.lines().getLast()).isEqualTo("out: " + CONFLUENCE + " delivered");
+                    assertThat(invocation.closingLine()).isEqualTo("out: " + CONFLUENCE + " delivered");
                     assertThat(invocation.errors()).isEmpty();
                 });
     }
@@ -122,7 +122,7 @@ class PublishToEachDestinationInTurnInvocationTest {
                         .containsExactly(WEBSITE + " " + run.value(), CONFLUENCE + " " + run.value()));
         claim("each destination's own lines and its closing line are on standard output, in turn, and the last line is"
                         + " the last destination's closing line",
-                () -> assertThat(invocation.lines()).containsExactly(
+                () -> assertThat(invocation.withoutReportLines()).containsExactly(
                         "out: " + WEBSITE + " says a line of its own",
                         "out: " + WEBSITE + " delivered",
                         "out: " + CONFLUENCE + " says a line of its own",
@@ -167,7 +167,7 @@ class PublishToEachDestinationInTurnInvocationTest {
                 () -> {
                     assertThat(invocation.lines()).contains("err: " + CONFLUENCE + " stopped",
                             "out: " + WEBSITE + " delivered");
-                    assertThat(invocation.lines().getLast()).isEqualTo("out: " + WEBSITE + " delivered");
+                    assertThat(invocation.closingLine()).isEqualTo("out: " + WEBSITE + " delivered");
                 });
     }
 
@@ -193,7 +193,7 @@ class PublishToEachDestinationInTurnInvocationTest {
         claim("no line carries the exception's message, which could name a document (ADR-274 §8)",
                 () -> assertThat(invocation.lines()).noneMatch(line -> line.contains(Destinations.THE_MESSAGE)));
         claim("and the last line is the website's closing line",
-                () -> assertThat(invocation.lines().getLast()).isEqualTo("out: " + WEBSITE + " delivered"));
+                () -> assertThat(invocation.closingLine()).isEqualTo("out: " + WEBSITE + " delivered"));
     }
 
     @Test
@@ -232,7 +232,7 @@ class PublishToEachDestinationInTurnInvocationTest {
                         + " the last line",
                 () -> {
                     assertThat(invocation.errors()).contains(NO_WEBSITE_RENDERING);
-                    assertThat(invocation.lines().getLast()).isEqualTo("out: " + CONFLUENCE + " delivered");
+                    assertThat(invocation.closingLine()).isEqualTo("out: " + CONFLUENCE + " delivered");
                 });
     }
 
@@ -255,6 +255,20 @@ class PublishToEachDestinationInTurnInvocationTest {
 
     /** How one invocation ended: its exit, and every line it wrote, each after {@code out: } or {@code err: }. */
     private record Invocation(int exit, List<String> lines) {
+
+        /**
+         * The closing line: the last line that does not start {@code Report: }, the report line following it (ADR-362
+         * section 7). The console's logger puts its own prefix before a line it logs, which is read off.
+         */
+        String closingLine() {
+            return withoutReportLines().getLast();
+        }
+
+        /** Every line but the report's two, the first and the last, each starting {@code Report: } once the logger's prefix is read off. */
+        List<String> withoutReportLines() {
+            return lines.stream().filter(line -> !line.substring(line.indexOf(' ') + 1).replaceFirst("^.* - ", "")
+                    .startsWith("Report: ")).toList();
+        }
 
         List<String> errors() {
             return lines.stream().filter(line -> line.startsWith("err: ")).map(line -> line.substring(5)).toList();

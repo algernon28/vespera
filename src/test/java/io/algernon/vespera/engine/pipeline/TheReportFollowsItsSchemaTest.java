@@ -30,7 +30,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import tools.jackson.databind.JsonNode;
 
 /**
- * The report is held to its schema (ADR-362 section 3): the reports of a run, a label and a refusal are checked against
+ * The report is held to its schema (ADR-362 section 3): the reports of a run, a label, a refusal and a publish are checked against
  * {@code docs/report/report.schema.json} field by field, with a walker of the eight keywords the schema may use and no
  * library, and the schema's own format is the jar's.
  */
@@ -64,7 +64,7 @@ class TheReportFollowsItsSchemaTest {
 
     @Test
     @Story("The report follows its schema")
-    @DisplayName("The reports of a run, a label and a refusal hold every field the schema requires and no field it does not name, each of the type it gives")
+    @DisplayName("The reports of a run, a label, a refusal and a publish hold every field the schema requires and no field it does not name, each of the type it gives")
     void everyFieldWrittenIsInTheSchemaAndEveryRequiredFieldIsWritten(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         JsonNode schema = TheReportFile.parse(Files.readString(SCHEMA, StandardCharsets.UTF_8));
@@ -83,11 +83,14 @@ class TheReportFollowsItsSchemaTest {
         profileStore.save(ProfileFixture.profile().build());
         cli.run("run");
         JsonNode refusal = TheReportFile.in(workingDirectory);
+        cli.run("publish", "--to", "confluence,website");
+        JsonNode publish = TheReportFile.in(workingDirectory);
 
         Map<String, JsonNode> reports = new LinkedHashMap<>();
         reports.put("a run", run);
         reports.put("a label", label);
         reports.put("a refusal", refusal);
+        reports.put("a publish", publish);
         reports.forEach((which, report) -> {
             List<String> problems = SchemaWalker.problems(report, schema);
             claim("the report of " + which + " follows the schema, field by field", () -> assertThat(problems).isEmpty());
@@ -99,6 +102,11 @@ class TheReportFollowsItsSchemaTest {
                     assertThat(run.get("runs").get("rows")).isNotEmpty();
                     assertThat(run.get("counts").isNull()).isFalse();
                     assertThat(run.get("analysisReports")).hasSize(12);
+                });
+        claim("the report of a publish holds a destination for each one named, which found no rendering drawn and stopped",
+                () -> {
+                    assertThat(publish.get("publish").get("destinations")).hasSize(2);
+                    assertThat(publish.get("invocation").get("outcome").asString()).isEqualTo("stopped");
                 });
     }
 

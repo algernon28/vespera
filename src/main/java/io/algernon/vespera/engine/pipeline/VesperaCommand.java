@@ -714,6 +714,8 @@ public class VesperaCommand implements Callable<Integer> {
             + " or the website folder of the working directory. Bare, it delivers to Confluence.")
     public static class Publish implements Callable<Integer> {
 
+        private static final Logger log = LoggerFactory.getLogger(Publish.class);
+
         /** The destination a bare publish takes, the only one before {@code --to} (ADR-333 §6). */
         private static final String DESTINATION = Publisher.RENDERING_FOLDER;
 
@@ -721,6 +723,7 @@ public class VesperaCommand implements Callable<Integer> {
         private final List<Plugin> plugins;
         private final Path workingDirectoryInUse;
         private final DeliverableRoot deliverableRoot;
+        private InvocationReport report;
 
         /** The same option {@code run} and {@code label} take (ADR-054, #310). */
         @Mixin
@@ -758,42 +761,89 @@ public class VesperaCommand implements Callable<Integer> {
             this(ledger, List.<Plugin>of(new ConfluencePlugin(publisher)), workingDirectoryInUse, deliverableRoot);
         }
 
+        /** As {@link Run#writeTheReportWith}: {@code publish} writes the report too (ADR-362 section 3). */
+        @Autowired(required = false)
+        void writeTheReportWith(InvocationReport report) {
+            this.report = report;
+        }
+
         /** Drops what a previous invocation parsed, for the reason {@link Run} does the same. */
         void forgetPreviousInvocation() {
             databaseDirectory = new WorkingDirectoryOption();
             destinations = new java.util.ArrayList<>();
         }
 
+        /** A refusal after the working-directory lock: its line is printed whole, and the report says it, once. */
+        private Integer refuse(String line, int exitCode) {
+            System.err.println(line);
+            if (report != null) {
+                report.refused(line, exitCode);
+            }
+            logTheReportLine();
+            return exitCode;
+        }
+
         @Override
         public Integer call() {
+            if (report != null) {
+                report.begins(InvocationReport.PUBLISH);
+            }
             String misnamedDatabaseDirectory = databaseDirectory.disagreement(workingDirectoryInUse);
             if (misnamedDatabaseDirectory != null) {
-                System.err.println(misnamedDatabaseDirectory);
-                return CommandLine.ExitCode.SOFTWARE;
+                return refuse(misnamedDatabaseDirectory, CommandLine.ExitCode.SOFTWARE);
             }
             boolean bare = destinations == null || destinations.isEmpty();
             List<Plugin> chosen = new java.util.ArrayList<>();
             for (String name : bare ? List.of(DESTINATION) : destinations) {
                 Optional<Plugin> named = plugins.stream().filter(candidate -> candidate.name().equals(name.strip())).findFirst();
                 if (named.isEmpty()) {
-                    System.err.println("vespera publish has no destination " + name.strip() + ": it knows "
+                    return refuse("vespera publish has no destination " + name.strip() + ": it knows "
                             + plugins.stream().map(Plugin::name).collect(java.util.stream.Collectors.joining(", "))
-                            + ".");
-                    return CommandLine.ExitCode.USAGE;
+                            + ".", CommandLine.ExitCode.USAGE);
                 }
                 if (!chosen.contains(named.get())) {
                     chosen.add(named.get());
                 }
             }
-            Map<String, Set<String>> finished = ledger.runs().finishedSteps();
-            List<Runs.Listed> runs = ledger.runs().listed();
-            int exit = CommandLine.ExitCode.OK;
-            for (Plugin plugin : chosen) {
-                if (!deliverTo(plugin, bare, finished, runs)) {
-                    exit = CommandLine.ExitCode.SOFTWARE;
-                }
+            log.info("Report: {}", ReportHtml.pathIn(workingDirectoryInUse));
+            if (report != null) {
+                report.publishStarts();
             }
-            return exit;
+            int exit = CommandLine.ExitCode.SOFTWARE;
+            try {
+                Map<String, Set<String>> finished = ledger.runs().finishedSteps();
+                List<Runs.Listed> runs = ledger.runs().listed();
+                exit = CommandLine.ExitCode.OK;
+                for (Plugin plugin : chosen) {
+                    if (!deliverTo(plugin, bare, finished, runs)) {
+                        exit = CommandLine.ExitCode.SOFTWARE;
+                    }
+                }
+                return exit;
+            } finally {
+                if (report != null) {
+                    report.publishEnds(exit == CommandLine.ExitCode.OK ? "delivered" : "stopped", exit);
+                }
+                logTheReportLine();
+            }
+        }
+
+        /** The report line, last, once the last write of the report is made and after the closing line (ADR-362 section 7). */
+        private void logTheReportLine() {
+            String line = report == null ? null : report.reportLine();
+            if (line != null) {
+                log.info("{}", line);
+            }
+        }
+
+        /** A destination's stop: its line on standard error, whole, kept for the report as the refusal it is. */
+        private boolean stopped(Plugin plugin, String line) {
+            System.err.println(line);
+            if (report != null) {
+                report.said(line);
+                report.destinationEnds(plugin.name(), "stopped", line);
+            }
+            return false;
         }
 
         /**
@@ -807,34 +857,33 @@ public class VesperaCommand implements Callable<Integer> {
         private boolean deliverTo(Plugin plugin, boolean bare, Map<String, Set<String>> finished, List<Runs.Listed> runs) {
             Optional<String> generation = lastDrawn(plugin, finished, runs);
             if (generation.isEmpty()) {
-                System.err.println(bare
+                return stopped(plugin, bare
                         ? "vespera publish sent nothing: no Confluence rendering is drawn in this working directory."
                                 + " Run vespera run to the deliverable, and publish again."
                         : "vespera publish sent nothing to " + plugin.name() + ": no " + plugin.name()
                                 + " rendering is drawn in this working directory. Run vespera run to the deliverable,"
                                 + " and publish again.");
-                return false;
             }
             Path rendering = renderingOf(plugin, generation.get());
             if (!drawingFinished(rendering)) {
-                System.err.println("vespera publish sent nothing to " + plugin.name() + ": the last drawing"
+                return stopped(plugin, "vespera publish sent nothing to " + plugin.name() + ": the last drawing"
                         + " of its rendering did not finish. Run vespera run to draw it again, and publish again.");
-                return false;
             }
             Plugin.Delivery outcome;
             try {
                 outcome = plugin.deliver(rendering, generation.get(), workingDirectoryInUse, System.out::println);
             } catch (RuntimeException thrown) {
-                System.err.println("vespera publish stopped " + plugin.name() + ": it threw "
+                return stopped(plugin, "vespera publish stopped " + plugin.name() + ": it threw "
                         + thrown.getClass().getSimpleName() + ", whose message is not written. Publish again once"
                         + " that is dealt with.");
-                return false;
             }
             if (!outcome.delivered()) {
-                System.err.println(outcome.closingLine());
-                return false;
+                return stopped(plugin, outcome.closingLine());
             }
             System.out.println(outcome.closingLine());
+            if (report != null) {
+                report.destinationEnds(plugin.name(), "delivered", outcome.closingLine());
+            }
             return true;
         }
 

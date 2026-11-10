@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
 /**
  * The invocation report (ADR-362 section 3): {@code report.json} at the top of the working directory and its copy
  * {@code logs/report-<invocation id>.json}, the single source from which a window, a script or an agent reads how the
- * invocation in hand, or the last to end, stands. {@code vespera run} and {@code vespera label} write it; the job's
+ * invocation in hand, or the last to end, stands. {@code vespera run}, {@code vespera label} and {@code vespera publish} write it; the job's
  * {@link JobSampler} hands it its reading at each write (section 6).
  *
  * <p><b>It is built from typed values</b> as {@link InvocationAccount} is (ADR-198 section 2): an enumeration, a step
@@ -141,6 +141,9 @@ final class InvocationReport {
     /** The command {@code vespera run} begins as: written from a capital, as no literal of this class names a table (ADR-362 section 3). */
     static final String RUN = "Run".toLowerCase(Locale.ROOT);
 
+    /** The command {@code vespera publish}, as the report names it (ADR-362 section 3). */
+    static final String PUBLISH = "publish";
+
     /** The key of the arrangement to approve in {@code next}, which is also a stage's name: written so that no literal names a stage. */
     private static final String ARRANGEMENT = "Arrangement".toLowerCase(Locale.ROOT);
 
@@ -228,6 +231,7 @@ final class InvocationReport {
     private Map<String, Object> next;
     private Map<String, Object> counts;
     private List<Map<String, Object>> answers;
+    private List<Map<String, Object>> delivered;
     private Reading reading;
     private boolean warned;
     private boolean htmlWarned;
@@ -281,6 +285,7 @@ final class InvocationReport {
             next = null;
             counts = null;
             answers = null;
+            delivered = null;
             reading = null;
             warned = false;
             htmlWarned = false;
@@ -386,6 +391,46 @@ final class InvocationReport {
                 closing = closingLine;
             }
             next = nextContents == null ? null : nextOf(nextContents);
+            write();
+        }
+    }
+
+    /** {@code vespera publish} starts, no destination yet reached: the first write. */
+    void publishStarts() {
+        synchronized (writing) {
+            delivered = new ArrayList<>();
+            write();
+        }
+    }
+
+    /**
+     * A destination of {@code vespera publish} ended, {@code delivered} or {@code stopped}, with the closing line it
+     * printed, whole: written again, the invocation still running.
+     */
+    void destinationEnds(String destination, String howItEnded, String line) {
+        synchronized (writing) {
+            if (!begun) {
+                return;
+            }
+            if (delivered == null) {
+                delivered = new ArrayList<>();
+            }
+            delivered.add(object("destination", destination, "outcome", howItEnded, "line", line));
+            closing = line;
+            write();
+        }
+    }
+
+    /** {@code vespera publish} ends {@code delivered} or {@code stopped}, its last destination's line being its closing line. */
+    void publishEnds(String howItEnded, int exit) {
+        synchronized (writing) {
+            if (!begun) {
+                return;
+            }
+            state = "ended";
+            ended = truncated(clock.instant());
+            outcome = howItEnded;
+            exitCode = exit;
             write();
         }
     }
@@ -639,7 +684,7 @@ final class InvocationReport {
         report.put("faults", faultsTree());
         report.put("counts", counts);
         report.put("label", "label".equals(commandName()) ? labelTree() : null);
-        report.put("publish", null);
+        report.put("publish", PUBLISH.equals(commandName()) ? publishTree() : null);
         report.put("closing", closing);
         report.put("next", next);
         report.put("analysisReports", analysisReportsTree());
@@ -833,6 +878,10 @@ final class InvocationReport {
 
     private Map<String, Object> labelTree() {
         return object("answers", answers == null ? new ArrayList<Object>() : new ArrayList<Object>(answers));
+    }
+
+    private Map<String, Object> publishTree() {
+        return object("destinations", delivered == null ? new ArrayList<Object>() : new ArrayList<Object>(delivered));
     }
 
     private static Map<String, Object> nextOf(NextInvocationFile.Contents contents) {
