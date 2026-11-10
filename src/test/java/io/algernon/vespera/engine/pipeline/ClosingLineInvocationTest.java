@@ -371,17 +371,20 @@ class ClosingLineInvocationTest {
      * <p>Read as what follows that count rather than as the whole of stdout, because the test
      * configuration's console appender writes the log there too — so the run command's own closing
      * line is already on stdout before this one is invoked, and asserting over everything would pass
-     * with this command printing nothing at all.
+     * with this command printing nothing at all. The report line, which follows the closing line (ADR-362
+     * section 7), is left out: the closing line is the last line that does not start {@code Report: } once the logger's prefix is off it.
      */
     private String stdoutAfterWhatWasRecorded(CapturedOutput output) {
         String out = output.getOut();
         int recorded = out.lastIndexOf(WHAT_WAS_RECORDED);
         assertThat(recorded).as("vespera label reported what it recorded").isNotNegative();
-        return out.substring(out.indexOf('\n', recorded) + 1);
+        String after = out.substring(out.indexOf('\n', recorded) + 1);
+        return after.lines().filter(line -> !line.contains(" - Report: ")).collect(java.util.stream.Collectors.joining("\n"));
     }
 
-    /** Every line this application wrote for an operator, in the order they were written. */
+    /** Every line this application wrote for an operator, in the order they were written, the report lines apart: the closing line is the last that does not start Report: (ADR-362 section 7). */
     private List<String> operatorLines() {
-        return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+        return logged.list.stream().map(ILoggingEvent::getFormattedMessage)
+                .filter(line -> !line.startsWith("Report: ")).toList();
     }
 }

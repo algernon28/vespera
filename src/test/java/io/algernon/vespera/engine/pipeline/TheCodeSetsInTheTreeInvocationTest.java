@@ -236,7 +236,8 @@ class TheCodeSetsInTheTreeInvocationTest {
     }
 
     private List<String> operatorLines() {
-        return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+        return logged.list.stream().map(ILoggingEvent::getFormattedMessage)
+                .filter(line -> !line.startsWith("Report: ")).toList();
     }
 
     /**

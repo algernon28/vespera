@@ -125,7 +125,7 @@ class SidecarStartInvocationTest {
     }
 
     private static String lastLineOf(String printed) {
-        List<String> lines = printed.lines().filter(line -> !line.isBlank()).toList();
+        List<String> lines = printed.lines().filter(line -> !line.isBlank() && !line.startsWith("Report: ")).toList();
         return lines.isEmpty() ? "" : lines.getLast();
     }
 

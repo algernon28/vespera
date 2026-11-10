@@ -34,10 +34,10 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * The last line of output that is not blank, on standard output and standard error together, is the
- * command's own closing line: nothing a library logs while the job ends or the context closes follows it
- * (ADR-281, #579). The operator is told to read that line (ADR-158), and the control panel shows it as the
- * invocation's outcome (ADR-278).
+ * The last line of output that is not blank, on standard output and standard error together, is the report line
+ * (ADR-362 section 7), and the line before it is the command's own closing line: nothing a library logs while the
+ * job ends or the context closes follows them (ADR-281, #579). The operator is told to read the closing line
+ * (ADR-158), and the control panel shows it as the invocation's outcome from the report (ADR-278, ADR-362 section 8).
  *
  * <p>Pinned on the packaged jar, started as the control panel starts it, because the lines that followed
  * the closing line are written by the console appender of {@code logback-spring.xml}, which no in-process
@@ -54,7 +54,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Link(name = "ADR-281", url = Adr.THE_CLOSING_LINE_IS_THE_LAST_LINE, type = "adr")
 @Link(name = "ADR-158", url = Adr.THE_PACKAGED_JAR_STARTS_NO_SIDECAR, type = "adr")
 @Link(name = "ADR-278", url = Adr.THE_CONTROL_PANEL_STARTS_THE_JAR_AS_ITS_CHILD_AND_STOPS_ONLY_ITS_OWN, type = "adr")
-class TheClosingLineIsTheLastLineIT {
+class TheReportLineEndsTheOutputIT {
 
     /** Generous over a run of a few seconds on a handful of files; the point is only that the process ends. */
     private static final long EXIT_BOUND_SECONDS = 180;
@@ -98,9 +98,19 @@ class TheClosingLineIsTheLastLineIT {
     /** What a launch printed, standard error merged into standard output, and how it ended. */
     private record Printed(boolean finished, int exitCode, List<String> lines) {
 
-        /** The last line that is not blank. */
+        /** The last line that is not blank, which is the report line. */
         String lastLine() {
             return lines.isEmpty() ? "" : lines.getLast();
+        }
+
+        /** The last line that is not blank and does not start {@code Report: }, which is the closing line. */
+        String closingLine() {
+            return lines.reversed().stream().filter(line -> !line.startsWith("Report: ")).findFirst().orElse("");
+        }
+
+        /** The line before the last, which holds the closing line where the report line follows it. */
+        String lineBeforeTheLast() {
+            return lines.size() < 2 ? "" : lines.get(lines.size() - 2);
         }
     }
 
@@ -175,74 +185,47 @@ class TheClosingLineIsTheLastLineIT {
     }
 
     @Test
-    @Story("The closing line is the last line")
-    @DisplayName("vespera run that ends on a value to set prints its line naming that value last")
-    void aRunEndingOnAValueToSetPrintsItsClosingLineLast() {
-        Printed printed = runEndingOnAValueToSet;
-        String closingLine = "VesperaCommand$Run - ";
-        String naming = " Next: answer the questions in relevance-labels.yaml";
-
-        endedWith(printed, CommandLine.ExitCode.OK, "success");
-        claim("the run's closing line, naming the label file as what to answer next, is the last line that is not"
-                        + " blank, standard output and standard error together",
-                () -> assertThat(printed.lastLine()).contains(closingLine).contains(naming));
-    }
-
-    @Test
-    @Story("The closing line is the last line")
-    @DisplayName("vespera run whose stage 2 fails prints the line saying so last")
-    void aRunWhoseStageTwoFailsPrintsItsClosingLineLast() {
-        Printed printed = runWhoseStageTwoFails;
-        String closingLine = "ExtractionHealthCheckListener - Stage 2 (extraction) failed and is not recorded as finished";
-        String advice = "and run the same command again.";
-
-        endedWith(printed, CommandLine.ExitCode.SOFTWARE, "a failure");
-        claim("the line saying stage 2 failed and what to do about it is the last line that is not blank,"
-                        + " standard output and standard error together",
-                () -> assertThat(printed.lastLine()).contains(closingLine).endsWith(advice));
-    }
-
-    @Test
-    @Story("The closing line is the last line")
+    @Story("The report line is the last line, the closing line the one before it")
     @Issue("585")
     @Link(name = "ADR-289", url = Adr.A_FAILING_STEP_ENDS_ON_ITS_OWN_CLOSING_LINE, type = "adr")
-    @DisplayName("vespera run whose embedding-scoring step fails prints the line saying so last")
-    void aRunWhoseEmbeddingStepFailsPrintsItsClosingLineLast() {
-        Printed printed = runWhoseEmbeddingFails;
-        String closingLine = "embedding-scoring failed and is not recorded as finished";
+    @DisplayName("Each command ends on its closing line and then the report line: a run to a value to set, a run failing at stage 2, one failing at embedding scoring, a label recording and a run refused for a missing label file")
+    void eachCommandEndsOnItsClosingLineThenTheReportLine() {
+        endedWith(runEndingOnAValueToSet, CommandLine.ExitCode.OK, "success");
+        endedWith(runWhoseStageTwoFails, CommandLine.ExitCode.SOFTWARE, "a failure");
+        endedWith(runWhoseEmbeddingFails, CommandLine.ExitCode.SOFTWARE, "a failure");
+        endedWith(labelRecording, CommandLine.ExitCode.OK, "success");
+        endedWith(labelRefused, CommandLine.ExitCode.USAGE, "the usage code, a refusal of what was named");
+
+        String closingLine = "VesperaCommand$Run - ";
+        String naming = " Next: answer the questions in relevance-labels.yaml";
+        String stageTwo = "ExtractionHealthCheckListener - Stage 2 (extraction) failed and is not recorded as finished";
+        String embedding = "embedding-scoring failed and is not recorded as finished";
         String advice = "and run the same command again.";
-
-        endedWith(printed, CommandLine.ExitCode.SOFTWARE, "a failure");
-        claim("the line saying the embedding-scoring step failed and what to do about it is the last line that is"
-                        + " not blank, standard output and standard error together",
-                () -> assertThat(printed.lastLine()).contains(closingLine).endsWith(advice));
-    }
-
-    @Test
-    @Story("The closing line is the last line")
-    @DisplayName("vespera label that records answers prints its line naming the next value last")
-    void aLabelThatRecordsPrintsItsClosingLineLast() {
-        Printed printed = labelRecording;
         String recorded = "answers are recorded; relevanceScoreFloor is not. Next: read a number off"
                 + " relevance-labelling.html";
-
-        endedWith(printed, CommandLine.ExitCode.OK, "success");
-        claim("label's closing line, saying the answers are recorded and naming the floor to set next, is the last"
-                        + " line that is not blank, standard output and standard error together",
-                () -> assertThat(printed.lastLine()).contains(recorded));
-    }
-
-    @Test
-    @Story("The closing line is the last line")
-    @DisplayName("vespera label refused for a label file that is not there prints its refusal last")
-    void aLabelRefusedForAMissingFilePrintsItsRefusalLast() {
-        Printed printed = labelRefused;
         String refusal = "vespera label recorded nothing: no label file to read at " + missingLabelFile;
 
-        endedWith(printed, CommandLine.ExitCode.USAGE, "the usage code, a refusal of what was named");
-        claim("label's refusal, naming the file that is not there, is the last line that is not blank, standard"
-                        + " output and standard error together",
-                () -> assertThat(printed.lastLine()).startsWith(refusal));
+        for (Printed printed : List.of(
+                runEndingOnAValueToSet, runWhoseStageTwoFails, runWhoseEmbeddingFails, labelRecording, labelRefused)) {
+            claim("the last line that is not blank, standard output and standard error together, is the report line,"
+                            + " which names report.json and says nothing was opened",
+                    () -> assertThat(printed.lastLine()).startsWith("Report: ").contains("report.json")
+                            .contains(". Nothing was opened: "));
+            claim("and the line before it is the closing line, the last line that does not start Report: ",
+                    () -> assertThat(printed.lineBeforeTheLast()).isEqualTo(printed.closingLine()));
+        }
+        claim("the run's closing line, naming the label file as what to answer next, is the line before the report line",
+                () -> assertThat(runEndingOnAValueToSet.closingLine()).contains(closingLine).contains(naming));
+        claim("the line saying stage 2 failed and what to do about it is the closing line of the run that failed there",
+                () -> assertThat(runWhoseStageTwoFails.closingLine()).contains(stageTwo).endsWith(advice));
+        claim("the line saying the embedding-scoring step failed and what to do about it is the closing line of the run"
+                        + " that failed there",
+                () -> assertThat(runWhoseEmbeddingFails.closingLine()).contains(embedding).endsWith(advice));
+        claim("label's closing line, saying the answers are recorded and naming the floor to set next, is the line"
+                        + " before the report line",
+                () -> assertThat(labelRecording.closingLine()).contains(recorded));
+        claim("label's refusal, naming the file that is not there, is the closing line of the one refused",
+                () -> assertThat(labelRefused.closingLine()).startsWith(refusal));
     }
 
     private static void endedWith(Printed printed, int exitCode, String meaning) {

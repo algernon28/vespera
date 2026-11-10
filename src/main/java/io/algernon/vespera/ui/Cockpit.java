@@ -90,6 +90,10 @@ final class Cockpit {
 
     private final LiveReport live;
     private Ending reportedEnding;
+
+    /** The ending the closing line below was read for, and the {@code closing} of the report its child wrote (ADR-362 section 8). */
+    private Ending closedAs;
+    private String closingOfItsReport;
     private int ticksSinceProgress;
     /** Who the report is read for: the child's pid and start, or a foreign holder's; null before any is watched. */
     private ControlPanelState.Watched watching;
@@ -598,6 +602,7 @@ final class Cockpit {
             }
         }
         readReport(runs, ending, holders);
+        child.setText(childWords(runs, ending));
         if (ending.isPresent() && ending.get() != wantedFor) {
             wantedFor = ending.get();
             Map<String, Boolean> written = folders.writtenReports();
@@ -627,7 +632,9 @@ final class Cockpit {
             case DEFECT_OF_THE_CONTROL_PANEL -> "Defect of the control panel, exit " + ended.exitCode();
             case STOPPED -> "Stopped";
         };
-        return state.childCommand() + ": " + how + ended.lastLine().map(line -> " (" + line + ")").orElse("");
+        Optional<String> line = ended == closedAs && closingOfItsReport != null
+                ? Optional.of(closingOfItsReport) : ended.lastLine();
+        return state.childCommand() + ": " + how + line.map(each -> " (" + each + ")").orElse("");
     }
 
     private void readNext() {
@@ -675,6 +682,8 @@ final class Cockpit {
             watching = who;
             watchedReportDrawn = false;
             lastDrawn = null;
+            closedAs = null;
+            closingOfItsReport = null;
             steps.show(InvocationReportFile.Report.none());
             charts.show(InvocationReportFile.Report.none());
             live.says(LiveReport.WAITING);
@@ -691,7 +700,7 @@ final class Cockpit {
         ticksSinceProgress = 0;
         String how = ownChild && ending.isPresent() ? childWords(false, ending)
                 : ownChild ? "" : "held by " + holders.workingDirectory().orElse("another invocation");
-        boolean drawn = readOnce(folder.get(), who, justEnded, how);
+        boolean drawn = readOnce(folder.get(), who, justEnded, how, ownChild ? ending : Optional.empty());
         watchedReportDrawn = watchedReportDrawn || drawn;
         if (justEnded) {
             reportedEnding = ending.get();
@@ -702,7 +711,8 @@ final class Cockpit {
     }
 
     /** Reads the file once; whether a report that is the watched invocation's was drawn. */
-    private boolean readOnce(Path folder, ControlPanelState.Watched who, boolean childEnded, String howItEnded) {
+    private boolean readOnce(Path folder, ControlPanelState.Watched who, boolean childEnded, String howItEnded,
+            Optional<Ending> endingOfItsChild) {
         try {
             Path file = folder.resolve(InvocationReportFile.FILE_NAME);
             if (!Files.isRegularFile(file)) {
@@ -713,6 +723,12 @@ final class Cockpit {
             if (invocation.pid() != who.pid()
                     || invocation.started().isBefore(who.notBefore().truncatedTo(ChronoUnit.MILLIS))) {
                 return false;
+            }
+            if (endingOfItsChild.isPresent() && report.closing() != null) {
+                // how its child ended is the closing line of the report it wrote, not the last line of its output (ADR-362 section 8)
+                closedAs = endingOfItsChild.get();
+                closingOfItsReport = report.closing();
+                howItEnded = childWords(false, endingOfItsChild);
             }
             steps.show(report);
             charts.show(report);

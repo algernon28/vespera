@@ -46,6 +46,10 @@ class TheLiveReportTest {
     /** Long enough for the window, reading every second, to have read a report on disk twice or more. */
     private static final long SEVERAL_READINGS_MILLIS = 3_500L;
 
+    /** How often, and how many times, a test looks for the lines a child has printed before it stops the child. */
+    private static final long LOOK_EVERY_MILLIS = 100L;
+    private static final int SEVERAL_LOOKS = 100;
+
     private static final String CENSUS_FINISHED = "{\"ended\": false, \"steps\": ["
             + "{\"name\": \"census\", \"state\": \"finished\", \"done\": null, \"total\": null},"
             + " {\"name\": \"byte-level-reduction\", \"state\": \"running\", \"done\": 1, \"total\": 4}],"
@@ -320,6 +324,75 @@ class TheLiveReportTest {
                     assertThat(howItEnded).contains("Stopped", APrintingChildForTests.ITS_LAST_LINE)
                             .doesNotContain("Report: ");
                 });
+    }
+
+    @Test
+    @Story("The window shows the invocation from the report")
+    @DisplayName("How a child ended is the closing line of the report it wrote, and the last line of output that is not the report line where it wrote none of its own")
+    void howTheChildEndedIsTheClosingLineOfItsReport(@TempDir Path folder) throws Exception {
+        String closingOfItsReport = "Run ended at a gate.";
+        String lineOfAnEarlierOne = "The earlier run failed.";
+
+        String howItEndedByItsReport;
+        String childByItsReport;
+        Path first = Files.createDirectories(folder.resolve("first"));
+        ControlPanelState state = WindowForTests.aState(first, PrintingJars.printing());
+        Path working = Files.createDirectories(first.resolve("working"));
+        state.hold(new LaunchValues(Files.createDirectories(first.resolve("corpus")).toString(), working.toString(),
+                "", "", "", "", "", ""));
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            window.readEverySecond();
+            assumeThat(state.start(ControlPanelState.Start.RUN, new ArrayList<>())).as("the child is started")
+                    .isEmpty();
+            ReportFixtures.write(working, state.watchedChild().orElseThrow().pid(), GATED_AND_FAULTED);
+            window.awaiting(root -> textOf(root, "report-closing"), text -> text.equals(closingOfItsReport));
+            for (int look = 0; look < SEVERAL_LOOKS && !state.tail().contains(APrintingChildForTests.ITS_LAST_LINE);
+                    look++) {
+                Thread.sleep(LOOK_EVERY_MILLIS);
+            }
+            assumeThat(state.tail()).as("the child has printed its lines").contains(APrintingChildForTests.ITS_LAST_LINE);
+            state.stop();
+            howItEndedByItsReport = window.awaiting(root -> textOf(root, "report-ended"),
+                    text -> text.contains("Stopped"));
+            childByItsReport = window.read(root -> textOf(root, "child"));
+        }
+
+        String howItEndedByTheOutput;
+        String childByTheOutput;
+        Path second = Files.createDirectories(folder.resolve("second"));
+        ControlPanelState another = WindowForTests.aState(second, PrintingJars.printing());
+        Path otherWorking = Files.createDirectories(second.resolve("working"));
+        another.hold(new LaunchValues(Files.createDirectories(second.resolve("corpus")).toString(),
+                otherWorking.toString(), "", "", "", "", "", ""));
+        try (WindowForTests window = WindowForTests.shown(another)) {
+            window.readEverySecond();
+            assumeThat(another.start(ControlPanelState.Start.RUN, new ArrayList<>())).as("the child is started")
+                    .isEmpty();
+            ReportFixtures.write(otherWorking, another.watchedChild().orElseThrow().pid() + 1, AN_EARLIER_INVOCATION);
+            for (int look = 0; look < SEVERAL_LOOKS && !another.tail().contains(APrintingChildForTests.ITS_LAST_LINE);
+                    look++) {
+                Thread.sleep(LOOK_EVERY_MILLIS);
+            }
+            assumeThat(another.tail()).as("the child has printed its lines").contains(APrintingChildForTests.ITS_LAST_LINE);
+            another.stop();
+            howItEndedByTheOutput = window.awaiting(root -> textOf(root, "report-ended"),
+                    text -> text.contains("Stopped"));
+            childByTheOutput = window.read(root -> textOf(root, "child"));
+        }
+
+        claim("a child whose report is its own and holds a closing line is shown as ended with that line, though its"
+                        + " output ends on the report line",
+                () -> assertThat(howItEndedByItsReport).contains("Stopped", closingOfItsReport)
+                        .doesNotContain(APrintingChildForTests.ITS_LAST_LINE, "Report: "));
+        claim("and the line above the tab says the same",
+                () -> assertThat(childByItsReport).contains(closingOfItsReport).doesNotContain("Report: "));
+        claim("a report of another process is not the child's: how it ended is the last line of output that is not"
+                        + " blank and not the report line, and the other report's closing line is not shown",
+                () -> assertThat(howItEndedByTheOutput).contains(APrintingChildForTests.ITS_LAST_LINE)
+                        .doesNotContain(lineOfAnEarlierOne, "Report: "));
+        claim("and the line above the tab says the same",
+                () -> assertThat(childByTheOutput).contains(APrintingChildForTests.ITS_LAST_LINE)
+                        .doesNotContain(lineOfAnEarlierOne, "Report: "));
     }
 
     // ---- reading the window

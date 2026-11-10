@@ -210,7 +210,7 @@ class TheTreeInHtmlInvocationTest {
         claim(
                 "the last line the invocation writes names the index by its whole path, and says that no group was"
                         + " left unwritten and no document left uncopied, stating both counts at nothing",
-                () -> assertThat(operatorLines().getLast())
+                () -> assertThat(theClosingLine())
                         .contains(index + ", with 0 groups left unwritten and 0 documents not copied."));
         claim(
                 "and the index is handed to no opener, so the report lists no file as opened",
@@ -250,7 +250,7 @@ class TheTreeInHtmlInvocationTest {
                 });
         claim(
                 "the closing line counts the " + ONE_NOT_COPIED + " document whose copy does not stand, in the singular",
-                () -> assertThat(operatorLines().getLast())
+                () -> assertThat(theClosingLine())
                         .endsWith("with 0 groups left unwritten and " + ONE_NOT_COPIED + " document not copied."));
         claim(
                 "no line written after it went, at any level, names it",
@@ -382,6 +382,11 @@ class TheTreeInHtmlInvocationTest {
 
     private List<String> operatorLines() {
         return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+    }
+
+    /** The last line that does not start Report: , which is the closing line, the report line following it (ADR-362 section 7). */
+    private String theClosingLine() {
+        return operatorLines().reversed().stream().filter(line -> !line.startsWith("Report: ")).findFirst().orElseThrow();
     }
 
     /** Whether the writing step is recorded finished under this corpus's one generation run. */

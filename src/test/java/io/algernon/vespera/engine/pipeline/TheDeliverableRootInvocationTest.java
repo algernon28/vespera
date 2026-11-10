@@ -404,7 +404,8 @@ class TheDeliverableRootInvocationTest {
     }
 
     private List<String> operatorLines() {
-        return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+        return logged.list.stream().map(ILoggingEvent::getFormattedMessage)
+                .filter(line -> !line.startsWith("Report: ")).toList();
     }
 
     /** How many walks of {@code corpusRoot} are recorded. */

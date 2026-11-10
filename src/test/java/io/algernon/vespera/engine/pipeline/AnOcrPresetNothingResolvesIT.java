@@ -273,7 +273,7 @@ class AnOcrPresetNothingResolvesIT {
     }
 
     /**
-     * Ollama's three endpoints the run calls, as {@link TheClosingLineIsTheLastLineIT} has them: {@code /api/tags} naming
+     * Ollama's three endpoints the run calls, as {@link TheReportLineEndsTheOutputIT} has them: {@code /api/tags} naming
      * the one model, {@code /api/show} saying it is local, and {@code /api/embed} answering each input with a vector.
      */
     private static HttpServer ollamaStandIn() throws IOException {

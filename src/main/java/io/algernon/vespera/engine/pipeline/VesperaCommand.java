@@ -289,6 +289,7 @@ public class VesperaCommand implements Callable<Integer> {
             if (report != null) {
                 report.refused(line, exitCode);
             }
+            logTheReportLine();
             return exitCode;
         }
 
@@ -357,7 +358,7 @@ public class VesperaCommand implements Callable<Integer> {
             if (effectiveValues != null) {
                 effectiveValues.write();
             }
-            log.info("Progress page: {}", ProgressPage.pathIn(workingDirectoryInUse));
+            log.info("Report: {}", ReportHtml.pathIn(workingDirectoryInUse));
             log.info(
                     "Walking {}, named {}",
                     corpusRoot,
@@ -374,12 +375,14 @@ public class VesperaCommand implements Callable<Integer> {
                 if (report != null) {
                     report.runEnds(CommandLine.ExitCode.SOFTWARE, null, null);
                 }
+                logTheReportLine();
                 throw thrown;
             }
             if (execution.getStatus().isUnsuccessful()) {
                 if (report != null) {
                     report.runEnds(CommandLine.ExitCode.SOFTWARE, null, null);
                 }
+                logTheReportLine();
                 return CommandLine.ExitCode.SOFTWARE;
             }
             String closingLine = nextAction.line(corpusRoot, new InvocationRuns(execution.getExecutionContext()));
@@ -387,7 +390,16 @@ public class VesperaCommand implements Callable<Integer> {
             if (report != null) {
                 report.runEnds(CommandLine.ExitCode.OK, closingLine, nextAction.lastWritten());
             }
+            logTheReportLine();
             return CommandLine.ExitCode.OK;
+        }
+
+        /** The report line, last, once the last write of the report is made and after the closing line (ADR-362 section 7). */
+        private void logTheReportLine() {
+            String line = report == null ? null : report.reportLine();
+            if (line != null) {
+                log.info("{}", line);
+            }
         }
 
         /**
@@ -596,7 +608,7 @@ public class VesperaCommand implements Callable<Integer> {
             if (effectiveValues != null) {
                 effectiveValues.write();
             }
-            log.info("Progress page: {}", ProgressPage.pathIn(workingDirectoryInUse));
+            log.info("Report: {}", ReportHtml.pathIn(workingDirectoryInUse));
             progressPage.commandStarts(auto ? "vespera label --auto" : "vespera label");
             if (report != null) {
                 report.labelStarts();
@@ -612,6 +624,7 @@ public class VesperaCommand implements Callable<Integer> {
                             endedAs, answered, exit, closingLine,
                             exit == CommandLine.ExitCode.OK ? nextAction.lastWritten() : null);
                 }
+                logTheReportLine();
             }
         }
 
@@ -621,7 +634,16 @@ public class VesperaCommand implements Callable<Integer> {
             if (report != null) {
                 report.labelEnds("refused", Map.of(), exitCode, line, null);
             }
+            logTheReportLine();
             return exitCode;
+        }
+
+        /** The report line, last, once the last write of the report is made and after the closing line (ADR-362 section 7). */
+        private void logTheReportLine() {
+            String line = report == null ? null : report.reportLine();
+            if (line != null) {
+                log.info("{}", line);
+            }
         }
 
         private int recordTheAnswers() {

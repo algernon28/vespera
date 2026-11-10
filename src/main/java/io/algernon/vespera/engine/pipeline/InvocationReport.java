@@ -228,6 +228,10 @@ final class InvocationReport {
     private Reading reading;
     private boolean warned;
     private boolean htmlWarned;
+    private boolean wrote;
+    private String jsonFailure;
+    private String htmlFailure;
+    private String copyFailure;
     private ReportHtml html;
 
     InvocationReport(Path workingDirectory, Duration interval, Clock clock, Display display, String deliverableRoot) {
@@ -277,6 +281,7 @@ final class InvocationReport {
             reading = null;
             warned = false;
             htmlWarned = false;
+            wrote = false;
             html = new ReportHtml(reportTemplate);
             displayAnswer = askTheDisplay();
             mintTheId();
@@ -454,16 +459,25 @@ final class InvocationReport {
 
     // ---- writing
 
-    /** One write, under {@link #writing}: whole, into {@code .part} and moved into place, the copy the same text. */
+    /**
+     * One write, under {@link #writing}: whole, into {@code .part} and moved into place, the copy the same text. What
+     * each of the three files met is kept for {@link #reportLine()}: a copy that cannot be written leaves the page
+     * drawn, and a {@code report.json} that cannot be written leaves neither.
+     */
     private void write() {
+        jsonFailure = null;
+        htmlFailure = null;
+        copyFailure = null;
+        wrote = true;
+        String text = null;
+        String page = null;
         try {
             Instant writtenAt = truncated(clock.instant());
-            String text = Json.render(tree(writtenAt)) + "\n";
+            text = Json.render(tree(writtenAt)) + "\n";
             if (!html.tried()) {
                 html.trial(text);
                 text = Json.render(tree(writtenAt)) + "\n";
             }
-            String page = null;
             try {
                 try {
                     page = html.draw(text);
@@ -476,42 +490,94 @@ final class InvocationReport {
                     page = html.draw(text);
                 }
             } catch (RuntimeException | StackOverflowError unDrawn) {
+                htmlFailure = unDrawn.getClass().getName();
                 if (!htmlWarned) {
                     htmlWarned = true;
                     log.warn("the report could not be written: {}", unDrawn.getClass().getName());
                 }
             }
-            put(workingDirectory.resolve(FILE_NAME), text);
-            if (copy != null) {
+        } catch (RuntimeException e) {
+            text = null;
+            jsonFailure = e.getClass().getName();
+            warnOnce(e);
+        }
+        if (text != null) {
+            try {
+                put(workingDirectory.resolve(FILE_NAME), text);
+            } catch (IOException | RuntimeException e) {
+                deleteTheParts(workingDirectory.resolve(FILE_NAME));
+                jsonFailure = e.getClass().getName();
+                warnOnce(e);
+            }
+        }
+        if (jsonFailure != null) {
+            htmlFailure = null;
+            return;
+        }
+        if (copy != null) {
+            try {
                 put(copy, text);
+            } catch (IOException | RuntimeException e) {
+                deleteTheParts(copy);
+                copyFailure = e.getClass().getName();
+                warnOnce(e);
             }
+        }
+        if (copyFailure == null) {
             warned = false;
-            if (page != null) {
-                try {
-                    put(ReportHtml.pathIn(workingDirectory), page);
-                    htmlWarned = false;
-                } catch (IOException | RuntimeException unwritable) {
-                    deleteTheParts(ReportHtml.pathIn(workingDirectory));
-                    if (!htmlWarned) {
-                        htmlWarned = true;
-                        log.warn("the report could not be written: {}", unwritable.getClass().getName());
-                    }
+        }
+        if (page != null) {
+            try {
+                put(ReportHtml.pathIn(workingDirectory), page);
+                htmlWarned = false;
+            } catch (IOException | RuntimeException unwritable) {
+                deleteTheParts(ReportHtml.pathIn(workingDirectory));
+                htmlFailure = unwritable.getClass().getName();
+                if (!htmlWarned) {
+                    htmlWarned = true;
+                    log.warn("the report could not be written: {}", unwritable.getClass().getName());
                 }
             }
-        } catch (IOException | RuntimeException e) {
-            for (Path part : List.of(
-                    workingDirectory.resolve(FILE_NAME + ".part"),
-                    copy == null ? workingDirectory.resolve(FILE_NAME + ".part") : copy.resolveSibling(copy.getFileName() + ".part"))) {
-                try {
-                    Files.deleteIfExists(part);
-                } catch (IOException | RuntimeException ignored) {
-                    // the next write overwrites it
+        }
+    }
+
+    private void warnOnce(Throwable thrown) {
+        if (!warned) {
+            warned = true;
+            log.warn("the report could not be written: {}", thrown.getClass().getName());
+        }
+    }
+
+    /**
+     * The report line (ADR-362 section 7): what the last write made of the three files, and why nothing was opened.
+     * {@code null} where nothing has been written, so that a command logs none.
+     */
+    String reportLine() {
+        synchronized (writing) {
+            if (!wrote) {
+                return null;
+            }
+            Path json = workingDirectory.resolve(FILE_NAME);
+            Path page = ReportHtml.pathIn(workingDirectory);
+            StringBuilder files = new StringBuilder();
+            if (jsonFailure != null) {
+                files.append("not written to ").append(json).append(": ").append(jsonFailure);
+            } else {
+                files.append(json);
+                if (htmlFailure != null) {
+                    files.append(", not drawn as ").append(page).append(": ").append(htmlFailure);
+                } else {
+                    files.append(", drawn as ").append(page);
+                }
+                if (copyFailure != null) {
+                    files.append(", not copied to ").append(copy).append(": ").append(copyFailure);
                 }
             }
-            if (!warned) {
-                warned = true;
-                log.warn("the report could not be written: {}", e.getClass().getName());
-            }
+            return "Report: " + files + ". Nothing was opened: "
+                    + (displayAnswer.present()
+                            ? "a command opens no window, and the control panel's is the only one"
+                            : "there is no display here (" + displayAnswer.inWords() + ")")
+                    + ".";
         }
     }
 

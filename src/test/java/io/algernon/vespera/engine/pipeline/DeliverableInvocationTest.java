@@ -1244,9 +1244,10 @@ class DeliverableInvocationTest {
         return operatorLines().getLast().replace(theIndexFileOf(root).toString(), "");
     }
 
-    /** Every line this application wrote for an operator, in the order they were written. */
+    /** Every line this application wrote for an operator, in the order they were written, the report lines apart: the closing line is the last that does not start Report: (ADR-362 section 7). */
     private List<String> operatorLines() {
-        return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+        return logged.list.stream().map(ILoggingEvent::getFormattedMessage)
+                .filter(line -> !line.startsWith("Report: ")).toList();
     }
 
     /**
