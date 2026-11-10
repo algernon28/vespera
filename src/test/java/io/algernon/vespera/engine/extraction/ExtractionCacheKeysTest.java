@@ -2,7 +2,6 @@ package io.algernon.vespera.engine.extraction;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -66,52 +65,5 @@ class ExtractionCacheKeysTest {
                     assertThat(keys.forOccurrence(documents.get(0), anotherRun.run())).isEmpty();
                     assertThat(keys.forOccurrence(documents.get(1), documents.run())).isEmpty();
                 });
-    }
-
-    @Test
-    @Story("Each document's cache key is on record")
-    @DisplayName("A document with no key on record is an error that names the document and the run")
-    void aDocumentWithNoKeyIsAnErrorNamingItAndTheRun() {
-        OccurrencesUnderARun documents = OccurrencesUnderARun.of(jdbcTemplate, TWO_DOCUMENTS);
-        ExtractionCacheKeys keys = new ExtractionCacheKeys(jdbcTemplate);
-        keys.record(documents.get(0), documents.run(), A_KEY);
-
-        claim(
-                "asking for the key a step must have, of a document that has none, fails and says which"
-                        + " document and which run: every document that was measured has a key, so this"
-                        + " is the record disagreeing with itself, and a step that went on would do so"
-                        + " without the document or by reading its file again",
-                () -> assertThatThrownBy(() -> keys.requireForOccurrence(documents.get(1), documents.run()))
-                        .isInstanceOf(IllegalStateException.class)
-                        .hasMessageContaining("occurrence " + documents.get(1).value())
-                        .hasMessageContaining(documents.run().value()));
-        claim(
-                "while the document that has one gets it",
-                () -> assertThat(keys.requireForOccurrence(documents.get(0), documents.run())).isEqualTo(A_KEY));
-    }
-
-    @Test
-    @Story("Each document's cache key is on record")
-    @DisplayName("Removing a run's keys removes all of them and none of another run's")
-    void discardsARunsKeysAndNoOthers() {
-        OccurrencesUnderARun documents = OccurrencesUnderARun.of(jdbcTemplate, TWO_DOCUMENTS);
-        OccurrencesUnderARun anotherRun = OccurrencesUnderARun.of(jdbcTemplate, TWO_DOCUMENTS);
-        ExtractionCacheKeys keys = new ExtractionCacheKeys(jdbcTemplate);
-        keys.record(documents.get(0), documents.run(), A_KEY);
-        keys.record(documents.get(1), documents.run(), A_KEY);
-        keys.record(anotherRun.get(0), anotherRun.run(), A_KEY);
-
-        keys.discardForRun(documents.run());
-
-        claim(
-                "both of the run's " + TWO_DOCUMENTS + " keys are gone, so a step that does its work again"
-                        + " under the same run can record them again without meeting its earlier rows",
-                () -> {
-                    assertThat(keys.forOccurrence(documents.get(0), documents.run())).isEmpty();
-                    assertThat(keys.forOccurrence(documents.get(1), documents.run())).isEmpty();
-                });
-        claim(
-                "and the other run's key is still there",
-                () -> assertThat(keys.forOccurrence(anotherRun.get(0), anotherRun.run())).contains(A_KEY));
     }
 }

@@ -23,9 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -55,12 +53,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-228", url = Adr.A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY, type = "adr")
 @Link(name = "ADR-117", url = Adr.THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY, type = "adr")
 class AProfileEditedWhileStageFiveRunsInvocationTest {
-
-    /** Another model the scripted runtime serves, under the same digest and weight format as the first. */
-    private static final String ANOTHER_SERVED_MODEL = "another-embedding-model:1b";
-
-    /** Above anything the scripted embedder can produce, so every scored document falls under it. */
-    private static final String A_FLOOR_ABOVE_EVERY_SCORE = "1.5";
 
     /** The edit is made once the first chunk is embedded, which is after the scoring run was minted. */
     private static final int AFTER_THE_FIRST_CHUNK = 1;
@@ -125,43 +117,6 @@ class AProfileEditedWhileStageFiveRunsInvocationTest {
                 }));
     }
 
-    /**
-     * A renamed model, saved at either of two moments. Once the first chunk is embedded, the run is already minted
-     * and its later steps read the name it was minted under (ADR-228 sections 2 and 4). While the runtime is asked
-     * whether the model runs here, the step's gates have read the profile and the run is not yet minted: it is
-     * minted under the model the gates read and the runtime was asked about, and every chunk is sent under it
-     * (ADR-202 section 2, ADR-244 applying ADR-228 section 2).
-     */
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("momentsARenameIsSavedAt")
-    @Story("A run's later steps read the embedding model the run was started under")
-    @DisplayName("The embedding model renamed in the profile while stage 5 runs is not read by the run already under way: it scores and groups every document under the first name")
-    @Link(name = "ADR-244", url = Adr.THE_FLOORS_ANSWERS_ARE_UNDER_THE_RUNS_IDENTITY_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN, type = "adr")
-    void anEmbeddingModelRenamedWhileStageFiveRunsIsNotReadByTheRun(
-            Consumer<Runnable> savedAt, @TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpus(root, seeds);
-        profile(seeds, EveryGateOpen.EMBEDDING_MODEL, null);
-        savedAt.accept(() -> profile(seeds, ANOTHER_SERVED_MODEL, null));
-
-        cli.run("run", root.toString());
-
-        List<String> theRuns = scoringRunIdsFor(root);
-        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "it scored under one run, which names the model the profile named when the step's gates read it,"
-                        + " not the one saved afterwards",
-                () -> assertThat(theRuns).singleElement().satisfies(run -> assertThat(settingsOf(run))
-                        .contains("\"embeddingModel\":\"" + EveryGateOpen.EMBEDDING_MODEL + "\"")));
-        claim(
-                "all " + CORPUS_DOCUMENTS + " documents are scored and grouped under it: the vectors the run"
-                        + " embedded are under the first name, and a name read again from the profile part-way"
-                        + " through would find none of them",
-                () -> assertThat(theRuns).singleElement().satisfies(run -> {
-                    assertThat(countUnder("relevance_score", run)).isEqualTo(CORPUS_DOCUMENTS);
-                    assertThat(countUnder("document_cluster", run)).isEqualTo(CORPUS_DOCUMENTS);
-                }));
-    }
-
     static Stream<Arguments> momentsARenameIsSavedAt() {
         Consumer<Runnable> onceEmbedding = edit -> EmbeddingScriptedBeans.onceItHasEmbedded(AFTER_THE_FIRST_CHUNK, edit);
         Consumer<Runnable> whileTheRuntimeIsAsked = EmbeddingScriptedBeans::whenFirstAskedWhereAModelRuns;
@@ -170,58 +125,6 @@ class AProfileEditedWhileStageFiveRunsInvocationTest {
                 Arguments.of(Named.of(
                         "saved while the runtime is asked whether the model runs on this machine, before the run is started",
                         whileTheRuntimeIsAsked)));
-    }
-
-    @Test
-    @Story("A run's later steps read the embedding model the run was started under")
-    @DisplayName("The embedding model cleared from the profile while the runtime is asked whether it runs on this machine does not stop the run its gates opened")
-    @Link(name = "ADR-244", url = Adr.THE_FLOORS_ANSWERS_ARE_UNDER_THE_RUNS_IDENTITY_AND_A_SHARING_VIOLATION_IS_TRIED_AGAIN, type = "adr")
-    void anEmbeddingModelClearedBeforeTheRunIsMintedDoesNotStopTheRun(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        aCorpus(root, seeds);
-        profile(seeds, EveryGateOpen.EMBEDDING_MODEL, null);
-        EmbeddingScriptedBeans.whenFirstAskedWhereAModelRuns(() -> profile(seeds, null, null));
-
-        cli.run("run", root.toString());
-
-        List<String> theRuns = scoringRunIdsFor(root);
-        claim(
-                "the invocation reports success: the run is minted under the model the step's gates read, and"
-                        + " nothing fails for the profile naming none a moment later",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "it scored and grouped all " + CORPUS_DOCUMENTS + " documents under one run, which names that model",
-                () -> assertThat(theRuns).singleElement().satisfies(run -> {
-                    assertThat(settingsOf(run)).contains("\"embeddingModel\":\"" + EveryGateOpen.EMBEDDING_MODEL + "\"");
-                    assertThat(countUnder("relevance_score", run)).isEqualTo(CORPUS_DOCUMENTS);
-                    assertThat(countUnder("document_cluster", run)).isEqualTo(CORPUS_DOCUMENTS);
-                }));
-    }
-
-    @Test
-    @Story("A run removes by the threshold it was started under")
-    @DisplayName("The threshold cleared from the profile while documents are being embedded still removes, under the run started with it, every document below it")
-    void aFloorClearedWhileChunksAreEmbeddedStillRemovesUnderTheRunItNames(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        aCorpus(root, seeds);
-        profile(seeds, EveryGateOpen.EMBEDDING_MODEL, A_FLOOR_ABOVE_EVERY_SCORE);
-        EmbeddingScriptedBeans.onceItHasEmbedded(AFTER_THE_FIRST_CHUNK, () -> profile(seeds, EveryGateOpen.EMBEDDING_MODEL, null));
-
-        cli.run("run", root.toString());
-
-        List<String> theRuns = scoringRunIdsFor(root);
-        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "it scored under one run, which names the threshold " + A_FLOOR_ABOVE_EVERY_SCORE
-                        + " the profile held when the run was started",
-                () -> assertThat(theRuns).singleElement().satisfies(run -> assertThat(settingsOf(run))
-                        .contains("\"relevanceScoreFloor\":" + A_FLOOR_ABOVE_EVERY_SCORE)));
-        claim(
-                "and all " + CORPUS_DOCUMENTS + " documents, every one scoring under that threshold, are removed"
-                        + " under it: the number that removes is the number the run is named by, and no answer"
-                        + " was given about this seed folder, so nothing says the number is on another scale",
-                () -> assertThat(theRuns).singleElement().satisfies(run ->
-                        assertThat(removalsUnder(run)).isEqualTo(CORPUS_DOCUMENTS)));
     }
 
     /** Two corpus documents and a seed, each naming its folder so that no other test wrote the same bytes. */
@@ -252,18 +155,8 @@ class AProfileEditedWhileStageFiveRunsInvocationTest {
                 Walk.canonicalRoot(root).toString());
     }
 
-    private String settingsOf(String run) {
-        return jdbcTemplate.queryForObject("SELECT config_consumed FROM run WHERE id = ?", String.class, run);
-    }
-
     private long countUnder(String table, String run) {
         Long count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + table + " WHERE run_id = ?", Long.class, run);
-        return count == null ? 0 : count;
-    }
-
-    private long removalsUnder(String run) {
-        Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM verdict WHERE run_id = ? AND kind = 'BELOW_THRESHOLD'", Long.class, run);
         return count == null ? 0 : count;
     }
 

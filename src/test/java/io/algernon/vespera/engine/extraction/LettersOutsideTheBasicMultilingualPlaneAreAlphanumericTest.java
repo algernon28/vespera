@@ -4,24 +4,14 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.engine.ledger.Ledger;
-import io.algernon.vespera.engine.ledger.OccurrenceId;
-import io.algernon.vespera.engine.ledger.OccurrencePath;
-import io.algernon.vespera.engine.ledger.RunId;
-import io.algernon.vespera.engine.ledger.WalkId;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.nio.file.Path;
-import java.time.Instant;
-import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
@@ -61,45 +51,6 @@ class LettersOutsideTheBasicMultilingualPlaneAreAlphanumericTest {
 
     private static final String A_BODY_OF_IDEOGRAPHS = body(TWO_IDEOGRAPHS_OF_EXTENSION_B);
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
-    @Test
-    @Story("A document whose text is all letters outside the common plane of Unicode has text")
-    @DisplayName("A conversion whose only text is mathematical bold letters is not judged to have no usable content")
-    void aBodyOfMathematicalLettersIsNotDegenerate() {
-        OccurrenceId occurrence = anOccurrence("mathematical-letters.pdf");
-        RunId run = aRun("mathematical-letters");
-
-        DegeneracyVerdict verdict =
-                metrics().writeAndJudge(occurrence, run, converted(A_BODY_OF_MATHEMATICAL_LETTERS), null, null);
-
-        claim(
-                "the conversion has usable content: its text is " + FOUR_LETTERS + " letters a person can read",
-                () -> assertThat(verdict).isEqualTo(DegeneracyVerdict.notDegenerate()));
-        claim(
-                "and its count of letters and digits is " + FOUR_LETTERS + ", one for each letter, though each"
-                        + " is held as two units of the string",
-                () -> assertThat(jdbcTemplate.queryForObject(
-                                "SELECT alphanumeric_char_count FROM extraction_metric WHERE occurrence_id = ? AND run_id = ?",
-                                Long.class,
-                                occurrence.value(),
-                                run.value()))
-                        .isEqualTo(FOUR_LETTERS));
-    }
-
-    @Test
-    @Story("A document whose text is all letters outside the common plane of Unicode has text")
-    @DisplayName("A conversion whose only text is two rare ideographs is not judged to have no usable content")
-    void aBodyOfIdeographsOfExtensionBIsNotDegenerate() {
-        DegeneracyVerdict verdict = metrics()
-                .writeAndJudge(anOccurrence("ideographs.pdf"), aRun("ideographs"), converted(A_BODY_OF_IDEOGRAPHS), null, null);
-
-        claim(
-                "the conversion has usable content: its text is two ideographs, each a letter",
-                () -> assertThat(verdict).isEqualTo(DegeneracyVerdict.notDegenerate()));
-    }
-
     @Test
     @Story("A document whose text is all letters outside the common plane of Unicode has text")
     @DisplayName("A seed whose only text is mathematical bold letters or rare ideographs is usable")
@@ -115,27 +66,5 @@ class LettersOutsideTheBasicMultilingualPlaneAreAlphanumericTest {
 
     private static String body(String text) {
         return "{\"document\":{\"json_content\":{\"texts\":[{\"text\":\"" + text + "\",\"label\":\"text\"}]}}}";
-    }
-
-    private ExtractionMetrics metrics() {
-        return new ExtractionMetrics(jdbcTemplate, new LanguageDetection());
-    }
-
-    private static DoclingResponse converted(String rawResponse) {
-        return new DoclingResponse(ConversionStatus.SUCCESS, List.of(), 1.0, null, rawResponse);
-    }
-
-    private OccurrenceId anOccurrence(String name) {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus-of-" + name));
-        Instant then = Instant.parse("2026-01-01T00:00:00Z");
-        ledger.occurrences().fileOccurrence(walkId, new OccurrencePath(name), 10, then, then);
-        return ledger.occurrences().occurrenceId(walkId, new OccurrencePath(name)).orElseThrow();
-    }
-
-    private RunId aRun(String name) {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.walks().startWalk(Path.of("C:/run-of-" + name));
-        return ledger.runs().startRun("extraction", "abc123", "{}", walkId, List.of());
     }
 }

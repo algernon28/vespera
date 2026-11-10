@@ -28,9 +28,8 @@ import org.springframework.core.type.filter.AssignableTypeFilter;
  * Every class the build compiled from {@code src/main}, with what its compiled form holds, for a test
  * that asks what the shipped code names (ADR-209 sections 2 and 3).
  *
- * <p>Read off the compiled classes and not off the sources, as {@code OnlyTheFirstReadHashesAFileTest}
- * reads them: a comment that names a table or a type is not in a class file, and a statement written as
- * several literals joined by {@code +} is one text in it, because the compiler joins them. A class is
+ * <p>Read off the compiled classes and not off the sources: a comment that names a table or a type is
+ * not in a class file, and a statement written as several literals joined by {@code +} is one text in it, because the compiler joins them. A class is
  * found by scanning, so one added later is read without being named here. Test classes are left out by
  * where they were compiled to.
  */

@@ -19,17 +19,15 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The window reads each analysis report's JSON in the {@code format} its writer writes it in (ADR-362 section 10):
  * {@code AnalysisReportFile.FORMATS} holds one entry for each report whose view is native. A case is added by each
- * report's ticket of step 7; this holds the format mix's, written by {@code ByteLevelReductionTasklet}.
+ * report's ticket of step 7; this holds every writer's, the whole of the table the window keeps.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -46,8 +44,16 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
     @Test
     @Story("The window reads each analysis report in the format the jar writes it")
     @DisplayName("The format the window reads for each analysis report is the one its writer writes")
-    void eachFormatTheWindowReadsIsTheOneTheJarWrites() throws IOException {
-        Map<String, Integer> written = Map.of(FormatMixReport.NAME, FormatMixReport.FORMAT);
+    void eachFormatTheWindowReadsIsTheOneTheJarWrites(@TempDir Path base) throws IOException {
+        Map<String, Integer> written = Map.ofEntries(
+                Map.entry(FormatMixReport.NAME, FormatMixReport.FORMAT),
+                Map.entry(TranslationReport.NAME, TranslationReport.FORMAT),
+                Map.entry(ClusterSizeReport.NAME, ClusterSizeReport.FORMAT),
+                Map.entry(RelevanceLabellingReport.NAME, RelevanceLabellingReport.FORMAT),
+                Map.entry(ArrangementReport.NAME, AnalysisReportJson.FORMAT),
+                Map.entry(ConfidenceDistributionReport.NAME, AnalysisReportJson.FORMAT),
+                Map.entry(WordCountDistributionReport.NAME, AnalysisReportJson.FORMAT),
+                Map.entry(DocumentFrequencyReport.NAME, AnalysisReportJson.FORMAT));
 
         claim("the window reads each report whose writer is listed in the format its writer writes",
                 () -> written.forEach((name, format) ->
@@ -75,6 +81,10 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
                         .isEqualTo(formatOf(survivorJson.toString())));
         claim("both lists are among the reports the window lists",
                 () -> assertThat(Reports.ALL).contains(ReviewListReport.NAME, SurvivorListReport.NAME));
+        Path work = ClusterPageSizesDrawn.under(base);
+        int pageSizes = formatOf(Files.readString(work.resolve("cluster-page-sizes.json"), StandardCharsets.UTF_8));
+        claim("the group page sizes, written in deliverable, are read in the format their JSON is written in",
+                () -> assertThat(AnalysisReportFile.FORMATS).containsEntry("cluster-page-sizes", pageSizes));
         claim("and the window has a format for every report it lists",
                 () -> assertThat(AnalysisReportFile.FORMATS.keySet()).containsAll(Reports.ALL));
     }
@@ -83,63 +93,4 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
         return Integer.parseInt(json.replaceFirst("(?s)^\\{\"format\":(\\d+).*$", "$1"));
     }
 
-    /** The three reports of {@link ContentCensusTasklet}. */
-    private static final List<String> THE_CONTENT_CENSUS = List.of("confidence-distribution", "word-count-distribution",
-            "document-frequency");
-
-    private static final JsonMapper MAPPER = JsonMapper.builder().build();
-
-    @Test
-    @Story("The window reads each report in the format its writer writes")
-    @DisplayName("The format the window reads for each report of the content census is the one the jar writes, which its schema names")
-    void eachFormatOfTheContentCensusIsTheOneTheJarWrites() throws IOException {
-        for (String name : THE_CONTENT_CENSUS) {
-            long inItsSchema = MAPPER.readTree(Files.readString(Path.of("docs", "report", name + ".schema.json")))
-                    .get("properties").get("format").get("const").asLong();
-            claim(name + ": the window has an entry for it, holding the format its writer writes, its schema's",
-                    () -> {
-                        assertThat(AnalysisReportFile.FORMATS).containsEntry(name, AnalysisReportJson.FORMAT);
-                        assertThat(AnalysisReportFile.formatOf(name)).isEqualTo((int) inItsSchema);
-                    });
-        }
-    }
-
-    @Test
-    @Story("The window draws each landed report natively")
-    @DisplayName("The reports the window lists hold the three of the content census")
-    void theReportsTheWindowListsHoldTheContentCensus() {
-        claim("each of the three is a report the window lists", () -> assertThat(Reports.ALL)
-                .containsAll(THE_CONTENT_CENSUS));
-    }
-
-    @Test
-    @Story("The operator reads the reports inside the window")
-    @DisplayName("The window reads the translation report's JSON in the format the jar writes it in")
-    void theTranslationReportIsReadInTheFormatTheJarWritesIt() {
-        claim("the window's entry for the translation report is the format its writer writes, " + TranslationReport.FORMAT,
-                () -> assertThat(AnalysisReportFile.FORMATS).containsEntry(TranslationReport.NAME,
-                        TranslationReport.FORMAT));
-        claim("the translation report is among the reports the window lists",
-                () -> assertThat(Reports.ALL).contains(TranslationReport.NAME));
-        claim("the relevance labelling page's JSON is read in the format its writer writes, "
-                        + RelevanceLabellingReport.FORMAT,
-                () -> assertThat(AnalysisReportFile.FORMATS)
-                        .containsEntry(RelevanceLabellingReport.NAME, RelevanceLabellingReport.FORMAT));
-        claim("the relevance labelling report is among the reports the window lists",
-                () -> assertThat(Reports.ALL).contains(RelevanceLabellingReport.NAME));
-    }
-
-    @Test
-    @Story("The window reads the report's JSON in the format the jar writes")
-    @DisplayName("The window reads the group page sizes' JSON in the format the jar writes it in")
-    void theGroupPageSizesAreReadInTheFormatTheJarWritesThem(@TempDir Path base) throws IOException {
-        Path work = ClusterPageSizesDrawn.under(base);
-        long written = MAPPER.readTree(Files.readString(work.resolve("cluster-page-sizes.json"), StandardCharsets.UTF_8))
-                .get("format").asLong();
-
-        claim("the window holds a format for the group page sizes, the one its JSON is written in",
-                () -> assertThat(AnalysisReportFile.FORMATS).containsEntry("cluster-page-sizes", (int) written));
-        claim("the group page sizes are among the reports the window lists",
-                () -> assertThat(Reports.ALL).contains("cluster-page-sizes"));
-    }
 }

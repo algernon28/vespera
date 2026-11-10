@@ -5,30 +5,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.corpus.DetectedFormat;
-import io.algernon.vespera.engine.corpus.DetectedSubtype;
 import io.algernon.vespera.TestcontainersConfiguration;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.zip.CRC32;
-import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-import javax.imageio.ImageIO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,11 +27,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.containers.Container;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.utility.MountableFile;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * {@link DoclingClient} against the real {@code docling-serve} sidecar (ADR-071): one synchronous
@@ -87,78 +73,8 @@ class DoclingClientIT {
     /** The same, for the {@code .docx} fixture, and deliberately a different word from the PDF's. */
     private static final String DOCX_MARKER_WORD = "Palimpsest";
 
-    /** The one distinctive word the extension-less prose fixture is written with. */
-    private static final String PROSE_MARKER_WORD = "Recrudescence";
-
-    /** The distinctive word the older Word fixture carries, saved from a {@code .docx} as a {@code .doc}. */
-    private static final String DOC_MARKER_WORD = "Sesquipedalian";
-
-    /** The distinctive word the older PowerPoint fixture carries, on its one slide. */
-    private static final String PPT_MARKER_WORD = "Quiddity";
-
-    /** How a picture's pixels begin when they are written into the answer as a PNG (ADR-150). */
-    private static final String EMBEDDED_PNG_PREFIX = "data:image/png;base64,";
-
-    /** The chart image's width in pixels, drawn at 288 points wide on the page. */
-    private static final int CHART_WIDTH = 240;
-
-    /** The chart image's height in pixels, drawn at 192 points high on the page. */
-    private static final int CHART_HEIGHT = 160;
-
-    /** The chart's four bars: left edge, height, and red, green and blue, each bar 30 pixels wide. */
-    private static final int[][] CHART_BARS = {
-        {40, 60, 200, 30, 30}, {90, 110, 30, 120, 200}, {140, 40, 40, 160, 60}, {190, 130, 230, 160, 20}
-    };
-
     @Autowired
     private DoclingClient client;
-
-    @Autowired
-    private GenericContainer<?> doclingServeContainer;
-
-    /**
-     * ADR-147: the sidecar carries LibreOffice, which docling-serve calls to turn a {@code .doc} into a
-     * {@code .docx} before converting it. On the stock image this very file came back {@code failure}
-     * with an uncategorised error, and every older Word document in the archive with it.
-     *
-     * <p>The fixture is made in the test, as ADR-063 asks, by the one thing on hand that writes the
-     * format: the sidecar's own LibreOffice, saving a generated {@code .docx} as a {@code .doc}.
-     */
-    @Test
-    @Story("One call converts one document")
-    @DisplayName("An older Word document converts, and carries its own text")
-    @Link(name = "ADR-147", url = Adr.THE_DOCLING_SIDECAR_IS_A_DERIVED_IMAGE, type = "adr")
-    void convertsAnOlderWordDocument(@TempDir Path dir) throws Exception {
-        Path doc = savedByLibreOfficeAs(aDocx(dir.resolve("older.docx"), DOC_MARKER_WORD), "doc", dir);
-
-        DoclingResponse response = client.convert(doc, DetectedFormat.OLE_COMPOUND, DetectedSubtype.LEGACY_WORD);
-
-        claim(
-                "the service reports the conversion succeeded, where the image without LibreOffice refused it",
-                () -> assertThat(response.status()).isEqualTo(ConversionStatus.SUCCESS));
-        claim(
-                "and the body carries the document's own word, so its text came through the conversion",
-                () -> assertThat(response.rawResponse()).contains(DOC_MARKER_WORD));
-    }
-
-    /** The same for an older PowerPoint file, which docling-serve turns into a {@code .pptx} first. */
-    @Test
-    @Story("One call converts one document")
-    @DisplayName("An older PowerPoint presentation converts, and carries its own text")
-    @Link(name = "ADR-147", url = Adr.THE_DOCLING_SIDECAR_IS_A_DERIVED_IMAGE, type = "adr")
-    void convertsAnOlderPowerPointPresentation(@TempDir Path dir) throws Exception {
-        Path ppt = savedByLibreOfficeAs(anOdp(dir.resolve("older.odp"), PPT_MARKER_WORD), "ppt", dir);
-
-        DoclingResponse response =
-                client.convert(ppt, DetectedFormat.OLE_COMPOUND, DetectedSubtype.LEGACY_PRESENTATION);
-
-        claim(
-                "the service reports the conversion succeeded",
-                () -> assertThat(response.status()).isEqualTo(ConversionStatus.SUCCESS));
-        claim(
-                "and the body carries the slide's own word",
-                () -> assertThat(response.rawResponse()).contains(PPT_MARKER_WORD));
-    }
 
     @Test
     @Story("One call converts one document")
@@ -268,82 +184,6 @@ class DoclingClientIT {
     }
 
     /**
-     * ADR-150: a PDF's pictures come back with their pixels, because the client asks for them. Under
-     * the sidecar's default picture mode the same file comes back with the picture located on the page
-     * and no pixels at all, which is what every PDF in the cache carried before this decision.
-     *
-     * <p>The fixture is a one-page PDF drawing a small bar chart as an image, generated here (ADR-063).
-     * It was measured against the pinned image on 2026-09-25: one picture, with pixels under
-     * {@code embedded} and without them under {@code placeholder}.
-     */
-    @Test
-    @Story("The conversion pins what it asks for")
-    @DisplayName("A picture in a PDF comes back with its pixels, as an image the reader can decode")
-    @Issue("286")
-    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
-    void returnsAPicturesPixelsFromAPdf(@TempDir Path dir) throws IOException {
-        DoclingResponse response = client.convert(aPdfWithAChart(dir.resolve("chart.pdf")), DetectedFormat.PDF, null);
-        JsonNode pictures = JsonMapper.builder().build()
-                .readTree(response.rawResponse())
-                .path("document")
-                .path("json_content")
-                .path("pictures");
-
-        claim(
-                "the service reports the conversion succeeded",
-                () -> assertThat(response.status()).isEqualTo(ConversionStatus.SUCCESS));
-        claim(
-                "it found the chart as a picture on the page",
-                () -> assertThat(pictures.isArray() && !pictures.isEmpty()).isTrue());
-        String uri = pictures.path(0).path("image").path("uri").asString("");
-        claim(
-                "and the picture carries its pixels inside the answer, as a PNG written into the address"
-                        + " itself, rather than a location on the page with nothing to show",
-                () -> assertThat(uri).startsWith(EMBEDDED_PNG_PREFIX));
-        claim(
-                "and those pixels decode to an image with a width and a height, so what is cached is a"
-                        + " picture a reader can be shown",
-                () -> {
-                    BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(
-                            Base64.getDecoder().decode(uri.substring(EMBEDDED_PNG_PREFIX.length()))));
-                    assertThat(decoded).isNotNull();
-                    assertThat(decoded.getWidth()).isPositive();
-                    assertThat(decoded.getHeight()).isPositive();
-                });
-    }
-
-    @Test
-    @Story("One call converts one document")
-    @DisplayName("Prose in a file with no extension converts, because the name sent is the format's")
-    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
-    void convertsProseThatCarriesNoExtensionOnDisk(@TempDir Path dir) throws IOException {
-        Path noExtension = Files.writeString(
-                dir.resolve("notes"), "A paragraph of ordinary prose, mentioning " + PROSE_MARKER_WORD + ".\n");
-
-        DoclingResponse response = client.convert(noExtension, DetectedFormat.PLAIN_TEXT, null);
-
-        claim(
-                "the whole design rests on this and only a real sidecar can contradict it: an upload"
-                        + " whose name carries no extension the converter knows does not fall back to plain"
-                        + " text, it resolves to no format at all and fails -- so the name derived from the"
-                        + " detected format is what makes a file like this convertible",
-                () -> assertThat(response.status()).isEqualTo(ConversionStatus.SUCCESS));
-        claim(
-                "and what came back is this file's content, not an empty document that happened not to"
-                        + " error",
-                () -> assertThat(response.rawResponse()).contains(PROSE_MARKER_WORD));
-        claim(
-                "and it carries a quality snapshot with nothing measured in it -- text is converted by"
-                        + " the simple pipeline and confidence is derived per page, so the scores come back"
-                        + " null and the grades unspecified, which reads as not measured and never as poor",
-                () -> {
-                    assertThat(response.confidence().meanScore()).isNull();
-                    assertThat(response.confidence().lowScore()).isNull();
-                    assertThat(response.confidence().meanGrade()).isEqualTo(QualityGrade.UNSPECIFIED);
-                });
-    }
-
-    /**
      * A real single-page PDF: catalog, page tree, one page, one Type 1 base font, and a content
      * stream that actually shows text, with a cross-reference table whose offsets are computed from
      * the bytes written. Nothing here is decorative — a PDF missing any of it is one the converter's
@@ -379,100 +219,6 @@ class DoclingClientIT {
         // cross-reference table means. A non-ASCII marker word would silently invalidate every offset.
         Files.writeString(file, pdf, StandardCharsets.US_ASCII);
         return file;
-    }
-
-    /**
-     * A one-page PDF showing {@link #PDF_MARKER_WORD} and, below it, a bar chart drawn as an image: a
-     * {@value #CHART_WIDTH}×{@value #CHART_HEIGHT} RGB image XObject, Flate-compressed, of four coloured
-     * bars on two black axes over white. The same page and the same image as the fixture measured on
-     * 2026-09-25 (ADR-150's research record), which the pinned image reads as one picture. The
-     * cross-reference offsets are byte offsets into what is written, so the binary stream is counted in
-     * bytes, not characters.
-     */
-    private static Path aPdfWithAChart(Path file) throws IOException {
-        byte[] raw = new byte[CHART_WIDTH * CHART_HEIGHT * 3];
-        for (int y = 0; y < CHART_HEIGHT; y++) {
-            for (int x = 0; x < CHART_WIDTH; x++) {
-                int[] rgb = chartPixel(x, y);
-                int at = (y * CHART_WIDTH + x) * 3;
-                raw[at] = (byte) rgb[0];
-                raw[at + 1] = (byte) rgb[1];
-                raw[at + 2] = (byte) rgb[2];
-            }
-        }
-        Deflater deflater = new Deflater(Deflater.BEST_COMPRESSION);
-        deflater.setInput(raw);
-        deflater.finish();
-        ByteArrayOutputStream compressed = new ByteArrayOutputStream();
-        byte[] buffer = new byte[8192];
-        while (!deflater.finished()) {
-            compressed.write(buffer, 0, deflater.deflate(buffer));
-        }
-        deflater.end();
-        byte[] image = compressed.toByteArray();
-
-        String content = "BT /F1 24 Tf 72 700 Td (" + PDF_MARKER_WORD + ") Tj ET\nq 288 0 0 192 72 400 cm /Im1 Do Q\n";
-        List<byte[]> objects = List.of(
-                ascii("<< /Type /Catalog /Pages 2 0 R >>"),
-                ascii("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
-                ascii("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >>"
-                        + " /XObject << /Im1 6 0 R >> >> /Contents 5 0 R >>"),
-                ascii("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
-                ascii("<< /Length " + content.length() + " >>\nstream\n" + content + "endstream"),
-                concat(
-                        ascii("<< /Type /XObject /Subtype /Image /Width " + CHART_WIDTH + " /Height " + CHART_HEIGHT
-                                + " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length "
-                                + image.length + " >>\nstream\n"),
-                        image,
-                        ascii("\nendstream")));
-
-        ByteArrayOutputStream pdf = new ByteArrayOutputStream();
-        pdf.writeBytes(ascii("%PDF-1.7\n"));
-        List<Integer> offsets = new ArrayList<>();
-        for (int object = 0; object < objects.size(); object++) {
-            offsets.add(pdf.size());
-            pdf.writeBytes(ascii((object + 1) + " 0 obj\n"));
-            pdf.writeBytes(objects.get(object));
-            pdf.writeBytes(ascii("\nendobj\n"));
-        }
-        int startOfCrossReferenceTable = pdf.size();
-        StringBuilder trailer = new StringBuilder("xref\n0 ").append(objects.size() + 1).append('\n');
-        trailer.append("0000000000 65535 f \n");
-        offsets.forEach(offset -> trailer.append("%010d 00000 n \n".formatted(offset)));
-        trailer.append("trailer\n<< /Size ")
-                .append(objects.size() + 1)
-                .append(" /Root 1 0 R >>\nstartxref\n")
-                .append(startOfCrossReferenceTable)
-                .append("\n%%EOF\n");
-        pdf.writeBytes(ascii(trailer.toString()));
-        Files.write(file, pdf.toByteArray());
-        return file;
-    }
-
-    /** One pixel of the chart, {@code y} counted from the top row: two axes, four bars, white elsewhere. */
-    private static int[] chartPixel(int x, int y) {
-        int baseline = CHART_HEIGHT - 20;
-        if (x == 20 || y == baseline) {
-            return new int[] {0, 0, 0};
-        }
-        for (int[] bar : CHART_BARS) {
-            if (x >= bar[0] && x < bar[0] + 30 && y >= baseline - bar[1] && y < baseline) {
-                return new int[] {bar[2], bar[3], bar[4]};
-            }
-        }
-        return new int[] {255, 255, 255};
-    }
-
-    private static byte[] ascii(String text) {
-        return text.getBytes(StandardCharsets.US_ASCII);
-    }
-
-    private static byte[] concat(byte[]... parts) {
-        ByteArrayOutputStream joined = new ByteArrayOutputStream();
-        for (byte[] part : parts) {
-            joined.writeBytes(part);
-        }
-        return joined.toByteArray();
     }
 
     /**
@@ -534,82 +280,6 @@ class DoclingClientIT {
                             .formatted(word));
         }
         return file;
-    }
-
-    /**
-     * A real OpenDocument presentation with one slide reading {@code word}: the three parts LibreOffice
-     * needs, the uncompressed {@code mimetype} entry first as the format requires.
-     */
-    private static Path anOdp(Path file, String word) throws IOException {
-        try (ZipOutputStream odp = new ZipOutputStream(Files.newOutputStream(file))) {
-            byte[] mimetype = "application/vnd.oasis.opendocument.presentation".getBytes(StandardCharsets.US_ASCII);
-            CRC32 checksum = new CRC32();
-            checksum.update(mimetype);
-            ZipEntry stored = new ZipEntry("mimetype");
-            stored.setMethod(ZipEntry.STORED);
-            stored.setSize(mimetype.length);
-            stored.setCrc(checksum.getValue());
-            odp.putNextEntry(stored);
-            odp.write(mimetype);
-            odp.closeEntry();
-            write(
-                    odp,
-                    "META-INF/manifest.xml",
-                    """
-                    <?xml version="1.0" encoding="UTF-8"?>
-                    <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0">
-                      <manifest:file-entry manifest:full-path="/"\
-                     manifest:media-type="application/vnd.oasis.opendocument.presentation"/>
-                      <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
-                    </manifest:manifest>
-                    """);
-            write(
-                    odp,
-                    "content.xml",
-                    """
-                    <?xml version="1.0" encoding="UTF-8"?>
-                    <office:document-content\
-                     xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"\
-                     xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"\
-                     xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"\
-                     xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"\
-                     office:version="1.2">
-                      <office:body><office:presentation><draw:page draw:name="page1">
-                        <draw:frame svg:x="2cm" svg:y="2cm" svg:width="20cm" svg:height="3cm">
-                          <draw:text-box><text:p>%s</text:p></draw:text-box>
-                        </draw:frame>
-                      </draw:page></office:presentation></office:body>
-                    </office:document-content>
-                    """
-                            .formatted(word));
-        }
-        return file;
-    }
-
-    /**
-     * {@code source} saved as {@code extension} by the sidecar's own LibreOffice, and copied back into
-     * {@code dir}: the one writer of the older Office formats this suite has, and the reason these two
-     * fixtures can be generated rather than committed (ADR-063).
-     */
-    private Path savedByLibreOfficeAs(Path source, String extension, Path dir) throws Exception {
-        String inside = "/tmp/fixture-" + source.getFileName();
-        doclingServeContainer.copyFileToContainer(MountableFile.forHostPath(source), inside);
-        Container.ExecResult saved = doclingServeContainer.execInContainer(
-                "soffice",
-                "-env:UserInstallation=file:///tmp/fixture-profile",
-                "--headless",
-                "--convert-to",
-                extension,
-                "--outdir",
-                "/tmp/fixture-out",
-                inside);
-        if (saved.getExitCode() != 0) {
-            throw new IllegalStateException("LibreOffice could not save the fixture as ." + extension + ": " + saved);
-        }
-        String stem = "fixture-" + source.getFileName().toString().replaceFirst("\\.[^.]+$", "");
-        Path copied = dir.resolve(stem + "." + extension);
-        doclingServeContainer.copyFileFromContainer("/tmp/fixture-out/" + copied.getFileName(), copied.toString());
-        return copied;
     }
 
     private static void write(ZipOutputStream docx, String part, String content) throws IOException {

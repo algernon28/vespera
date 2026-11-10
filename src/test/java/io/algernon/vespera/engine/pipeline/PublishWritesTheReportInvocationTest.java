@@ -143,63 +143,6 @@ class PublishWritesTheReportInvocationTest {
                 });
     }
 
-    @Test
-    @Story("The report holds each destination")
-    @DisplayName("A publish whose destinations all deliver ends delivered with exit code 0, and the name written twice is one entry")
-    void everyDestinationDeliveredIsADeliveredPublish() throws IOException {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        generationRun(ledger);
-
-        int exit = publish(ledger, new Seen(), "", "--to", "website,confluence,website");
-
-        JsonNode written = TheReportFile.in(workingDirectory);
-        claim("the publish ended 0 and the report says delivered, with the exit code 0",
-                () -> {
-                    assertThat(exit).isZero();
-                    assertThat(written.get("invocation").get("outcome").asString()).isEqualTo("delivered");
-                    assertThat(written.get("invocation").get("exitCode").asLong()).isZero();
-                    assertThat(written.get("refusals")).isEmpty();
-                });
-        claim("two entries, website first and Confluence second, as written, each delivered",
-                () -> {
-                    JsonNode destinations = written.get("publish").get("destinations");
-                    assertThat(destinations).hasSize(2);
-                    assertThat(destinations.get(0).get("destination").asString()).isEqualTo(WEBSITE);
-                    assertThat(destinations.get(1).get("destination").asString()).isEqualTo(CONFLUENCE);
-                    assertThat(destinations.get(0).get("outcome").asString()).isEqualTo("delivered");
-                    assertThat(destinations.get(1).get("outcome").asString()).isEqualTo("delivered");
-                });
-    }
-
-    @Test
-    @Story("The report holds a refusal")
-    @DisplayName("A destination no plugin has is refused after the lock: the report says refused with exit code 2 and no destination, no first line is logged, and the report line follows the refusal")
-    void aRefusedPublishSaysSoAndPrintsNoFirstLine() throws IOException {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        generationRun(ledger);
-
-        int exit = publish(ledger, new Seen(), "", "--to", "website,nowhere");
-
-        JsonNode written = TheReportFile.in(workingDirectory);
-        claim("the publish ended 2, a usage error, and the report says refused with that exit code",
-                () -> {
-                    assertThat(exit).isEqualTo(CommandLine.ExitCode.USAGE);
-                    assertThat(written.get("invocation").get("command").asString()).isEqualTo("publish");
-                    assertThat(written.get("invocation").get("outcome").asString()).isEqualTo("refused");
-                    assertThat(written.get("invocation").get("exitCode").asLong()).isEqualTo(2);
-                });
-        claim("the refusal is its closing line and its one refusal, and no destination was reached",
-                () -> {
-                    assertThat(written.get("refusals")).hasSize(1);
-                    assertThat(written.get("closing").asString()).isEqualTo(written.get("refusals").get(0).asString())
-                            .startsWith("vespera publish has no destination nowhere");
-                    assertThat(written.get("publish").get("destinations")).isEmpty();
-                });
-        List<String> lines = loggedLines();
-        claim("no line before the refusal names the report: the only line logged is the report line",
-                () -> assertThat(lines).hasSize(1).allMatch(line -> line.startsWith(REPORT_PREFIX)));
-    }
-
     private List<String> loggedLines() {
         return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
     }

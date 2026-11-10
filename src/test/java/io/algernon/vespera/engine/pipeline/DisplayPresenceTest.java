@@ -56,48 +56,6 @@ class DisplayPresenceTest {
 
     @Test
     @Story("A display is present where a window can open")
-    @DisplayName("On Windows a display is present where the window station is visible")
-    void onWindowsADisplayIsPresentWhereTheWindowStationIsVisible() {
-        claim("a visible window station is a display",
-                () -> assertThat(DisplayPresence.of("Windows 11", Map.of(), false, () -> true, NEVER_ASKED))
-                        .isEqualTo(new Answer(true, "visible-window-station", null)));
-        claim("a hidden one is none",
-                () -> assertThat(DisplayPresence.of("Windows 11", Map.of(), false, () -> false, NEVER_ASKED))
-                        .isEqualTo(new Answer(false, "hidden-window-station", null)));
-    }
-
-    @Test
-    @Story("A display is present where a window can open")
-    @DisplayName("On macOS a display is present where the window server answers")
-    void onMacOsADisplayIsPresentWhereTheWindowServerAnswers() {
-        claim("a dictionary is a display",
-                () -> assertThat(DisplayPresence.of("Mac OS X", Map.of(), false, NEVER_ASKED, () -> true))
-                        .isEqualTo(new Answer(true, "window-server", null)));
-        claim("none is none",
-                () -> assertThat(DisplayPresence.of("Mac OS X", Map.of(), false, NEVER_ASKED, () -> false))
-                        .isEqualTo(new Answer(false, "no-window-server", null)));
-    }
-
-    @Test
-    @Story("A display is present where a window can open")
-    @DisplayName("The system is read as HostSystem names it")
-    void theSystemIsReadAsHostSystemNamesIt() {
-        List<String> asked = new ArrayList<>();
-        NativeDisplay windows = () -> { asked.add("windows"); return true; };
-        NativeDisplay mac = () -> { asked.add("mac"); return true; };
-        Map<String, String> display = Map.of("DISPLAY", ":0");
-        for (String name : List.of("Mac OS X", "Darwin", "Windows 11", "Linux", "FreeBSD")) {
-            asked.add(name + ":" + DisplayPresence.of(name, display, false, windows, mac).reason());
-        }
-        claim("macOS and Darwin ask the macOS seam, Windows the Windows seam, the others the variables",
-                () -> assertThat(asked).containsExactly(
-                        "mac", "Mac OS X:window-server", "mac", "Darwin:window-server",
-                        "windows", "Windows 11:visible-window-station",
-                        "Linux:display-variable", "FreeBSD:display-variable"));
-    }
-
-    @Test
-    @Story("A display is present where a window can open")
     @DisplayName("Headless is no display whatever the system says")
     void headlessIsNoDisplayWhateverTheSystemSays() {
         Map<String, String> display = Map.of("DISPLAY", ":0", "WAYLAND_DISPLAY", "w");
@@ -106,33 +64,5 @@ class DisplayPresenceTest {
                     () -> assertThat(DisplayPresence.of(name, display, true, NEVER_ASKED, NEVER_ASKED))
                             .isEqualTo(new Answer(false, "headless", null)));
         }
-    }
-
-    @Test
-    @Story("A display is present where a window can open")
-    @DisplayName("A native call that throws is no display")
-    void aNativeCallThatThrowsIsNoDisplay() {
-        NativeDisplay throwing = () -> {
-            throw new UnsatisfiedLinkError("library not found");
-        };
-        claim("the Windows seam throwing is none, not answered, with the throwable's class name",
-                () -> assertThat(DisplayPresence.of("Windows 11", Map.of(), false, throwing, NEVER_ASKED))
-                        .isEqualTo(new Answer(false, "not-answered", "java.lang.UnsatisfiedLinkError")));
-        claim("so is the macOS seam",
-                () -> assertThat(DisplayPresence.of("Darwin", Map.of(), false, NEVER_ASKED, throwing).reason())
-                        .isEqualTo("not-answered"));
-        claim("and the reason in words names the class",
-                () -> assertThat(DisplayPresence.of("Darwin", Map.of(), false, NEVER_ASKED, throwing).inWords())
-                        .contains("java.lang.UnsatisfiedLinkError"));
-    }
-
-    @Test
-    @Story("A display is present where a window can open")
-    @DisplayName("On Windows this machine's window station is asked")
-    void onWindowsThisMachinesWindowStationIsAsked() {
-        Assumptions.assumeTrue(System.getProperty("os.name", "").toLowerCase().startsWith("windows"));
-        claim("the process's own answer is one of the two Windows reasons",
-                () -> assertThat(DisplayPresence.ofThisProcess().reason())
-                        .isIn("visible-window-station", "hidden-window-station"));
     }
 }

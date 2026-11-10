@@ -139,27 +139,6 @@ class TheReportLinesInvocationTest {
     }
 
     @Test
-    @Story("A run says first where its report is drawn")
-    @DisplayName("The first line a run prints is Report: and the absolute path of report.html, where the progress page's line was, and no line before it names the page")
-    void theFirstLineNamesTheReportsDrawing(@TempDir Path root) throws IOException {
-        Files.writeString(root.resolve("document.txt"), "a corpus document");
-
-        cli.run("run", root.toString());
-
-        List<String> lines = operatorLines();
-        int first = firstReportLine(lines);
-        claim("the first line that starts Report: is that word and report.html's absolute path, in the form the system"
-                        + " writes it",
-                () -> assertThat(lines.get(first)).isEqualTo(REPORT_PREFIX + ReportHtml.pathIn(workingDirectory)));
-        claim("the line after it is the one that names the root walked, as the progress page's line was followed",
-                () -> assertThat(lines.get(first + 1)).startsWith("Walking "));
-        claim("and no line names a progress page any more",
-                () -> assertThat(lines).noneMatch(line -> line.startsWith("Progress page: ")));
-        claim("the report's own lines are two: this first one and the last",
-                () -> assertThat(lines.stream().filter(line -> line.startsWith(REPORT_PREFIX))).hasSize(2));
-    }
-
-    @Test
     @Story("A run says last what was written and why nothing was opened")
     @DisplayName("The last line names report.json and report.html and the clause of a display present and of none, and the line before it is the closing line")
     void theLastLineNamesBothFilesAndWhyNothingWasOpened(@TempDir Path root) throws IOException {

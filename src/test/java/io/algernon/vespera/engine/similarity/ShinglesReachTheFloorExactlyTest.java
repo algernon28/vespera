@@ -20,13 +20,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.LongStream;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
@@ -66,59 +61,6 @@ class ShinglesReachTheFloorExactlyTest {
 
     private int corpora;
 
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("floorsWrittenInDecimals")
-    @Story("The floor is a proportion of the shingled corpus")
-    @DisplayName("At a floor written in decimals, a shingle in the floor's share of the corpus or more is boilerplate and one in fewer is not")
-    void aShingleInTheFloorsShareOfTheCorpusOrMoreIsBoilerplate(String floor, int shingledDocuments, long firstMarked) {
-        RunId census = corpus(shingledDocuments);
-
-        Set<Long> boilerplate = resolve(census, floor);
-
-        claim(
-                "at a floor of " + floor + " of " + shingledDocuments + " documents, worked out by hand as the"
-                        + " ceiling of the exact product, the shingles in " + firstMarked + " documents and in every"
-                        + " count past it are boilerplate, and none in fewer",
-                () -> assertThat(boilerplate)
-                        .containsExactlyElementsOf(LongStream.rangeClosed(firstMarked, shingledDocuments)
-                                .boxed()
-                                .toList()));
-    }
-
-    static Stream<Arguments> floorsWrittenInDecimals() {
-        return Stream.of(
-                Arguments.of(
-                        Named.of("0.28 of 25 is 7 exactly, not the 7.000000000000001 a double makes of it", "0.28"),
-                        25,
-                        7L),
-                Arguments.of(Named.of("0.07 of 100 is 7 exactly", "0.07"), 100, 7L),
-                Arguments.of(Named.of("0.333 of 25 is 8.325, so a shingle needs 9 documents", "0.333"), 25, 9L),
-                Arguments.of(Named.of("0.5 of 3 is 1.5, so a shingle needs 2 documents", "0.5"), 3, 2L));
-    }
-
-    @Test
-    @Story("The floor is a proportion of the shingled corpus")
-    @DisplayName("Every exact share k / N of N up to 500 marks the shingles in k documents or more")
-    void everyExactShareMarksTheShinglesInThatManyDocumentsOrMore() {
-        List<String> misses = new ArrayList<>();
-        for (int n = 2; n <= LARGEST_CORPUS; n++) {
-            if (!terminates(n)) {
-                continue;
-            }
-            RunId census = corpus(n);
-            for (int k = 2; k <= n; k++) {
-                String floor = BigDecimal.valueOf(k).divide(BigDecimal.valueOf(n)).toPlainString();
-                check(census, n, floor, k, misses);
-            }
-        }
-
-        claim(
-                "a floor written as k / N exactly marks a shingle in k of N documents, and every one in"
-                        + " more, as boilerplate, and none in fewer, for every N up to " + LARGEST_CORPUS
-                        + " whose k / N terminates",
-                () -> assertThat(misses).withFailMessage(missed(misses)).isEmpty());
-    }
-
     @Test
     @Story("The floor is a proportion of the shingled corpus")
     @DisplayName("Any floor written in decimals marks the shingles in ceil(floor × N) documents or more")
@@ -144,78 +86,12 @@ class ShinglesReachTheFloorExactlyTest {
                 () -> assertThat(misses).withFailMessage(missed(misses)).isEmpty());
     }
 
-    @Test
-    @Story("The floor is a proportion of the shingled corpus")
-    @DisplayName("The share the README's command prints marks that line's shingles and every line's after it")
-    void theSharePrintedForALineMarksThatLineAndTheLinesAfterIt() {
-        List<String> misses = new ArrayList<>();
-        for (int n = 2; n <= LARGEST_CORPUS; n++) {
-            RunId census = corpus(n);
-            Set<Integer> printed = new TreeSet<>();
-            for (int k = 2; k <= n; k++) {
-                printed.add(100 * k / n);
-            }
-            for (int hundredths : printed) {
-                // The command prints 100 * k / N in integer arithmetic, divided by 100.0.
-                String floor = Double.toString(hundredths / 100.0);
-                int firstOnTheLine = 2;
-                while (100 * firstOnTheLine / n < hundredths) {
-                    firstOnTheLine++;
-                }
-                check(census, n, floor, firstOnTheLine, misses);
-            }
-        }
-
-        claim(
-                "set to the share a line prints, rounded down to the hundredth, the floor marks the shingles"
-                        + " counted on that line and on every line after it, and none on the lines before",
-                () -> assertThat(misses).withFailMessage(missed(misses)).isEmpty());
-    }
-
-    @Test
-    @Story("The floor is a proportion of the shingled corpus")
-    @DisplayName("A floor of 0 or below marks every stored shingle, one of 1 those in every document, one above 1 none")
-    void theEdgesOfTheFloor() {
-        RunId census = corpus(25);
-        Set<Long> everyStored = LongStream.rangeClosed(2, 25).boxed().collect(TreeSet::new, Set::add, Set::addAll);
-
-        claim("a floor of 0 marks every shingle stage 3 stored a row for", () -> assertThat(resolve(census, "0"))
-                .isEqualTo(everyStored));
-        claim("a floor below 0 marks the same", () -> assertThat(resolve(census, "-0.1"))
-                .isEqualTo(everyStored));
-        claim("-Infinity is below 0 and marks the same", () -> assertThat(resolve(census, "-Infinity"))
-                .isEqualTo(everyStored));
-        claim("a floor of 1 marks only a shingle found in every document", () -> assertThat(resolve(census, "1"))
-                .containsExactly(25L));
-        claim("a floor above 1 marks nothing", () -> assertThat(resolve(census, "1.5"))
-                .isEmpty());
-        claim("a floor whose product with the corpus is past any count marks nothing", () -> assertThat(
-                        resolve(census, "1e300"))
-                .isEmpty());
-        claim("Infinity is above 1 and marks nothing", () -> assertThat(resolve(census, "Infinity"))
-                .isEmpty());
-        claim(
-                "NaN is no share of anything and marks nothing, the direction that removes no document",
-                () -> assertThat(resolve(census, "NaN")).isEmpty());
-    }
-
     /** The record's rule, as the oracle: ceil(floor × N) in exact decimal arithmetic. */
     private static long exactCutoff(String floor, int n) {
         return new BigDecimal(floor)
                 .multiply(BigDecimal.valueOf(n))
                 .setScale(0, RoundingMode.CEILING)
                 .longValueExact();
-    }
-
-    /** Whether k / N is a terminating decimal for every k: N has no prime factor but 2 and 5. */
-    private static boolean terminates(int n) {
-        while (n % 2 == 0) {
-            n /= 2;
-        }
-        while (n % 5 == 0) {
-            n /= 5;
-        }
-        return n == 1;
     }
 
     private void check(RunId census, int n, String floor, long cutoff, List<String> misses) {

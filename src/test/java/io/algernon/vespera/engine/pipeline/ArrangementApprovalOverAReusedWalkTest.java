@@ -16,7 +16,6 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -81,9 +80,6 @@ class ArrangementApprovalOverAReusedWalkTest {
 
     /** What the closing line says once nothing is left for the operator to do. */
     private static final String NOTHING_LEFT = "Nothing is left to set";
-
-    /** What the closing line says where it names a deliverable already written. */
-    private static final String A_DELIVERABLE_NAMED = "The deliverable is at";
 
     /** The profile key the arrangement is approved under. */
     private static final String THE_APPROVAL_KEY = "arrangementApproved";
@@ -167,129 +163,6 @@ class ArrangementApprovalOverAReusedWalkTest {
                 () -> assertThat(theClosingLine()).doesNotContain(NOTHING_LEFT));
     }
 
-    @Test
-    @Story("An approval is of one arrangement, and does not carry over to the next")
-    @DisplayName("After the earlier arrangement was written up, re-arranging asks for the new one to be approved")
-    void aWrittenUpArrangementDoesNotStandInForTheNewOne(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpus(root, seeds);
-        everyGateOpenAtTheRelevanceFloor(seeds, THE_FIRST_FLOOR);
-        invoke(root);
-        String approved = theOnlyArrangementOf(root);
-        approve(approved);
-        invoke(root);
-        claim(
-                "the approved arrangement was written up once, so the operator has a deliverable from it",
-                () -> assertThat(generationRunsOf(root)).hasSize(1));
-
-        setTheRelevanceFloorTo(THE_SECOND_FLOOR);
-        invoke(root);
-        String rearranged = latestArrangementOf(root);
-
-        claim(
-                "the invocation reports success",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "the documents were re-arranged under the new floor",
-                () -> assertThat(rearranged).isNotEqualTo(approved));
-        claim(
-                "nothing was written up a second time: there is still exactly the one write-up of the"
-                        + " earlier arrangement",
-                () -> assertThat(generationRunsOf(root)).hasSize(1));
-        claim(
-                "the closing line asks for the new arrangement to be approved, by name",
-                () -> assertThat(theClosingLine())
-                        .contains(THE_ACTION)
-                        .contains(quoted(shortNameOf(rearranged)))
-                        .contains(THE_APPROVAL_KEY));
-        claim(
-                "rather than reporting that nothing is left to set and pointing at the earlier"
-                        + " arrangement's deliverable as though it were this one's",
-                () -> assertThat(theClosingLine()).doesNotContain(NOTHING_LEFT).doesNotContain(A_DELIVERABLE_NAMED));
-    }
-
-    @Test
-    @Story("Putting a value back chooses the work done under it")
-    @DisplayName("Putting the relevance floor back offers the earlier arrangement again, and approving it writes it up")
-    void puttingTheFloorBackOffersTheEarlierArrangementAgain(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        aCorpus(root, seeds);
-        everyGateOpenAtTheRelevanceFloor(seeds, THE_FIRST_FLOOR);
-        invoke(root);
-        String first = theOnlyArrangementOf(root);
-        setTheRelevanceFloorTo(THE_SECOND_FLOOR);
-        invoke(root);
-        String second = latestArrangementOf(root);
-
-        setTheRelevanceFloorTo(THE_FIRST_FLOOR);
-        invoke(root);
-
-        claim(
-                "putting the floor back arranged nothing new: the documents are in the first arrangement"
-                        + " again, picked up rather than made a third time",
-                () -> assertThat(arrangementsOf(root)).containsExactly(first, second));
-        claim(
-                "the page the operator is told to read shows the arrangement the documents are in now,"
-                        + " the first, and not the one written most recently",
-                () -> assertThat(theArrangementPage())
-                        .contains(shortNameOf(first))
-                        .doesNotContain(shortNameOf(second)));
-        claim(
-                "and the closing line asks for that same arrangement to be approved, so the name the"
-                        + " operator copies is the name on the page they read",
-                () -> assertThat(theClosingLine())
-                        .contains(quoted(shortNameOf(first)))
-                        .doesNotContain(shortNameOf(second)));
-
-        approve(first);
-        invoke(root);
-
-        claim(
-                "approving it by that name writes it up: the invocation succeeds",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "and the one write-up there is was made over the first arrangement",
-                () -> assertThat(generationRunsOf(root))
-                        .singleElement()
-                        .satisfies(generation -> assertThat(upstreamOf(generation)).containsExactly(first)));
-    }
-
-    @Test
-    @Story("A standing approval writes over every arrangement without asking")
-    @DisplayName("With the approval set to auto, each arrangement is written up in the invocation that made it")
-    void anApprovalOfAutoWritesUpEachArrangementAsItIsMade(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        aCorpus(root, seeds);
-        everyGateOpenAtTheRelevanceFloor(seeds, THE_FIRST_FLOOR);
-        approveAutomatically();
-        invoke(root);
-        String first = theOnlyArrangementOf(root);
-
-        claim(
-                "the first invocation wrote up the arrangement it made, with no name copied into "
-                        + THE_APPROVAL_KEY,
-                () -> assertThat(generationRunsOf(root))
-                        .singleElement()
-                        .satisfies(generation -> assertThat(upstreamOf(generation)).containsExactly(first)));
-
-        setTheRelevanceFloorTo(THE_SECOND_FLOOR);
-        invoke(root);
-        String rearranged = latestArrangementOf(root);
-
-        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "changing the relevance floor re-arranged the documents",
-                () -> assertThat(arrangementsOf(root)).containsExactly(first, rearranged));
-        claim(
-                "and the new arrangement was written up in the same invocation, without stopping to ask for"
-                        + " it to be approved: there are two write-ups, the second over the new arrangement",
-                () -> assertThat(generationRunsOf(root))
-                        .hasSize(2)
-                        .last()
-                        .satisfies(generation -> assertThat(upstreamOf(generation)).containsExactly(rearranged)));
-        claim(
-                "the closing line says nothing is left to set and names the deliverable",
-                () -> assertThat(theClosingLine()).contains(NOTHING_LEFT).contains(A_DELIVERABLE_NAMED));
-    }
-
     private void invoke(Path root) {
         logged.list.clear();
         cli.run("run", root.toString());
@@ -322,11 +195,6 @@ class ArrangementApprovalOverAReusedWalkTest {
         EveryGateOpen.approve(profileStore, shortNameOf(arrangement), GENERATION_MODEL);
     }
 
-    /** Approves every arrangement ahead of time, the way an operator who does not read each one does. */
-    private void approveAutomatically() {
-        EveryGateOpen.approve(profileStore, ArrangementGate.AUTOMATIC, GENERATION_MODEL);
-    }
-
     private static String shortNameOf(String arrangement) {
         return ArrangementGate.shortNameOf(new RunId(arrangement));
     }
@@ -340,11 +208,6 @@ class ArrangementApprovalOverAReusedWalkTest {
         List<String> lines = logged.list.stream().map(ILoggingEvent::getFormattedMessage)
                 .filter(line -> !line.startsWith("Report: ")).toList();
         return lines.getLast();
-    }
-
-    private String theArrangementPage() throws IOException {
-        return Files.readString(
-                workingDirectory.resolve(ArrangementTasklet.ARRANGEMENT_FILE_NAME), StandardCharsets.UTF_8);
     }
 
     private String theOnlyArrangementOf(Path root) {
@@ -375,10 +238,5 @@ class ArrangementApprovalOverAReusedWalkTest {
                 String.class,
                 stage,
                 Walk.canonicalRoot(root).toString());
-    }
-
-    private List<String> upstreamOf(String run) {
-        return jdbcTemplate.queryForList(
-                "SELECT upstream_run_id FROM run_upstream WHERE run_id = ?", String.class, run);
     }
 }

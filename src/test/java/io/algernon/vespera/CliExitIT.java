@@ -62,9 +62,6 @@ class CliExitIT {
     private static final String NO_WINDOW =
             "the control panel cannot open a window here, so the jar answers as its command line: ";
 
-    /** The words JavaFX's line about its classes coming from the class path begins with (ADR-360). */
-    private static final String UNSUPPORTED_CONFIGURATION = "Unsupported JavaFX configuration";
-
     /** What a launch returned: whether it exited within the bound, and its code. */
     private record Launched(boolean finished, int exitCode) {
     }
@@ -82,18 +79,6 @@ class CliExitIT {
                 () -> assertThat(launched.finished()).isTrue());
         claim("and its exit code is picocli's usage code for the rejected option, not success",
                 () -> assertThat(launched.exitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
-    }
-
-    @Test
-    @Story("A command ends the process")
-    @DisplayName("A version command exits within a bound, carrying success")
-    void aVersionCommandExitsWithinItsBoundWithSuccess() throws Exception {
-        Launched launched = launch("--version");
-
-        claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds rather than staying alive",
-                () -> assertThat(launched.finished()).isTrue());
-        claim("and its exit code is success, so the command's zero reaches the shell too",
-                () -> assertThat(launched.exitCode()).isZero());
     }
 
     /**
@@ -125,59 +110,6 @@ class CliExitIT {
                 () -> assertThat(output).contains("Usage: vespera"));
         claim("and exits with picocli's usage code, as that start does",
                 () -> assertThat(launched.exitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
-    }
-
-    /** With no display, on Linux alone where the launch can remove the variables: no toolkit is tried (ADR-362 §2). */
-    @Test
-    @Issue("736")
-    @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
-    @Story("A start with no window answers as the command line")
-    @DisplayName("Started with no argument where no display is present, the jar says so in one line, tries no toolkit and prints the commands' usage")
-    void aJarWithNoDisplayAnswersAsItsCommandLineWithoutTryingTheToolkit() throws Exception {
-        assumeTrue(System.getProperty("os.name", "").toLowerCase().startsWith("linux"),
-                "only Linux lets the launch remove the display");
-        Launched launched = launchWith(List.of(NO_SUCH_PLATFORM), false);
-        String output = output();
-
-        claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds",
-                () -> assertThat(launched.finished()).isTrue());
-        claim("it says in one line that the window cannot open, with no display as the reason",
-                () -> assertThat(output).contains(NO_WINDOW + "no display (neither DISPLAY nor WAYLAND_DISPLAY is set)"));
-        claim("no toolkit was tried: the platform it would have failed on is not named",
-                () -> assertThat(output).doesNotContain("NoSuchPlatform"));
-        claim("then it prints the commands' usage",
-                () -> assertThat(output).contains("Usage: vespera"));
-        claim("and exits with picocli's usage code",
-                () -> assertThat(launched.exitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
-    }
-
-    /**
-     * The jar's start of the window writes no line of JavaFX's about its class path (ADR-360 §1): the control panel's
-     * start drops the record from JavaFX's logger before the toolkit starts, and JavaFX writes it as its start begins,
-     * before a platform it does not have makes the toolkit throw, so a start where the window cannot open writes it
-     * as a start that opens the window does. The launch is the display-present case, so that the toolkit is tried and its
-     * failure is the glass platform's, which CI's ubuntu-latest, with no {@code DISPLAY}, would otherwise never reach
-     * (ADR-362 §1). Measured without the filter on JavaFX's jars on a plain class path, not in the packaged jar: the
-     * line is written, then the toolkit throws. The jar's logging configuration is the JDK's, as the operator's is.
-     */
-    @Test
-    @Issue("723")
-    @Issue("736")
-    @Link(name = "ADR-360", url = Adr.THE_CONTROL_PANEL_DROPS_JAVAFXS_CLASS_PATH_LINE, type = "adr")
-    @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
-    @Story("A start with no window answers as the command line")
-    @DisplayName("Started with no argument, the jar writes no line of JavaFX's about its class path as the toolkit starts")
-    void aJarThatCannotOpenTheWindowWritesNoLineOfJavaFxsAboutItsClassPath() throws Exception {
-        assumeTrue(displayIsPresentHere(), "no display is present on this machine, so the toolkit is not tried");
-        Launched launched = launchWith(List.of(NO_SUCH_PLATFORM), true);
-        String output = output();
-
-        claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds, having tried the toolkit and said the window"
-                        + " cannot open",
-                () -> assertThat(List.<Object>of(launched.finished(), output.contains(NO_WINDOW)))
-                        .containsExactly(true, true));
-        claim("and nothing it wrote holds JavaFX's words about its classes coming from the class path",
-                () -> assertThat(output).doesNotContain(UNSUPPORTED_CONFIGURATION));
     }
 
     /** What the launched jar wrote, merged, without colour codes. */

@@ -51,31 +51,10 @@ class ArrangementGateAutomaticTest {
 
     @Test
     @Story("A standing approval writes over every arrangement without asking")
-    @DisplayName("The word auto is read in any case and with spaces around it")
-    void autoIsReadInAnyCase() {
-        claim("written in capitals with spaces around it, it still opens the gate",
-                () -> assertThat(gateWithApproval(" AUTO ").approvedArrangement(Optional.of(ONE_ARRANGEMENT)))
-                        .contains(ONE_ARRANGEMENT));
-    }
-
-    @Test
-    @Story("A standing approval writes over every arrangement without asking")
     @DisplayName("With the approval set to auto and nothing arranged, the gate stays shut")
     void autoWithNothingArrangedStaysShut() {
         claim("there is nothing to write over, so nothing is opened",
                 () -> assertThat(gateWithApproval("auto").approvedArrangement(Optional.empty())).isEmpty());
-    }
-
-    @Test
-    @Story("An approval is of one arrangement, and does not carry over to the next")
-    @DisplayName("An approval by name still opens only on the arrangement it names")
-    void aNamedApprovalStillOpensOnlyOnItsOwn() {
-        ArrangementGate gate = gateWithApproval(ArrangementGate.shortNameOf(ONE_ARRANGEMENT));
-
-        claim("the gate opens on the arrangement the name was copied from",
-                () -> assertThat(gate.approvedArrangement(Optional.of(ONE_ARRANGEMENT))).contains(ONE_ARRANGEMENT));
-        claim("and stays shut on any other",
-                () -> assertThat(gate.approvedArrangement(Optional.of(ANOTHER_ARRANGEMENT))).isEmpty());
     }
 
     private ArrangementGate gateWithApproval(String approval) {

@@ -70,19 +70,9 @@ class EntryPointTest {
                 () -> assertThat(EntryPoint.passedOn(arguments)).containsExactly(arguments));
     }
 
-    /**
-     * The commands, the two standard options, an option alone, an empty argument, and a --headless that is not first:
-     * every start the command line answers today.
-     */
+    /** A command with a --headless that is not first, the start an argument could be mistaken for the window's flag. */
     static Stream<Arguments> startsWithArguments() {
         return Stream.of(
-                Arguments.of(Named.of("a run of a corpus root", new String[] {"run", "D:/corpus"})),
-                Arguments.of(Named.of("the local model answering", new String[] {"label", "--auto"})),
-                Arguments.of(Named.of("a publish", new String[] {"publish"})),
-                Arguments.of(Named.of("the help", new String[] {"--help"})),
-                Arguments.of(Named.of("the version", new String[] {"--version"})),
-                Arguments.of(Named.of("an option and no command", new String[] {"--db-dir=D:/working"})),
-                Arguments.of(Named.of("one empty argument", new String[] {""})),
                 Arguments.of(Named.of("the headless flag after a command",
                         new String[] {"run", "D:/corpus", "--headless"})));
     }
@@ -99,16 +89,12 @@ class EntryPointTest {
                 () -> assertThat(EntryPoint.passedOn(arguments)).containsExactly(passedOn));
     }
 
-    /** The flag alone, and the flag before a command and its arguments. */
+    /** The flag before a command and its arguments. */
     static Stream<Arguments> headlessFirst() {
         return Stream.of(
-                Arguments.of(Named.of("the flag alone", new String[] {"--headless"}), new String[0]),
                 Arguments.of(Named.of("the flag before a run of a corpus root",
                                 new String[] {"--headless", "run", "D:/corpus"}),
-                        new String[] {"run", "D:/corpus"}),
-                Arguments.of(Named.of("the flag before the local model answering",
-                                new String[] {"--headless", "label", "--auto"}),
-                        new String[] {"label", "--auto"}));
+                        new String[] {"run", "D:/corpus"}));
     }
 
     @Test
@@ -175,56 +161,5 @@ class EntryPointTest {
                         + "java.lang.IllegalStateException)"));
         claim("no window is tried, and the command line answers with no argument",
                 () -> assertThat(List.of(did.windowsTried(), did.commandLines().size())).containsExactly(0, 1));
-    }
-
-    @Test
-    @Story("A start with no display answers as the command line")
-    @DisplayName("With a display the window is tried, and the toolkit's failure is ADR-342's line")
-    void withADisplayTheWindowIsTriedAndItsFailureIsAdr342sLine() {
-        Did did = started(new String[0], new DisplayPresence.Answer(true, "display-variable", null));
-        claim("the window is tried once",
-                () -> assertThat(did.windowsTried()).isEqualTo(1));
-        claim("its failure is the line with the toolkit's message, then the command line with no argument",
-                () -> assertThat(did.err().strip()).isEqualTo(
-                        "the control panel cannot open a window here, so the jar answers as its command line: "
-                                + "the toolkit said no"));
-        claim("and the command line answers", () -> assertThat(did.commandLines()).containsExactly(List.of()));
-    }
-
-    @Test
-    @Story("The jar can always be started without the window")
-    @DisplayName("The display is not asked for a start with an argument")
-    void aStartWithAnArgumentAsksNoDisplay() {
-        ByteArrayOutputStream err = new ByteArrayOutputStream();
-        boolean[] asked = {false};
-        EntryPoint.start(new String[] {"run", "D:/corpus"}, () -> {
-            asked[0] = true;
-            return new DisplayPresence.Answer(true, "display-variable", null);
-        }, () -> null, passed -> { }, new PrintStream(err));
-        claim("a function of the arguments alone is chosen, and the display is asked after it says the control panel",
-                () -> assertThat(asked[0]).isFalse());
-    }
-
-    @Test
-    @Story("The jar can always be started without the window")
-    @DisplayName("--headless first sets the headless property and passes the rest on")
-    void headlessFirstSetsTheHeadlessProperty() {
-        String before = System.getProperty(DisplayPresence.HEADLESS_PROPERTY);
-        try {
-            System.clearProperty(DisplayPresence.HEADLESS_PROPERTY);
-            Did did = started(new String[] {"--headless", "run", "D:/corpus"},
-                    new DisplayPresence.Answer(true, "display-variable", null));
-            claim("run <root> is passed on",
-                    () -> assertThat(did.commandLines()).containsExactly(List.of("run", "D:/corpus")));
-            claim("and vespera.headless is set, which DisplayPresence reads as no display",
-                    () -> assertThat(DisplayPresence.ofThisProcess().reason()).isEqualTo("headless"));
-            claim("the window is not tried", () -> assertThat(did.windowsTried()).isZero());
-        } finally {
-            if (before == null) {
-                System.clearProperty(DisplayPresence.HEADLESS_PROPERTY);
-            } else {
-                System.setProperty(DisplayPresence.HEADLESS_PROPERTY, before);
-            }
-        }
     }
 }

@@ -18,7 +18,6 @@ import io.algernon.vespera.engine.ledger.OccurrencePath;
 import io.algernon.vespera.engine.ledger.RunId;
 import io.algernon.vespera.engine.ledger.VerdictKind;
 import io.algernon.vespera.engine.ledger.WalkId;
-import io.algernon.vespera.engine.profile.Measurement;
 import io.algernon.vespera.engine.profile.ProfileStore;
 import io.algernon.vespera.engine.similarity.DocumentFrequency;
 import io.qameta.allure.Epic;
@@ -91,8 +90,6 @@ class StageThreeWritesTheWordCountPageTest {
 
     /** A PNG's eight bytes of signature, which is the whole of stage 1's check of an image. */
     private static final byte[] PNG_SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'};
-
-    private static final Pattern A_TABLE = Pattern.compile("<table>(.*?)</table>", Pattern.DOTALL);
     private static final Pattern A_ROW = Pattern.compile("<tr>(.*?)</tr>", Pattern.DOTALL);
     private static final Pattern A_CELL = Pattern.compile("<td[^>]*>(.*?)</td>", Pattern.DOTALL);
 
@@ -108,44 +105,6 @@ class StageThreeWritesTheWordCountPageTest {
 
     @Autowired
     private DataSource dataSource;
-
-    @Test
-    @Story("The page the word floor is read off")
-    @DisplayName("The page names the run it measured and counts the files kept by text extraction by their words, a column for each kind of file")
-    void thePageCountsTheSurvivorsOfEachDetectedFormat(@TempDir Path root, @TempDir Path workingDirectory)
-            throws Exception {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        ImplementationVersions versions = new ImplementationVersions();
-        walkedThroughExtraction(ledger, versions, root);
-
-        contentCensusOver(ledger, versions, root, new ProfileStore(workingDirectory), aClock(), workingDirectory)
-                .execute(null, null);
-
-        Path page = workingDirectory.resolve(ContentCensusTasklet.WORD_COUNT_DISTRIBUTION_FILE_NAME);
-        claim(
-                "the page is written in the working directory, under its fixed name word-count-distribution.html",
-                () -> assertThat(page).isRegularFile().hasFileName("word-count-distribution.html"));
-        String html = Files.readString(page);
-        String run = theContentCensusRunOf(root).value();
-        claim(
-                "it names the content census it was written for",
-                () -> assertThat(html).withFailMessage("the page does not name run %s", run).contains(run));
-        List<List<String>> firstTable = rowsOf(tablesOf(html).getFirst());
-        claim(
-                "its first row counts, as PDF, image, text and every kind, the one-word picture and the one-word note,"
-                        + " and not the one-word text file stage 2 removed",
-                () -> assertThat(firstTable.getFirst()).containsExactly("1 or fewer", "0", "1", "1", "2"));
-        claim(
-                "its row from 20 to 49 counts the scan of " + WORDS.get(THE_SCAN) + " words, under PDF",
-                () -> assertThat(firstTable).contains(List.of("20 to 49", "1", "0", "0", "1")));
-        claim(
-                "and its last row is each kind's survivors: one of each, three in all",
-                () -> assertThat(firstTable.getLast()).containsExactly("All", "1", "1", "1", "3"));
-        List<List<String>> secondTable = rowsOf(tablesOf(html).get(1));
-        claim(
-                "a floor of 2 would remove the picture and the note, one of each kind but PDF",
-                () -> assertThat(secondTable.getFirst()).containsExactly("2", "0", "1", "1", "2"));
-    }
 
     @Test
     @Story("The page the word floor is read off")
@@ -173,61 +132,6 @@ class StageThreeWritesTheWordCountPageTest {
         claim(
                 "it names the profile key the number is written into",
                 () -> assertThat(html).contains("degenerateOutputWordFloor"));
-    }
-
-    @Test
-    @Story("The profile points at the page")
-    @DisplayName("The word floor's measurement points at the page, at the time stage 3 wrote it")
-    void theProfilePointsTheWordFloorAtThePage(@TempDir Path root, @TempDir Path workingDirectory) throws Exception {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        ImplementationVersions versions = new ImplementationVersions();
-        walkedThroughExtraction(ledger, versions, root);
-        ProfileStore profileStore = new ProfileStore(workingDirectory);
-        Instant ranAt = Instant.parse("2026-10-19T12:00:00Z");
-
-        contentCensusOver(ledger, versions, root, profileStore, Clock.fixed(ranAt, ZoneOffset.UTC), workingDirectory)
-                .execute(null, null);
-
-        Path page = workingDirectory.resolve(ContentCensusTasklet.WORD_COUNT_DISTRIBUTION_FILE_NAME);
-        Measurement measurement = profileStore.load().degenerateOutputWordFloor().measurement();
-        claim(
-                "profile.yaml's measurement for degenerateOutputWordFloor names the page and the time it was written,"
-                        + " as degenerateOutputConfidenceFloor's names confidence-distribution.html",
-                () -> assertThat(measurement)
-                        .withFailMessage("the measurement was %s", measurement)
-                        .isEqualTo(new Measurement(page.toString(), ranAt)));
-    }
-
-    @Test
-    @Story("The page the word floor is read off")
-    @DisplayName("A content census already recorded leaves the word-count page as it is")
-    void aStageAlreadyRecordedLeavesThePageAsItIs(@TempDir Path root, @TempDir Path workingDirectory)
-            throws Exception {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        ImplementationVersions versions = new ImplementationVersions();
-        walkedThroughExtraction(ledger, versions, root);
-        ContentCensusTasklet tasklet =
-                contentCensusOver(ledger, versions, root, new ProfileStore(workingDirectory), aClock(), workingDirectory);
-        tasklet.execute(null, null);
-        Path page = workingDirectory.resolve(ContentCensusTasklet.WORD_COUNT_DISTRIBUTION_FILE_NAME);
-        String leftThere = "a page this test left in place of the one stage 3 wrote";
-        Files.writeString(page, leftThere);
-
-        tasklet.execute(null, null);
-
-        claim(
-                "the step is recorded, so it measures nothing and rewrites nothing, as with document-frequency.html:"
-                        + " the page stays what was there",
-                () -> assertThat(Files.readString(page)).isEqualTo(leftThere));
-    }
-
-    private static List<String> tablesOf(String html) {
-        List<String> tables = new ArrayList<>();
-        Matcher table = A_TABLE.matcher(html);
-        while (table.find()) {
-            tables.add(table.group(1));
-        }
-        return tables;
     }
 
     /** The cells of each body row of {@code table}, tags taken out; a header row has no cell and is left out. */

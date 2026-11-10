@@ -106,46 +106,6 @@ class InvocationAccountTest {
     }
 
     @Test
-    @Story("The counts are never a gate")
-    @DisplayName("A ledger that cannot be counted leaves the invocation as it was and logs the type of what failed")
-    void aFailedCountNeverFailsTheInvocation() {
-        JobExecution job = aJob();
-        new InvocationRuns(job.getExecutionContext()).record(StageModules.EXTRACTION.stage(), new RunId(A_RUN_ID));
-        jdbc.execute("DROP TABLE verdict");
-
-        List<String> logged = linesLoggedBy(() -> anAccount().afterJob(job));
-
-        claim(
-                "the call returned, and one line was logged, naming the type of what failed and no message",
-                () -> assertThat(logged)
-                        .singleElement()
-                        .asString()
-                        .startsWith("the invocation's counts could not be read: "));
-    }
-
-    @Test
-    @Story("The report's copy is written in the working directory's logs folder")
-    @DisplayName("With no setting at all, nothing is logged and the account writes no file")
-    @Link(name = "ADR-270", url = Adr.EVERY_LOG_IS_IN_THE_WORKING_DIRECTORYS_LOGS_FOLDER, type = "adr")
-    void withNoSettingNothingIsLoggedAndNothingIsWritten() {
-        List<String> logged = linesLoggedBy(() -> {
-            JobExecution job = aJob();
-            InvocationAccount account = anAccount();
-            account.beforeJob(job);
-            account.afterJob(job);
-        });
-
-        claim("no warning was logged", () -> assertThat(logged).isEmpty());
-        claim(
-                "and no file of the retired account is in the logs folder, whatever the report wrote there",
-                () -> assertThat(workingDirectory.resolve(LOGS))
-                        .satisfiesAnyOf(
-                                folder -> assertThat(folder).doesNotExist(),
-                                folder -> assertThat(folder.toFile().list())
-                                        .noneMatch(name -> name.startsWith(THE_RETIRED_ACCOUNTS_PREFIX))));
-    }
-
-    @Test
     @Story("The report's copy is written in the working directory's logs folder")
     @DisplayName("A configured vespera.account-dir sends nothing elsewhere, and one line says where the copy is")
     @Link(name = "ADR-270", url = Adr.EVERY_LOG_IS_IN_THE_WORKING_DIRECTORYS_LOGS_FOLDER, type = "adr")

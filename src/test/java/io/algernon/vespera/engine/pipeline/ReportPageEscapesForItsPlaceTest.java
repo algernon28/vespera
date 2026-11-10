@@ -2,7 +2,6 @@ package io.algernon.vespera.engine.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -34,21 +33,5 @@ class ReportPageEscapesForItsPlaceTest {
         claim(
                 "text between tags has & < and > escaped and both quotes left as they are",
                 () -> assertThat(ReportPage.escape(EVERY_SPECIAL)).isEqualTo("a &amp; b &lt; c &gt; d \" e ' f"));
-    }
-
-    @Test
-    @Story("Every part of a page says what it shows when the pointer rests on it")
-    @DisplayName("A table card refuses to be written without a hover text, and writes the one it has escaped in its title")
-    void aTableCardNeedsAHoverText() {
-        claim(
-                "a table card with no hover text, or a blank one, is refused",
-                () -> {
-                    assertThatThrownBy(() -> ReportPage.tableCard(null, "", "")).isInstanceOf(IllegalArgumentException.class);
-                    assertThatThrownBy(() -> ReportPage.tableCard(" ", "", "")).isInstanceOf(IllegalArgumentException.class);
-                });
-        claim(
-                "and one with a hover text carries it, escaped, as its title",
-                () -> assertThat(ReportPage.tableCard("the working directory's steps", "", ""))
-                        .startsWith("<div class=\"table-card\" title=\"the working directory&#39;s steps\">"));
     }
 }

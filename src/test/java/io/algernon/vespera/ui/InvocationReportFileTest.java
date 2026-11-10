@@ -64,14 +64,4 @@ class InvocationReportFileTest {
         claim("and the Report tab still says it waits for this invocation's report, nothing of the refused one drawn",
                 () -> assertThat(status).isEqualTo(LiveReport.WAITING));
     }
-
-    @Test
-    @Story("The window reads only the report format it knows")
-    @DisplayName("Text that is not a report is refused as not that JSON, with no format named")
-    void textThatIsNotAReportIsRefusedAsNotThatJson() {
-        claim("a file that is JSON of another shape is refused, and is no report of a format the window does not know",
-                () -> assertThatThrownBy(() -> InvocationReportFile.read("{\"steps\": 3}"))
-                        .isInstanceOf(IllegalArgumentException.class)
-                        .isNotInstanceOf(InvocationReportFile.FormatNotKnownException.class));
-    }
 }

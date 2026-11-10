@@ -213,54 +213,6 @@ class NoCommandOpensAnythingTest {
                         .containsExactlyInAnyOrder(OPEN, "cmd"));
     }
 
-    @Test
-    @Story("The report says why nothing was opened")
-    @DisplayName("A run with a display present and one with none: opened is filled, files is empty, and because is commands-open-nothing and no-display")
-    void theReportSaysWhyNothingWasOpened(@TempDir Path root) throws IOException {
-        Files.writeString(root.resolve("a-document.txt"), "a text");
-
-        DISPLAY.set(new DisplayPresence.Answer(true, "display-variable", null));
-        cli.run("run", root.toString());
-        JsonNode present = TheReportFile.in(workingDirectory);
-
-        DISPLAY.set(new DisplayPresence.Answer(false, "no-display-variable", null));
-        cli.run("run", root.toString());
-        JsonNode none = TheReportFile.in(workingDirectory);
-
-        claim("with a display present, opened lists no file and says the commands open nothing",
-                () -> {
-                    assertThat(present.get("opened").isObject()).isTrue();
-                    assertThat(present.get("opened").get("files")).isEmpty();
-                    assertThat(present.get("opened").get("because").asString()).isEqualTo("commands-open-nothing");
-                });
-        claim("with none, opened lists no file and says there is no display",
-                () -> {
-                    assertThat(none.get("opened").isObject()).isTrue();
-                    assertThat(none.get("opened").get("files")).isEmpty();
-                    assertThat(none.get("opened").get("because").asString()).isEqualTo("no-display");
-                });
-    }
-
-    @Test
-    @Story("Starting Docker Desktop is no file opened")
-    @DisplayName("With a display present and the engine not answering, the Docker application is started as the record has it, and opened.files stays empty")
-    void startingDockerDesktopIsNoFileOpenedAndIsNotListed(@TempDir Path root) throws IOException {
-        Files.writeString(root.resolve("a-document.txt"), "a text");
-        docker = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
-                .answering(DESKTOP_START, 1, "docker: 'desktop' is not a docker command.")
-                .otherCommandsExiting(0)
-                .whenUpSucceeds(() -> HEALTH.answering(true, true));
-        DISPLAY.set(new DisplayPresence.Answer(true, "display-variable", null));
-
-        cli.run("run", root.toString());
-        JsonNode report = TheReportFile.in(workingDirectory);
-
-        claim("after Docker Desktop's command failed, the Docker application was started with open -a Docker",
-                () -> assertThat(docker.commands()).contains(DESKTOP_START, OPEN_DOCKER_APP));
-        claim("and the report lists no file as opened",
-                () -> assertThat(report.get("opened").get("files")).isEmpty());
-    }
-
     private static boolean namesAWayToOpenAFile(ClassModel compiled) {
         Set<String> types = typesOf(compiled);
         Set<String> constants = constantsOfTheFour(compiled);

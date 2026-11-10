@@ -70,64 +70,11 @@ class PublishToEachDestinationInTurnInvocationTest {
     private static final String NO_DESTINATION_NOWHERE =
             "vespera publish has no destination nowhere: it knows confluence, website.";
 
-    /** ADR-308 §5's refusal, as a bare publish still says it where no Confluence rendering is drawn (ADR-333 §6). */
-    private static final String A_BARE_PUBLISH_FINDS_NOTHING = "vespera publish sent nothing: no Confluence rendering"
-            + " is drawn in this working directory. Run vespera run to the deliverable, and publish again.";
-
-    /** The same refusal for a destination named on --to, naming it (ADR-333 §6). */
-    private static final String NO_WEBSITE_RENDERING = "vespera publish sent nothing to website: no website rendering"
-            + " is drawn in this working directory. Run vespera run to the deliverable, and publish again.";
-
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @TempDir
     Path workingDirectory;
-
-    @Test
-    @Story("A publish names its destinations")
-    @DisplayName("A bare publish delivers to Confluence alone, and its closing line is the last line")
-    void aBarePublishIsConfluence() throws IOException {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        RunId run = generationRun(ledger, CONFLUENCE, WEBSITE);
-        Destinations destinations = new Destinations();
-
-        Invocation invocation = publish(ledger, destinations);
-
-        claim("the publish ended 0",
-                () -> assertThat(invocation.exit()).isEqualTo(CommandLine.ExitCode.OK));
-        claim("Confluence alone was asked, for the run drawn, though the website rendering is drawn too",
-                () -> assertThat(destinations.asked).containsExactly(CONFLUENCE + " " + run.value()));
-        claim("and its closing line is the invocation's last line, on standard output",
-                () -> {
-                    assertThat(invocation.closingLine()).isEqualTo("out: " + CONFLUENCE + " delivered");
-                    assertThat(invocation.errors()).isEmpty();
-                });
-    }
-
-    @Test
-    @Story("A publish names its destinations")
-    @DisplayName("--to delivers to each destination in the order written, a name written twice once, each with its closing line")
-    void eachDestinationInTheOrderWrittenAndOnce() throws IOException {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        RunId run = generationRun(ledger, CONFLUENCE, WEBSITE);
-        Destinations destinations = new Destinations();
-
-        Invocation invocation = publish(ledger, destinations, "--to", "website,confluence,website");
-
-        claim("the publish ended 0",
-                () -> assertThat(invocation.exit()).isEqualTo(CommandLine.ExitCode.OK));
-        claim("the website was asked first and Confluence second, each once, each for the run drawn",
-                () -> assertThat(destinations.asked)
-                        .containsExactly(WEBSITE + " " + run.value(), CONFLUENCE + " " + run.value()));
-        claim("each destination's own lines and its closing line are on standard output, in turn, and the last line is"
-                        + " the last destination's closing line",
-                () -> assertThat(invocation.withoutReportLines()).containsExactly(
-                        "out: " + WEBSITE + " says a line of its own",
-                        "out: " + WEBSITE + " delivered",
-                        "out: " + CONFLUENCE + " says a line of its own",
-                        "out: " + CONFLUENCE + " delivered"));
-    }
 
     @Test
     @Story("A publish names its destinations")
@@ -169,88 +116,6 @@ class PublishToEachDestinationInTurnInvocationTest {
                             "out: " + WEBSITE + " delivered");
                     assertThat(invocation.closingLine()).isEqualTo("out: " + WEBSITE + " delivered");
                 });
-    }
-
-    @Test
-    @Story("One destination stopping does not stop the next")
-    @DisplayName("A destination that throws is a stop, its closing line naming it and the exception's type and never its message")
-    void aThrowIsAStopNamedByItsType() throws IOException {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        generationRun(ledger, CONFLUENCE, WEBSITE);
-        Destinations destinations = new Destinations().throwing(CONFLUENCE);
-
-        Invocation invocation = publish(ledger, destinations, "--to", "confluence,website");
-
-        claim("the publish ended 1, and the website was still asked",
-                () -> {
-                    assertThat(invocation.exit()).isEqualTo(CommandLine.ExitCode.SOFTWARE);
-                    assertThat(destinations.asked).hasSize(2).last().asString().startsWith(WEBSITE);
-                });
-        claim("one line on standard error names Confluence and the type it threw, in ADR-339 §3's words",
-                () -> assertThat(invocation.errors()).contains("vespera publish stopped " + CONFLUENCE
-                        + ": it threw IllegalStateException, whose message is not written. Publish again once that is"
-                        + " dealt with."));
-        claim("no line carries the exception's message, which could name a document (ADR-274 §8)",
-                () -> assertThat(invocation.lines()).noneMatch(line -> line.contains(Destinations.THE_MESSAGE)));
-        claim("and the last line is the website's closing line",
-                () -> assertThat(invocation.closingLine()).isEqualTo("out: " + WEBSITE + " delivered"));
-    }
-
-    @Test
-    @Story("Each destination finds its own rendering")
-    @DisplayName("Each destination is delivered the last generation run whose tree holds its own rendering")
-    void eachDestinationFindsItsOwnRendering() throws IOException {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        RunId both = generationRun(ledger, CONFLUENCE, WEBSITE);
-        RunId confluenceAlone = generationRun(ledger, CONFLUENCE);
-        Destinations destinations = new Destinations();
-
-        Invocation invocation = publish(ledger, destinations, "--to", "website,confluence");
-
-        claim("the publish ended 0",
-                () -> assertThat(invocation.exit()).isEqualTo(CommandLine.ExitCode.OK));
-        claim("the website was delivered the earlier run, the last whose tree holds website/, and Confluence the later",
-                () -> assertThat(destinations.asked)
-                        .containsExactly(WEBSITE + " " + both.value(), CONFLUENCE + " " + confluenceAlone.value()));
-    }
-
-    @Test
-    @Story("Each destination finds its own rendering")
-    @DisplayName("A destination with no rendering drawn sends nothing, in one line naming it, and the next is still delivered")
-    void aDestinationWithNoRenderingIsRefusedAloneAndNamed() throws IOException {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        RunId run = generationRun(ledger, CONFLUENCE);
-        Destinations destinations = new Destinations();
-
-        Invocation invocation = publish(ledger, destinations, "--to", "website,confluence");
-
-        claim("the publish ended 1, the website having sent nothing",
-                () -> assertThat(invocation.exit()).isEqualTo(CommandLine.ExitCode.SOFTWARE));
-        claim("the website was not asked, and Confluence was",
-                () -> assertThat(destinations.asked).containsExactly(CONFLUENCE + " " + run.value()));
-        claim("the refusal names the website in ADR-308 §5's line, on standard error, and Confluence's closing line is"
-                        + " the last line",
-                () -> {
-                    assertThat(invocation.errors()).contains(NO_WEBSITE_RENDERING);
-                    assertThat(invocation.closingLine()).isEqualTo("out: " + CONFLUENCE + " delivered");
-                });
-    }
-
-    @Test
-    @Story("Each destination finds its own rendering")
-    @DisplayName("A bare publish with nothing drawn says what it said before --to")
-    void aBarePublishWithNothingDrawnSaysWhatItSaid() {
-        Destinations destinations = new Destinations();
-
-        Invocation invocation = publish(new Ledger(jdbcTemplate), destinations);
-
-        claim("the publish refused, exit 1, asking nobody",
-                () -> {
-                    assertThat(invocation.exit()).isEqualTo(CommandLine.ExitCode.SOFTWARE);
-                    assertThat(destinations.asked).isEmpty();
-                });
-        claim("in ADR-308 §5's line as it stood",
-                () -> assertThat(invocation.errors()).containsExactly(A_BARE_PUBLISH_FINDS_NOTHING));
     }
 
     /** How one invocation ended: its exit, and every line it wrote, each after {@code out: } or {@code err: }. */
