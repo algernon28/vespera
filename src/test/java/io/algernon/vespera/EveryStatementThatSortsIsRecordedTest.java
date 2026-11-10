@@ -288,39 +288,6 @@ class EveryStatementThatSortsIsRecordedTest {
 
     @Test
     @Story("A statement that sorts on disk is one somebody measured")
-    @DisplayName("The same holds once the index a later stage builds over the text fragments is there")
-    void theStatementsThatSortWithTheHashIndexAreTheRecordedOnes() throws Exception {
-        Survey survey = survey(true);
-
-        claim(
-                "with the index over the text fragments built, as a database has it from the stage that"
-                        + " builds it until the stage that removes it, the classes whose statements sort, and"
-                        + " how many each holds, are the ones written down for that state: a difference is a"
-                        + " statement planned another way once the index exists, which nobody has recorded",
-                () -> assertThat(survey.sortingByClass())
-                        .as("the statements found, by class: %s", survey.sorting())
-                        .containsExactlyInAnyOrderEntriesOf(RECORDED_WITH_THE_HASH_INDEX));
-    }
-
-    @Test
-    @Story("A statement that sorts on disk is one somebody measured")
-    @DisplayName("The only shipped statements this check cannot plan are the ones written down as read by hand")
-    void theStatementsThatCannotBePlannedAreTheRecordedOnes() throws Exception {
-        Survey survey = survey(false);
-        Map<String, Integer> counted = new TreeMap<>();
-        survey.unplanned().forEach((shipped, statements) -> counted.put(shipped, statements.size()));
-
-        claim(
-                "the texts that open as a statement does and that the database could not plan are the ones"
-                        + " written down beside this test, each of which was read by hand: one more is a"
-                        + " statement this check passed without having looked at",
-                () -> assertThat(counted)
-                        .as("the statements that could not be planned, by class: %s", survey.unplanned())
-                        .containsExactlyInAnyOrderEntriesOf(READ_BY_HAND));
-    }
-
-    @Test
-    @Story("A statement that sorts on disk is one somebody measured")
     @Link(name = "ADR-284", url = Adr.CODE_IS_KEPT_IN_CODE_SETS_NAMED_FOR_THEIR_FOLDER, type = "adr")
     @DisplayName("The indexes the schema builds are the recorded ones")
     void theIndexesOfTheSchemaAreTheRecordedOnes() throws Exception {

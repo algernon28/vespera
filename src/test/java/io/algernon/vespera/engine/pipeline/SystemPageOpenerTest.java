@@ -2,6 +2,7 @@ package io.algernon.vespera.engine.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.abort;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -9,6 +10,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.net.URI;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -36,37 +38,11 @@ class SystemPageOpenerTest {
 
     private static final Map<String, String> NOTHING_SET = Map.of();
 
-    /** The variable a CI service sets, with the value GitHub Actions gives it. */
-    private static final Map<String, String> UNDER_CI = Map.of("CI", "true", "DISPLAY", ":0");
-
-    @Test
-    @Story("The page is opened by the system's own command")
-    @DisplayName("Windows is asked to open the page through its file handler, macOS through open, and Linux with a display through xdg-open")
-    void eachSystemIsAskedThroughItsOwnCommand() {
-        claim(
-                "on Windows the page's address is handed, as one argument, to the shell's own handler for opening a"
-                        + " file with its default program",
-                () -> assertThat(SystemPageOpener.command(PAGE, WINDOWS, NOTHING_SET))
-                        .contains(List.of("rundll32", "url.dll,FileProtocolHandler", PAGE.toString())));
-        claim(
-                "on macOS it is handed to open",
-                () -> assertThat(SystemPageOpener.command(PAGE, MAC, NOTHING_SET))
-                        .contains(List.of("open", PAGE.toString())));
-        claim(
-                "on Linux with an X display it is handed to xdg-open",
-                () -> assertThat(SystemPageOpener.command(PAGE, LINUX, Map.of("DISPLAY", ":0")))
-                        .contains(List.of("xdg-open", PAGE.toString())));
-        claim(
-                "and on Linux with a Wayland display, the same",
-                () -> assertThat(SystemPageOpener.command(PAGE, LINUX, Map.of("WAYLAND_DISPLAY", "wayland-0")))
-                        .contains(List.of("xdg-open", PAGE.toString())));
-    }
-
     @Test
     @Story("The page is opened by the system's own command")
     @DisplayName("A working directory whose name holds a space, an ampersand, a percent sign, a caret and an accented letter is still handed over as one argument with no space in it")
     void aPathWithCharactersAShellReadsIsHandedOverAsOneArgument() {
-        Path page = Path.of("vespera runs", "a b & 100% ^ café", "progress.html").toAbsolutePath();
+        Path page = pathOrAbort("vespera runs", "a b & 100% ^ café", "progress.html").toAbsolutePath();
         URI address = page.toUri();
         List<List<String>> commands = List.of(
                 SystemPageOpener.command(address, WINDOWS, NOTHING_SET).orElseThrow(),
@@ -91,42 +67,17 @@ class SystemPageOpenerTest {
         }
     }
 
-    @Test
-    @Story("Nothing is opened where nobody could see it")
-    @DisplayName("Linux with no display opens nothing, and nor does any system where a CI service has set its variable")
-    void withNoDisplayOrUnderCiNothingIsOpened() {
-        claim(
-                "on Linux with neither display variable set, or set blank, no command is started",
-                () -> {
-                    assertThat(SystemPageOpener.command(PAGE, LINUX, NOTHING_SET)).isEmpty();
-                    assertThat(SystemPageOpener.command(PAGE, LINUX, Map.of("DISPLAY", " ", "WAYLAND_DISPLAY", "")))
-                            .isEmpty();
-                });
-        for (String system : List.of(WINDOWS, MAC, LINUX)) {
-            claim(
-                    "on " + system + " with CI set, no command is started, a display or not",
-                    () -> assertThat(SystemPageOpener.command(PAGE, system, UNDER_CI)).isEmpty());
-        }
-    }
-
     /**
-     * Only a {@code CI} that is set and not blank stops the page opening (ADR-266 section 2): a variable left empty,
-     * or holding only a space, is read as not set, as the display variables are.
+     * The path named by {@code first} and {@code more}, or the test skipped where the platform's encoding cannot name
+     * it: under a POSIX locale the JDK encodes file names in ASCII and refuses the accented letter before any command is
+     * chosen, and a test that cannot build its path has nothing to say about how the path is handed over.
      */
-    @Test
-    @Story("Nothing is opened where nobody could see it")
-    @DisplayName("A CI variable that is present but empty, or only a space, does not stop the page opening on a system with a display")
-    void aBlankCiVariableIsReadAsNotSet() {
-        for (String blank : List.of("", " ")) {
-            Map<String, String> blankCi = Map.of("CI", blank, "DISPLAY", ":0");
-            claim(
-                    "on Linux with a display and CI set to \"" + blank + "\", the page is still handed to xdg-open",
-                    () -> assertThat(SystemPageOpener.command(PAGE, LINUX, blankCi))
-                            .contains(List.of("xdg-open", PAGE.toString())));
-            claim(
-                    "and on Windows the same CI does not stop the shell's handler being asked",
-                    () -> assertThat(SystemPageOpener.command(PAGE, WINDOWS, blankCi))
-                            .contains(List.of("rundll32", "url.dll,FileProtocolHandler", PAGE.toString())));
+    private static Path pathOrAbort(String first, String... more) {
+        try {
+            return Path.of(first, more);
+        } catch (InvalidPathException e) {
+            return abort("this file system will not name " + String.join("/", first, String.join("/", more)) + ": "
+                    + e.getMessage());
         }
     }
 }

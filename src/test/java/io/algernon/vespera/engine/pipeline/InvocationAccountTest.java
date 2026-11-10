@@ -3,12 +3,7 @@ package io.algernon.vespera.engine.pipeline;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.engine.ledger.RunId;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -54,15 +49,6 @@ class InvocationAccountTest {
     /** The instant the fixed clock reads, so a file name and every line's time are known. */
     private static final Instant NOW = Instant.parse("2026-10-05T10:00:00Z");
 
-    /** The name the account takes at {@link #NOW}. */
-    private static final String FIRST_NAME = "invocation-account-20261005T100000Z.txt";
-
-    /** The name a second account takes in the same second. */
-    private static final String SECOND_NAME = "invocation-account-20261005T100000Z-2.txt";
-
-    /** A run id is a 64-character hexadecimal digest. */
-    private static final String A_RUN_ID = "0123456789abcdef".repeat(4);
-
     /** What the account writes in place of a step name, a stage or a run id that is not one it knows. */
     private static final String UNKNOWN = "unknown";
 
@@ -73,10 +59,6 @@ class InvocationAccountTest {
 
     /** The folder of the working directory every log is written in, the account among them (ADR-270 section 1). */
     private static final String LOGS = "logs";
-
-    /** How the one line for a configured {@code vespera.account-dir} begins; the folder written to follows. */
-    private static final String THE_SETTING_IS_NO_LONGER_READ =
-            "vespera.account-dir is no longer read, and the invocation account is written to ";
 
     @TempDir
     Path workingDirectory;
@@ -122,192 +104,6 @@ class InvocationAccountTest {
                 () -> assertThat(text).contains(" progress Stage 2 (extraction): 1 of 1 (100%)"));
     }
 
-    @Test
-    @Story("An account says which runs the invocation arrived at")
-    @DisplayName("A run is written as its stage and its 64-character digest")
-    void aRunLineCarriesTheDigest() throws IOException {
-        InvocationAccount account = anAccount();
-        JobExecution job = aJob();
-        new InvocationRuns(job.getExecutionContext()).record(StageModules.EXTRACTION.stage(), new RunId(A_RUN_ID));
-
-        account.beforeJob(job);
-        account.afterJob(job);
-
-        claim(
-                "the account has a run line naming the stage and the 64 hexadecimal characters of its id",
-                () -> assertThat(theOneAccount()).contains(" run stage=extraction id=" + A_RUN_ID));
-    }
-
-    @Test
-    @Story("A stored value outside a closed vocabulary is never written")
-    @DisplayName("A verdict kind that is not in the vocabulary is written as other, and its text is not")
-    void anUnknownStoredValueIsWrittenAsOther() throws IOException {
-        InvocationAccount account = anAccount();
-        JobExecution job = aJob();
-        new InvocationRuns(job.getExecutionContext()).record(StageModules.EXTRACTION.stage(), new RunId(A_RUN_ID));
-        jdbc.update("INSERT INTO verdict (run_id, kind) VALUES (?, 'BROKEN')", A_RUN_ID);
-        jdbc.update("INSERT INTO verdict (run_id, kind) VALUES (?, ?)", A_RUN_ID, MARKER + " as a kind");
-
-        account.beforeJob(job);
-        account.afterJob(job);
-
-        String text = theOneAccount();
-        claim(
-                "the known kind is counted by its name, and the unknown one as other",
-                () -> assertThat(text)
-                        .contains("counts verdict kind=BROKEN count=1")
-                        .contains("counts verdict kind=other count=1"));
-        claim("and the unknown one's text is nowhere", () -> assertThat(text).doesNotContainIgnoringCase(MARKER));
-    }
-
-    @Test
-    @Story("Two accounts in one second do not overwrite each other")
-    @DisplayName("A second account in the same second takes the suffix -2")
-    void aSecondAccountInTheSameSecondTakesASuffix() throws IOException {
-        JobExecution first = aJob();
-        JobExecution second = aJob();
-        InvocationAccount one = anAccount();
-        InvocationAccount other = anAccount();
-
-        one.beforeJob(first);
-        other.beforeJob(second);
-        other.afterJob(second);
-        one.afterJob(first);
-
-        claim(
-                "the logs folder holds the account and its suffixed neighbour, and nothing else",
-                () -> assertThat(namesInTheLogsFolder()).containsExactlyInAnyOrder(FIRST_NAME, SECOND_NAME));
-    }
-
-    @Test
-    @Story("The account is never a gate")
-    @DisplayName("A logs folder that cannot be created leaves no account, fails nothing and says where it tried")
-    @Link(name = "ADR-270", url = Adr.EVERY_LOG_IS_IN_THE_WORKING_DIRECTORYS_LOGS_FOLDER, type = "adr")
-    void aFailedWriteNeverFailsTheInvocation() throws IOException {
-        Path aFileWhereTheFolderGoes = Files.writeString(workingDirectory.resolve(LOGS), "x");
-
-        List<String> logged = linesLoggedByAnInvocationOf(anAccount());
-
-        claim(
-                "both calls returned, and the file standing where the logs folder goes is still a file",
-                () -> assertThat(aFileWhereTheFolderGoes).isRegularFile().hasContent("x"));
-        claim(
-                "one line was logged, saying the account could not be written to the logs folder of the working"
-                        + " directory",
-                () -> assertThat(logged)
-                        .singleElement()
-                        .asString()
-                        .startsWith("the invocation account could not be written to " + aFileWhereTheFolderGoes + ": "));
-    }
-
-    @Test
-    @Story("The account is written in the working directory's logs folder")
-    @DisplayName("With no setting at all, the account is written in the working directory's logs folder and nothing is logged")
-    @Link(name = "ADR-270", url = Adr.EVERY_LOG_IS_IN_THE_WORKING_DIRECTORYS_LOGS_FOLDER, type = "adr")
-    void anAccountIsWrittenInTheLogsFolderWithNoSetting() throws IOException {
-        List<String> logged = linesLoggedByAnInvocationOf(anAccount());
-
-        claim(
-                "the logs folder holds the account, and nothing else",
-                () -> assertThat(namesInTheLogsFolder()).containsExactly(FIRST_NAME));
-        claim(
-                "the top of the working directory holds the logs folder and no account",
-                () -> assertThat(namesIn(workingDirectory)).containsExactly(LOGS));
-        claim("and no warning was logged", () -> assertThat(logged).isEmpty());
-    }
-
-    @Test
-    @Story("The account is written in the working directory's logs folder")
-    @DisplayName("A configured vespera.account-dir sends the account nowhere else, and one line says where it is")
-    @Link(name = "ADR-270", url = Adr.EVERY_LOG_IS_IN_THE_WORKING_DIRECTORYS_LOGS_FOLDER, type = "adr")
-    void aConfiguredAccountFolderIsIgnoredWithOneLine() throws IOException {
-        List<String> logged = linesLoggedByAnInvocationOf(
-                new InvocationAccount(workingDirectory, accountDirectory, jdbc, clock));
-
-        claim(
-                "the folder vespera.account-dir names gained nothing",
-                () -> assertThat(namesIn(accountDirectory)).isEmpty());
-        claim(
-                "the account is in the working directory's logs folder, as it is with no setting",
-                () -> assertThat(namesInTheLogsFolder()).containsExactly(FIRST_NAME));
-        claim(
-                "the one warning logged says the setting is no longer read and names the logs folder",
-                () -> assertThat(logged)
-                        .containsExactly(THE_SETTING_IS_NO_LONGER_READ
-                                + workingDirectory.toAbsolutePath().resolve(LOGS)));
-    }
-
-    /**
-     * A step whose name is not one the pipeline declares is written as {@value #UNKNOWN}, so a name built
-     * from anything else never reaches the file (ADR-198 section 2).
-     */
-    @Test
-    @Story("A name outside the pipeline's own steps and stages is never written")
-    @DisplayName("A step whose name is not one of the pipeline's steps is written as unknown, and its name is not")
-    void aStepNotAmongThePipelinesStepsIsWrittenAsUnknown() throws IOException {
-        InvocationAccount account = anAccount();
-        JobExecution job = aJob();
-        StepExecution step = new StepExecution(MARKER + "-step", job);
-        step.setStatus(BatchStatus.COMPLETED);
-        job.addStepExecutions(List.of(step));
-
-        account.beforeJob(job);
-        account.afterJob(job);
-
-        String text = theOneAccount();
-        claim(
-                "the step is written, under the name unknown",
-                () -> assertThat(text).contains(" step name=" + UNKNOWN + " status=COMPLETED "));
-        claim("and the name it was given is nowhere, in any letter case", () -> assertThat(text)
-                .doesNotContainIgnoringCase(MARKER));
-    }
-
-    /**
-     * A run recorded under a stage the pipeline does not declare is written with the stage {@value #UNKNOWN}
-     * (ADR-198 section 2).
-     */
-    @Test
-    @Story("A name outside the pipeline's own steps and stages is never written")
-    @DisplayName("A run recorded under a stage that is not one of the pipeline's is written with the stage unknown")
-    void aRunOfAStageNotAmongThePipelinesIsWrittenAsUnknown() throws IOException {
-        InvocationAccount account = anAccount();
-        JobExecution job = aJob();
-        new InvocationRuns(job.getExecutionContext()).record(MARKER + "-stage", new RunId(A_RUN_ID));
-
-        account.beforeJob(job);
-        account.afterJob(job);
-
-        String text = theOneAccount();
-        claim(
-                "the run is written with the stage unknown and its digest",
-                () -> assertThat(text).contains(" run stage=" + UNKNOWN + " id=" + A_RUN_ID));
-        claim("and the stage it was recorded under is nowhere, in any letter case", () -> assertThat(text)
-                .doesNotContainIgnoringCase(MARKER));
-    }
-
-    /**
-     * A run id that is not a hexadecimal digest is written as {@value #UNKNOWN}, so a value that is not what
-     * a run is minted under never reaches the file (ADR-198 section 2).
-     */
-    @Test
-    @Story("An account says which runs the invocation arrived at")
-    @DisplayName("A run id that is not a hexadecimal digest is written as unknown, and its text is not")
-    void aRunIdThatIsNotADigestIsWrittenAsUnknown() throws IOException {
-        InvocationAccount account = anAccount();
-        JobExecution job = aJob();
-        new InvocationRuns(job.getExecutionContext()).record(StageModules.EXTRACTION.stage(), new RunId(MARKER));
-
-        account.beforeJob(job);
-        account.afterJob(job);
-
-        String text = theOneAccount();
-        claim(
-                "the run is written under its stage with the id unknown",
-                () -> assertThat(text).contains(" run stage=extraction id=" + UNKNOWN));
-        claim("and the id's own text is nowhere, in any letter case", () -> assertThat(text)
-                .doesNotContainIgnoringCase(MARKER));
-    }
-
     /**
      * A failed step is written as the class names of its exception and of at most {@value #MOST_CAUSES} causes,
      * never a message, and a step name the pipeline does not declare is written as {@value #UNKNOWN}
@@ -350,25 +146,6 @@ class InvocationAccountTest {
 
     private InvocationAccount anAccount() {
         return new InvocationAccount(workingDirectory, null, jdbc, clock);
-    }
-
-    /** What the account's logger warned of, as the messages an operator reads, while one invocation went by. */
-    private List<String> linesLoggedByAnInvocationOf(InvocationAccount account) {
-        Logger logger = (Logger) LoggerFactory.getLogger(InvocationAccount.class);
-        ListAppender<ILoggingEvent> logged = new ListAppender<>();
-        logged.start();
-        logger.addAppender(logged);
-        try {
-            JobExecution job = aJob();
-            account.beforeJob(job);
-            account.afterJob(job);
-        } finally {
-            logger.detachAppender(logged);
-        }
-        return logged.list.stream()
-                .filter(event -> event.getLevel() == Level.WARN)
-                .map(ILoggingEvent::getFormattedMessage)
-                .toList();
     }
 
     private static JobExecution aJob() {

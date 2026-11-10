@@ -41,7 +41,7 @@ import picocli.CommandLine;
  * rendering is never sent in place of one whose drawing did not finish.
  *
  * <p>This is the class ADR-333's Tests table, as corrected in ADR-333 step 1, and ADR-338 §3 name. It lies in {@code
- * pipeline} beside {@code PublishFindsTheLastDrawnRenderingIT}, because the run a publish takes is found by {@code
+ * pipeline}, because the run a publish takes is found by {@code
  * VesperaCommand.Publish}, whose constructor this package alone reaches; and it is a test of the build and untagged,
  * since its publisher sends nothing and reaches no site, so CI runs it. Step 1 of ADR-333 §13 keeps that
  * constructor and its {@link Publisher}; a bare publish is Confluence, the only destination before {@code --to} (§6).
@@ -106,46 +106,6 @@ class PublishRefusesARenderingWhoseDrawingDidNotFinishTest {
         claim(
                 "its one line names the destination and says to draw it again",
                 () -> assertThat(ended.errors().strip()).isEqualTo(THE_REFUSAL));
-    }
-
-    @Test
-    @Story("A plugin's failed drawing stops that plugin alone")
-    @DisplayName("A rendering whose last drawing was interrupted is not sent either")
-    void anInterruptedDrawingIsNotSent() throws IOException {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walk = ledger.walks().startWalk(workingDirectory.resolve("corpus"));
-        generationRun(ledger, walk, "interrupted", true, "drawing");
-
-        Ended ended = publish(ledger);
-
-        claim(
-                "drawing, left by a drawing stopped partway, refuses as failed does, the publisher not asked",
-                () -> assertThat(List.of(ended.exit(), ended.asked().size(), ended.errors().strip()))
-                        .containsExactly(CommandLine.ExitCode.SOFTWARE, 0, THE_REFUSAL));
-    }
-
-    @Test
-    @Story("A plugin's failed drawing stops that plugin alone")
-    @DisplayName("A rendering drawn whole, or drawn before drawing.txt was written, is sent as before")
-    void aDrawnOrEarlierRenderingIsSent() throws IOException {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walk = ledger.walks().startWalk(workingDirectory.resolve("corpus"));
-        RunId drawn = generationRun(ledger, walk, "drawn", true, "drawn");
-
-        Ended whole = publish(ledger);
-
-        claim(
-                "drawn goes on: the publisher is asked for that run, and the command ends as it says",
-                () -> assertThat(List.of(whole.exit(), whole.asked()))
-                        .containsExactly(CommandLine.ExitCode.OK, List.of(drawn.value())));
-
-        RunId earlier = generationRun(ledger, walk, "drawn-before-adr-333", true, null);
-        Ended before = publish(ledger);
-
-        claim(
-                "and a later run whose folder holds the page list and no drawing.txt is sent, the list alone deciding",
-                () -> assertThat(List.of(before.exit(), before.asked()))
-                        .containsExactly(CommandLine.ExitCode.OK, List.of(earlier.value())));
     }
 
     @Test

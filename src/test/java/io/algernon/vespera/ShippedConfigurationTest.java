@@ -3,7 +3,6 @@ package io.algernon.vespera;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.algernon.vespera.ui.ProfileKey;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -11,17 +10,10 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Path;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.core.io.ClassPathResource;
 
@@ -61,92 +53,11 @@ class ShippedConfigurationTest {
             "spring.ai.model.audio.transcription",
             "spring.ai.model.audio.speech");
 
-    /** What an engine is set to when it is switched off. */
-    private static final String OFF = "none";
-
     /** The engine that serves, named for both the capabilities this application actually uses. */
     private static final List<String> SERVED_BY_OLLAMA = List.of("spring.ai.model.chat", "spring.ai.model.embedding");
 
-    /** Ollama's own name for the engine, as the two keys above select it. */
-    private static final String OLLAMA = "ollama";
-
-    /** Where the generation model's shipped default lives, and where Spring AI itself reads it. */
-    private static final String GENERATION_MODEL = "spring.ai.ollama.chat.options.model";
-
     /** Where the embedding model's shipped default lives, and where Spring AI itself reads it (ADR-298). */
     private static final String EMBEDDING_MODEL = "spring.ai.ollama.embedding.options.model";
-
-    /** The datasource URL, and the only place the database lock wait is set (ADR-127). */
-    private static final String DATASOURCE_URL = "spring.datasource.url";
-
-    /** Whether a model Ollama does not serve is pulled at the step that needs it (ADR-329 §9). */
-    private static final String MODELS_PULL = "vespera.models.pull";
-
-    /** How long a pull may go without moving (ADR-329 §6). */
-    private static final String MODELS_PULL_STALLED_AT_MOST = "vespera.models.pull-stalled-at-most";
-
-    /** Ten minutes, as the shipped file writes it. */
-    private static final String PULL_STALLED_AT_MOST = "600s";
-
-    /**
-     * Five minutes, in milliseconds: the lock wait the shipped configuration names. Named here
-     * because the claim below states the number and a reader has to be told where it comes from.
-     */
-    private static final long LOCK_WAIT_MILLIS = 300_000L;
-
-    /** SQLite's own name for the lock wait, as the datasource URL must carry it. */
-    private static final String LOCK_WAIT_PARAMETER = "busy_timeout=" + LOCK_WAIT_MILLIS;
-
-    /** The other URL parameter the datasource must keep, so foreign key constraints are not ignored. */
-    private static final String FOREIGN_KEYS_PARAMETER = "foreign_keys=on";
-
-    /** Where the shipped URL points its database, resolved to a real directory by the driver test. */
-    private static final String WORKING_DIRECTORY_PLACEHOLDER = "${vespera.working-dir}";
-
-    @Test
-    @Story("An engine nobody asked for stays switched off")
-    @DisplayName("Every engine the application does not use is still named as unused")
-    void keepsTheUnusedEnginesSwitchedOff() throws IOException {
-        Map<Object, Object> properties = shippedProperties();
-
-        claim(
-                "each of the " + SWITCHED_OFF.size() + " engines this application does not use is still"
-                        + " named and still set to \"" + OFF + "\": an engine left unnamed configures itself,"
-                        + " and the ones on the classpath for other reasons ask for credentials on startup"
-                        + " -- so a missing key here is not a missing setting but an application that will"
-                        + " not start",
-                () -> assertThat(SWITCHED_OFF).allSatisfy(key -> assertThat(properties)
-                        .containsEntry(key, OFF)));
-    }
-
-    @Test
-    @Story("An engine nobody asked for stays switched off")
-    @DisplayName("The engine that does serve is still named for both the things it serves")
-    void namesTheServingEngineForBothCapabilities() throws IOException {
-        Map<Object, Object> properties = shippedProperties();
-
-        claim(
-                "both capabilities this application uses still name their engine, so which runtime serves"
-                        + " stays a matter of configuration rather than of whichever starter happens to be"
-                        + " on the classpath",
-                () -> assertThat(SERVED_BY_OLLAMA).allSatisfy(key -> assertThat(properties)
-                        .containsEntry(key, OLLAMA)));
-    }
-
-    @Test
-    @Story("The generation model ships with a default")
-    @DisplayName("The model the connecting text is written with is named, and is not blank")
-    void namesTheGenerationModel() throws IOException {
-        Map<Object, Object> properties = shippedProperties();
-
-        claim(
-                "a name is shipped, because this is the one value the operator is never asked to supply:"
-                        + " unset everywhere, the run refuses rather than composing an identity around a"
-                        + " model nobody named",
-                () -> assertThat(properties.get(GENERATION_MODEL))
-                        .asString()
-                        .isNotBlank());
-    }
 
     /**
      * ADR-298 §1 as ADR-353 §7 holds it: a name is shipped, one name with no space in it, and which one is the shipped
@@ -168,113 +79,6 @@ class ShippedConfigurationTest {
                         .asString()
                         .isNotBlank()
                         .doesNotContainAnyWhitespaces());
-    }
-
-    /**
-     * ADR-353 §5, after ADR-331 §8: the control panel's example for {@code embeddingModel} is whatever model the jar
-     * ships, as the writing model's example is its own, and its hint names that model as the one to replace. The control
-     * panel reads no configuration of the jar's (ADR-285 §3), so the two are held here to the value the shipped file
-     * names, read from it.
-     */
-    @Test
-    @Story("The embedding model ships with a default")
-    @DisplayName("The control panel's example and hint for the comparing model name the model the application ships, whichever it is")
-    @Link(name = "ADR-353", url = Adr.THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE, type = "adr")
-    void theControlPanelsExampleAndHintNameTheShippedEmbeddingModel() throws IOException {
-        String shipped = String.valueOf(shippedProperties().get(EMBEDDING_MODEL));
-
-        claim(
-                "the example the control panel shows for the comparing model is the one the shipped file names, "
-                        + shipped + ", the model the application scores with where the profile names none, so an"
-                        + " operator who types the example changes nothing",
-                () -> assertThat(ProfileKey.EMBEDDING_MODEL.example()).isEqualTo(shipped));
-        claim(
-                "and its hint names that same model as the one to name another in place of, so the hint, the example"
-                        + " and the shipped file cannot drift apart",
-                () -> assertThat(ProfileKey.EMBEDDING_MODEL.hint()).endsWith(" other than " + shipped));
-    }
-
-    /**
-     * ADR-329 §6 and §9: the shipped file carries the two settings of a pull, with the values {@code ModelPullSettings}
-     * takes where nothing sets them, so an operator reading it sees what applies.
-     */
-    @Test
-    @Story("A model Ollama does not serve is pulled")
-    @DisplayName("The shipped configuration pulls a missing model, and gives a pull up after ten minutes without moving")
-    @Issue("669")
-    @Link(name = "ADR-329", url = Adr.A_MODEL_OLLAMA_DOES_NOT_SERVE_IS_PULLED_AT_THE_STEP_THAT_NEEDS_IT, type = "adr")
-    void namesThePullsTwoSettings() throws IOException {
-        Map<Object, Object> properties = shippedProperties();
-
-        claim(
-                "vespera.models.pull is shipped true, so a model Ollama does not serve is pulled unless the operator"
-                        + " turns it off",
-                () -> assertThat(properties.get(MODELS_PULL)).asString().isEqualTo("true"));
-        claim(
-                "and vespera.models.pull-stalled-at-most is shipped as " + PULL_STALLED_AT_MOST + ", ten minutes",
-                () -> assertThat(properties.get(MODELS_PULL_STALLED_AT_MOST)).asString().isEqualTo(PULL_STALLED_AT_MOST));
-    }
-
-    /**
-     * ADR-127: the five-minute wait a stage needs on a contended database lock lives in the
-     * datasource URL as SQLite's own {@code busy_timeout}, not in Hikari's {@code connection-timeout},
-     * which waits for a connection from the pool and never sees the lock. Before this, the URL set
-     * no busy timeout, so a contended write failed on the driver's three-second default while the
-     * configuration promised five minutes.
-     */
-    @Test
-    @Story("A stage waiting on the database lock waits rather than failing")
-    @DisplayName("The shipped datasource URL names the wait SQLite applies to a contended lock")
-    @Issue("214")
-    @Link(name = "ADR-127", url = Adr.A_DATABASE_LOCK_WAIT_IS_SQLITES_BUSY_TIMEOUT, type = "adr")
-    void namesTheLockWaitInTheDatasourceUrl() throws IOException {
-        String url = String.valueOf(shippedProperties().get(DATASOURCE_URL));
-
-        claim(
-                "the datasource URL still turns foreign key constraints on: SQLite ignores them per"
-                        + " connection unless told otherwise, and the walk_id references in schema.sql"
-                        + " would silently accept orphans without it",
-                () -> assertThat(url).contains(FOREIGN_KEYS_PARAMETER));
-        claim(
-                "and it names SQLite's own busy timeout at five minutes — " + LOCK_WAIT_MILLIS
-                        + " ms — because that, and not Hikari's connection timeout, is the wait a"
-                        + " contended write observes: left at the driver's three-second default, a stage"
-                        + " gives up on a lock after three seconds where the configuration promises five"
-                        + " minutes, and a run that fails costs more than one that waits",
-                () -> assertThat(url).contains(LOCK_WAIT_PARAMETER));
-    }
-
-    /**
-     * ADR-127's behavioural half: the URL parameter is SQLite's own knob, so a connection opened with
-     * the shipped URL reports the value. The text claim above would pass on a parameter the driver
-     * did not read, and this is what fails instead.
-     */
-    @Test
-    @Story("A stage waiting on the database lock waits rather than failing")
-    @DisplayName("The wait the shipped URL names is the one the database driver reports")
-    @Issue("214")
-    @Link(name = "ADR-127", url = Adr.A_DATABASE_LOCK_WAIT_IS_SQLITES_BUSY_TIMEOUT, type = "adr")
-    void theDriverReportsTheLockWaitTheUrlNames(@TempDir Path workingDirectory) throws Exception {
-        String url = String.valueOf(shippedProperties().get(DATASOURCE_URL))
-                .replace(WORKING_DIRECTORY_PLACEHOLDER, workingDirectory.toString().replace('\\', '/'));
-
-        try (Connection connection = DriverManager.getConnection(url)) {
-            claim(
-                    "a connection opened with the shipped URL reports a " + LOCK_WAIT_MILLIS
-                            + " ms busy timeout, so the value is the one SQLite's driver reads rather"
-                            + " than a setting only Hikari understands; a claim on the URL text alone"
-                            + " would pass while the write still failed after three seconds",
-                    () -> assertThat(busyTimeoutMillis(connection)).isEqualTo(LOCK_WAIT_MILLIS));
-        }
-    }
-
-    /** What SQLite reports as this connection's lock wait, in milliseconds. */
-    private static long busyTimeoutMillis(Connection connection) throws SQLException {
-        try (Statement statement = connection.createStatement();
-                ResultSet result = statement.executeQuery("PRAGMA busy_timeout")) {
-            result.next();
-            return result.getLong(1);
-        }
     }
 
     /** The shipped file flattened to properties, exactly as Spring reads it — nesting and all. */

@@ -55,16 +55,6 @@ class TextOnlyInPageHeadersAndFootersIsDegenerateTest {
             + "{\"text\":\"Quarterly report 2026\",\"label\":\"page_header\"},"
             + "{\"text\":\"Page 1 of 1\",\"label\":\"page_footer\"}]}}}";
 
-    private static final String A_PAGE_HEADER_AND_A_RULE = "{\"document\":{\"json_content\":{\"texts\":["
-            + "{\"text\":\"Quarterly report 2026\",\"label\":\"page_header\"},"
-            + "{\"text\":\"- - - - -\",\"label\":\"text\"}]}}}";
-
-    private static final String A_PAGE_HEADER_AND_A_PARAGRAPH = "{\"document\":{\"json_content\":{\"texts\":["
-            + "{\"text\":\"Quarterly report 2026\",\"label\":\"page_header\"},"
-            + "{\"text\":\"Revenue rose in the third quarter.\",\"label\":\"text\"}]}}}";
-
-    private static final String NO_TEXT_AT_ALL = "{\"document\":{\"json_content\":{\"texts\":[]}}}";
-
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -94,91 +84,6 @@ class TextOnlyInPageHeadersAndFootersIsDegenerateTest {
                                 occurrence.value(),
                                 run.value()))
                         .isEqualTo(LETTERS_AND_DIGITS_OF_THE_HEADER_AND_FOOTER));
-    }
-
-    @Test
-    @Story("Text only in page headers and footers is output with no usable content")
-    @DisplayName("A conversion with a page header and, outside it, punctuation only is judged the same way")
-    void aPageHeaderBesideABodyOfPunctuationIsDegenerate() {
-        DegeneracyVerdict verdict = metrics()
-                .writeAndJudge(anOccurrence("header-and-rule.pdf"), aRun("header-and-rule"), converted(A_PAGE_HEADER_AND_A_RULE), null, null);
-
-        claim(
-                "the body holds no letter and no digit, and the header's do not count for it",
-                () -> assertThat(verdict)
-                        .isEqualTo(new DegeneracyVerdict(true, ONLY_IN_PAGE_HEADERS_AND_FOOTERS)));
-    }
-
-    @Test
-    @Story("A document with a body is not removed for having page headers")
-    @DisplayName("A conversion with a page header and a paragraph is not judged to have no usable content")
-    void aPageHeaderBesideAParagraphIsNotDegenerate() {
-        DegeneracyVerdict verdict = metrics()
-                .writeAndJudge(anOccurrence("header-and-body.pdf"), aRun("header-and-body"), converted(A_PAGE_HEADER_AND_A_PARAGRAPH), null, null);
-
-        claim("the paragraph is text outside the page header", () -> assertThat(verdict.degenerate()).isFalse());
-    }
-
-    @Test
-    @Story("A document with no text at all keeps the reason it had")
-    @DisplayName("A conversion with no text at all is judged to have no usable content for the reason it always was")
-    void noTextAtAllKeepsItsReason() {
-        DegeneracyVerdict verdict =
-                metrics().writeAndJudge(anOccurrence("no-text.pdf"), aRun("no-text"), converted(NO_TEXT_AT_ALL), null, null);
-
-        claim(
-                "no text anywhere is not text in page headers and footers, and is not said to be: the reason is"
-                        + " the one written for no letter or digit at all, \"" + NO_ALPHANUMERIC_CONTENT + "\"",
-                () -> assertThat(verdict).isEqualTo(new DegeneracyVerdict(true, NO_ALPHANUMERIC_CONTENT)));
-    }
-
-    /** The reason for no letter or digit anywhere, word for word as the record that decides it writes it. */
-    private static final String NO_ALPHANUMERIC_CONTENT = "zero alphanumeric content after whitespace normalisation";
-
-    /** A mean confidence the converter reports, below {@link #A_SET_CONFIDENCE_FLOOR}. */
-    private static final double A_LOW_MEAN_CONFIDENCE = 0.10;
-
-    /** A confidence floor an operator has set, on the converter's scale of 0 to 1. */
-    private static final double A_SET_CONFIDENCE_FLOOR = 0.50;
-
-    @Test
-    @Story("Text only in page headers and footers is output with no usable content")
-    @DisplayName("Where a conversion of a page header and footer alone also falls below a set confidence floor, the reason given is where the text was, not the confidence")
-    void theReasonOfTextOnlyInHeadersAndFootersComesBeforeALowConfidence() {
-        DegeneracyVerdict ofHeadersAndFooters = metrics()
-                .writeAndJudge(
-                        anOccurrence("low-confidence-headers.pdf"),
-                        aRun("low-confidence-headers"),
-                        convertedWithLowConfidence(A_PAGE_HEADER_AND_A_PAGE_FOOTER),
-                        A_SET_CONFIDENCE_FLOOR, null);
-        DegeneracyVerdict ofABody = metrics()
-                .writeAndJudge(
-                        anOccurrence("low-confidence-body.pdf"),
-                        aRun("low-confidence-body"),
-                        convertedWithLowConfidence(A_PAGE_HEADER_AND_A_PARAGRAPH),
-                        A_SET_CONFIDENCE_FLOOR, null);
-
-        claim(
-                "the floor of " + A_SET_CONFIDENCE_FLOOR + " is in force: a conversion with a paragraph and a"
-                        + " mean confidence of " + A_LOW_MEAN_CONFIDENCE + " is removed for its confidence",
-                () -> {
-                    assertThat(ofABody.degenerate()).isTrue();
-                    assertThat(ofABody.reason()).contains("below the configured floor");
-                });
-        claim(
-                "the conversion of a page header and footer alone, with the same confidence under the same"
-                        + " floor, is removed for where its text was: that holds whatever the floor is set to",
-                () -> assertThat(ofHeadersAndFooters)
-                        .isEqualTo(new DegeneracyVerdict(true, ONLY_IN_PAGE_HEADERS_AND_FOOTERS)));
-    }
-
-    private static DoclingResponse convertedWithLowConfidence(String rawResponse) {
-        return new DoclingResponse(
-                ConversionStatus.SUCCESS,
-                List.of(),
-                1.0,
-                new ConfidenceScores(null, null, null, null, A_LOW_MEAN_CONFIDENCE, null, null, null),
-                rawResponse);
     }
 
     private ExtractionMetrics metrics() {

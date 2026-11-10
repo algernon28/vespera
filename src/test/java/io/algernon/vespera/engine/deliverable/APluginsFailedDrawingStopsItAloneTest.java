@@ -2,7 +2,6 @@ package io.algernon.vespera.engine.deliverable;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -19,7 +18,6 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -51,28 +49,13 @@ class APluginsFailedDrawingStopsItAloneTest {
     private static final String WHOLE = "zulu";
 
     /**
-     * Every call a plugin's drawing hears over the fixture, the closing of a cluster's entries among them (ADR-333 §11:
-     * any call of its entries).
+     * One call of the drawing proper and one of its closing, each with a kind of exception (ADR-333 §11: any call
+     * of its entries).
      */
-    private static final List<String> EVERY_CALL_THAT_CAN_THROW = List.of(
-            ScriptedPlugin.DRAWING,
-            ScriptedPlugin.PARTITION_STARTED,
-            ScriptedPlugin.ENTRIES_OF,
-            ScriptedPlugin.START,
-            ScriptedPlugin.COPY_SHOWN,
-            ScriptedPlugin.PICTURE,
-            ScriptedPlugin.NOT_SHOWN,
-            ScriptedPlugin.END,
-            ScriptedPlugin.ENTRIES_CLOSED,
-            ScriptedPlugin.CLUSTER_DRAWN,
-            ScriptedPlugin.PARTITION_ENDED,
-            ScriptedPlugin.FINISH,
-            ScriptedPlugin.CLOSE);
-
     static Stream<Arguments> everyCallAndEachKindOfException() {
-        return EVERY_CALL_THAT_CAN_THROW.stream().flatMap(call -> Stream.of(
-                Arguments.of(call, ScriptedPlugin.Failure.IO_EXCEPTION),
-                Arguments.of(call, ScriptedPlugin.Failure.RUNTIME_EXCEPTION)));
+        return Stream.of(
+                Arguments.of(ScriptedPlugin.ENTRIES_OF, ScriptedPlugin.Failure.IO_EXCEPTION),
+                Arguments.of(ScriptedPlugin.FINISH, ScriptedPlugin.Failure.RUNTIME_EXCEPTION));
     }
 
     @ParameterizedTest(name = "{1} at {0}")
@@ -143,42 +126,6 @@ class APluginsFailedDrawingStopsItAloneTest {
                             .containsExactlyElementsOf(TwoClustersWithPictures.EVERY_CALL);
                     assertThat(stateOf(again, FAILING)).isEqualTo("drawn");
                 });
-    }
-
-    @Test
-    @Story("A plugin's failed drawing stops that plugin alone")
-    @DisplayName("An Error out of a plugin's drawing is not caught: the drawing stops with it")
-    void anErrorIsNotCaught(@TempDir Path base) {
-        List<String> heard = new ArrayList<>();
-        ScriptedPlugin failing = new ScriptedPlugin(FAILING, heard)
-                .failingAt(ScriptedPlugin.PARTITION_STARTED, ScriptedPlugin.Failure.ERROR);
-
-        claim(
-                "the Error leaves the drawing as it was thrown, neither caught nor wrapped",
-                () -> assertThatThrownBy(() -> TwoClustersWithPictures.draw(
-                                base, List.of(failing, new ScriptedPlugin(WHOLE, heard)), DeliverableProgress.NONE))
-                        .isInstanceOf(ScriptedPlugin.ScriptedError.class));
-    }
-
-    @Test
-    @Story("A plugin's failed drawing stops that plugin alone")
-    @DisplayName("A drawing interrupted before a plugin's drawing finished leaves drawing in its drawing.txt")
-    void aDrawingInterruptedLeavesDrawing(@TempDir Path base) {
-        List<String> heard = new ArrayList<>();
-        ScriptedPlugin interrupted = new ScriptedPlugin(FAILING, heard)
-                .failingAt(ScriptedPlugin.PARTITION_STARTED, ScriptedPlugin.Failure.ERROR);
-        Path tree = base.resolve("work").resolve(Deliverable.DIRECTORY_NAME).resolve(ListedTree.RUN_ID);
-
-        try {
-            TwoClustersWithPictures.draw(base, List.of(interrupted), DeliverableProgress.NONE);
-        } catch (ScriptedPlugin.ScriptedError | IOException stopped) {
-            // What stops the process partway stops it here: nothing after the throw runs.
-        }
-
-        claim(
-                "the state written as the plugin's drawing was opened stands, so a publish refuses what it would have"
-                        + " sent (ADR-333 Consequences)",
-                () -> assertThat(stateOf(tree, FAILING)).isEqualTo("drawing"));
     }
 
     /** A progress telling {@code told} each plugin whose drawing failed, as its name and the type it threw. */

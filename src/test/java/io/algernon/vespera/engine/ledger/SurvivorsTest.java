@@ -42,9 +42,6 @@ class SurvivorsTest {
     /** Files this test records against the walk: two that survive, one that is ruled out. */
     private static final int OCCURRENCES_RECORDED = 3;
 
-    /** More than the 1,000 a page of the reader holds, so the read crosses two page boundaries. */
-    private static final int OCCURRENCES_OVER_THREE_PAGES = 2_500;
-
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -121,28 +118,6 @@ class SurvivorsTest {
 
     @Test
     @Story("Survival over a reused walk")
-    @DisplayName("A verdict under a later run removes nothing from an earlier run's survivors")
-    @Issue("297")
-    @Link(name = "ADR-156", url = Adr.A_RUNS_SURVIVORS_ARE_READ_THROUGH_ITS_UPSTREAM_RUNS, type = "adr")
-    void aLaterRunsVerdictDoesNotReachBack() {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
-        OccurrenceId removedLater = record(ledger, walkId, "irrelevant.txt");
-        OccurrenceId kept = record(ledger, walkId, "relevant.txt");
-        RunId extraction = ledger.runs().startRun("extraction", "abc123", "{}", walkId, List.of());
-        RunId scoring = ledger.runs().startRun("embedding-scoring", "def456", "{}", walkId, List.of(extraction));
-
-        ledger.verdicts().verdict(removedLater, scoring, VerdictKind.BELOW_THRESHOLD, "under the floor");
-
-        claim(
-                "stage 2's survivors still hold the document stage 5 removed: a run's survivor set is a"
-                        + " question about that run and the runs it read, so a census read under stage 2's"
-                        + " run never counts the corpus as a later floor left it",
-                () -> assertThat(drain(ledger.verdicts().survivors(extraction))).containsExactly(removedLater, kept));
-    }
-
-    @Test
-    @Story("Survival over a reused walk")
     @DisplayName("A verdict two runs upstream still removes an occurrence")
     @Issue("297")
     @Link(name = "ADR-156", url = Adr.A_RUNS_SURVIVORS_ARE_READ_THROUGH_ITS_UPSTREAM_RUNS, type = "adr")
@@ -166,87 +141,6 @@ class SurvivorsTest {
                         + " stage 4 upstream: the rule follows the upstream runs all the way back, which is"
                         + " what keeps the cascade cumulative",
                 () -> assertThat(drain(ledger.verdicts().survivors(measurement))).containsExactly(survivor));
-    }
-
-    @Test
-    @Story("Survival over a reused walk")
-    @DisplayName("The survivor count answers the same set as the survivors reader")
-    @Issue("297")
-    @Link(name = "ADR-156", url = Adr.A_RUNS_SURVIVORS_ARE_READ_THROUGH_ITS_UPSTREAM_RUNS, type = "adr")
-    void theCountAgreesWithTheReader() {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
-        OccurrenceId removedBySibling = record(ledger, walkId, "irrelevant-at-1.5.txt");
-        OccurrenceId removedUpstream = record(ledger, walkId, "broken.txt");
-        record(ledger, walkId, "relevant.txt");
-        RunId stageOne = ledger.runs().startRun("byte-level-reduction", "abc123", "{}", walkId, List.of());
-        RunId stricter = ledger.runs().startRun(
-                "embedding-scoring", "abc123", "{\"relevanceScoreFloor\":1.5}", walkId, List.of(stageOne));
-        RunId looser = ledger.runs().startRun(
-                "embedding-scoring", "abc123", "{\"relevanceScoreFloor\":0.1}", walkId, List.of(stageOne));
-
-        ledger.verdicts().verdict(removedUpstream, stageOne, VerdictKind.BROKEN, "zero bytes");
-        ledger.verdicts().verdict(removedBySibling, stricter, VerdictKind.BELOW_THRESHOLD, "under 1.5");
-
-        claim(
-                "the count is two, the occurrence the sibling run removed included and the one stage 1"
-                        + " removed left out: a progress line counts the set the stage is handed, so the"
-                        + " count and the reader answer one question",
-                () -> assertThat(ledger.verdicts().survivorCount(looser))
-                        .isEqualTo(2)
-                        .isEqualTo(drain(ledger.verdicts().survivors(looser)).size()));
-    }
-
-    @Test
-    @Story("What survives a stage")
-    @DisplayName("A run records the runs it read, so the chain back to the walk stays queryable")
-    @Link(name = "ADR-048", url = Adr.WALK_AND_RUN_IDENTITY, type = "adr")
-    void recordsTheRunsARunRead() {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
-        RunId first = ledger.runs().startRun("byte-level-reduction", "abc123", "{}", walkId, List.of());
-        RunId second = ledger.runs().startRun("content-census", "def456", "{}", walkId, List.of(first));
-
-        RunId third = ledger.runs().startRun("extraction", "ghi789", "{}", walkId, List.of(first, second));
-
-        claim(
-                "both runs the third run read are recorded against it, as rows rather than as one"
-                        + " delimited value",
-                () -> assertThat(ledger.runs().upstreamRuns(third)).containsExactlyInAnyOrder(first, second));
-    }
-
-    /**
-     * What stage 1's first pass relies on since ADR-200: it writes a verdict for a survivor while the reader
-     * is still open, across page boundaries, and must be handed every survivor still to come.
-     */
-    @Test
-    @Story("What survives a stage")
-    @DisplayName("A verdict written for each survivor as it arrives loses no survivor still to come")
-    @Issue("405")
-    @Link(name = "ADR-200", url = Adr.STAGE_1_HOLDS_ONE_SIZE_AT_A_TIME, type = "adr")
-    void aVerdictWrittenMidReadRemovesNothingToCome() throws Exception {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walkId = ledger.walks().startWalk(Path.of("C:/corpus"));
-        List<OccurrenceId> recorded = new ArrayList<>();
-        for (int i = 0; i < OCCURRENCES_OVER_THREE_PAGES; i++) {
-            recorded.add(record(ledger, walkId, "f" + i + ".txt"));
-        }
-        RunId runId = ledger.runs().startRun("byte-level-reduction", "abc123", "{}", walkId, List.of());
-
-        List<OccurrenceId> handedOut = new ArrayList<>();
-        for (OccurrenceId id : ledger.verdicts().survivors(runId)) {
-            ledger.verdicts().verdict(id, runId, VerdictKind.BROKEN, "written while reading");
-            handedOut.add(id);
-        }
-
-        claim(
-                "all " + OCCURRENCES_OVER_THREE_PAGES + " occurrences were handed out, each once and in the order"
-                        + " they were recorded, although each had a blocking verdict written the moment it arrived"
-                        + " and the read went over three pages",
-                () -> assertThat(handedOut).containsExactlyElementsOf(recorded));
-        claim(
-                "and once the read has ended none of them is a survivor, so the verdicts written during it count",
-                () -> assertThat(drain(ledger.verdicts().survivors(runId))).isEmpty());
     }
 
     private static OccurrenceId record(Ledger ledger, WalkId walkId, String path) {

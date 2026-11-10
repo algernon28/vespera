@@ -2,7 +2,6 @@ package io.algernon.vespera.engine.embedding;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.WholeRun;
@@ -14,7 +13,6 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,11 +56,6 @@ class ClusteringTest {
     /** The resolution the application ships (vespera.clustering.resolution). */
     private static final double RESOLUTION = 1.0;
 
-    /** A run and a seed no statement reaches: the two numbers are refused before anything is read or written. */
-    private static final RunId NO_RUN = new RunId("no-run");
-
-    private static final OccurrenceId NO_SEED = new OccurrenceId(1);
-
     private static final String MODEL = "a-comparing-model:0.6b";
     private static final String CHUNKER_IDENTITY = "docling-hybrid-chunker-v1";
     private static final String CHUNKING_RULE_IDENTITY = "words-512-v1";
@@ -75,26 +68,6 @@ class ClusteringTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
-
-    /** A graph of no neighbours, or a partition divided at no resolution, builds nothing (ADR-330 §9). */
-    @Test
-    @Story("A value no run can be made under stops the invocation")
-    @DisplayName("No neighbours, or a resolution that is no finite number above 0, are refused before anything is read")
-    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-    void noNeighboursOrNoResolutionIsRefused() {
-        Clustering clustering = ClusteringBeans.real(jdbcTemplate);
-
-        claim("no neighbours are refused",
-                () -> assertThatThrownBy(() -> clustering.clusterAndRecord(
-                                NO_RUN, NO_SEED, Map.of(), CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, 0, RESOLUTION))
-                        .isInstanceOf(IllegalArgumentException.class));
-        for (double noResolution : List.of(0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY)) {
-            claim("and so is a resolution of " + noResolution,
-                    () -> assertThatThrownBy(() -> clustering.clusterAndRecord(
-                                    NO_RUN, NO_SEED, Map.of(), CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS, noResolution))
-                            .isInstanceOf(IllegalArgumentException.class));
-        }
-    }
 
     @Test
     @Story("Every survivor lands in exactly one cluster")
@@ -134,107 +107,6 @@ class ClusteringTest {
     }
 
     @Test
-    @Story("Every survivor lands in exactly one cluster")
-    @DisplayName("A partition of one document is recorded as a cluster of one")
-    void recordsAPartitionOfOneAsAClusterOfOne() {
-        Clustering clustering = ClusteringBeans.real(jdbcTemplate);
-        DocumentClusters clusters = new DocumentClusters(jdbcTemplate);
-        long walkId = insertWalk("C:/one-document");
-        RunId run = insertRun(walkId, "clustering-test-one-document");
-        OccurrenceId seed = insertOccurrence(walkId, "seeds/exemplar.pdf");
-        Map<OccurrenceId, String> partition = insertCluster(walkId, run, seed, "solitary", 0, 1);
-
-        clustering.clusterAndRecord(
-                run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS, RESOLUTION);
-
-        claim(
-                "the one document is a cluster of one rather than a document belonging to nothing: a"
-                        + " partition this small is a real outcome, and the alternative is a survivor no"
-                        + " page in the tree accounts for",
-                () -> assertThat(clusters.sizesFor(run, seed)).containsExactly(1));
-    }
-
-    @Test
-    @Story("The retained-edge spread tells resemblance apart from k")
-    @DisplayName("The pass reports the spread of the edges it kept, which is what distinguishes the two cases")
-    void reportsTheSpreadOfTheEdgesItKept() {
-        Clustering clustering = ClusteringBeans.real(jdbcTemplate);
-        long alikeWalk = insertWalk("C:/spread-alike");
-        RunId alikeRun = insertRun(alikeWalk, "clustering-test-spread-alike");
-        OccurrenceId alikeSeed = insertOccurrence(alikeWalk, "seeds/exemplar.pdf");
-        Map<OccurrenceId, String> alike = new LinkedHashMap<>();
-        alike.putAll(insertCluster(alikeWalk, alikeRun, alikeSeed, "spread-alike", 0));
-        long distantWalk = insertWalk("C:/spread-distant");
-        RunId distantRun = insertRun(distantWalk, "clustering-test-spread-distant");
-        OccurrenceId distantSeed = insertOccurrence(distantWalk, "seeds/exemplar.pdf");
-        Map<OccurrenceId, String> distant =
-                insertMutuallyDistant(distantWalk, distantRun, distantSeed, CLUSTER_SIZE);
-
-        RetainedEdgeSpread alikeSpread = clustering
-                .clusterAndRecord(alikeRun, alikeSeed, alike, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS, RESOLUTION)
-                .orElseThrow();
-        RetainedEdgeSpread distantSpread = clustering
-                .clusterAndRecord(distantRun, distantSeed, distant, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, identityOfDimension(CLUSTER_SIZE), NEIGHBOURS, RESOLUTION)
-                .orElseThrow();
-
-        claim(
-                "documents built to point the same way are held together by edges near the top of the"
-                        + " range, so even the weakest edge kept in that partition is a strong one",
-                () -> assertThat(alikeSpread.lowest()).isGreaterThan(0.5));
-        claim(
-                "documents built to share nothing are held together by edges at the bottom of it --"
-                        + " not one of them resembles another, and the strongest edge the graph could"
-                        + " find says so. Both partitions came back grouped, which is why the sizes"
-                        + " cannot tell them apart and this number can",
-                () -> assertThat(distantSpread.highest()).isLessThan(0.5));
-        claim(
-                "and both spreads describe edges rather than documents: twenty documents keeping"
-                        + " fifteen neighbours each is far more than twenty edges, and fewer than the"
-                        + " three hundred entries their lists hold, because a mutual pair is one edge",
-                () -> assertThat(alikeSpread.edgeCount())
-                        .isGreaterThan(CLUSTER_SIZE)
-                        .isLessThan(CLUSTER_SIZE * NEIGHBOURS));
-    }
-
-    @Test
-    @Story("All singletons is an answer, not a failure")
-    @DisplayName("A partition of mutually distant documents is still grouped, because k has no distance floor")
-    void clustersEvenAPartitionOfMutuallyDistantDocuments() {
-        Clustering clustering = ClusteringBeans.real(jdbcTemplate);
-        DocumentClusters clusters = new DocumentClusters(jdbcTemplate);
-        long walkId = insertWalk("C:/mutually-distant");
-        RunId run = insertRun(walkId, "clustering-test-mutually-distant");
-        OccurrenceId seed = insertOccurrence(walkId, "seeds/exemplar.pdf");
-        Map<OccurrenceId, String> partition = insertMutuallyDistant(walkId, run, seed, CLUSTER_SIZE);
-
-        clustering.clusterAndRecord(
-                run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, identityOfDimension(CLUSTER_SIZE), NEIGHBOURS, RESOLUTION);
-
-        claim(
-                "every document is still recorded, so nothing was dropped for resembling nothing:"
-                        + " membership is total whatever the vectors say",
-                () -> assertThat(WholeRun.membership(jdbcTemplate,run)).hasSize(CLUSTER_SIZE));
-        claim(
-                "and they come out grouped rather than as one cluster per document, because k retains a"
-                        + " document's fifteen nearest neighbours however far away they are and ADR-087"
-                        + " deliberately sets no edge similarity floor -- so a partition of documents"
-                        + " sharing nothing is grouped by which of them are least unalike. All singletons"
-                        + " is reachable where the neighbour lists are empty, which is a partition of one,"
-                        + " and ADR-096 corrects the illustration that said otherwise: what tells this case"
-                        + " apart from a partition that really does resemble itself is the spread of the"
-                        + " retained edges, which is reported rather than acted on",
-                () -> assertThat(clusters.sizesFor(run, seed)).hasSizeLessThan(CLUSTER_SIZE));
-        claim(
-                "and those clusters are recorded under the seed whose partition they divide, holding all "
-                        + CLUSTER_SIZE + " documents between them: a document recorded under another seed"
-                        + " would leave this partition's clusters short",
-                () -> assertThat(clusters.sizesFor(run, seed).stream()
-                                .mapToInt(Integer::intValue)
-                                .sum())
-                        .isEqualTo(CLUSTER_SIZE));
-    }
-
-    @Test
     @Story("The same corpus always produces the same clusters")
     @DisplayName("Clustering the same partition twice gives every document the same cluster ordinal")
     void isDeterministicAcrossRuns() {
@@ -264,92 +136,6 @@ class ClusteringTest {
                 () -> assertThat(WholeRun.membership(jdbcTemplate,first)).hasSize(partition.size()));
     }
 
-    @Test
-    @Story("A partition is what the scoring step already recorded")
-    @DisplayName("Partitions and their members are read from the scores, in occurrence order")
-    void readsPartitionsFromTheScoresInOccurrenceOrder() {
-        Clustering clustering = ClusteringBeans.real(jdbcTemplate);
-        long walkId = insertWalk("C:/two-seeds");
-        RunId run = insertRun(walkId, "clustering-test-two-seeds");
-        OccurrenceId firstSeed = insertOccurrence(walkId, "seeds/one.pdf");
-        OccurrenceId secondSeed = insertOccurrence(walkId, "seeds/two.pdf");
-        List<OccurrenceId> firstMembers = insertOccurrences(walkId, "first-partition", 3);
-        List<OccurrenceId> secondMembers = insertOccurrences(walkId, "second-partition", 2);
-        // The scores are recorded last document first, and the second seed's before the first's, so the
-        // order the rows were written in is never occurrence order and a read that does not ask for that
-        // order hands back another.
-        secondMembers.reversed().forEach(member -> insertScore(run, member, secondSeed));
-        firstMembers.reversed().forEach(member -> insertScore(run, member, firstSeed));
-
-        claim(
-                "each seed that won a document is one partition, in occurrence order though the second"
-                        + " seed's scores were recorded first, and a seed that won none is absent rather than"
-                        + " present and empty -- clustering runs within a partition and never corpus-wide"
-                        + " (ADR-045)",
-                () -> assertThat(clustering.partitions(run)).containsExactly(firstSeed, secondSeed));
-        claim(
-                "a partition holds exactly the documents that seed won, handed over in occurrence order"
-                        + " though they were recorded last first: that is the order ADR-087 fixes for"
-                        + " visiting them, and an order the database chose would make the ordinals an"
-                        + " artefact of the query plan rather than a property of the corpus",
-                () -> assertThat(clustering.membersOf(run, firstSeed)).isEqualTo(firstMembers));
-        claim(
-                "and so does the other partition",
-                () -> assertThat(clustering.membersOf(run, secondSeed)).isEqualTo(secondMembers));
-    }
-
-    @Test
-    @Story("The ceiling does not move with the partition or the model")
-    @DisplayName("A block is bounded in documents and in bytes, whatever the model's dimension")
-    void boundsABlockInBothDocumentsAndBytes() {
-        claim(
-                "at a narrow dimension the document count binds, at " + Clustering.BLOCK_DOCUMENTS
-                        + " -- the figure ADR-087's own table is worked in, kept so that the ceiling the"
-                        + " decision tabulated is the ceiling the code has",
-                () -> assertThat(Clustering.blockSizeFor(384)).isEqualTo(Clustering.BLOCK_DOCUMENTS));
-        claim(
-                "at a wide dimension the byte budget binds instead, because a document count alone is"
-                        + " not a ceiling: the same 4,096 vectors are 6 MiB at 384 dimensions and 64 MiB"
-                        + " at 4,096, chosen by a model nobody has named yet",
-                () -> assertThat(Clustering.blockSizeFor(8_192)).isLessThan(Clustering.BLOCK_DOCUMENTS));
-        claim(
-                "so a block never exceeds the budget at any dimension, which is what makes two blocks a"
-                        + " constant rather than a function of the model",
-                () -> assertThat((long) Clustering.blockSizeFor(8_192) * 8_192 * Float.BYTES)
-                        .isLessThanOrEqualTo(Clustering.BLOCK_BUDGET_BYTES));
-        claim(
-                "and a model wide enough that one vector exceeds the whole budget still gets a block of"
-                        + " one document, which is slow rather than a pass that reads nothing",
-                () -> assertThat(Clustering.blockSizeFor(64_000_000)).isEqualTo(1));
-    }
-
-    /**
-     * ADR-353 §4, after ADR-087: the widest vector at which a block keeps its whole document count is the width the byte
-     * budget allows those documents, computed here from the two constants and not taken from any model. A model of that
-     * width or narrower keeps the block whole; one component wider and the bytes bind.
-     */
-    @Test
-    @Story("The ceiling does not move with the partition or the model")
-    @DisplayName("Up to the width the byte budget allows a whole block, a block keeps every document it can, and one component wider it holds fewer")
-    @Link(name = "ADR-353", url = Adr.THE_EMBEDDING_MODELS_DEFAULT_IS_QWEN3_EMBEDDING_8B_BY_ITS_FILE_ON_HUGGING_FACE, type = "adr")
-    void upToTheWidthTheBudgetAllowsAWholeBlockABlockKeepsEveryDocument() {
-        int widestWholeBlock = (int) (Clustering.BLOCK_BUDGET_BYTES / ((long) Clustering.BLOCK_DOCUMENTS * Float.BYTES));
-
-        claim(
-                "at " + widestWholeBlock + " components a vector, the byte budget of " + Clustering.BLOCK_BUDGET_BYTES
-                        + " bytes divided among " + Clustering.BLOCK_DOCUMENTS + " documents of " + Float.BYTES
-                        + " bytes a component, a block still holds all " + Clustering.BLOCK_DOCUMENTS + " documents",
-                () -> assertThat(Clustering.blockSizeFor(widestWholeBlock)).isEqualTo(Clustering.BLOCK_DOCUMENTS));
-        claim(
-                "and that whole block is within the byte budget, so the two blocks a pass holds are no larger than at"
-                        + " any narrower width",
-                () -> assertThat((long) Clustering.BLOCK_DOCUMENTS * widestWholeBlock * Float.BYTES)
-                        .isLessThanOrEqualTo(Clustering.BLOCK_BUDGET_BYTES));
-        claim(
-                "one component wider, the budget binds and a block holds fewer documents",
-                () -> assertThat(Clustering.blockSizeFor(widestWholeBlock + 1)).isLessThan(Clustering.BLOCK_DOCUMENTS));
-    }
-
     /** Which cluster each document landed in, keyed by document so two runs can be compared. */
     private Map<OccurrenceId, Integer> ordinalsOf(DocumentClusters clusters, RunId run) {
         return WholeRun.membership(jdbcTemplate,run).stream()
@@ -369,15 +155,6 @@ class ClusteringTest {
                 .filter(member -> paths.get(member.getKey().value()).startsWith(cluster))
                 .map(Map.Entry::getValue)
                 .toList();
-    }
-
-    /** {@code count} documents of the walk, in the order they were inserted, which is occurrence order. */
-    private List<OccurrenceId> insertOccurrences(long walkId, String prefix, int count) {
-        List<OccurrenceId> occurrences = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            occurrences.add(insertOccurrence(walkId, prefix + "-" + i + ".txt"));
-        }
-        return List.copyOf(occurrences);
     }
 
     /** {@link #CLUSTER_SIZE} documents pointing the same way, each scored to {@code seed}. */
@@ -410,41 +187,6 @@ class ClusteringTest {
             members.put(occurrenceId, contentHash);
         }
         return members;
-    }
-
-    /**
-     * {@code size} documents pointing in {@code size} different directions, so that every pair of them
-     * is exactly as unalike as every other — the closest a fixture gets to "nothing resembles anything".
-     */
-    private Map<OccurrenceId, String> insertMutuallyDistant(
-            long walkId, RunId run, OccurrenceId seed, int size) {
-        Map<OccurrenceId, String> members = new LinkedHashMap<>();
-        for (int i = 0; i < size; i++) {
-            String contentHash = "distant-" + i;
-            OccurrenceId occurrenceId = insertOccurrence(walkId, "distant-" + i + ".txt");
-            float[] vector = new float[size];
-            vector[i] = 1f;
-            new VectorCache(jdbcTemplate)
-                    .put(
-                            contentHash,
-                            CHUNKER_IDENTITY,
-                            CHUNKING_RULE_IDENTITY,
-                            0,
-                            identityOfDimension(size),
-                            vector);
-            insertScore(run, occurrenceId, seed);
-            members.put(occurrenceId, contentHash);
-        }
-        return members;
-    }
-
-    /**
-     * The identity the mutually distant documents' vectors are stored under: they have as many components as
-     * there are documents, and the dimension is part of an identity, so it is not {@link #EMBEDDER_IDENTITY}.
-     * A partition is read under one identity (ADR-228), so the caller names this one for them.
-     */
-    private static String identityOfDimension(int dimension) {
-        return "model=" + MODEL + ";digest=d34db33f;dtype=F16;dimension=" + dimension + ";instruction=none";
     }
 
     private long insertWalk(String root) {

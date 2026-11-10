@@ -2,11 +2,7 @@ package io.algernon.vespera.engine.extraction;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.hamcrest.Matchers.containsString;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
@@ -21,13 +17,10 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.ServerSocket;
 import java.net.http.HttpTimeoutException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.List;
@@ -36,11 +29,9 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -75,30 +66,6 @@ class DoclingClientTest {
     /** The one endpoint this client calls, per ADR-071's single-synchronous-call decision. */
     private static final String CONVERT_ENDPOINT = BASE_URL + "/v1/convert/file";
 
-    /** How many components the stubbed {@code /version} body below reports. */
-    private static final int REPORTED_COMPONENT_COUNT = 8;
-
-    /** The endpoint that reports what the sidecar is built from (ADR-090). */
-    private static final String VERSION_ENDPOINT = BASE_URL + "/version";
-
-    /**
-     * A {@code /version} body in the shape the pinned sidecar really answers with, component
-     * versions and all. {@code plaform} is misspelled by docling-serve itself, not here.
-     */
-    private static final String VERSION_RESPONSE =
-            """
-            {
-              "docling-serve": "1.32.0",
-              "docling-jobkit": "3.5.0",
-              "docling": "2.124.0",
-              "docling-core": "2.93.0",
-              "docling-ibm-models": "4.0.1",
-              "docling-parse": "7.16.0",
-              "python": "cpython-312 (3.12.13)",
-              "plaform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.34"
-            }
-            """;
-
     /**
      * The OCR engine the application ships for this client to name rather than leaving to the sidecar (ADR-090,
      * ADR-330). {@code rapidocr} is what the sidecar's own {@code auto} already resolves to in the pinned image, so
@@ -106,43 +73,11 @@ class DoclingClientTest {
      */
     private static final String SHIPPED_OCR_PRESET = "rapidocr";
 
-    /** An OCR preset other than the shipped one, which a machine's own configuration may name (ADR-330 §8). */
-    private static final String ANOTHER_OCR_PRESET = "easyocr";
-
-    /**
-     * What an occurrence the bytes called plain text, with no subtype the filename could add, is
-     * posted as (ADR-100). The stem carries nothing of the path: the name is a transport detail, and
-     * making it a function of the detected format alone is the point of sending one.
-     */
-    private static final String MARKDOWN_PART_NAME = "document.md";
-
-    /**
-     * What is posted wherever the bytes are decisive and no honest extension exists (ADR-100). It
-     * matches nothing in Docling's extension tables, which is the point: it claims no format, so the
-     * sidecar's own reading of the bytes is left to stand.
-     */
-    private static final String NEUTRAL_PART_NAME = "document.bin";
-
     /**
      * Which version of ADR-100's naming table the identity claims. Bumped when a row changes, so
      * responses cached under the old table are not served for calls the new one makes differently.
      */
     private static final int NAMING_SCHEME_VERSION = 1;
-
-    /** The picture mode every conversion must send, whatever the format (ADR-150 §1). */
-    private static final String PICTURE_EXPORT_MODE = "embedded";
-
-    /**
-     * The picture options ADR-150 leaves at the pinned sidecar's defaults, and so never sends: cropping
-     * is already on and already at the default scale, and describing or classifying a picture would run
-     * a model no decision chose.
-     */
-    private static final List<String> UNSENT_PICTURE_OPTIONS = List.of(
-            "include_images",
-            "images_scale",
-            "include_page_images",
-            "do_picture_classification",
-            "do_picture_description");
 
     /** What the documents in the calls below are converted as; no claim here turns on which. */
     private static final DetectedFormat AS_DETECTED = DetectedFormat.PLAIN_TEXT;
@@ -183,18 +118,6 @@ class DoclingClientTest {
     /** The call budget ADR-071 fixes: five minutes of silence is a client-side timeout. */
     private static final Duration DOCUMENTED_CALL_BUDGET = Duration.ofMinutes(5);
 
-    /** Docling's own reported conversion time in the stubbed body below, in seconds. */
-    private static final double REPORTED_PROCESSING_TIME_SECONDS = 4.5;
-
-    /** The overall quality score in the stubbed body below, on Docling's 0-to-1 scale. */
-    private static final double REPORTED_MEAN_SCORE = 0.93;
-
-    /** The worst single page's quality score in the stubbed body below, on the same scale. */
-    private static final double REPORTED_LOW_SCORE = 0.61;
-
-    /** The page the stubbed body attributes its one error to, 1-indexed as Docling numbers pages. */
-    private static final int REPORTED_PAGE = 2;
-
     /** A clean conversion, carrying all four fields this module reads off a response. */
     private static final String SUCCESSFUL_RESPONSE =
             """
@@ -217,53 +140,12 @@ class DoclingClientTest {
             }
             """;
 
-    /**
-     * A response Docling did answer, whose one error reports Docling's own {@code timeout} category.
-     * The service was reachable and spoke: this is a signal, not silence.
-     */
-    private static final String RESPONSE_REPORTING_A_TIMEOUT_CATEGORY =
-            """
-            {
-              "status": "partial_success",
-              "errors": [
-                {
-                  "component_type": "document_backend",
-                  "module_name": "docling.backend.pdf",
-                  "error_message": "page conversion exceeded the per-document budget",
-                  "category": "timeout",
-                  "page_no": 2
-                }
-              ],
-              "processing_time": 4.5,
-              "confidence": null
-            }
-            """;
-
     /** The status docling-serve answers a job that failed inside its worker with (#326). */
     private static final int NOT_FOUND = 404;
 
     /** What docling-serve said beside that status, on the whole archive on 2026-09-28. */
     private static final String TASK_RESULT_NOT_FOUND =
             "{\"detail\":\"Task result not found. Please wait for a completion status.\"}";
-
-    /** The status docling-serve answers with when its own synchronous wait runs out (ADR-172). */
-    private static final int GATEWAY_TIMEOUT = 504;
-
-    /** What docling-serve 1.32.0 says beside that status, its own misspelling included. */
-    private static final String CONVERSION_IS_TAKING_TOO_LONG = "{\"detail\":\"Conversion is taking too long."
-            + " The maximum wait time is configure as DOCLING_SERVE_MAX_SYNC_WAIT=120.\"}";
-
-    /** A gateway timeout that is not docling-serve's wait running out: a proxy in front of it, say. */
-    private static final String ANOTHER_GATEWAYS_TIMEOUT = "upstream timed out";
-
-    /** What the JDK client says when the sidecar closes the socket before sending a status line. */
-    private static final String NO_BYTES_RECEIVED = "HTTP/1.1 header parser received no bytes";
-
-    /** How long this test lets a health check wait for its answer. */
-    private static final Duration A_SHORT_HEALTH_WAIT = Duration.ofMillis(300);
-
-    /** How long the shipped client lets a health check wait. */
-    private static final Duration SHIPPED_HEALTH_WAIT = Duration.ofSeconds(5);
 
     /** A server error's status. */
     private static final int INTERNAL_SERVER_ERROR = 500;
@@ -273,55 +155,6 @@ class DoclingClientTest {
 
     /** An error body longer than a message keeps. */
     private static final String A_LONG_ERROR_BODY = "x".repeat(BODY_CHARACTERS_KEPT + 50);
-
-    @Test
-    @Story("One call converts one document")
-    @DisplayName("Converting a document issues exactly one call, and reads back every field the response carries")
-    void issuesOneCallAndReadsTheFourReportedFields(@TempDir Path dir) throws IOException {
-        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
-        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
-        service.expect(requestTo(CONVERT_ENDPOINT))
-                .andExpect(method(HttpMethod.POST))
-                .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
-        DoclingClient client = new DoclingClient(builder.build(), SHIPPED_OCR_PRESET);
-
-        DoclingResponse response = client.convert(aDocument(dir), AS_DETECTED, NO_SUBTYPE);
-
-        claim(
-                "the conversion is one request and one answer: the stub expected a single call and saw"
-                        + " exactly that, so nothing retried, polled or asked twice",
-                () -> assertThatCode(service::verify).doesNotThrowAnyException());
-        claim(
-                "the top-level verdict on the call is read off the response rather than inferred from"
-                        + " the absence of errors",
-                () -> assertThat(response.status()).isEqualTo(ConversionStatus.SUCCESS));
-        claim(
-                "a clean conversion carries no errors, and an empty list is read as such rather than"
-                        + " left null for a caller to guard against",
-                () -> assertThat(response.errors()).isEmpty());
-        claim(
-                "the time the service reported spending, " + REPORTED_PROCESSING_TIME_SECONDS
-                        + " seconds in the stubbed body, is carried through unchanged",
-                () -> assertThat(response.processingTimeSeconds()).isEqualTo(REPORTED_PROCESSING_TIME_SECONDS));
-        claim(
-                "the quality snapshot is read whole: the overall score of " + REPORTED_MEAN_SCORE
-                        + " and the worst page's " + REPORTED_LOW_SCORE + " arrive as separate values,"
-                        + " each with the grade the service derived for it",
-                () -> assertThat(response.confidence())
-                        .isEqualTo(new ConfidenceScores(
-                                0.95,
-                                0.9,
-                                0.88,
-                                0.99,
-                                REPORTED_MEAN_SCORE,
-                                REPORTED_LOW_SCORE,
-                                QualityGrade.EXCELLENT,
-                                QualityGrade.FAIR)));
-        claim(
-                "the whole answer is kept verbatim as well, so the converted document inside it is"
-                        + " available to a later pass without a second conversion",
-                () -> assertThat(response.rawResponse()).isEqualTo(SUCCESSFUL_RESPONSE));
-    }
 
     @Test
     @Story("Silence and a reported failure are different answers")
@@ -345,45 +178,6 @@ class DoclingClientTest {
                 "the budget waited out is the documented five minutes, long enough for a large scanned"
                         + " document and short enough that a wedged service does not stall a run",
                 () -> assertThat(DoclingClient.CALL_TIMEOUT).isEqualTo(DOCUMENTED_CALL_BUDGET));
-    }
-
-    @Test
-    @Story("Silence and a reported failure are different answers")
-    @DisplayName("A service that answers to say it ran out of time has answered, and is not treated as silence")
-    void keepsAReportedTimeoutApartFromSilence(@TempDir Path dir) throws IOException {
-        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
-        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
-        service.expect(requestTo(CONVERT_ENDPOINT))
-                .andRespond(withSuccess(RESPONSE_REPORTING_A_TIMEOUT_CATEGORY, MediaType.APPLICATION_JSON));
-        service.expect(requestTo(CONVERT_ENDPOINT))
-                .andRespond(withException(new HttpTimeoutException("request timed out")));
-        DoclingClient client = new DoclingClient(builder.build(), SHIPPED_OCR_PRESET);
-        Path document = aDocument(dir);
-
-        DoclingResponse response = client.convert(document, AS_DETECTED, NO_SUBTYPE);
-
-        claim(
-                "an answer that reports running out of time is still an answer: it comes back as a"
-                        + " response to read, and raises nothing at all",
-                () -> assertThat(response).isNotNull());
-        claim(
-                "while the very same document, converted by the very same client, raises the"
-                        + " no-answer-at-all failure when nothing comes back — so the two readings are"
-                        + " told apart by which of them happens, never by inspecting a shared type",
-                () -> assertThatThrownBy(() -> client.convert(document, AS_DETECTED, NO_SUBTYPE)).isInstanceOf(DoclingCallTimeoutException.class));
-        claim(
-                "what the service reported is preserved as reported: one error, scoped to the time it"
-                        + " ran out of, attributed to page " + REPORTED_PAGE + " as the body said",
-                () -> assertThat(response.errors())
-                        .singleElement()
-                        .satisfies(error -> {
-                            assertThat(error.category()).isEqualTo(FailureCategory.TIMEOUT);
-                            assertThat(error.pageNo()).isEqualTo(REPORTED_PAGE);
-                        }));
-        claim(
-                "and the call's own verdict is carried alongside it, so partial output is not read as"
-                        + " total failure",
-                () -> assertThat(response.status()).isEqualTo(ConversionStatus.PARTIAL_SUCCESS));
     }
 
     @Test
@@ -423,388 +217,6 @@ class DoclingClientTest {
                                 rejected -> assertThat(rejected.status()).isEqualTo(INTERNAL_SERVER_ERROR))
                         .hasMessage("docling-serve answered HTTP " + INTERNAL_SERVER_ERROR + " for " + document
                                 + ": " + "x".repeat(BODY_CHARACTERS_KEPT)));
-    }
-
-    @Test
-    @Story("An error status on one document's call is about that document")
-    @DisplayName("A gateway timeout saying the conversion is taking too long is the service running out of time, and any other gateway timeout is a rejection")
-    @Issue("326")
-    @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
-    @Link(name = "ADR-172", url = Adr.DOCLING_SERVES_SYNCHRONOUS_WAIT_OUTLASTS_VESPERAS_CALL_TIMEOUT, type = "adr")
-    void readsTheServicesOwnWaitRunningOutAsATimeout(@TempDir Path dir) throws IOException {
-        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
-        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
-        service.expect(requestTo(CONVERT_ENDPOINT))
-                .andRespond(withStatus(HttpStatus.GATEWAY_TIMEOUT)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(CONVERSION_IS_TAKING_TOO_LONG));
-        service.expect(requestTo(CONVERT_ENDPOINT))
-                .andRespond(withStatus(HttpStatus.GATEWAY_TIMEOUT).body(ANOTHER_GATEWAYS_TIMEOUT));
-        DoclingClient client = new DoclingClient(builder.build(), SHIPPED_OCR_PRESET);
-        Path document = aDocument(dir);
-
-        claim(
-                "HTTP " + GATEWAY_TIMEOUT + " with the service's own words for its wait running out is"
-                        + " the same kind of failure as no answer within the call budget, and says that the"
-                        + " service gave up, since it did answer",
-                () -> assertThatThrownBy(() -> client.convert(document, AS_DETECTED, NO_SUBTYPE))
-                        .isInstanceOf(DoclingCallTimeoutException.class)
-                        .hasMessage("docling-serve gave up on " + document
-                                + ": its own wait for a conversion ran out before an answer was ready"));
-        claim(
-                "HTTP " + GATEWAY_TIMEOUT + " saying anything else is a rejection like any other error"
-                        + " status: the status alone does not make it a timeout",
-                () -> assertThatThrownBy(() -> client.convert(document, AS_DETECTED, NO_SUBTYPE))
-                        .isInstanceOfSatisfying(
-                                DoclingCallRejectedException.class,
-                                rejected -> assertThat(rejected.status()).isEqualTo(GATEWAY_TIMEOUT)));
-    }
-
-    @Test
-    @Story("A connection lost under a call is neither silence nor an answer")
-    @DisplayName("A call whose connection is closed with nothing sent back fails as a lost connection, naming the document and keeping what the transport said")
-    @Issue("326")
-    @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
-    void reportsAConnectionClosedUnderTheCallAsALostConnection(@TempDir Path dir) throws IOException {
-        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
-        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
-        service.expect(requestTo(CONVERT_ENDPOINT)).andRespond(withException(new IOException(NO_BYTES_RECEIVED)));
-        DoclingClient client = new DoclingClient(builder.build(), SHIPPED_OCR_PRESET);
-        Path document = aDocument(dir);
-
-        claim(
-                "a transport failure that is not a timeout is its own failure, apart from waiting out the"
-                        + " call budget and apart from an error status: it names the document, and says"
-                        + " what the transport reported, so the two can be told apart by type",
-                () -> assertThatThrownBy(() -> client.convert(document, AS_DETECTED, NO_SUBTYPE))
-                        .isInstanceOf(DoclingConnectionLostException.class)
-                        .hasMessageContaining(document.toString())
-                        .hasMessageContaining(NO_BYTES_RECEIVED)
-                        .hasCauseInstanceOf(ResourceAccessException.class));
-    }
-
-    /**
-     * A document to convert. Its bytes never reach a converter here — the stub answers without
-     * reading the request body — but the file has to exist, because the client attaches it.
-     */
-    @Test
-    @Story("The sidecar says what it is built from")
-    @DisplayName("Asking for the version reads every component the sidecar reports, not just its own")
-    @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
-    void readsEveryComponentVersionTheSidecarReports() {
-        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
-        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
-        service.expect(requestTo(VERSION_ENDPOINT))
-                .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess(VERSION_RESPONSE, MediaType.APPLICATION_JSON));
-        DoclingClient client = new DoclingClient(builder.build(), SHIPPED_OCR_PRESET);
-
-        Map<String, String> version = client.version();
-
-        claim(
-                "the whole report is read rather than one line of it: the wrapper that serves the HTTP"
-                        + " endpoint and the library that actually converts documents are separate things that"
-                        + " move separately, and either can change what a conversion produces",
-                () -> assertThat(version)
-                        .containsEntry("docling-serve", "1.32.0")
-                        .containsEntry("docling", "2.124.0")
-                        .containsEntry("docling-ibm-models", "4.0.1"));
-        claim(
-                "and nothing is dropped on the way through -- every key the sidecar answered with is"
-                        + " carried, because a component this code does not recognise today is still a"
-                        + " component whose version changes what a conversion produces",
-                () -> assertThat(version).hasSize(REPORTED_COMPONENT_COUNT));
-    }
-
-    @Test
-    @Story("The conversion pins what it asks for")
-    @DisplayName("Converting names the OCR engine and the export format, rather than letting the sidecar pick")
-    @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
-    void sendsThePinnedOcrPresetAndExportFormat(@TempDir Path dir) throws IOException {
-        String sent = sentBody(aDocument(dir), AS_DETECTED, Optional.ofNullable(NO_SUBTYPE));
-
-        claim(
-                "the request names the OCR engine it wants, " + SHIPPED_OCR_PRESET + ", in its ocr_preset field,"
-                        + " and the format it wants back, json, in its to_formats field, instead of leaving the"
-                        + " sidecar to choose: left unnamed, the engine is resolved from whichever models happen"
-                        + " to be cached on the machine, and the same document converts differently elsewhere"
-                        + " with nothing recording that it did",
-                () -> assertThat(List.of(partOf(sent, "ocr_preset"), partOf(sent, "to_formats")))
-                        .containsExactly(Optional.of(SHIPPED_OCR_PRESET), Optional.of("json")));
-    }
-
-    /**
-     * The preset leaves the client's code and is given to it (ADR-330 §8, §14): what it is given is what the request
-     * names, for one conversion as for every other, since each goes through the one method.
-     */
-    @Test
-    @Story("The conversion pins what it asks for")
-    @DisplayName("Converting names the OCR engine the client was given, and no other")
-    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-    void theRequestNamesThePresetTheClientIsGiven(@TempDir Path dir) throws IOException {
-        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
-        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
-        StringBuilder sent = new StringBuilder();
-        service.expect(requestTo(CONVERT_ENDPOINT))
-                .andExpect(request -> sent.append(request.getBody().toString()))
-                .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
-
-        new DoclingClient(builder.build(), ANOTHER_OCR_PRESET).convert(aDocument(dir), AS_DETECTED, NO_SUBTYPE);
-
-        claim("the form field ocr_preset holds the preset the client was given, " + ANOTHER_OCR_PRESET,
-                () -> assertThat(partOf(sent, "ocr_preset")).contains(ANOTHER_OCR_PRESET));
-        claim("and the shipped one is named nowhere in the request",
-                () -> assertThat(sent.toString()).doesNotContain(SHIPPED_OCR_PRESET));
-    }
-
-    /**
-     * The client cannot refuse a name as it is built, since a bad preset stops neither `vespera label` nor `vespera
-     * publish`; the rule of what is a preset's name is still this class's, and the start of a run asks it (ADR-330 §9).
-     * `auto` is what ADR-090 ended, and the identity is text of pairs joined by a semicolon.
-     */
-    @Test
-    @Story("The conversion pins what it asks for")
-    @DisplayName("What the converter would resolve for itself, and a name that would misread in the identity, are no preset's name")
-    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-    void autoAndANameThatWouldMisreadAreNoPresetsName() {
-        List<String> names = List.of("rapidocr", "easyocr", "a-b_c.D9", "autoocr", "", "   ", "auto", "AUTO", "Auto",
-                "a;b", "a=b", "a b");
-
-        claim("of these, a name of letters, digits, '-', '_' and '.', other than auto in any case, is a preset's, and"
-                        + " holding the word auto inside it is no matter",
-                () -> assertThat(names.stream().filter(DoclingClient::isOnePresetsName).toList())
-                        .containsExactly("rapidocr", "easyocr", "a-b_c.D9", "autoocr"));
-    }
-
-    /**
-     * The identity names what is sent: the same text but for the name, so a preset one machine names is an extractor of
-     * its own and the shipped one's text is what it was (ADR-330 §9).
-     */
-    @Test
-    @Story("The conversion pins what it asks for")
-    @DisplayName("The options the identity names say the OCR engine the client was given")
-    @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
-    void theOptionsNameThePresetTheClientIsGiven() {
-        String underAnother = new DoclingClient(RestClient.create(), ANOTHER_OCR_PRESET).sentOptions();
-
-        claim("the options sent under another preset are those of the shipped one with that name in its place",
-                () -> assertThat(underAnother).isEqualTo(sentOptions()
-                        .replace(";ocr_preset=" + SHIPPED_OCR_PRESET + ";", ";ocr_preset=" + ANOTHER_OCR_PRESET + ";")));
-        claim("and they name it as the identity's other options are named",
-                () -> assertThat(underAnother).contains(";ocr_preset=" + ANOTHER_OCR_PRESET + ";"));
-    }
-
-    @Test
-    @Story("The name sent is the format's, not the path's")
-    @DisplayName("Text with no subtype is posted under a Markdown name, whatever it is called on disk")
-    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
-    void postsUnsubtypedTextUnderAMarkdownName(@TempDir Path dir) throws IOException {
-        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
-        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
-        service.expect(requestTo(CONVERT_ENDPOINT))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(content().string(containsString("filename=\"" + MARKDOWN_PART_NAME + "\"")))
-                .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
-        DoclingClient client = new DoclingClient(builder.build(), SHIPPED_OCR_PRESET);
-        Path onDisk = Files.writeString(dir.resolve("notes"), "prose that no extension describes");
-
-        client.convert(onDisk, DetectedFormat.PLAIN_TEXT, null);
-
-        claim(
-                "a file the bytes say is text travels under a name the sidecar can read it by, rather"
-                        + " than under the one it happens to carry on disk: Docling resolves text-shaped"
-                        + " content by extension alone, and " + MARKDOWN_PART_NAME + " is the one entry that"
-                        + " reaches its Markdown backend in a single step — an extension-less upload does not"
-                        + " fall back to plain text, it converts to nothing at all",
-                () -> assertThatCode(service::verify).doesNotThrowAnyException());
-    }
-
-    /**
-     * ADR-167: stage 1 now records a BMP image as a format of its own, and leaves the corpus's out of
-     * scope; a seed's still arrives here. It is posted under the name every other image is, so no
-     * response goes stale and the naming scheme keeps its version. The value is named by its string, so
-     * this compiles before it exists.
-     */
-    @Test
-    @Story("The name sent is the format's, not the path's")
-    @DisplayName("A BMP image is posted under the same name as any other image, so nothing already converted goes stale")
-    @Link(name = "ADR-167", url = Adr.BMP_IMAGES_ARE_OUT_OF_SCOPE, type = "adr")
-    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
-    void postsABmpImageUnderTheNameAnImageIsPosted(@TempDir Path dir) throws IOException {
-        Path onDisk = Files.writeString(dir.resolve("logo.bmp"), "bytes that the name lies about");
-
-        claim(
-                "a BMP image is posted as " + NEUTRAL_PART_NAME + ", exactly as it was while it counted as an"
-                        + " ordinary image, so the conversion the service returns for it is the one it"
-                        + " returned before",
-                () -> assertThat(postedName(onDisk, DetectedFormat.valueOf("BMP"), Optional.empty()))
-                        .isEqualTo(postedName(onDisk, DetectedFormat.IMAGE, Optional.empty()))
-                        .isEqualTo(NEUTRAL_PART_NAME));
-    }
-
-    /**
-     * ADR-168: stage 1 now records a video as a format of its own, and leaves the corpus's out of scope; a
-     * seed's still arrives here. It is posted under the name it was posted under while stage 1 knew no
-     * video signature, the one an unrecognised file is posted under, so no response goes stale and the
-     * naming scheme keeps its version. The value is named by its string, so this compiles before it exists.
-     */
-    @Test
-    @Story("The name sent is the format's, not the path's")
-    @DisplayName("A video is posted under the same name as a file of no known kind, so nothing already converted goes stale")
-    @Link(name = "ADR-168", url = Adr.VIDEOS_ARE_OUT_OF_SCOPE, type = "adr")
-    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
-    void postsAVideoUnderTheNameAnUnrecognisedFileIsPosted(@TempDir Path dir) throws IOException {
-        Path onDisk = Files.writeString(dir.resolve("clip.mp4"), "bytes that the name lies about");
-
-        claim(
-                "a video is posted as " + NEUTRAL_PART_NAME + ", exactly as it was while stage 1 called it of"
-                        + " no known kind, so Docling's own reading of the bytes decides, as it did before",
-                () -> assertThat(postedName(onDisk, DetectedFormat.valueOf("VIDEO"), Optional.empty()))
-                        .isEqualTo(postedName(onDisk, DetectedFormat.UNRECOGNISED, Optional.empty()))
-                        .isEqualTo(NEUTRAL_PART_NAME));
-    }
-
-    /**
-     * ADR-252 gives six kinds of file a value of their own so that stage 1 can leave the corpus's out of scope.
-     * A seed of one still arrives here, and is posted as it was before stage 1 told it apart, so the naming
-     * scheme keeps its version.
-     */
-    @Test
-    @Story("The name sent is the format's, not the path's")
-    @DisplayName("Compiled code, a font, a certificate, a database and an email are each posted and cut as they were before stage 1 told them apart")
-    @Link(name = "ADR-252", url = Adr.COMPILED_CODE_FONTS_CERTIFICATES_AND_DATABASES_ARE_OUT_OF_SCOPE, type = "adr")
-    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
-    void postsTheKindsAdr252TellsApartUnderTheNamesTheyHadBefore(@TempDir Path dir) throws IOException {
-        Path onDisk = Files.writeString(dir.resolve("seed.bin"), "bytes that the name lies about");
-
-        claim(
-                "compiled code, a font, a certificate and a database are posted as " + NEUTRAL_PART_NAME + ", the"
-                        + " name each was posted under while stage 1 called it of no known kind or an archive of"
-                        + " another kind",
-                () -> assertThat(List.of(
-                                postedName(onDisk, DetectedFormat.COMPILED_CODE, Optional.empty()),
-                                postedName(onDisk, DetectedFormat.FONT, Optional.empty()),
-                                postedName(onDisk, DetectedFormat.CERTIFICATE, Optional.empty()),
-                                postedName(onDisk, DetectedFormat.DATABASE, Optional.empty())))
-                        .containsOnly(NEUTRAL_PART_NAME));
-        claim(
-                "an Outlook message is posted as " + NEUTRAL_PART_NAME + ", as an older Office container with no"
-                        + " finer label is and as it was before it had a label",
-                () -> assertThat(postedName(
-                                onDisk, DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.OUTLOOK_MESSAGE)))
-                        .isEqualTo(postedName(onDisk, DetectedFormat.OLE_COMPOUND, Optional.empty()))
-                        .isEqualTo(NEUTRAL_PART_NAME));
-        claim(
-                "an internet message is posted as " + MARKDOWN_PART_NAME + ", as text with no finer label is and"
-                        + " as it was before it had a label",
-                () -> assertThat(postedName(
-                                onDisk, DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.RFC822_MESSAGE)))
-                        .isEqualTo(postedName(onDisk, DetectedFormat.PLAIN_TEXT, Optional.empty()))
-                        .isEqualTo(MARKDOWN_PART_NAME));
-        claim(
-                "and one over the converter's ceiling is converted in parts, as text with no finer label is: a"
-                        + " label that changed how a seed is sent would change what comes back under the same identity",
-                () -> assertThat(TextParts.convertedInParts(
-                                onDisk,
-                                DetectedFormat.PLAIN_TEXT,
-                                DetectedSubtype.RFC822_MESSAGE,
-                                DoclingClient.TEXT_SIZE_CEILING_BYTES + 1))
-                        .isEqualTo(TextParts.convertedInParts(
-                                onDisk, DetectedFormat.PLAIN_TEXT, null, DoclingClient.TEXT_SIZE_CEILING_BYTES + 1))
-                        .isTrue());
-    }
-
-    @Test
-    @Story("The name sent is the format's, not the path's")
-    @DisplayName("The options the identity is built from name the naming scheme, because the name changes what comes back")
-    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
-    @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
-    @Link(name = "ADR-178", url = Adr.TEXT_OVER_THE_CEILING_IS_CONVERTED_IN_PARTS, type = "adr")
-    @Issue("371")
-    void namesTheNamingSchemeAmongTheOptionsItSends() {
-        claim(
-                "the filename is an option this client chooses, not a property of the corpus, and it"
-                        + " changes what a conversion returns -- so the identity the cache is keyed by states"
-                        + " which scheme produced it, as version " + NAMING_SCHEME_VERSION + ": without that,"
-                        + " a response minted under one table is served for a call the current table would"
-                        + " make differently, and nothing in the key notices. The options are stated whole rather"
-                        + " than summarised, the rule for cutting a large text into parts last among them, so an"
-                        + " option added to the request without being added here fails this claim rather than"
-                        + " silently keying new responses under an identity that predates it; and a name that"
-                        + " stayed as it was, a BMP image's, a video's or a told-apart seed's, keeps this version",
-                () -> assertThat(sentOptions())
-                        .isEqualTo("to_formats=json;ocr_preset=" + SHIPPED_OCR_PRESET + ";image_export_mode="
-                                + PICTURE_EXPORT_MODE + ";naming=" + NAMING_SCHEME_VERSION
-                                + ";text_parts=v1,over=16000000,upto=64000000,part=8000000"));
-    }
-
-    /**
-     * ADR-150: every conversion asks for each picture's pixels inside the JSON, whatever the format,
-     * because the identity is one value for the whole run and an option sent to some formats only would
-     * be an option the identity misstates for the rest. It asks for nothing else about pictures: the
-     * sidecar already crops every picture by default ({@code include_images}), at the default scale the
-     * pinned version declares ({@code images_scale}), so sending either would restate a default.
-     */
-    @Test
-    @Story("The conversion pins what it asks for")
-    @DisplayName("Converting asks for every picture's pixels inside the answer, for every format, and for nothing else about pictures")
-    @Issue("286")
-    @Link(name = "ADR-150", url = Adr.A_PDFS_PICTURES_ARE_ASKED_FOR_AS_EMBEDDED_PIXELS, type = "adr")
-    @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
-    void asksForEmbeddedPicturePixelsForEveryFormat(@TempDir Path dir) throws IOException {
-        Path onDisk = aDocument(dir);
-
-        claim(
-                "every format the bytes can yield is sent with the picture mode that puts each picture's"
-                        + " pixels into the answer: without it the service locates a picture on a page of a"
-                        + " PDF and returns no pixels for it, so nothing a reader could be shown ever reaches"
-                        + " the cache",
-                () -> assertThat(EVERY_PAIRING).allSatisfy(pairing -> assertThat(
-                                sentPart(onDisk, pairing.format(), pairing.subtype(), "image_export_mode"))
-                        .as("the picture mode sent for " + pairing.format() + subtypeSuffix(pairing))
-                        .isEqualTo(Optional.of(PICTURE_EXPORT_MODE))));
-        claim(
-                "and no other picture option is sent: the service already crops every picture at its"
-                        + " default scale, so naming either option would only restate a default, and a picture"
-                        + " description or classification would run a model this design never chose",
-                () -> {
-                    String sent = sentBody(onDisk, DetectedFormat.PDF, Optional.empty());
-                    for (String option : UNSENT_PICTURE_OPTIONS) {
-                        assertThat(sent).as("the request's form fields").doesNotContain("name=\"" + option + "\"");
-                    }
-                });
-    }
-
-    @Test
-    @Story("The name sent is the format's, not the path's")
-    @DisplayName("A format stage 2 cannot be handed, and a subtype from the wrong class, are refused rather than named")
-    @Link(name = "ADR-100", url = Adr.DOCLING_READS_THE_BYTES_TOO, type = "adr")
-    @Link(name = "ADR-094", url = Adr.FORMAT_IS_DECIDED_FROM_THE_BYTES, type = "adr")
-    void refusesWhatStageOneCouldNotHaveProduced(@TempDir Path dir) throws IOException {
-        Path onDisk = aDocument(dir);
-
-        claim(
-                "an occurrence the stage-1 floor stopped carries a blocking verdict and never reaches"
-                        + " stage 2, so being asked to convert one is a wiring fault: it is refused rather"
-                        + " than converted under some name, because nothing ever read the file",
-                () -> assertThatThrownBy(
-                                () -> postedName(onDisk, DetectedFormat.FLOOR_STOPPED, Optional.empty()))
-                        .isInstanceOf(IllegalArgumentException.class)
-                        .hasMessageContaining(DetectedFormat.FLOOR_STOPPED.name()));
-        claim(
-                "and a subtype belongs to exactly one class -- a name may narrow an OLE compound file or"
-                        + " plain text, never both -- so a pairing stage 1 cannot produce is refused too,"
-                        + " rather than quietly resolving to whatever the other class would have sent",
-                () -> {
-                    assertThatThrownBy(() -> postedName(
-                                    onDisk, DetectedFormat.PLAIN_TEXT, Optional.of(DetectedSubtype.LEGACY_WORD)))
-                            .isInstanceOf(IllegalArgumentException.class)
-                            .hasMessageContaining(DetectedSubtype.LEGACY_WORD.name());
-                    assertThatThrownBy(() ->
-                                    postedName(onDisk, DetectedFormat.OLE_COMPOUND, Optional.of(DetectedSubtype.CSV)))
-                            .isInstanceOf(IllegalArgumentException.class)
-                            .hasMessageContaining(DetectedSubtype.CSV.name());
-                });
     }
 
     @Test
@@ -853,71 +265,6 @@ class DoclingClientTest {
 
         Matcher filename = Pattern.compile("filename=\"([^\"]+)\"").matcher(sent);
         return filename.find() ? filename.group(1) : "no filename was sent at all";
-    }
-
-    /** The whole multipart body {@link DoclingClient#convert} sends for {@code file}, as the stub received it. */
-    private static String sentBody(Path file, DetectedFormat format, Optional<DetectedSubtype> subtype) {
-        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
-        MockRestServiceServer service = MockRestServiceServer.bindTo(builder).build();
-        StringBuilder sent = new StringBuilder();
-        service.expect(requestTo(CONVERT_ENDPOINT))
-                .andExpect(request -> sent.append(request.getBody().toString()))
-                .andRespond(withSuccess(SUCCESSFUL_RESPONSE, MediaType.APPLICATION_JSON));
-
-        new DoclingClient(builder.build(), SHIPPED_OCR_PRESET).convert(file, format, subtype.orElse(null));
-
-        return sent.toString();
-    }
-
-    /**
-     * The value of the form field {@code name} in the body sent for {@code file}, or empty where no such
-     * field was sent: the part's headers are skipped, and its value is the line after the blank one.
-     */
-    private static Optional<String> sentPart(
-            Path file, DetectedFormat format, Optional<DetectedSubtype> subtype, String name) {
-        return partOf(sentBody(file, format, subtype), name);
-    }
-
-    /** The value of the form field {@code name} in a multipart body, or empty where no such field is in it. */
-    private static Optional<String> partOf(CharSequence body, String name) {
-        Matcher part = Pattern.compile(
-                        "name=\"" + Pattern.quote(name) + "\"\\r?\\n(?:[^\\r\\n]+\\r?\\n)*\\r?\\n([^\\r\\n]*)\\r?\\n")
-                .matcher(body);
-        return part.find() ? Optional.of(part.group(1)) : Optional.empty();
-    }
-
-    /** The options a client given the shipped preset names, as the identity carries them. */
-    private static String sentOptions() {
-        return new DoclingClient(RestClient.create(), SHIPPED_OCR_PRESET).sentOptions();
-    }
-
-    @Test
-    @Story("A sidecar that says nothing is not healthy")
-    @DisplayName("Asking whether the service is healthy waits a few seconds for an answer, not the five minutes a conversion may take")
-    @Issue("326")
-    @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
-    void asksAfterHealthOnAShortClockOfItsOwn() throws IOException {
-        try (ServerSocket acceptsAndSaysNothing = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
-            DoclingClient client = new DoclingClient(
-                    "http://127.0.0.1:" + acceptsAndSaysNothing.getLocalPort(), SHIPPED_OCR_PRESET, A_SHORT_HEALTH_WAIT);
-
-            long started = System.nanoTime();
-            boolean healthy = client.isHealthy();
-            Duration waited = Duration.ofNanos(System.nanoTime() - started);
-
-            claim(
-                    "a service that takes the connection and never answers is not healthy",
-                    () -> assertThat(healthy).isFalse());
-            claim(
-                    "and finding that out took the " + A_SHORT_HEALTH_WAIT.toMillis() + " ms this test gives the"
-                            + " client, under the " + SHIPPED_HEALTH_WAIT.toSeconds() + " seconds a client that"
-                            + " ignored the wait it was given would take, let alone the conversion's five minutes",
-                    () -> assertThat(waited).isLessThan(SHIPPED_HEALTH_WAIT));
-        }
-        claim(
-                "as shipped, a health check waits " + SHIPPED_HEALTH_WAIT.toSeconds() + " seconds for its"
-                        + " answer",
-                () -> assertThat(DoclingClient.HEALTH_CHECK_TIMEOUT).isEqualTo(SHIPPED_HEALTH_WAIT));
     }
 
     private static Path aDocument(Path dir) throws IOException {

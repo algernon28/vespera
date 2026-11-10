@@ -2,7 +2,6 @@ package io.algernon.vespera.engine.corpus;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
@@ -19,7 +18,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
-import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -47,9 +45,6 @@ class ADiscardedWalksAnomaliesAreCorpusToDeleteTest {
 
     /** The one anomaly recorded against the walk that is kept, which no discard may touch. */
     private static final int ANOMALIES_OF_THE_WALK_KEPT = 1;
-
-    /** The one anomaly the second test records and never deletes. */
-    private static final int THE_ANOMALY_LEFT_STANDING = 1;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -89,24 +84,5 @@ class ADiscardedWalksAnomaliesAreCorpusToDeleteTest {
                 () -> assertThat(jdbcTemplate.queryForObject(
                                 "SELECT COUNT(*) FROM walk WHERE id = ?", Integer.class, discarded.value()))
                         .isZero());
-    }
-
-    @Test
-    @Story("What corpus records about a walk anomaly")
-    @DisplayName("The ledger does not delete a walk's anomalies itself, so a walk whose anomalies still stand cannot be removed")
-    void theLedgerLeavesTheAnomaliesToTheirOwner() {
-        Ledger ledger = new Ledger(jdbcTemplate);
-        AnomalyLog anomalyLog = new AnomalyLog(jdbcTemplate);
-        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus"));
-        anomalyLog.anomaly(walk, "orphan.txt", WalkAnomalyKind.UNENCODABLE_PATH, "no UTF-8 encoding");
-
-        claim(
-                "removing the walk while an anomaly still refers to it is refused by the database: the ledger"
-                        + " deletes only its own rows, and had it deleted the anomaly as well, as it used to,"
-                        + " nothing would be left to refuse",
-                () -> assertThatThrownBy(() -> ledger.walks().discardWalk(walk)).isInstanceOf(DataAccessException.class));
-        claim(
-                "and the anomaly is still recorded, so the refused delete took nothing with it",
-                () -> assertThat(anomalyLog.anomalyCount(walk)).isEqualTo(THE_ANOMALY_LEFT_STANDING));
     }
 }

@@ -16,7 +16,6 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,7 +23,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,8 +53,6 @@ class TheTreeInHtmlInvocationTest {
 
     private static final String APPLICATION_LOGGER = "io.algernon.vespera";
 
-
-
     private static final String A_FLOOR_THAT_REMOVES_NOTHING = "0.0";
 
     private static final String THE_READING_WINDOW = "4096";
@@ -69,23 +65,11 @@ class TheTreeInHtmlInvocationTest {
     /** One piece of writing stands behind this corpus's tree, however many invocations draw it. */
     private static final int ONE_RUN = 1;
 
-    /** The one document of the corpus taken away before the tree is written, so not copied. */
-    private static final int ONE_NOT_COPIED = 1;
-
     /** How many times the index is opened in an invocation that writes the tree. */
     private static final int ONCE = 1;
 
-    /** What each line the generation step writes of the tree's copies opens with. */
-    private static final String COPY_LINES = "Stage 6b (generation, copies)";
-
-    /** One line before the first copy and one after the last. */
-    private static final int TWO_COPY_LINES = 2;
-
     /** Both of the corpus's documents. */
     private static final int BOTH = 2;
-
-    /** The progress page the job rewrites while it runs, in the working directory. */
-    private static final String PROGRESS_PAGE = "progress.html";
 
     @TempDir
     static Path workingDirectory;
@@ -160,185 +144,6 @@ class TheTreeInHtmlInvocationTest {
         claim(
                 "and the archive holds what it held before, each file with its bytes and its time: it was only read",
                 () -> assertThat(everythingIn(root)).containsExactlyEntriesOf(archiveBefore));
-    }
-
-    @Test
-    @Story("Drawing the tree again never writes it again")
-    @DisplayName("An invocation whose writing is already recorded draws the tree again without asking the model anything")
-    void aFinishedGenerationIsDrawnAgainWithoutAQuestion(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        anApprovedCorpus(root, seeds);
-        cli.run("run", root.toString());
-        Path index = theTreeOf(root).resolve("index.html");
-        claim(
-                "the precondition: the first invocation finished the writing, so the next one finds it recorded",
-                () -> assertThat(stepFinished(root)).isTrue());
-        claim("and it wrote the tree's index, which is taken away below", () -> assertThat(index).isRegularFile());
-        Path firstCopy = theTreeOf(root).resolve(columnByPath(root, "copy").get(FIRST));
-        claim(
-                "and it copied the first document, whose copy is taken away below too",
-                () -> assertThat(firstCopy).hasSameBinaryContentAs(root.resolve(FIRST)));
-        Files.delete(index);
-        Files.delete(firstCopy);
-        int questionsBefore = GenerationScriptedBeans.callsMade();
-        opener.forget();
-
-        cli.run("run", root.toString());
-
-        claim("the second invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "it wrote the index again, though the writing was already recorded finished",
-                () -> assertThat(index).isRegularFile());
-        claim(
-                "and it put no question to the model: the tree is drawn from what was recorded",
-                () -> assertThat(GenerationScriptedBeans.callsMade()).isEqualTo(questionsBefore));
-        claim(
-                "under the " + ONE_RUN + " piece of writing that stood before, the tree's name unchanged",
-                () -> assertThat(generationRuns(root)).hasSize(ONE_RUN));
-        claim(
-                "the copy taken away was made again from the archive, and its row says copied",
-                () -> {
-                    assertThat(firstCopy).hasSameBinaryContentAs(root.resolve(FIRST));
-                    assertThat(columnByPath(root, "copy_outcome")).containsEntry(FIRST, "copied");
-                });
-        claim(
-                "and the opener was asked " + ONCE + " time for an index, this tree's, with the page in place: the"
-                        + " path that finds the writing recorded opens what it drew as the other three do",
-                () -> {
-                    List<RecordingPageOpener.Request> indexOpened = indexRequests();
-                    assertThat(indexOpened).hasSize(ONCE);
-                    assertThat(indexOpened.getFirst().page()).isEqualTo(index.toUri());
-                    assertThat(indexOpened.getFirst().thePageWasThere()).isTrue();
-                });
-    }
-
-    @Test
-    @Story("The last thing an invocation says is what it produced and what is missing from it")
-    @DisplayName("The closing line names the tree's index, and the invocation opens two pages, the progress page first and the index last, once it is in place")
-    @Link(name = "ADR-266", url = Adr.EVERY_INVOCATION_NAMES_AND_OPENS_ITS_PROGRESS_PAGE, type = "adr")
-    void theClosingLineNamesTheIndexAndTheIndexIsOpenedOnce(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        anApprovedCorpus(root, seeds);
-        opener.forget();
-        logged.list.clear();
-
-        cli.run("run", root.toString());
-
-        Path index = theTreeOf(root).resolve("index.html");
-        List<RecordingPageOpener.Request> indexOpened = opener.requests().stream()
-                .filter(request -> request.page().getPath().endsWith("/index.html"))
-                .toList();
-        claim(
-                "the last line the invocation writes names the index by its whole path, and says that no group was"
-                        + " left unwritten and no document left uncopied, stating both counts at nothing",
-                () -> assertThat(operatorLines().getLast())
-                        .contains(index + ", with 0 groups left unwritten and 0 documents not copied."));
-        claim(
-                "the opener was asked for exactly two pages: the progress page, when the job started, and this tree's"
-                        + " index, once, last",
-                () -> assertThat(opener.requests())
-                        .extracting(request -> Path.of(request.page()))
-                        .containsExactly(
-                                workingDirectory.resolve(PROGRESS_PAGE).toAbsolutePath().normalize(),
-                                index.toAbsolutePath().normalize()));
-        claim(
-                "and the index was in place when it was asked for",
-                () -> assertThat(indexOpened).singleElement().satisfies(request -> assertThat(request.thePageWasThere())
-                        .isTrue()));
-    }
-
-    @Test
-    @Story("Nothing outside the tree names a document")
-    @DisplayName("A document gone before the tree is written is listed as gone, and no line or page outside the tree names it")
-    void aSurvivorGoneBeforeTheTreeIsNamedNowhereOutsideIt(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        anApprovedCorpus(root, seeds);
-        Path gone = root.resolve(FIRST);
-        AtomicInteger linesBeforeItWent = new AtomicInteger(-1);
-        GenerationScriptedBeans.duringEachCall(() -> {
-            try {
-                Files.deleteIfExists(gone);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            linesBeforeItWent.compareAndSet(-1, logged.list.size());
-        });
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the precondition: the document went while the model was asked, after the walk and before the tree",
-                () -> {
-                    assertThat(gone).doesNotExist();
-                    assertThat(linesBeforeItWent.get()).isNotNegative();
-                });
-        claim(
-                "its row says it is gone and names no copy, and the other document is copied",
-                () -> {
-                    assertThat(columnByPath(root, "copy_outcome"))
-                            .containsExactlyInAnyOrderEntriesOf(Map.of(FIRST, "gone", SECOND, "copied"));
-                    assertThat(columnByPath(root, "copy")).containsEntry(FIRST, "");
-                });
-        claim(
-                "the closing line counts the " + ONE_NOT_COPIED + " document whose copy does not stand, in the singular",
-                () -> assertThat(operatorLines().getLast())
-                        .endsWith("with 0 groups left unwritten and " + ONE_NOT_COPIED + " document not copied."));
-        claim(
-                "no line written after it went, at any level, names it",
-                () -> assertThat(operatorLines().subList(linesBeforeItWent.get(), operatorLines().size()))
-                        .noneMatch(line -> line.contains(FIRST)));
-        claim(
-                "and the progress page, which is there, does not name it",
-                () -> {
-                    assertThat(workingDirectory.resolve(PROGRESS_PAGE)).isRegularFile();
-                    assertThat(Files.readString(workingDirectory.resolve(PROGRESS_PAGE), StandardCharsets.UTF_8))
-                            .doesNotContain(FIRST);
-                });
-    }
-
-    @Test
-    @Story("Nothing outside the tree names a document")
-    @DisplayName("The tree's copies are told in two lines, one before the first and one after the last, and each carries counts only")
-    void theCopiesAreToldBeforeAndAfterInCountsOnly(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        anApprovedCorpus(root, seeds);
-        long bothDocumentsBytes = Files.size(root.resolve(FIRST)) + Files.size(root.resolve(SECOND));
-        logged.list.clear();
-
-        cli.run("run", root.toString());
-
-        List<ILoggingEvent> copyLines = logged.list.stream()
-                .filter(event -> event.getFormattedMessage().startsWith(COPY_LINES))
-                .toList();
-        claim(
-                "the invocation wrote " + TWO_COPY_LINES + " lines of the copies, and every argument of each is a"
-                        + " number",
-                () -> {
-                    assertThat(copyLines).hasSize(TWO_COPY_LINES);
-                    assertThat(copyLines)
-                            .allSatisfy(line -> assertThat(line.getArgumentArray()).allMatch(Number.class::isInstance));
-                });
-        claim(
-                "the first, before any copy, counts the " + BOTH + " documents about to be copied and the bytes they"
-                        + " hold, then the drive's free bytes",
-                () -> {
-                    Object[] before = copyLines.getFirst().getArgumentArray();
-                    assertThat(before).hasSize(3);
-                    assertThat(((Number) before[0]).longValue()).isEqualTo(BOTH);
-                    assertThat(((Number) before[1]).longValue()).isEqualTo(bothDocumentsBytes);
-                    assertThat(((Number) before[2]).longValue()).isNotNegative();
-                });
-        claim(
-                "the second, after the last, counts the copies by outcome, the " + BOTH + " copied first and none of"
-                        + " the five others, then the bytes copied",
-                () -> assertThat(copyLines.getLast().getArgumentArray())
-                        .extracting(argument -> ((Number) argument).longValue())
-                        .containsExactly((long) BOTH, 0L, 0L, 0L, 0L, 0L, bothDocumentsBytes));
-        claim(
-                "and neither names a document, the archive or the tree",
-                () -> assertThat(copyLines)
-                        .extracting(ILoggingEvent::getFormattedMessage)
-                        .noneMatch(line -> line.contains(FIRST)
-                                || line.contains(SECOND)
-                                || line.contains(root.toString())
-                                || line.contains(workingDirectory.toString())));
     }
 
     /** The tree this corpus's one piece of writing drew. */

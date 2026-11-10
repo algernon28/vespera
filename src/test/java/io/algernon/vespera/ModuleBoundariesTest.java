@@ -44,6 +44,9 @@ import org.springframework.modulith.core.ApplicationModules;
 @Link(name = "ADR-367", url = Adr.THE_JARS_PACKAGES_LIE_UNDER_ENGINE_PUBLISH_AND_UI, type = "adr")
 class ModuleBoundariesTest {
 
+    /** The modules of the plugins compiled into the jar (ADR-333 §1): the Confluence rendering's and the website's. */
+    private static final List<String> PLUGIN_MODULES = List.of("confluence", "website");
+
     private static final ApplicationModules MODULES = ApplicationModules.of(VesperaApplication.class);
 
     /**
@@ -94,9 +97,6 @@ class ModuleBoundariesTest {
             "deliverable", List.of("ledger", "synthesis"),
             "confluence", List.of("ledger", "deliverable", "synthesis"),
             "website", List.of("ledger", "deliverable", "synthesis"));
-
-    /** The modules of the plugins compiled into the jar (ADR-333 §1): the Confluence rendering's and the website's. */
-    private static final List<String> PLUGIN_MODULES = List.of("confluence", "website");
 
     /**
      * The capability modules, derived rather than re-listed: the recorded eleven less {@code ledger},

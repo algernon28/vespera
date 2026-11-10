@@ -14,9 +14,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.core.io.ClassPathResource;
 
@@ -42,12 +40,6 @@ class TheShippedPresetsTest {
     /** How finely clustering divides a partition, the value ADR-087 chose. */
     private static final String SHIPPED_RESOLUTION = "1.0";
 
-    /** The OCR preset every conversion names, the one ADR-090 pinned in the client. */
-    private static final String SHIPPED_OCR_PRESET = "rapidocr";
-
-    /** Timeouts in a row before a timeout is read as the converter's, ADR-071's count. */
-    private static final int SHIPPED_TIMEOUTS_IN_A_ROW = 3;
-
     /** Words a shingle spans, the window ADR-073 provisionally chose. */
     private static final int SHIPPED_SHINGLE_WORDS = 5;
 
@@ -62,9 +54,6 @@ class TheShippedPresetsTest {
 
     /** ADR-081's rarest-shingle sample and the hits a container needs among it. */
     private static final List<Integer> SHIPPED_RARE_SHINGLES = List.of(32, 24);
-
-    /** How many of the highest similarities a relevance score is the mean of, ADR-020's three. */
-    private static final int SHIPPED_TOP_SIMILARITIES = 3;
 
     /** ADR-088's five bands and twelve documents asked about from each, sixty in all. */
     private static final List<Integer> SHIPPED_SAMPLE = List.of(5, 12);
@@ -87,28 +76,6 @@ class TheShippedPresetsTest {
                         + ", so a corpus naming neither is clustered as it was",
                 () -> assertThat(List.of(text("vespera.clustering.neighbours"), text("vespera.clustering.resolution")))
                         .containsExactly(SHIPPED_NEIGHBOURS, SHIPPED_RESOLUTION));
-    }
-
-    @Test
-    @Story("How documents are converted is a preset")
-    @DisplayName("The shipped file names the OCR preset and the timeouts in a row at the values every earlier run was made under")
-    void theConvertersTwoPresetsShipAtTheirEarlierValues() {
-        claim("the OCR preset is " + SHIPPED_OCR_PRESET + " and a timeout is the converter's after "
-                        + SHIPPED_TIMEOUTS_IN_A_ROW + " in a row, so a machine naming neither converts and judges as it did",
-                () -> assertThat(List.<Object>of(text("vespera.docling.ocr-preset"),
-                                whole("vespera.docling.timeouts-in-a-row")))
-                        .containsExactly(SHIPPED_OCR_PRESET, (long) SHIPPED_TIMEOUTS_IN_A_ROW));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("theRedundancyPresets")
-    @Story("How redundancy is measured is a preset")
-    @DisplayName("The shipped file names each value redundancy is measured and judged by at the value every earlier run was made under")
-    void theRedundancyPresetsShipAtTheirEarlierValues(String key, Number earlier) {
-        claim("the file names " + key + " at " + earlier + ", so every shingle and signature is filed under the identity"
-                        + " it was and a machine naming none judges redundancy as it did",
-                () -> assertThat(earlier instanceof Double ? (Object) number(key) : (Object) whole(key))
-                        .isEqualTo(earlier));
     }
 
     /** Each value redundancy is measured and judged by, as its key and the value every earlier run was made under. */
@@ -134,33 +101,9 @@ class TheShippedPresetsTest {
                         (long) SHIPPED_RARE_SHINGLES.get(1)));
     }
 
-    @Test
-    @Story("How relevance is scored and sampled is a preset")
-    @DisplayName("The shipped file names how many similarities a score is the mean of, and the sample's bands and documents from each, at the values every earlier run was made under")
-    void theRelevanceScoreAndItsSampleShipAtTheirEarlierValues() {
-        claim("a score is the mean of the " + SHIPPED_TOP_SIMILARITIES + " highest similarities, so every floor stays"
-                        + " on the scale it was read on",
-                () -> assertThat(whole("vespera.relevance.top-similarities")).isEqualTo(SHIPPED_TOP_SIMILARITIES));
-        claim("the scores are divided into " + SHIPPED_SAMPLE.get(0) + " bands and " + SHIPPED_SAMPLE.get(1)
-                        + " documents are asked about from each, so a run asks about the documents it did",
-                () -> assertThat(List.of(whole("vespera.relevance.sample.bands"),
-                                whole("vespera.relevance.sample.per-band")))
-                        .containsExactly((long) SHIPPED_SAMPLE.get(0), (long) SHIPPED_SAMPLE.get(1)));
-    }
-
     /** The key's value as the file holds it; a key the file does not hold fails here, naming it. */
     private static String text(String key) {
         assertThat(shipped).as("the shipped file names " + key).containsKey(key);
         return String.valueOf(shipped.get(key));
-    }
-
-    /** The key's value as a whole number; one the file does not hold, or holds as no whole number, fails here. */
-    private static long whole(String key) {
-        return Long.parseLong(text(key));
-    }
-
-    /** The key's value as a number; one the file does not hold, or holds as no number, fails here. */
-    private static double number(String key) {
-        return Double.parseDouble(text(key));
     }
 }

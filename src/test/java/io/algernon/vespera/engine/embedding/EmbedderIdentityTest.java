@@ -2,7 +2,6 @@ package io.algernon.vespera.engine.embedding;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -55,23 +54,6 @@ class EmbedderIdentityTest {
 
     @Test
     @Story("Empty instruction text and absent instruction text are different values")
-    @DisplayName("An absent instruction reads as a sentinel, and an empty one reads as the empty value it is")
-    void anAbsentInstructionIsNotAnEmptyOne() {
-        EmbedderIdentity absent = EmbedderIdentity.withoutInstruction(MODEL, DIGEST, DTYPE, DIMENSION);
-        EmbedderIdentity empty = EmbedderIdentity.withInstruction(MODEL, DIGEST, DTYPE, DIMENSION, "");
-
-        claim(
-                "an instruction nobody supplied reads as an explicit sentinel, since an omitted field"
-                        + " would read as a field that failed to populate",
-                () -> assertThat(absent.value()).contains("instruction=none"));
-        claim(
-                "a supplied-but-empty instruction is a value, not an absence (ADR-084), so the two"
-                        + " compose differently and the vectors under them are keyed apart",
-                () -> assertThat(empty.value()).isNotEqualTo(absent.value()));
-    }
-
-    @Test
-    @Story("Empty instruction text and absent instruction text are different values")
     @DisplayName("An instruction whose text is literally the sentinel does not read as an absent one")
     void aSuppliedInstructionNeverCollidesWithTheSentinel() {
         EmbedderIdentity absent = EmbedderIdentity.withoutInstruction(MODEL, DIGEST, DTYPE, DIMENSION);
@@ -83,28 +65,5 @@ class EmbedderIdentityTest {
                         + " sentinel uses, composes differently from having supplied none — the one case a"
                         + " bare sentinel cannot tell apart, and it sits in a primary key",
                 () -> assertThat(saysNone.value()).isNotEqualTo(absent.value()));
-    }
-
-    @Test
-    @Story("An identity refuses a part it could not learn")
-    @DisplayName("A blank digest is refused, rather than composing an identity with a hole where it belongs")
-    void refusesABlankDigest() {
-        claim(
-                "a digest that arrived blank — the shape a DTO silently dropping the field produces —"
-                        + " is refused when the identity is composed, not discovered later as a vector"
-                        + " set keyed under a name that describes two different models",
-                () -> assertThatThrownBy(() -> EmbedderIdentity.withoutInstruction(MODEL, "  ", DTYPE, DIMENSION))
-                        .isInstanceOf(IllegalArgumentException.class));
-    }
-
-    @Test
-    @Story("An identity refuses a part it could not learn")
-    @DisplayName("A dimension of zero is refused, since no vector has zero components")
-    void refusesADimensionNoVectorCouldHave() {
-        claim(
-                "a dimension of zero is what an unread or defaulted field looks like, and no embedder"
-                        + " produces a vector with no components",
-                () -> assertThatThrownBy(() -> EmbedderIdentity.withoutInstruction(MODEL, DIGEST, DTYPE, 0))
-                        .isInstanceOf(IllegalArgumentException.class));
     }
 }

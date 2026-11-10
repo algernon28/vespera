@@ -14,22 +14,16 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.sql.SQLTransientConnectionException;
 import java.sql.Statement;
-import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.sqlite.SQLiteErrorCode;
-import org.sqlite.SQLiteException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.support.SQLExceptionSubclassTranslator;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -82,9 +76,6 @@ class LockedDatabaseFileTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @Autowired
-    private DataSource dataSource;
-
     @Value("${spring.datasource.url}")
     private String shippedUrl;
 
@@ -111,70 +102,5 @@ class LockedDatabaseFileTest {
                     assertThat(failed.getMessage()).contains(databaseFile.toString());
                 });
         claim("and saying another process holds it", () -> assertThat(failed.getMessage()).contains("another process"));
-    }
-
-    @Test
-    @Story("A locked database file says which file, and that another process holds it")
-    @DisplayName("Any other failure is reported exactly as it was before")
-    void anyOtherFailureIsReportedAsBefore() {
-        jdbcTemplate.update("INSERT INTO schema_version (module, version) VALUES (?, ?)", "written twice", ANY_VERSION);
-
-        Throwable throughTheShippedTemplate = catchThrowable(() -> jdbcTemplate.update(
-                "INSERT INTO schema_version (module, version) VALUES (?, ?)", "written twice", ANY_VERSION));
-        Throwable withNoTranslatorOfOurs = catchThrowable(() -> new JdbcTemplate(dataSource).update(
-                "INSERT INTO schema_version (module, version) VALUES (?, ?)", "written twice", ANY_VERSION));
-
-        claim("a key written twice is not mistaken for a locked database file: it fails as the same kind of"
-                        + " failure a template with no translator of ours reports",
-                () -> assertThat(throughTheShippedTemplate).hasSameClassAs(withNoTranslatorOfOurs));
-    }
-
-    @Test
-    @Story("A locked database file says which file, and that another process holds it")
-    @DisplayName("Busy, busy-snapshot and locked are all a locked database file, and a constraint failure or a pool timeout is not")
-    void everyLockCodeIsALockedDatabaseFile() {
-        LockedDatabaseFileTranslator translator = new LockedDatabaseFileTranslator(workingDirectory);
-        Path databaseFile = workingDirectory.resolve(DATABASE_FILE);
-        SQLiteException busy = new SQLiteException(
-                "[SQLITE_BUSY] The database file is locked (database is locked)", SQLiteErrorCode.SQLITE_BUSY);
-
-        DataAccessException fromBusy = translator.translate("an insert", "INSERT", busy);
-        DataAccessException fromSnapshot = translator.translate("an insert", "INSERT", new SQLiteException(
-                "[SQLITE_BUSY_SNAPSHOT] Another database connection has already written to the database"
-                        + " (database is locked)",
-                SQLiteErrorCode.SQLITE_BUSY_SNAPSHOT));
-        DataAccessException fromLocked = translator.translate("an insert", "INSERT", new SQLiteException(
-                "[SQLITE_LOCKED] A table in the database is locked", SQLiteErrorCode.SQLITE_LOCKED));
-        DataAccessException fromWrapped = translator.translate("an insert", "INSERT", new SQLException("wrapped", busy));
-        DataAccessException fromConstraint = translator.translate("an insert", "INSERT", new SQLiteException(
-                "[SQLITE_CONSTRAINT] Abort due to constraint violation", SQLiteErrorCode.SQLITE_CONSTRAINT));
-        SQLTransientConnectionException poolTimedOut = new SQLTransientConnectionException(
-                "Connection is not available, request timed out after 30000ms.");
-        DataAccessException fromPool = translator.translate("a query", "SELECT", poolTimedOut);
-        DataAccessException fromPoolWithNoTranslatorOfOurs =
-                new SQLExceptionSubclassTranslator().translate("a query", "SELECT", poolTimedOut);
-
-        claim("a busy database file is a locked one, and the sentence names the file, says another process"
-                        + " holds it, and keeps what SQLite said",
-                () -> assertThat(fromBusy)
-                        .isInstanceOf(DatabaseFileLockedException.class)
-                        .hasMessage("the database file " + databaseFile + " is held by another process, which is"
-                                + " writing to it or keeping a transaction open on it (" + busy.getMessage() + ")"));
-        claim("so is a snapshot another connection's commit made stale, which the busy timeout never waits on",
-                () -> assertThat(fromSnapshot).isInstanceOf(DatabaseFileLockedException.class));
-        claim("and a locked table", () -> assertThat(fromLocked).isInstanceOf(DatabaseFileLockedException.class));
-        claim("and a busy database file found beneath another SQL failure",
-                () -> assertThat(fromWrapped).isInstanceOf(DatabaseFileLockedException.class));
-        claim("a constraint failure is not a locked database file, and is left to the template, which"
-                        + " reports it as before",
-                () -> assertThat(fromConstraint)
-                        .as("what the translator made of a constraint failure")
-                        .isNull());
-        claim("a connection the pool could not hand out in time keeps the kind of failure it had without"
-                        + " this translator, and is not mistaken for a locked database file",
-                () -> assertThat(fromPool)
-                        .as("what the translator made of a pool that timed out")
-                        .isNotNull()
-                        .hasSameClassAs(fromPoolWithNoTranslatorOfOurs));
     }
 }

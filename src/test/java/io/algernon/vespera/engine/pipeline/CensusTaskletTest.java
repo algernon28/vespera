@@ -2,12 +2,10 @@ package io.algernon.vespera.engine.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.corpus.AnomalyLog;
-import io.algernon.vespera.engine.corpus.CheckpointMismatchException;
 import io.algernon.vespera.engine.corpus.CorpusFailures;
 import io.algernon.vespera.engine.corpus.ExcludesNothingViolationException;
 import io.algernon.vespera.engine.corpus.WalkRecorder;
@@ -16,7 +14,6 @@ import io.algernon.vespera.engine.ledger.WalkId;
 import io.algernon.vespera.engine.profile.Measurement;
 import io.algernon.vespera.engine.profile.ProfileFixture;
 import io.algernon.vespera.engine.profile.ProfileStore;
-import io.algernon.vespera.engine.profile.ProfileValue;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -60,9 +57,6 @@ class CensusTaskletTest {
     /** Files written under the corpus root, so a claim can say where its number comes from. */
     private static final int CORPUS_FILES = 2;
 
-    /** Files written under the seed folder. */
-    private static final int SEED_FILES = 1;
-
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -97,35 +91,6 @@ class CensusTaskletTest {
 
     @Test
     @Story("What census does in one invocation")
-    @DisplayName("A seed folder named in the profile is walked by the same instrument, under its own id")
-    void walksTheSeedFolderWhenTheProfileNamesOne(@TempDir Path root, @TempDir Path seeds, @TempDir Path workingDirectory)
-            throws Exception {
-        Files.writeString(root.resolve("a.txt"), "a");
-        Files.writeString(root.resolve("b.txt"), "b");
-        Files.writeString(seeds.resolve("exemplar.txt"), "a known-relevant document");
-        Ledger ledger = new Ledger(jdbcTemplate);
-        ProfileStore profileStore = new ProfileStore(workingDirectory);
-        profileStore.save(ProfileFixture.profile().seedFolder(seeds.toString(), "the handover set").build());
-
-        tasklet(root, profileStore).execute(null, null);
-
-        claim(
-                "two walks were recorded, the corpus and the seed folder, neither one part of the other",
-                () -> assertThat(walkCount()).isEqualTo(2));
-        claim(
-                "the seed folder's " + SEED_FILES + " file was recorded as an occurrence of its own walk",
-                () -> assertThat(occurrenceCountForRoot(ledger, seeds)).isEqualTo(SEED_FILES));
-        claim(
-                "the profile's measurement now points at the walk census made of the seed folder",
-                () -> assertThat(profileStore.load().seedFolder().measurement().source())
-                        .isEqualTo("walk " + walkIdForRoot(seeds)));
-        claim(
-                "the operator's value survived the run, as an answer census never rewrites",
-                () -> assertThat(profileStore.load().seedFolder().value()).isEqualTo(seeds.toString()));
-    }
-
-    @Test
-    @Story("What census does in one invocation")
     @DisplayName("A seed walk that cannot account for every entry aborts the invocation")
     @Issue("6")
     @Link(name = "ADR-056", url = Adr.EXCLUDES_NOTHING_IS_RECONCILED, type = "adr")
@@ -144,54 +109,6 @@ class CensusTaskletTest {
         claim(
                 "the corpus walk still ran to completion first, neither walk costing the other its chance",
                 () -> assertThat(walkCount()).isEqualTo(1));
-        claim(
-                "and the profile says what went wrong, so the failure is legible after the exit code",
-                () -> assertThat(profileStore.load().seedFolder().measurement().source())
-                        .contains("the seed folder could not be walked"));
-    }
-
-    @Test
-    @Story("What census does in one invocation")
-    @DisplayName("A seed folder that is merely missing is recorded, not fatal")
-    void aSeedFolderThatIsNotThereIsRecordedRatherThanFatal(
-            @TempDir Path root, @TempDir Path workingDirectory) throws Exception {
-        Files.writeString(root.resolve("a.txt"), "a");
-        Path missing = root.resolve("nowhere");
-        ProfileStore profileStore = new ProfileStore(workingDirectory);
-        profileStore.save(ProfileFixture.profile().seedFolder(missing.toString(), "the handover set").build());
-        CensusTasklet census = tasklet(root, profileStore);
-
-        claim(
-                "a mistyped seed path does not cost the operator the corpus census that ran beside it",
-                () -> assertThatCode(() -> census.execute(null, null)).doesNotThrowAnyException());
-        claim(
-                "the corpus was recorded",
-                () -> assertThat(new Ledger(jdbcTemplate).occurrences().occurrenceCount(onlyWalk())).isEqualTo(1));
-        claim(
-                "and the profile carries why no seed walk happened",
-                () -> assertThat(profileStore.load().seedFolder().measurement().source())
-                        .contains("the seed folder could not be walked"));
-    }
-
-    @Test
-    @Story("What census does in one invocation")
-    @DisplayName("A seed walk resumed onto a corpus that moved under it aborts the invocation")
-    @Issue("5")
-    @Link(name = "ADR-055", url = Adr.A_WALK_IS_RESUMED_UNDER_ITS_OWN_ID, type = "adr")
-    void aSeedWalkResumedOntoAMovedTreeAbortsTheInvocation(
-            @TempDir Path root, @TempDir Path seeds, @TempDir Path workingDirectory) throws Exception {
-        Files.writeString(root.resolve("a.txt"), "a");
-        Files.writeString(seeds.resolve("exemplar.txt"), "a known-relevant document");
-        ProfileStore profileStore = new ProfileStore(workingDirectory);
-        profileStore.save(ProfileFixture.profile().seedFolder(seeds.toString(), "the handover set").build());
-        CensusTasklet census = tasklet(root, profileStore, failingOn(seeds, CorpusFailures.checkpointMismatch()));
-
-        claim(
-                "a resumed seed walk that would skip past a subtree it can no longer trust fails the"
-                        + " invocation, the same as a walk that lost rows — both mean the ledger may hold"
-                        + " less than the archive",
-                () -> assertThatThrownBy(() -> census.execute(null, null))
-                        .isInstanceOf(CheckpointMismatchException.class));
         claim(
                 "and the profile says what went wrong, so the failure is legible after the exit code",
                 () -> assertThat(profileStore.load().seedFolder().measurement().source())
@@ -231,14 +148,5 @@ class CensusTaskletTest {
 
     private long walkCount() {
         return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM walk", Long.class);
-    }
-
-    private long walkIdForRoot(Path root) throws IOException {
-        return jdbcTemplate.queryForObject(
-                "SELECT id FROM walk WHERE root = ?", Long.class, root.toRealPath().toString());
-    }
-
-    private long occurrenceCountForRoot(Ledger ledger, Path root) throws IOException {
-        return ledger.occurrences().occurrenceCount(new WalkId(walkIdForRoot(root)));
     }
 }

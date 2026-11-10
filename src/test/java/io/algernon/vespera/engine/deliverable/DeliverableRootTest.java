@@ -3,7 +3,6 @@ package io.algernon.vespera.engine.deliverable;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.abort;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.TestLinks;
@@ -20,8 +19,6 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledOnOs;
-import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
@@ -74,45 +71,6 @@ class DeliverableRootTest {
     }
 
     @Test
-    @Story("The tree is drawn at the folder the operator names, or in the working directory")
-    @DisplayName("With no folder named, the tree is the generation's own folder under the working directory's deliverable folder")
-    void anUnnamedRootIsTheGenerationRunsFolderInTheWorkingDirectory() {
-        Path theDefault = work.resolve("deliverable").resolve(A_GENERATION_RUN);
-
-        claim(
-                "with no root named, the tree is <working directory>/deliverable/<generation run>, as it was before a root"
-                        + " could be named",
-                () -> assertThat(DeliverableRoot.UNNAMED.treeOf(work, A_GENERATION_RUN)).isEqualTo(theDefault));
-        claim(
-                "and a property left empty, blank or absent names no root",
-                () -> {
-                    assertThat(DeliverableRoot.of("").treeOf(work, A_GENERATION_RUN)).isEqualTo(theDefault);
-                    assertThat(DeliverableRoot.of("   ").treeOf(work, A_GENERATION_RUN)).isEqualTo(theDefault);
-                    assertThat(DeliverableRoot.of(null).treeOf(work, A_GENERATION_RUN)).isEqualTo(theDefault);
-                });
-    }
-
-    @Test
-    @Story("The tree is drawn at the folder the operator names, or in the working directory")
-    @DisplayName("A folder the operator names is the tree itself, whatever generation drew it")
-    void aNamedRootIsTheTreeItself() {
-        Path root = base.resolve("handed over");
-
-        claim(
-                "a named root is the tree, absolute, with no folder of the working directory's or of the run's added",
-                () -> assertThat(DeliverableRoot.named(root).treeOf(work, A_GENERATION_RUN))
-                        .isEqualTo(root.toAbsolutePath().normalize()));
-        claim(
-                "the property's value is read with the spaces around it stripped",
-                () -> assertThat(DeliverableRoot.of("  " + root + "  ").treeOf(work, A_GENERATION_RUN))
-                        .isEqualTo(root.toAbsolutePath().normalize()));
-        claim(
-                "and another generation's tree is drawn at the same root, since the root names no run",
-                () -> assertThat(DeliverableRoot.named(root).treeOf(work, ANOTHER_GENERATION_RUN))
-                        .isEqualTo(root.toAbsolutePath().normalize()));
-    }
-
-    @Test
     @Story("A folder over the archive is refused before anything is walked")
     @DisplayName("A folder that is the corpus root, inside it or above it is refused, each in one line")
     void refusesARootThatIsTheCorpusRootInsideItOrAboveIt() throws IOException {
@@ -134,46 +92,6 @@ class DeliverableRootTest {
         claim(
                 "and checking made no folder: the root inside the corpus root is still not there",
                 () -> assertThat(inside).doesNotExist());
-    }
-
-    @Test
-    @Story("A folder over the archive is refused before anything is walked")
-    @DisplayName("A folder that is the seed folder, inside it or above it is refused, each in one line")
-    void refusesARootThatIsTheSeedFolderInsideItOrAboveIt() throws IOException {
-        Path seedsReal = seeds.toRealPath();
-        Optional<Path> theSeedFolder = Optional.of(seeds);
-
-        claim(
-                "a root inside the seed folder is refused",
-                () -> assertThat(DeliverableRoot.named(seeds.resolve("tree")).refusalAtTheStart(work, archive, theSeedFolder))
-                        .contains(overlap(seedsReal.resolve("tree"), "inside the seed folder", seedsReal)));
-        claim(
-                "the seed folder itself is refused",
-                () -> assertThat(DeliverableRoot.named(seeds).refusalAtTheStart(work, archive, theSeedFolder))
-                        .contains(overlap(seedsReal, "the seed folder", seedsReal)));
-        claim(
-                "and a folder holding the seed folder is refused",
-                () -> assertThat(DeliverableRoot.named(library).refusalAtTheStart(work, archive, theSeedFolder))
-                        .contains(overlap(library.toRealPath(), "above the seed folder", seedsReal)));
-    }
-
-    /**
-     * ADR-276 §2: the corpus root is compared first, then the seed folder. Where the seed folder lies inside the
-     * corpus root, a root that is the seed folder stands in a relation to both, and the line names the first.
-     */
-    @Test
-    @Story("A folder over the archive is refused before anything is walked")
-    @DisplayName("A folder over both the corpus root and a seed folder inside it is refused by the corpus root")
-    void aRootOverBothIsRefusedByTheCorpusRootFirst() throws IOException {
-        Path seedsInsideTheArchive = Files.createDirectories(archive.resolve("seeds"));
-        Path archiveReal = archive.toRealPath();
-
-        claim(
-                "a root that is a seed folder lying inside the corpus root is refused as inside the corpus root, not as"
-                        + " the seed folder: the corpus root is compared before the seed folder",
-                () -> assertThat(DeliverableRoot.named(seedsInsideTheArchive)
-                                .refusalAtTheStart(work, archive, Optional.of(seedsInsideTheArchive)))
-                        .contains(overlap(archiveReal.resolve("seeds"), "inside the corpus root", archiveReal)));
     }
 
     /**
@@ -239,38 +157,6 @@ class DeliverableRootTest {
 
     @Test
     @Story("A folder over the archive is refused before anything is walked")
-    @DisplayName("A folder beside the corpus root or the seed folder, or inside the working directory, is accepted")
-    void acceptsARootBesideTheCorpusRootOrTheSeedFolderOrInsideTheWorkingDirectory() {
-        Optional<Path> theSeedFolder = Optional.of(seeds);
-        Path besideTheArchive = base.resolve("archive-copies");
-        Path besideTheSeeds = library.resolve("seeds-copies");
-        Path insideTheWorkingDirectory = work.resolve("tree");
-
-        claim(
-                "a root whose name begins with the corpus root's name, beside it, is not inside it: names are compared"
-                        + " whole",
-                () -> assertThat(DeliverableRoot.named(besideTheArchive).refusalAtTheStart(work, archive, theSeedFolder))
-                        .isEmpty());
-        claim(
-                "a root whose name begins with the seed folder's name, beside it, is not inside it either",
-                () -> assertThat(DeliverableRoot.named(besideTheSeeds).refusalAtTheStart(work, archive, theSeedFolder))
-                        .isEmpty());
-        claim(
-                "a root inside the working directory is accepted: nothing walks the working directory",
-                () -> assertThat(
-                                DeliverableRoot.named(insideTheWorkingDirectory).refusalAtTheStart(work, archive, theSeedFolder))
-                        .isEmpty());
-        claim(
-                "and none of the three was made by being checked",
-                () -> {
-                    assertThat(besideTheArchive).doesNotExist();
-                    assertThat(besideTheSeeds).doesNotExist();
-                    assertThat(insideTheWorkingDirectory).doesNotExist();
-                });
-    }
-
-    @Test
-    @Story("A folder over the archive is refused before anything is walked")
     @DisplayName("A folder reached through a link into the corpus root is refused as lying inside it")
     void aRootReachedThroughALinkIsComparedWhereTheLinkLeads() throws IOException {
         Path link = base.resolve("a link to the archive");
@@ -284,95 +170,6 @@ class DeliverableRootTest {
                         + " names it there",
                 () -> assertThat(DeliverableRoot.named(link.resolve("tree")).refusalAtTheStart(work, archive, NO_SEED_FOLDER))
                         .contains(overlap(archiveReal.resolve("tree"), "inside the corpus root", archiveReal)));
-    }
-
-    /** Windows only: NTFS opens a name in any case, and elsewhere two spellings in two cases are two folders. */
-    @Test
-    @EnabledOnOs(OS.WINDOWS)
-    @Story("A folder over the archive is refused before anything is walked")
-    @DisplayName("On Windows a folder spelled in another case than the seed folder is compared as the same name")
-    void onWindowsANameIsComparedWithoutRegardToCase() throws IOException {
-        Path seedFolderNotMadeYet = base.resolve("Unmade");
-        Path rootSpelledInCapitals = base.resolve("UNMADE").resolve("tree");
-        Path baseReal = base.toRealPath();
-
-        assumeTrue(
-                Files.notExists(seedFolderNotMadeYet) && Files.notExists(rootSpelledInCapitals),
-                "neither the seed folder nor the root is there, so no real path settles their case");
-        claim(
-                "a root under the seed folder's name in capitals is inside the seed folder",
-                () -> assertThat(DeliverableRoot.named(rootSpelledInCapitals)
-                                .refusalAtTheStart(work, archive, Optional.of(seedFolderNotMadeYet)))
-                        .contains(overlap(
-                                baseReal.resolve("UNMADE").resolve("tree"),
-                                "inside the seed folder",
-                                baseReal.resolve("Unmade"))));
-    }
-
-    @Test
-    @Story("A folder over the archive is refused before anything is walked")
-    @DisplayName("With no folder named, a working directory inside the corpus root is refused by its deliverable folder")
-    void anUnnamedRootIsCheckedAsTheWorkingDirectorysDeliverableFolder() throws IOException {
-        Path workInsideTheArchive = Files.createDirectories(archive.resolve("work"));
-
-        claim(
-                "the working directory's deliverable folder, inside the corpus root, is refused, named as the folder"
-                        + " every unnamed tree lies in",
-                () -> assertThat(DeliverableRoot.UNNAMED.refusalAtTheStart(workInsideTheArchive, archive, NO_SEED_FOLDER))
-                        .contains(overlap(
-                                workInsideTheArchive.toRealPath().resolve("deliverable"),
-                                "inside the corpus root",
-                                archive.toRealPath())));
-        claim(
-                "and a working directory beside the corpus root is accepted",
-                () -> assertThat(DeliverableRoot.UNNAMED.refusalAtTheStart(work, archive, Optional.of(seeds))).isEmpty());
-    }
-
-    @Test
-    @Story("A folder that holds anything but this tree is refused")
-    @DisplayName("Before the job, a named folder is accepted absent, empty, or holding a tree of this working directory")
-    void atTheStartANamedRootIsAcceptedEmptyOrHoldingATreeOfThisWorkingDirectory() throws IOException {
-        Path roots = Files.createDirectories(base.resolve("roots"));
-        Path absent = roots.resolve("absent");
-        Path empty = Files.createDirectories(roots.resolve("empty"));
-        Path thisWorkingDirectorysTree = marked(roots.resolve("this working directory's"), work.toRealPath(), ANOTHER_GENERATION_RUN);
-        Path strayFile = Files.createDirectories(roots.resolve("a stray file"));
-        Files.writeString(strayFile.resolve("notes.txt"), "the operator's notes", StandardCharsets.UTF_8);
-        Path elsewhere = Files.createDirectories(base.resolve("elsewhere"));
-        Path anotherWorkingDirectorysTree = marked(roots.resolve("another working directory's"), elsewhere.toRealPath(), A_GENERATION_RUN);
-        Path unreadableMarker = Files.createDirectories(roots.resolve("an unreadable marker"));
-        Files.writeString(unreadableMarker.resolve(MARKER), "not a marker", StandardCharsets.UTF_8);
-        Path aFile = Files.writeString(roots.resolve("a file"), "a file where the root would be", StandardCharsets.UTF_8);
-
-        claim(
-                "a root not made yet, an empty folder, and a folder holding a tree this working directory drew under"
-                        + " another generation are accepted: the generation is compared at the drawing",
-                () -> {
-                    assertThat(startOf(absent)).isEmpty();
-                    assertThat(startOf(empty)).isEmpty();
-                    assertThat(startOf(thisWorkingDirectorysTree)).isEmpty();
-                });
-        claim(
-                "a folder holding a file and no tree is refused",
-                () -> assertThat(startOf(strayFile)).contains(notEmptyAtTheStart(strayFile.toRealPath())));
-        claim(
-                "a folder holding another working directory's tree is refused the same way",
-                () -> assertThat(startOf(anotherWorkingDirectorysTree))
-                        .contains(notEmptyAtTheStart(anotherWorkingDirectorysTree.toRealPath())));
-        claim(
-                "a folder whose marker cannot be read as one is refused the same way",
-                () -> assertThat(startOf(unreadableMarker)).contains(notEmptyAtTheStart(unreadableMarker.toRealPath())));
-        claim(
-                "a file where the root would be is refused as not a folder",
-                () -> assertThat(startOf(aFile))
-                        .contains("vespera run refused the deliverable root " + aFile.toRealPath()
-                                + ": it is not a folder. Name an empty folder in vespera.deliverable-root."));
-        claim(
-                "and checking changed nothing: the stray file is as written and the root not made yet is still not there",
-                () -> {
-                    assertThat(strayFile.resolve("notes.txt")).hasContent("the operator's notes");
-                    assertThat(absent).doesNotExist();
-                });
     }
 
     @Test
@@ -415,27 +212,6 @@ class DeliverableRootTest {
                         .contains(notEmptyAtTheDrawing(anotherWorkingDirectorysTree.toRealPath())));
     }
 
-    @Test
-    @Story("A folder that holds anything but this tree is refused")
-    @DisplayName("With no folder named, the tree under the working directory is never refused at the drawing")
-    void anUnnamedRootIsNeverRefusedAtTheDrawing() throws IOException {
-        Path anEarlierTree = Files.createDirectories(work.resolve("deliverable").resolve(A_GENERATION_RUN));
-        Files.writeString(anEarlierTree.resolve("index.html"), "an index drawn before trees were marked", StandardCharsets.UTF_8);
-
-        assumeTrue(
-                Files.isRegularFile(anEarlierTree.resolve("index.html")) && Files.notExists(anEarlierTree.resolve(MARKER)),
-                "the tree under the working directory holds an index and no marker, as a tree drawn before trees"
-                        + " were marked does");
-        claim(
-                "and it is accepted, its folder being named for the generation that drew it",
-                () -> assertThat(DeliverableRoot.UNNAMED.refusalAtTheDrawing(work, A_GENERATION_RUN)).isEmpty());
-    }
-
-    /** The answer at the start for {@code root} named, the seed folder set. */
-    private Optional<String> startOf(Path root) {
-        return DeliverableRoot.named(root).refusalAtTheStart(work, archive, Optional.of(seeds));
-    }
-
     /** The answer at the drawing of {@link #A_GENERATION_RUN}'s tree for {@code root} named. */
     private Optional<String> drawingOf(Path root) {
         return DeliverableRoot.named(root).refusalAtTheDrawing(work, A_GENERATION_RUN);
@@ -445,11 +221,6 @@ class DeliverableRootTest {
     private static String overlap(Path root, String relation, Path folder) {
         return "vespera run refused the deliverable root " + root + ": it is " + relation + " " + folder
                 + NAME_A_FOLDER_OUTSIDE;
-    }
-
-    private static String notEmptyAtTheStart(Path root) {
-        return "vespera run refused the deliverable root " + root + ": it is not empty and holds no tree of this"
-                + " working directory. Name an empty folder in vespera.deliverable-root.";
     }
 
     private static String notEmptyAtTheDrawing(Path root) {

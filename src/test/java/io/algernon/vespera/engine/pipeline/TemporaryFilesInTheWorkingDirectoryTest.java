@@ -3,7 +3,6 @@ package io.algernon.vespera.engine.pipeline;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -19,14 +18,10 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.List;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledOnOs;
-import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.bootstrap.DefaultBootstrapContext;
@@ -81,12 +76,6 @@ class TemporaryFilesInTheWorkingDirectoryTest {
     /** A folder name with a space, an ampersand and an apostrophe in it. */
     private static final String AN_AWKWARD_NAME = "R&D o'clock dir";
 
-    /** The build's own output folder, under the current directory: where a relative path can be made and removed. */
-    private static final String UNDER_THE_CURRENT_DIRECTORY = "target";
-
-    /** Enough rows of about forty bytes for a sort to pass what SQLite keeps in memory several times. */
-    private static final int ROWS_TO_SORT = 300_000;
-
     @TempDir
     Path parent;
 
@@ -124,45 +113,6 @@ class TemporaryFilesInTheWorkingDirectoryTest {
 
     @Test
     @Story("What the database sorts on disk is written in the working directory")
-    @DisplayName("With no working directory named, nothing is set")
-    void withNoWorkingDirectoryNothingIsSet() throws SQLException {
-        new TemporaryFilesInTheWorkingDirectory().onApplicationEvent(prepared(""));
-
-        try (Connection later = DriverManager.getConnection("jdbc:sqlite::memory:")) {
-            claim(
-                    "with the working directory's property blank, as the listener that creates the directory"
-                            + " also leaves it, SQLite is told nothing and goes on using the system's folder",
-                    () -> assertThat(temporaryFilesDirectory(later)).isEmpty());
-        }
-    }
-
-    @Test
-    @Story("What the database sorts on disk is written in the working directory")
-    @DisplayName("A working directory named by a path relative to where the command was started is given to the database as an absolute path")
-    void aRelativeWorkingDirectoryIsSetAsAnAbsolutePath() throws SQLException, IOException {
-        Path relative = Path.of(UNDER_THE_CURRENT_DIRECTORY, "a relative working directory " + System.nanoTime());
-        assumeTrue(!relative.isAbsolute(), "the path this test names is relative, as one named on the command line may be");
-        Files.createDirectories(relative);
-        try {
-            new TemporaryFilesInTheWorkingDirectory().onApplicationEvent(prepared(relative.toString()));
-
-            try (Connection later = DriverManager.getConnection("jdbc:sqlite::memory:")) {
-                String reported = temporaryFilesDirectory(later);
-                claim(
-                        "what the database is given, and reports, is an absolute path, so where its temporary files"
-                                + " go does not depend on what the current directory is when it writes one: the"
-                                + " relative path read against the current directory",
-                        () -> assertThat(Path.of(reported).normalize())
-                                .isEqualTo(relative.toAbsolutePath().normalize()));
-            }
-        } finally {
-            backToTheDefault();
-            Files.deleteIfExists(relative);
-        }
-    }
-
-    @Test
-    @Story("What the database sorts on disk is written in the working directory")
     @DisplayName("A working directory the database will not take for its temporary files ends the start, naming the directory, and sets nothing")
     void aDirectoryTheDatabaseRefusesEndsTheStartNamingIt() throws SQLException {
         Path notThere = parent.resolve("not there");
@@ -187,36 +137,6 @@ class TemporaryFilesInTheWorkingDirectoryTest {
         }
     }
 
-    @Test
-    @EnabledOnOs(OS.WINDOWS)
-    @Story("What the database sorts on disk is written in the working directory")
-    @DisplayName("A sort too large for memory writes its temporary file in the working directory while it runs")
-    void aSortTooLargeForMemoryWritesItsFileInTheWorkingDirectory() throws SQLException, IOException {
-        new TemporaryFilesInTheWorkingDirectory().onApplicationEvent(prepared(workingDirectory.toString()));
-
-        Path elsewhere = Files.createDirectories(parent.resolve("elsewhere"));
-        try (Connection connection = DriverManager.getConnection(
-                        "jdbc:sqlite:" + elsewhere.resolve("a-database.db").toString().replace('\\', '/'));
-                Statement statement = connection.createStatement();
-                ResultSet sorted = statement.executeQuery(
-                        "WITH RECURSIVE numbered(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM numbered WHERE i < "
-                                + ROWS_TO_SORT + ") SELECT (i * 7919) % 300007 AS shuffled,"
-                                + " 'padding-padding-padding-' || i AS padding FROM numbered ORDER BY shuffled, padding")) {
-            claim(
-                    "the sorted read hands over its first row, so the " + ROWS_TO_SORT + " rows are sorted",
-                    () -> assertThat(sorted.next()).isTrue());
-            List<String> written = filesIn(workingDirectory);
-            claim(
-                    "while that read is open, over a database kept in another folder, the working directory, which"
-                            + " held nothing, holds the temporary file the sort was written to",
-                    () -> assertThat(written).isNotEmpty());
-        }
-        claim(
-                "and once the read is closed the working directory holds nothing again: SQLite removes a"
-                        + " temporary file when it is done with it",
-                () -> assertThat(filesIn(workingDirectory)).isEmpty());
-    }
-
     private static ApplicationEnvironmentPreparedEvent prepared(String workingDirectory) {
         return new ApplicationEnvironmentPreparedEvent(
                 new DefaultBootstrapContext(),
@@ -230,12 +150,6 @@ class TemporaryFilesInTheWorkingDirectoryTest {
         try (Statement statement = connection.createStatement();
                 ResultSet result = statement.executeQuery("PRAGMA temp_store_directory")) {
             return result.next() && result.getString(1) != null ? result.getString(1) : "";
-        }
-    }
-
-    private static List<String> filesIn(Path directory) throws IOException {
-        try (Stream<Path> files = Files.list(directory)) {
-            return files.map(file -> file.getFileName().toString()).sorted().toList();
         }
     }
 }

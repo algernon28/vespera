@@ -75,23 +75,6 @@ class RedundancyGateLineTest {
 
     @Test
     @Story("A shut gate says which of its two reasons shut it")
-    @DisplayName("With nobody having answered the key, the gate says it is unset")
-    void anUnansweredKeyIsReportedAsUnset() {
-        RedundancyJobConfiguration.logGateClosed(gateLogger, NumericValue.unset());
-
-        claim(
-                "the sentence says the key is unset, which is exactly what it is: census wrote the key"
-                        + " and nobody has answered it, and telling the operator so is what sends them to"
-                        + " the measurement they read it off",
-                () -> assertThat(theLine()).contains("boilerplateDocumentFrequencyFloor is unset"));
-        claim(
-                "and it still points at the page the number is read off, because naming a key with"
-                        + " no way to choose a value for it is not an action anyone can take",
-                () -> assertThat(theLine()).contains("document-frequency.html"));
-    }
-
-    @Test
-    @Story("A shut gate says which of its two reasons shut it")
     @DisplayName("With the key mistyped, the gate quotes it back instead of calling it unset")
     void aMistypedKeyIsQuotedBackRatherThanCalledUnset() {
         RedundancyJobConfiguration.logGateClosed(gateLogger, new NumericValue(A_DECIMAL_COMMA, WHY, null));

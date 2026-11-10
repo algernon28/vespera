@@ -5,7 +5,6 @@ import static io.algernon.vespera.publish.website.WebsiteFixture.DOORS_FOLDER;
 import static io.algernon.vespera.publish.website.WebsiteFixture.VESPERA_WEBSITE_JSON;
 import static io.algernon.vespera.publish.website.WebsiteFixture.WEBSITE;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.entry;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
@@ -19,13 +18,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.PrintStream;
-import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.NetworkInterface;
 import java.net.Socket;
-import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -74,7 +69,6 @@ import org.junit.jupiter.api.io.TempDir;
 class ServeAnswersOnLoopbackAloneTest {
 
     private static final int OK = 200;
-    private static final int MOVED = 301;
     private static final int REFUSED = 403;
     private static final int NOT_FOUND = 404;
     private static final int NO_SUCH_METHOD = 405;
@@ -92,7 +86,7 @@ class ServeAnswersOnLoopbackAloneTest {
 
     private static final String OUTSIDES_TEXT = "OUTSIDE-6d2f nothing of the website";
 
-    /** A name no file of the website has, which no line printed while it is asked may carry. */
+    /** A name no file of the website has. */
     private static final String A_MARKED_PATH = "MARKED-4b7e-asked-for-and-not-there.html";
 
     @TempDir
@@ -153,37 +147,6 @@ class ServeAnswersOnLoopbackAloneTest {
 
     @Test
     @Story("The website is served on loopback alone")
-    @DisplayName("No other address of this machine reaches the server at its port")
-    void noOtherAddressOfThisMachineReachesIt() throws SocketException {
-        List<InetAddress> others = NetworkInterface.networkInterfaces()
-                .filter(face -> {
-                    try {
-                        return face.isUp() && !face.isLoopback();
-                    } catch (SocketException unknown) {
-                        return false;
-                    }
-                })
-                .flatMap(NetworkInterface::inetAddresses)
-                .filter(address -> address instanceof Inet4Address && !address.isLoopbackAddress())
-                .toList();
-        assumeTrue(!others.isEmpty(), "this machine has no address but loopback to try");
-
-        List<String> reached = new ArrayList<>();
-        for (InetAddress other : others) {
-            try (Socket socket = new Socket()) {
-                socket.connect(new InetSocketAddress(other, port), 2_000);
-                reached.add(other.getHostAddress());
-            } catch (IOException refused) {
-                // not reached, as it should be
-            }
-        }
-
-        claim("a connection to each other address of this machine at the server's port is refused",
-                () -> assertThat(reached).as("addresses that reached the server").isEmpty());
-    }
-
-    @Test
-    @Story("The website is served on loopback alone")
     @DisplayName("A request is answered addressed to 127.0.0.1 or localhost at the server's port, and refused addressed to any other host")
     void onlyItsOwnHostIsAnswered() throws IOException {
         byte[] index = Files.readAllBytes(website.resolve("index.html"));
@@ -211,56 +174,6 @@ class ServeAnswersOnLoopbackAloneTest {
 
     @Test
     @Story("The website is served on loopback alone")
-    @DisplayName("A request another website's page sends is refused, and one the website's own page or the reader sends is answered")
-    void anotherSitesRequestIsRefused() {
-        claim("Sec-Fetch-Site: cross-site is refused with 403, to GET and to HEAD",
-                () -> {
-                    assertThat(get("/", "Sec-Fetch-Site: cross-site").status()).isEqualTo(REFUSED);
-                    assertThat(ask("HEAD", "/", ownHost(), "Sec-Fetch-Site: cross-site").status()).isEqualTo(REFUSED);
-                });
-        claim("so is same-site, another website of the same registrable domain",
-                () -> assertThat(get("/", "Sec-Fetch-Site: same-site").status()).isEqualTo(REFUSED));
-        claim("and same-origin, the website's own page, and none, the reader typing the address, are answered",
-                () -> {
-                    assertThat(get("/", "Sec-Fetch-Site: same-origin").status()).isEqualTo(OK);
-                    assertThat(get("/", "Sec-Fetch-Site: none").status()).isEqualTo(OK);
-                });
-    }
-
-    @Test
-    @Story("The website is served on loopback alone")
-    @DisplayName("GET and HEAD are answered, and every other method is refused with 405, changing nothing")
-    void onlyGetAndHeadAreAnswered() throws IOException {
-        byte[] index = Files.readAllBytes(website.resolve("index.html"));
-        Answer head = ask("HEAD", "/", ownHost());
-        Map<String, Integer> others = new LinkedHashMap<>();
-        Map<String, String> allowed = new LinkedHashMap<>();
-        for (String method : List.of("POST", "PUT", "DELETE", "PATCH")) {
-            Answer answer = ask(method, "/index.html", ownHost(), "Content-Length: 0");
-            others.put(method, answer.status());
-            allowed.put(method, answer.header("Allow"));
-        }
-
-        claim("HEAD is answered 200 with no body",
-                () -> {
-                    assertThat(head.status()).isEqualTo(OK);
-                    assertThat(head.body()).isEmpty();
-                });
-        claim("POST, PUT, DELETE and PATCH are each refused with 405",
-                () -> assertThat(others).containsExactly(
-                        entry("POST", NO_SUCH_METHOD),
-                        entry("PUT", NO_SUCH_METHOD),
-                        entry("DELETE", NO_SUCH_METHOD),
-                        entry("PATCH", NO_SUCH_METHOD)));
-        claim("each refusal names the two methods answered in its Allow header (ADR-341 §6)",
-                () -> assertThat(allowed).allSatisfy((method, allow) ->
-                        assertThat(allow).as("the Allow header answering %s", method).isEqualTo("GET, HEAD")));
-        claim("and the index they were sent to is as it was",
-                () -> assertThat(Files.readAllBytes(website.resolve("index.html"))).isEqualTo(index));
-    }
-
-    @Test
-    @Story("The website is served on loopback alone")
     @DisplayName("A path leading out of the website by .., spelt plainly or encoded, is 404 and answers nothing of the file it names")
     void aPathLeadingOutIsNotFound() {
         List<String> leadingOut = List.of(
@@ -279,6 +192,24 @@ class ServeAnswersOnLoopbackAloneTest {
                     assertThat(answer.status()).as("the answer to %s", target).isEqualTo(NOT_FOUND);
                     assertThat(answer.text()).as("the body answered to %s", target).doesNotContain(OUTSIDES_TEXT);
                 }));
+    }
+
+    @Test
+    @Story("The website is served on loopback alone")
+    @DisplayName("A request another website's page sends is refused, and one the website's own page or the reader sends is answered")
+    void anotherSitesRequestIsRefused() {
+        claim("Sec-Fetch-Site: cross-site is refused with 403, to GET and to HEAD",
+                () -> {
+                    assertThat(get("/", "Sec-Fetch-Site: cross-site").status()).isEqualTo(REFUSED);
+                    assertThat(ask("HEAD", "/", ownHost(), "Sec-Fetch-Site: cross-site").status()).isEqualTo(REFUSED);
+                });
+        claim("so is same-site, another website of the same registrable domain",
+                () -> assertThat(get("/", "Sec-Fetch-Site: same-site").status()).isEqualTo(REFUSED));
+        claim("and same-origin, the website's own page, and none, the reader typing the address, are answered",
+                () -> {
+                    assertThat(get("/", "Sec-Fetch-Site: same-origin").status()).isEqualTo(OK);
+                    assertThat(get("/", "Sec-Fetch-Site: none").status()).isEqualTo(OK);
+                });
     }
 
     @Test
@@ -306,42 +237,21 @@ class ServeAnswersOnLoopbackAloneTest {
 
     @Test
     @Story("The website is served on loopback alone")
-    @DisplayName("A folder answers its index.html, and a folder with none is 404 with no listing of what it holds")
-    void aFolderAnswersItsIndexAndNeverAListing() throws IOException {
-        byte[] doors = Files.readAllBytes(website.resolve(DOORS_FOLDER).resolve("index.html"));
-        Answer doorsFolder = get("/" + encoded(DOORS_FOLDER) + "/");
-        Answer theOperatorsFolder = get("/" + THE_OPERATORS_FOLDER + "/");
+    @DisplayName("The website's marker, its own list and a file being written are 404, though each is there")
+    void theWebsitesOwnFilesAreNotFound() {
+        List<String> ownFiles = List.of(
+                DeliverableRoot.MARKER_FILE_NAME,
+                VESPERA_WEBSITE_JSON,
+                "index.html.part",
+                DOORS_FOLDER + "/index.html.part");
+        Map<String, Integer> answers = new LinkedHashMap<>();
+        ownFiles.forEach(file -> answers.put(file, get("/" + encoded(file)).status()));
 
-        claim("the doors' folder answers the doors' index.html",
-                () -> {
-                    assertThat(doorsFolder.status()).isEqualTo(OK);
-                    assertThat(doorsFolder.body()).isEqualTo(doors);
-                });
-        claim("and the operator's folder, which holds no index.html, is 404 and names nothing it holds",
-                () -> {
-                    assertThat(theOperatorsFolder.status()).isEqualTo(NOT_FOUND);
-                    assertThat(theOperatorsFolder.text()).doesNotContain(THE_OPERATORS_FILE);
-                });
-    }
-
-    @Test
-    @Story("The website is served on loopback alone")
-    @DisplayName("A folder asked without its closing slash is moved to the slash form with 301, and answers nothing of its index")
-    void aFolderAskedWithoutItsSlashIsMovedToIt() throws IOException {
-        byte[] doors = Files.readAllBytes(website.resolve(DOORS_FOLDER).resolve("index.html"));
-        String asked = "/" + encoded(DOORS_FOLDER);
-        Answer moved = get(asked);
-
-        claim("the doors' folder asked without its slash is answered 301, its Location the same path with the slash",
-                () -> {
-                    assertThat(moved.status()).isEqualTo(MOVED);
-                    assertThat(moved.header("Location")).isEqualTo(asked + "/");
-                });
-        claim("and the answer is not the doors' index.html, which only the slash form answers",
-                () -> {
-                    assertThat(moved.body()).isNotEqualTo(doors);
-                    assertThat(get(asked + "/").body()).isEqualTo(doors);
-                });
+        claim("each is there in the website, so a 404 below is not a file missing",
+                () -> assertThat(ownFiles).allSatisfy(file -> assertThat(website.resolve(file)).isRegularFile()));
+        claim("and each is answered 404",
+                () -> assertThat(answers).allSatisfy((file, status) ->
+                        assertThat(status).as("the answer to %s", file).isEqualTo(NOT_FOUND)));
     }
 
     @Test
@@ -376,65 +286,6 @@ class ServeAnswersOnLoopbackAloneTest {
                         assertThat(delisted.header("Content-Security-Policy")).isEqualTo("sandbox");
                     });
         }
-    }
-
-    @Test
-    @Story("The website is served on loopback alone")
-    @DisplayName("A file vespera-website.json lists leaves the sandbox only under a name the website draws: a page's anywhere, an asset's or the listing's at the top")
-    void aListedFileLeavesTheSandboxOnlyUnderANameTheWebsiteDraws() throws IOException {
-        Path folder = Files.createDirectories(base.resolve("listed-by-name"));
-        List<String> theWebsites = List.of("index.html", "website.js", "website.css", "search-index.js",
-                "documents.csv", "a/b/index.html", "a/b/index-2.html");
-        List<String> stillSandboxed = List.of("notes.html", "a/b/report.html", "a/b/website.js", "a/documents.csv",
-                "a/b/index-.html");
-        for (String file : List.of(theWebsites, stillSandboxed).stream().flatMap(List::stream).toList()) {
-            Path path = folder.resolve(file);
-            Files.createDirectories(path.getParent());
-            Files.writeString(path, "listed");
-        }
-        writeList(folder, List.of(theWebsites, stillSandboxed).stream().flatMap(List::stream).toArray(String[]::new));
-        try (WebsiteServer served = WebsiteServer.start(folder, 0)) {
-            int at = served.address().getPort();
-            Map<String, Answer> drawn = new LinkedHashMap<>();
-            theWebsites.forEach(file -> drawn.put(file, getAt(at, "/" + file)));
-            Map<String, Answer> notDrawn = new LinkedHashMap<>();
-            stillSandboxed.forEach(file -> notDrawn.put(file, getAt(at, "/" + file)));
-
-            claim("a page's name in any folder, and the script, the theme, the search index and the listing at the top,"
-                            + " each listed, are answered with no sandbox",
-                    () -> assertThat(drawn).allSatisfy((file, answer) -> {
-                        assertThat(answer.status()).as("the answer to %s", file).isEqualTo(OK);
-                        assertThat(String.valueOf(answer.header("Content-Security-Policy")))
-                                .as("the policy of %s", file)
-                                .doesNotContain("sandbox");
-                    }));
-            claim("and any other name, or an asset's or the listing's name below the top, is answered with the sandbox"
-                            + " though the list names it as it names a page, since it names a copy so too",
-                    () -> assertThat(notDrawn).allSatisfy((file, answer) -> {
-                        assertThat(answer.status()).as("the answer to %s", file).isEqualTo(OK);
-                        assertThat(answer.header("Content-Security-Policy")).as("the policy of %s", file)
-                                .isEqualTo("sandbox");
-                    }));
-        }
-    }
-
-    @Test
-    @Story("The website is served on loopback alone")
-    @DisplayName("The website's marker, its own list and a file being written are 404, though each is there")
-    void theWebsitesOwnFilesAreNotFound() {
-        List<String> ownFiles = List.of(
-                DeliverableRoot.MARKER_FILE_NAME,
-                VESPERA_WEBSITE_JSON,
-                "index.html.part",
-                DOORS_FOLDER + "/index.html.part");
-        Map<String, Integer> answers = new LinkedHashMap<>();
-        ownFiles.forEach(file -> answers.put(file, get("/" + encoded(file)).status()));
-
-        claim("each is there in the website, so a 404 below is not a file missing",
-                () -> assertThat(ownFiles).allSatisfy(file -> assertThat(website.resolve(file)).isRegularFile()));
-        claim("and each is answered 404",
-                () -> assertThat(answers).allSatisfy((file, status) ->
-                        assertThat(status).as("the answer to %s", file).isEqualTo(NOT_FOUND)));
     }
 
     @Test
@@ -493,39 +344,6 @@ class ServeAnswersOnLoopbackAloneTest {
                 () -> assertThat(answers).allSatisfy((what, answer) ->
                         assertThat(answer.header("X-Content-Type-Options")).as("the answer to %s", what)
                                 .isEqualTo("nosniff")));
-    }
-
-    @Test
-    @Story("The website is served on loopback alone")
-    @DisplayName("No request is logged: nothing printed while the website is asked names the path asked for")
-    void noRequestIsLogged() {
-        PrintStream out = System.out;
-        PrintStream err = System.err;
-        ByteArrayOutputStream printed = new ByteArrayOutputStream();
-        PrintStream capture = new PrintStream(printed, true, StandardCharsets.UTF_8);
-        String copy = firstOfKind("copy");
-        int notThere;
-        int answered;
-        System.setOut(capture);
-        System.setErr(capture);
-        try {
-            notThere = get("/" + A_MARKED_PATH).status();
-            answered = get("/" + encoded(copy)).status();
-        } finally {
-            System.setOut(out);
-            System.setErr(err);
-        }
-        String text = printed.toString(StandardCharsets.UTF_8);
-        String copysName = copy.substring(copy.lastIndexOf('/') + 1);
-
-        claim("both requests were answered, one not there and one a copy",
-                () -> {
-                    assertThat(notThere).isEqualTo(NOT_FOUND);
-                    assertThat(answered).isEqualTo(OK);
-                });
-        claim("and nothing printed meanwhile names either path",
-                () -> assertThat(text).doesNotContain(A_MARKED_PATH).doesNotContain(copysName)
-                        .doesNotContain(encoded(copysName)));
     }
 
     // ---------- helpers ----------

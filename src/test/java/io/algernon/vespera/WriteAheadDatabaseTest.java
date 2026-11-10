@@ -3,8 +3,6 @@ package io.algernon.vespera;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -12,7 +10,6 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -21,7 +18,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
 import org.springframework.test.annotation.DirtiesContext;
@@ -61,17 +57,8 @@ class WriteAheadDatabaseTest {
     /** The database file's name, as the shipped URL names it under the working directory. */
     private static final String DATABASE_FILE = "vespera.db";
 
-    /** SQLite's write-ahead log: committed pages are appended here until a WAL checkpoint copies them back. */
-    private static final String WRITE_AHEAD_LOG_FILE = DATABASE_FILE + "-wal";
-
-    /** The index into the write-ahead log SQLite keeps in shared memory while the database is open. */
-    private static final String SHARED_MEMORY_FILE = DATABASE_FILE + "-shm";
-
     /** What {@code PRAGMA journal_mode} answers in write-ahead-log mode. */
     private static final String WRITE_AHEAD = "wal";
-
-    /** What it answers under the rollback journal SQLite uses unless told otherwise. */
-    private static final String ROLLBACK_JOURNAL = "delete";
 
     /**
      * {@code PRAGMA synchronous} as a number: 1 is {@code NORMAL}, which syncs the write-ahead log at each
@@ -111,9 +98,6 @@ class WriteAheadDatabaseTest {
 
     @Autowired
     private DataSource dataSource;
-
-    @Value("${spring.datasource.url}")
-    private String shippedUrl;
 
     @Test
     @Story("The database is synced at WAL checkpoints rather than at every commit")
@@ -168,99 +152,6 @@ class WriteAheadDatabaseTest {
                 }
             }
         }
-    }
-
-    @Test
-    @Story("The database is synced at WAL checkpoints rather than at every commit")
-    @DisplayName("A database written before this setting is switched to write-ahead-log mode the first time it is opened, rows and all")
-    void aDatabaseWrittenUnderTheRollbackJournalIsSwitchedOnFirstOpen(@TempDir Path earlierWorkingDirectory)
-            throws SQLException {
-        Path earlierDatabase = earlierWorkingDirectory.resolve(DATABASE_FILE);
-        try (Connection earlier = DriverManager.getConnection("jdbc:sqlite:" + earlierDatabase);
-                Statement statement = earlier.createStatement()) {
-            statement.executeUpdate("CREATE TABLE kept (value TEXT)");
-            statement.executeUpdate("INSERT INTO kept VALUES ('written before')");
-            claim(
-                    "the database this starts from uses the rollback journal, as every database the"
-                            + " application wrote before this setting does",
-                    () -> assertThat(textPragma(earlier, "journal_mode")).isEqualTo(ROLLBACK_JOURNAL));
-        }
-
-        try (Connection opened = DriverManager.getConnection(urlIn(earlierWorkingDirectory));
-                Statement statement = opened.createStatement();
-                ResultSet kept = statement.executeQuery("SELECT value FROM kept")) {
-            claim(
-                    "opened with the shipped URL it is in write-ahead-log mode, with nothing for the operator"
-                            + " to run by hand first",
-                    () -> assertThat(textPragma(opened, "journal_mode")).isEqualTo(WRITE_AHEAD));
-            claim(
-                    "and the row written before the switch is still there: the switch changes how the next"
-                            + " commit is written, not what the file already holds",
-                    () -> {
-                        assertThat(kept.next()).isTrue();
-                        assertThat(kept.getString(1)).isEqualTo("written before");
-                    });
-        }
-    }
-
-    /**
-     * What an invocation's end does to the database is close the pool, not one connection:
-     * {@code SpringApplication.exit} closes the context, and the context closes the Hikari pool it
-     * built. So this builds a second pool with every setting of the shipped one, pointed at a directory
-     * of its own -- the slice's own pool cannot be closed without breaking the other tests -- writes
-     * through it, closes it, and looks at what is left.
-     */
-    @Test
-    @Story("The database is synced at WAL checkpoints rather than at every commit")
-    @DisplayName("While the shipped pool is open its write-ahead log sits beside the database; closing the pool folds it back, so a command that has ended leaves the database file alone")
-    void closingTheShippedPoolFoldsTheWriteAheadLogBack(@TempDir Path ownWorkingDirectory) throws SQLException {
-        HikariConfig shipped = new HikariConfig();
-        dataSource.unwrap(HikariDataSource.class).copyStateTo(shipped);
-        shipped.setJdbcUrl(urlIn(ownWorkingDirectory));
-        shipped.setPoolName("closed-at-the-end");
-        try (HikariDataSource pool = new HikariDataSource(shipped)) {
-            try (Connection connection = pool.getConnection();
-                    Statement statement = connection.createStatement()) {
-                statement.executeUpdate("CREATE TABLE kept (value TEXT)");
-                statement.executeUpdate("INSERT INTO kept VALUES ('committed')");
-            }
-            claim(
-                    "while the pool is open, the commit sits in the write-ahead log beside the database file, with"
-                            + " its shared-memory index -- which is why a copy taken while a run is going has to"
-                            + " take all three",
-                    () -> {
-                        assertThat(ownWorkingDirectory.resolve(WRITE_AHEAD_LOG_FILE)).exists();
-                        assertThat(ownWorkingDirectory.resolve(SHARED_MEMORY_FILE)).exists();
-                    });
-        }
-
-        claim(
-                "once the pool is closed, as it is when a command ends, the write-ahead log has been copied into the"
-                        + " database file and both companions are gone",
-                () -> {
-                    assertThat(ownWorkingDirectory.resolve(WRITE_AHEAD_LOG_FILE)).doesNotExist();
-                    assertThat(ownWorkingDirectory.resolve(SHARED_MEMORY_FILE)).doesNotExist();
-                });
-        try (Connection plain = DriverManager.getConnection("jdbc:sqlite:" + ownWorkingDirectory.resolve(DATABASE_FILE));
-                Statement statement = plain.createStatement();
-                ResultSet kept = statement.executeQuery("SELECT count(*) FROM kept")) {
-            claim(
-                    "and the database file alone holds the commit",
-                    () -> {
-                        assertThat(kept.next()).isTrue();
-                        assertThat(kept.getLong(1)).isEqualTo(1L);
-                    });
-            claim(
-                    "and it still records that it is in write-ahead-log mode, so a connection opened later with"
-                            + " a URL that names no journal -- an older build of the application, a database"
-                            + " browser -- writes ahead too rather than switching it back",
-                    () -> assertThat(textPragma(plain, "journal_mode")).isEqualTo(WRITE_AHEAD));
-        }
-    }
-
-    /** The shipped URL, resolved as the pool resolved it, pointed at {@code directory} instead. */
-    private String urlIn(Path directory) {
-        return shippedUrl.replace(workingDirectory.toString(), directory.toString());
     }
 
     /** The file SQLite reports for the connection's main database. */

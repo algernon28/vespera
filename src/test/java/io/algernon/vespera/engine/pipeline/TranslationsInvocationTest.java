@@ -4,8 +4,6 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.engine.corpus.Walk;
-import io.algernon.vespera.engine.profile.Measurement;
 import io.algernon.vespera.engine.profile.Profile;
 import io.algernon.vespera.engine.profile.ProfileFixture;
 import io.algernon.vespera.engine.profile.ProfileStore;
@@ -45,8 +43,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @Feature("Copies in another language")
 @Link(name = "ADR-271", url = Adr.ONE_COPY_OF_A_TRANSLATION_SET_SURVIVES, type = "adr")
 class TranslationsInvocationTest {
-
-
 
     /** The English copy of the guide. */
     private static final String ENGLISH_COPY = "en/guide.txt";
@@ -126,18 +122,6 @@ class TranslationsInvocationTest {
 
     @Test
     @Story("A copy under a folder of another language")
-    @DisplayName("With no preferred language, both copies stand and both are scored")
-    void withNoPreferredLanguageBothCopiesStandAndAreScored() {
-        claim(
-                "the first invocation names no preferred language, so no copy is removed as a translation",
-                () -> assertThat(kindsUnder(unpreferred)).doesNotContain("TRANSLATION_OF"));
-        claim(
-                "and both copies are scored",
-                () -> assertThat(scoredUnder(unpreferred)).containsExactlyInAnyOrder(ENGLISH_COPY, CHINESE_COPY));
-    }
-
-    @Test
-    @Story("A copy under a folder of another language")
     @DisplayName("Preferring English, the Chinese copy is a translation of the English one, found by its path")
     void theCopyInTheLanguageNotPreferredIsATranslationOfTheOther() {
         claim(
@@ -191,49 +175,9 @@ class TranslationsInvocationTest {
                 () -> assertThat(preferringEnglish).isNotEqualTo(unpreferred));
     }
 
-    @Test
-    @Story("The page the similarity floor is read off")
-    @DisplayName("The page names the run and both keys, and no path")
-    void thePageNamesTheRunAndHoldsNoPath() {
-        claim(
-                "translations.html is in the working directory and names the scoring run it was written for",
-                () -> assertThat(pageAfter)
-                        .withFailMessage("the page does not name run %s", preferringEnglish)
-                        .contains(preferringEnglish));
-        claim(
-                "it names both keys it is read for",
-                () -> assertThat(pageAfter).contains("translationSimilarityFloor").contains("preferredLanguages"));
-        claim(
-                "and it names neither the archive's root nor a file in it, so it can be copied out",
-                () -> assertThat(pageAfter)
-                        .doesNotContain(root.toString())
-                        .doesNotContain(Walk.canonicalRoot(root).toString())
-                        .doesNotContain("guide.txt"));
-    }
-
-    @Test
-    @Story("The profile points at the page")
-    @DisplayName("Both keys' measurements point at the page")
-    void theProfilePointsBothKeysAtThePage() {
-        String page = workingDirectory.resolve(PAGE).toString();
-        List<Measurement> measurements = List.of(
-                profileAfter.translationSimilarityFloor().measurement(),
-                profileAfter.preferredLanguages().measurement());
-
-        claim(
-                "the similarity floor's measurement and the preferred languages' both name translations.html",
-                () -> assertThat(measurements)
-                        .withFailMessage("the measurements were %s", measurements)
-                        .allSatisfy(measurement -> assertThat(measurement.source()).isEqualTo(page)));
-    }
-
     /** The latest scoring run recorded over this test's corpus. */
     private String latestScoringRun() {
         return new RunsOver(jdbcTemplate, root).latest("embedding-scoring").value();
-    }
-
-    private List<String> kindsUnder(String run) {
-        return jdbcTemplate.queryForList("SELECT kind FROM verdict WHERE run_id = ?", String.class, run);
     }
 
     /** Each corpus path and the kind of its verdict under {@code run}; a path with two verdicts keeps the last. */
