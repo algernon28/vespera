@@ -1,0 +1,179 @@
+{
+  "type": "object",
+  "description": "The survivor list of the files stage 2 read and kept: what its page shows, as JSON (ADR-362 section 9), format 1.",
+  "properties": {
+    "format": {
+      "const": 1,
+      "description": "The report's format, the integer AnalysisReportJson.FORMATS holds for it; raised by a change that removes, renames or retypes a field."
+    },
+    "analysisReport": {
+      "type": "string",
+      "description": "The report's name.",
+      "enum": [
+        "extraction-survivors"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "description": "The page's title."
+    },
+    "writtenAt": {
+      "type": "string",
+      "description": "The instant it was written, ISO 8601 in UTC with Z, to the millisecond."
+    },
+    "headline": {
+      "type": "array",
+      "description": "The few numbers the page states first, numbers alone.",
+      "items": {
+        "type": "object",
+        "description": "One figure of the headline.",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The figure's key.",
+            "enum": [
+              "cameThrough"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "description": "The figure's label."
+          },
+          "value": {
+            "type": "number",
+            "description": "The figure's value."
+          },
+          "unit": {
+            "type": "string",
+            "description": "The figure's unit.",
+            "enum": [
+              "count",
+              "share",
+              "bytes",
+              "seconds",
+              "number"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "value",
+          "unit"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "sections": {
+      "type": "array",
+      "description": "The page's parts, in its order.",
+      "items": {
+        "type": "object",
+        "description": "The one section of the page: its paragraphs and its table.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The section's id.",
+            "enum": [
+              "survivors"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "The section's title."
+          },
+          "text": {
+            "type": "array",
+            "description": "The section's paragraphs, in order.",
+            "items": {
+              "type": "string",
+              "description": "One paragraph."
+            }
+          },
+          "chart": {
+            "type": "null",
+            "description": "The section's chart; none."
+          },
+          "table": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The section's table; null where the page shows none, because no file is listed.",
+            "properties": {
+              "columns": {
+                "type": "array",
+                "description": "The table's columns, in the page's order.",
+                "items": {
+                  "type": "object",
+                  "description": "One column of the table.",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "The column's id."
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "The column's label."
+                    },
+                    "kind": {
+                      "type": "string",
+                      "description": "The column's kind.",
+                      "enum": [
+                        "text",
+                        "count",
+                        "share",
+                        "number",
+                        "bytes",
+                        "seconds",
+                        "instant",
+                        "path",
+                        "analysisReport"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "rows": {
+                "type": "array",
+                "description": "The table's rows, in the page's order, each a list of cells in the columns' order; a count is a JSON integer and a cell with nothing to hold is null.",
+                "items": {
+                  "type": "array",
+                  "description": "One row: a cell for each column."
+                }
+              }
+            },
+            "required": [
+              "columns",
+              "rows"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "text",
+          "chart",
+          "table"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "format",
+    "analysisReport",
+    "title",
+    "writtenAt",
+    "headline",
+    "sections"
+  ],
+  "additionalProperties": false
+}

@@ -67,7 +67,7 @@ class RedundancyResolutionTasklet implements Tasklet {
             // Silent on purpose (#135). Stage 4a's reader has already said what this gate wants, and
             // one gate with one missing value and one action was printing its whole paragraph twice in
             // a row -- once here and once there -- which reads as two problems.
-            ShutGates.in(chunkContext).record(StepNames.CONTENT_REDUNDANCY);
+            ShutGates.in(chunkContext).record(StepNames.CONTENT_REDUNDANCY, "boilerplateDocumentFrequencyFloor");
             return RepeatStatus.FINISHED;
         }
 
@@ -88,7 +88,7 @@ class RedundancyResolutionTasklet implements Tasklet {
                 },
                 () -> {
                     LOG.info("Stage 4b (redundancy resolution) starting under run {}", runId.value());
-                    ProgressPage.entered(TimedStatement.of(
+                    JobSampler.entered(TimedStatement.of(
                             STAGE, "counting", "counted", "the survivors it judges",
                             () -> ledger.verdicts().survivorCount(runId)));
                     Set<Long> boilerplateHashes = redundancyBoilerplateProvider.getObject().hashes();

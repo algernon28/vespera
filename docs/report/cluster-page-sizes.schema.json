@@ -1,0 +1,249 @@
+{
+  "type": "object",
+  "description": "The group page sizes, written beside cluster-page-sizes.html by the drawing of the tree (ADR-362 section 9): what its page shows, as data.",
+  "properties": {
+    "format": {
+      "const": 1,
+      "description": "The format of this file, raised when a field is removed, renamed or changed in meaning or type."
+    },
+    "analysisReport": {
+      "type": "string",
+      "const": "cluster-page-sizes",
+      "description": "The report's name."
+    },
+    "title": {
+      "type": "string",
+      "description": "The page's title."
+    },
+    "writtenAt": {
+      "type": "string",
+      "description": "The instant it was written, ISO 8601 in UTC with Z, to the millisecond."
+    },
+    "headline": {
+      "type": "array",
+      "description": "The few numbers the page states first: groups, a count, and the largest page, the 95th percentile and the median, each in bytes; the three sizes are left out where the tree holds no group.",
+      "items": {
+        "type": "object",
+        "description": "One figure.",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Its key, one of groups, largest, percentile-95 and median.",
+            "enum": [
+              "groups",
+              "largest",
+              "percentile-95",
+              "median"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "description": "Its label."
+          },
+          "value": {
+            "type": "integer",
+            "description": "Its value."
+          },
+          "unit": {
+            "type": "string",
+            "description": "Its unit; count for groups and bytes for the three sizes.",
+            "enum": [
+              "count",
+              "share",
+              "bytes",
+              "seconds",
+              "number"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "value",
+          "unit"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "sections": {
+      "type": "array",
+      "description": "The page's parts in its order, by the ids the id field names: about, ceiling, pages-written-whole, groups-larger-than-a-mark, what-the-ceiling-split, only where the ceiling is set to a number of bytes, and the-largest.",
+      "items": {
+        "type": "object",
+        "description": "One part of the page.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Its id.",
+            "enum": [
+              "about",
+              "ceiling",
+              "pages-written-whole",
+              "groups-larger-than-a-mark",
+              "what-the-ceiling-split",
+              "the-largest"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "Its title; the page's own for about."
+          },
+          "text": {
+            "type": "array",
+            "description": "Its paragraphs, in plain text; the one of about, and none for the others.",
+            "items": {
+              "type": "string",
+              "description": "A paragraph."
+            }
+          },
+          "chart": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Its chart; null for every part, the page drawing none.",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "description": "bars or lines.",
+                "enum": [
+                  "bars",
+                  "lines"
+                ]
+              },
+              "x": {
+                "type": "string",
+                "description": "The id of the column the chart is drawn along.",
+                "enum": [
+                  "setting",
+                  "reading",
+                  "measure",
+                  "value",
+                  "rank",
+                  "bytes",
+                  "documents-listed",
+                  "pages-written"
+                ]
+              },
+              "series": {
+                "type": "array",
+                "description": "The ids of the columns it draws.",
+                "items": {
+                  "type": "string",
+                  "description": "A column's id.",
+                  "enum": [
+                    "setting",
+                    "reading",
+                    "measure",
+                    "value",
+                    "rank",
+                    "bytes",
+                    "documents-listed",
+                    "pages-written"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "kind",
+              "x",
+              "series"
+            ],
+            "additionalProperties": false
+          },
+          "table": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Its table; null for about. ceiling holds one row of setting and reading, both text; pages-written-whole one row each of the groups, the largest page, the 95th percentile and the median, as measure and value, the value a number or null where the tree holds no group; groups-larger-than-a-mark and what-the-ceiling-split rows of measure and value, the value a count; the-largest a row for each of the ten largest groups, largest first, as rank, bytes, documents-listed and pages-written, no group named.",
+            "properties": {
+              "columns": {
+                "type": "array",
+                "description": "Its columns, in order.",
+                "items": {
+                  "type": "object",
+                  "description": "One column.",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Its id.",
+                      "enum": [
+                        "setting",
+                        "reading",
+                        "measure",
+                        "value",
+                        "rank",
+                        "bytes",
+                        "documents-listed",
+                        "pages-written"
+                      ]
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "Its heading."
+                    },
+                    "kind": {
+                      "type": "string",
+                      "description": "What its cells hold: text, count, number or bytes here.",
+                      "enum": [
+                        "text",
+                        "count",
+                        "share",
+                        "number",
+                        "bytes",
+                        "seconds",
+                        "instant",
+                        "path",
+                        "analysisReport"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "rows": {
+                "type": "array",
+                "description": "Its rows, in the page's order.",
+                "items": {
+                  "type": "array",
+                  "description": "One row: a cell for each column, in the columns' order.",
+                  "items": {
+                    "description": "A cell: a string for a text column, an integer for a count, a number of bytes or a number, null where the page says none."
+                  }
+                }
+              }
+            },
+            "required": [
+              "columns",
+              "rows"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "text",
+          "chart",
+          "table"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "format",
+    "analysisReport",
+    "title",
+    "writtenAt",
+    "headline",
+    "sections"
+  ],
+  "additionalProperties": false
+}

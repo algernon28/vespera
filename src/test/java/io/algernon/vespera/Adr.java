@@ -2602,6 +2602,10 @@ public final class Adr {
     public static final String THE_COCKPITS_STEPS_FOLD_INTO_THE_PROGRESS_PAGES_FOUR_LEGS =
             FILE + "0361-the-cockpits-steps-fold-into-the-progress-pages-four-legs-and-its-copy-of-their-table-is-held-to-the-pages-by-a-test.md";
 
+    /** ADR-362 -- an invocation's report is one JSON file, drawn as static HTML, and no command opens anything. */
+    public static final String AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE = FILE
+            + "0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md";
+
     /**
      * ADR-365 -- the cockpit's charts carry JavaFX's legend above the plot where they draw two lines or more and none for
      * one, each line's swatch its colour by one style class; each sample is a hit area holding a tooltip of its value

@@ -37,11 +37,8 @@ vespera:
     # How long a pull may go without moving, whether Ollama keeps sending lines that change nothing or sends none,
     # before Vespera stops waiting (ADR-329 section 6). Bounds the stall, not the pull's length.
     pull-stalled-at-most: 600s
-  # How often the progress page progress.html is rewritten in the working directory while a run goes on (ADR-265).
+  # How often report.json and report.html are rewritten in the working directory while an invocation runs (ADR-265, ADR-362).
   progress-interval: 5s
-  # Whether an invocation opens the browser on the progress page and on the deliverable's index.html (ADR-327). Set false
-  # in application-local.yaml, as VESPERA_OPEN_BROWSER=false or as --vespera.open-browser=false to open neither.
-  open-browser: true
   docling:
     # docling-serve is a managed sidecar (ADR-011), same as Ollama, but unlike it
     # carries no Spring Boot auto-configuration or ServiceConnection support -- there is no

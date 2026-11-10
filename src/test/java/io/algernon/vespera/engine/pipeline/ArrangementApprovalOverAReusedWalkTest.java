@@ -203,9 +203,10 @@ class ArrangementApprovalOverAReusedWalkTest {
         return '"' + value + '"';
     }
 
-    /** The last line the invocation wrote for an operator, which is its closing line. */
+    /** The last line the invocation wrote for an operator that does not start Report: , which is its closing line (ADR-362 section 7). */
     private String theClosingLine() {
-        List<String> lines = logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+        List<String> lines = logged.list.stream().map(ILoggingEvent::getFormattedMessage)
+                .filter(line -> !line.startsWith("Report: ")).toList();
         return lines.getLast();
     }
 

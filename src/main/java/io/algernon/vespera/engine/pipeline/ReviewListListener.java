@@ -8,6 +8,7 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.ExitStatus;
@@ -34,6 +35,9 @@ class ReviewListListener implements StepExecutionListener {
 
     /** The page's name, beside the database. */
     static final String FILE_NAME = "extraction-failures.html";
+
+    /** The JSON beside the page (ADR-362 section 9). */
+    static final String JSON_NAME = "extraction-failures.json";
 
     private final Ledger ledger;
     private final StageRuns stageRuns;
@@ -100,10 +104,28 @@ class ReviewListListener implements StepExecutionListener {
                     e.toString());
             return stepExecution.getExitStatus();
         }
+        Path json = workingDirectory.resolve(JSON_NAME);
+        Path jsonPart = workingDirectory.resolve(JSON_NAME + ".part");
         try {
             Files.createDirectories(workingDirectory);
-            try (Writer out = Files.newBufferedWriter(part, StandardCharsets.UTF_8)) {
-                ReviewListReport.write(out, failures, each -> ledger.verdicts().eachExtractionFailure(run, each));
+            // The page and its JSON are written in one pass over the rows (ADR-362 section 9).
+            try (Writer out = Files.newBufferedWriter(part, StandardCharsets.UTF_8);
+                    Writer jsonOut = Files.newBufferedWriter(jsonPart, StandardCharsets.UTF_8)) {
+                ReviewListReport.write(
+                        out, jsonOut, failures, Instant.now(), each -> ledger.verdicts().eachExtractionFailure(run, each));
+            }
+            // The JSON is put in place before the page: where it cannot be, the page is not, and the earlier two stay one pair.
+            try {
+                moves.intoPlace(jsonPart, json);
+            } catch (IOException | RuntimeException e) {
+                log.error(
+                        "Stage 2 (extraction): {} file(s) could not be read, and the JSON of the list of them could"
+                                + " not be written to {}, so the list was not written to {}: {}",
+                        failures,
+                        json.toAbsolutePath(),
+                        page.toAbsolutePath(),
+                        e.toString());
+                return stepExecution.getExitStatus();
             }
             moves.intoPlace(part, page);
             timed.end();

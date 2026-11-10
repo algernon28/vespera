@@ -69,6 +69,9 @@ class TranslationTasklet implements Tasklet {
     /** The page's name in the working directory (ADR-271 section 7). */
     static final String PAGE_FILE_NAME = "translations.html";
 
+    /** The JSON beside the page, which carries its numbers and rows (ADR-362 section 9). */
+    static final String JSON_FILE_NAME = "translations.json";
+
     /** What a removal records as its reason; it names no path. */
     private static final String REASON = "the content is carried, in another language, by an occurrence that survives";
 
@@ -121,7 +124,7 @@ class TranslationTasklet implements Tasklet {
                 "stage 5's translation step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
-            ShutGates.in(chunkContext).record(StepNames.TRANSLATION);
+            ShutGates.in(chunkContext).record(StepNames.TRANSLATION, preamble.key().orElse(null));
             return RepeatStatus.FINISHED;
         }
 
@@ -227,7 +230,7 @@ class TranslationTasklet implements Tasklet {
         RunId extractionRun = stageRuns.upstream(StageModules.EXTRACTION);
         long total = TimedStatement.of(
                 STAGE, "counting", "counted", "the survivors", () -> ledger.verdicts().survivorCount(measurementRun));
-        ProgressPage.entered(total);
+        JobSampler.entered(total);
         StageProgress read = StageProgress.over("Stage 5 (translations, survivors read)", total);
         List<Entry> entries = new ArrayList<>();
         ledger.verdicts().eachPageOfSurvivorsByPath(measurementRun, page -> {
@@ -293,11 +296,24 @@ class TranslationTasklet implements Tasklet {
                 languagesReading,
                 !preferred.isEmpty());
         Path file = workingDirectory.resolve(PAGE_FILE_NAME);
+        Path json = workingDirectory.resolve(JSON_FILE_NAME);
         try {
             Files.createDirectories(workingDirectory);
+            // The JSON is moved into place before the page is written (ADR-362 section 9).
+            TranslationReport.writeJson(
+                    json,
+                    clock.instant(),
+                    resolution,
+                    scoring,
+                    modelName,
+                    survivors,
+                    resolution.removals().size(),
+                    floorReading,
+                    languagesReading,
+                    !preferred.isEmpty());
             Files.writeString(file, html, StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new UncheckedIOException("could not write the report at " + file, e);
+            throw new UncheckedIOException("could not write the report at " + file + " or " + json, e);
         }
         return file;
     }

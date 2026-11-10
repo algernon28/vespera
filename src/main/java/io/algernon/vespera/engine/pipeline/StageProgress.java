@@ -34,7 +34,7 @@ final class StageProgress {
     /** The label of a stage's progress line: its stage, and in brackets lowercase words. */
     static final String LABEL_SHAPE = "Stage [0-9][a-z]? \\([a-z0-9, -]+\\)";
 
-    /** The whole text of a counter's line (ADR-198), which {@code InvocationAccount} and the progress page admit. */
+    /** The whole text of a counter's line (ADR-198), which {@code JobSampler} admits. */
     static final Pattern COUNTER_LINE =
             Pattern.compile(LABEL_SHAPE + ": [0-9,]+( of [0-9,]+ \\([0-9]+%\\)| so far)");
 

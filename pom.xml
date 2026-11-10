@@ -80,21 +80,12 @@
     <dependencies>
         <!--
           ADR-342: the control panel's window. javafx-controls brings javafx-graphics and javafx-base; the pom names no
-          classifier, so the jar carries the native libraries of the platform it is built on.
+          classifier, so the jar carries the native libraries of the platform it is built on. ADR-362 section 10:
+          javafx-web, javafx-media and jdk-jsobject are not declared, the reports being drawn by these controls.
         -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
-            <version>${javafx.version}</version>
-        </dependency>
-        <dependency>
-            <!--
-              ADR-342 section 1, ADR-344 section 6: the reports open in a tab of the window, in a WebView. No classifier,
-              as for javafx-controls: the build platform's natives only. It adds about 37 MB to the jar, which the
-              operator approved.
-            -->
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-web</artifactId>
             <version>${javafx.version}</version>
         </dependency>
         <dependency>
@@ -107,6 +98,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-batch</artifactId>
+        </dependency>
+        <dependency>
+            <!-- ADR-362 section 5: report.html is drawn from report.json through a Mustache template. The engine
+                 alone, at the version Spring Boot's dependency management gives; no spring-boot-starter-mustache. -->
+            <groupId>com.samskivert</groupId>
+            <artifactId>jmustache</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -327,7 +324,7 @@
                       never sent or read. Selector managers on platform threads hold no carrier (ADR-357; "never" is
                       the one value that turns virtual threads off here: one the JDK does not know is read as its default).
                     -->
-                    <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar" -Djdk.internal.httpclient.tcp.selector.useVirtualThreads=never</argLine>
+                    <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar" -Djdk.internal.httpclient.tcp.selector.useVirtualThreads=never --enable-native-access=ALL-UNNAMED</argLine>
                     <excludes>
                         <exclude>**/*IT.java</exclude>
                     </excludes>
@@ -351,7 +348,7 @@
                     </dependency>
                 </dependencies>
                 <configuration>
-                    <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar"</argLine>
+                    <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar" --enable-native-access=ALL-UNNAMED</argLine>
                 </configuration>
                 <executions>
                     <execution>

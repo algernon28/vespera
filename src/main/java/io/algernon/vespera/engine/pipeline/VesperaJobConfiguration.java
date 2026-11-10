@@ -44,36 +44,57 @@ public class VesperaJobConfiguration {
     static final String JOB_NAME = "vespera";
 
     /**
-     * No longer read for a place: the account is written in the working directory's {@code logs} folder, and a
-     * value set here costs one warning in {@link InvocationAccount} (ADR-270 section 3).
+     * No longer read for a place: the report's copy is written in the working directory's {@code logs} folder, and
+     * a value set here costs one warning in {@link InvocationAccount} (ADR-270 section 3, ADR-362 section 4).
      */
     static final String ACCOUNT_DIRECTORY_PROPERTY = "vespera.account-dir";
 
-    /** The progress page, shared by the job and by {@code vespera label} (ADR-266 section 3). */
+    /**
+     * The invocation report (ADR-362 section 3), shared by the job and by {@code vespera label}. A display seam is
+     * the system's own unless a context gives another.
+     */
     @Bean
-    ProgressPage progressPage(
+    InvocationReport invocationReport(
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
             @Value("${vespera.progress-interval:5s}") Duration progressInterval,
-            ObjectProvider<PageOpener> opener,
-            @Value("${vespera.open-browser:true}") boolean openBrowser,
-            Clock clock,
-            Ledger ledger) {
-        return new ProgressPage(
+            @Value("${" + VesperaCommand.Run.DELIVERABLE_ROOT_PROPERTY + ":}") String deliverableRoot,
+            @Value("${vespera.report.template:}") String reportTemplate,
+            ObjectProvider<InvocationReport.Display> display,
+            Clock clock) {
+        return new InvocationReport(
                 workingDirectory,
                 progressInterval,
                 clock,
-                openBrowser ? opener.getIfAvailable() : null, // false: no opener is asked anything (ADR-327 section 5)
+                display.getIfAvailable(() -> DisplayPresence::ofThisProcess),
+                deliverableRoot,
+                reportTemplate);
+    }
+
+    /** What the job's report is handed while it runs (ADR-362 section 3), shared by the job. */
+    @Bean
+    JobSampler jobSampler(
+            @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
+            @Value("${vespera.progress-interval:5s}") Duration progressInterval,
+            Clock clock,
+            Ledger ledger,
+            InvocationReport invocationReport) {
+        JobSampler sampler = new JobSampler(
+                workingDirectory,
+                progressInterval,
+                clock,
                 () -> ledger.verdicts().recorded(),
-                () -> ProgressPage.readRuns(ledger));
+                () -> JobSampler.readRuns(ledger));
+        sampler.handTo(invocationReport);
+        return sampler;
     }
 
     @Bean
     Job vesperaJob(
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
             @Value("${" + ACCOUNT_DIRECTORY_PROPERTY + ":}") String accountDirectory,
-            ProgressPage progressPage,
+            JobSampler jobSampler,
+            InvocationReport invocationReport,
             JdbcTemplate jdbcTemplate,
-            Clock clock,
             JobRepository jobRepository,
             Step censusStep,
             Step byteLevelReductionStep,
@@ -112,8 +133,8 @@ public class VesperaJobConfiguration {
                         workingDirectory,
                         accountDirectory == null || accountDirectory.isBlank() ? null : Path.of(accountDirectory.strip()),
                         jdbcTemplate,
-                        clock))
-                .listener(progressPage)
+                        invocationReport))
+                .listener(jobSampler)
                 .build();
     }
 

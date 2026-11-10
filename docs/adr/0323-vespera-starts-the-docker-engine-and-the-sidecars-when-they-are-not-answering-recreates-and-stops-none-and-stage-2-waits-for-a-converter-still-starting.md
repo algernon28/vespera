@@ -243,7 +243,7 @@ Every class this record adds or changes is in `pipeline`: the starter and its co
 - **`docs/architecture.md`'s technology table** says the sidecars are started by `vespera run` and `vespera label --auto` when they are not answering and stopped by nothing, citing this record.
 - **`application.yaml` gains `vespera.sidecars.start: true` and `vespera.sidecars.wait-at-most: 180s`**, each with a comment citing this record.
 - **The build copies the compose files and `docker/` into the jar** under `sidecars/`. `PackagedJarIT` keeps holding that no compose artifact is nested.
-- **The integration tests that launch the jar pass `-Dvespera.sidecars.start=false`**, and `TheClosingLineIsTheLastLineIT` also `-Dvespera.sidecars.wait-at-most=1s`, since its run against a converter that is not listening now waits the bound before its closing line.
+- **The integration tests that launch the jar pass `-Dvespera.sidecars.start=false`**, and `TheReportLineEndsTheOutputIT` also `-Dvespera.sidecars.wait-at-most=1s`, since its run against a converter that is not listening now waits the bound before its closing line.
 - **`ExtractionWithTheSidecarDownTest`'s unreachable converter is waited for**, on a short clock, before the step fails with today's line; its unhealthy converter still fails at once.
 - **`SidecarsAreStartedByTheOperatorTest` becomes `SpringsComposeSupportIsOnNoClasspathTest`**, its claims unchanged: ADR-179 §1 is what it holds, and its old name is what this record makes false.
 
@@ -297,7 +297,7 @@ Amended:
 - **`PipelineHoldsOnlyTheRulesOnRecordTest`**: the starter's classes are on record as holding no rule. The two production collaborators the implementation adds, the process runner that starts real processes and the health that asks over HTTP, join the list in the change that adds them.
 - **`ExtractionItemProcessorTest`**: builds its `SidecarRecovery` through the constructor that takes the bound and the interval, since the one that took neither goes.
 - **`ClosingLineOverALockedDatabaseFileTest`**: builds the listener with its new second argument, the wait, which its claims never reach.
-- **The integration tests that launch the jar**: `-Dvespera.sidecars.start=false`, and `TheClosingLineIsTheLastLineIT` `-Dvespera.sidecars.wait-at-most=1s`.
+- **The integration tests that launch the jar**: `-Dvespera.sidecars.start=false`, and `TheReportLineEndsTheOutputIT` `-Dvespera.sidecars.wait-at-most=1s`.
 - **`SidecarsAreStartedByTheOperatorTest`** is renamed `SpringsComposeSupportIsOnNoClasspathTest`.
 
 What no unit test shows is what Docker and Docker Desktop do with these commands. Probes A to G are the evidence for Docker Engine and Compose; Docker Desktop's start is not measured.
