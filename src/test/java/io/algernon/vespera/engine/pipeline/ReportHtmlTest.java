@@ -171,18 +171,19 @@ class ReportHtmlTest {
 
     @Test
     @Story("Every text of the report is escaped")
-    @DisplayName("A working directory whose name holds <, & and \" is escaped wherever it is drawn")
+    @DisplayName("A line of the report that holds <, & and \" is escaped wherever it is drawn")
     void everyTextOfTheReportIsEscaped() throws IOException {
-        Path directory = Files.createDirectories(workingDirectory.resolve("a<b&c\"d"));
+        // The text goes in as a refusal line, not as a folder's name: Windows refuses <, > and " in a path.
         TheClock clock = new TheClock(T0);
-        InvocationReport report = aReport(directory, clock, "");
+        InvocationReport report = aReport(workingDirectory, clock, "");
         report.begins("run");
         report.job(aJob(false, 5, "2000"));
+        report.said("a<b&c\"d");
         clock.at(5);
         report.job(aJob(false, 6, "2000"));
-        String page = Files.readString(directory.resolve(PAGE), StandardCharsets.UTF_8);
+        String page = page();
 
-        claim("the name is drawn, escaped", () -> assertThat(page).contains("a&lt;b&amp;c&quot;d"));
+        claim("the line is drawn, escaped", () -> assertThat(page).contains("a&lt;b&amp;c&quot;d"));
         claim("and drawn raw nowhere", () -> assertThat(page).doesNotContain("a<b").doesNotContain("c\"d"));
     }
 
