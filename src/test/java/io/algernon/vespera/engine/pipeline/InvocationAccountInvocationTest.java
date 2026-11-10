@@ -14,8 +14,8 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,38 +25,36 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import tools.jackson.databind.JsonNode;
 
 /**
- * The account an invocation writes for a hosted model to read (ADR-198, #424), reached through a real
- * invocation: what it holds, and above all what it never holds.
+ * What an invocation's report keeps of what its account kept for a hosted model to read (ADR-198, #424, ADR-362
+ * sections 3 and 4), reached through a real invocation: what the copy in the {@code logs} folder holds, and above all
+ * what it never holds. The account itself is no longer written.
  *
  * <p><b>The guarantee is the point.</b> Every directory name, file name and text in the fixture carries
  * {@link #MARKER}, a word nobody would write into a diagnostic by chance, and so does the file the
  * converter fails on, the folder the seed set lives in and a key written into a profile that does not
- * load. The claim is that the marker occurs nowhere in the account, and neither do the three directories
- * the invocation was pointed at. A test that only looked for the lines it expected would pass with a
- * leak in every other line.
+ * load. The claim is that the marker occurs nowhere in the report's copy. The report names the places an
+ * invocation was pointed at (ADR-362 section 3), so no claim of absence is made of them. A test that only looked for
+ * the members it expected would pass with a leak in every other member.
  *
- * <p>The account is found by listing the working directory's {@code logs} folder, where it is written with
- * no setting (ADR-270), for {@value #ACCOUNT_PREFIX}*, never by a name the test computes: one working
- * directory serves the whole class, so what a test claims about is the file its own invocation added.
+ * <p>The copy is found by listing the working directory's {@code logs} folder for {@code report-*}, never by a
+ * name the test computes: one working directory serves the whole class, so what a test claims about is the file its
+ * own invocation added.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
 @Epic("Pipeline")
-@Feature("The invocation account")
+@Feature("The invocation report")
 @Issue("424")
 @Link(name = "ADR-198", url = Adr.EVERY_INVOCATION_WRITES_AN_ACCOUNT_THAT_NAMES_NO_DOCUMENT, type = "adr")
+@Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
 class InvocationAccountInvocationTest {
 
     /** What every private name and text in the fixture carries, so one search finds any leak of any of them. */
     private static final String MARKER = "ZXQ-the-operators-private-word";
 
-    /** How an account's file name starts, in the working directory's logs folder beside the log. */
-    private static final String ACCOUNT_PREFIX = "invocation-account-";
-
-    /** The working directory's folder every log is written in, the account among them (ADR-270 section 1). */
-    private static final String LOGS = "logs";
 
     /** The folder, inside the corpus root, every corpus file is in, and which carries the marker. */
     private static final String MARKED_FOLDER = MARKER + "-folder";
@@ -72,8 +70,7 @@ class InvocationAccountInvocationTest {
     private static final int CORPUS_FILES = MARKED_READABLE_FILES.size() + 1;
 
     /** The one file the converter faulted on, and so the one extraction-failed verdict this fixture earns. */
-    private static final int ONE_FAULTED_FILE = 1;
-
+    private static final long ONE_FAULTED_FILE = 1;
 
     /** The stage whose progress line this fixture can read: one seed, recorded, so one of one. */
     private static final String SEEDS_RECORDED_LINE =
@@ -103,43 +100,42 @@ class InvocationAccountInvocationTest {
 
     @Test
     @Story("A diagnosis never needs a document's name or words")
-    @DisplayName("The marker in every name and text of a whole invocation occurs nowhere in its account")
-    void theMarkerNeverReachesTheAccount(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    @DisplayName("The marker in every name and text of a whole invocation occurs nowhere in its report's copy")
+    void theMarkerNeverReachesTheReport(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aMarkedCorpus(root, seeds);
         profileNaming(seeds);
-        List<Path> before = accounts();
+        List<Path> before = TheReportFile.copiesIn(workingDirectory);
 
         cli.run("run", root.toString());
 
-        List<String> written = accountsWrittenSince(before);
+        List<String> written = copiesWrittenSince(before);
         claim(
-                "the invocation reached its end, so the account being checked covers the whole of a"
+                "the invocation reached its end, so the copy being checked covers the whole of a"
                         + " successful run: stage by stage, the faulted file, the groups drawn from marked names",
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
-                "the invocation wrote exactly one account, so there is something to check the marker against"
+                "the invocation wrote exactly one copy, so there is something to check the marker against"
                         + " -- an invocation that wrote none would pass every absence claim below with nothing read",
                 () -> assertThat(written).hasSize(1));
-        for (String forbidden : List.of(
-                MARKER, root.toString(), seeds.toString(), workingDirectory.toString(), MARKED_FOLDER, FAULTED)) {
+        for (String forbidden : List.of(MARKER, MARKED_FOLDER, FAULTED)) {
             claim(
-                    "the account does not contain '" + forbidden + "', in any letter case, which the invocation"
+                    "the copy does not contain '" + forbidden + "', in any letter case, which the invocation"
                             + " was given or read",
                     () -> assertThat(written.getFirst()).doesNotContainIgnoringCase(forbidden));
         }
     }
 
     @Test
-    @Story("An account says which steps ran, how they ended and how long each took")
-    @DisplayName("The account names every step of the job that ran, with its outcome and its duration")
-    void theAccountNamesEveryStepAndHowItEnded(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    @Story("A report says which steps ran, how they ended and how long each took")
+    @DisplayName("The report names every step of the job that ran, with its state and its duration")
+    void theReportNamesEveryStepAndHowItEnded(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aMarkedCorpus(root, seeds);
         profileNaming(seeds);
-        List<Path> before = accounts();
+        List<Path> before = TheReportFile.copiesIn(workingDirectory);
 
         cli.run("run", root.toString());
 
-        String account = theOneAccountWrittenSince(before);
+        JsonNode report = theOneCopyWrittenSince(before);
         for (String step : List.of(
                 StepNames.CENSUS,
                 StepNames.BYTE_LEVEL_REDUCTION,
@@ -148,66 +144,68 @@ class InvocationAccountInvocationTest {
                 StepNames.SEED_EXTRACTION,
                 StepNames.ARRANGEMENT)) {
             claim(
-                    "the account has a line for the " + step + " step carrying how it ended and how long it took",
-                    () -> assertThat(linesOf(account))
-                            .anyMatch(line -> line.contains(" step name=" + step + " ")
-                                    && line.contains("status=COMPLETED")
-                                    && line.contains("duration=PT")));
+                    "the report has the " + step + " step, carrying that it finished and how long it took",
+                    () -> {
+                        JsonNode each = TheReportFile.step(report, step);
+                        assertThat(each.path("state").asString()).isEqualTo("finished");
+                        assertThat(each.path("seconds").isIntegralNumber()).isTrue();
+                    });
         }
         claim(
-                "the account opens with the invocation starting and closes with it ending, with how it ended",
+                "the report says the invocation ended, and how it ended",
                 () -> {
-                    assertThat(linesOf(account).getFirst()).contains(" invocation started");
-                    assertThat(linesOf(account).getLast()).contains(" invocation ended").contains("status=COMPLETED");
+                    assertThat(report.path("invocation").path("state").asString()).isEqualTo("ended");
+                    assertThat(report.path("invocation").path("outcome").asString()).isEqualTo("completed");
                 });
     }
 
     @Test
-    @Story("An account carries the counts a run is diagnosed from")
-    @DisplayName("The account counts occurrences, verdicts by kind and faults by category, and names none of them")
-    void theAccountCarriesCounts(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    @Story("A report carries the counts a run is diagnosed from")
+    @DisplayName("The report counts occurrences, verdicts by kind and faults by category, and names none of them")
+    void theReportCarriesCounts(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aMarkedCorpus(root, seeds);
         profileNaming(seeds);
-        List<Path> before = accounts();
+        List<Path> before = TheReportFile.copiesIn(workingDirectory);
 
         cli.run("run", root.toString());
 
-        String account = theOneAccountWrittenSince(before);
+        JsonNode counts = theOneCopyWrittenSince(before).path("counts");
         claim(
                 "it counts the " + CORPUS_FILES + " occurrences the walk recorded, as a number and nothing else",
-                () -> assertThat(account).contains("counts occurrences=" + CORPUS_FILES));
+                () -> assertThat(counts.path("occurrences").asLong()).isEqualTo(CORPUS_FILES));
         claim(
                 "it counts the " + ONE_FAULTED_FILE + " extraction-failed verdict the faulted file earned, by"
                         + " the kind the verdict vocabulary names",
-                () -> assertThat(account)
-                        .contains("counts verdict kind=EXTRACTION_FAILED count=" + ONE_FAULTED_FILE));
+                () -> assertThat(counts.path("verdicts").path("extraction-failed").asLong()).isEqualTo(ONE_FAULTED_FILE));
         claim(
                 "it counts the " + ONE_FAULTED_FILE + " extraction fault by the category the converter reported,"
-                        + " and writes none of the converter's message about the file",
-                () -> assertThat(account)
-                        .contains("counts extraction-fault category=internal count=" + ONE_FAULTED_FILE)
-                        .doesNotContain(SeedScriptedExtractionBeans.CONVERTER_FAULT_MESSAGE));
+                        + " and holds none of the converter's message about the file",
+                () -> {
+                    assertThat(counts.path("extractionFaults").path("internal").asLong()).isEqualTo(ONE_FAULTED_FILE);
+                    assertThat(counts.toString()).doesNotContain(SeedScriptedExtractionBeans.CONVERTER_FAULT_MESSAGE);
+                });
         claim(
                 "it counts at least one group arranged, drawn from documents whose names carry the marker, and"
                         + " names none of them",
-                () -> assertThat(account).containsPattern("counts clusters arranged=[1-9][0-9]* "));
+                () -> assertThat(counts.path("clusters").asLong()).isPositive());
     }
 
     @Test
-    @Story("An account carries each loop's progress, which is the label its stage spelled and counts")
-    @DisplayName("The account carries the progress lines the invocation wrote, word for word")
-    void theAccountCarriesProgressLines(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    @Story("A report carries each loop's progress, which is the label its stage spelled and counts")
+    @DisplayName("The report carries the last progress line of a step, word for word")
+    void theReportCarriesProgressLines(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aMarkedCorpus(root, seeds);
         profileNaming(seeds);
-        List<Path> before = accounts();
+        List<Path> before = TheReportFile.copiesIn(workingDirectory);
 
         cli.run("run", root.toString());
 
-        String account = theOneAccountWrittenSince(before);
+        JsonNode report = theOneCopyWrittenSince(before);
         claim(
-                "the seed recording loop's one line is in the account as it was written to the log: its"
+                "the seed recording loop's one line is in the report as it was written to the log: its"
                         + " label and the count, one of one",
-                () -> assertThat(linesOf(account)).anyMatch(line -> line.endsWith(" progress " + SEEDS_RECORDED_LINE)));
+                () -> assertThat(TheReportFile.step(report, StepNames.SEED_EXTRACTION).path("progress").path("line").asString())
+                        .isEqualTo(SEEDS_RECORDED_LINE));
     }
 
     @Test
@@ -217,26 +215,30 @@ class InvocationAccountInvocationTest {
         aMarkedCorpus(root, seeds);
         profileNaming(seeds);
         Files.writeString(profileStore.file(), MARKER + "-key-written-flat: a value\n");
-        List<Path> before = accounts();
+        List<Path> before = TheReportFile.copiesIn(workingDirectory);
 
         cli.run("run", root.toString());
 
-        String account = theOneAccountWrittenSince(before);
+        List<String> written = copiesWrittenSince(before);
+        JsonNode report = TheReportFile.parse(written.getFirst());
         claim(
                 "the invocation failed, because a profile that does not load stops the census step: the"
                         + " exception it throws names the profile's file and the key, which is the message"
                         + " this test is about",
                 () -> assertThat(cli.getExitCode()).isNotZero());
+        List<JsonNode> faults = new ArrayList<>();
+        report.path("faults").forEach(faults::add);
         claim(
-                "the account names the failed step and the exception's own type, which is what says what failed",
-                () -> assertThat(linesOf(account))
-                        .anyMatch(line -> line.contains(" failure step=" + StepNames.CENSUS + " ")
-                                && line.contains("type=io.algernon.vespera.engine.profile.MisshapenProfileException")));
+                "the report names the failed step and the exception's own type, which is what says what failed",
+                () -> assertThat(faults)
+                        .anyMatch(fault -> fault.path("step").asString().equals(StepNames.CENSUS)
+                                && fault.path("type").asString()
+                                        .equals("io.algernon.vespera.engine.profile.MisshapenProfileException")));
         claim(
-                "the account ends with the invocation having failed, and has none of the marker the message carried",
+                "the report ends with the invocation having failed, and has none of the marker the message carried",
                 () -> {
-                    assertThat(linesOf(account).getLast()).contains(" invocation ended").contains("status=FAILED");
-                    assertThat(account).doesNotContain(MARKER).doesNotContain(workingDirectory.toString());
+                    assertThat(report.path("invocation").path("outcome").asString()).isEqualTo("failed");
+                    assertThat(written.getFirst()).doesNotContain(MARKER);
                 });
     }
 
@@ -255,22 +257,10 @@ class InvocationAccountInvocationTest {
         EveryGateOpen.throughStageFive(profileStore, seeds);
     }
 
-    /** Every account in the working directory's logs folder now, found by its prefix; none before it is made. */
-    private List<Path> accounts() throws IOException {
-        Path logs = workingDirectory.resolve(LOGS);
-        if (!Files.isDirectory(logs)) {
-            return List.of();
-        }
-        try (Stream<Path> files = Files.list(logs)) {
-            return files.filter(file -> file.getFileName().toString().startsWith(ACCOUNT_PREFIX))
-                    .toList();
-        }
-    }
-
-    /** The text of each account the working directory holds now and did not hold in {@code before}. */
-    private List<String> accountsWrittenSince(List<Path> before) throws IOException {
-        List<String> written = new java.util.ArrayList<>();
-        for (Path file : accounts()) {
+    /** The text of each copy of a report the working directory holds now and did not hold in {@code before}. */
+    private List<String> copiesWrittenSince(List<Path> before) throws IOException {
+        List<String> written = new ArrayList<>();
+        for (Path file : TheReportFile.copiesIn(workingDirectory)) {
             if (!before.contains(file)) {
                 written.add(Files.readString(file));
             }
@@ -278,16 +268,12 @@ class InvocationAccountInvocationTest {
         return written;
     }
 
-    /** The one account this invocation added, failing with a plain message when it added none or several. */
-    private String theOneAccountWrittenSince(List<Path> before) throws IOException {
-        List<String> written = accountsWrittenSince(before);
+    /** The one copy this invocation added, failing with a plain message when it added none or several. */
+    private JsonNode theOneCopyWrittenSince(List<Path> before) throws IOException {
+        List<String> written = copiesWrittenSince(before);
         claim(
-                "the invocation wrote exactly one account, in the working directory's logs folder",
+                "the invocation wrote exactly one copy of its report, in the working directory's logs folder",
                 () -> assertThat(written).hasSize(1));
-        return written.getFirst();
-    }
-
-    private static List<String> linesOf(String account) {
-        return account.lines().toList();
+        return TheReportFile.parse(written.getFirst());
     }
 }

@@ -44,8 +44,8 @@ public class VesperaJobConfiguration {
     static final String JOB_NAME = "vespera";
 
     /**
-     * No longer read for a place: the account is written in the working directory's {@code logs} folder, and a
-     * value set here costs one warning in {@link InvocationAccount} (ADR-270 section 3).
+     * No longer read for a place: the report's copy is written in the working directory's {@code logs} folder, and
+     * a value set here costs one warning in {@link InvocationAccount} (ADR-270 section 3, ADR-362 section 4).
      */
     static final String ACCOUNT_DIRECTORY_PROPERTY = "vespera.account-dir";
 
@@ -70,32 +70,31 @@ public class VesperaJobConfiguration {
                 reportTemplate);
     }
 
-    /** The progress page, shared by the job and by {@code vespera label} (ADR-266 section 3). */
+    /** What the job's report is handed while it runs (ADR-362 section 3), shared by the job. */
     @Bean
-    ProgressPage progressPage(
+    JobSampler jobSampler(
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
             @Value("${vespera.progress-interval:5s}") Duration progressInterval,
             Clock clock,
             Ledger ledger,
             InvocationReport invocationReport) {
-        ProgressPage page = new ProgressPage(
+        JobSampler sampler = new JobSampler(
                 workingDirectory,
                 progressInterval,
                 clock,
                 () -> ledger.verdicts().recorded(),
-                () -> ProgressPage.readRuns(ledger));
-        page.handTo(invocationReport);
-        return page;
+                () -> JobSampler.readRuns(ledger));
+        sampler.handTo(invocationReport);
+        return sampler;
     }
 
     @Bean
     Job vesperaJob(
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
             @Value("${" + ACCOUNT_DIRECTORY_PROPERTY + ":}") String accountDirectory,
-            ProgressPage progressPage,
+            JobSampler jobSampler,
             InvocationReport invocationReport,
             JdbcTemplate jdbcTemplate,
-            Clock clock,
             JobRepository jobRepository,
             Step censusStep,
             Step byteLevelReductionStep,
@@ -134,9 +133,8 @@ public class VesperaJobConfiguration {
                         workingDirectory,
                         accountDirectory == null || accountDirectory.isBlank() ? null : Path.of(accountDirectory.strip()),
                         jdbcTemplate,
-                        clock,
                         invocationReport))
-                .listener(progressPage)
+                .listener(jobSampler)
                 .build();
     }
 

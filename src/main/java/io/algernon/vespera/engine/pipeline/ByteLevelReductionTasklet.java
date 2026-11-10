@@ -219,7 +219,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 "counted",
                 "the survivors the broken check goes through",
                 () -> ledger.verdicts().survivorCount(runId));
-        ProgressPage.entered(survivors);
+        JobSampler.entered(survivors);
         StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction, broken check)", survivors);
         MarkedFolders markedFolders = new MarkedFolders();
         FormatMix mix = new BrokenOrOutOfScope(ledger, detectedFormats, textSizeLimits())

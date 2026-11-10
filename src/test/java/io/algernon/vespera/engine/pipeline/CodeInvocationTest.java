@@ -17,9 +17,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,11 +27,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Code through a whole invocation (ADR-277 §8 to §10): kept apart by stage 1, it is never hashed, converted, signed,
- * scored or clustered, is on neither list stage 2 writes, and is counted in the invocation account and on the tab of
- * runs; and a seed whose name ends with a listed ending is extracted as every seed is, since no seed passes stage 1.
+ * scored or clustered, is on neither list stage 2 writes, and is counted in the report's counts and in its runs; and a seed whose name ends with a listed ending is extracted as every seed is, since no seed passes stage 1.
  *
  * <p>The corpus is one document and two identical files whose name ends with a listed ending, the profile opens every
  * gate up to the arrangement, and the job runs once to the arrangement gate. The key is written as YAML through
@@ -65,16 +62,11 @@ class CodeInvocationTest {
     /** The seed recording loop's line: one seed, recorded, so one of one. */
     private static final String SEEDS_RECORDED_LINE = "Stage 5a (seed extraction, seeds recorded): 1 of 1 (100%)";
 
-    private static final String RUNS_PAGE = "progress-runs.html";
+    /** The code kind as the report's counts and the runs' verdicts name it. */
+    private static final String CODE = "code";
 
-    /** The ten blocking kinds as the tab of runs heads its columns. */
-    private static final List<String> BLOCKING = List.of(
-            "broken", "duplicate-of", "superseded-by", "out-of-scope", "code",
-            "extraction-failed", "degenerate-output", "redundant-with", "translation-of", "below-threshold");
-
-    private static final Pattern A_ROW = Pattern.compile("<tr>(<td.*?)</tr>", Pattern.DOTALL);
-
-    private static final Pattern A_CELL = Pattern.compile("<td[^>]*>([^<]*)</td>");
+    /** The two files kept as code. */
+    private static final long TWO_FILES_OF_CODE = 2;
 
     /** Every table that holds a row for an occurrence a stage after the first read, and the column naming it. */
     private static final List<String> READ_AFTER_STAGE_ONE = List.of(
@@ -107,7 +99,7 @@ class CodeInvocationTest {
 
     @Test
     @Story("Code leaves the survivors in stage 1 and no later stage reads it")
-    @DisplayName("Two identical files kept as code are never hashed, converted, signed, scored or clustered, are on neither list stage 2 writes, and are counted in the account and on the tab of runs; the seed named alike is extracted")
+    @DisplayName("Two identical files kept as code are never hashed, converted, signed, scored or clustered, are on neither list stage 2 writes, and are counted in the report and in its runs; the seed named alike is extracted")
     void codeIsReadByStageOneAloneAndCountedWhereTheOperatorLooks(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
         Files.writeString(root.resolve(DOCUMENT), "the text of a manual, which is a document");
@@ -117,7 +109,7 @@ class CodeInvocationTest {
         Files.writeString(seeds.resolve(SEED), "class Esempio { /* a seed whose name ends as code does */ }\n");
         EveryGateOpen.throughStageFive(profileStore, seeds);
         CodeNameEndingsInProfile.write(profileStore, ENDING, "set by this test");
-        List<Path> before = accounts();
+        List<Path> before = TheReportFile.copiesIn(workingDirectory);
 
         cli.run("run", root.toString());
 
@@ -154,27 +146,29 @@ class CodeInvocationTest {
                         assertThat(Files.readString(reviewList, StandardCharsets.UTF_8)).doesNotContain(CODE_NAME);
                     }
                 });
-        String account = theOneAccountWrittenSince(before);
+        JsonNode report = theOneCopyWrittenSince(before);
         claim(
-                "the invocation account counts the two code verdicts by the kind the vocabulary names",
-                () -> assertThat(account).contains("counts verdict kind=CODE count=2"));
+                "the report's copy counts the two code verdicts by the kind the vocabulary names",
+                () -> assertThat(report.path("counts").path("verdicts").path(CODE).asLong()).isEqualTo(TWO_FILES_OF_CODE));
         claim(
                 "the seed whose name ends with the listed ending was extracted as every seed is, and carries no"
                         + " verdict: seeds never pass stage 1",
                 () -> {
-                    assertThat(account).contains("progress " + SEEDS_RECORDED_LINE);
+                    assertThat(TheReportFile.step(report, StepNames.SEED_EXTRACTION).path("progress").path("line").asString())
+                            .isEqualTo(SEEDS_RECORDED_LINE);
                     assertThat(jdbcTemplate.queryForObject(
                                     "SELECT COUNT(*) FROM verdict WHERE occurrence_id IN (" + idsOf(occurrencesNamed(SEED)) + ")",
                                     Integer.class))
                             .isZero();
                     assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM unusable_seed", Integer.class)).isZero();
                 });
-        List<List<String>> runs = rows(page(RUNS_PAGE));
+        List<JsonNode> runs = new ArrayList<>();
+        report.path("runs").path("rows").forEach(runs::add);
         claim(
-                "the tab of runs counts the two in the code column of byte-level reduction's run",
+                "the report's runs count the two as the code verdicts of byte-level reduction's run",
                 () -> assertThat(runs)
-                        .filteredOn(row -> row.size() > 1 && row.get(1).equals("byte-level-reduction"))
-                        .anySatisfy(row -> assertThat(row.get(6 + BLOCKING.indexOf("code"))).isEqualTo("2")));
+                        .filteredOn(row -> row.path("stage").asString().equals("byte-level-reduction"))
+                        .anySatisfy(row -> assertThat(row.path("verdicts").path(CODE).asLong()).isEqualTo(TWO_FILES_OF_CODE)));
     }
 
     private List<Long> occurrencesNamed(String name) {
@@ -200,42 +194,14 @@ class CodeInvocationTest {
         return Files.readString(page, StandardCharsets.UTF_8);
     }
 
-    private static List<Path> accounts() throws IOException {
-        Path logs = workingDirectory.resolve("logs");
-        if (!Files.isDirectory(logs)) {
-            return List.of();
-        }
-        try (Stream<Path> files = Files.list(logs)) {
-            return files.filter(file -> file.getFileName().toString().startsWith(InvocationAccount.FILE_PREFIX)).toList();
-        }
-    }
-
-    private static String theOneAccountWrittenSince(List<Path> before) throws IOException {
-        List<String> written = new ArrayList<>();
-        for (Path file : accounts()) {
+    private static JsonNode theOneCopyWrittenSince(List<Path> before) throws IOException {
+        List<Path> written = new ArrayList<>();
+        for (Path file : TheReportFile.copiesIn(workingDirectory)) {
             if (!before.contains(file)) {
-                written.add(Files.readString(file, StandardCharsets.UTF_8));
+                written.add(file);
             }
         }
-        claim("the invocation wrote exactly one account", () -> assertThat(written).hasSize(1));
-        return written.getFirst();
-    }
-
-    private static List<String> all(Pattern pattern, String text) {
-        List<String> found = new ArrayList<>();
-        Matcher matcher = pattern.matcher(text);
-        while (matcher.find()) {
-            found.add(matcher.group(1));
-        }
-        return found;
-    }
-
-    private static List<List<String>> rows(String page) {
-        List<List<String>> rows = new ArrayList<>();
-        Matcher row = A_ROW.matcher(page);
-        while (row.find()) {
-            rows.add(all(A_CELL, row.group(1)));
-        }
-        return rows;
+        claim("the invocation wrote exactly one copy of its report", () -> assertThat(written).hasSize(1));
+        return TheReportFile.parse(Files.readString(written.getFirst(), StandardCharsets.UTF_8));
     }
 }

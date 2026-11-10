@@ -17,6 +17,7 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -37,6 +38,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import tools.jackson.databind.JsonNode;
 
 /**
  * {@code vespera label --auto} through the command an operator types (ADR-197): a local labeller
@@ -369,36 +371,31 @@ class LocalLabellingInvocationTest {
 
     @Test
     @Story("The label command writes what it recorded")
-    @DisplayName("The progress page of a label command run with --auto counts what the model answered, in a fixed order")
-    @Link(name = "ADR-266", url = Adr.EVERY_INVOCATION_NAMES_AND_OPENS_ITS_PROGRESS_PAGE, type = "adr")
-    void theAutoPageCountsTheAnswersInOrder(@TempDir Path root, @TempDir Path seeds) throws IOException {
+    @DisplayName("The report of a label command run with --auto counts what the model answered, in a fixed order")
+    @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
+    void theAutoReportCountsTheAnswersInOrder(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aScoredCorpus(root, seeds);
 
         cli.run("label", "--auto");
 
         claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
-        String page = Files.readString(workingDirectory.resolve(ProgressPage.FILE_NAME));
+        JsonNode report = TheReportFile.in(workingDirectory);
         claim(
-                "the page names the command with --auto and says it ended having recorded",
-                () -> assertThat(page)
-                        .contains("<span class=\"label\">Command</span><span class=\"value\">vespera label --auto</span>")
-                        .contains("This invocation has ended: recorded."));
+                "the report names the command with --auto and says it ended having recorded",
+                () -> assertThat(report.path("invocation").path("command").asString()).isEqualTo("label --auto"));
         claim(
-                "its table counts, in this order, the one document the model called relevant (" + ONE_DOCUMENT_IN_THE_SAMPLE
+                "and its outcome is recorded",
+                () -> assertThat(report.path("invocation").path("outcome").asString()).isEqualTo("recorded"));
+        List<String> counted = new ArrayList<>();
+        report.path("label").path("answers").forEach(answer ->
+                counted.add(answer.path("words").asString() + "=" + answer.path("count").asLong()));
+        claim(
+                "its answers count, in this order, the one document the model called relevant (" + ONE_DOCUMENT_IN_THE_SAMPLE
                         + " and the scripted model says relevant to everything), none not relevant, none left blank"
                         + " and none answered by a person",
-                () -> assertThat(page)
-                        .contains(ReportPage.headerRow("Answers", "Count"))
-                        .containsSubsequence(
-                                answerCount("relevant", 1),
-                                answerCount("not relevant", 0),
-                                answerCount("left blank", 0),
-                                answerCount("answered by a person", 0)));
-    }
-
-    /** A row of the progress page's table of answers: the count's words, then the count. */
-    private static String answerCount(String words, int value) {
-        return ReportPage.row(ReportPage.textCell(words), ReportPage.numberCell(value));
+                () -> assertThat(counted)
+                        .containsExactly(
+                                "relevant=1", "not relevant=0", "left blank=0", "answered by a person=0"));
     }
 
     @Test

@@ -74,7 +74,7 @@ final class SixJobsForTests {
     /** The text of the first write of {@code job}'s report, in a working directory of its own named {@code which} under {@code base}. */
     static String firstWrite(Path base, JobExecution job, String which) throws IOException {
         Path directory = Files.createDirectories(base.resolve(which));
-        ProgressPage page = new ProgressPage(directory, NO_SCHEDULED_WRITE_MEANWHILE, aClock());
+        JobSampler page = new JobSampler(directory, NO_SCHEDULED_WRITE_MEANWHILE, aClock());
         page.handTo(aReport(directory));
         page.beforeJob(job);
         String written = TheReportFile.textIn(directory);
@@ -86,7 +86,7 @@ final class SixJobsForTests {
     /** The text of the last write of {@code job}'s report, the job ended {@code ending}, in a working directory named {@code which}. */
     static String lastWrite(Path base, JobExecution job, BatchStatus ending, String which) throws IOException {
         Path directory = Files.createDirectories(base.resolve(which));
-        ProgressPage page = new ProgressPage(directory, NO_SCHEDULED_WRITE_MEANWHILE, aClock());
+        JobSampler page = new JobSampler(directory, NO_SCHEDULED_WRITE_MEANWHILE, aClock());
         page.handTo(aReport(directory));
         page.beforeJob(job);
         job.setStatus(ending);

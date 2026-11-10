@@ -489,7 +489,6 @@ public class VesperaCommand implements Callable<Integer> {
 
         private static final Logger log = LoggerFactory.getLogger(Label.class);
 
-        private final ProgressPage progressPage;
         private final LabelIngestion labelIngestion;
         private final NextAction nextAction;
         private final Path workingDirectoryInUse;
@@ -531,9 +530,7 @@ public class VesperaCommand implements Callable<Integer> {
                 LabelIngestion labelIngestion,
                 NextAction nextAction,
                 @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectoryInUse,
-                ObjectProvider<AutoLabelling> autoLabelling,
-                ProgressPage progressPage) {
-            this.progressPage = progressPage;
+                ObjectProvider<AutoLabelling> autoLabelling) {
             this.labelIngestion = labelIngestion;
             this.nextAction = nextAction;
             this.workingDirectoryInUse = workingDirectoryInUse;
@@ -604,12 +601,11 @@ public class VesperaCommand implements Callable<Integer> {
                         + " wrote in the working directory. Give either --auto or a file, not both.",
                         CommandLine.ExitCode.USAGE);
             }
-            // Past a misnamed --db-dir and --auto given a file, as the progress page is written (ADR-330 §1).
+            // Past a misnamed --db-dir and --auto given a file, as the report is written (ADR-330 §1).
             if (effectiveValues != null) {
                 effectiveValues.write();
             }
             log.info("Report: {}", ReportHtml.pathIn(workingDirectoryInUse));
-            progressPage.commandStarts(auto ? "vespera label --auto" : "vespera label");
             if (report != null) {
                 report.labelStarts();
             }
@@ -618,7 +614,6 @@ public class VesperaCommand implements Callable<Integer> {
                 exit = recordTheAnswers();
                 return exit;
             } finally {
-                progressPage.commandEnds(endedAs, answered);
                 if (report != null) {
                     report.labelEnds(
                             endedAs, answered, exit, closingLine,
@@ -628,7 +623,7 @@ public class VesperaCommand implements Callable<Integer> {
             }
         }
 
-        /** A refusal that comes before the page: the report says it refused, as the page is never written. */
+        /** A refusal that comes before the command starts: the report says it refused. */
         private Integer refusedBeforeTheCommandRuns(String line, int exitCode) {
             refuse(line, exitCode);
             if (report != null) {

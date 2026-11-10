@@ -74,7 +74,7 @@ class InvocationReportTest {
     void aReportThatCannotBeWrittenFailsNothingAndIsWarnedOfOnce() throws IOException {
         Files.createDirectories(workingDirectory.resolve(InvocationReport.FILE_NAME).resolve("a-file-that-keeps-the-folder-there"));
         InvocationReport report = aReport(workingDirectory);
-        ProgressPage page = new ProgressPage(workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, aClock());
+        JobSampler page = new JobSampler(workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, aClock());
         page.handTo(report);
         ListAppender<ILoggingEvent> logged = new ListAppender<>();
         logged.start();

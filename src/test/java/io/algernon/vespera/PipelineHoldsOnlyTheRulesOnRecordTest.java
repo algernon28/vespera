@@ -146,10 +146,13 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "GenerationModel",
             "GenerationTasklet",
             "InvocationAccount",
-            // ADR-362: writes report.json from typed values the progress page and the commands hand it; it decides no
+            // ADR-362: writes report.json from typed values the sampler of the job and the commands hand it; it decides no
             // verdict, cache key, cluster or text of the deliverable.
             "InvocationReport",
             "InvocationRuns",
+            // ADR-265, ADR-362 §6: reads what the job holds in memory and hands the report its readings, and decides
+            // nothing it shows.
+            "JobSampler",
             "LabelFileReader",
             "LabelIngestion",
             // ADR-321: reads the deliverable's language the profile holds and hands synthesis and the tree a plain value;
@@ -166,8 +169,6 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-330 §9: reads the presets and the profile's resolution; what it resolves names the run.
             "Presets",
             "ProfileShapeCheck",
-            // ADR-265: renders what the job holds in memory, and decides nothing it shows.
-            "ProgressPage",
             "RedundancyBoilerplate",
             "RedundancyGate",
             "RedundancyJobConfiguration",

@@ -19,15 +19,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Each of the invocation account's three counts by a closed enumeration is a text the compiled class holds,
- * naming every constant of its enumeration (ADR-224 section 1).
+ * Each of the three counts by a closed enumeration that the account hands the report (ADR-362 section 3) is a text
+ * the compiled class holds, naming every constant of its enumeration (ADR-224 section 1).
  *
  * <p>It has to be a text of the compiled class, completed at run time by the list of runs alone, because
  * that is what {@link EveryStatementThatSortsIsRecordedTest} plans: a statement put together from the
  * enumeration at run time is in no compiled text, so that test would pass it unread whatever it sorted.
  * And it has to name every constant, because the account reads one count back for each constant of the
  * enumeration: where the enumeration has a constant the text leaves out, the read of that count fails in a
- * run and the account ends there, without that count's lines or anything after them. This test is what
+ * run and the counting ends there, without that count or anything after it. This test is what
  * fails first, when an enumeration gains a constant and the text does not, so that no build ships so.
  *
  * <p>Read from the compiled form, as {@link EachTableIsNamedOnlyByItsOwnerTest} reads the account's
@@ -35,25 +35,25 @@ import org.junit.jupiter.api.Test;
  * this failed on the first.
  */
 @Epic("Pipeline")
-@Feature("The invocation account")
+@Feature("The invocation report")
 @Issue("477")
 @Link(name = "ADR-224", url = Adr.THE_ACCOUNTS_COUNTS_AND_THE_EMBEDDER_IDENTITY_READS_SORT_NOTHING, type = "adr")
 class TheAccountsCountsAreTextsTheBuildHoldsTest {
 
-    private static final String THE_CLASS_THAT_COUNTS_FOR_THE_ACCOUNT = "io.algernon.vespera.engine.pipeline.InvocationAccount";
+    private static final String THE_CLASS_THAT_COUNTS_FOR_THE_REPORT = "io.algernon.vespera.engine.pipeline.InvocationAccount";
 
     @Test
     @Story("A count by kind reads its rows once and sorts none of them")
     @DisplayName("The text of each of the three counts is written out in the class, and names every declared kind in the order it is declared")
     void eachCountsTextNamesEveryConstantOfItsEnumeration() throws Exception {
-        List<String> texts = ShippedClasses.stringsByClass().getOrDefault(THE_CLASS_THAT_COUNTS_FOR_THE_ACCOUNT, List.of());
+        List<String> texts = ShippedClasses.stringsByClass().getOrDefault(THE_CLASS_THAT_COUNTS_FOR_THE_REPORT, List.of());
 
-        claim("the class that writes the account holds texts, so what follows did read it", () -> assertThat(texts).isNotEmpty());
+        claim("the class that counts for the report holds texts, so what follows did read it", () -> assertThat(texts).isNotEmpty());
         claim(
                 "one text of the class reads the verdicts, and it names every declared kind of verdict, once each"
                         + " and in the order they are declared: a kind declared later and not added to it would make"
                         + " the reading of the counts fail, and the account would end there; and the counts are"
-                        + " read back in that order, so a text in any other would print each count under"
+                        + " read back in that order, so a text in any other would hold each count under"
                         + " another kind's name",
                 () -> assertThat(textsOver(texts, "verdict"))
                         .hasSize(1)

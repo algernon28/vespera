@@ -54,7 +54,7 @@ class TheControlPanelReadsTheReportTheJarWritesTest {
     @Story("The window shows the invocation from the report the jar writes")
     @DisplayName("What the jar writes in report.json is read by the control panel: the invocation, each step in order with its state, the charts, the gates and the closing line, and no progress.json is written")
     void theReportTheJarWritesIsReadWhole() throws IOException {
-        ProgressPage page = new ProgressPage(workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, aClock());
+        JobSampler page = new JobSampler(workingDirectory, NO_SCHEDULED_WRITE_MEANWHILE, aClock());
         InvocationReport report = aReport(workingDirectory);
         page.handTo(report);
         JobExecution job = aJob();

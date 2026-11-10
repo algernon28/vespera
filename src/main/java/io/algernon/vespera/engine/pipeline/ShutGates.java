@@ -5,7 +5,7 @@ import org.springframework.batch.infrastructure.item.ExecutionContext;
 
 /**
  * The steps of this invocation that ended at a shut gate (ADR-265 section 3): having done nothing for want of
- * a value, their own or one an earlier step's gate required. The progress page and the invocation report read it to tell such a step
+ * a value, their own or one an earlier step's gate required. The job's sampler and the invocation report read it to tell such a step
  * from one that finished. It decides nothing: the gates are where they are, and each calls {@link #record}
  * after it has decided.
  *

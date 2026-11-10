@@ -36,12 +36,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import tools.jackson.databind.JsonNode;
 import picocli.CommandLine;
 
 /**
  * A cluster whose answer is turned down the last two times it is asked stands without writing, and the generation
  * step finishes with it (ADR-319): what makes a fault a repeated one, when the step records completion, that nothing
- * more is asked under the run once it has, and what the page, the account and the publish make of it.
+ * more is asked under the run once it has, and what the report and the publish make of it.
  *
  * <p><b>One sequence is built once for the class</b>, since it is three invocations long and five tests read it
  * (REVIEW.md, "shares its setup"): the fixture's one cluster answered with writing that ends with a stray closing
@@ -95,20 +96,14 @@ class RepeatedFaultInvocationTest {
     /** What a cluster's Confluence page body is called in its folder of the rendering (ADR-312). */
     private static final String A_CONFLUENCE_PAGE_BODY = "page.xml";
 
-    /** What an invocation account's file name starts with, in the working directory's logs folder (ADR-270). */
-    private static final String ACCOUNT_PREFIX = "invocation-account-";
-
-    /** The working directory's folder the accounts are written in (ADR-270). */
-    private static final String LOGS = "logs";
-
-    /** What the account's line counting the clusters standing without writing opens with (ADR-319 §5.2). */
-    private static final String THE_STANDING_COUNT = "counts clusters standing-without-writing=";
-
     /** The one cluster of the fixture, standing without writing once its second answer is turned down. */
-    private static final int ONE_CLUSTER_STANDING = 1;
+    private static final long ONE_CLUSTER_STANDING = 1;
 
-    /** What the account counts of the fault that cluster stands for, by its kind (ADR-198, ADR-224). */
-    private static final String ONE_FAULT_OF_THE_SHAPE_ASKED_FOR = "counts cluster-fault kind=SCHEMA_VIOLATION count=1";
+    /** What the report counts of the written documents of that cluster: none, the cluster standing without writing. */
+    private static final long NONE_WRITTEN = 0;
+
+    /** What the report counts of the fault that cluster stands for, under its kind (ADR-198, ADR-224, ADR-362 section 3). */
+    private static final String THE_KIND_OF_THE_ONE_FAULT = "schema-violation";
 
     /** One reason kept for the one cluster, though it was turned down twice: the second replaced the first. */
     private static final int ONE_REASON_KEPT = 1;
@@ -293,27 +288,24 @@ class RepeatedFaultInvocationTest {
     }
 
     @Test
-    @Story("A group whose answer keeps being turned down stands without writing, and the account counts it")
-    @DisplayName("The account of the run that records the work as done counts the groups standing without writing")
+    @Story("A group whose answer keeps being turned down stands without writing, and the report counts it")
+    @DisplayName("The report of the run that records the work as done counts the group arranged and not written")
     @Link(name = "ADR-198", url = Adr.EVERY_INVOCATION_WRITES_AN_ACCOUNT_THAT_NAMES_NO_DOCUMENT, type = "adr")
-    void theAccountCountsTheClustersStandingWithoutWriting() throws IOException {
+    @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
+    void theReportCountsTheClusterStandingWithoutWriting() throws IOException {
         aClusterTurnedDownTwiceAndRunAgain();
         claim(
-                "the account of the first invocation counts no group standing without writing: the group was still"
-                        + " to be asked again",
-                () -> assertThat(afterTheFirst.account()).noneMatch(line -> line.contains(THE_STANDING_COUNT)));
-        claim(
-                "the account of the second counts " + ONE_CLUSTER_STANDING + " group standing without writing, in one"
-                        + " line of its own",
-                () -> assertThat(afterTheSecond.account())
-                        .filteredOn(line -> line.contains(THE_STANDING_COUNT))
-                        .singleElement()
-                        .satisfies(line -> assertThat(line).endsWith(" " + THE_STANDING_COUNT + ONE_CLUSTER_STANDING)));
+                "the report of the second invocation counts " + ONE_CLUSTER_STANDING + " group arranged and none"
+                        + " written: the group stands without writing",
+                () -> {
+                    assertThat(afterTheSecond.counts().path("clusters").asLong()).isEqualTo(ONE_CLUSTER_STANDING);
+                    assertThat(afterTheSecond.counts().path("synthesisDocs").asLong()).isEqualTo(NONE_WRITTEN);
+                });
         claim(
                 "and it still says why, by the kind of the one fault standing: an answer that did not come back in"
                         + " the shape it was asked for",
-                () -> assertThat(afterTheSecond.account())
-                        .anySatisfy(line -> assertThat(line).endsWith(" " + ONE_FAULT_OF_THE_SHAPE_ASKED_FOR)));
+                () -> assertThat(afterTheSecond.counts().path("clusterFaults").path(THE_KIND_OF_THE_ONE_FAULT).asLong())
+                        .isEqualTo(ONE_CLUSTER_STANDING));
     }
 
     @Test
@@ -474,7 +466,7 @@ class RepeatedFaultInvocationTest {
      * @param lineUnderTheReason the line beneath that
      * @param confluenceBody the body of the cluster's page in the Confluence rendering
      * @param indexRow the index's row of the cluster
-     * @param account the lines of the account this invocation wrote
+     * @param counts the {@code counts} of the report this invocation wrote
      */
     private record AfterAnInvocation(
             int exitCode,
@@ -485,11 +477,11 @@ class RepeatedFaultInvocationTest {
             String lineUnderTheReason,
             String confluenceBody,
             String indexRow,
-            List<String> account) {}
+            JsonNode counts) {}
 
     /** One invocation over {@code root}, and what it left, read before anything else is invoked. */
     private AfterAnInvocation anInvocationOver(Path root) throws IOException {
-        List<Path> before = accounts();
+        List<Path> before = TheReportFile.copiesIn(workingDirectory);
         cli.run("run", root.toString());
         Path tree = theLatestTree(root);
         Path page = UnwrittenPage.pageHeadedBy(tree, theOnlyCluster());
@@ -502,7 +494,7 @@ class RepeatedFaultInvocationTest {
                 UnwrittenPage.lineUnderTheReasonOf(page),
                 theConfluenceBodySaying(tree, UnwrittenPage.forKind(ClusterFaultKind.SCHEMA_VIOLATION)),
                 UnwrittenPage.indexRowFor(tree, theOnlyCluster()),
-                theOneAccountWrittenSince(before).lines().toList());
+                theOneCopyWrittenSince(before).path("counts"));
     }
 
     /** The one Confluence page body in {@code tree}'s rendering carrying {@code sentence}, as the rendering escapes it. */
@@ -647,27 +639,14 @@ class RepeatedFaultInvocationTest {
                 Walk.canonicalRoot(root).toString());
     }
 
-    /** Every account in the working directory's logs folder now. */
-    private static List<Path> accounts() throws IOException {
-        Path logs = workingDirectory.resolve(LOGS);
-        if (!Files.isDirectory(logs)) {
-            return List.of();
-        }
-        try (Stream<Path> files = Files.list(logs)) {
-            return files.filter(file -> file.getFileName().toString().startsWith(ACCOUNT_PREFIX)).toList();
-        }
-    }
-
-    /** The one account written since {@code before} was listed. */
-    private static String theOneAccountWrittenSince(List<Path> before) throws IOException {
-        List<Path> written = accounts().stream().filter(file -> !before.contains(file)).toList();
+    /** The one copy of a report written since {@code before} was listed. */
+    private static JsonNode theOneCopyWrittenSince(List<Path> before) throws IOException {
+        List<Path> written = TheReportFile.copiesIn(workingDirectory).stream()
+                .filter(file -> !before.contains(file))
+                .toList();
         if (written.size() != 1) {
-            throw new IllegalStateException("expected the invocation to write one account, found " + written.size());
+            throw new IllegalStateException("expected the invocation to write one copy, found " + written.size());
         }
-        try {
-            return Files.readString(written.getFirst());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return TheReportFile.parse(Files.readString(written.getFirst()));
     }
 }

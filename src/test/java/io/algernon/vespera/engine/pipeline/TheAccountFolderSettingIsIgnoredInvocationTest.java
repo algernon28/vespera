@@ -28,22 +28,27 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * An operator whose configuration still sets {@code vespera.account-dir}, as one machine's
- * {@code application-local.yaml} does, gets the invocation account in the working directory's {@code logs}
- * folder all the same, and one warning saying so; the run is not refused for it (ADR-270 section 3).
+ * {@code application-local.yaml} does, gets the report's copy in the working directory's {@code logs}
+ * folder all the same, and one warning saying so; the run is not refused for it (ADR-270 section 3, in the words
+ * ADR-362 section 4 gives it).
  */
 @CascadeSliceTest
 @Import(StubbedExtractionBeans.class)
 @Epic("Pipeline")
-@Feature("The invocation account")
+@Feature("The report's copy")
 @Link(name = "ADR-270", url = Adr.EVERY_LOG_IS_IN_THE_WORKING_DIRECTORYS_LOGS_FOLDER, type = "adr")
+@Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
 class TheAccountFolderSettingIsIgnoredInvocationTest {
 
-    /** How an account's file name starts. */
+    /** How the name of the report's copy starts. */
+    private static final String COPY_PREFIX = "report-";
+
+    /** How an invocation account's file name started, which no invocation writes any more. */
     private static final String ACCOUNT_PREFIX = "invocation-account-";
 
     /** How the one line for a configured {@code vespera.account-dir} begins; the folder written to follows. */
     private static final String THE_SETTING_IS_NO_LONGER_READ =
-            "vespera.account-dir is no longer read, and the invocation account is written to ";
+            "vespera.account-dir is no longer read, and the report's copy is written to ";
 
     @TempDir
     static Path workingDirectory;
@@ -62,8 +67,8 @@ class TheAccountFolderSettingIsIgnoredInvocationTest {
     private VesperaCli cli;
 
     @Test
-    @Story("The account is written in the working directory's logs folder")
-    @DisplayName("A run with vespera.account-dir still configured writes its account in the working directory's logs folder, and one line says so")
+    @Story("The report's copy is written in the working directory's logs folder")
+    @DisplayName("A run with vespera.account-dir still configured writes the report's copy in the working directory's logs folder, and one line says so")
     void aConfiguredAccountFolderIsIgnoredWithOneLine(@TempDir Path root) throws IOException {
         Files.writeString(root.resolve("a.txt"), "a");
 
@@ -75,16 +80,21 @@ class TheAccountFolderSettingIsIgnoredInvocationTest {
         Path logs = workingDirectory.resolve("logs");
         claim("the working directory has a logs folder", () -> assertThat(logs).isDirectory());
         claim(
-                "and the one account of the invocation is in it",
-                () -> assertThat(namesIn(logs)).filteredOn(name -> name.startsWith(ACCOUNT_PREFIX)).hasSize(1));
+                "and the one copy of the invocation's report is in it",
+                () -> assertThat(namesIn(logs))
+                        .filteredOn(name -> name.startsWith(COPY_PREFIX) && name.endsWith(".json"))
+                        .hasSize(1));
         claim(
-                "the account's one warning says the setting is no longer read and names the logs folder, so the"
+                "and no invocation account is",
+                () -> assertThat(namesIn(logs)).noneMatch(name -> name.startsWith(ACCOUNT_PREFIX)));
+        claim(
+                "the one warning says the setting is no longer read and names the logs folder, so the"
                         + " operator's configuration does not stop the run",
                 () -> assertThat(warned)
                         .containsExactly(THE_SETTING_IS_NO_LONGER_READ + workingDirectory.toAbsolutePath().resolve("logs")));
     }
 
-    /** The warnings {@link InvocationAccount}'s logger wrote while {@code invocation} ran, as the operator reads them. */
+    /** The warnings {@link InvocationAccount}'s logger, which says the setting is ignored, wrote while {@code invocation} ran, as the operator reads them. */
     private static List<String> warningsOfTheAccountWhile(Runnable invocation) {
         Logger logger = (Logger) LoggerFactory.getLogger(InvocationAccount.class);
         ListAppender<ILoggingEvent> logged = new ListAppender<>();

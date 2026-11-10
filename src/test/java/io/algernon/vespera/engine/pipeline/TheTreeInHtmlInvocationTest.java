@@ -81,8 +81,8 @@ class TheTreeInHtmlInvocationTest {
     /** Both of the corpus's documents. */
     private static final int BOTH = 2;
 
-    /** The progress page the job rewrites while it runs, in the working directory. */
-    private static final String PROGRESS_PAGE = "progress.html";
+    /** The page the invocation's report is drawn as, which the job rewrites while it runs, in the working directory. */
+    private static final String REPORT_PAGE = ReportHtml.FILE_NAME;
 
     @TempDir
     static Path workingDirectory;
@@ -257,10 +257,10 @@ class TheTreeInHtmlInvocationTest {
                 () -> assertThat(operatorLines().subList(linesBeforeItWent.get(), operatorLines().size()))
                         .noneMatch(line -> line.contains(FIRST)));
         claim(
-                "and the progress page, which is there, does not name it",
+                "and the report page, which is there, does not name it",
                 () -> {
-                    assertThat(workingDirectory.resolve(PROGRESS_PAGE)).isRegularFile();
-                    assertThat(Files.readString(workingDirectory.resolve(PROGRESS_PAGE), StandardCharsets.UTF_8))
+                    assertThat(workingDirectory.resolve(REPORT_PAGE)).isRegularFile();
+                    assertThat(Files.readString(workingDirectory.resolve(REPORT_PAGE), StandardCharsets.UTF_8))
                             .doesNotContain(FIRST);
                 });
     }

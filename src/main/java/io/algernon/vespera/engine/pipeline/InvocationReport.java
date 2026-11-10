@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
  * The invocation report (ADR-362 section 3): {@code report.json} at the top of the working directory and its copy
  * {@code logs/report-<invocation id>.json}, the single source from which a window, a script or an agent reads how the
  * invocation in hand, or the last to end, stands. {@code vespera run} and {@code vespera label} write it; the job's
- * progress page hands it the reading it draws from at each of its writes.
+ * {@link JobSampler} hands it its reading at each write (section 6).
  *
  * <p><b>It is built from typed values</b> as {@link InvocationAccount} is (ADR-198 section 2): an enumeration, a step
  * name, a count, an instant, a {@link Path} and a line of the jar's own printed whole. No method takes a
@@ -49,6 +49,9 @@ final class InvocationReport {
     private static final String LOGS = "logs";
 
     private static final String COPY_PREFIX = "report-";
+
+    /** How the name of an invocation account an earlier version left starts; no invocation writes one (section 4). */
+    private static final String RETIRED_ACCOUNT_PREFIX = "invocation-account-";
 
     /** An instant is written in UTC with {@code Z}, to the millisecond (ADR-362 section 3). */
     private static final DateTimeFormatter INSTANT =
@@ -89,7 +92,7 @@ final class InvocationReport {
             StageModules.GENERATION.stage(), List.of(StepNames.GENERATION));
 
     /** The four legs of the timeline, each with its steps in job order, every step in exactly one (ADR-324 section 1). */
-    static final Map<String, List<String>> LEGS = legs();
+    private static final Map<String, List<String>> LEGS = legs();
 
     private static Map<String, List<String>> legs() {
         Map<String, List<String>> legs = new LinkedHashMap<>();
@@ -177,7 +180,7 @@ final class InvocationReport {
     record Removing(
             String step, long entered, long survivors, Map<String, Long> verdicts, Map<String, Double> perMinute) {}
 
-    /** One chart, as the progress page's rules pick its series. */
+    /** One chart, as ADR-268's rules pick its series. */
     record Chart(String id, String title, String axis, List<Long> seconds, List<Line> lines) {}
 
     /** A line of a chart. */
@@ -194,7 +197,7 @@ final class InvocationReport {
     /** A failed step: its type and at most three causes, class names alone. */
     record Fault(String step, String type, List<String> causes) {}
 
-    /** What the job holds at one write, which its progress page hands over. */
+    /** What the job holds at one write, which its sampler hands over. */
     record Reading(
             boolean last, String outcome, List<Step> steps, Map<String, Optional<String>> gateKeys, long databaseBytes,
             Removing removing, List<Chart> charts, Runs runs, Map<String, String> arrivedAt, List<Fault> faults) {}
@@ -903,7 +906,7 @@ final class InvocationReport {
         if (name.startsWith("progress") && name.endsWith(".html")) {
             return "progress-page";
         }
-        if (name.startsWith(InvocationAccount.FILE_PREFIX)) {
+        if (name.startsWith(RETIRED_ACCOUNT_PREFIX)) {
             return "invocation-account";
         }
         if (name.startsWith("vespera.db")) {

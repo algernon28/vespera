@@ -14,18 +14,16 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
@@ -42,20 +40,19 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
+import tools.jackson.databind.JsonNode;
 
 /**
- * The invocation account's three counts by a closed enumeration, the verdicts by kind, the extraction
- * faults by category and the cluster faults by kind, write the lines they wrote and keep nothing in
- * temporary storage (ADR-224 section 1): each is one statement that selects counts and no column, names
- * every constant of its enumeration in its own text, and gives {@code other} as the total less the counts
- * it names.
+ * The invocation's three counts by a closed enumeration, the verdicts by kind, the extraction faults by category
+ * and the cluster faults by kind, are the counts the report holds as {@code counts}, and keep nothing in temporary
+ * storage (ADR-224 section 1, ADR-362 section 3): each is one statement that selects counts and no column, names
+ * every constant of its enumeration in its own text, and gives {@code other} as the total less the counts it names.
+ * The report holds a count for every constant, in the order the enumeration declares them, and {@code other} last.
  *
- * <p>Before ADR-224 is built each of the three is a {@code GROUP BY} over the rows of the invocation's
- * runs, which sorts them (ADR-218, rows 19 and 20). The claims on the lines pass against that code and have
- * to go on passing, so that nothing a reader of the account sees changes. The claims that a statement names
- * every constant, and that it is planned without a temporary B-tree, fail against it.
+ * <p>The counts are read from the report the account hands them to, which ADR-362 section 4 made the one place
+ * they are written: the account's own file, whose lines this test once read, is retired.
  *
- * <p>The writer is fed by hand, as in {@code InvocationAccountTest}: an in-memory database holding only the
+ * <p>The account is fed by hand, as in {@code InvocationAccountTest}: an in-memory database holding only the
  * columns the counts read. The statements it sends are then planned against a second database, the shipped
  * {@code schema.sql} with no row, where the indexes are the shipped ones.
  *
@@ -64,13 +61,12 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
  * one. No size, and no plan over rows.
  */
 @Epic("Pipeline")
-@Feature("The invocation account")
+@Feature("The invocation report")
 @Issue("477")
 @Link(name = "ADR-224", url = Adr.THE_ACCOUNTS_COUNTS_AND_THE_EMBEDDER_IDENTITY_READS_SORT_NOTHING, type = "adr")
 @Link(name = "ADR-198", url = Adr.EVERY_INVOCATION_WRITES_AN_ACCOUNT_THAT_NAMES_NO_DOCUMENT, type = "adr")
+@Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
 class TheAccountsCountsByKindSortNothingTest {
-
-    private static final Instant NOW = Instant.parse("2026-10-10T10:00:00Z");
 
     /** A run id is a 64-character hexadecimal digest. */
     private static final String ONE_RUN = "0123456789abcdef".repeat(4);
@@ -87,14 +83,15 @@ class TheAccountsCountsByKindSortNothingTest {
      */
     private static final int PLACES_ARE_COUNTED_FROM = 1;
 
-    /** What opens every count line by verdict kind, after the line's instant. */
-    private static final String VERDICT_LINE = "counts verdict kind=";
+    /** The members of the report's {@code counts} that hold the three counts. */
+    private static final String VERDICTS = "verdicts";
 
-    /** What opens every count line by extraction-fault category. */
-    private static final String EXTRACTION_FAULT_LINE = "counts extraction-fault category=";
+    private static final String EXTRACTION_FAULTS = "extractionFaults";
 
-    /** What opens every count line by cluster-fault kind. */
-    private static final String CLUSTER_FAULT_LINE = "counts cluster-fault kind=";
+    private static final String CLUSTER_FAULTS = "clusterFaults";
+
+    /** The count of the rows no constant names: the total less the counts that do. */
+    private static final String OTHER = "other";
 
     /** A column or a word a count must never read: free text about an occurrence, or where it is. */
     private static final Pattern FREE_TEXT_OR_A_PATH = Pattern.compile("\\b(detail|reason|path|label|title)\\b");
@@ -132,51 +129,47 @@ class TheAccountsCountsByKindSortNothingTest {
     }
 
     @Test
-    @Story("A count is written for each kind that has a row, and for no other")
-    @DisplayName("A kind no row carries writes no line, and nothing is written as other when every stored value is known")
-    void aKindNoRowCarriesWritesNoLine() throws IOException {
+    @Story("A count is held for each kind, and is nothing where no row carries it")
+    @DisplayName("A kind no row carries is counted as zero, and nothing is counted as other when every stored value is known")
+    void aKindNoRowCarriesIsZero() {
         verdict(ONE_RUN, "BROKEN");
         verdict(ANOTHER_RUN, "BROKEN");
         verdict(ANOTHER_RUN, "PASSED");
         extractionFault(ONE_RUN, "timeout");
         clusterFault(ANOTHER_RUN, "SCHEMA_VIOLATION");
 
-        List<String> lines = theAccountOfAnInvocationOverBothRuns();
+        JsonNode counts = theCountsOfAnInvocationOverBothRuns();
 
         claim(
                 "the verdicts are counted over both runs under the two kinds stored, two broken and one passed,"
-                        + " and no line is written for any kind no row carries, or for other",
-                () -> assertThat(linesOpening(lines, VERDICT_LINE))
-                        .containsExactly(VERDICT_LINE + "BROKEN count=2", VERDICT_LINE + "PASSED count=1"));
+                        + " and every other kind, other among them, is zero",
+                () -> assertThat(nonZero(counts, VERDICTS)).containsExactly(Map.entry("broken", 2L), Map.entry("passed", 1L)));
         claim(
-                "the one conversion fault stored is the only category written",
-                () -> assertThat(linesOpening(lines, EXTRACTION_FAULT_LINE))
-                        .containsExactly(EXTRACTION_FAULT_LINE + "timeout count=1"));
+                "the one conversion fault stored is the only category counted",
+                () -> assertThat(nonZero(counts, EXTRACTION_FAULTS)).containsExactly(Map.entry("timeout", 1L)));
         claim(
-                "the one fault of a group that could not be written is the only kind written",
-                () -> assertThat(linesOpening(lines, CLUSTER_FAULT_LINE))
-                        .containsExactly(CLUSTER_FAULT_LINE + "SCHEMA_VIOLATION count=1"));
+                "the one fault of a group that could not be written is the only kind counted",
+                () -> assertThat(nonZero(counts, CLUSTER_FAULTS)).containsExactly(Map.entry("schema-violation", 1L)));
     }
 
     @Test
-    @Story("A count is written for each kind that has a row, and for no other")
-    @DisplayName("With no row at all under the invocation's runs, no count by kind is written")
-    void noRowWritesNoLine() throws IOException {
-        List<String> lines = theAccountOfAnInvocationOverBothRuns();
+    @Story("A count is held for each kind, and is nothing where no row carries it")
+    @DisplayName("With no row at all under the invocation's runs, every count by kind is zero")
+    void noRowCountsNothing() {
+        JsonNode counts = theCountsOfAnInvocationOverBothRuns();
 
         claim(
-                "no line counts a verdict, a conversion fault or a fault of a group: a count of nothing is"
-                        + " not written as a zero",
-                () -> assertThat(lines)
-                        .noneMatch(line -> line.startsWith(VERDICT_LINE)
-                                || line.startsWith(EXTRACTION_FAULT_LINE)
-                                || line.startsWith(CLUSTER_FAULT_LINE)));
+                "no verdict, no conversion fault and no fault of a group is counted: a count of nothing is a zero",
+                () -> assertThat(nonZero(counts, VERDICTS))
+                        .isEmpty());
+        claim("nor is any conversion fault", () -> assertThat(nonZero(counts, EXTRACTION_FAULTS)).isEmpty());
+        claim("nor any fault of a group", () -> assertThat(nonZero(counts, CLUSTER_FAULTS)).isEmpty());
     }
 
     @Test
-    @Story("A stored value outside a closed vocabulary is never written")
+    @Story("A stored value outside a closed vocabulary is never held")
     @DisplayName("A value that is no declared kind is counted as other, and one that differs only in letter case is counted with its kind")
-    void anUndeclaredValueIsOtherAndLetterCaseIsNotADifference() throws IOException {
+    void anUndeclaredValueIsOtherAndLetterCaseIsNotADifference() {
         verdict(ONE_RUN, "BROKEN");
         verdict(ONE_RUN, "broken");
         verdict(ANOTHER_RUN, "Broken");
@@ -188,32 +181,31 @@ class TheAccountsCountsByKindSortNothingTest {
         clusterFault(ONE_RUN, "schema_violation");
         clusterFault(ONE_RUN, NOT_IN_ANY_ENUMERATION);
 
-        List<String> lines = theAccountOfAnInvocationOverBothRuns();
+        JsonNode counts = theCountsOfAnInvocationOverBothRuns();
 
         claim(
                 "the three verdicts stored as broken in three letter cases are one count of three, and the two"
                         + " whose value nobody declared are counted as other",
-                () -> assertThat(linesOpening(lines, VERDICT_LINE))
-                        .containsExactly(VERDICT_LINE + "BROKEN count=3", VERDICT_LINE + "other count=2"));
+                () -> assertThat(nonZero(counts, VERDICTS)).containsExactly(Map.entry("broken", 3L), Map.entry(OTHER, 2L)));
         claim(
-                "the two conversion faults stored as timeout in two letter cases are one count of two, written"
-                        + " in lower case, and the undeclared one is other",
-                () -> assertThat(linesOpening(lines, EXTRACTION_FAULT_LINE))
-                        .containsExactly(EXTRACTION_FAULT_LINE + "other count=1", EXTRACTION_FAULT_LINE + "timeout count=2"));
+                "the two conversion faults stored as timeout in two letter cases are one count of two, and the"
+                        + " undeclared one is other",
+                () -> assertThat(nonZero(counts, EXTRACTION_FAULTS))
+                        .containsExactly(Map.entry("timeout", 2L), Map.entry(OTHER, 1L)));
         claim(
                 "the fault of a group stored in lower case is counted under its kind's own name, and the"
                         + " undeclared one is other",
-                () -> assertThat(linesOpening(lines, CLUSTER_FAULT_LINE))
-                        .containsExactly(CLUSTER_FAULT_LINE + "SCHEMA_VIOLATION count=1", CLUSTER_FAULT_LINE + "other count=1"));
+                () -> assertThat(nonZero(counts, CLUSTER_FAULTS))
+                        .containsExactly(Map.entry("schema-violation", 1L), Map.entry(OTHER, 1L)));
         claim(
-                "the undeclared value's own text is nowhere in the account",
-                () -> assertThat(String.join("\n", lines)).doesNotContain(NOT_IN_ANY_ENUMERATION));
+                "the undeclared value's own text is nowhere in the report",
+                () -> assertThat(TheReportFile.textIn(workingDirectory)).doesNotContain(NOT_IN_ANY_ENUMERATION));
     }
 
     @Test
-    @Story("The count lines come in one order")
-    @DisplayName("The lines of each count come in ascending order of the name written, other among them")
-    void theLinesComeInAscendingOrderOfTheNameWritten() throws IOException {
+    @Story("The counts come in one order")
+    @DisplayName("The counts of each group come in the order the kinds are declared, other last, whatever order the rows were stored in")
+    void theCountsComeInTheOrderTheKindsAreDeclared() {
         for (String kind : List.of("PASSED", NOT_IN_ANY_ENUMERATION, "EXTRACTION_FAILED", "BROKEN")) {
             verdict(ONE_RUN, kind);
         }
@@ -221,39 +213,28 @@ class TheAccountsCountsByKindSortNothingTest {
             extractionFault(ANOTHER_RUN, category);
         }
 
-        List<String> lines = theAccountOfAnInvocationOverBothRuns();
+        JsonNode counts = theCountsOfAnInvocationOverBothRuns();
 
         claim(
-                "the verdict kinds are written in the order of their names, whatever order the rows were"
-                        + " stored in, and other comes last because a small letter sorts after a capital",
-                () -> assertThat(linesOpening(lines, VERDICT_LINE))
-                        .containsExactly(
-                                VERDICT_LINE + "BROKEN count=1",
-                                VERDICT_LINE + "EXTRACTION_FAILED count=1",
-                                VERDICT_LINE + "PASSED count=1",
-                                VERDICT_LINE + "other count=1"));
+                "the verdict kinds are counted in the order they are declared, and other comes last",
+                () -> assertThat(countsOf(counts, VERDICTS).keySet())
+                        .containsExactlyElementsOf(namesOf(VerdictKind.values())));
         claim(
-                "the conversion faults' categories, written in lower case, come in the order of their names,"
-                        + " and other falls among them where its own name puts it",
-                () -> assertThat(linesOpening(lines, EXTRACTION_FAULT_LINE))
-                        .containsExactly(
-                                EXTRACTION_FAULT_LINE + "backend_failure count=1",
-                                EXTRACTION_FAULT_LINE + "internal count=1",
-                                EXTRACTION_FAULT_LINE + "other count=1",
-                                EXTRACTION_FAULT_LINE + "policy count=1",
-                                EXTRACTION_FAULT_LINE + "unknown count=1"));
+                "the conversion faults' categories are counted in the order they are declared, other last",
+                () -> assertThat(countsOf(counts, EXTRACTION_FAULTS).keySet())
+                        .containsExactlyElementsOf(namesOf(FailureCategory.values())));
     }
 
     @Test
     @Story("A count by kind reads its rows once and sorts none of them")
     @DisplayName("Each of the three counts is one statement that names every declared kind, reads no free text, and keeps no row in temporary storage")
-    void eachCountIsOneStatementNamingEveryConstantAndSortingNothing() throws IOException {
+    void eachCountIsOneStatementNamingEveryConstantAndSortingNothing() {
         verdict(ONE_RUN, "BROKEN");
         extractionFault(ONE_RUN, "timeout");
         clusterFault(ANOTHER_RUN, "SCHEMA_VIOLATION");
         log.clear();
 
-        theAccountOfAnInvocationOverBothRuns();
+        theCountsOfAnInvocationOverBothRuns();
         List<String> ofVerdicts = sentOver("verdict");
         List<String> ofExtractionFaults = sentOver("extraction_fault");
         List<String> ofClusterFaults = sentOver("cluster_fault");
@@ -293,13 +274,13 @@ class TheAccountsCountsByKindSortNothingTest {
      * The statement answers one count for each constant by position, and the writer reads them back by
      * position too. A constant moved in an enumeration without the text following would write one
      * constant's count under another's name; one put in without it would make the read of the counts fail
-     * and end the account there, with no line of that count. So every constant is given a count no other
-     * has, and every constant's line is claimed: either slip fails here.
+     * and end the counting there, with none of that count. So every constant is given a count no other
+     * has, and every constant's count is claimed: either slip fails here.
      */
     @Test
-    @Story("A count is written under the name of the kind it counts")
+    @Story("A count is held under the name of the kind it counts")
     @DisplayName("With a different number of rows stored for every declared kind, each line carries its own kind's number")
-    void eachLineCarriesItsOwnConstantsCount() throws IOException {
+    void eachCountCarriesItsOwnConstantsNumber() {
         for (VerdictKind kind : VerdictKind.values()) {
             for (int row = 0; row < rowsStoredFor(kind); row++) {
                 verdict(row % 2 == 0 ? ONE_RUN : ANOTHER_RUN, kind.name());
@@ -316,22 +297,21 @@ class TheAccountsCountsByKindSortNothingTest {
             }
         }
 
-        List<String> lines = theAccountOfAnInvocationOverBothRuns();
+        JsonNode counts = theCountsOfAnInvocationOverBothRuns();
 
         claim(
-                "every declared kind of verdict has a line, and each carries the number stored for that kind,"
+                "every declared kind of verdict is counted, and each carries the number stored for that kind,"
                         + " which is its place in the declaration counted from one, so no two kinds share a"
-                        + " number and a count written under a neighbour's name would show",
-                () -> assertThat(linesOpening(lines, VERDICT_LINE))
-                        .containsExactlyElementsOf(theLinesExpectedOf(VERDICT_LINE, VerdictKind.values(), false)));
+                        + " number and a count held under a neighbour's name would show",
+                () -> assertThat(countsOf(counts, VERDICTS)).containsExactlyEntriesOf(theCountsExpectedOf(VerdictKind.values())));
         claim(
-                "every declared category of conversion fault has a line, in lower case, carrying its own number",
-                () -> assertThat(linesOpening(lines, EXTRACTION_FAULT_LINE))
-                        .containsExactlyElementsOf(theLinesExpectedOf(EXTRACTION_FAULT_LINE, FailureCategory.values(), true)));
+                "every declared category of conversion fault is counted, carrying its own number",
+                () -> assertThat(countsOf(counts, EXTRACTION_FAULTS))
+                        .containsExactlyEntriesOf(theCountsExpectedOf(FailureCategory.values())));
         claim(
-                "every declared kind of fault of a group has a line carrying its own number",
-                () -> assertThat(linesOpening(lines, CLUSTER_FAULT_LINE))
-                        .containsExactlyElementsOf(theLinesExpectedOf(CLUSTER_FAULT_LINE, ClusterFaultKind.values(), false)));
+                "every declared kind of fault of a group is counted, carrying its own number",
+                () -> assertThat(countsOf(counts, CLUSTER_FAULTS))
+                        .containsExactlyEntriesOf(theCountsExpectedOf(ClusterFaultKind.values())));
     }
 
     /** How many rows the test stores for {@code constant}: its place in the declaration, counted from one. */
@@ -339,14 +319,26 @@ class TheAccountsCountsByKindSortNothingTest {
         return constant.ordinal() + PLACES_ARE_COUNTED_FROM;
     }
 
-    /** One line for each constant with the number stored for it, in ascending order of the name written. */
-    private static List<String> theLinesExpectedOf(String opening, Enum<?>[] constants, boolean lowerCase) {
-        return Arrays.stream(constants)
-                .map(constant -> opening
-                        + (lowerCase ? constant.name().toLowerCase(Locale.ROOT) : constant.name())
-                        + " count=" + rowsStoredFor(constant))
-                .sorted()
-                .toList();
+    /** The name the report counts a constant under: lower case, with a hyphen for each underscore. */
+    private static String nameOf(Enum<?> constant) {
+        return constant.name().toLowerCase(Locale.ROOT).replace('_', '-');
+    }
+
+    /** The names of the constants, in the order declared, and {@code other} after them. */
+    private static List<String> namesOf(Enum<?>[] constants) {
+        List<String> names = new ArrayList<>(Arrays.stream(constants).map(TheAccountsCountsByKindSortNothingTest::nameOf).toList());
+        names.add(OTHER);
+        return names;
+    }
+
+    /** One count for each constant with the number stored for it, in the order declared, and no row under other. */
+    private static Map<String, Long> theCountsExpectedOf(Enum<?>[] constants) {
+        Map<String, Long> expected = new LinkedHashMap<>();
+        for (Enum<?> constant : constants) {
+            expected.put(nameOf(constant), (long) rowsStoredFor(constant));
+        }
+        expected.put(OTHER, 0L);
+        return expected;
     }
 
     private void verdict(String run, String kind) {
@@ -362,13 +354,13 @@ class TheAccountsCountsByKindSortNothingTest {
     }
 
     /**
-     * Writes the account of an invocation that arrived at {@link #ONE_RUN} and {@link #ANOTHER_RUN}.
-     *
-     * @return the account's lines, each without the instant it opens with
+     * The counts the report holds of an invocation that arrived at {@link #ONE_RUN} and {@link #ANOTHER_RUN}, after
+     * the account has handed them over and the invocation has ended.
      */
-    private List<String> theAccountOfAnInvocationOverBothRuns() throws IOException {
-        InvocationAccount account =
-                new InvocationAccount(workingDirectory, null, jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
+    private JsonNode theCountsOfAnInvocationOverBothRuns() {
+        InvocationReport report = SixJobsForTests.aReport(workingDirectory);
+        report.begins(InvocationReport.RUN);
+        InvocationAccount account = new InvocationAccount(workingDirectory, null, jdbc, report);
         JobExecution job = new JobExecution(1L, new JobInstance(1L, "vespera"), new JobParameters());
         job.setStatus(BatchStatus.COMPLETED);
         StepExecution step = new StepExecution(StepNames.CENSUS, job);
@@ -379,23 +371,21 @@ class TheAccountsCountsByKindSortNothingTest {
 
         account.beforeJob(job);
         account.afterJob(job);
+        report.runEnds(0, null, null);
 
-        // The account is written in the working directory's logs folder, with no setting (ADR-270 section 2).
-        Path logs = workingDirectory.resolve("logs");
-        claim("the working directory has a logs folder, where the account is written", () -> assertThat(logs)
-                .isDirectory());
-        List<Path> written;
-        try (Stream<Path> files = Files.list(logs)) {
-            written = files.toList();
-        }
-        claim("exactly one account was written", () -> assertThat(written).hasSize(1));
-        return Files.readAllLines(written.getFirst()).stream()
-                .map(line -> line.substring(line.indexOf(' ') + 1))
-                .toList();
+        return TheReportFile.in(workingDirectory).path("counts");
     }
 
-    private static List<String> linesOpening(List<String> lines, String opening) {
-        return lines.stream().filter(line -> line.startsWith(opening)).toList();
+    /** One group of the report's counts, each member in the order the report holds it. */
+    private static Map<String, Long> countsOf(JsonNode counts, String group) {
+        Map<String, Long> held = new LinkedHashMap<>();
+        counts.path(group).properties().forEach(member -> held.put(member.getKey(), member.getValue().asLong()));
+        return held;
+    }
+
+    /** The members of a group that are not zero, in the order held. */
+    private static List<Map.Entry<String, Long>> nonZero(JsonNode counts, String group) {
+        return countsOf(counts, group).entrySet().stream().filter(member -> member.getValue() != 0).toList();
     }
 
     /** The statements the account sent that read {@code table}, and no table whose name only begins so. */

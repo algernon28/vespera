@@ -230,7 +230,7 @@ class TranslationTasklet implements Tasklet {
         RunId extractionRun = stageRuns.upstream(StageModules.EXTRACTION);
         long total = TimedStatement.of(
                 STAGE, "counting", "counted", "the survivors", () -> ledger.verdicts().survivorCount(measurementRun));
-        ProgressPage.entered(total);
+        JobSampler.entered(total);
         StageProgress read = StageProgress.over("Stage 5 (translations, survivors read)", total);
         List<Entry> entries = new ArrayList<>();
         ledger.verdicts().eachPageOfSurvivorsByPath(measurementRun, page -> {

@@ -88,7 +88,7 @@ class RedundancyResolutionTasklet implements Tasklet {
                 },
                 () -> {
                     LOG.info("Stage 4b (redundancy resolution) starting under run {}", runId.value());
-                    ProgressPage.entered(TimedStatement.of(
+                    JobSampler.entered(TimedStatement.of(
                             STAGE, "counting", "counted", "the survivors it judges",
                             () -> ledger.verdicts().survivorCount(runId)));
                     Set<Long> boilerplateHashes = redundancyBoilerplateProvider.getObject().hashes();

@@ -197,7 +197,7 @@ Every rule is `embedding`'s: `Languages`, §2's language folder and a stored Lin
 | `EveryTableKeyedByARunIsOnRecordTest.theTablesKeyedByARunAreTheOnesOnRecord` | `translation_of`, owned by `embedding`, is the twenty-seventh |
 | `EveryStatementThatSortsIsRecordedTest.theIndexesOfTheSchemaAreTheRecordedOnes` | `translation_of`'s two indexes |
 | `profile.ProfileTest`, `profile.ProfileStoreTest.everyAnswerLandsOnTheKeyThatCarriedIt` | thirteen keys, the last two read from the file |
-| `pipeline.ProgressPageChartsTest`, `pipeline.ProgressPageReadabilityTest`, `pipeline.ProgressPageOutcomesInvocationTest`, `pipeline.ProgressPageRunsInvocationTest` | sixteen steps, nine blocking kinds with `translation-of`, four steps of a scoring run |
+| `pipeline.ProgressPageChartsTest` (removed: the progress page is retired, ADR-362 section 6, #762), `pipeline.ProgressPageReadabilityTest` (removed: the progress page is retired, ADR-362 section 6, #762), `pipeline.ProgressPageOutcomesInvocationTest` (removed: the progress page is retired, ADR-362 section 6, #762), `pipeline.ProgressPageRunsInvocationTest` (removed: the progress page is retired, ADR-362 section 6, #762) | sixteen steps, nine blocking kinds with `translation-of`, four steps of a scoring run |
 
 ## What this does not decide
 

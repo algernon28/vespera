@@ -69,7 +69,7 @@ class LabelIngestion {
             return new Outcome(true, message, Map.of());
         }
 
-        /** The counts are in the order the progress page shows them (ADR-266 section 3). */
+        /** The counts are in the order the report holds them (ADR-266 section 3, ADR-362 section 3). */
         static Outcome recorded(String message, int newCount, int changed, int unchanged, int stillBlank) {
             Map<String, Integer> counts = new LinkedHashMap<>();
             counts.put("new", newCount);

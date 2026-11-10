@@ -20,10 +20,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
+import tools.jackson.databind.JsonNode;
 
 /**
  * The packaged jar's {@code vespera run}, on a corpus root another invocation walks from another working
- * directory, ends in one line on standard error and exit code 1, before it writes a progress page; on another
+ * directory, ends in one line on standard error and exit code 1, its report saying it was refused and no step started; on another
  * root, or once the holder is killed, it is accepted (ADR-279 §1, §5, §6).
  *
  * <p>Pinned by launching the packaged jar, as {@link WorkingDirectoryInUseIT} does, because the lock is handed
@@ -32,8 +33,8 @@ import picocli.CommandLine;
  * is this JVM, holding the root through the class the jar uses, or {@link HoldsTheCorpusRoot} where it has to
  * be killed. Every launch names its own working directory and points the lock's folder at this test's
  * temporary one through {@code -Dvespera.corpus-root-lock-folder}, so the user's own folder is never touched.
- * The jar starts no sidecar, so no Docker daemon is needed: an accepted invocation is known by the progress
- * page it writes when the job starts, and is killed then.
+ * The jar starts no sidecar, so no Docker daemon is needed: an accepted invocation is known by the
+ * report it writes as running when the job starts, and is killed then.
  *
  * <p>Launched with {@code --enable-native-access=ALL-UNNAMED}: without it the JDK prints four {@code WARNING}
  * lines on standard error when sqlite-jdbc loads its library, before the refusal, and those are the JDK's
@@ -49,7 +50,7 @@ class CorpusRootInUseIT {
     /** Generous over a start-up of a few seconds; the point is only that the process gets that far. */
     private static final long BOUND_SECONDS = 60;
 
-    /** How often a launch is looked at for its end or its progress page. */
+    /** How often a launch is looked at for its end or for its report saying it runs. */
     private static final long LOOK_EVERY_MILLIS = 100;
 
     /** How long the holding process gets to end once killed. */
@@ -61,14 +62,19 @@ class CorpusRootInUseIT {
     /** What the refusal begins with. */
     private static final String REFUSAL = "another Vespera invocation is already walking the corpus root ";
 
+    /** What a refused invocation's report says it ended as, and what each of its steps is. */
+    private static final String REFUSED = "refused";
+
+    private static final String NOT_STARTED = "not started";
+
     /** The whole of what Vespera prints on standard error when it refuses: one line. */
     private static final int ONE_LINE = 1;
 
     /**
      * What a launch came to: whether it ended by itself within the bound and with what code, what it printed on
-     * standard error, and whether it wrote its progress page.
+     * standard error, and the report it left in its working directory, null where it left none.
      */
-    private record Launched(boolean ended, int exitCode, List<String> errorLines, boolean wroteItsProgressPage) {
+    private record Launched(boolean ended, int exitCode, List<String> errorLines, JsonNode report) {
     }
 
     @BeforeEach
@@ -83,7 +89,7 @@ class CorpusRootInUseIT {
 
     @Test
     @Story("A second invocation on the same corpus root is refused")
-    @DisplayName("A run on a corpus root another invocation walks from another working directory ends in one line and exit code 1, writing no progress page")
+    @DisplayName("A run on a corpus root another invocation walks from another working directory ends in one line and exit code 1, its report saying it was refused")
     void aRunOnACorpusRootAnotherInvocationWalksIsRefused(@TempDir Path temporary) throws Exception {
         Path folder = temporary.resolve("locks");
         Path root = Files.createDirectories(temporary.resolve("corpus"));
@@ -104,13 +110,16 @@ class CorpusRootInUseIT {
                         .startsWith(REFUSAL + root)
                         .contains("pid=" + ProcessHandle.current().pid() + " ")
                         .contains("working-directory=" + holdersWorkingDirectory.toAbsolutePath()));
-        claim("and the refused invocation wrote no progress page, so it started no job and opened no page",
-                () -> assertThat(launched.wroteItsProgressPage()).isFalse());
+        claim("and the refused invocation's report says it was refused",
+                () -> assertThat(launched.report().path("invocation").path("outcome").asString()).isEqualTo(REFUSED));
+        claim("and that no step started, since it started no job",
+                () -> assertThat(launched.report().path("steps"))
+                        .allSatisfy(step -> assertThat(step.path("state").asString()).isEqualTo(NOT_STARTED)));
     }
 
     @Test
     @Story("Another corpus root is another lock")
-    @DisplayName("A run on another corpus root, while one is held, is accepted and writes its progress page")
+    @DisplayName("A run on another corpus root, while one is held, is accepted and writes its report")
     void aRunOnAnotherCorpusRootIsAccepted(@TempDir Path temporary) throws Exception {
         Path folder = temporary.resolve("locks");
         new CorpusRootLock(folder).take(
@@ -146,15 +155,28 @@ class CorpusRootInUseIT {
     }
 
     private static void accepted(Launched launched) {
-        claim("the invocation got as far as starting the job, which writes the progress page",
-                () -> assertThat(launched.wroteItsProgressPage()).isTrue());
+        claim("the invocation got as far as starting the job, which writes the report",
+                () -> assertThat(launched.report()).isNotNull());
+        claim("and that report does not say the invocation was refused",
+                () -> assertThat(launched.report().path("invocation").path("outcome").asString())
+                        .isNotEqualTo(REFUSED));
         claim("and printed no refusal of its corpus root",
                 () -> assertThat(launched.errorLines()).noneMatch(line -> line.startsWith(REFUSAL)));
     }
 
+    /** Whether the working directory holds a report that says its invocation runs, as one that has started its job does. */
+    private static boolean theReportSaysItRuns(Path workingDirectory) {
+        String text = TheReportFile.textIn(workingDirectory);
+        try {
+            return text != null && "running".equals(TheReportFile.parse(text).path("invocation").path("state").asString());
+        } catch (RuntimeException beingReplaced) {
+            return false;
+        }
+    }
+
     /**
      * Launches the packaged jar's {@code run} on a root, from a working directory of its own, and waits up to the
-     * bound for it to end or to write its progress page, whichever comes first; one still running then is
+     * bound for it to end or to write a report saying it runs, whichever comes first; one still running then is
      * killed. What it printed is captured beside the working directory, standard error apart.
      */
     private static Launched launch(Path folder, Path workingDirectory, Path root) throws Exception {
@@ -175,10 +197,9 @@ class CorpusRootInUseIT {
             // The jar opens no browser on the machine running the tests (ADR-266 section 2).
             builder.environment().put("CI", "true");
             Process process = builder.start();
-            Path progressPage = workingDirectory.resolve(ProgressPage.FILE_NAME);
 
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(BOUND_SECONDS);
-            while (process.isAlive() && !Files.exists(progressPage) && System.nanoTime() < deadline) {
+            while (process.isAlive() && !theReportSaysItRuns(workingDirectory) && System.nanoTime() < deadline) {
                 Thread.sleep(LOOK_EVERY_MILLIS);
             }
             boolean ended = !process.isAlive();
@@ -189,7 +210,8 @@ class CorpusRootInUseIT {
             List<String> errorLines = Files.readAllLines(errors, StandardCharsets.UTF_8).stream()
                     .filter(line -> !line.isBlank())
                     .toList();
-            return new Launched(ended, ended ? process.exitValue() : -1, errorLines, Files.exists(progressPage));
+            return new Launched(ended, ended ? process.exitValue() : -1, errorLines,
+                    TheReportFile.textIn(workingDirectory) == null ? null : TheReportFile.in(workingDirectory));
         } finally {
             Files.deleteIfExists(output);
             Files.deleteIfExists(errors);

@@ -31,9 +31,7 @@ import org.junit.jupiter.api.Test;
  * {@code String} of a shipped class of {@code pipeline} or {@code deliverable} whose value is a file name ending in
  * {@code .html}, but the tree's own page name, {@link Deliverable#INDEX_FILE_NAME}, which is never written in the
  * working directory, and {@link ReportHtml#FILE_NAME}, the drawing of the invocation report, which is no analysis
- * report and which {@link Reports#ALL} never lists (ADR-362 section 13, step 3), and every constant of
- * {@code ProgressPage}, whose four {@code .html} names live until step 11 and which {@link Reports#ALL} no longer lists,
- * the Report tab being the window's view of the invocation (ADR-362 section 8). A report a later stage adds under a constant of its own fails this until the list has it.
+ * report and which {@link Reports#ALL} never lists (ADR-362 section 13, step 3). A report a later stage adds under a constant of its own fails this until the list has it.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -72,9 +70,6 @@ class TheControlPanelListsEveryReportTheJarWritesTest {
                 .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
                 .importPackages(REPORTING_PACKAGES)) {
             if (!REPORTING_PACKAGES.contains(type.getPackageName())) {
-                continue;
-            }
-            if (type.getName().equals(ProgressPage.class.getName())) {
                 continue;
             }
             for (Field field : declaredFieldsOf(type.getName())) {

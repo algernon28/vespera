@@ -4,8 +4,8 @@ import java.io.Serial;
 import java.nio.file.Path;
 
 /**
- * Another invocation already walks the corpus root, so this one is refused before it writes a progress page
- * or starts a walk (ADR-279 §6).
+ * Another invocation already walks the corpus root, so this one is refused before it starts a job
+ * or a walk (ADR-279 §6).
  *
  * <p>Its message is the whole of what the operator is shown, in one line: the root as this invocation names
  * it, who holds it as the holder wrote it into the lock file, and what to do.
