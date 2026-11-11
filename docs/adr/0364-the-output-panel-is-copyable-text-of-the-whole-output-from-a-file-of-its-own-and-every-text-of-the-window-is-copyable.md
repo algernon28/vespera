@@ -126,7 +126,7 @@ The charsets keep the bytes of a line on a console that is not UTF-8 what `print
 
 ### 5. The banner is logged
 
-`application.yaml` sets `spring.main.banner-mode: log`. Spring logs the banner at INFO on the logger of `VesperaApplication`, so it is in the stream in the console's pattern, in the output file (§2) and in `vespera.log`. The banner's text is Spring's own; no `banner.txt` is added.
+`application.yaml` sets `spring.main.banner-mode: log`. Spring logs the banner at INFO on the logger of `org.springframework.boot.SpringApplication`, so it is in the stream in the console's pattern, in the output file (§2) and in `vespera.log`. The banner's text is Spring's own; no `banner.txt` is added.
 
 ### 6. Fourteen days
 
