@@ -268,6 +268,9 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         List<String> twice = new ArrayList<>();
         double oneLine;
         try (WindowForTests window = WindowForTests.shown(WindowForTests.aState(folder, SleepingJar.runtime()))) {
+            // the hint said three times, so that it wraps in the sidebar whatever the platform's font
+            window.act(root -> WindowForTests.node(root, "hint-vespera.working-dir", TextInputControl.class)
+                    .setText(String.join(" ", hint, hint, hint)));
             window.act(root -> {
                 for (String id : List.of("where", "hint-vespera.working-dir")) {
                     TextInputControl text = WindowForTests.node(root, id, TextInputControl.class);
@@ -297,8 +300,8 @@ class EveryTextOfTheWindowCanBeCopiedTest {
             });
         }
 
-        claim("the hint of the working directory wraps in the sidebar at the window's 1500 by 960, so that its height is"
-                        + " more than one line's",
+        claim("the hint of the working directory, said three times, wraps in the sidebar at the window's 1500 by 960, so"
+                        + " that its height is more than one line's",
                 () -> assertThat(before.get("hint-vespera.working-dir").height()).as(hint).isGreaterThan(oneLine * 1.5));
         claim("where and the hint are each as wide and as high as a label of the same text, style classes and wrapping,"
                         + " and in the same place, within a pixel",

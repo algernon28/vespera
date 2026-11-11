@@ -3,7 +3,9 @@ package io.algernon.vespera.ui;
 import javafx.event.Event;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
+import javafx.scene.Group;
 import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
@@ -70,6 +72,15 @@ sealed interface SelectableText permits SelectableText.Line, SelectableText.Wrap
         measure.setFont(font);
         measure.setWrappingWidth(wrappingWidth);
         return measure.getLayoutBounds().getHeight();
+    }
+
+    /** A wrapping label with no padding, in a scene of its own so that it has a skin to measure with. */
+    private static Label measuringLabel() {
+        Label label = new Label();
+        label.setWrapText(true);
+        label.setPadding(Insets.EMPTY);
+        new Scene(new Group(label));
+        return label;
     }
 
     /** The width the control's own insets and those of the nodes its skin draws the text in take from its sides. */
@@ -165,10 +176,23 @@ sealed interface SelectableText permits SelectableText.Line, SelectableText.Wrap
             return across(this) + width(getText(), getFont());
         }
 
+        /**
+         * A label of its own, in a scene of its own, which measures the text wrapped as the {@link Label} this replaces
+         * would: a label's height is not a {@link Text}'s, since it snaps each line it draws.
+         */
+        private final Label measure = measuringLabel();
+
         @Override
         protected double computePrefHeight(double width) {
-            double wrapAt = width < 0 ? 0 : Math.max(1, width - across(this));
-            return down(this) + height(getText(), getFont(), wrapAt);
+            String text = getText();
+            if (text == null || text.isEmpty()) {
+                return down(this);
+            }
+            double wrapAt = width < 0 ? -1 : Math.max(1, width - across(this));
+            measure.setFont(getFont());
+            measure.setText(text);
+            measure.applyCss();
+            return down(this) + measure.prefHeight(wrapAt);
         }
 
         @Override
