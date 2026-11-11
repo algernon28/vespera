@@ -2657,6 +2657,15 @@ public final class Adr {
             FILE + "0372-a-publish-the-control-panel-started-refuses-a-parent-named-twice-or-a-wrong-address-naming-the-profile-keys.md";
 
     /**
+     * ADR-373 -- a folder the listing of what an earlier drawing left finds is one this drawing wrote where its path
+     * equals one written, or meets one written in the same folder by {@link
+     * io.algernon.vespera.engine.deliverable.CopyNames#keysOf} and the file system takes the two for one folder; any
+     * other is counted as left behind (keeps ADR-280 §4 and ADR-296 §6.3).
+     */
+    public static final String A_FOLDER_DIFFERING_IN_CASE_ALONE_IS_LEFT_BEHIND_ONLY_WHERE_HELD_APART =
+            FILE + "0373-a-folder-differing-in-case-alone-from-one-the-drawing-wrote-is-left-behind-only-where-the-file-system-tells-them-apart.md";
+
+    /**
      * ADR-377 -- a profile row is one line, a toggle, its title over its key in brackets, and its control, the toggle
      * opening its short description, the value in use, its cost line and warnings and its reports by title; the texts are
      * profile-texts.json's; a value's provenance is in its title's tooltip alone, and a value changed in the window is
