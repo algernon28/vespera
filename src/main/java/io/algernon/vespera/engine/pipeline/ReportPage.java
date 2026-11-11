@@ -48,84 +48,6 @@ final class ReportPage {
             + "li { margin-bottom: 0.6em; }\n";
 
     /**
-     * What the progress pages add (ADR-267 section 4, ADR-268 section 9): every colour is a custom property of the
-     * data-viz method's palette, one set for each colour scheme. Text is at least 4.5:1 on the surface and the page.
-     */
-    private static final String VIEWPORT = "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n";
-
-    private static final String DRAWN_STYLES =
-            ":root { color-scheme: light dark; --page: #f9f9f7; --surface: #fcfcfb; --text: #0b0b0b; --muted: #52514e;"
-            + " --grid: #e1e0d9; --axis: #c3c2b7; --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;"
-            + " --series-4: #eda100; --series-5: #e87ba4; --finished: #0ca30c; --gate: #fab219; --failed: #d03b3b;"
-            + " --running: #2a78d6; }\n"
-            + "@media (prefers-color-scheme: dark) { :root { --page: #0d0d0d; --surface: #1a1a19; --text: #f0efec;"
-            + " --muted: #c3c2b7; --grid: #2c2c2a; --axis: #383835; --series-1: #3987e5; --series-2: #d95926;"
-            + " --series-3: #199e70; --series-4: #c98500; --series-5: #d55181; --finished: #0ca30c; --gate: #fab219;"
-            + " --failed: #d03b3b; --running: #3987e5; } }\n"
-            + "body { background: var(--page); color: var(--text); font-family: system-ui, sans-serif;"
-            + " margin: 16px; max-width: none; }\n"
-            + "a { color: var(--text); }\n"
-            + "nav.tabs { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 16px;"
-            + " border-bottom: 1px solid var(--axis); }\n"
-            + "nav.tabs a { padding: 6px 4px; text-decoration: none; }\n"
-            + "nav.tabs a[aria-current=\"page\"] { font-weight: 700; text-decoration: underline; text-underline-offset: 6px;"
-            + " text-decoration-thickness: 3px; }\n"
-            + "td, th { border-color: var(--axis); overflow-wrap: anywhere; }\n"
-            + ".table-card { overflow-x: auto; }\n"
-            + ".chart-card { position: relative; }\n"
-            + "svg .crosshair { stroke: var(--text); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }\n"
-            + ".tooltip { position: absolute; pointer-events: none; background: var(--surface); color: var(--text);"
-            + " border: 1px solid var(--axis); border-radius: 6px; padding: 6px 10px; font-size: 0.85em;"
-            + " white-space: nowrap; z-index: 1; }\n"
-            + "p, .caption, .tile .detail { overflow-wrap: anywhere; }\n"
-            + ".tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px;"
-            + " margin: 16px 0; }\n"
-            + ".tile { background: var(--surface); border: 1px solid var(--axis); border-radius: 8px;"
-            + " padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; }\n"
-            + ".tile .label, .tile .detail { font-size: 0.8em; color: var(--muted); }\n"
-            + ".tile .value { font-size: 1.6em; font-weight: 600; }\n"
-            + "progress { width: 100%; max-width: 600px; }\n"
-            + ".chart-card { background: var(--surface); border: 1px solid var(--axis); border-radius: 8px;"
-            + " padding: 16px; margin: 16px 0; overflow-x: auto; overflow-y: hidden; }\n"
-            + ".chart-row { display: grid; grid-template-columns:"
-            + " repeat(auto-fill, minmax(max(min(534px, 100%), (100% - 48px) / 3), 1fr)); gap: 16px; margin: 16px 0; }\n"
-            + ".chart-row .chart-card { margin: 0; }\n"
-            + ".chart-card h2 { margin: 0 0 4px; font-size: 1.1em; }\n"
-            + ".caption { margin: 0 0 8px; color: var(--muted); font-size: 0.9em; }\n"
-            + ".legend { list-style: none; display: flex; flex-wrap: wrap; gap: 16px; padding: 0; margin: 0 0 8px; }\n"
-            + ".legend li { margin: 0; display: flex; align-items: center; gap: 8px; }\n"
-            + ".key { display: inline-block; width: 16px; height: 0; border-top: 3px solid; }\n"
-            + ".key.s1 { border-color: var(--series-1); } .key.s2 { border-color: var(--series-2); }\n"
-            + ".key.s3 { border-color: var(--series-3); } .key.s4 { border-color: var(--series-4); }\n"
-            + ".key.s5 { border-color: var(--series-5); }\n"
-            + "svg { display: block; width: 100%; height: auto; }\n"
-            + "svg.timeline { min-width: 917px; }\n"
-            + "svg.timeline-axis, svg.timeline-leg { min-width: 917px; }\n"
-            + "details.leg > summary { cursor: pointer; }\n"
-            + "details.leg[open] > summary .leg-span rect, details.leg[open] > summary .leg-span .state { display: none; }\n"
-            + "svg.chart { min-width: 500px; }\n"
-            + "svg text { fill: var(--text); font: 12px system-ui, sans-serif; }\n"
-            + "svg .tick, svg .axis-title { fill: var(--muted); }\n"
-            + "svg .tick.value { font-variant-numeric: tabular-nums; }\n"
-            + "svg .axis { stroke: var(--axis); stroke-width: 1; }\n"
-            + "svg .grid { stroke: var(--grid); stroke-width: 1; }\n"
-            + "svg .line { fill: none; }\n"
-            + "polyline.s1 { stroke: var(--series-1); } polyline.s2 { stroke: var(--series-2); }\n"
-            + "polyline.s3 { stroke: var(--series-3); } polyline.s4 { stroke: var(--series-4); }\n"
-            + "polyline.s5 { stroke: var(--series-5); }\n"
-            + "circle.end { stroke: var(--surface); }\n"
-            + "circle.end.s1 { fill: var(--series-1); } circle.end.s2 { fill: var(--series-2); }\n"
-            + "circle.end.s3 { fill: var(--series-3); } circle.end.s4 { fill: var(--series-4); }\n"
-            + "circle.end.s5 { fill: var(--series-5); }\n"
-            + "g[data-state=\"finished\"] rect { fill: var(--finished); }\n"
-            + "g[data-state=\"running\"] rect { fill: var(--running); }\n"
-            + "g[data-state=\"stopped at a gate\"] rect { fill: var(--gate); }\n"
-            + "g[data-state=\"failed\"] rect { fill: var(--failed); }\n"
-            + "g[data-state=\"not started\"] text { fill: var(--muted); }\n"
-            + ".liveness { font-weight: 600; color: var(--finished); }\n"
-            + ".liveness.stale { color: var(--failed); }\n";
-
-    /**
      * Wraps a report's title and body in the self-contained document every page is (ADR-075,
      * ADR-086, ADR-087, ADR-095, ADR-088, ADR-107): a doctype, a language, a character set, a title,
      * the shared stylesheet, and the body between {@code <body>} and {@code </body>}.
@@ -145,29 +67,6 @@ final class ReportPage {
         return head(title, "");
     }
 
-    /**
-     * Like {@link #render}, for a page a browser reloads every {@code seconds} (ADR-265 section 1): a refresh
-     * in the head and nothing else different.
-     */
-    static String reloading(String title, String body, int seconds) {
-        return head(title, "<meta http-equiv=\"refresh\" content=\"" + seconds + "\">\n") + body + tail();
-    }
-
-    /** Like {@link #reloading}, for the progress pages: their stylesheet follows the shared one. */
-    static String drawnReloading(String title, String body, int seconds) {
-        return head(title, "<meta http-equiv=\"refresh\" content=\"" + seconds + "\">\n" + VIEWPORT, DRAWN_STYLES)
-                + body + tail();
-    }
-
-    /**
-     * Like {@link #drawnReloading}, for a page whose script reloads it (ADR-324 section 5): the refresh is inside
-     * {@code <noscript>}, so only a browser that runs no script reloads by it.
-     */
-    static String drawnReloadingByScript(String title, String body, int seconds) {
-        return head(title, "<noscript><meta http-equiv=\"refresh\" content=\"" + seconds + "\"></noscript>\n" + VIEWPORT,
-                DRAWN_STYLES) + body + tail();
-    }
-
     /** A table in a card of its own, which scrolls sideways where the table is too wide for the window (ADR-269). */
     static String tableCard(String hover, String headers, String rows) {
         if (hover == null || hover.isBlank()) {
@@ -177,15 +76,10 @@ final class ReportPage {
     }
 
     private static String head(String title, String extraMeta) {
-        return head(title, extraMeta, "");
-    }
-
-    private static String head(String title, String extraMeta, String moreStyles) {
         return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n"
                 + extraMeta
                 + "<title>" + escape(title) + "</title>\n<style>\n"
                 + STYLES
-                + moreStyles
                 + "</style>\n</head>\n<body>\n";
     }
 

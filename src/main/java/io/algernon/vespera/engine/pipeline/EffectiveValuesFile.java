@@ -67,7 +67,6 @@ final class EffectiveValuesFile {
         SidecarStartSettings.START_PROPERTY,
         SidecarStartSettings.WAIT_AT_MOST_PROPERTY,
         "vespera.progress-interval",
-        "vespera.open-browser",
         // The presets of ADR-330 §9, in the order of its table: the neighbours first, then the fourteen from the OCR
         // preset to the sample's number from each band. The resolution is said under the profile's own name, above.
         Presets.NEIGHBOURS_OF_A_DOCUMENT,

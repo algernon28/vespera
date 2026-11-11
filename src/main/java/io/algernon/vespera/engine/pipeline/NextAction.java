@@ -111,6 +111,14 @@ class NextAction {
         }
     }
 
+    /** What {@code next-invocation.properties} was last written from, for the invocation report (ADR-362 section 3). */
+    private volatile NextInvocationFile.Contents lastWritten;
+
+    /** The contents the last closing line wrote beside it, or {@code null} before one has. */
+    NextInvocationFile.Contents lastWritten() {
+        return lastWritten;
+    }
+
     /**
      * The closing line for the invocation that has just finished, read off the profile and the ledger
      * as they now stand.
@@ -124,6 +132,7 @@ class NextAction {
         Closing closing = closingAfterRecordingAnswers(
                 profile, answersRecordedAgainst(profile), questionsWritten(), generationModelName());
         NextInvocationFile.write(workingDirectory, closing.next());
+        lastWritten = closing.next();
         return closing.line();
     }
 
@@ -202,6 +211,7 @@ class NextAction {
                 deliverableFor(generation, invocationRuns).orElse(null),
                 approvalMatchesThisInvocation);
         NextInvocationFile.write(workingDirectory, closing.next());
+        lastWritten = closing.next();
         return closing.line();
     }
 

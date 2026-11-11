@@ -88,7 +88,7 @@ public final class ChildCommand {
     /** The five presets the window offers, in the order they are passed (ADR-344 §4). */
     public static final List<Option> OPTIONS = List.of(
             new Option("vespera.progress-interval", List.of("run", "label", "label --auto"),
-                    "How often the progress page and its data file are rewritten; no run's identity holds it."),
+                    "How often the report and its page are rewritten; no run's identity holds it."),
             new Option("vespera.sidecars.start", List.of("run", "label --auto"),
                     "Whether the jar starts the sidecars; no run's identity holds it."),
             new Option("vespera.sidecars.wait-at-most", List.of("run", "label --auto"),
@@ -103,7 +103,6 @@ public final class ChildCommand {
      * panel's test holds that no option of {@link #OPTIONS} is among them.
      */
     public static final Map<String, String> NOT_OFFERED = Map.of(
-            "vespera.open-browser", "The child runs with CI=1 and opens no browser whatever it says (ADR-278 §1).",
             "vespera.relevance.sample.bands",
             "It enters the scoring run's identity where it is not its default, and ADR-330 refuses a value of that kind"
                     + " passed from a file named for a machine.",

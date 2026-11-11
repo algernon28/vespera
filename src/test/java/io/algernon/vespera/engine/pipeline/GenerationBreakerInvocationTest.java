@@ -187,9 +187,6 @@ class GenerationBreakerInvocationTest {
     @Autowired
     private ClusterFaults clusterFaults;
 
-    @Autowired
-    private RecordingPageOpener opener;
-
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger applicationLogger;
 
@@ -220,7 +217,6 @@ class GenerationBreakerInvocationTest {
         applicationLogger.detachAppender(logged);
         logged.stop();
         GenerationScriptedBeans.forgetScriptedAnswers();
-        opener.forget();
     }
 
     @Test

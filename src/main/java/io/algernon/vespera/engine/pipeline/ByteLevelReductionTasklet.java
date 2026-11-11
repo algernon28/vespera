@@ -103,6 +103,9 @@ public class ByteLevelReductionTasklet implements Tasklet {
     /** The page stage 1 leaves beside the database: what its detection found across the corpus (ADR-095). */
     static final String FORMAT_MIX_FILE_NAME = "format-mix.html";
 
+    /** The same report's numbers and rows as JSON, beside the page (ADR-362 section 9). */
+    static final String FORMAT_MIX_JSON_FILE_NAME = "format-mix.json";
+
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private static final Logger log = LoggerFactory.getLogger(ByteLevelReductionTasklet.class);
@@ -216,7 +219,7 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 "counted",
                 "the survivors the broken check goes through",
                 () -> ledger.verdicts().survivorCount(runId));
-        ProgressPage.entered(survivors);
+        JobSampler.entered(survivors);
         StageProgress progress = StageProgress.over("Stage 1 (byte-level reduction, broken check)", survivors);
         MarkedFolders markedFolders = new MarkedFolders();
         FormatMix mix = new BrokenOrOutOfScope(ledger, detectedFormats, textSizeLimits())
@@ -446,10 +449,20 @@ public class ByteLevelReductionTasklet implements Tasklet {
                 BrokenOrOutOfScope.INTERFACE_DEFINITIONS));
     }
 
+    /**
+     * The format mix's JSON is moved into place before its page is written, and a JSON that cannot be moved fails
+     * the step as a page that cannot be written does (ADR-362 section 9).
+     */
     private void writeFormatMix(FormatMixReport.Mix mix) {
         Path reportFile = workingDirectory.resolve(FORMAT_MIX_FILE_NAME);
+        Path jsonFile = workingDirectory.resolve(FORMAT_MIX_JSON_FILE_NAME);
         try {
             Files.createDirectories(workingDirectory);
+            AnalysisReportJson.write(jsonFile, FormatMixReport.document(mix, Clock.systemUTC().instant()));
+        } catch (IOException e) {
+            throw new IllegalStateException("the format mix report's JSON could not be written to " + jsonFile, e);
+        }
+        try {
             Files.writeString(reportFile, FormatMixReport.render(mix), StandardCharsets.UTF_8);
             log.info("[byte-level-reduction] wrote the format mix report to {}", reportFile);
         } catch (IOException e) {

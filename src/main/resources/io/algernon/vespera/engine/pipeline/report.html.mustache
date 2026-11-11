@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
+<meta http-equiv="refresh" content="{{drawn.refreshSeconds}}">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{drawn.title}}</title>
+<style>
+:root { color-scheme: light dark; --page: #f9f9f7; --surface: #fcfcfb; --text: #0b0b0b; --muted: #52514e;
+ --grid: #e1e0d9; --axis: #c3c2b7; --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+ --series-4: #eda100; --series-5: #e87ba4; --finished: #0ca30c; --gate: #fab219; --failed: #d03b3b;
+ --running: #2a78d6; }
+@media (prefers-color-scheme: dark) { :root { --page: #0d0d0d; --surface: #1a1a19; --text: #f0efec;
+ --muted: #c3c2b7; --grid: #2c2c2a; --axis: #383835; --series-1: #3987e5; --series-2: #d95926;
+ --series-3: #199e70; --series-4: #c98500; --series-5: #d55181; --finished: #0ca30c; --gate: #fab219;
+ --failed: #d03b3b; --running: #3987e5; } }
+body { background: var(--page); color: var(--text); font-family: system-ui, sans-serif; margin: 16px; }
+a { color: var(--text); }
+h1 { margin: 0 0 8px; }
+h2 { font-size: 1.15em; margin: 24px 0 8px; }
+table { border-collapse: collapse; margin-bottom: 1.5em; width: 100%; }
+td, th { border: 1px solid var(--axis); padding: 0.3em 0.8em; text-align: left; overflow-wrap: anywhere; }
+td.count { text-align: right; }
+.table-card { overflow-x: auto; }
+p, .caption, .tile .detail { overflow-wrap: anywhere; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 16px 0; }
+.tile { background: var(--surface); border: 1px solid var(--axis); border-radius: 8px; padding: 12px 16px;
+ display: flex; flex-direction: column; gap: 4px; }
+.tile .label, .tile .detail { font-size: 0.8em; color: var(--muted); }
+.tile .value { font-size: 1.6em; font-weight: 600; }
+.chart-card { background: var(--surface); border: 1px solid var(--axis); border-radius: 8px; padding: 16px;
+ margin: 16px 0; overflow-x: auto; overflow-y: hidden; }
+.chart-row { display: grid; grid-template-columns:
+ repeat(auto-fill, minmax(max(min(534px, 100%), (100% - 48px) / 3), 1fr)); gap: 16px; margin: 16px 0; }
+.chart-row .chart-card { margin: 0; }
+.chart-card h2, .chart-card h3 { margin: 0 0 4px; font-size: 1.1em; }
+.caption { margin: 0 0 8px; color: var(--muted); font-size: 0.9em; }
+.legend { list-style: none; display: flex; flex-wrap: wrap; gap: 16px; padding: 0; margin: 0 0 8px; }
+.legend li { margin: 0; display: flex; align-items: center; gap: 8px; }
+.key { display: inline-block; width: 16px; height: 0; border-top: 3px solid; }
+.key.s1 { border-color: var(--series-1); } .key.s2 { border-color: var(--series-2); }
+.key.s3 { border-color: var(--series-3); } .key.s4 { border-color: var(--series-4); }
+.key.s5 { border-color: var(--series-5); }
+svg { display: block; width: 100%; height: auto; }
+svg.timeline, svg.timeline-axis, svg.timeline-leg { min-width: 917px; }
+details.leg > summary { cursor: pointer; }
+details.leg[open] > summary .leg-span rect, details.leg[open] > summary .leg-span .state { display: none; }
+svg.chart { min-width: 500px; }
+svg text { fill: var(--text); font: 12px system-ui, sans-serif; }
+svg .tick, svg .axis-title { fill: var(--muted); }
+svg .tick.value { font-variant-numeric: tabular-nums; }
+svg .axis { stroke: var(--axis); stroke-width: 1; }
+svg .grid { stroke: var(--grid); stroke-width: 1; }
+svg .line { fill: none; }
+polyline.s1 { stroke: var(--series-1); } polyline.s2 { stroke: var(--series-2); }
+polyline.s3 { stroke: var(--series-3); } polyline.s4 { stroke: var(--series-4); }
+polyline.s5 { stroke: var(--series-5); }
+circle.end { stroke: var(--surface); }
+circle.end.s1 { fill: var(--series-1); } circle.end.s2 { fill: var(--series-2); }
+circle.end.s3 { fill: var(--series-3); } circle.end.s4 { fill: var(--series-4); }
+circle.end.s5 { fill: var(--series-5); }
+g[data-state="finished"] rect { fill: var(--finished); }
+g[data-state="running"] rect { fill: var(--running); }
+g[data-state="stopped at a gate"] rect { fill: var(--gate); }
+g[data-state="failed"] rect { fill: var(--failed); }
+g[data-state="not started"] text { fill: var(--muted); }
+</style>
+</head>
+<body>
+<h1>{{drawn.title}}</h1>
+<p class="status">{{drawn.status}}</p>
+<p class="written">{{drawn.writtenAt}}</p>
+{{#drawn.hasClosing}}<p class="closing">{{report.closing}}</p>
+{{/drawn.hasClosing}}
+<div class="tiles" title="The figures of this invocation.">
+{{#drawn.tiles}}<div class="tile" data-tile="{{key}}" title="{{hover}}"><span class="label">{{label}}</span><span class="value">{{value}}</span>{{#hasDetail}}<span class="detail">{{detail}}</span>{{/hasDetail}}</div>
+{{/drawn.tiles}}</div>
+{{#drawn.hasTimeline}}
+<section data-section="timeline">
+<figure class="chart-card">
+<h2>{{drawn.timeline.title}}</h2>
+<p class="caption">{{drawn.timeline.caption}}</p>
+<svg class="timeline-axis" role="img" viewBox="{{drawn.timeline.viewBox}}"><title>{{drawn.timeline.title}}</title>
+<text class="tick" x="{{drawn.timeline.labelsX}}" y="16">0:00:00</text><text class="tick" text-anchor="end" x="{{drawn.timeline.endX}}" y="16">{{drawn.timeline.endText}}</text>
+<text class="axis-title x" text-anchor="middle" x="{{drawn.timeline.titleX}}" y="36">Elapsed (h:mm:ss)</text>
+</svg>
+{{#drawn.timeline.legs}}<details class="leg" data-leg="{{name}}"{{#open}} open{{/open}}>
+<summary><svg class="timeline-leg" role="img" viewBox="{{drawn.timeline.legViewBox}}"><title>{{title}}</title><g class="leg-span" data-state="{{state}}"><text x="4" y="16">{{name}}</text><text class="state" x="{{drawn.timeline.statesX}}" y="16">{{state}}</text>{{#hasBar}}<rect x="{{barX}}" y="5" width="{{barWidth}}" height="14"><title>{{barTitle}}</title></rect>{{/hasBar}}</g></svg></summary>
+<svg class="timeline" role="img" viewBox="{{stepsViewBox}}"><title>{{stepsTitle}}</title>
+{{#steps}}<g class="step" data-step="{{name}}" data-state="{{state}}"><title>{{title}}</title><text x="4" y="{{textY}}">{{name}}</text><text class="state" x="{{drawn.timeline.statesX}}" y="{{textY}}">{{state}}</text>{{#hasBar}}<rect x="{{barX}}" y="{{barY}}" width="{{barWidth}}" height="14"><title>{{barTitle}}</title></rect>{{/hasBar}}</g>
+{{/steps}}</svg>
+</details>
+{{/drawn.timeline.legs}}</figure>
+</section>
+{{/drawn.hasTimeline}}{{#drawn.hasCharts}}
+<section data-section="charts">
+<div class="chart-row" title="Charts over time: the database's size, the running step's counts and the verdicts of the step removing occurrences.">
+{{#drawn.charts}}<figure class="chart-card">
+<h2>{{title}}</h2>
+<p class="caption">{{caption}}</p>
+{{#hasLegend}}<ul class="legend">{{#legend}}<li><span class="key {{css}}"></span>{{name}}</li>{{/legend}}</ul>
+{{/hasLegend}}<svg class="chart" data-chart="{{id}}" role="img" viewBox="{{viewBox}}"><title>{{title}}</title>
+<text class="axis-title y" x="{{yTitleX}}" y="16">{{yTitle}}</text>
+{{#grid}}<line class="grid" x1="{{left}}" y1="{{y}}" x2="{{plotRight}}" y2="{{y}}"/><text class="tick value" text-anchor="end" x="{{left}}" y="{{labelY}}">{{label}}</text>
+{{/grid}}<line class="axis" x1="{{left}}" y1="{{plotTop}}" x2="{{left}}" y2="{{bottom}}"/><line class="axis" x1="{{left}}" y1="{{bottom}}" x2="{{plotRight}}" y2="{{bottom}}"/>
+{{#timeTicks}}<text class="tick time" text-anchor="middle" x="{{x}}" y="{{timeTickY}}">{{text}}</text>{{/timeTicks}}
+<text class="axis-title x" text-anchor="middle" x="{{xTitleX}}" y="{{xTitleY}}">Elapsed (h:mm:ss)</text>
+{{#lines}}<polyline class="line {{css}}" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"{{#hasDash}} stroke-dasharray="{{dash}}"{{/hasDash}} points="{{points}}"/>{{#hits}}<circle class="hit" cx="{{cx}}" cy="{{cy}}" r="12" fill="transparent"><title>{{title}}</title></circle>{{/hits}}<circle class="end {{css}}" cx="{{endX}}" cy="{{endY}}" r="4" stroke-width="2"/>
+{{/lines}}{{#endLabels}}<text class="end-label" x="{{x}}" y="{{y}}">{{text}}</text>
+{{/endLabels}}</svg>
+<details><summary>{{tableTitle}}</summary>
+<div class="table-card" title="The values of this chart at each sample.">
+<table><tr>{{#header}}<th>{{text}}</th>{{/header}}</tr>
+{{#rows}}<tr>{{#cells}}<td>{{text}}</td>{{/cells}}</tr>
+{{/rows}}</table></div>
+</details>
+</figure>
+{{/drawn.charts}}</div>
+</section>
+{{/drawn.hasCharts}}{{#drawn.hasLabel}}
+<section data-section="answers">
+<h2>Answers recorded</h2>
+<p class="caption">The answers this invocation counted, by their words.</p>
+<div class="table-card" title="The answers this invocation counted, by their words.">
+<table><tr><th>Answer</th><th>Count</th></tr>
+{{#drawn.answers}}<tr><td>{{words}}</td><td class="count">{{count}}</td></tr>
+{{/drawn.answers}}</table></div>
+</section>
+{{/drawn.hasLabel}}{{#drawn.hasSteps}}
+<section data-section="steps">
+<h2>Steps</h2>
+<details open><summary>Each step of the job with its state, the rows it read and wrote, and how long it took.</summary>
+<div class="table-card" title="Each step of the job with its state, the rows it read and wrote, and how long it took.">
+<table><tr><th>Step</th><th>State</th><th>Read</th><th>Written</th><th>Skipped</th><th>Duration</th><th>Progress</th></tr>
+{{#drawn.steps}}<tr><td>{{name}}</td><td>{{state}}</td><td class="count">{{read}}</td><td class="count">{{written}}</td><td class="count">{{skipped}}</td><td>{{duration}}</td><td>{{progress}}</td></tr>
+{{/drawn.steps}}</table></div>
+</details>
+</section>
+{{/drawn.hasSteps}}{{#drawn.hasGates}}
+<section data-section="gates">
+<h2>Gates</h2>
+<p class="caption">Steps stopped at a gate, the profile value each waits for and the analysis reports to read it from.</p>
+<ul>
+{{#drawn.gates}}<li>{{step}}{{#hasKey}} wants <code>{{key}}</code>{{/hasKey}}{{#reports}} <a href="{{file}}.html">{{file}}</a>{{/reports}}</li>
+{{/drawn.gates}}</ul>
+</section>
+{{/drawn.hasGates}}{{#drawn.hasNext}}
+<section data-section="next">
+<h2>The next invocation</h2>
+<p>Run <code>{{drawn.next.invocation}}</code> next.{{#drawn.next.answer}} Answers are wanted.{{/drawn.next.answer}}{{#drawn.next.hasArrangement}} Arrangement to approve: <code>{{drawn.next.arrangement}}</code>.{{/drawn.next.hasArrangement}}</p>
+{{#drawn.next.hasWants}}<ul>
+{{#drawn.next.wants}}<li>Wants <code>{{key}}</code></li>
+{{/drawn.next.wants}}</ul>
+{{/drawn.next.hasWants}}</section>
+{{/drawn.hasNext}}{{#drawn.hasRefusals}}
+<section data-section="refusals">
+<h2>Refusals</h2>
+<ul>
+{{#report.refusals}}<li>{{.}}</li>
+{{/report.refusals}}</ul>
+</section>
+{{/drawn.hasRefusals}}{{#drawn.hasFaults}}
+<section data-section="faults">
+<h2>Faults</h2>
+<p class="caption">Each failed step, by the type of its failure alone.</p>
+<div class="table-card" title="Each failed step with the type of its failure and its causes.">
+<table><tr><th>Step</th><th>Type</th><th>Causes</th></tr>
+{{#drawn.faults}}<tr><td>{{step}}</td><td>{{type}}</td><td>{{causes}}</td></tr>
+{{/drawn.faults}}</table></div>
+</section>
+{{/drawn.hasFaults}}
+<section data-section="analysis-reports">
+<h2>Analysis reports</h2>
+<p class="caption">The twelve analysis reports, each a page of its own in the working directory.</p>
+<div class="table-card" title="The twelve analysis reports and whether each is written.">
+<table><tr><th>Report</th><th>Written</th><th>Headline</th></tr>
+{{#drawn.analysisReports}}<tr><td>{{#written}}<a href="{{file}}">{{name}}</a>{{/written}}{{^written}}{{name}}{{/written}}</td><td>{{#written}}yes{{/written}}{{^written}}not yet{{/written}}</td><td>{{#headline}}{{label}}: {{value}}; {{/headline}}</td></tr>
+{{/drawn.analysisReports}}</table></div>
+</section>
+{{#drawn.hasRuns}}
+<section data-section="runs">
+<h2>Runs</h2>
+<p class="caption">Each run of the working directory, in order, read as the invocation started and ended.</p>
+<div class="table-card" title="Each run of the working directory with its walk, stage, steps finished and verdicts.">
+<table><tr><th>Walk</th><th>Stage</th><th>Run</th><th>Steps</th><th>State</th><th>This invocation</th><th>Verdicts</th></tr>
+{{#drawn.runs}}<tr><td>{{walk}}</td><td>{{stage}}</td><td>{{ordinal}}</td><td>{{steps}}</td><td>{{state}}</td><td>{{thisInvocation}}</td><td>{{verdicts}}</td></tr>
+{{/drawn.runs}}</table></div>
+</section>
+{{/drawn.hasRuns}}{{#drawn.hasFiles}}
+<section data-section="files">
+<h2>Files</h2>
+<p class="caption">The files of the working directory this invocation wrote or rewrote.</p>
+<div class="table-card" title="The files this invocation wrote or rewrote, by role.">
+<table><tr><th>Role</th><th>Path</th></tr>
+{{#drawn.files}}<tr><td>{{role}}</td><td><a href="{{href}}">{{path}}</a></td></tr>
+{{/drawn.files}}</table></div>
+</section>
+{{/drawn.hasFiles}}
+<section data-section="display">
+<h2>Display and what was opened</h2>
+<p>{{drawn.display}}</p>
+<p>{{drawn.opened.text}}</p>
+</section>
+</body>
+</html>

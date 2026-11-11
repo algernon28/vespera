@@ -59,10 +59,10 @@ final class StageFiveGates {
             return open;
         }
         if (!usable.anySeedUsable()) {
-            return shut(subject, Gate.USABLE_SEED);
+            return shut(subject, Gate.USABLE_SEED, Optional.empty());
         }
         if (usable.seedFileCouldNotOpen()) {
-            return shut(subject, Gate.SEED_FILE_COULD_NOT_OPEN);
+            return shut(subject, Gate.SEED_FILE_COULD_NOT_OPEN, Optional.empty());
         }
         return open;
     }
@@ -77,13 +77,13 @@ final class StageFiveGates {
     private static Preamble modelAndSeedWalk(String subject, StageRuns model, SeedGate seeds) {
         Optional<String> modelName = model.embeddingModelNamed();
         if (modelName.isEmpty()) {
-            return shut(subject, Gate.EMBEDDING_MODEL);
+            return shut(subject, Gate.EMBEDDING_MODEL, Optional.of("embeddingModel"));
         }
         Optional<SeedGate.SeedWalk> seedWalk = seeds.seedWalk();
         if (seedWalk.isEmpty()) {
-            return shut(subject, Gate.SEED_WALK);
+            return shut(subject, Gate.SEED_WALK, seeds.valueWhoseAbsenceShuts());
         }
-        return new Preamble(modelName, seedWalk, Optional.empty());
+        return new Preamble(modelName, seedWalk, Optional.empty(), Optional.empty());
     }
 
     /**
@@ -95,15 +95,15 @@ final class StageFiveGates {
     static Preamble seedWalkAndUsable(String subject, SeedGate seeds, UsableSeedGate usable) {
         Optional<SeedGate.SeedWalk> seedWalk = seeds.seedWalk();
         if (seedWalk.isEmpty()) {
-            return shut(subject, Gate.SEED_WALK);
+            return shut(subject, Gate.SEED_WALK, seeds.valueWhoseAbsenceShuts());
         }
         if (!usable.anySeedUsable()) {
-            return shut(subject, Gate.USABLE_SEED);
+            return shut(subject, Gate.USABLE_SEED, Optional.empty());
         }
         if (usable.seedFileCouldNotOpen()) {
-            return shut(subject, Gate.SEED_FILE_COULD_NOT_OPEN);
+            return shut(subject, Gate.SEED_FILE_COULD_NOT_OPEN, Optional.empty());
         }
-        return new Preamble(Optional.empty(), seedWalk, Optional.empty());
+        return new Preamble(Optional.empty(), seedWalk, Optional.empty(), Optional.empty());
     }
 
     /** One gate, and the clause its own line has always said it shuts with. */
@@ -131,16 +131,21 @@ final class StageFiveGates {
         }
     }
 
-    private static Preamble shut(String subject, Gate gate) {
-        return new Preamble(Optional.empty(), Optional.empty(), Optional.of(subject + " is gated: " + gate.reason() + "."));
+    private static Preamble shut(String subject, Gate gate, Optional<String> key) {
+        return new Preamble(
+                Optional.empty(), Optional.empty(), Optional.of(subject + " is gated: " + gate.reason() + "."), key);
     }
 
     /**
      * What a step's preamble answered: the model name and finished seed walk it asked for where their
-     * gates are open, and — where one is shut — the sentence that explains it. It is open exactly when
-     * it carries no shut sentence.
+     * gates are open, and — where one is shut — the sentence that explains it and the profile value whose
+     * absence shut it, where one did (ADR-362 section 3). It is open exactly when it carries no shut sentence.
      */
-    record Preamble(Optional<String> modelName, Optional<SeedGate.SeedWalk> seedWalk, Optional<String> shutSentence) {
+    record Preamble(
+            Optional<String> modelName,
+            Optional<SeedGate.SeedWalk> seedWalk,
+            Optional<String> shutSentence,
+            Optional<String> key) {
 
         /** Whether every gate the step named was open. */
         boolean isOpen() {

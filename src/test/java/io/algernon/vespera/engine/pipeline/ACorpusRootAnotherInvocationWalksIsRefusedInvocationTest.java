@@ -119,7 +119,8 @@ class ACorpusRootAnotherInvocationWalksIsRefusedInvocationTest {
                 () -> assertThat(jdbcTemplate.queryForList(
                                 "SELECT (SELECT COUNT(*) FROM walk) + (SELECT COUNT(*) FROM run)", Integer.class))
                         .containsExactly(0));
-        claim("and no progress page was written in the working directory",
-                () -> assertThat(ProgressPage.pathIn(workingDirectory)).doesNotExist());
+        claim("and the invocation's report says it ended refused (ADR-362 section 3)",
+                () -> assertThat(TheReportFile.in(workingDirectory).path("invocation").path("outcome").asString())
+                        .isEqualTo("refused"));
     }
 }

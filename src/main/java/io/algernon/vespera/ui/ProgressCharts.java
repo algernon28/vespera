@@ -84,11 +84,11 @@ final class ProgressCharts extends HBox {
     }
 
     /** Draws each chart from the chart of the progress page that has its id, or empties it where the page has none. */
-    void show(ProgressFile.Progress progress) {
+    void show(InvocationReportFile.Report progress) {
         for (Map.Entry<String, LineChart<Number, Number>> entry : charts.entrySet()) {
             String id = entry.getKey().replace("-chart", "");
             LineChart<Number, Number> chart = entry.getValue();
-            Optional<ProgressFile.Chart> drawn = progress.charts().stream().filter(each -> each.id().equals(id)).findFirst();
+            Optional<InvocationReportFile.Chart> drawn = progress.charts().stream().filter(each -> each.id().equals(id)).findFirst();
             chart.getData().clear();
             if (drawn.isEmpty()) {
                 chart.setLegendVisible(false);
@@ -97,7 +97,7 @@ final class ProgressCharts extends HBox {
             chart.setTitle(drawn.get().title());
             chart.getYAxis().setLabel(drawn.get().axis());
             List<XYChart.Series<Number, Number>> drawnSeries = new ArrayList<>();
-            for (ProgressFile.Line line : drawn.get().lines()) {
+            for (InvocationReportFile.Line line : drawn.get().lines()) {
                 XYChart.Series<Number, Number> series = new XYChart.Series<>();
                 series.setName(line.name());
                 int count = Math.min(line.values().size(), drawn.get().seconds().size());

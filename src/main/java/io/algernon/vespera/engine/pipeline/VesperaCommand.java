@@ -184,6 +184,7 @@ public class VesperaCommand implements Callable<Integer> {
         private SidecarStarter sidecarStarter;
         private EffectiveValuesFile effectiveValues;
         private Presets presets;
+        private InvocationReport report;
         private String[] arguments = new String[0];
 
         @Parameters(
@@ -276,21 +277,41 @@ public class VesperaCommand implements Callable<Integer> {
             this.presets = presets;
         }
 
+        /** The report this invocation writes, provided by the application; a command built without one writes none (ADR-362 section 3). */
+        @Autowired(required = false)
+        void writeTheReportWith(InvocationReport report) {
+            this.report = report;
+        }
+
+        /** A refusal after the working-directory lock: its line is printed whole, and the report says it, once. */
+        private Integer refuse(String line, int exitCode) {
+            System.err.println(line);
+            if (report != null) {
+                report.refused(line, exitCode);
+            }
+            logTheReportLine();
+            return exitCode;
+        }
+
         @Override
         public Integer call() throws Exception {
+            if (report != null) {
+                report.begins(InvocationReport.RUN);
+            }
             String misnamedDatabaseDirectory = databaseDirectory.disagreement(workingDirectoryInUse);
             if (misnamedDatabaseDirectory != null) {
-                System.err.println(misnamedDatabaseDirectory);
-                return CommandLine.ExitCode.SOFTWARE;
+                return refuse(misnamedDatabaseDirectory, CommandLine.ExitCode.SOFTWARE);
             }
             Path corpusRoot = rootToWalk();
             if (corpusRoot == null) {
-                System.err.println("vespera run named no root and " + ROOT_PROPERTY + " is not set: give the root"
+                return refuse("vespera run named no root and " + ROOT_PROPERTY + " is not set: give the root"
                         + " as the argument -- vespera run <root> -- or set " + ROOT_PROPERTY + " in"
                         + " application-local.yaml, as VESPERA_CORPUS_ROOT, or with --" + ROOT_PROPERTY
                         + "=<path>. A root is never guessed, because a census of the wrong tree reports"
-                        + " success.");
-                return CommandLine.ExitCode.USAGE;
+                        + " success.", CommandLine.ExitCode.USAGE);
+            }
+            if (report != null) {
+                report.walks(corpusRoot);
             }
             // A code set's folder outside the corpus root, after the corpus root is known and before the deliverable
             // root's own checks (ADR-334 §5.1): one line, exit 1, nothing walked.
@@ -301,14 +322,12 @@ public class VesperaCommand implements Callable<Integer> {
                     seedFolder(),
                     DeliverableRoot.of(deliverableRoot).folderOf(workingDirectoryInUse));
             if (misplacedCodeSetFolder.isPresent()) {
-                System.err.println(misplacedCodeSetFolder.get());
-                return CommandLine.ExitCode.SOFTWARE;
+                return refuse(misplacedCodeSetFolder.get(), CommandLine.ExitCode.SOFTWARE);
             }
             Optional<String> misplacedDeliverableRoot = DeliverableRoot.of(deliverableRoot)
                     .refusalAtTheStart(workingDirectoryInUse, corpusRoot, seedFolder());
             if (misplacedDeliverableRoot.isPresent()) {
-                System.err.println(misplacedDeliverableRoot.get());
-                return CommandLine.ExitCode.SOFTWARE;
+                return refuse(misplacedDeliverableRoot.get(), CommandLine.ExitCode.SOFTWARE);
             }
             // A preset no run can be made under, named by configuration, in one line and no stack trace: before the
             // corpus-root lock is taken, the sidecars started and the job started, so that nothing is walked, no run is
@@ -317,16 +336,14 @@ public class VesperaCommand implements Callable<Integer> {
             if (presets != null) {
                 Optional<String> unmakeableRun = presets.refusal(profileToReadThePresetsOver());
                 if (unmakeableRun.isPresent()) {
-                    System.err.println(unmakeableRun.get());
-                    return CommandLine.ExitCode.SOFTWARE;
+                    return refuse(unmakeableRun.get(), CommandLine.ExitCode.SOFTWARE);
                 }
             }
             if (corpusRootLock != null) {
                 try {
                     corpusRootLock.take(corpusRoot, workingDirectoryInUse, arguments);
                 } catch (CorpusRootInUseException | CorpusRootLockUnavailableException refused) {
-                    System.err.println(refused.getMessage());
-                    return CommandLine.ExitCode.SOFTWARE;
+                    return refuse(refused.getMessage(), CommandLine.ExitCode.SOFTWARE);
                 }
             }
             // After the root is taken and before the job starts: a run refused for its root starts nothing (ADR-323 §1).
@@ -334,30 +351,55 @@ public class VesperaCommand implements Callable<Integer> {
                 try {
                     sidecarStarter.ensureRunning();
                 } catch (SidecarStartRefusedException refused) {
-                    System.err.println(refused.getMessage());
-                    return CommandLine.ExitCode.SOFTWARE;
+                    return refuse(refused.getMessage(), CommandLine.ExitCode.SOFTWARE);
                 }
             }
             // Past the last refusal of the start and before the first step: an invocation refused above writes none (ADR-330 §1).
             if (effectiveValues != null) {
                 effectiveValues.write();
             }
-            log.info("Progress page: {}", ProgressPage.pathIn(workingDirectoryInUse));
+            log.info("Report: {}", ReportHtml.pathIn(workingDirectoryInUse));
             log.info(
                     "Walking {}, named {}",
                     corpusRoot,
                     root != null ? "on the command line" : "by " + ROOT_PROPERTY + " in configuration");
-            JobExecution execution = jobOperator.start(
-                    vesperaJob,
-                    new JobParametersBuilder()
-                            .addString("root", corpusRoot.toString())
-                            .addLocalDateTime("startedAt", java.time.LocalDateTime.now())
-                            .toJobParameters());
+            JobExecution execution;
+            try {
+                execution = jobOperator.start(
+                        vesperaJob,
+                        new JobParametersBuilder()
+                                .addString("root", corpusRoot.toString())
+                                .addLocalDateTime("startedAt", java.time.LocalDateTime.now())
+                                .toJobParameters());
+            } catch (RuntimeException | Error thrown) {
+                if (report != null) {
+                    report.runEnds(CommandLine.ExitCode.SOFTWARE, null, null);
+                }
+                logTheReportLine();
+                throw thrown;
+            }
             if (execution.getStatus().isUnsuccessful()) {
+                if (report != null) {
+                    report.runEnds(CommandLine.ExitCode.SOFTWARE, null, null);
+                }
+                logTheReportLine();
                 return CommandLine.ExitCode.SOFTWARE;
             }
-            log.info("{}", nextAction.line(corpusRoot, new InvocationRuns(execution.getExecutionContext())));
+            String closingLine = nextAction.line(corpusRoot, new InvocationRuns(execution.getExecutionContext()));
+            log.info("{}", closingLine);
+            if (report != null) {
+                report.runEnds(CommandLine.ExitCode.OK, closingLine, nextAction.lastWritten());
+            }
+            logTheReportLine();
             return CommandLine.ExitCode.OK;
+        }
+
+        /** The report line, last, once the last write of the report is made and after the closing line (ADR-362 section 7). */
+        private void logTheReportLine() {
+            String line = report == null ? null : report.reportLine();
+            if (line != null) {
+                log.info("{}", line);
+            }
         }
 
         /**
@@ -447,13 +489,13 @@ public class VesperaCommand implements Callable<Integer> {
 
         private static final Logger log = LoggerFactory.getLogger(Label.class);
 
-        private final ProgressPage progressPage;
         private final LabelIngestion labelIngestion;
         private final NextAction nextAction;
         private final Path workingDirectoryInUse;
         private final ObjectProvider<AutoLabelling> autoLabelling;
         private SidecarStarter sidecarStarter;
         private EffectiveValuesFile effectiveValues;
+        private InvocationReport report;
 
         @Option(
                 names = "--auto",
@@ -488,9 +530,7 @@ public class VesperaCommand implements Callable<Integer> {
                 LabelIngestion labelIngestion,
                 NextAction nextAction,
                 @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectoryInUse,
-                ObjectProvider<AutoLabelling> autoLabelling,
-                ProgressPage progressPage) {
-            this.progressPage = progressPage;
+                ObjectProvider<AutoLabelling> autoLabelling) {
             this.labelIngestion = labelIngestion;
             this.nextAction = nextAction;
             this.workingDirectoryInUse = workingDirectoryInUse;
@@ -509,6 +549,12 @@ public class VesperaCommand implements Callable<Integer> {
             this.effectiveValues = new EffectiveValuesFile(environment, workingDirectoryInUse);
         }
 
+        /** As {@link Run#writeTheReportWith}: {@code label} writes the report too (ADR-362 section 3). */
+        @Autowired(required = false)
+        void writeTheReportWith(InvocationReport report) {
+            this.report = report;
+        }
+
         /** Drops what a previous invocation parsed, for the reason {@link Run} does the same. */
         void forgetPreviousInvocation() {
             file = null;
@@ -523,80 +569,130 @@ public class VesperaCommand implements Callable<Integer> {
          * nothing about which database it belongs to; what does is the run it was generated under,
          * which {@link LabelIngestion} compares with the sample the opened working directory holds.
          */
+        /** How the invocation in hand ended, what it counted and the closing line it printed, for the report. */
+        private String endedAs;
+        private Map<String, Integer> answered;
+        private String closingLine;
+
+        /** Prints a line of the jar's own on standard error, whole, and keeps it for the report as the refusal it is. */
+        private Integer refuse(String line, int exitCode) {
+            System.err.println(line);
+            if (report != null) {
+                report.said(line);
+            }
+            closingLine = line;
+            return exitCode;
+        }
+
         @Override
         public Integer call() {
+            endedAs = "failed";
+            answered = Map.of();
+            closingLine = null;
+            if (report != null) {
+                report.begins(auto ? "label --auto" : "label");
+            }
             String misnamedDatabaseDirectory = databaseDirectory.disagreement(workingDirectoryInUse);
             if (misnamedDatabaseDirectory != null) {
-                System.err.println(misnamedDatabaseDirectory);
-                return CommandLine.ExitCode.SOFTWARE;
+                return refusedBeforeTheCommandRuns(misnamedDatabaseDirectory, CommandLine.ExitCode.SOFTWARE);
             }
             if (auto && file != null) {
-                System.err.println("vespera label --auto takes no file: it works on the label file the last run"
-                        + " wrote in the working directory. Give either --auto or a file, not both.");
-                return CommandLine.ExitCode.USAGE;
+                return refusedBeforeTheCommandRuns("vespera label --auto takes no file: it works on the label file the last run"
+                        + " wrote in the working directory. Give either --auto or a file, not both.",
+                        CommandLine.ExitCode.USAGE);
             }
-            // Past a misnamed --db-dir and --auto given a file, as the progress page is written (ADR-330 §1).
+            // Past a misnamed --db-dir and --auto given a file, as the report is written (ADR-330 §1).
             if (effectiveValues != null) {
                 effectiveValues.write();
             }
-            log.info("Progress page: {}", ProgressPage.pathIn(workingDirectoryInUse));
-            progressPage.commandStarts(auto ? "vespera label --auto" : "vespera label");
-            String ended = "failed";
-            Map<String, Integer> counts = Map.of();
-            try {
-                if (auto) {
-                    if (sidecarStarter != null) {
-                        try {
-                            sidecarStarter.ensureRunning();
-                        } catch (SidecarStartRefusedException refused) {
-                            ended = "refused";
-                            System.err.println(refused.getMessage());
-                            return CommandLine.ExitCode.SOFTWARE;
-                        }
-                    }
-                    AutoLabelling labelling = autoLabelling.getIfAvailable();
-                    if (labelling == null) {
-                        ended = "refused";
-                        return callAuto(null);
-                    }
-                    AutoLabelling.Outcome outcome = labelling.run();
-                    ended = outcome.refused() ? "refused" : "recorded";
-                    counts = outcome.counts();
-                    return callAuto(outcome);
-                }
-                LabelIngestion.Outcome outcome = labelIngestion.ingest(file);
-                ended = outcome.refused() ? "refused" : "recorded";
-                counts = outcome.counts();
-                if (outcome.refused()) {
-                    System.err.println("vespera label recorded nothing: " + outcome.message());
-                    return outcome.message().startsWith(LabelIngestion.NO_FILE)
-                            ? CommandLine.ExitCode.USAGE
-                            : CommandLine.ExitCode.SOFTWARE;
-                }
-                System.out.println(outcome.message());
-                System.out.println(nextAction.line());
-                return CommandLine.ExitCode.OK;
-            } finally {
-                progressPage.commandEnds(ended, counts);
+            log.info("Report: {}", ReportHtml.pathIn(workingDirectoryInUse));
+            if (report != null) {
+                report.labelStarts();
             }
+            int exit = CommandLine.ExitCode.SOFTWARE;
+            try {
+                exit = recordTheAnswers();
+                return exit;
+            } finally {
+                if (report != null) {
+                    report.labelEnds(
+                            endedAs, answered, exit, closingLine,
+                            exit == CommandLine.ExitCode.OK ? nextAction.lastWritten() : null);
+                }
+                logTheReportLine();
+            }
+        }
+
+        /** A refusal that comes before the command starts: the report says it refused. */
+        private Integer refusedBeforeTheCommandRuns(String line, int exitCode) {
+            refuse(line, exitCode);
+            if (report != null) {
+                report.labelEnds("refused", Map.of(), exitCode, line, null);
+            }
+            logTheReportLine();
+            return exitCode;
+        }
+
+        /** The report line, last, once the last write of the report is made and after the closing line (ADR-362 section 7). */
+        private void logTheReportLine() {
+            String line = report == null ? null : report.reportLine();
+            if (line != null) {
+                log.info("{}", line);
+            }
+        }
+
+        private int recordTheAnswers() {
+            if (auto) {
+                if (sidecarStarter != null) {
+                    try {
+                        sidecarStarter.ensureRunning();
+                    } catch (SidecarStartRefusedException refused) {
+                        endedAs = "refused";
+                        return refuse(refused.getMessage(), CommandLine.ExitCode.SOFTWARE);
+                    }
+                }
+                AutoLabelling labelling = autoLabelling.getIfAvailable();
+                if (labelling == null) {
+                    endedAs = "refused";
+                    return callAuto(null);
+                }
+                AutoLabelling.Outcome outcome = labelling.run();
+                endedAs = outcome.refused() ? "refused" : "recorded";
+                answered = outcome.counts();
+                return callAuto(outcome);
+            }
+            LabelIngestion.Outcome outcome = labelIngestion.ingest(file);
+            endedAs = outcome.refused() ? "refused" : "recorded";
+            answered = outcome.counts();
+            if (outcome.refused()) {
+                return refuse(
+                        "vespera label recorded nothing: " + outcome.message(),
+                        outcome.message().startsWith(LabelIngestion.NO_FILE)
+                                ? CommandLine.ExitCode.USAGE
+                                : CommandLine.ExitCode.SOFTWARE);
+            }
+            System.out.println(outcome.message());
+            closingLine = nextAction.line();
+            System.out.println(closingLine);
+            return CommandLine.ExitCode.OK;
         }
 
         /**
          * {@code --auto} (ADR-197 §6): it needs no corpus root and takes none (ADR-208). It finds each
          * opening under the key stage 2 recorded and opens no archive file (ADR-206 §4).
          */
-        private Integer callAuto(AutoLabelling.Outcome outcome) {
+        private int callAuto(AutoLabelling.Outcome outcome) {
             if (outcome == null) {
-                System.err.println("vespera label --auto recorded nothing: no local labeller is wired into"
-                        + " this build.");
-                return CommandLine.ExitCode.SOFTWARE;
+                return refuse("vespera label --auto recorded nothing: no local labeller is wired into"
+                        + " this build.", CommandLine.ExitCode.SOFTWARE);
             }
             if (outcome.refused()) {
-                System.err.println("vespera label --auto recorded nothing: " + outcome.message());
-                return CommandLine.ExitCode.SOFTWARE;
+                return refuse("vespera label --auto recorded nothing: " + outcome.message(),
+                        CommandLine.ExitCode.SOFTWARE);
             }
             System.out.println(outcome.message());
-            System.out.println(nextAction.line());
+            closingLine = nextAction.line();
+            System.out.println(closingLine);
             return CommandLine.ExitCode.OK;
         }
     }
@@ -618,6 +714,8 @@ public class VesperaCommand implements Callable<Integer> {
             + " or the website folder of the working directory. Bare, it delivers to Confluence.")
     public static class Publish implements Callable<Integer> {
 
+        private static final Logger log = LoggerFactory.getLogger(Publish.class);
+
         /** The destination a bare publish takes, the only one before {@code --to} (ADR-333 §6). */
         private static final String DESTINATION = Publisher.RENDERING_FOLDER;
 
@@ -625,6 +723,7 @@ public class VesperaCommand implements Callable<Integer> {
         private final List<Plugin> plugins;
         private final Path workingDirectoryInUse;
         private final DeliverableRoot deliverableRoot;
+        private InvocationReport report;
 
         /** The same option {@code run} and {@code label} take (ADR-054, #310). */
         @Mixin
@@ -662,42 +761,89 @@ public class VesperaCommand implements Callable<Integer> {
             this(ledger, List.<Plugin>of(new ConfluencePlugin(publisher)), workingDirectoryInUse, deliverableRoot);
         }
 
+        /** As {@link Run#writeTheReportWith}: {@code publish} writes the report too (ADR-362 section 3). */
+        @Autowired(required = false)
+        void writeTheReportWith(InvocationReport report) {
+            this.report = report;
+        }
+
         /** Drops what a previous invocation parsed, for the reason {@link Run} does the same. */
         void forgetPreviousInvocation() {
             databaseDirectory = new WorkingDirectoryOption();
             destinations = new java.util.ArrayList<>();
         }
 
+        /** A refusal after the working-directory lock: its line is printed whole, and the report says it, once. */
+        private Integer refuse(String line, int exitCode) {
+            System.err.println(line);
+            if (report != null) {
+                report.refused(line, exitCode);
+            }
+            logTheReportLine();
+            return exitCode;
+        }
+
         @Override
         public Integer call() {
+            if (report != null) {
+                report.begins(InvocationReport.PUBLISH);
+            }
             String misnamedDatabaseDirectory = databaseDirectory.disagreement(workingDirectoryInUse);
             if (misnamedDatabaseDirectory != null) {
-                System.err.println(misnamedDatabaseDirectory);
-                return CommandLine.ExitCode.SOFTWARE;
+                return refuse(misnamedDatabaseDirectory, CommandLine.ExitCode.SOFTWARE);
             }
             boolean bare = destinations == null || destinations.isEmpty();
             List<Plugin> chosen = new java.util.ArrayList<>();
             for (String name : bare ? List.of(DESTINATION) : destinations) {
                 Optional<Plugin> named = plugins.stream().filter(candidate -> candidate.name().equals(name.strip())).findFirst();
                 if (named.isEmpty()) {
-                    System.err.println("vespera publish has no destination " + name.strip() + ": it knows "
+                    return refuse("vespera publish has no destination " + name.strip() + ": it knows "
                             + plugins.stream().map(Plugin::name).collect(java.util.stream.Collectors.joining(", "))
-                            + ".");
-                    return CommandLine.ExitCode.USAGE;
+                            + ".", CommandLine.ExitCode.USAGE);
                 }
                 if (!chosen.contains(named.get())) {
                     chosen.add(named.get());
                 }
             }
-            Map<String, Set<String>> finished = ledger.runs().finishedSteps();
-            List<Runs.Listed> runs = ledger.runs().listed();
-            int exit = CommandLine.ExitCode.OK;
-            for (Plugin plugin : chosen) {
-                if (!deliverTo(plugin, bare, finished, runs)) {
-                    exit = CommandLine.ExitCode.SOFTWARE;
-                }
+            log.info("Report: {}", ReportHtml.pathIn(workingDirectoryInUse));
+            if (report != null) {
+                report.publishStarts();
             }
-            return exit;
+            int exit = CommandLine.ExitCode.SOFTWARE;
+            try {
+                Map<String, Set<String>> finished = ledger.runs().finishedSteps();
+                List<Runs.Listed> runs = ledger.runs().listed();
+                exit = CommandLine.ExitCode.OK;
+                for (Plugin plugin : chosen) {
+                    if (!deliverTo(plugin, bare, finished, runs)) {
+                        exit = CommandLine.ExitCode.SOFTWARE;
+                    }
+                }
+                return exit;
+            } finally {
+                if (report != null) {
+                    report.publishEnds(exit == CommandLine.ExitCode.OK ? "delivered" : "stopped", exit);
+                }
+                logTheReportLine();
+            }
+        }
+
+        /** The report line, last, once the last write of the report is made and after the closing line (ADR-362 section 7). */
+        private void logTheReportLine() {
+            String line = report == null ? null : report.reportLine();
+            if (line != null) {
+                log.info("{}", line);
+            }
+        }
+
+        /** A destination's stop: its line on standard error, whole, kept for the report as the refusal it is. */
+        private boolean stopped(Plugin plugin, String line) {
+            System.err.println(line);
+            if (report != null) {
+                report.said(line);
+                report.destinationEnds(plugin.name(), "stopped", line);
+            }
+            return false;
         }
 
         /**
@@ -711,34 +857,33 @@ public class VesperaCommand implements Callable<Integer> {
         private boolean deliverTo(Plugin plugin, boolean bare, Map<String, Set<String>> finished, List<Runs.Listed> runs) {
             Optional<String> generation = lastDrawn(plugin, finished, runs);
             if (generation.isEmpty()) {
-                System.err.println(bare
+                return stopped(plugin, bare
                         ? "vespera publish sent nothing: no Confluence rendering is drawn in this working directory."
                                 + " Run vespera run to the deliverable, and publish again."
                         : "vespera publish sent nothing to " + plugin.name() + ": no " + plugin.name()
                                 + " rendering is drawn in this working directory. Run vespera run to the deliverable,"
                                 + " and publish again.");
-                return false;
             }
             Path rendering = renderingOf(plugin, generation.get());
             if (!drawingFinished(rendering)) {
-                System.err.println("vespera publish sent nothing to " + plugin.name() + ": the last drawing"
+                return stopped(plugin, "vespera publish sent nothing to " + plugin.name() + ": the last drawing"
                         + " of its rendering did not finish. Run vespera run to draw it again, and publish again.");
-                return false;
             }
             Plugin.Delivery outcome;
             try {
                 outcome = plugin.deliver(rendering, generation.get(), workingDirectoryInUse, System.out::println);
             } catch (RuntimeException thrown) {
-                System.err.println("vespera publish stopped " + plugin.name() + ": it threw "
+                return stopped(plugin, "vespera publish stopped " + plugin.name() + ": it threw "
                         + thrown.getClass().getSimpleName() + ", whose message is not written. Publish again once"
                         + " that is dealt with.");
-                return false;
             }
             if (!outcome.delivered()) {
-                System.err.println(outcome.closingLine());
-                return false;
+                return stopped(plugin, outcome.closingLine());
             }
             System.out.println(outcome.closingLine());
+            if (report != null) {
+                report.destinationEnds(plugin.name(), "delivered", outcome.closingLine());
+            }
             return true;
         }
 

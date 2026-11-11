@@ -117,7 +117,7 @@ public final class Child {
             return Optional.empty();
         }
         int exitCode = process.exitValue();
-        Optional<String> lastLine = tail().reversed().stream().filter(line -> !line.isBlank()).findFirst();
+        Optional<String> lastLine = tail().reversed().stream().filter(line -> !line.isBlank() && !line.startsWith("Report: ")).findFirst();
         return Optional.of(new Ending(HowItEnded.of(stoppedByItsOwnStop.get(), exitCode), exitCode, lastLine));
     }
 
