@@ -205,6 +205,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-265: records which step ended at a shut gate; the gate's decision is the gate's.
             "ShutGates",
             "SidecarRecovery",
+            // ADR-371 §1: writes a size of memory in powers of 1,024 for the report's page and its sampler; it decides
+            // no verdict, cache key, cluster or text of the deliverable.
+            "Sizes",
             // ADR-323: start the Docker engine and the sidecars, and say why where they cannot; none decides a
             // verdict, a cache key, a cluster or text of the deliverable.
             "ComposeFiles",

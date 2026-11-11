@@ -57,4 +57,4 @@ Where the cockpit draws a chart whose value axis is not a size, each tick reads 
 
 ## What the implementation owes
 
-Beside the tests above, which it turns green, the change adds `Sizes` to `engine.pipeline` and has `ReportHtml` and `JobSampler` call it for every size, unit and divisor; gives `ProgressCharts` a tick formatter that reads its axis's title at each tick; and puts a note at ADR-268's head.
+Beside the tests above, which it turns green, the change adds `Sizes` to `engine.pipeline`, listed in `PipelineHoldsOnlyTheRulesOnRecordTest` as deciding no verdict, cache key, cluster or text of the deliverable, and has `ReportHtml` and `JobSampler` call it for every size, unit and divisor; gives `ProgressCharts` a tick formatter that reads its axis's title at each tick; and puts a note at ADR-268's head.
