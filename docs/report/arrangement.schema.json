@@ -1,0 +1,178 @@
+{
+  "type": "object",
+  "description": "The arrangement report, arrangement.json (ADR-362 section 9), format 1: what arrangement.html shows.",
+  "properties": {
+    "format": {
+      "const": 1,
+      "description": "The report's own format, from 1; raised by a change that removes, renames or retypes a field."
+    },
+    "analysisReport": {
+      "const": "arrangement",
+      "description": "The analysis report's name."
+    },
+    "title": {
+      "type": "string",
+      "description": "The page's title."
+    },
+    "writtenAt": {
+      "type": "string",
+      "description": "The instant it was written, in UTC to the millisecond."
+    },
+    "headline": {
+      "type": "array",
+      "description": "The few numbers the page states first, in order: partitions (exemplars with documents under them), clusters (groups on the page) and documents (documents in them), each a count.",
+      "items": {
+        "type": "object",
+        "description": "One figure.",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "partitions, clusters or documents.",
+            "enum": [
+              "partitions",
+              "clusters",
+              "documents"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "description": "Its label."
+          },
+          "value": {
+            "type": "number",
+            "description": "Its value."
+          },
+          "unit": {
+            "type": "string",
+            "description": "count, the unit of all three.",
+            "enum": [
+              "count",
+              "share",
+              "bytes",
+              "seconds",
+              "number"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "value",
+          "unit"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "sections": {
+      "type": "array",
+      "description": "The page's parts in its order: overview and approval, then partition-<n>, one for each exemplar in the order the arrangement gives them, or nothing where nothing was arranged. A partition's table has the columns group (text), documents (count) and namedAfter (path, the lead document, absolute); the approval's text holds the name to approve as the paragraph that stands alone.",
+      "items": {
+        "type": "object",
+        "description": "One section.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "overview, approval, partition-<n> or nothing."
+          },
+          "title": {
+            "type": "string",
+            "description": "The section's title; a partition's is its exemplar's path."
+          },
+          "text": {
+            "type": "array",
+            "description": "Its paragraphs.",
+            "items": {
+              "type": "string",
+              "description": "One paragraph."
+            }
+          },
+          "chart": {
+            "type": "null",
+            "description": "No section of this report draws a chart."
+          },
+          "table": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Its table; null where it holds none.",
+            "properties": {
+              "columns": {
+                "type": "array",
+                "description": "Its columns in order.",
+                "items": {
+                  "type": "object",
+                  "description": "One column.",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Its id: group, documents or namedAfter."
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "Its label."
+                    },
+                    "kind": {
+                      "type": "string",
+                      "description": "text, count or path.",
+                      "enum": [
+                        "text",
+                        "count",
+                        "share",
+                        "number",
+                        "bytes",
+                        "seconds",
+                        "instant",
+                        "path",
+                        "analysisReport"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "rows": {
+                "type": "array",
+                "description": "Its rows, each a list of cells in the columns' order.",
+                "items": {
+                  "type": "array",
+                  "description": "One row: the cluster's label, its document count and its lead document's absolute path.",
+                  "items": {
+                    "description": "One cell: a string or a number."
+                  }
+                }
+              }
+            },
+            "required": [
+              "columns",
+              "rows"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "text",
+          "chart",
+          "table"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "format",
+    "analysisReport",
+    "title",
+    "writtenAt",
+    "headline",
+    "sections"
+  ],
+  "additionalProperties": false
+}

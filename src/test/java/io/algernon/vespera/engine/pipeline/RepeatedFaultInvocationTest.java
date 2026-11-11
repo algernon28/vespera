@@ -36,11 +36,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import tools.jackson.databind.JsonNode;
 
 /**
  * A cluster whose answer is turned down the last two times it is asked stands without writing, and the generation
  * step finishes with it (ADR-319): what makes a fault a repeated one, when the step records completion, that nothing
- * more is asked under the run once it has, and what the page, the account and the publish make of it.
+ * more is asked under the run once it has, and what the report and the publish make of it.
  *
  * <p><b>One sequence is built once for the class</b>, since it is three invocations long and five tests read it
  * (REVIEW.md, "shares its setup"): the fixture's one cluster answered with writing that ends with a stray closing
@@ -76,11 +77,6 @@ class RepeatedFaultInvocationTest {
     /** What a cluster's Confluence page body is called in its folder of the rendering (ADR-312). */
     private static final String A_CONFLUENCE_PAGE_BODY = "page.xml";
 
-    /** What an invocation account's file name starts with, in the working directory's logs folder (ADR-270). */
-    private static final String ACCOUNT_PREFIX = "invocation-account-";
-
-    /** The working directory's folder the accounts are written in (ADR-270). */
-    private static final String LOGS = "logs";
 
     /** One reason kept for the one cluster, though it was turned down twice: the second replaced the first. */
     private static final int ONE_REASON_KEPT = 1;
@@ -224,7 +220,7 @@ class RepeatedFaultInvocationTest {
      * @param lineUnderTheReason the line beneath that
      * @param confluenceBody the body of the cluster's page in the Confluence rendering
      * @param indexRow the index's row of the cluster
-     * @param account the lines of the account this invocation wrote
+     * @param counts the {@code counts} of the report this invocation wrote
      */
     private record AfterAnInvocation(
             int exitCode,
@@ -235,11 +231,11 @@ class RepeatedFaultInvocationTest {
             String lineUnderTheReason,
             String confluenceBody,
             String indexRow,
-            List<String> account) {}
+            JsonNode counts) {}
 
     /** One invocation over {@code root}, and what it left, read before anything else is invoked. */
     private AfterAnInvocation anInvocationOver(Path root) throws IOException {
-        List<Path> before = accounts();
+        List<Path> before = TheReportFile.copiesIn(workingDirectory);
         cli.run("run", root.toString());
         Path tree = theLatestTree(root);
         Path page = UnwrittenPage.pageHeadedBy(tree, theOnlyCluster());
@@ -252,7 +248,7 @@ class RepeatedFaultInvocationTest {
                 UnwrittenPage.lineUnderTheReasonOf(page),
                 theConfluenceBodySaying(tree, UnwrittenPage.forKind(ClusterFaultKind.SCHEMA_VIOLATION)),
                 UnwrittenPage.indexRowFor(tree, theOnlyCluster()),
-                theOneAccountWrittenSince(before).lines().toList());
+                theOneCopyWrittenSince(before).path("counts"));
     }
 
     /** The one Confluence page body in {@code tree}'s rendering carrying {@code sentence}, as the rendering escapes it. */
@@ -347,27 +343,14 @@ class RepeatedFaultInvocationTest {
                 Walk.canonicalRoot(root).toString());
     }
 
-    /** Every account in the working directory's logs folder now. */
-    private static List<Path> accounts() throws IOException {
-        Path logs = workingDirectory.resolve(LOGS);
-        if (!Files.isDirectory(logs)) {
-            return List.of();
-        }
-        try (Stream<Path> files = Files.list(logs)) {
-            return files.filter(file -> file.getFileName().toString().startsWith(ACCOUNT_PREFIX)).toList();
-        }
-    }
-
-    /** The one account written since {@code before} was listed. */
-    private static String theOneAccountWrittenSince(List<Path> before) throws IOException {
-        List<Path> written = accounts().stream().filter(file -> !before.contains(file)).toList();
+    /** The one copy of a report written since {@code before} was listed. */
+    private static JsonNode theOneCopyWrittenSince(List<Path> before) throws IOException {
+        List<Path> written = TheReportFile.copiesIn(workingDirectory).stream()
+                .filter(file -> !before.contains(file))
+                .toList();
         if (written.size() != 1) {
-            throw new IllegalStateException("expected the invocation to write one account, found " + written.size());
+            throw new IllegalStateException("expected the invocation to write one copy, found " + written.size());
         }
-        try {
-            return Files.readString(written.getFirst());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return TheReportFile.parse(Files.readString(written.getFirst()));
     }
 }

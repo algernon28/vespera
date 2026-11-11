@@ -42,12 +42,16 @@ final class WorkingFolders {
         return Optional.of(Files.readString(folder.get().resolve(name), StandardCharsets.UTF_8));
     }
 
-    /** Which of the reports the working directory holds now. */
+    /**
+     * Which of the reports, by name, the working directory holds now: a report is held where its JSON is, which the
+     * window draws it from (ADR-362 §10).
+     */
     Map<String, Boolean> writtenReports() {
         Map<String, Boolean> written = new HashMap<>();
         Optional<Path> folder = workingDirectory();
         for (String report : Reports.ALL) {
-            written.put(report, folder.isPresent() && Files.isRegularFile(folder.get().resolve(report)));
+            written.put(report, folder.isPresent()
+                    && Files.isRegularFile(folder.get().resolve(Reports.jsonOf(report))));
         }
         return written;
     }

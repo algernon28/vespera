@@ -2,7 +2,9 @@ package io.algernon.vespera;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import io.algernon.vespera.engine.pipeline.DisplayPresence;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -80,42 +82,63 @@ class CliExitIT {
     }
 
     /**
-     * The jar started with no argument where the window cannot open answers as its command line (ADR-342 §2): one line
-     * saying why, then the commands' usage, and picocli's usage code. A platform JavaFX does not have makes the
-     * toolkit fail as it starts, as a machine with no display does: measured, {@code Platform.startup} throws within
-     * a fraction of a second and the JVM goes on. It runs in a JVM of its own, since a JavaFX toolkit starts once.
+     * The jar started with no argument where the window cannot open answers as its command line (ADR-342 §2, ADR-362
+     * §2): one line saying why, then the commands' usage, and picocli's usage code. With a display present, a platform
+     * JavaFX does not have makes the toolkit fail as it starts, as a machine whose toolkit cannot start does: measured,
+     * {@code Platform.startup} throws within a fraction of a second and the JVM goes on. It runs in a JVM of its own,
+     * since a JavaFX toolkit starts once.
      */
     @Test
     @Issue("700")
+    @Issue("736")
     @Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
+    @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
     @Story("A start with no window answers as the command line")
-    @DisplayName("Started with no argument where no window can open, the jar says why in one line and prints the commands' usage")
+    @DisplayName("Started with no argument where the toolkit cannot start, the jar says why in one line and prints the commands' usage")
     void aJarThatCannotOpenTheWindowAnswersAsItsCommandLine() throws Exception {
-        Launched launched = launchWith(List.of(NO_SUCH_PLATFORM));
-        String output = Files.readString(workingDirectory.resolve(OUTPUT), StandardCharsets.UTF_8)
-                .replaceAll("\u001B\\[[0-9;]*m", "");
+        assumeTrue(displayIsPresentHere(), "no display is present on this machine, so the toolkit is not tried");
+        Launched launched = launchWith(List.of(NO_SUCH_PLATFORM), true);
+        String output = output();
 
-        claim("the jar exits within " + EXIT_BOUND_SECONDS + " seconds rather than waiting on a window",
+        claim("with a display present, the jar exits within " + EXIT_BOUND_SECONDS + " seconds rather than waiting on a window",
                 () -> assertThat(launched.finished()).isTrue());
         claim("it says in one line that the window cannot open, and that the jar answers as its command line instead",
                 () -> assertThat(output).contains(NO_WINDOW));
+        claim("the reason is the toolkit's, not that no display is present",
+                () -> assertThat(output).doesNotContain(NO_WINDOW + "no display"));
         claim("then prints the commands' usage, as a start of the command line with no argument does",
                 () -> assertThat(output).contains("Usage: vespera"));
         claim("and exits with picocli's usage code, as that start does",
                 () -> assertThat(launched.exitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
     }
 
+    /** What the launched jar wrote, merged, without colour codes. */
+    private static String output() throws Exception {
+        return Files.readString(workingDirectory.resolve(OUTPUT), StandardCharsets.UTF_8)
+                .replaceAll("\u001B\\[[0-9;]*m", "");
+    }
+
+    /**
+     * Whether the launch below has a display: on Linux it sets {@code DISPLAY} itself, so always; elsewhere what
+     * {@link DisplayPresence#ofThisProcess()} answers, since the launch cannot make a window station visible.
+     */
+    private static boolean displayIsPresentHere() {
+        return System.getProperty("os.name", "").toLowerCase().startsWith("linux")
+                || DisplayPresence.ofThisProcess().present();
+    }
+
     /** Launches the packaged jar with the given arguments and waits up to the bound for it to end. */
     private static Launched launch(String... args) throws Exception {
-        return launchWith(List.of(), args);
+        return launchWith(List.of(), true, args);
     }
 
     /** Launches the packaged jar with the JVM options and arguments given, its output in {@link #OUTPUT}. */
-    private static Launched launchWith(List<String> jvmOptions, String... args) throws Exception {
+    private static Launched launchWith(List<String> jvmOptions, boolean displayPresent, String... args) throws Exception {
         ProcessBuilder builder = new ProcessBuilder(
                         Stream.of(
                                         Stream.of(
                                                 javaExecutable(),
+                                                "--enable-native-access=ALL-UNNAMED",
                                                 "-Dspring.docker.compose.enabled=false",
                                                 "-Dvespera.sidecars.start=false",
                                                 "-Dvespera.working-dir=" + workingDirectory),
@@ -128,6 +151,13 @@ class CliExitIT {
                 .redirectOutput(workingDirectory.resolve(OUTPUT).toFile());
         // The jar opens no browser on the machine running the tests (ADR-266 section 2).
         builder.environment().put("CI", "true");
+        // On Linux the launch decides whether a display is present: DISPLAY set to a non-blank value, or neither variable.
+        if (displayPresent) {
+            builder.environment().putIfAbsent("DISPLAY", ":99");
+        } else {
+            builder.environment().remove("DISPLAY");
+            builder.environment().remove("WAYLAND_DISPLAY");
+        }
         Process process = builder.start();
 
         boolean finished = process.waitFor(EXIT_BOUND_SECONDS, TimeUnit.SECONDS);

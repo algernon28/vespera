@@ -68,7 +68,7 @@ public class SeedExtractionJobConfiguration {
             @Value("#{stepExecution.jobExecution.executionContext}") ExecutionContext jobContext) {
         Optional<SeedGate.SeedWalk> seedWalk = seedGate.seedWalk();
         if (seedWalk.isEmpty()) {
-            new ShutGates(jobContext).record(StepNames.SEED_EXTRACTION);
+            new ShutGates(jobContext).record(StepNames.SEED_EXTRACTION, seedGate.valueWhoseAbsenceShuts().orElse(null));
             return OccurrenceReader.yieldingNothing();
         }
         return new OccurrenceReader(ledger.occurrences().occurrencesOf(seedWalk.get().walkId()));

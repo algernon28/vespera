@@ -13,10 +13,6 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -46,11 +42,8 @@ class TranslationsUnderTwoEmbedderIdentitiesInvocationTest {
 
     private static final String PAGE = "translations.html";
 
-    private static final String STEPS_PAGE = "progress-steps.html";
-
-    private static final Pattern A_ROW = Pattern.compile("<tr>(.*?)</tr>", Pattern.DOTALL);
-
-    private static final Pattern A_CELL = Pattern.compile("<td[^>]*>(.*?)</td>", Pattern.DOTALL);
+    /** What the report says of a step the job stopped at a gate (ADR-362 section 3). */
+    private static final String STOPPED_AT_A_GATE = "stopped at a gate";
 
     @TempDir
     static Path workingDirectory;
@@ -122,9 +115,11 @@ class TranslationsUnderTwoEmbedderIdentitiesInvocationTest {
                                 scoring))
                         .isZero());
         claim(
-                "and the progress page shows the step as stopped at a gate",
-                () -> assertThat(stepRowsOf(Files.readString(workingDirectory.resolve(STEPS_PAGE))))
-                        .anySatisfy(row -> assertThat(row).startsWith("translation", "stopped at a gate")));
+                "and the report shows the step as stopped at a gate",
+                () -> assertThat(TheReportFile.step(TheReportFile.in(workingDirectory), StepNames.TRANSLATION)
+                                .path("state")
+                                .asString())
+                        .isEqualTo(STOPPED_AT_A_GATE));
     }
 
     private String latestScoringRun(Path root) {
@@ -134,22 +129,5 @@ class TranslationsUnderTwoEmbedderIdentitiesInvocationTest {
     private long translationsUnder(String run) {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM verdict WHERE run_id = ? AND kind = 'TRANSLATION_OF'", Long.class, run);
-    }
-
-    /** The cells of each body row of the steps page, tags taken out. */
-    private static List<List<String>> stepRowsOf(String html) {
-        List<List<String>> rows = new ArrayList<>();
-        Matcher row = A_ROW.matcher(html);
-        while (row.find()) {
-            List<String> cells = new ArrayList<>();
-            Matcher cell = A_CELL.matcher(row.group(1));
-            while (cell.find()) {
-                cells.add(cell.group(1).replaceAll("<[^>]*>", "").trim());
-            }
-            if (!cells.isEmpty()) {
-                rows.add(cells);
-            }
-        }
-        return rows;
     }
 }

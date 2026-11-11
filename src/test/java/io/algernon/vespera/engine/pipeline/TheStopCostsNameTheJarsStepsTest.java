@@ -87,7 +87,7 @@ class TheStopCostsNameTheJarsStepsTest {
         Map<String, String> byTheJar = new LinkedHashMap<>();
         Map<String, String> byTheWindow = new LinkedHashMap<>();
         for (String step : ((SimpleJob) vesperaJob).getStepNames()) {
-            byTheJar.put(step, ProgressPage.STEPS_OF_A_STAGE.entrySet().stream()
+            byTheJar.put(step, InvocationReport.STEPS_OF_A_STAGE.entrySet().stream()
                     .filter(stage -> stage.getValue().contains(step)).map(Map.Entry::getKey).findFirst().orElse(""));
             byTheWindow.put(step, StopCosts.stageOf(step));
         }

@@ -154,7 +154,10 @@ class ContentCensusTasklet implements Tasklet {
                                             "Stage 3 (content census, reading extraction metrics)")
                                     .build());
                     log.info("Stage 3 (content census) measured the confidence distribution");
-                    Path reportFile = writeReport(distribution);
+                    Path reportFile = writePage(
+                            CONFIDENCE_DISTRIBUTION_FILE_NAME,
+                            ConfidenceDistributionReport.render(distribution),
+                            ConfidenceDistributionReport.json(distribution, clock.instant()));
 
                     RunId byteLevelReductionRunId = stageRuns.upstream(StageModules.BYTE_LEVEL_REDUCTION);
                     WordCountDistribution.Distribution wordCounts = wordCountDistribution.measure(
@@ -170,7 +173,8 @@ class ContentCensusTasklet implements Tasklet {
                     log.info("Stage 3 (content census) measured the word counts");
                     Path wordCountFile = writePage(
                             WORD_COUNT_DISTRIBUTION_FILE_NAME,
-                            WordCountDistributionReport.render(wordCounts, runId));
+                            WordCountDistributionReport.render(wordCounts, runId),
+                            WordCountDistributionReport.json(wordCounts, clock.instant()));
 
                     // The read walks the run's rows of shingle_document_frequency, so it states its seconds (ADR-193).
                     log.info("Stage 3 (content census) is reading the shares of the documents");
@@ -183,7 +187,8 @@ class ContentCensusTasklet implements Tasklet {
                             String.format(Locale.ROOT, "%.1f", (System.nanoTime() - readStarted) / NANOS_PER_SECOND));
                     Path frequencyFile = writePage(
                             DOCUMENT_FREQUENCY_FILE_NAME,
-                            DocumentFrequencyReport.render(shares, runId));
+                            DocumentFrequencyReport.render(shares, runId),
+                            DocumentFrequencyReport.json(shares, clock.instant()));
 
                     Profile profile = profileStore.load();
                     profileStore.save(profile.withDegenerateOutputConfidenceFloorMeasurement(
@@ -269,18 +274,17 @@ class ContentCensusTasklet implements Tasklet {
     }
 
     /**
-     * Writes the confidence-distribution report to the working directory, overwriting whatever an
-     * earlier run left there (ADR-075) — never accumulated, never left stale.
+     * Writes a report's JSON and then its page into the working directory, overwriting what an earlier run left
+     * (ADR-075, ADR-077). The JSON is moved into place before the page is written, so a JSON that cannot be written
+     * stops the step with the earlier JSON and the earlier page still one pair, as a page that cannot be written
+     * stops it (ADR-362 section 9).
      */
-    private Path writeReport(ConfidenceDistribution.Distribution distribution) {
-        return writePage(CONFIDENCE_DISTRIBUTION_FILE_NAME, ConfidenceDistributionReport.render(distribution));
-    }
-
-    /** Writes {@code html} as {@code fileName} in the working directory, overwriting what an earlier run left (ADR-077). */
-    private Path writePage(String fileName, String html) {
+    private Path writePage(String fileName, String html, AnalysisReportJson.Document json) {
         Path reportFile = workingDirectory.resolve(fileName);
+        Path jsonFile = workingDirectory.resolve(fileName.substring(0, fileName.length() - ".html".length()) + ".json");
         try {
             Files.createDirectories(workingDirectory);
+            AnalysisReportJson.write(jsonFile, json);
             Files.writeString(reportFile, html, StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new UncheckedIOException("could not write the report at " + reportFile, e);

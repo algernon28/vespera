@@ -1,6 +1,11 @@
 package io.algernon.vespera.engine.pipeline;
 
 import java.io.IOException;
+import java.io.Writer;
+import java.net.URI;
+import java.nio.file.Path;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -135,5 +140,81 @@ final class ArrangementReport {
                         + " than a mistake: it means that document was collected on its own merits and"
                         + " not because it belongs with the others."))
                 .append(ReportPage.tail());
+    }
+
+    /** The page's name in {@code Reports.ALL}, and its JSON's without the ending (ADR-362 section 9). */
+    static final String NAME = StepNames.ARRANGEMENT;
+
+    private static final List<AnalysisReportJson.Column> COLUMNS = List.of(
+            new AnalysisReportJson.Column("group", "Group", "text"),
+            new AnalysisReportJson.Column("documents", "Documents", "count"),
+            new AnalysisReportJson.Column("namedAfter", "Named after", "path"));
+
+    /**
+     * What the page shows, as JSON (ADR-362 section 9), begun: the sections that stand before the first partition,
+     * the approval name among them. Written beside the page, a partition at a time, and ended by {@link #closeJson}.
+     */
+    static AnalysisReportJson openJson(Writer json, String approvalName, String corpusRoot, Instant writtenAt)
+            throws IOException {
+        AnalysisReportJson report = AnalysisReportJson.begin(json, NAME, TITLE, writtenAt);
+        report.section(
+                "overview",
+                TITLE,
+                List.of(
+                        "Every document that survived is here, under the exemplar it was matched to and in the"
+                                + " group it formed with the documents nearest it. Nothing has been removed, merged"
+                                + " or renamed to produce this page, and nothing on it was written for you.",
+                        "The documents themselves are still in " + corpusRoot + ". They have not been moved or copied."),
+                null,
+                null);
+        report.section(
+                "approval",
+                "What you are being asked",
+                List.of(
+                        "Is this arrangement worth writing over? The next step reads each group in full and writes a"
+                                + " document about it. It will not start until you say this arrangement is the one you"
+                                + " want.",
+                        "To say so, put this into profile.yaml under arrangementApproved:",
+                        approvalName,
+                        "That name is this arrangement and no other. If the documents are grouped again, this page"
+                                + " gets a new name and you are asked again.",
+                        "Write down what you actually checked in provenance beside it."),
+                null,
+                null);
+        return report;
+    }
+
+    /** One partition's section: its counts as its text and its clusters as its table, each lead document by absolute path. */
+    static void partitionJson(AnalysisReportJson report, int place, Partition partition) throws IOException {
+        List<List<Object>> rows = new ArrayList<>();
+        for (Cluster cluster : partition.clusters()) {
+            rows.add(List.of(
+                    cluster.label(),
+                    cluster.documentCount(),
+                    Path.of(URI.create(cluster.leadDocumentLink())).toString()));
+        }
+        report.section(
+                "partition-" + place,
+                partition.seedPath(),
+                List.of(partition.documentCount() + " document(s) in " + partition.clusters().size() + " group(s)."),
+                COLUMNS,
+                rows);
+    }
+
+    /** Ends the JSON with its headline: the partitions, the groups and the documents the page shows. */
+    static void closeJson(AnalysisReportJson report, int partitions, int clusters, long documents)
+            throws IOException {
+        if (partitions == 0) {
+            report.section(
+                    "nothing",
+                    "Nothing to arrange",
+                    List.of("No document was matched to an exemplar, so there is nothing to arrange."),
+                    null,
+                    null);
+        }
+        report.end(List.of(
+                new AnalysisReportJson.Figure("partitions", "Exemplars", partitions, "count"),
+                new AnalysisReportJson.Figure("clusters", "Groups", clusters, "count"),
+                new AnalysisReportJson.Figure("documents", "Documents", documents, "count")));
     }
 }

@@ -137,7 +137,6 @@ Nothing, by this record: it adds no option, command or output to the jar, and no
 | --- | --- |
 | `pipeline.TheControlPanelsChildIT.itsRefusalOfAWorkingDirectoryInUseIsUtf8OnTheMergedStream` | the packaged jar, started with the two encoding flags and `CI=1`, its standard error merged into standard output, on a working directory another invocation holds whose name holds `ł` and `漢`: one line, strict UTF-8, naming the directory whole, exit 1 |
 | `pipeline.WhatTheControlPanelReadsOfAnInvocationTest.theHoldersStartIsNoLaterThanStartedPlusOneSecond` | a second JVM holding a working directory: its process's start instant is no later than its holder line's `started` plus 1 second |
-| `pipeline.WhatTheControlPanelReadsOfAnInvocationTest.ciSetToOneOpensNoPage` | `CI=1`, a display set, on Windows, macOS and Linux: `SystemPageOpener` starts no command |
 | ADR-177's `pipeline.WorkingDirectoryLockTest` and `pipeline.WorkingDirectoryInUseIT` | the holder line's shape and readability while held, a killed holder's working directory taken at once by the next invocation, and the refusal's one line and exit 1 |
 
 The control panel's own code has no home yet: where it lives and how it is built is #562's, after the prototype (#561). Its build carries these tests, each against its own code:
