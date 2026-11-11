@@ -108,7 +108,7 @@ The README's paragraph on what the window shows, in the change that builds this,
 | `ui.EveryBarOfTheStepsCarriesItsPercentTest.eachPercentStandsCentredOnItsBarAndTheBarsAndStatesKeepTheirColumns` | §1: with every leg folded each summary's percent is shown, and with every leg opened each of the sixteen rows' percent is; each lies inside its bar's bounds, centred on it within a pixel; the four summaries' bars are one width and their states start at one x, and so are and do the sixteen rows' |
 | `ui.EveryBarOfTheStepsCarriesItsPercentTest.eachPercentStandsAtWcagAaAgainstItsHaloInBothThemes` | §4: in the light theme and in the dark, extraction's percent and translation's are drawn in an opaque colour with a drop shadow of offsets 0, a blur of at least 2 px and a spread of at least 0.8, in an opaque colour the text stands against at 4.5 : 1 or more |
 
-Each method draws the window from a first start's state on the Headless platform and hands `steps` files built by hand, as the cockpit hands it each reading. A row's state words are read as the part of the row right after the part holding its bar, which reads the same with the bar alone and with its percent.
+Each method draws the window from a first start's state on the Headless platform and hands it reports of `report.json`'s shape built by hand, their steps alone, as the cockpit hands it each reading (ADR-362). A row's state words are read as the part of the row right after the part holding its bar, which reads the same with the bar alone and with its percent.
 
 ## What the implementation owes
 

@@ -10,6 +10,7 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -369,7 +370,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
     }
 
     /** Hands the steps chart {@code progress}, as the cockpit does at each reading, and lays the window out again. */
-    private static void shown(Parent root, ProgressFile.Progress progress) {
+    private static void shown(Parent root, InvocationReportFile.Report progress) {
         WindowForTests.node(root, "steps", StepsChart.class).show(progress);
         root.applyCss();
         root.layout();
@@ -511,8 +512,8 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
     // ---- the files the window reads
 
     /** The files {@link #eachStepsBarCarriesItsWholePercentAndItsStateWordsAreUnchanged} hands the chart, by name, in turn. */
-    private static Map<String, ProgressFile.Progress> stepFiles() {
-        Map<String, ProgressFile.Progress> files = new LinkedHashMap<>();
+    private static Map<String, InvocationReportFile.Report> stepFiles() {
+        Map<String, InvocationReportFile.Report> files = new LinkedHashMap<>();
         files.put("extraction at 375 of 1000", extractionAt(375, 1000));
         files.put("extraction at 29 of 100", extractionAt(29, 100));
         files.put("extraction at 2000 of 2000", extractionAt(2000, 2000));
@@ -530,7 +531,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
      * Extraction running at {@code done} of {@code total}, the census finished at 10 of 10, byte-level reduction finished
      * with no count, and deduplication's three later steps not started; no later step named.
      */
-    private static ProgressFile.Progress extractionAt(long done, long total) {
+    private static InvocationReportFile.Report extractionAt(long done, long total) {
         return progress(step("census", "finished", 10L, 10L), step("byte-level-reduction", "finished", null, null),
                 step("extraction", "running", done, total), step("content-census", "not started", null, null),
                 step("redundancy-signature", "not started", null, null),
@@ -538,7 +539,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
     }
 
     /** Deduplication's first five steps finished and content redundancy running at 2,000 of 2,000. */
-    private static ProgressFile.Progress contentRedundancyAtItsTotal() {
+    private static InvocationReportFile.Report contentRedundancyAtItsTotal() {
         return progress(step("census", "finished", null, null), step("byte-level-reduction", "finished", null, null),
                 step("extraction", "finished", null, null), step("content-census", "finished", null, null),
                 step("redundancy-signature", "finished", null, null),
@@ -546,30 +547,30 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
     }
 
     /** The census finished, byte-level reduction failed at 3 of 4, and every later step not started. */
-    private static ProgressFile.Progress byteLevelReductionFailedAt3Of4() {
-        List<ProgressFile.Step> steps = new ArrayList<>();
+    private static InvocationReportFile.Report byteLevelReductionFailedAt3Of4() {
+        List<InvocationReportFile.Step> steps = new ArrayList<>();
         steps.add(step("census", "finished", null, null));
         steps.add(step("byte-level-reduction", "failed", 3L, 4L));
         StopCosts.ROWS.stream().map(StopCosts.StopCost::step)
                 .filter(name -> !name.equals("census") && !name.equals("byte-level-reduction"))
                 .forEach(name -> steps.add(step(name, "not started", null, null)));
-        return new ProgressFile.Progress(true, List.copyOf(steps), List.of());
+        return report(true, List.copyOf(steps));
     }
 
     /** Every step of deduplication finished and seed extraction running with no count. */
-    private static ProgressFile.Progress seedExtractionWithNoCounter() {
-        List<ProgressFile.Step> steps = new ArrayList<>();
+    private static InvocationReportFile.Report seedExtractionWithNoCounter() {
+        List<InvocationReportFile.Step> steps = new ArrayList<>();
         Legs.ALL.getFirst().steps().forEach(name -> steps.add(step(name, "finished", null, null)));
         steps.add(step("seed-extraction", "running", null, null));
-        return new ProgressFile.Progress(false, List.copyOf(steps), List.of());
+        return report(false, List.copyOf(steps));
     }
 
     /**
      * At the last write: deduplication finished, extraction at 3 of 4; seed extraction finished; the seed-corpus
      * comparison stopped at a gate at 2 of 4; and every later step stopped at a gate with no count.
      */
-    private static ProgressFile.Progress firstStoppedAtAGateInTranslation() {
-        List<ProgressFile.Step> steps = new ArrayList<>();
+    private static InvocationReportFile.Report firstStoppedAtAGateInTranslation() {
+        List<InvocationReportFile.Step> steps = new ArrayList<>();
         for (String name : Legs.ALL.getFirst().steps()) {
             steps.add(name.equals("extraction") ? step(name, "finished", 3L, 4L) : step(name, "finished", null, null));
         }
@@ -578,14 +579,23 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
         Legs.ALL.stream().skip(1).flatMap(leg -> leg.steps().stream())
                 .filter(name -> !name.equals("seed-extraction") && !name.equals("seed-corpus-comparison"))
                 .forEach(name -> steps.add(step(name, "stopped at a gate", null, null)));
-        return new ProgressFile.Progress(true, List.copyOf(steps), List.of());
+        return report(true, List.copyOf(steps));
     }
 
-    private static ProgressFile.Progress progress(ProgressFile.Step... steps) {
-        return new ProgressFile.Progress(false, List.of(steps), List.of());
+    private static InvocationReportFile.Report progress(InvocationReportFile.Step... steps) {
+        return report(false, List.of(steps));
     }
 
-    private static ProgressFile.Step step(String name, String state, Long done, Long total) {
-        return new ProgressFile.Step(name, state, done, total);
+    /** The report of a job whose steps are {@code steps}, ended at its last write where {@code ended}. */
+    private static InvocationReportFile.Report report(boolean ended, List<InvocationReportFile.Step> steps) {
+        InvocationReportFile.Report none = InvocationReportFile.Report.none();
+        InvocationReportFile.Invocation invocation = new InvocationReportFile.Invocation("20261108T000000Z", 1L,
+                "run", Instant.EPOCH, null, ended ? "ended" : "running", null, null, Instant.EPOCH, 1L);
+        return new InvocationReportFile.Report(none.format(), invocation, null, null, null, steps, List.of(),
+                List.of(), List.of(), List.of(), List.of(), null, null, List.of(), List.of());
+    }
+
+    private static InvocationReportFile.Step step(String name, String state, Long done, Long total) {
+        return new InvocationReportFile.Step(name, null, state, done, total);
     }
 }
