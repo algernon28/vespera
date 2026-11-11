@@ -32,7 +32,7 @@ Where the cockpit draws a chart whose value axis is not a size, each tick reads 
 
 ### 4. A tick of time is written in seconds, minutes and hours
 
-**An axis whose unit is time**, the cockpit's elapsed-time axis under each chart and any value axis whose title ends with `(s)`, is never shortened to `K`, `M`, `B` or `T`. Each tick is written in the largest of `s`, `min` and `h` whose value is at least 1, with a space before the unit and one decimal at most, trailing zeros dropped; a tick that rounds to 60.0 of `s` or `min` is written in the next. So 0, 45, 90, 600, 5,400 and 36,000 seconds read `0 s`, `45 s`, `1.5 min`, `10 min`, `1.5 h` and `10 h`; 3,599 seconds, 59.98 min, reads `1 h`. Hours are the largest unit: 360,000 seconds read `100 h`. The elapsed-time axis is titled `Elapsed`, since each tick now names its own unit.
+**An axis whose unit is time**, the cockpit's elapsed-time axis under each chart and any value axis whose title ends with a space and `(s)`, is never shortened to `K`, `M`, `B` or `T`. **Its unit is chosen for the axis as a whole, from the spacing of its ticks**: the largest of `s`, `min` and `h` in which that spacing is at least 1, so that two ticks side by side never read alike. Each tick is written in that unit, with a space before it, to one decimal at most, trailing zeros dropped, grouped by thousands. So ticks every 15 s read `0 s`, `15 s`, `30 s`, `45 s`; every 300 s, `0 min`, `5 min`, `10 min`; every 3,600 s, `2 h`, `3 h`; every 36,000 s, `100 h`, hours being the largest unit; and every 50 s, `7,250 s`. A step that started 2 h into the job and has run 5 minutes, its axis from 7,200 to 7,500 s ticked every 100 s, reads `120 min`, `121.7 min`, `123.3 min`, `125 min`, where a unit chosen tick by tick would read `2 h` twice. A title such as `Cluster(s)`, whose `(s)` is a plural with no space before it, is a count. The elapsed-time axis is titled `Elapsed`, since each tick now names its own unit.
 
 ## Alternatives refused
 
@@ -40,6 +40,7 @@ Where the cockpit draws a chart whose value axis is not a size, each tick reads 
 - **Counting every grouped number in 1,024.** A count of 1,500 rows is not memory; the operator asked for 1,024 only where the unit is memory.
 - **Shortening a memory axis's ticks as a size, `51.7 GB` on each tick.** The axis title already names the unit (ADR-268 §6), and each tick holding its own unit would repeat it.
 - **A time tick as a clock, `1:30:00`.** The operator named seconds, minutes and hours; the report's page keeps its clock (ADR-268 §7), drawn by the jar's template, not by the cockpit.
+- **A unit chosen tick by tick, from each tick's own value.** On an axis that starts hours into the job and spans minutes, every tick would read the same number of hours.
 - **Days past 24 hours.** The operator named hours as the largest unit, and no job's chart runs for days.
 - **Telling a memory axis by the chart's id, `database`.** A later chart of a size would have to be named in the cockpit too; the title's unit is what the jar decides.
 
@@ -47,7 +48,7 @@ Where the cockpit draws a chart whose value axis is not a size, each tick reads 
 
 - Every size the report draws moves by up to 2.4% per unit from what it read before: 2,050 bytes read `2.00 KB`, not `2.05 KB`.
 - A `logs/report-*.json` written before this record keeps a database chart divided by powers of 1,000 under the same unit's title; a page drawn from it now multiplies by 1,024, and reads its sizes up to 2.4% per unit high. No copy is drawn again unless a template is run on it by hand.
-- The cockpit's count and verdict axes read `1.5K`, `2M` and so on; its database axis reads plain numbers in its unit; and every chart's elapsed-time axis, titled `Elapsed`, reads `45 s`, `1.5 min`, `2 h` where it read raw seconds.
+- The cockpit's count and verdict axes read `1.5K`, `2M` and so on; its database axis reads plain numbers in its unit; and every chart's elapsed-time axis, titled `Elapsed`, reads `45 s`, `10 min`, `2 h`, in the unit its ticks' spacing fits, where it read raw seconds.
 
 ## What this does not decide
 
@@ -61,7 +62,7 @@ Where the cockpit draws a chart whose value axis is not a size, each tick reads 
 | Method | What it holds |
 | --- | --- |
 | `pipeline.ReportHtmlTest.aSizeOfMemoryIsWrittenInPowersOf1024` | §1, §2: 0, 1,023, 1,024, 2,050, 1,000,000, 1,234,567, 1,048,575 and 5 × 1,024⁴ bytes are `0 B`, `1,023 B`, `1.00 KB`, `2.00 KB`, `976.56 KB`, `1.18 MB`, `1.00 MB` and `5.00 TB`; a span of 1,023, 1,024 and three times 1,024² bytes is an axis in `B`, `KB` and `MB`; a job whose database grew from 1,000 to 2,050 bytes on an axis in `KB` draws the tile `2.00 KB` and its two points' titles `1,000 B` and `2.00 KB`; and a count of 51,732,300 verdicts is still grouped by thousands, `51,732,300` |
-| `ui.TheCockpitsValueTicksTest.aCountTickIsShortenedAndASizeTickIsNot` | §3: on an axis titled `Done (count)`, 2.5, 999, 1,500, 2,000,000, 999,950 and 3,000,000,000,000 read `2.5`, `999`, `1.5K`, `2M`, `1M` and `3T`; on axes titled `Database size (B)`, `Database size (MB)` and `Database size (KB)`, 51,700,000,000, 51,700 and 1.5 read `51,700,000,000`, `51,700` and `1.5`; and §1: on the control panel's tab of an analysis report, 512, 2,050, 1,030,000, 1,048,575 and -2,050 bytes read `512 B`, `2.00 KB`, `1,005.86 KB`, `1.00 MB` and `-2.00 KB`; and §4: on the elapsed-time axis, 0, 45, 90, 600, 3,599, 5,400, 36,000 and 360,000 seconds read `0 s`, `45 s`, `1.5 min`, `10 min`, `1 h`, `1.5 h`, `10 h` and `100 h`, and on a value axis titled `Duration (s)` 5,400 reads `1.5 h`, never `5.4K` |
+| `ui.TheCockpitsValueTicksTest.aCountTickIsShortenedAndASizeTickIsNot` | §3: on an axis titled `Done (count)`, 2.5, 999, 1,500, 2,000,000, 999,950 and 3,000,000,000,000 read `2.5`, `999`, `1.5K`, `2M`, `1M` and `3T`; on axes titled `Database size (B)`, `Database size (MB)` and `Database size (KB)`, 51,700,000,000, 51,700 and 1.5 read `51,700,000,000`, `51,700` and `1.5`; and §1: on the control panel's tab of an analysis report, 512, 2,050, 1,030,000, 1,048,575 and -2,050 bytes read `512 B`, `2.00 KB`, `1,005.86 KB`, `1.00 MB` and `-2.00 KB`; and §4: on the elapsed-time axis, ticks every 15, 300, 3,600, 36,000 and 50 s read `0 s` to `45 s`, `0 min` to `15 min`, `2 h` and `3 h`, `100 h` and `7,250 s`; an axis from 7,200 to 7,500 s ticked every 100 s reads `120 min`, `121.7 min`, `123.3 min` and `125 min`, no two alike; and 5,400 ticked every 1,800 s reads `90 min` on an axis titled `Duration (s)` and `5.4K` on one titled `Cluster(s)` |
 
 ## What the implementation owes
 

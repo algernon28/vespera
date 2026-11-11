@@ -46,14 +46,29 @@ class TheCockpitsValueTicksTest {
                         .map(bytes -> AnalysisReportView.number(BigDecimal.valueOf(bytes), "bytes")).toList())
                         .as("each value in bytes on the analysis report's tab")
                         .containsExactly("512 B", "2.00 KB", "1,005.86 KB", "1.00 MB", "-2.00 KB"));
-        claim("on the elapsed-time axis, 0, 45, 90, 600, 3,599, 5,400, 36,000 and 360,000 seconds read 0 s, 45 s, 1.5 min,"
-                        + " 10 min, 1 h, 1.5 h, 10 h and 100 h: seconds, minutes and hours, never K, M, B or T",
-                () -> assertThat(List.of(0.0, 45.0, 90.0, 600.0, 3_599.0, 5_400.0, 36_000.0, 360_000.0).stream()
-                        .map(ProgressCharts::timeTick).toList())
-                        .as("each tick of the elapsed-time axis")
-                        .containsExactly("0 s", "45 s", "1.5 min", "10 min", "1 h", "1.5 h", "10 h", "100 h"));
-        claim("and a value axis titled with seconds is read as time too: 5,400 on Duration (s) reads 1.5 h, never 5.4K",
-                () -> assertThat(ProgressCharts.tickText("Duration (s)", 5_400)).as("a tick of a value axis in seconds")
-                        .isEqualTo("1.5 h"));
+        claim("on the elapsed-time axis the unit is the largest of s, min and h in which the ticks' spacing is at least 1:"
+                        + " ticks every 15 s read 0 s, 15 s, 30 s, 45 s; every 300 s, 0 min, 5 min, 10 min, 15 min; every"
+                        + " 3,600 s, 2 h, 3 h; every 36,000 s, 100 h; and every 50 s, 7,250 s grouped by thousands",
+                () -> assertThat(List.of(ticks(15, 0, 15, 30, 45), ticks(300, 0, 300, 600, 900),
+                        ticks(3_600, 7_200, 10_800), ticks(36_000, 360_000), ticks(50, 7_250)))
+                        .as("each axis's ticks, by spacing")
+                        .containsExactly(List.of("0 s", "15 s", "30 s", "45 s"),
+                                List.of("0 min", "5 min", "10 min", "15 min"), List.of("2 h", "3 h"), List.of("100 h"),
+                                List.of("7,250 s")));
+        claim("a step that started 2 h into the job and has run 5 min, its axis from 7,200 to 7,500 s ticked every 100 s,"
+                        + " reads four distinct ticks, 120 min, 121.7 min, 123.3 min and 125 min, never 2 h twice",
+                () -> assertThat(ticks(100, 7_200, 7_300, 7_400, 7_500)).as("the ticks of a late step's axis")
+                        .containsExactly("120 min", "121.7 min", "123.3 min", "125 min").doesNotHaveDuplicates());
+        claim("a value axis titled with seconds is read as time too: 5,400 on Duration (s), ticked every 1,800 s, reads"
+                        + " 90 min, never 5.4K; and a title whose (s) is a plural marker, Cluster(s), is a count, 5,400 reading 5.4K",
+                () -> assertThat(List.of(ProgressCharts.tickText("Duration (s)", 5_400, 1_800),
+                        ProgressCharts.tickText("Cluster(s)", 5_400, 1_800)))
+                        .as("a tick of a value axis in seconds, and of one whose (s) is a plural")
+                        .containsExactly("90 min", "5.4K"));
+    }
+
+    /** The elapsed-time axis's labels of {@code seconds}, on an axis ticked every {@code spacing} seconds. */
+    private static List<String> ticks(double spacing, double... seconds) {
+        return java.util.Arrays.stream(seconds).mapToObj(each -> ProgressCharts.timeTick(each, spacing)).toList();
     }
 }
