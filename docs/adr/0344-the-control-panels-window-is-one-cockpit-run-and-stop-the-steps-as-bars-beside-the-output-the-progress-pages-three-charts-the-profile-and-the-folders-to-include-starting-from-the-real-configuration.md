@@ -10,7 +10,7 @@
 
 > **Partly amended — see [ADR-365](0365-the-cockpits-charts-carry-a-legend-and-a-value-on-each-sample-and-a-running-step-or-leg-says-its-whole-percent.md).** Of §1: a row's state of a step running with a counter of a total reads `running <N>%`, its whole percent rounded down and 99 at most while it runs, every other row its word alone, what the row does still read from the file's state; and each chart carries a legend above its plot where it draws two lines or more, each sample a hit area showing its value alone and the latest sample a marker. The rest of this record stands.
 
-> **Partly amended — see [ADR-369](0369-every-bar-of-the-cockpits-steps-carries-its-whole-percent-drawn-on-it-and-nothing-else-of-the-window-changes.md).** Of §1: each row's one bar carries its whole percent drawn centred on it, `step-percent-<name>`, the percent of the bar it is drawn on, `…` while the step runs with no counter and `—` where it failed with none; the row's other parts, its ids and its state's words are unchanged. The rest of this record stands.
+> **Partly amended — see [ADR-370](0370-every-bar-of-the-cockpits-steps-carries-its-whole-percent-drawn-on-it-and-nothing-else-of-the-window-changes.md).** Of §1: each row's one bar carries its whole percent drawn centred on it, `step-percent-<name>`, the percent of the bar it is drawn on, `…` while the step runs with no counter and `—` where it failed with none; the row's other parts, its ids and its state's words are unchanged. The rest of this record stands.
 
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.

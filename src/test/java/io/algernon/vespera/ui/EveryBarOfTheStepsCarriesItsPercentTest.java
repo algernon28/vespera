@@ -36,7 +36,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Every bar of the cockpit's steps carries its whole percent, drawn centred on it (ADR-369): each step's row's bar its
+ * Every bar of the cockpit's steps carries its whole percent, drawn centred on it (ADR-370): each step's row's bar its
  * {@code step-percent-<name>} and each leg's summary's bar its {@code leg-percent-<leg>}, the percent of the bar it is
  * drawn on; and the state's words read as they did before, {@code running <N>%} included (ADR-365 §4, §5).
  *
@@ -49,7 +49,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("791")
-@Link(name = "ADR-369", url = Adr.EVERY_BAR_OF_THE_COCKPITS_STEPS_CARRIES_ITS_PERCENT, type = "adr")
+@Link(name = "ADR-370", url = Adr.EVERY_BAR_OF_THE_COCKPITS_STEPS_CARRIES_ITS_PERCENT, type = "adr")
 @Link(name = "ADR-361", url = Adr.THE_COCKPITS_STEPS_FOLD_INTO_THE_PROGRESS_PAGES_FOUR_LEGS, type = "adr")
 @Link(name = "ADR-365", url = Adr.THE_COCKPITS_CHARTS_CARRY_A_LEGEND_AND_A_RUNNING_STEP_SAYS_ITS_PERCENT, type = "adr")
 class EveryBarOfTheStepsCarriesItsPercentTest {

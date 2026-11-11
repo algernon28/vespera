@@ -222,7 +222,7 @@
     -fx-max-height: 20px;
 }
 
-/* A bar and its whole percent, one bar's width (ADR-369 §1, §4): the percent stands centred on the bar. */
+/* A bar and its whole percent, one bar's width (ADR-370 §1, §4): the percent stands centred on the bar. */
 .bar-with-percent {
     -fx-alignment: center;
     -fx-min-width: 160px;
@@ -230,7 +230,7 @@
     -fx-max-width: 160px;
 }
 
-/* The percent's ink, with a halo in the theme's surface so that it stands at AA on the fill and on the track (ADR-369 §4). */
+/* The percent's ink, with a halo in the theme's surface so that it stands at AA on the fill and on the track (ADR-370 §4). */
 .bar-percent {
     -fx-font-size: 11px;
     -fx-font-weight: bold;

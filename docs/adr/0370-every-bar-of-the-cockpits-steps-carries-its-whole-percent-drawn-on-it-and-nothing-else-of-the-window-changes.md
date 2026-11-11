@@ -1,4 +1,4 @@
-# ADR-369 — Every bar of the cockpit's steps carries its whole percent drawn on it, and nothing else of the window changes
+# ADR-370 — Every bar of the cockpit's steps carries its whole percent drawn on it, and nothing else of the window changes
 
 - **Date**: 2026-11-10
 - **Status**: accepted on 2026-11-10.

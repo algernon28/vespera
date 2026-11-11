@@ -103,7 +103,7 @@ final class StepsChart extends VBox {
         return made;
     }
 
-    /** The percent drawn on a bar, centred on it, reading 0% until a reading says otherwise (ADR-369 §1). */
+    /** The percent drawn on a bar, centred on it, reading 0% until a reading says otherwise (ADR-370 §1). */
     private static Label percentLabel(String id) {
         Label percent = new Label("0%");
         percent.setId(id);
@@ -155,7 +155,7 @@ final class StepsChart extends VBox {
             if (step != null && step.done() != null && step.total() != null && step.total() > 0) {
                 row.bar().setProgress(Math.min(1.0, (double) step.done() / step.total()));
                 fractions.put(name, row.bar().getProgress());
-                // worked out on the whole numbers the file gives, 99 at most while the step runs (ADR-369 §2)
+                // worked out on the whole numbers the file gives, 99 at most while the step runs (ADR-370 §2)
                 row.percent().setText(Math.min(running ? 99L : 100L, 100L * step.done() / step.total()) + "%");
             } else if (words.equals("finished") || words.equals("stopped at a gate")) {
                 row.bar().setProgress(1.0);
