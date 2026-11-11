@@ -2607,6 +2607,13 @@ public final class Adr {
             + "0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md";
 
     /**
+     * ADR-364 -- the output panel is copyable text of the whole output, from a file of its own, and every text of the
+     * window is copyable, the rows of a native view's table among them.
+     */
+    public static final String EVERY_TEXT_OF_THE_WINDOW_IS_COPYABLE = FILE
+            + "0364-the-output-panel-is-copyable-text-of-the-whole-output-from-a-file-of-its-own-and-every-text-of-the-window-is-copyable.md";
+
+    /**
      * ADR-365 -- the cockpit's charts carry JavaFX's legend above the plot where they draw two lines or more and none for
      * one, each line's swatch its colour by one style class; each sample is a hit area holding a tooltip of its value
      * alone, the latest marked; a step running with a counter of a total, and a running leg, read {@code running <N>%},

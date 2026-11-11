@@ -47,7 +47,6 @@ import org.junit.jupiter.api.Test;
 @Issue("700")
 @Issue("723")
 @Issue("759")
-@Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
 @Link(name = "ADR-285", url = Adr.THE_CONTROL_PANEL_IS_A_SECOND_JAR_LINKING_NO_CLASS_OF_THE_JAR, type = "adr")
 @Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
 @Link(name = "ADR-360", url = Adr.THE_CONTROL_PANEL_DROPS_JAVAFXS_CLASS_PATH_LINE, type = "adr")
@@ -75,12 +74,6 @@ class TheControlPanelLinksNoClassOfTheJarTest {
 
     /** JavaFX's public packages, which no class of the jar names. */
     private static final String JAVAFX = "javafx..";
-
-    /** The package of the web view, which goes with {@code javafx-web} (ADR-362 §10). */
-    private static final String JAVAFX_WEB = "javafx.scene.web..";
-
-    /** The package of the bridge to a page's script, which {@code jdk-jsobject} brought. */
-    private static final String JAVASCRIPT_BRIDGE = "netscape.javascript..";
 
     /** A class the import of the control panel must find, so that an empty import fails rather than passes. */
     private static final String A_CLASS_OF_THE_CONTROL_PANEL = CONTROL_PANEL + ".HolderLine";
@@ -151,21 +144,6 @@ class TheControlPanelLinksNoClassOfTheJarTest {
                                 .that(theJarsOwn())
                                 .should().dependOnClassesThat().resideInAPackage(JAVAFX)
                                 .check(JAR_CLASSES))
-                        .doesNotThrowAnyException());
-    }
-
-    @Test
-    @Story("The control panel draws every report itself")
-    @DisplayName("No class of the control panel names JavaFX's web view or the JavaScript bridge")
-    void noClassOfTheControlPanelNamesJavaFxWeb() {
-        claim("the import read the control panel's compiled classes, checked by one it must hold",
-                () -> assertThat(CONTROL_PANEL_CLASSES.contain(A_CLASS_OF_THE_CONTROL_PANEL)).isTrue());
-        claim("and none of them names a type of javafx.scene.web or of netscape.javascript, the packages of the web"
-                        + " view and of the bridge to a page's script, which no jar brings any more",
-                () -> assertThatCode(() -> noClasses()
-                                .that().resideInAPackage(CONTROL_PANEL + "..")
-                                .should().dependOnClassesThat().resideInAnyPackage(JAVAFX_WEB, JAVASCRIPT_BRIDGE)
-                                .check(CONTROL_PANEL_CLASSES))
                         .doesNotThrowAnyException());
     }
 
