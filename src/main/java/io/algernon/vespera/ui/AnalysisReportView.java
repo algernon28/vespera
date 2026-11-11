@@ -11,6 +11,7 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
+import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.geometry.Pos;
@@ -20,11 +21,20 @@ import javafx.scene.chart.CategoryAxis;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Hyperlink;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
 
@@ -32,7 +42,8 @@ import javafx.scene.layout.VBox;
  * What an analysis report's tab holds, drawn by JavaFX's controls from {@link AnalysisReportFile.Report} (ADR-362 §10):
  * where it lies, a tile for each headline number, and each section's title and paragraphs, chart and table. A
  * {@code path} cell is handed to the system and an {@code analysisReport} cell opens that report's tab; no other cell
- * leads anywhere. Nothing here reads a file or a document: a document is handed to the system, not drawn.
+ * leads anywhere. A table's rows are selected, one or many, and copied as lines of tab-separated text (ADR-364 §8).
+ * Nothing here reads a file or a document: a document is handed to the system, not drawn.
  */
 final class AnalysisReportView {
 
@@ -48,6 +59,9 @@ final class AnalysisReportView {
 
     /** What stands where a number's cell holds none, as a page of the jar shows it. */
     private static final String A_DASH = "\u2014";
+
+    /** Ctrl+C, or the platform's own shortcut for a copy where that is another key. */
+    private static final KeyCombination COPY = new KeyCodeCombination(KeyCode.C, KeyCombination.SHORTCUT_DOWN);
 
     private static final java.util.Set<String> NUMBER_KINDS = java.util.Set.of("count", "share", "number", "bytes", "seconds");
 
@@ -161,7 +175,47 @@ final class AnalysisReportView {
             view.getColumns().add(drawn);
         }
         view.setItems(FXCollections.observableArrayList(table.rows()));
+        view.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        MenuItem copy = new MenuItem("Copy");
+        copy.disableProperty().bind(Bindings.isEmpty(view.getSelectionModel().getSelectedIndices()));
+        copy.setOnAction(event -> copyTheRowsSelected(view));
+        view.setContextMenu(new ContextMenu(copy));
+        view.addEventHandler(KeyEvent.KEY_PRESSED, event -> {
+            if (COPY.match(event)) {
+                copyTheRowsSelected(view);
+                event.consume();
+            }
+        });
         return view;
+    }
+
+    /** Puts {@link #rowsSelected} of {@code view} on the system clipboard, where a row is selected. */
+    private static void copyTheRowsSelected(TableView<List<Object>> view) {
+        if (view.getSelectionModel().getSelectedIndices().isEmpty()) {
+            return;
+        }
+        ClipboardContent content = new ClipboardContent();
+        content.putString(rowsSelected(view));
+        Clipboard.getSystemClipboard().setContent(content);
+    }
+
+    /**
+     * The rows selected in {@code view}, in the table's order, a line each, each cell's text as the view draws it, a
+     * link's its link's text, joined by tabs in the columns' order, with no header line; a tab or a line's end inside a
+     * cell written as one space, so that a row stays one line (ADR-364 §8).
+     */
+    private static String rowsSelected(TableView<List<Object>> view) {
+        java.util.StringJoiner lines = new java.util.StringJoiner("\n");
+        view.getSelectionModel().getSelectedIndices().stream().filter(row -> row >= 0).sorted().distinct()
+                .forEach(row -> {
+                    java.util.StringJoiner line = new java.util.StringJoiner("\t");
+                    for (TableColumn<List<Object>, ?> column : view.getVisibleLeafColumns()) {
+                        Object text = column.getCellData(row);
+                        line.add(text == null ? "" : text.toString().replaceAll("\r\n|[\t\r\n]", " "));
+                    }
+                    lines.add(line.toString());
+                });
+        return lines.toString();
     }
 
     /** A cell of a column of {@code kind}: a link where the cell leads anywhere, text aligned by its kind otherwise. */

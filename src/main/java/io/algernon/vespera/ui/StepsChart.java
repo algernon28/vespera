@@ -12,6 +12,7 @@ import javafx.scene.control.ProgressBar;
 import javafx.scene.control.TitledPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 /**
@@ -23,12 +24,13 @@ import javafx.scene.layout.VBox;
 final class StepsChart extends VBox {
 
     /** One row of the steps chart: its stage, its name, one bar, its state and, on the running step, its own Stop. */
-    private record StepRow(HBox row, SelectableText.Line stage, SelectableText.Line name, ProgressBar bar, SelectableText.Line state, SelectableText.Line cost,
-            Button stopHere) {
+    private record StepRow(HBox row, SelectableText.Line stage, SelectableText.Line name, ProgressBar bar, Label percent,
+            SelectableText.Line state, SelectableText.Line cost, Button stopHere) {
     }
 
-    /** One leg of the steps chart: its pane, and the name, the one bar and the state its summary holds (ADR-361 §3). */
-    private record LegView(TitledPane pane, Label name, ProgressBar bar, Label state) {
+    /** One leg of the steps chart: its pane, and the name, the one bar with its percent and the state its summary holds (ADR-361 §3). */
+    private record LegView(TitledPane pane, Label name, StackPane barWithPercent, ProgressBar bar, Label percent,
+            Label state) {
     }
 
     private final Map<String, StepRow> stepRows = new LinkedHashMap<>();
@@ -75,9 +77,12 @@ final class StepsChart extends VBox {
         name.setId("leg-name-" + leg.name());
         ProgressBar bar = new ProgressBar(0);
         bar.setId("leg-bar-" + leg.name());
+        Label percent = percentLabel("leg-percent-" + leg.name());
+        StackPane barWithPercent = new StackPane(bar, percent);
+        barWithPercent.getStyleClass().add("bar-with-percent");
         Label stateWords = new Label("waiting");
         stateWords.setId("leg-state-" + leg.name());
-        HBox summary = new HBox(name, bar, stateWords);
+        HBox summary = new HBox(name, barWithPercent, stateWords);
         summary.getStyleClass().add("leg-summary");
         TitledPane pane = new TitledPane();
         pane.setId("leg-" + leg.name());
@@ -87,16 +92,24 @@ final class StepsChart extends VBox {
         pane.setContent(rows);
         pane.setAnimated(false);
         pane.setExpanded(false);
-        bar.visibleProperty().bind(pane.expandedProperty().not());
+        barWithPercent.visibleProperty().bind(pane.expandedProperty().not());
         stateWords.visibleProperty().bind(pane.expandedProperty().not());
         pane.expandedProperty().addListener((observed, was, now) -> {
             if (!foldingItself) {
                 chosenByTheOperator.add(leg.name());
             }
         });
-        LegView made = new LegView(pane, name, bar, stateWords);
+        LegView made = new LegView(pane, name, barWithPercent, bar, percent, stateWords);
         legViews.put(leg.name(), made);
         return made;
+    }
+
+    /** The percent drawn on a bar, centred on it, reading 0% until a reading says otherwise (ADR-370 §1). */
+    private static Label percentLabel(String id) {
+        Label percent = new Label("0%");
+        percent.setId(id);
+        percent.getStyleClass().add("bar-percent");
+        return percent;
     }
 
     private StepRow stepRow(StopCosts.StopCost cost) {
@@ -104,6 +117,9 @@ final class StepsChart extends VBox {
         stage.getStyleClass().add("small");
         SelectableText.Line name = SelectableText.line(cost.step());
         ProgressBar bar = new ProgressBar(0);
+        Label percent = percentLabel("step-percent-" + cost.step());
+        StackPane barWithPercent = new StackPane(bar, percent);
+        barWithPercent.getStyleClass().add("bar-with-percent");
         SelectableText.Line stateWords = SelectableText.line("waiting");
         SelectableText.Line costWords = SelectableText.line("A stop here costs " + cost.cost() + ".");
         costWords.getStyleClass().add("small");
@@ -114,10 +130,10 @@ final class StepsChart extends VBox {
         stopHere.setVisible(false);
         stopHere.setManaged(false);
         stopHere.setOnAction(event -> stopAsked.run());
-        HBox row = new HBox(stage, name, bar, stateWords, stopHere, costWords);
+        HBox row = new HBox(stage, name, barWithPercent, stateWords, stopHere, costWords);
         row.setId("step-" + cost.step());
         row.getStyleClass().add("step");
-        StepRow made = new StepRow(row, stage, name, bar, stateWords, costWords, stopHere);
+        StepRow made = new StepRow(row, stage, name, bar, percent, stateWords, costWords, stopHere);
         stepRows.put(cost.step(), made);
         return made;
     }
@@ -140,13 +156,18 @@ final class StepsChart extends VBox {
             if (step != null && step.done() != null && step.total() != null && step.total() > 0) {
                 row.bar().setProgress(Math.min(1.0, (double) step.done() / step.total()));
                 fractions.put(name, row.bar().getProgress());
+                // worked out on the whole numbers the file gives, 99 at most while the step runs (ADR-370 §2)
+                row.percent().setText(Math.min(running ? 99L : 100L, 100L * step.done() / step.total()) + "%");
             } else if (words.equals("finished") || words.equals("stopped at a gate")) {
                 row.bar().setProgress(1.0);
                 fractions.put(name, 1.0);
+                row.percent().setText("100%");
             } else if (running) {
                 row.bar().setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+                row.percent().setText("…");
             } else {
                 row.bar().setProgress(0);
+                row.percent().setText(words.equals("failed") ? "—" : "0%");
             }
         });
         Map<String, String> legStates = Legs.statesOf(progress);
@@ -161,6 +182,8 @@ final class StepsChart extends VBox {
             view.state().setText("running".equals(legWord)
                     ? "running " + Math.min(99L, (long) Math.floor(100 * legBar + 1e-6)) + "%" : legWord);
             view.bar().setProgress(legBar);
+            long legWhole = (long) Math.floor(100 * legBar + 1e-6);
+            view.percent().setText(Math.min("running".equals(legWord) ? 99L : 100L, legWhole) + "%");
             if (!chosenByTheOperator.contains(leg.name())) {
                 foldingItself = true;
                 try {

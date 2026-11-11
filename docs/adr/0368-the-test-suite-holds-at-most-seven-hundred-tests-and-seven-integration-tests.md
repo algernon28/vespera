@@ -56,5 +56,5 @@ No run id moves: no class under `src/main` changes.
 
 ## Tests
 
-- `docs/check-claims.mjs` holds §1, failing when the methods annotated as tests under `src/test/java` pass 700, and §4, reading `docs/retired-tests.txt` and refusing a line of ADR-368 or later; `src/test/docs/check-claims.test.mjs` holds both on fixtures: 700 methods pass and 701 fail, a listed name that exists or that no record holds fails, a listed name is not reported missing, and a line of ADR-368 is refused.
+- `docs/check-claims.mjs` holds §1, warning, as ADR-369 §2 amends it, and not failing, when the methods annotated as tests under `src/test/java` pass 700, and §4, reading `docs/retired-tests.txt` and refusing a line of ADR-368 or later; `src/test/docs/check-claims.test.mjs` holds both on fixtures: 700 methods pass and 701 warn, a listed name that exists or that no record holds fails, a listed name is not reported missing, and a line of ADR-368 is refused.
 - `docs/check-claims.mjs` holds §3 through `AGENTS.md`'s list of the integration tests, which it compares with the `*IT` classes on disk.

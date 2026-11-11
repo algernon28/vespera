@@ -127,7 +127,9 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         List<Node> every = new ArrayList<>(reached);
         every.addAll(reachedWhenNotInForm);
         List<String> labelsWithWords = every.stream().filter(Label.class::isInstance).map(Label.class::cast)
-                .filter(label -> label.getText() != null && !label.getText().isBlank()).map(Label::getText).toList();
+                .filter(label -> label.getText() != null && !label.getText().isBlank())
+                // the percent drawn on a bar is the bar's own reading, a control's text (ADR-364 §8, ADR-370 §1)
+                .filter(label -> !label.getStyleClass().contains("bar-percent")).map(Label::getText).toList();
         List<Node> selectable = every.stream().filter(SelectableText.class::isInstance).toList();
         List<String> reading = selectable.stream().filter(node -> ((TextInputControl) node).isEditable()
                 || node.isFocusTraversable()).map(Node::getId).toList();
