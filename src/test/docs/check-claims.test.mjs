@@ -11,8 +11,8 @@
 // --with-network for the numbers this branch adds NOT CHECKED, for the map NOT CHECKED on a pull request, and for the
 // map reading the tracker on a push and with no event; and docs/next-adr-number.mjs for its exit. The order of the
 // rows of docs/adr/README.md and of the constants of Adr.java (ADR-363 §2) is held on fixtures by adrOrderClaim, and on
-// this tree by the claim's line, against the rows and constants the test counts itself. The suite's ceiling of 700
-// methods annotated as tests (suiteCeilingClaim), and the reading of docs/retired-tests.txt against the names the
+// this tree by the claim's line, against the rows and constants the test counts itself. The suite's size against its
+// reference of 700 methods annotated as tests (suiteSizeClaim, ADR-369), and the reading of docs/retired-tests.txt against the names the
 // records' Tests sections yield as missing (retiredNames, reconcileRetired), are held on fixtures (ADR-368).
 //
 //   node --test src/test/docs/check-claims.test.mjs
@@ -406,20 +406,20 @@ test("the slug is the file name between its number's dash and .md, and the over-
   assert.deepEqual(found.map(({ number, length }) => [number, length]), [[350, 125], [352, 130]]);
 });
 
-/* ---------- the suite's ceiling and the retired list (ADR-368) ---------- */
+/* ---------- the suite's size and the retired list (ADR-368, ADR-369) ---------- */
 
 // A source text holding `n` methods annotated as tests, one annotation of each kind in turn.
 const tests = (n) => Array.from({ length: n }, (_, i) => `    @${["Test", "ParameterizedTest", "RepeatedTest", "TestFactory"][i % 4]}\n    void t${i}() {}\n`).join("");
 
-test("700 methods annotated as tests across the sources pass the suite's ceiling, and 701 fail it, naming the count and the ceiling", async () => {
-  const { suiteCeilingClaim } = await lib();
-  assert.deepEqual(suiteCeilingClaim({ texts: [tests(400), tests(300)], dir: "src/test/java" }), {
+test("700 methods annotated as tests across the sources pass the suite's size, and 701 are a warning that fails nothing, naming the count, the reference and how far past it", async () => {
+  const { suiteSizeClaim } = await lib();
+  assert.deepEqual(suiteSizeClaim({ texts: [tests(400), tests(300)], dir: "src/test/java" }), {
     state: "PASS",
-    detail: "700 test methods under src/test/java, of the 700 ADR-368 allows",
+    detail: "700 test methods under src/test/java, within the reference of 700",
   });
-  assert.deepEqual(suiteCeilingClaim({ texts: [tests(400), tests(301)], dir: "src/test/java" }), {
-    state: "FAIL",
-    detail: "701 test methods under src/test/java, past the 700 ADR-368 allows: cut one for each added",
+  assert.deepEqual(suiteSizeClaim({ texts: [tests(400), tests(301)], dir: "src/test/java" }), {
+    state: "WARN",
+    detail: "701 test methods under src/test/java, 1 past the reference of 700: look for tests to cut when the suite is next cut",
   });
 });
 
