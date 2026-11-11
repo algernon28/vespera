@@ -244,6 +244,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // the operator logger; neither decides a verdict, a cache key, a cluster or text of the deliverable.
             "OperatorLines",
             "RecordedClosingLines",
+            "InvocationOutput",
+            "InvocationOutputAppender",
             // ADR-250: the survivor list reads who survived and what was measured, and decides neither.
             "SurvivorListListener",
             "SurvivorListReport",

@@ -67,7 +67,8 @@ public class VesperaJobConfiguration {
                 clock,
                 display.getIfAvailable(() -> DisplayPresence::ofThisProcess),
                 deliverableRoot,
-                reportTemplate);
+                reportTemplate,
+                InvocationOutput::beginInThisContext);
     }
 
     /** What the job's report is handed while it runs (ADR-362 section 3), shared by the job. */

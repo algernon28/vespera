@@ -87,7 +87,8 @@ class CliExitIT {
     private static final Pattern IN_THE_CONSOLES_PATTERN = Pattern.compile("^\\d{2}:\\d{2}:\\d{2}\\.\\d{3} [A-Z]+ .*");
 
     /** What a launch returned with its two streams kept apart. */
-    private record Streams(boolean finished, int exitCode, List<String> standardOutput, List<String> standardError) {
+    private record Streams(
+            boolean finished, int exitCode, List<String> standardOutput, List<String> standardError, Path workingDirectory) {
         String lastErrorLine() {
             return standardError.isEmpty() ? "" : standardError.getLast();
         }
@@ -113,6 +114,10 @@ class CliExitIT {
                     assertThat(String.join("\n", noRoot.standardOutput())).doesNotContain("vespera run named no root");
                     assertThat(noRoot.exitCode()).isEqualTo(CommandLine.ExitCode.USAGE);
                 });
+        claim("the banner is logged, so vespera.log in that working directory holds Spring Boot's banner line, one"
+                        + " event at INFO whichever logger Spring Boot logs it on (ADR-364 section 5)",
+                () -> assertThat(Files.readAllLines(noRoot.workingDirectory().resolve("logs").resolve("vespera.log")))
+                        .anyMatch(line -> line.contains(":: Spring Boot ::")));
 
         Streams bogus = launchSplit("run", "--bogus-option");
         claim("picocli's refusal of an argument and the usage it writes with it are on standard error as their words"
@@ -152,12 +157,31 @@ class CliExitIT {
                             .endsWith("and run the same command again.");
                     assertThat(stageTwo.exitCode()).isEqualTo(1);
                 });
+        Path logs = stageTwo.workingDirectory().resolve("logs");
+        List<Path> outputFiles;
+        try (Stream<Path> each = Files.list(logs)) {
+            outputFiles = each.filter(path -> path.getFileName().toString().matches("output-\\d{8}T\\d{6}Z(-\\d+)?\\.log"))
+                    .toList();
+        }
+        claim("the invocation wrote one output file in its logs folder, holding every line of its two streams, the"
+                        + " banner and the closing line among them, the closing line as its words alone (ADR-364 section 2)",
+                () -> {
+                    assertThat(outputFiles).hasSize(1);
+                    List<String> inTheFile = Files.readAllLines(outputFiles.getFirst(), StandardCharsets.UTF_8);
+                    assertThat(inTheFile).anyMatch(line -> line.contains(":: Spring Boot ::"));
+                    assertThat(inTheFile).containsAll(stageTwo.standardOutput().stream()
+                            .filter(line -> !line.isBlank()).toList());
+                    assertThat(inTheFile).containsAll(stageTwo.standardError().stream()
+                            .filter(line -> !line.isBlank()).toList());
+                    assertThat(inTheFile).contains(stageTwo.lastErrorLine());
+                });
     }
 
     /** As {@link #launch}, standard output and standard error kept in two files, so the stream a line is on is read. */
     private static Streams launchSplit(String... args) throws Exception {
         Path out = Files.createTempFile(workingDirectory, "split", ".out");
         Path err = Files.createTempFile(workingDirectory, "split", ".err");
+        Path launchedIn = workingDirectory.resolve("split-" + out.getFileName());
         ProcessBuilder builder = new ProcessBuilder(
                         Stream.of(
                                         Stream.of(
@@ -166,7 +190,7 @@ class CliExitIT {
                                                 "-Dspring.docker.compose.enabled=false",
                                                 "-Dvespera.sidecars.start=false",
                                                 "-Dvespera.sidecars.wait-at-most=1s",
-                                                "-Dvespera.working-dir=" + workingDirectory.resolve("split-" + out.getFileName()),
+                                                "-Dvespera.working-dir=" + launchedIn,
                                                 "-jar",
                                                 EXECUTABLE_JAR.toString()),
                                         Stream.of(args))
@@ -186,7 +210,8 @@ class CliExitIT {
                 finished,
                 finished ? process.exitValue() : -1,
                 Files.readAllLines(out, StandardCharsets.UTF_8),
-                Files.readAllLines(err, StandardCharsets.UTF_8));
+                Files.readAllLines(err, StandardCharsets.UTF_8),
+                launchedIn);
     }
 
     /**

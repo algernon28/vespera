@@ -8,7 +8,7 @@
 
   ADR-364. The jar's own lines (refusals, closing lines, the lines of label and publish) go through the logger
   io.algernon.vespera.operator, which reads on the stream as their words alone and is in vespera.log as well; the
-  invocation's output file, logs/output-<invocation>.log, joins the console and vespera.log in a later step.
+  invocation's output file, logs/output-<invocation>.log, holds what the invocation writes to its streams (sections 2, 3).
 
   ${vespera.working-dir} is the same Spring property WorkingDirectoryPreparer resolves and the
   application's own beans (@Value("${vespera.working-dir}")) read; Logback's Spring extension exposes
@@ -52,14 +52,49 @@
         </encoder>
     </appender>
 
+    <!--
+      ADR-364 sections 2 and 3. Each invocation's output file, logs/output-<invocation>.log: one sink, which the three
+      appenders below write to, holding what is logged before the invocation begins and writing each line as it comes
+      once InvocationReport begins it with the id it mints. In the console's pattern for the root and the two library
+      loggers, held at WARN as on the console; the jar's own lines as their words alone.
+    -->
+    <appender name="OUTPUT" class="io.algernon.vespera.engine.pipeline.InvocationOutputAppender">
+        <folder>${workingDir}/logs</folder>
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="OUTPUT_WARN" class="io.algernon.vespera.engine.pipeline.InvocationOutputAppender">
+        <folder>${workingDir}/logs</folder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>WARN</level>
+        </filter>
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="OUTPUT_OPERATOR" class="io.algernon.vespera.engine.pipeline.InvocationOutputAppender">
+        <folder>${workingDir}/logs</folder>
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%msg%n</pattern>
+        </encoder>
+    </appender>
+
     <logger name="com.zaxxer.hikari" additivity="false">
         <appender-ref ref="CONSOLE_WARN"/>
         <appender-ref ref="FILE"/>
+        <appender-ref ref="OUTPUT_WARN"/>
     </logger>
 
     <logger name="org.springframework.batch.core.launch.support.TaskExecutorJobLauncher" additivity="false">
         <appender-ref ref="CONSOLE_WARN"/>
         <appender-ref ref="FILE"/>
+        <appender-ref ref="OUTPUT_WARN"/>
     </logger>
 
 
@@ -102,11 +137,13 @@
         <appender-ref ref="OPERATOR"/>
         <appender-ref ref="OPERATOR_WARN"/>
         <appender-ref ref="FILE"/>
+        <appender-ref ref="OUTPUT_OPERATOR"/>
     </logger>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="FILE"/>
+        <appender-ref ref="OUTPUT"/>
     </root>
 
 </configuration>
