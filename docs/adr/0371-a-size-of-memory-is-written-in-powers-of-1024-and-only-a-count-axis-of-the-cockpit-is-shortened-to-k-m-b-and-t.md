@@ -2,7 +2,7 @@
 
 - **Date**: 2026-11-11
 - **Status**: accepted on 2026-11-11.
-- **Decided**: by the operator, of the shortened ticks #789 drew: the cockpit's value-axis ticks are shortened to `K`, `M`, `B` and `T`, but not where the unit is memory; there a value is written in bytes, `KB` once it reaches 1,024, then `MB`, `GB` and `TB`; and powers of 1,024 are used only where the unit is memory. The examples, the rounding at a unit's edge, the decimals of a memory axis's ticks and the tests are decided under delegation.
+- **Decided**: by the operator, of the shortened ticks #789 drew: the cockpit's value-axis ticks are shortened to `K`, `M`, `B` and `T`, but not where the unit is memory; there a value is written in bytes, `KB` once it reaches 1,024, then `MB`, `GB` and `TB`; and powers of 1,024 are used only where the unit is memory; and where the unit is time, a tick is written in seconds, minutes and hours. The examples, the abbreviations and decimals of a time tick, the rounding at a unit's edge, the decimals of a memory axis's ticks and the tests are decided under delegation.
 - **Amends**: [ADR-268](0268-the-progress-page-shows-what-the-stage-that-removes-occurrences-has-removed-and-draws-to-the-data-viz-method.md) §6, its sizes "in powers of 1,000 as ADR-265 counts megabytes" and the examples `2.05 KB`, `1.00 MB` never `1,000.00 KB`, which §1 below writes in powers of 1,024; and its value axis of a size, "the largest of the five in which the axis's span, margins included, is at least 1", which §1 counts in powers of 1,024. It carries a note at its head.
 - **Keeps**: ADR-268 §6's other rules, bytes whole and every other unit to two decimal places, grouped as a count is, the same writing on the `database` tile, its growth, every tooltip and end label of the database chart and every value of an analysis report in `bytes`; the axis titled with its unit and its ticks plain numbers in it; every count, written as ADR-268 §6 writes it, in powers of 1,000 and never 1,024; [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md) §3, the database chart's values in the unit its axis title names; [ADR-365](0365-the-cockpits-charts-carry-a-legend-and-a-value-on-each-sample-and-a-running-step-or-leg-says-its-whole-percent.md), each sample's tooltip as it is; [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3, the control panel links no class of the jar.
 
@@ -30,22 +30,29 @@ Where the cockpit draws a chart whose value axis is not a size, each tick reads 
 
 **A value axis whose title ends with a size's unit in parentheses**, `(B)`, `(KB)`, `(MB)`, `(GB)` or `(TB)`, is a size, and its ticks are never shortened: each is a plain number in that unit, grouped by thousands, to two decimals at most, trailing zeros dropped. So a constant database of 51,700,000,000 bytes on an axis titled `Database size (B)` reads `51,700,000,000`, and an axis titled `Database size (MB)` reads `51,700`, never `51.7K`. The cockpit reads the title the report gives the chart at each reading, so the rule follows the unit the jar chose.
 
+### 4. A tick of time is written in seconds, minutes and hours
+
+**An axis whose unit is time**, the cockpit's elapsed-time axis under each chart and any value axis whose title ends with `(s)`, is never shortened to `K`, `M`, `B` or `T`. Each tick is written in the largest of `s`, `min` and `h` whose value is at least 1, with a space before the unit and one decimal at most, trailing zeros dropped; a tick that rounds to 60.0 of `s` or `min` is written in the next. So 0, 45, 90, 600, 5,400 and 36,000 seconds read `0 s`, `45 s`, `1.5 min`, `10 min`, `1.5 h` and `10 h`; 3,599 seconds, 59.98 min, reads `1 h`. Hours are the largest unit: 360,000 seconds read `100 h`. The elapsed-time axis is titled `Elapsed`, since each tick now names its own unit.
+
 ## Alternatives refused
 
 - **`KiB`, `MiB`, `GiB` and `TiB`.** The operator named `KB`, `MB`, `GB` and `TB`.
 - **Counting every grouped number in 1,024.** A count of 1,500 rows is not memory; the operator asked for 1,024 only where the unit is memory.
 - **Shortening a memory axis's ticks as a size, `51.7 GB` on each tick.** The axis title already names the unit (ADR-268 §6), and each tick holding its own unit would repeat it.
+- **A time tick as a clock, `1:30:00`.** The operator named seconds, minutes and hours; the report's page keeps its clock (ADR-268 §7), drawn by the jar's template, not by the cockpit.
+- **Days past 24 hours.** The operator named hours as the largest unit, and no job's chart runs for days.
 - **Telling a memory axis by the chart's id, `database`.** A later chart of a size would have to be named in the cockpit too; the title's unit is what the jar decides.
 
 ## Consequences
 
 - Every size the report draws moves by up to 2.4% per unit from what it read before: 2,050 bytes read `2.00 KB`, not `2.05 KB`.
 - A `logs/report-*.json` written before this record keeps a database chart divided by powers of 1,000 under the same unit's title; a page drawn from it now multiplies by 1,024, and reads its sizes up to 2.4% per unit high. No copy is drawn again unless a template is run on it by hand.
-- The cockpit's count and verdict axes read `1.5K`, `2M` and so on; its database axis reads plain numbers in its unit.
+- The cockpit's count and verdict axes read `1.5K`, `2M` and so on; its database axis reads plain numbers in its unit; and every chart's elapsed-time axis, titled `Elapsed`, reads `45 s`, `1.5 min`, `2 h` where it read raw seconds.
 
 ## What this does not decide
 
-- The decimals the report's page gives a memory axis's ticks, which ADR-268 §6 sets.
+- The decimals the report's page gives a memory axis's ticks, which ADR-268 §6 sets, and its clock-time axis, which ADR-268 §7 sets.
+- A value in `seconds` on the control panel's tab of an analysis report, which is a value and not a tick, and reads as before.
 - Any other chart of the cockpit; [#794](https://github.com/algernon28/vespera/issues/794) asks what each stage's chart plots.
 - Two other values of memory, which a later record may bring under §1: the counter line of a model's pull, `megabytes pulled`, in millions of bytes (ADR-329 §5), and the control panel's free space, in `GiB` (ADR-331 §6).
 
@@ -54,8 +61,8 @@ Where the cockpit draws a chart whose value axis is not a size, each tick reads 
 | Method | What it holds |
 | --- | --- |
 | `pipeline.ReportHtmlTest.aSizeOfMemoryIsWrittenInPowersOf1024` | §1, §2: 0, 1,023, 1,024, 2,050, 1,000,000, 1,234,567, 1,048,575 and 5 × 1,024⁴ bytes are `0 B`, `1,023 B`, `1.00 KB`, `2.00 KB`, `976.56 KB`, `1.18 MB`, `1.00 MB` and `5.00 TB`; a span of 1,023, 1,024 and three times 1,024² bytes is an axis in `B`, `KB` and `MB`; a job whose database grew from 1,000 to 2,050 bytes on an axis in `KB` draws the tile `2.00 KB` and its two points' titles `1,000 B` and `2.00 KB`; and a count of 51,732,300 verdicts is still grouped by thousands, `51,732,300` |
-| `ui.TheCockpitsValueTicksTest.aCountTickIsShortenedAndASizeTickIsNot` | §3: on an axis titled `Done (count)`, 2.5, 999, 1,500, 2,000,000, 999,950 and 3,000,000,000,000 read `2.5`, `999`, `1.5K`, `2M`, `1M` and `3T`; on axes titled `Database size (B)`, `Database size (MB)` and `Database size (KB)`, 51,700,000,000, 51,700 and 1.5 read `51,700,000,000`, `51,700` and `1.5`; and §1: on the control panel's tab of an analysis report, 512, 2,050, 1,030,000, 1,048,575 and -2,050 bytes read `512 B`, `2.00 KB`, `1,005.86 KB`, `1.00 MB` and `-2.00 KB` |
+| `ui.TheCockpitsValueTicksTest.aCountTickIsShortenedAndASizeTickIsNot` | §3: on an axis titled `Done (count)`, 2.5, 999, 1,500, 2,000,000, 999,950 and 3,000,000,000,000 read `2.5`, `999`, `1.5K`, `2M`, `1M` and `3T`; on axes titled `Database size (B)`, `Database size (MB)` and `Database size (KB)`, 51,700,000,000, 51,700 and 1.5 read `51,700,000,000`, `51,700` and `1.5`; and §1: on the control panel's tab of an analysis report, 512, 2,050, 1,030,000, 1,048,575 and -2,050 bytes read `512 B`, `2.00 KB`, `1,005.86 KB`, `1.00 MB` and `-2.00 KB`; and §4: on the elapsed-time axis, 0, 45, 90, 600, 3,599, 5,400, 36,000 and 360,000 seconds read `0 s`, `45 s`, `1.5 min`, `10 min`, `1 h`, `1.5 h`, `10 h` and `100 h`, and on a value axis titled `Duration (s)` 5,400 reads `1.5 h`, never `5.4K` |
 
 ## What the implementation owes
 
-Beside the tests above, which it turns green, the change adds `Sizes` to `engine.pipeline`, listed in `PipelineHoldsOnlyTheRulesOnRecordTest` as deciding no verdict, cache key, cluster or text of the deliverable, and has `ReportHtml` and `JobSampler` call it for every size, unit and divisor; writes the same rule in `AnalysisReportView` of `ui` for a value in `bytes`; gives `ProgressCharts` a tick formatter that reads its axis's title at each tick; and puts a note at ADR-268's head.
+Beside the tests above, which it turns green, the change adds `Sizes` to `engine.pipeline`, listed in `PipelineHoldsOnlyTheRulesOnRecordTest` as deciding no verdict, cache key, cluster or text of the deliverable, and has `ReportHtml` and `JobSampler` call it for every size, unit and divisor; writes the same rule in `AnalysisReportView` of `ui` for a value in `bytes`; gives `ProgressCharts` a tick formatter that reads its axis's title at each tick, and its elapsed-time axis, titled `Elapsed`, one that writes seconds, minutes and hours; and puts a note at ADR-268's head.

@@ -46,5 +46,14 @@ class TheCockpitsValueTicksTest {
                         .map(bytes -> AnalysisReportView.number(BigDecimal.valueOf(bytes), "bytes")).toList())
                         .as("each value in bytes on the analysis report's tab")
                         .containsExactly("512 B", "2.00 KB", "1,005.86 KB", "1.00 MB", "-2.00 KB"));
+        claim("on the elapsed-time axis, 0, 45, 90, 600, 3,599, 5,400, 36,000 and 360,000 seconds read 0 s, 45 s, 1.5 min,"
+                        + " 10 min, 1 h, 1.5 h, 10 h and 100 h: seconds, minutes and hours, never K, M, B or T",
+                () -> assertThat(List.of(0.0, 45.0, 90.0, 600.0, 3_599.0, 5_400.0, 36_000.0, 360_000.0).stream()
+                        .map(ProgressCharts::timeTick).toList())
+                        .as("each tick of the elapsed-time axis")
+                        .containsExactly("0 s", "45 s", "1.5 min", "10 min", "1 h", "1.5 h", "10 h", "100 h"));
+        claim("and a value axis titled with seconds is read as time too: 5,400 on Duration (s) reads 1.5 h, never 5.4K",
+                () -> assertThat(ProgressCharts.tickText("Duration (s)", 5_400)).as("a tick of a value axis in seconds")
+                        .isEqualTo("1.5 h"));
     }
 }

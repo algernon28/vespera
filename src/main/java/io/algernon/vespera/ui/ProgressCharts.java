@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.DoubleFunction;
 import java.util.regex.Pattern;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Side;
@@ -25,6 +26,9 @@ final class ProgressCharts extends HBox {
     /** The title of a value axis whose unit is memory: it ends with a size's unit in parentheses (ADR-371 §3). */
     private static final Pattern A_SIZES_AXIS = Pattern.compile("\\((B|KB|MB|GB|TB)\\)\\s*$");
 
+    /** The title of a value axis whose unit is time: it ends with {@code (s)} (ADR-371 §4). */
+    private static final Pattern A_TIME_AXIS = Pattern.compile("\\(s\\)\\s*$");
+
     private final Map<String, LineChart<Number, Number>> charts = new LinkedHashMap<>();
 
     ProgressCharts() {
@@ -36,23 +40,15 @@ final class ProgressCharts extends HBox {
 
     private LineChart<Number, Number> chart(String id, String title, String axis) {
         NumberAxis time = new NumberAxis();
-        time.setLabel("Elapsed (s)");
+        // each tick names its own unit, seconds, minutes or hours (ADR-371 §4)
+        time.setLabel("Elapsed");
         time.setForceZeroInRange(false);
+        time.setTickLabelFormatter(drawnAs(ProgressCharts::timeTick));
         NumberAxis value = new NumberAxis();
         value.setLabel(axis);
         value.setForceZeroInRange(false);
-        value.setTickLabelFormatter(new StringConverter<>() {
-            @Override
-            public String toString(Number tick) {
-                // the title is the report's at each reading, so the rule follows the unit the jar chose
-                return tickText(value.getLabel(), tick.doubleValue());
-            }
-
-            @Override
-            public Number fromString(String text) {
-                throw new UnsupportedOperationException("tick labels are only drawn");
-            }
-        });
+        // the title is the report's at each reading, so the rule follows the unit the jar chose
+        value.setTickLabelFormatter(drawnAs(tick -> tickText(value.getLabel(), tick)));
         LineChart<Number, Number> chart = new LineChart<>(time, value);
         chart.setId(id);
         chart.setTitle(title);
@@ -66,16 +62,52 @@ final class ProgressCharts extends HBox {
         return chart;
     }
 
+    /** A formatter that draws each tick as {@code text} writes it; a tick label is never read back. */
+    private static StringConverter<Number> drawnAs(DoubleFunction<String> text) {
+        return new StringConverter<>() {
+            @Override
+            public String toString(Number tick) {
+                return text.apply(tick.doubleValue());
+            }
+
+            @Override
+            public Number fromString(String label) {
+                throw new UnsupportedOperationException("tick labels are only drawn");
+            }
+        };
+    }
+
     /**
-     * A value tick of an axis titled {@code axisTitle} (ADR-371 §3): on a size's axis, whose title ends with {@code (B)},
-     * {@code (KB)}, {@code (MB)}, {@code (GB)} or {@code (TB)}, a plain number in that unit, grouped by thousands, to two
-     * decimals at most; on any other, {@link #shortened shortened}.
+     * A value tick of an axis titled {@code axisTitle}: on a size's axis, whose title ends with {@code (B)}, {@code (KB)},
+     * {@code (MB)}, {@code (GB)} or {@code (TB)}, a plain number in that unit, grouped by thousands, to two decimals at
+     * most (ADR-371 §3); on an axis of time, whose title ends with {@code (s)}, {@link #timeTick in seconds, minutes and
+     * hours} (§4); on any other, {@link #shortened shortened}.
      */
     static String tickText(String axisTitle, double tick) {
         if (axisTitle != null && A_SIZES_AXIS.matcher(axisTitle).find()) {
             return trimmed(String.format(Locale.ROOT, "%,.2f", tick));
         }
+        if (axisTitle != null && A_TIME_AXIS.matcher(axisTitle).find()) {
+            return timeTick(tick);
+        }
         return shortened(tick);
+    }
+
+    /**
+     * A tick of time, {@code seconds} long, in the largest of {@code s}, {@code min} and {@code h} whose value is at least
+     * 1, to one decimal at most; one that rounds to 60.0 of {@code s} or {@code min} is written in the next (ADR-371 §4).
+     */
+    static String timeTick(double seconds) {
+        double magnitude = Math.abs(seconds);
+        String sign = seconds < 0 ? "-" : "";
+        String[] units = {"s", "min", "h"};
+        double scaled = magnitude;
+        int unit = 0;
+        while (unit < units.length - 1 && Math.round(scaled * 10) >= 600) {
+            scaled /= 60;
+            unit++;
+        }
+        return sign + trimmed(String.format(Locale.ROOT, "%.1f", scaled)) + " " + units[unit];
     }
 
     /** A value axis tick shortened: 1.5K from 1,500, 2M from 2,000,000, then B and T; below 1,000 as it is. */
