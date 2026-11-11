@@ -95,6 +95,10 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
         GenerationScriptedBeans.forgetScriptedAnswers();
     }
 
+    /** A line in the console's pattern, {@code HH:mm:ss.SSS LEVEL ...}, which a closing line is no longer (ADR-364 section 4). */
+    private static final java.util.regex.Pattern IN_THE_CONSOLES_PATTERN =
+            java.util.regex.Pattern.compile("^\\d{2}:\\d{2}:\\d{2}\\.\\d{3} .*");
+
     @Test
     @Story("No cluster's text leaves this machine through Ollama")
     @DisplayName("A generation model whose tag ends in cloud is refused before any question is put, without asking Ollama")
@@ -102,9 +106,11 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
             @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
         anApprovedArrangementToWriteUnder(root, seeds, A_CLOUD_TAGGED_GENERATION_MODEL);
         int before = output.getAll().length();
+        int beforeErr = output.getErr().length();
 
         cli.run("run", root.toString());
         String said = output.getAll().substring(before);
+        String saidOnError = output.getErr().substring(beforeErr);
 
         claim("the invocation ends non-zero, because it was stopped", () -> assertThat(cli.getExitCode())
                 .isNotZero());
@@ -120,7 +126,7 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
                 "exactly one line, at error level, names " + THE_STAGE + " and says the generation model "
                         + A_CLOUD_TAGGED_GENERATION_MODEL + " is a cloud model, and no stack trace stands in"
                         + " its place",
-                () -> oneErrorLineSays(said, A_CLOUD_TAGGED_GENERATION_MODEL, " is a cloud model"));
+                () -> oneErrorLineSays(said, saidOnError, A_CLOUD_TAGGED_GENERATION_MODEL, " is a cloud model"));
         claim(
                 "Ollama was not asked about it: the tag alone settles it, so the refusal needs no answer"
                         + " from anything",
@@ -136,7 +142,7 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
      * Exactly one line names {@code model} and says {@code reason}, it is at error level, it names the
      * stage, and nothing printed a stack trace.
      */
-    private static void oneErrorLineSays(String said, String model, String reason) {
+    private static void oneErrorLineSays(String said, String saidOnError, String model, String reason) {
         List<String> lines = said.lines()
                 .filter(line -> line.contains(model) && line.contains(reason))
                 .toList();
@@ -145,7 +151,8 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
                 .hasSize(1);
         assertThat(lines.getFirst())
                 .as("the one line naming %s", model)
-                .matches("^\\S+ ERROR .*")
+                .doesNotMatch(IN_THE_CONSOLES_PATTERN)
+                .isIn(saidOnError.lines().toList())
                 .contains(THE_STAGE);
         assertThat(said).as("what the invocation printed").doesNotContain(A_STACK_FRAME);
     }

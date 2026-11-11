@@ -243,8 +243,8 @@ class EveryTextOfTheWindowCanBeCopiedTest {
             });
         }
 
-        claim("the tabs' titles are those of the Profile and Inclusions tabs",
-                () -> assertThat(tabTitles).containsExactly("Profile", "Inclusions"));
+        claim("the tabs' titles are those of the Report, Profile and Inclusions tabs",
+                () -> assertThat(tabTitles).containsExactly("Report", "Profile", "Inclusions"));
         claim("Run, Stop and Record my answers are buttons", () -> assertThat(buttons).containsOnly(Button.class));
         claim("the sidebar's section titles are the titled panes' own",
                 () -> assertThat(sections).containsExactly("Preflight", "Folders", "Services", "Seed folder",

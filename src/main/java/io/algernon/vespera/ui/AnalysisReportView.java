@@ -21,7 +21,7 @@ import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
 import javafx.scene.control.Hyperlink;
-import javafx.scene.control.Label;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -62,16 +62,16 @@ final class AnalysisReportView {
             Consumer<java.net.URI> handToTheSystem) {
         VBox content = new VBox();
         content.getStyleClass().add("tab-content");
-        Label written = new Label("Written " + instant(report.writtenAt()) + ". Page for opening outside Vespera: " + page);
+        TextInputControl written = SelectableText.line("Written " + instant(report.writtenAt()) + ". Page for opening outside Vespera: " + page);
         written.setId("written-" + name);
         content.getChildren().add(written);
         FlowPane tiles = new FlowPane();
         tiles.setId("headline-" + name);
         tiles.getStyleClass().add("spaced-row");
         for (AnalysisReportFile.Headline each : report.headline()) {
-            Label label = new Label(each.label());
+            TextInputControl label = SelectableText.line(each.label());
             label.getStyleClass().add("grey");
-            Label value = new Label(number(each.value(), each.unit()));
+            TextInputControl value = SelectableText.line(number(each.value(), each.unit()));
             value.setId("headline-" + name + "-" + each.key());
             VBox tile = new VBox(label, value);
             tile.getStyleClass().add("section");
@@ -89,12 +89,11 @@ final class AnalysisReportView {
         VBox box = new VBox();
         box.setId("section-" + name + "-" + section.id());
         box.getStyleClass().add("section");
-        Label title = new Label(section.title());
+        TextInputControl title = SelectableText.line(section.title());
         title.getStyleClass().add("section-title");
         box.getChildren().add(title);
         for (String paragraph : section.text()) {
-            Label text = new Label(paragraph);
-            text.setWrapText(true);
+            TextInputControl text = SelectableText.wrapping(paragraph);
             box.getChildren().add(text);
         }
         AnalysisReportFile.Table table = section.table();
