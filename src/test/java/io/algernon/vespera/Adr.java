@@ -2607,6 +2607,13 @@ public final class Adr {
             + "0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md";
 
     /**
+     * ADR-364 -- the output panel is copyable text of the whole output, from a file of its own, and every text of the
+     * window is copyable, the rows of a native view's table among them.
+     */
+    public static final String EVERY_TEXT_OF_THE_WINDOW_IS_COPYABLE = FILE
+            + "0364-the-output-panel-is-copyable-text-of-the-whole-output-from-a-file-of-its-own-and-every-text-of-the-window-is-copyable.md";
+
+    /**
      * ADR-365 -- the cockpit's charts carry JavaFX's legend above the plot where they draw two lines or more and none for
      * one, each line's swatch its colour by one style class; each sample is a hit area holding a tooltip of its value
      * alone, the latest marked; a step running with a counter of a total, and a running leg, read {@code running <N>%},
@@ -2624,9 +2631,19 @@ public final class Adr {
             FILE + "0367-the-jars-packages-lie-under-engine-publish-and-ui-and-the-eleven-modules-keep-their-names.md";
 
     /**
+     * ADR-370 -- every bar of the cockpit's steps, each row's and each leg's summary's, carries its whole percent drawn
+     * centred on it, {@code step-percent-<name>} and {@code leg-percent-<leg>}, the percent of the bar it is drawn on, in
+     * the theme's ink with a halo of its surface; the state's words and every other part of the window are unchanged
+     * (amends ADR-344 §1, ADR-361 §3, §4 and §7 and two of ADR-365's refused alternatives).
+     */
+    public static final String EVERY_BAR_OF_THE_COCKPITS_STEPS_CARRIES_ITS_PERCENT =
+            FILE + "0370-every-bar-of-the-cockpits-steps-carries-its-whole-percent-drawn-on-it-and-nothing-else-of-the-window-changes.md";
+
+    /**
      * ADR-371 -- a size of memory is written in {@code B}, {@code KB}, {@code MB}, {@code GB} and {@code TB}, each 1,024
      * of the one before, and a count stays in powers of 1,000; the cockpit shortens a value tick to {@code K}, {@code M},
-     * {@code B} and {@code T} except on an axis titled with a size's unit (amends ADR-268 §6).
+     * {@code B} and {@code T} except on an axis titled with a size's unit, and writes a tick of time in {@code s},
+     * {@code min} or {@code h}, the unit chosen from the ticks' spacing (amends ADR-268 §6).
      */
     public static final String A_SIZE_OF_MEMORY_IS_WRITTEN_IN_POWERS_OF_1024 =
             FILE + "0371-a-size-of-memory-is-written-in-powers-of-1024-and-only-a-count-axis-of-the-cockpit-is-shortened-to-k-m-b-and-t.md";

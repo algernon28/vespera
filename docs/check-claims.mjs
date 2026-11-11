@@ -36,7 +36,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { adrCollisionClaim, adrOrderClaim, agentsMdSize, readsTrackerState, reconcileRetired, retiredNames, sharedNumbers, slugClaim, suiteCeilingClaim, unreadPullRequests } from "./check-claims-lib.mjs";
+import { adrCollisionClaim, adrOrderClaim, agentsMdSize, readsTrackerState, reconcileRetired, retiredNames, sharedNumbers, slugClaim, suiteSizeClaim, unreadPullRequests } from "./check-claims-lib.mjs";
 
 const AGENTS = "AGENTS.md";
 const README = "README.md";
@@ -844,12 +844,13 @@ function markerPattern(source, whole = false) {
   else pass(NAME, `${checked} names of test classes and methods, in the Tests sections from ADR-0${FIRST} on, every one under ${TEST} but the ${reconciled.retired.size} ${RETIRED_FILE} lists as retired by ADR-368`);
 }
 
-/* ---------- the suite's ceiling ---------- */
+/* ---------- the suite's size ---------- */
 
-// ADR-368: the Java suite holds at most 700 tests. What is counted here is the methods annotated as tests, each once;
-// a parameterized test's cases, which surefire counts one by one, are not, so this is the floor of what a build runs.
+// ADR-368, as ADR-369 amends it: the Java suite is kept near 700 tests, a reference and not a limit, so a count past it
+// is a warning and fails nothing. What is counted here is the methods annotated as tests, each once; a parameterized
+// test's cases, which surefire counts one by one, are not, so this is the floor of what a build runs.
 {
-  const NAME = "the suite's ceiling";
+  const NAME = "the suite's size";
   const texts = [];
   (function walk(dir) {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -857,8 +858,7 @@ function markerPattern(source, whole = false) {
       else if (e.name.endsWith(".java")) texts.push(readFileSync(join(dir, e.name), "utf8"));
     }
   })(TEST);
-  const { state, detail } = suiteCeilingClaim({ texts, dir: TEST });
-  (state === "PASS" ? pass : fail)(NAME, detail);
+  results.push({ name: NAME, ...suiteSizeClaim({ texts, dir: TEST }) });
 }
 
 /* ---------- how an agent works under the guard ---------- */

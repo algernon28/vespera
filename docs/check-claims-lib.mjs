@@ -204,8 +204,8 @@ export function adrOrderClaim({ index, adrJava }) {
   };
 }
 
-/** The most methods annotated as tests the Java suite may hold (ADR-368 §1). */
-export const SUITE_CEILING = 700;
+/** The number of methods annotated as tests the Java suite is kept near: a reference, not a limit (ADR-368 §1, ADR-369 §1). */
+export const SUITE_REFERENCE = 700;
 const TEST_ANNOTATION = /^\s*@(?:Test|ParameterizedTest|RepeatedTest|TestFactory)\b/gm;
 
 /** How many methods the given source texts annotate as tests, each once: a parameterized test's cases are not counted. */
@@ -214,13 +214,15 @@ export function testMethodCount(texts) {
 }
 
 /**
- * { state, detail } of the claim of the suite's ceiling, given the text of each source file under `dir`: FAIL past
- * `ceiling`, else PASS, each naming the count and the ceiling.
+ * { state, detail } of the claim of the suite's size, given the text of each source file under `dir`: WARN past
+ * `reference`, which fails nothing, else PASS, each naming the count and the reference (ADR-369 §2).
  */
-export function suiteCeilingClaim({ texts, dir, ceiling = SUITE_CEILING }) {
+export function suiteSizeClaim({ texts, dir, reference = SUITE_REFERENCE }) {
   const count = testMethodCount(texts);
-  if (count > ceiling) return { state: "FAIL", detail: `${count} test methods under ${dir}, past the ${ceiling} ADR-368 allows: cut one for each added` };
-  return { state: "PASS", detail: `${count} test methods under ${dir}, of the ${ceiling} ADR-368 allows` };
+  if (count > reference) {
+    return { state: "WARN", detail: `${count} test methods under ${dir}, ${count - reference} past the reference of ${reference}: look for tests to cut when the suite is next cut` };
+  }
+  return { state: "PASS", detail: `${count} test methods under ${dir}, within the reference of ${reference}` };
 }
 
 /** The first record whose Tests section the retired list may not speak for: from it on, a record's section is corrected. */
