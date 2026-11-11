@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -64,6 +65,7 @@ final class ControlPanelState {
             new SidecarChecks.Check(SidecarChecks.Result.NOT_CHECKED));
     private Child child;
     private String childCommand = "";
+    private Instant childStartInstant = Instant.EPOCH;
     private Ending ending;
     private boolean controlPanelEnds;
 
@@ -321,6 +323,36 @@ final class ControlPanelState {
         return Optional.ofNullable(ending);
     }
 
+    /**
+     * The invocation the window watches (ADR-362 §8): its pid is the child's and its report is the child's only where it
+     * says it started no earlier than {@code notBefore}, the instant taken before the process was started.
+     */
+    record Watched(long pid, Instant notBefore) {
+    }
+
+    /** The child this object started, empty where none was. */
+    synchronized Optional<Watched> watchedChild() {
+        return child == null ? Optional.empty() : Optional.of(new Watched(child.pid(), childStartInstant));
+    }
+
+    /**
+     * The invocation another process runs in {@code workingDirectory}, from its holder line (ADR-278 §4), watched where
+     * the line is held and is not the control panel's own; its report is its own where it started no earlier than the
+     * line's {@code started} less a second, the line giving it to the second only.
+     */
+    Optional<Watched> watchedHolder(Optional<Path> workingDirectory) {
+        try {
+            if (workingDirectory.isEmpty()) {
+                return Optional.empty();
+            }
+            HolderReading reading = HolderReading.read(workingDirectory.get().resolve(WorkingDirectoryWrite.LOCK_FILE_NAME));
+            return reading.line().filter(line -> reading.held() && line.pid() != ProcessHandle.current().pid())
+                    .map(line -> new Watched(line.pid(), line.started().minusSeconds(1)));
+        } catch (IOException | RuntimeException unreadable) {
+            return Optional.empty();
+        }
+    }
+
     synchronized boolean childWasStarted() {
         return child != null;
     }
@@ -459,7 +491,9 @@ final class ControlPanelState {
         this.values = held;
         held.store(launchValuesFile, userName, stored::add);
         try {
+            Instant before = Instant.now();
             child = Child.start(command.processBuilder());
+            childStartInstant = before;
         } catch (IOException | RuntimeException notStarted) {
             return Optional.of(kind.name + " is not started: " + (notStarted.getMessage() == null
                     ? notStarted.getClass().getSimpleName() : notStarted.getMessage()));

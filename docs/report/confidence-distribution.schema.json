@@ -1,0 +1,213 @@
+{
+  "type": "object",
+  "description": "The JSON of the confidence distribution analysis report (ADR-362 section 9), written beside its page.",
+  "properties": {
+    "format": {
+      "type": "integer",
+      "description": "The report's format; raised by a change that breaks a reader.",
+      "const": 1
+    },
+    "analysisReport": {
+      "type": "string",
+      "description": "The report's name.",
+      "const": "confidence-distribution"
+    },
+    "title": {
+      "type": "string",
+      "description": "The page's title."
+    },
+    "writtenAt": {
+      "type": "string",
+      "description": "The instant it was written, ISO 8601 in UTC."
+    },
+    "headline": {
+      "type": "array",
+      "description": "The figures the page states first: numbers alone.",
+      "items": {
+        "type": "object",
+        "description": "One figure.",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Its key.",
+            "enum": [
+              "documentsCounted",
+              "refusedConversions"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "description": "Its label."
+          },
+          "value": {
+            "type": "number",
+            "description": "Its value."
+          },
+          "unit": {
+            "type": "string",
+            "description": "Its unit.",
+            "enum": [
+              "count",
+              "share",
+              "bytes",
+              "seconds",
+              "number"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "value",
+          "unit"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "sections": {
+      "type": "array",
+      "description": "The page's parts, in its order.",
+      "items": {
+        "type": "object",
+        "description": "One part of the page.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The section's id.",
+            "enum": [
+              "grades"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "Its heading."
+          },
+          "text": {
+            "type": "array",
+            "description": "Its paragraphs.",
+            "items": {
+              "type": "string",
+              "description": "One paragraph."
+            }
+          },
+          "chart": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The bar chart the page draws here, or null.",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "description": "Its kind.",
+                "enum": [
+                  "bars"
+                ]
+              },
+              "x": {
+                "type": "string",
+                "description": "The id of the column it is drawn along."
+              },
+              "series": {
+                "type": "array",
+                "description": "The ids of the columns it draws.",
+                "items": {
+                  "type": "string",
+                  "description": "A column's id."
+                }
+              }
+            },
+            "required": [
+              "kind",
+              "x",
+              "series"
+            ],
+            "additionalProperties": false
+          },
+          "table": {
+            "type": "object",
+            "description": "Its table.",
+            "properties": {
+              "columns": {
+                "type": "array",
+                "description": "Its columns, in order.",
+                "items": {
+                  "type": "object",
+                  "description": "One column of the table.",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "The column's id."
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "The column's heading."
+                    },
+                    "kind": {
+                      "type": "string",
+                      "description": "What its cells are.",
+                      "enum": [
+                        "text",
+                        "count",
+                        "share",
+                        "number",
+                        "bytes",
+                        "seconds",
+                        "instant",
+                        "path",
+                        "analysisReport"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "rows": {
+                "type": "array",
+                "description": "Its rows, in the page's order, each a list of cells in the columns' order.",
+                "items": {
+                  "type": "array",
+                  "description": "One row.",
+                  "items": {
+                    "type": [
+                      "string",
+                      "number"
+                    ],
+                    "description": "One cell."
+                  }
+                }
+              }
+            },
+            "required": [
+              "columns",
+              "rows"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "text",
+          "chart",
+          "table"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "format",
+    "analysisReport",
+    "title",
+    "writtenAt",
+    "headline",
+    "sections"
+  ],
+  "additionalProperties": false
+}

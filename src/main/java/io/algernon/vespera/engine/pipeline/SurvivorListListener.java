@@ -11,6 +11,7 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,9 @@ class SurvivorListListener implements StepExecutionListener {
 
     /** The page's name, beside the database. */
     static final String FILE_NAME = "extraction-survivors.html";
+
+    /** The JSON beside the page (ADR-362 section 9). */
+    static final String JSON_NAME = "extraction-survivors.json";
 
     private final Ledger ledger;
     private final ExtractionMetrics extractionMetrics;
@@ -108,10 +112,27 @@ class SurvivorListListener implements StepExecutionListener {
                     e.toString());
             return stepExecution.getExitStatus();
         }
+        Path json = workingDirectory.resolve(JSON_NAME);
+        Path jsonPart = workingDirectory.resolve(JSON_NAME + ".part");
         try {
             Files.createDirectories(workingDirectory);
-            try (Writer out = Files.newBufferedWriter(part, StandardCharsets.UTF_8)) {
-                SurvivorListReport.write(out, cameThrough.get(), each -> eachSurvivor(run, each));
+            // The page and its JSON are written in one pass over the rows (ADR-362 section 9).
+            try (Writer out = Files.newBufferedWriter(part, StandardCharsets.UTF_8);
+                    Writer jsonOut = Files.newBufferedWriter(jsonPart, StandardCharsets.UTF_8)) {
+                SurvivorListReport.write(out, jsonOut, cameThrough.get(), Instant.now(), each -> eachSurvivor(run, each));
+            }
+            // The JSON is put in place before the page: where it cannot be, the page is not, and the earlier two stay one pair.
+            try {
+                moves.intoPlace(jsonPart, json);
+            } catch (IOException | RuntimeException e) {
+                log.error(
+                        "Stage 2 (extraction): {} file(s) came through, and the JSON of their list could not be"
+                                + " written to {}, so the list was not written to {}: {}",
+                        cameThrough.get(),
+                        json.toAbsolutePath(),
+                        page.toAbsolutePath(),
+                        e.toString());
+                return stepExecution.getExitStatus();
             }
             moves.intoPlace(part, page);
             timed.end();

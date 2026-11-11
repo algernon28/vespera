@@ -83,8 +83,10 @@ class EveryTextOfTheWindowCanBeCopiedTest {
 
     @Test
     @Story("Every text of the window can be copied")
-    @DisplayName("Every text the window shows outside a control is a selectable text that cannot be edited, and no label with words is left")
+    @DisplayName("Every text the window shows outside a control can be selected and copied but not edited, and is laid out as the label it replaces, and the texts of controls stay as they are")
     void everyTextShownOutsideAControlIsSelectableText(@TempDir Path folder) throws Exception {
+        // One test method for the seven claims of this record, each over its own window: the suite holds at most
+        // 700 test methods (ADR-368), and a claim of a window drawn by the same code is paid for by none of its own.
         Path working = Files.createDirectories(folder.resolve("working"));
         Path corpus = Files.createDirectories(folder.resolve("corpus"));
         Files.createDirectories(corpus.resolve("papers"));
@@ -153,12 +155,15 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                     assertThat(texts(reachedWhenNotInForm, "profile-problem"))
                             .anyMatch(line -> line.startsWith("line "));
                 });
+        aSelectableTextIsSelectedAndNotEdited(Files.createDirectories(folder.resolve("aSelectableTextIsSelectedAndNotEdited")));
+        theTextsOfControlsStayAsTheyAre(Files.createDirectories(folder.resolve("theTextsOfControlsStayAsTheyAre")));
+        aSelectableTextIsLaidOutAsTheLabelItReplaces(Files.createDirectories(folder.resolve("aSelectableTextIsLaidOutAsTheLabelItReplaces")));
+        whereSpaceIsTightASelectableTextShrinksAsTheLabelWould(Files.createDirectories(folder.resolve("whereSpaceIsTightASelectableTextShrinksAsTheLabelWould")));
+        aSelectableTextIsALineOrAWrappingAndCarriesTheLabelsId(Files.createDirectories(folder.resolve("aSelectableTextIsALineOrAWrappingAndCarriesTheLabelsId")));
+        aWheelOverASelectableTextScrollsTheTabItLiesIn(Files.createDirectories(folder.resolve("aWheelOverASelectableTextScrollsTheTabItLiesIn")));
     }
 
-    @Test
-    @Story("Every text of the window can be copied")
-    @DisplayName("A part of a selectable text is selected and copied, and nothing typed or pasted changes it")
-    void aSelectableTextIsSelectedAndNotEdited(@TempDir Path folder) throws Exception {
+    private void aSelectableTextIsSelectedAndNotEdited(Path folder) throws Exception {
         String line = "the folders are measured";
         String selected;
         List<String> enabled;
@@ -210,10 +215,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                 () -> assertThat(afterPasting).isEqualTo(line));
     }
 
-    @Test
-    @Story("Every text of the window can be copied")
-    @DisplayName("The texts of controls stay as they are: tabs, buttons, the sidebar's section titles and each leg's name and state")
-    void theTextsOfControlsStayAsTheyAre(@TempDir Path folder) throws Exception {
+    private void theTextsOfControlsStayAsTheyAre(Path folder) throws Exception {
         List<String> tabTitles;
         List<Class<?>> buttons;
         List<String> sections;
@@ -255,10 +257,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                 });
     }
 
-    @Test
-    @Story("Every text of the window can be copied")
-    @DisplayName("A selectable text is as wide and as high as a label of the same text, and in the same place, also after its text is twice as long")
-    void aSelectableTextIsLaidOutAsTheLabelItReplaces(@TempDir Path folder) throws Exception {
+    private void aSelectableTextIsLaidOutAsTheLabelItReplaces(Path folder) throws Exception {
         String hint = LaunchValues.hintOf("vespera.working-dir");
         Map<String, Placed> before = new LinkedHashMap<>();
         Map<String, Placed> asLabels = new LinkedHashMap<>();
@@ -311,10 +310,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                 });
     }
 
-    @Test
-    @Story("Every text of the window can be copied")
-    @DisplayName("Where space is tight a selectable text shrinks to the width a label would, shows its start again once it is let go, and copies the whole text")
-    void whereSpaceIsTightASelectableTextShrinksAsTheLabelWould(@TempDir Path folder) throws Exception {
+    private void whereSpaceIsTightASelectableTextShrinksAsTheLabelWould(Path folder) throws Exception {
         List<String> beside = List.of("where", "child", "outcome", "theme-toggle", "run");
         Map<String, Placed> asText = new LinkedHashMap<>();
         Map<String, Placed> asLabel = new LinkedHashMap<>();
@@ -404,10 +400,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                 });
     }
 
-    @Test
-    @Story("Every text of the window can be copied")
-    @DisplayName("A selectable text is a line or a wrapping one, found by the id its label had")
-    void aSelectableTextIsALineOrAWrappingAndCarriesTheLabelsId(@TempDir Path folder) throws Exception {
+    private void aSelectableTextIsALineOrAWrappingAndCarriesTheLabelsId(Path folder) throws Exception {
         Map<String, Class<?>> found = new LinkedHashMap<>();
         try (WindowForTests window = WindowForTests.shown(WindowForTests.aState(folder, SleepingJar.runtime()))) {
             window.act(root -> {
@@ -429,10 +422,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                 });
     }
 
-    @Test
-    @Story("Every text of the window can be copied")
-    @DisplayName("A wheel turned over a description in the Profile tab scrolls the tab, and not the description")
-    void aWheelOverASelectableTextScrollsTheTabItLiesIn(@TempDir Path folder) throws Exception {
+    private void aWheelOverASelectableTextScrollsTheTabItLiesIn(Path folder) throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
         ControlPanelState state = WindowForTests.aState(folder, SleepingJar.runtime());
         state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(), working.toString(),

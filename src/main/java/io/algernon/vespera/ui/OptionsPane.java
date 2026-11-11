@@ -165,7 +165,7 @@ final class OptionsPane {
         });
     }
 
-    /** How often the progress page is read, in whole seconds, from the progress interval as the preset holds it. */
+    /** How often the report is read, in whole seconds, from the progress interval as the preset holds it. */
     int intervalSeconds() {
         Preset interval = presets.get("vespera.progress-interval");
         return interval == null ? 5 : secondsOf(interval.value());

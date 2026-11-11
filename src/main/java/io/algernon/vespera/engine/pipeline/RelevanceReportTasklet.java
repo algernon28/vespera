@@ -2,6 +2,7 @@ package io.algernon.vespera.engine.pipeline;
 
 import io.algernon.vespera.engine.corpus.Walk;
 import io.algernon.vespera.engine.embedding.FloorReach;
+import io.algernon.vespera.engine.embedding.LabelledSpread;
 import io.algernon.vespera.engine.embedding.RelevanceDistribution;
 import io.algernon.vespera.engine.embedding.RelevanceLabel;
 import io.algernon.vespera.engine.embedding.RelevanceLabels;
@@ -144,7 +145,7 @@ class RelevanceReportTasklet implements Tasklet {
                 "stage 5's relevance-report step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
-            ShutGates.in(chunkContext).record(StepNames.RELEVANCE_REPORT);
+            ShutGates.in(chunkContext).record(StepNames.RELEVANCE_REPORT, preamble.key().orElse(null));
             return RepeatStatus.FINISHED;
         }
 
@@ -192,17 +193,18 @@ class RelevanceReportTasklet implements Tasklet {
         Map<OccurrenceId, Boolean> answers =
                 seedSet.map(set -> answersInThisWalk(set, scoring)).orElseGet(Map::of);
 
-        write(
-                RelevanceLabellingReport.FILE_NAME,
-                RelevanceLabellingReport.render(
-                        distribution,
-                        previews,
-                        TimedStatement.of(
-                                STAGE, "reading", "read",
-                                "the scores against the answers",
-                                () -> relevanceDistribution.spreadOf(
-                                        scoring, answers, stageRuns.sampleBands(), stageRuns.sampledPerBand())),
-                        ignoredFloor().orElse(null)));
+        LabelledSpread.Spread spread = TimedStatement.of(
+                STAGE, "reading", "read",
+                "the scores against the answers",
+                () -> relevanceDistribution.spreadOf(
+                        scoring, answers, stageRuns.sampleBands(), stageRuns.sampledPerBand()));
+        try {
+            RelevanceLabellingReport.write(
+                    workingDirectory, distribution, previews, spread, ignoredFloor().orElse(null), Instant.now());
+        } catch (IOException e) {
+            throw new UncheckedIOException(
+                    "could not write " + workingDirectory.resolve(RelevanceLabellingReport.FILE_NAME) + " and its JSON", e);
+        }
         write(
                 RelevanceLabelFile.FILE_NAME,
                 RelevanceLabelFile.render(

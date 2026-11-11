@@ -163,9 +163,7 @@ class GenerationTasklet implements Tasklet {
     private final Ledger ledger;
     private final ProfileStore profileStore;
     private final ModelPull modelPull;
-    private final ObjectProvider<PageOpener> opener;
     private final ObjectProvider<Plugin> plugins;
-    private final boolean openBrowser;
     private final Path root;
     private final Path workingDirectory;
     private final DeliverableRoot deliverableRoot;
@@ -189,9 +187,7 @@ class GenerationTasklet implements Tasklet {
             Ledger ledger,
             ProfileStore profileStore,
             ModelPull modelPull,
-            ObjectProvider<PageOpener> opener,
             ObjectProvider<Plugin> plugins,
-            @Value("${vespera.open-browser:true}") boolean openBrowser,
             @Value("#{jobParameters['root']}") Path root,
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
             @Value("${" + VesperaCommand.Run.DELIVERABLE_ROOT_PROPERTY + ":}") String deliverableRoot,
@@ -220,9 +216,7 @@ class GenerationTasklet implements Tasklet {
         this.ledger = ledger;
         this.profileStore = profileStore;
         this.modelPull = modelPull;
-        this.opener = opener;
         this.plugins = plugins;
-        this.openBrowser = openBrowser;
         this.root = root;
         this.workingDirectory = workingDirectory;
     }
@@ -249,7 +243,7 @@ class GenerationTasklet implements Tasklet {
             LOG.info("the generation step is gated: no arrangement of this corpus has been approved --"
                     + " arrangementApproved is unset, or names an arrangement this invocation did not"
                     + " arrive at, or no arrangement was made to approve automatically. Nothing was generated.");
-            ShutGates.in(chunkContext).record(StepNames.GENERATION);
+            ShutGates.in(chunkContext).record(StepNames.GENERATION, "arrangementApproved");
             return RepeatStatus.FINISHED;
         }
         RunId arrangement = approved.get();
@@ -593,24 +587,7 @@ class GenerationTasklet implements Tasklet {
         if (copies.codeFiles > 0) {
             handedOver.recordCodeFilesNotCopied(copies.codeFilesNotStanding());
         }
-        openTheIndex(tree);
         return Optional.of(tree);
-    }
-
-    /** Hands the index to the opener once, after it is in place; an opener that fails is one warning (ADR-274 §7). */
-    private void openTheIndex(Path tree) {
-        if (!openBrowser) {
-            return; // vespera.open-browser is false: nothing is opened (ADR-327 section 5)
-        }
-        PageOpener pageOpener = opener.getIfAvailable();
-        if (pageOpener == null) {
-            return;
-        }
-        try {
-            pageOpener.open(tree.toAbsolutePath().normalize().resolve(Deliverable.INDEX_FILE_NAME).toUri());
-        } catch (IOException | RuntimeException e) {
-            LOG.warn("the deliverable's index could not be opened: {}", e.getClass().getName());
-        }
     }
 
     /** What became of each survivor's copy, as the tree's writer told it, and how many bytes were copied (ADR-274 §2.5). */

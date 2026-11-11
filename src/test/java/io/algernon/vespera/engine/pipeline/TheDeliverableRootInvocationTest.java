@@ -84,9 +84,6 @@ class TheDeliverableRootInvocationTest {
     /** The whole of what a refusal shows the operator: one line. */
     private static final int ONE_LINE = 1;
 
-    /** How many times the index is opened in an invocation that writes the tree. */
-    private static final int ONCE = 1;
-
     /** One piece of writing stands behind a corpus's tree, however many invocations draw it. */
     private static final int ONE_RUN = 1;
 
@@ -113,9 +110,6 @@ class TheDeliverableRootInvocationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private RecordingPageOpener opener;
-
-    @Autowired
     private Ledger ledger;
 
     private ListAppender<ILoggingEvent> logged;
@@ -129,7 +123,6 @@ class TheDeliverableRootInvocationTest {
     @BeforeEach
     void startFromARootNotMadeYet() throws IOException {
         GenerationScriptedBeans.forgetScriptedAnswers();
-        opener.forget();
         takeAway(deliverableRoot());
         profileStore.save(ProfileFixture.profileFrom(profileStore.load()).seedFolder(TextValue.unset()).build());
         logged = new ListAppender<>();
@@ -137,14 +130,17 @@ class TheDeliverableRootInvocationTest {
         applicationLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(APPLICATION_LOGGER);
         applicationLogger.addAppender(logged);
         ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).addAppender(logged);
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(
+                "org.springframework.batch.core.step.AbstractStep")).addAppender(logged);
     }
 
     @AfterEach
     void forgetWhatWasScripted() {
         GenerationScriptedBeans.forgetScriptedAnswers();
-        opener.forget();
         applicationLogger.detachAppender(logged);
         ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(logged);
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(
+                "org.springframework.batch.core.step.AbstractStep")).detachAppender(logged);
         logged.stop();
     }
 
@@ -155,7 +151,6 @@ class TheDeliverableRootInvocationTest {
         anotherRunsTreeInTheRoot();
         Map<String, String> before = everythingIn(deliverableRoot());
         anApprovedCorpus(corpusRoot, seeds);
-        opener.forget();
         logged.list.clear();
 
         cli.run("run", corpusRoot.toString());
@@ -175,10 +170,39 @@ class TheDeliverableRootInvocationTest {
         claim(
                 "the folder holds exactly what it held, the other generation's index and marker as they were",
                 () -> assertThat(everythingIn(deliverableRoot())).containsExactlyEntriesOf(before));
-        claim("no index was opened", () -> assertThat(indexRequests()).isEmpty());
+        claim("no index was opened: the report lists no file as opened",
+                () -> assertThat(TheReportFile.in(workingDirectory).get("opened").get("files")).isEmpty());
         claim(
                 "and the tree was not drawn under the working directory instead",
                 () -> assertThat(workingDirectory.resolve("deliverable")).doesNotExist());
+        claim(
+                "and the closing line is logged on the operator logger at ERROR once the step has ended, so it stands after"
+                        + " Spring Batch's own line for the step and is the last line that does not start Report: --"
+                        + " the tasklet records it and the step's listener logs it (ADR-364 section 4)",
+                () -> {
+                    List<ILoggingEvent> everything = logged.list;
+                    int executed = -1;
+                    for (int at = 0; at < everything.size(); at++) {
+                        if (everything.get(at).getLoggerName().endsWith("AbstractStep")
+                                && everything.get(at).getFormattedMessage().contains("executed in")
+                                && everything.get(at).getFormattedMessage().contains("generation")) {
+                            executed = at;
+                        }
+                    }
+                    ILoggingEvent said = everything.stream()
+                            .filter(event -> event.getFormattedMessage().contains("holds the tree of another generation run"))
+                            .findFirst()
+                            .orElseThrow();
+                    ILoggingEvent lastLine = everything.stream()
+                            .filter(event -> !event.getFormattedMessage().startsWith("Report: "))
+                            .reduce((first, second) -> second)
+                            .orElseThrow();
+                    assertThat(executed).as("Spring Batch's own line for the step").isNotNegative();
+                    assertThat(said.getLoggerName()).isEqualTo(OperatorLines.LOGGER_NAME);
+                    assertThat(said.getLevel()).isEqualTo(ch.qos.logback.classic.Level.ERROR);
+                    assertThat(everything.indexOf(said)).isGreaterThan(executed);
+                    assertThat(lastLine).isSameAs(said);
+                });
     }
 
     @Test
@@ -311,14 +335,8 @@ class TheDeliverableRootInvocationTest {
     }
 
     private List<String> operatorLines() {
-        return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
-    }
-
-    /** Every request the opener was given for a tree's index since it was last told to forget. */
-    private List<RecordingPageOpener.Request> indexRequests() {
-        return opener.requests().stream()
-                .filter(request -> request.page().getPath().endsWith("/index.html"))
-                .toList();
+        return logged.list.stream().map(ILoggingEvent::getFormattedMessage)
+                .filter(line -> !line.startsWith("Report: ")).toList();
     }
 
     /** How many walks of {@code corpusRoot} are recorded. */

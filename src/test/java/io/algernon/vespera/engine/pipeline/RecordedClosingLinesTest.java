@@ -135,12 +135,16 @@ class RecordedClosingLinesTest {
         claim("a step that recorded nothing logs only Spring Batch's own two lines", () -> assertThat(silent)
                 .hasSize(2)
                 .allSatisfy(line -> assertThat(line).containsAnyOf("Executing step", "executed in")));
+        // The other claims of this class run over steps of their own; one test method holds them all, since the suite
+        // holds at most 700 (ADR-368). Each starts from an empty capture.
+        logged.list.clear();
+        aLineRecordedBeforeACommitThatFailsIsStillLogged();
+        logged.list.clear();
+        aLineRecordedByATaskletThatThrowsStandsBeforeTheFailedStepsLine();
+        neitherListenerIsOrdered();
     }
 
-    @Test
-    @Story("A closing line stays the last line")
-    @DisplayName("A line recorded before a commit that fails is still logged, and the failed step's own line follows it last")
-    void aLineRecordedBeforeACommitThatFailsIsStillLogged() throws Exception {
+    private void aLineRecordedBeforeACommitThatFailsIsStillLogged() throws Exception {
         RecordedClosingLines holder = new RecordedClosingLines();
         ResourcelessTransactionManager commitFails = new ResourcelessTransactionManager() {
             @Override
@@ -179,10 +183,7 @@ class RecordedClosingLinesTest {
         });
     }
 
-    @Test
-    @Story("A closing line stays the last line")
-    @DisplayName("A line recorded by a tasklet that then throws stands before the failed step's own line")
-    void aLineRecordedByATaskletThatThrowsStandsBeforeTheFailedStepsLine() throws Exception {
+    private void aLineRecordedByATaskletThatThrowsStandsBeforeTheFailedStepsLine() throws Exception {
         RecordedClosingLines holder = new RecordedClosingLines();
         Tasklet recordsAndThrows = (contribution, chunkContext) -> {
             holder.record(chunkContext.getStepContext().getStepExecution(), "the stop the tasklet recorded");
@@ -199,10 +200,7 @@ class RecordedClosingLinesTest {
                 });
     }
 
-    @Test
-    @Story("A closing line stays the last line")
-    @DisplayName("Neither closing-line listener is ordered")
-    void neitherListenerIsOrdered() {
+    private void neitherListenerIsOrdered() {
         List<Class<? extends StepExecutionListener>> listeners =
                 List.of(RecordedClosingLines.class, StepFailureClosingLine.class);
 

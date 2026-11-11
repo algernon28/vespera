@@ -1,0 +1,1295 @@
+{
+  "type": "object",
+  "description": "The invocation report, report.json (ADR-362 section 3), format 1.",
+  "properties": {
+    "format": {
+      "const": 1,
+      "description": "The report's format, the integer InvocationReport.FORMAT holds; raised by a change that removes, renames or retypes a field."
+    },
+    "vespera": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The jar's version, as its manifest names it; null where the process does not run from the jar."
+    },
+    "invocation": {
+      "type": "object",
+      "description": "The invocation this report is about.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The start in UTC as yyyyMMdd'T'HHmmss'Z', with -2 and on for a second in the same second; names the copy in logs."
+        },
+        "pid": {
+          "type": "integer",
+          "description": "The process's own id."
+        },
+        "command": {
+          "type": "string",
+          "description": "The command: run, label, label --auto or publish.",
+          "enum": [
+            "run",
+            "label",
+            "label --auto",
+            "publish"
+          ]
+        },
+        "started": {
+          "type": "string",
+          "description": "The instant the command began to run, in UTC to the millisecond."
+        },
+        "ended": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The instant it ended; null while running."
+        },
+        "state": {
+          "type": "string",
+          "description": "running or ended.",
+          "enum": [
+            "running",
+            "ended"
+          ]
+        },
+        "outcome": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "How it ended: completed, failed or stopped for run; recorded, refused or failed for label; delivered or stopped for publish; refused for a refusal; null while running.",
+          "enum": [
+            "completed",
+            "failed",
+            "stopped",
+            "recorded",
+            "refused",
+            "delivered",
+            null
+          ]
+        },
+        "exitCode": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "The exit code; null while running."
+        },
+        "writtenAt": {
+          "type": "string",
+          "description": "The instant of this write."
+        },
+        "interval": {
+          "type": "integer",
+          "description": "The seconds between writes while the job runs."
+        }
+      },
+      "required": [
+        "id",
+        "pid",
+        "command",
+        "started",
+        "ended",
+        "state",
+        "outcome",
+        "exitCode",
+        "writtenAt",
+        "interval"
+      ],
+      "additionalProperties": false
+    },
+    "display": {
+      "type": "object",
+      "description": "Whether a display is present where this process runs, and why.",
+      "properties": {
+        "present": {
+          "type": "boolean",
+          "description": "Whether a display is present."
+        },
+        "reason": {
+          "type": "string",
+          "description": "The reason, from a closed list.",
+          "enum": [
+            "window-server",
+            "no-window-server",
+            "visible-window-station",
+            "hidden-window-station",
+            "display-variable",
+            "no-display-variable",
+            "headless",
+            "not-answered"
+          ]
+        }
+      },
+      "required": [
+        "present",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "opened": {
+      "type": "object",
+      "description": "What the invocation opened: no file, and the reason, since no command opens anything.",
+      "properties": {
+        "files": {
+          "type": "array",
+          "description": "The files opened.",
+          "items": {
+            "type": "string",
+            "description": "A file opened."
+          }
+        },
+        "because": {
+          "type": "string",
+          "description": "Why nothing was opened.",
+          "enum": [
+            "commands-open-nothing",
+            "no-display"
+          ]
+        }
+      },
+      "required": [
+        "files",
+        "because"
+      ],
+      "additionalProperties": false
+    },
+    "places": {
+      "type": "object",
+      "description": "The folders the invocation was given.",
+      "properties": {
+        "workingDirectory": {
+          "type": "string",
+          "description": "The working directory, absolute."
+        },
+        "corpusRoot": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The root run walks; null for other commands."
+        },
+        "deliverableRoot": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The root the tree is drawn at where this invocation drew one; else null."
+        }
+      },
+      "required": [
+        "workingDirectory",
+        "corpusRoot",
+        "deliverableRoot"
+      ],
+      "additionalProperties": false
+    },
+    "steps": {
+      "type": "array",
+      "description": "Each step of the job, in the order the job runs them; empty for label and publish.",
+      "items": {
+        "type": "object",
+        "description": "One step of the job.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The step's name."
+          },
+          "stage": {
+            "type": "string",
+            "description": "The stage under whose runs the job records the step's completion; 0, 5e and 5 for the census, the relevance floor and the relevance report."
+          },
+          "leg": {
+            "type": "string",
+            "description": "The leg the step is drawn in."
+          },
+          "state": {
+            "type": "string",
+            "description": "The step's state.",
+            "enum": [
+              "not started",
+              "running",
+              "finished",
+              "stopped at a gate",
+              "failed"
+            ]
+          },
+          "read": {
+            "type": "integer",
+            "description": "Rows read."
+          },
+          "written": {
+            "type": "integer",
+            "description": "Rows written."
+          },
+          "skipped": {
+            "type": "integer",
+            "description": "Rows skipped."
+          },
+          "started": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the step started; null before."
+          },
+          "ended": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the step ended; null before."
+          },
+          "seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Whole seconds the step has taken; null before it starts."
+          },
+          "progress": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The last progress line the step logged, with its counter.",
+            "properties": {
+              "line": {
+                "type": "string",
+                "description": "The progress line, whole."
+              },
+              "done": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "How far the counter has got; null where the line has none."
+              },
+              "total": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "The counter's total; null where it has none."
+              }
+            },
+            "required": [
+              "line",
+              "done",
+              "total"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "name",
+          "stage",
+          "leg",
+          "state",
+          "read",
+          "written",
+          "skipped",
+          "started",
+          "ended",
+          "seconds",
+          "progress"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "legs": {
+      "type": "array",
+      "description": "The four legs.",
+      "items": {
+        "type": "object",
+        "description": "One leg.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The leg's name."
+          },
+          "state": {
+            "type": "string",
+            "description": "The leg's state.",
+            "enum": [
+              "not started",
+              "running",
+              "finished",
+              "stopped at a gate",
+              "failed"
+            ]
+          },
+          "open": {
+            "type": "boolean",
+            "description": "Whether the leg is drawn open."
+          }
+        },
+        "required": [
+          "name",
+          "state",
+          "open"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "removing": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "The step removing occurrences now or last; null before one has.",
+      "properties": {
+        "step": {
+          "type": "string",
+          "description": "The step."
+        },
+        "entered": {
+          "type": "integer",
+          "description": "What entered it."
+        },
+        "survivors": {
+          "type": "integer",
+          "description": "Its survivors now."
+        },
+        "verdicts": {
+          "type": "object",
+          "description": "Verdicts by kind that step records.",
+          "properties": {
+            "broken": {
+              "type": "integer",
+              "description": "The figure for broken."
+            },
+            "duplicate-of": {
+              "type": "integer",
+              "description": "The figure for duplicate-of."
+            },
+            "superseded-by": {
+              "type": "integer",
+              "description": "The figure for superseded-by."
+            },
+            "out-of-scope": {
+              "type": "integer",
+              "description": "The figure for out-of-scope."
+            },
+            "code": {
+              "type": "integer",
+              "description": "The figure for code."
+            },
+            "extraction-failed": {
+              "type": "integer",
+              "description": "The figure for extraction-failed."
+            },
+            "degenerate-output": {
+              "type": "integer",
+              "description": "The figure for degenerate-output."
+            },
+            "redundant-with": {
+              "type": "integer",
+              "description": "The figure for redundant-with."
+            },
+            "translation-of": {
+              "type": "integer",
+              "description": "The figure for translation-of."
+            },
+            "below-threshold": {
+              "type": "integer",
+              "description": "The figure for below-threshold."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "perMinute": {
+          "type": "object",
+          "description": "Verdicts per minute by kind over the last ten minutes; empty where no rate is measured yet.",
+          "properties": {
+            "broken": {
+              "type": "number",
+              "description": "The figure for broken."
+            },
+            "duplicate-of": {
+              "type": "number",
+              "description": "The figure for duplicate-of."
+            },
+            "superseded-by": {
+              "type": "number",
+              "description": "The figure for superseded-by."
+            },
+            "out-of-scope": {
+              "type": "number",
+              "description": "The figure for out-of-scope."
+            },
+            "code": {
+              "type": "number",
+              "description": "The figure for code."
+            },
+            "extraction-failed": {
+              "type": "number",
+              "description": "The figure for extraction-failed."
+            },
+            "degenerate-output": {
+              "type": "number",
+              "description": "The figure for degenerate-output."
+            },
+            "redundant-with": {
+              "type": "number",
+              "description": "The figure for redundant-with."
+            },
+            "translation-of": {
+              "type": "number",
+              "description": "The figure for translation-of."
+            },
+            "below-threshold": {
+              "type": "number",
+              "description": "The figure for below-threshold."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "step",
+        "entered",
+        "survivors",
+        "verdicts",
+        "perMinute"
+      ],
+      "additionalProperties": false
+    },
+    "database": {
+      "type": "object",
+      "description": "The working directory's database.",
+      "properties": {
+        "bytes": {
+          "type": "integer",
+          "description": "vespera.db and vespera.db-wal added, in bytes."
+        }
+      },
+      "required": [
+        "bytes"
+      ],
+      "additionalProperties": false
+    },
+    "charts": {
+      "type": "array",
+      "description": "The three charts of the progress page, at most 256 samples.",
+      "items": {
+        "type": "object",
+        "description": "One chart.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The chart's id.",
+            "enum": [
+              "database",
+              "counts",
+              "verdicts"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "Its title."
+          },
+          "axis": {
+            "type": "string",
+            "description": "Its value axis."
+          },
+          "seconds": {
+            "type": "array",
+            "description": "Elapsed seconds of each sample.",
+            "items": {
+              "type": "integer",
+              "description": "A sample's second."
+            }
+          },
+          "lines": {
+            "type": "array",
+            "description": "Its lines.",
+            "items": {
+              "type": "object",
+              "description": "One line.",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "The line's name."
+                },
+                "values": {
+                  "type": "array",
+                  "description": "Its value at each sample.",
+                  "items": {
+                    "type": "number",
+                    "description": "A value."
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "values"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "axis",
+          "seconds",
+          "lines"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "runs": {
+      "type": "object",
+      "description": "The runs the working directory holds, read at the invocation's start and end.",
+      "properties": {
+        "read": {
+          "type": "string",
+          "description": "none before the first reading, start, end, or failed where the reading failed.",
+          "enum": [
+            "none",
+            "start",
+            "end",
+            "failed"
+          ]
+        },
+        "rows": {
+          "type": "array",
+          "description": "Each run in order.",
+          "items": {
+            "type": "object",
+            "description": "One run.",
+            "properties": {
+              "walk": {
+                "type": "integer",
+                "description": "Its walk."
+              },
+              "stage": {
+                "type": "string",
+                "description": "Its stage."
+              },
+              "ordinal": {
+                "type": "integer",
+                "description": "Its ordinal among the runs of its walk and stage."
+              },
+              "stepsFinished": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "How many of its steps finished; null where the stage has none."
+              },
+              "stepsOf": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "How many steps record under it; null where none."
+              },
+              "state": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "finished or not finished; null where the stage has no step.",
+                "enum": [
+                  "finished",
+                  "not finished",
+                  null
+                ]
+              },
+              "thisInvocation": {
+                "type": "boolean",
+                "description": "Whether this invocation minted or continued it."
+              },
+              "verdicts": {
+                "type": "object",
+                "description": "Verdicts it holds by kind.",
+                "properties": {
+                  "broken": {
+                    "type": "integer",
+                    "description": "The figure for broken."
+                  },
+                  "duplicate-of": {
+                    "type": "integer",
+                    "description": "The figure for duplicate-of."
+                  },
+                  "superseded-by": {
+                    "type": "integer",
+                    "description": "The figure for superseded-by."
+                  },
+                  "out-of-scope": {
+                    "type": "integer",
+                    "description": "The figure for out-of-scope."
+                  },
+                  "code": {
+                    "type": "integer",
+                    "description": "The figure for code."
+                  },
+                  "extraction-failed": {
+                    "type": "integer",
+                    "description": "The figure for extraction-failed."
+                  },
+                  "degenerate-output": {
+                    "type": "integer",
+                    "description": "The figure for degenerate-output."
+                  },
+                  "redundant-with": {
+                    "type": "integer",
+                    "description": "The figure for redundant-with."
+                  },
+                  "translation-of": {
+                    "type": "integer",
+                    "description": "The figure for translation-of."
+                  },
+                  "below-threshold": {
+                    "type": "integer",
+                    "description": "The figure for below-threshold."
+                  }
+                },
+                "required": [
+                  "broken",
+                  "duplicate-of",
+                  "superseded-by",
+                  "out-of-scope",
+                  "code",
+                  "extraction-failed",
+                  "degenerate-output",
+                  "redundant-with",
+                  "translation-of",
+                  "below-threshold"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "walk",
+              "stage",
+              "ordinal",
+              "stepsFinished",
+              "stepsOf",
+              "state",
+              "thisInvocation",
+              "verdicts"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "read",
+        "rows"
+      ],
+      "additionalProperties": false
+    },
+    "arrivedAt": {
+      "type": "array",
+      "description": "The runs this invocation minted or continued.",
+      "items": {
+        "type": "object",
+        "description": "One run.",
+        "properties": {
+          "stage": {
+            "type": "string",
+            "description": "Its stage."
+          },
+          "run": {
+            "type": "string",
+            "description": "Its id."
+          }
+        },
+        "required": [
+          "stage",
+          "run"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "gates": {
+      "type": "array",
+      "description": "Each step shown stopped at a gate.",
+      "items": {
+        "type": "object",
+        "description": "One gate.",
+        "properties": {
+          "step": {
+            "type": "string",
+            "description": "The step."
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The profile value whose absence shut it; null where none did."
+          },
+          "analysisReports": {
+            "type": "array",
+            "description": "The analysis reports that key is read off.",
+            "items": {
+              "type": "string",
+              "description": "An analysis report's file name."
+            }
+          }
+        },
+        "required": [
+          "step",
+          "key",
+          "analysisReports"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "refusals": {
+      "type": "array",
+      "description": "Each refusal line the invocation printed, whole.",
+      "items": {
+        "type": "string",
+        "description": "A refusal line."
+      }
+    },
+    "faults": {
+      "type": "array",
+      "description": "Each failed step, by type alone.",
+      "items": {
+        "type": "object",
+        "description": "One fault.",
+        "properties": {
+          "step": {
+            "type": "string",
+            "description": "The step."
+          },
+          "type": {
+            "type": "string",
+            "description": "The exception's class name."
+          },
+          "causes": {
+            "type": "array",
+            "description": "At most three causes, class names.",
+            "items": {
+              "type": "string",
+              "description": "A class name."
+            }
+          }
+        },
+        "required": [
+          "step",
+          "type",
+          "causes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "counts": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "The counts at the end of a run that started the job, scoped to the runs it arrived at; null before.",
+      "properties": {
+        "occurrences": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Occurrences of the walk."
+        },
+        "verdicts": {
+          "type": "object",
+          "description": "Verdicts by kind.",
+          "properties": {
+            "broken": {
+              "type": "integer",
+              "description": "How many were counted as broken."
+            },
+            "duplicate-of": {
+              "type": "integer",
+              "description": "How many were counted as duplicate-of."
+            },
+            "superseded-by": {
+              "type": "integer",
+              "description": "How many were counted as superseded-by."
+            },
+            "out-of-scope": {
+              "type": "integer",
+              "description": "How many were counted as out-of-scope."
+            },
+            "code": {
+              "type": "integer",
+              "description": "How many were counted as code."
+            },
+            "extraction-failed": {
+              "type": "integer",
+              "description": "How many were counted as extraction-failed."
+            },
+            "degenerate-output": {
+              "type": "integer",
+              "description": "How many were counted as degenerate-output."
+            },
+            "redundant-with": {
+              "type": "integer",
+              "description": "How many were counted as redundant-with."
+            },
+            "translation-of": {
+              "type": "integer",
+              "description": "How many were counted as translation-of."
+            },
+            "below-threshold": {
+              "type": "integer",
+              "description": "How many were counted as below-threshold."
+            },
+            "passed": {
+              "type": "integer",
+              "description": "How many were counted as passed."
+            },
+            "other": {
+              "type": "integer",
+              "description": "How many carry a stored value outside the enumeration."
+            }
+          },
+          "required": [
+            "broken",
+            "duplicate-of",
+            "superseded-by",
+            "out-of-scope",
+            "code",
+            "extraction-failed",
+            "degenerate-output",
+            "redundant-with",
+            "translation-of",
+            "below-threshold",
+            "passed",
+            "other"
+          ],
+          "additionalProperties": false
+        },
+        "extractionFaults": {
+          "type": "object",
+          "description": "Extraction faults by category.",
+          "properties": {
+            "policy": {
+              "type": "integer",
+              "description": "How many were counted as policy."
+            },
+            "capacity": {
+              "type": "integer",
+              "description": "How many were counted as capacity."
+            },
+            "source-unavailable": {
+              "type": "integer",
+              "description": "How many were counted as source-unavailable."
+            },
+            "target-unavailable": {
+              "type": "integer",
+              "description": "How many were counted as target-unavailable."
+            },
+            "timeout": {
+              "type": "integer",
+              "description": "How many were counted as timeout."
+            },
+            "internal": {
+              "type": "integer",
+              "description": "How many were counted as internal."
+            },
+            "backend-failure": {
+              "type": "integer",
+              "description": "How many were counted as backend-failure."
+            },
+            "inference-failure": {
+              "type": "integer",
+              "description": "How many were counted as inference-failure."
+            },
+            "unknown": {
+              "type": "integer",
+              "description": "How many were counted as unknown."
+            },
+            "other": {
+              "type": "integer",
+              "description": "How many carry a stored value outside the enumeration."
+            }
+          },
+          "required": [
+            "policy",
+            "capacity",
+            "source-unavailable",
+            "target-unavailable",
+            "timeout",
+            "internal",
+            "backend-failure",
+            "inference-failure",
+            "unknown",
+            "other"
+          ],
+          "additionalProperties": false
+        },
+        "clusterFaults": {
+          "type": "object",
+          "description": "Cluster faults by kind.",
+          "properties": {
+            "prompt-evaluation-ceiling": {
+              "type": "integer",
+              "description": "How many were counted as prompt-evaluation-ceiling."
+            },
+            "answer-ran-out-of-room": {
+              "type": "integer",
+              "description": "How many were counted as answer-ran-out-of-room."
+            },
+            "schema-violation": {
+              "type": "integer",
+              "description": "How many were counted as schema-violation."
+            },
+            "citation-not-in-range": {
+              "type": "integer",
+              "description": "How many were counted as citation-not-in-range."
+            },
+            "other": {
+              "type": "integer",
+              "description": "How many carry a stored value outside the enumeration."
+            }
+          },
+          "required": [
+            "prompt-evaluation-ceiling",
+            "answer-ran-out-of-room",
+            "schema-violation",
+            "citation-not-in-range",
+            "other"
+          ],
+          "additionalProperties": false
+        },
+        "clusters": {
+          "type": "integer",
+          "description": "Clusters arranged."
+        },
+        "synthesisDocs": {
+          "type": "integer",
+          "description": "Synthesis documents written."
+        }
+      },
+      "required": [
+        "occurrences",
+        "verdicts",
+        "extractionFaults",
+        "clusterFaults",
+        "clusters",
+        "synthesisDocs"
+      ],
+      "additionalProperties": false
+    },
+    "label": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "For label, the answers it counted; else null.",
+      "properties": {
+        "answers": {
+          "type": "array",
+          "description": "The counts by their words, in order.",
+          "items": {
+            "type": "object",
+            "description": "One count.",
+            "properties": {
+              "words": {
+                "type": "string",
+                "description": "The words."
+              },
+              "count": {
+                "type": "integer",
+                "description": "The count."
+              }
+            },
+            "required": [
+              "words",
+              "count"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "answers"
+      ],
+      "additionalProperties": false
+    },
+    "publish": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "For publish, each destination; else null.",
+      "properties": {
+        "destinations": {
+          "type": "array",
+          "description": "Each destination.",
+          "items": {
+            "type": "object",
+            "description": "One destination.",
+            "properties": {
+              "destination": {
+                "type": "string",
+                "description": "Its name."
+              },
+              "outcome": {
+                "type": "string",
+                "description": "How it ended."
+              },
+              "line": {
+                "type": "string",
+                "description": "Its closing line, whole."
+              }
+            },
+            "required": [
+              "destination",
+              "outcome",
+              "line"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "destinations"
+      ],
+      "additionalProperties": false
+    },
+    "closing": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The closing line, whole, once printed; null before."
+    },
+    "next": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "What next-invocation.properties says, by its keys; null where the file says nothing.",
+      "properties": {
+        "invocation": {
+          "type": "string",
+          "description": "run, label or none.",
+          "enum": [
+            "run",
+            "label",
+            "none"
+          ]
+        },
+        "wants": {
+          "type": "array",
+          "description": "The profile values wanted.",
+          "items": {
+            "type": "string",
+            "description": "A profile value."
+          }
+        },
+        "answer": {
+          "type": "boolean",
+          "description": "Whether answers are wanted."
+        },
+        "arrangement": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The arrangement to approve; null where none."
+        }
+      },
+      "required": [
+        "invocation",
+        "wants",
+        "answer",
+        "arrangement"
+      ],
+      "additionalProperties": false
+    },
+    "analysisReports": {
+      "type": "array",
+      "description": "The twelve analysis reports.",
+      "items": {
+        "type": "object",
+        "description": "One analysis report.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Its name.",
+            "enum": [
+              "format-mix",
+              "extraction-failures",
+              "extraction-survivors",
+              "confidence-distribution",
+              "word-count-distribution",
+              "document-frequency",
+              "seed-corpus-comparison",
+              "translations",
+              "relevance-labelling",
+              "cluster-sizes",
+              "arrangement",
+              "cluster-page-sizes"
+            ]
+          },
+          "html": {
+            "type": "string",
+            "description": "Its page, absolute."
+          },
+          "json": {
+            "type": "string",
+            "description": "Its JSON, absolute."
+          },
+          "written": {
+            "type": "boolean",
+            "description": "Whether the page is there."
+          },
+          "headline": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "description": "The headline its JSON holds; null where it is not there, cannot be read or is of a format the jar does not know.",
+            "items": {
+              "type": "object",
+              "description": "One figure.",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "description": "Its key."
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Its label."
+                },
+                "value": {
+                  "type": "number",
+                  "description": "Its value."
+                },
+                "unit": {
+                  "type": "string",
+                  "description": "Its unit.",
+                  "enum": [
+                    "count",
+                    "share",
+                    "bytes",
+                    "seconds",
+                    "number"
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "label",
+                "value",
+                "unit"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "name",
+          "html",
+          "json",
+          "written",
+          "headline"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "files": {
+      "type": "array",
+      "description": "Each file of the working directory's top and logs folder the invocation wrote or rewrote.",
+      "items": {
+        "type": "object",
+        "description": "One file.",
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "Its role.",
+            "enum": [
+              "report",
+              "report-copy",
+              "progress-page",
+              "invocation-account",
+              "database",
+              "log",
+              "profile",
+              "next-invocation",
+              "effective-values",
+              "label-file",
+              "analysis-report",
+              "other"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "description": "Its absolute path."
+          }
+        },
+        "required": [
+          "role",
+          "path"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "template": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "The template the report's page is drawn through; null before one is.",
+      "properties": {
+        "named": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The path vespera.report.template names; else null."
+        },
+        "used": {
+          "type": "string",
+          "description": "jar or named.",
+          "enum": [
+            "jar",
+            "named"
+          ]
+        }
+      },
+      "required": [
+        "named",
+        "used"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "format",
+    "vespera",
+    "invocation",
+    "display",
+    "opened",
+    "places",
+    "steps",
+    "legs",
+    "removing",
+    "database",
+    "charts",
+    "runs",
+    "arrivedAt",
+    "gates",
+    "refusals",
+    "faults",
+    "counts",
+    "label",
+    "publish",
+    "closing",
+    "next",
+    "analysisReports",
+    "files",
+    "template"
+  ],
+  "additionalProperties": false
+}

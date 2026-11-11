@@ -86,6 +86,10 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
      * {@code RelevanceFloorTasklet} and {@code GenerationTasklet}.
      */
     private static final Set<String> HOLDING_NO_RULE = Set.of(
+            // ADR-362 section 9: writes the JSON the analysis reports share the shape of, whole or a row at a time, and
+            // reads a headline back for report.json; what a report says is its writer's, and it decides no verdict,
+            // cache key, cluster or text of the deliverable.
+            "AnalysisReportJson",
             "ArchiveGoneException",
             "ArrangementGate",
             "ArrangementReport",
@@ -116,6 +120,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "DoclingKeepsDroppingConnectionsException",
             "DoclingRunsAnotherImageException",
             // ADR-262: renders similarity's shares of the documents; the rounding and the grouping are similarity's.
+            // ADR-362 §1: asks the system whether a window can open; decides no verdict and shapes no stage's output.
+            "DisplayPresence",
             "DocumentFrequencyReport",
             "DocumentOpening",
             // ADR-330 §1: writes effective-values.properties, what lies beneath the profile; it decides no verdict.
@@ -136,7 +142,13 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "GenerationModel",
             "GenerationTasklet",
             "InvocationAccount",
+            // ADR-362: writes report.json from typed values the sampler of the job and the commands hand it; it decides no
+            // verdict, cache key, cluster or text of the deliverable.
+            "InvocationReport",
             "InvocationRuns",
+            // ADR-265, ADR-362 §6: reads what the job holds in memory and hands the report its readings, and decides
+            // nothing it shows.
+            "JobSampler",
             "LabelFileReader",
             "LabelIngestion",
             // ADR-321: reads the deliverable's language the profile holds and hands synthesis and the tree a plain value;
@@ -149,14 +161,10 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "NoGenerationModelNamedException",
             "NoUpstreamRunException",
             "OccurrenceReader",
-            // ADR-266: hands the progress page to the system to open, and decides nothing it shows.
-            "PageOpener",
             "PendingConversions",
             // ADR-330 §9: reads the presets and the profile's resolution; what it resolves names the run.
             "Presets",
             "ProfileShapeCheck",
-            // ADR-265: renders what the job holds in memory, and decides nothing it shows.
-            "ProgressPage",
             "RedundancyBoilerplate",
             "RedundancyGate",
             "RedundancyJobConfiguration",
@@ -173,6 +181,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // §5); this decides only the step's finished_step row, and the standing line it lets a page carry is
             // drawing, which keys no run. A change to it moves no run id and reopens no run already finished.
             "RepeatedFaults",
+            // ADR-362 section 5: draws report.html from report.json through a template; it decides no verdict, cache
+            // key, cluster or text of the deliverable.
+            "ReportHtml",
             "ReportPage",
             "ReportedStatements",
             "ReviewListListener",
@@ -236,8 +247,6 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-250: the survivor list reads who survived and what was measured, and decides neither.
             "SurvivorListListener",
             "SurvivorListReport",
-            // ADR-266: chooses the system's command for opening a page, and decides nothing it shows.
-            "SystemPageOpener",
             "TaskletSteps",
             "TemporaryFilesInTheWorkingDirectory",
             "TimedStatement",

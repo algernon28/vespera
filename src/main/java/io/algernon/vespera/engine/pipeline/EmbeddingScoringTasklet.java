@@ -116,7 +116,7 @@ class EmbeddingScoringTasklet implements Tasklet {
                 "stage 5's scoring step", stageRuns, seedGate, usableSeedGate);
         if (!preamble.isOpen()) {
             LOG.info(preamble.shutSentence().orElseThrow());
-            ShutGates.in(chunkContext).record(StepNames.EMBEDDING_SCORING);
+            ShutGates.in(chunkContext).record(StepNames.EMBEDDING_SCORING, preamble.key().orElse(null));
             return RepeatStatus.FINISHED;
         }
         String modelName = preamble.modelName().orElseThrow();

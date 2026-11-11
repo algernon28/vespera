@@ -51,7 +51,7 @@ class OperatorLinesTest {
     @Test
     @Story("The jar's own lines go through logback")
     @DisplayName("What is written to either writer is logged a line at a time, INFO for one and WARN for the other")
-    void whatIsWrittenToEitherWriterIsLoggedALineAtATime() {
+    void whatIsWrittenToEitherWriterIsLoggedALineAtATime() throws Exception {
         PrintWriter out = OperatorLines.out();
         out.println("first line");
         out.println("second line");
@@ -70,12 +70,12 @@ class OperatorLinesTest {
                     assertThat(logged.list).extracting(ILoggingEvent::getLevel)
                             .containsExactly(Level.INFO, Level.INFO, Level.INFO, Level.WARN);
                 });
+        // The logger's level is the second claim of this class, over a context of its own; one test method holds both,
+        // since the suite holds at most 700 (ADR-368).
+        theOperatorLoggerLogsAtInfoWhateverItsParentsLevel();
     }
 
-    @Test
-    @Story("The jar's own lines go through logback")
-    @DisplayName("The operator logger logs at INFO whatever level its parents are set to")
-    void theOperatorLoggerLogsAtInfoWhateverItsParentsLevel() throws Exception {
+    private void theOperatorLoggerLogsAtInfoWhateverItsParentsLevel() throws Exception {
         LoggerContext context = new LoggerContext();
         JoranConfigurator configurator = new JoranConfigurator();
         configurator.setContext(context);

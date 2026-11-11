@@ -32,4 +32,4 @@ It says nothing for a step that ended FAILED with no exception, which writes its
 | Method | What it holds |
 | --- | --- |
 | `pipeline.StepFailureClosingLineTest` | one line for a step that failed with an exception, naming the step and the cause; none for a completed step, for a step that failed without an exception, or for stage 1's archive gone |
-| `pipeline.TheClosingLineIsTheLastLineIT.aRunWhoseEmbeddingStepFailsPrintsItsClosingLineLast` | the packaged jar, Ollama answering every embed call with 500: exit 1, and the last line that is not blank names `embedding-scoring` as failed and not recorded as finished, ending on its advice |
+| `pipeline.TheReportLineEndsTheOutputIT.eachCommandEndsOnItsClosingLineThenTheReportLine` | among its invocations, the packaged jar, Ollama answering every embed call with 500: exit 1, and the closing line, the last line that is not blank and does not start `Report: `, names `embedding-scoring` as failed and not recorded as finished, ending on its advice |

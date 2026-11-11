@@ -114,12 +114,26 @@ class PublishToEachDestinationInTurnInvocationTest {
                 () -> {
                     assertThat(invocation.lines()).contains("err: " + CONFLUENCE + " stopped",
                             "out: " + WEBSITE + " delivered");
-                    assertThat(invocation.lines().getLast()).isEqualTo("out: " + WEBSITE + " delivered");
+                    assertThat(invocation.closingLine()).isEqualTo("out: " + WEBSITE + " delivered");
                 });
     }
 
     /** How one invocation ended: its exit, and every line it wrote, each after {@code out: } or {@code err: }. */
     private record Invocation(int exit, List<String> lines) {
+
+        /**
+         * The closing line: the last line that does not start {@code Report: }, the report line following it (ADR-362
+         * section 7). The console's logger puts its own prefix before a line it logs, which is read off.
+         */
+        String closingLine() {
+            return withoutReportLines().getLast();
+        }
+
+        /** Every line but the report's two, the first and the last, each starting {@code Report: } once the logger's prefix is read off. */
+        List<String> withoutReportLines() {
+            return lines.stream().filter(line -> !line.substring(line.indexOf(' ') + 1).replaceFirst("^.* - ", "")
+                    .startsWith("Report: ")).toList();
+        }
 
         List<String> errors() {
             return lines.stream().filter(line -> line.startsWith("err: ")).map(line -> line.substring(5)).toList();

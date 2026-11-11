@@ -1,7 +1,6 @@
 package io.algernon.vespera.ui;
 
 import java.io.IOException;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,7 +13,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import javafx.concurrent.Worker;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.CheckBoxTreeItem;
@@ -23,8 +21,6 @@ import javafx.scene.control.Spinner;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
-import javafx.scene.web.WebEngine;
-import javafx.scene.web.WebView;
 import javafx.stage.Stage;
 import org.assertj.core.api.Assumptions;
 
@@ -74,8 +70,8 @@ final class WindowForTests implements AutoCloseable {
     /**
      * The window over a corpus root {@code corpus} and a working directory {@code working} under {@code folder}, its
      * progress interval set to one second in Command options, as the operator can, the shortest it takes, and
-     * {@link SleepingJar}'s child started as Run starts it: so that a {@code progress.json} the test writes with
-     * {@link #progressWritten} is read within a second. The test is skipped where the child does not start.
+     * {@link SleepingJar}'s child started as Run starts it: so that a {@code report.json} the test writes with
+     * {@link #reportWritten} is read within a second. The test is skipped where the child does not start.
      */
     static WindowForTests readingEverySecond(Path folder) throws Exception {
         ControlPanelState state = aState(folder, SleepingJar.runtime());
@@ -83,7 +79,7 @@ final class WindowForTests implements AutoCloseable {
                 Files.createDirectories(folder.resolve("working")).toString(), "", "", "", "", "", ""));
         WindowForTests window = shown(state);
         try {
-            window.act(root -> intervalOf(root).getValueFactory().setValue(1));
+            window.readEverySecond();
             Optional<String> refusal = state.start(ControlPanelState.Start.RUN, new ArrayList<>());
             Assumptions.assumeThat(refusal).as("the sleeping child is started").isEmpty();
             return window;
@@ -93,9 +89,18 @@ final class WindowForTests implements AutoCloseable {
         }
     }
 
-    /** Writes {@code json} as the {@code progress.json} of the working directory {@link #readingEverySecond} reads under {@code folder}. */
-    static void progressWritten(Path folder, String json) throws IOException {
-        Files.writeString(folder.resolve("working").resolve(ProgressFile.FILE_NAME), json, StandardCharsets.UTF_8);
+    /**
+     * Writes {@code job}, the steps and charts a test describes (see {@link ReportFixtures}), as the {@code report.json}
+     * the child this window started has just written, in the working directory {@link #readingEverySecond} reads under
+     * {@code folder}.
+     */
+    void reportWritten(Path folder, String job) throws IOException {
+        ReportFixtures.write(folder.resolve("working"), state.watchedChild().orElseThrow().pid(), job);
+    }
+
+    /** Sets the progress interval to one second in Command options, as the operator can, the shortest it takes. */
+    void readEverySecond() throws Exception {
+        act(root -> intervalOf(root).getValueFactory().setValue(1));
     }
 
     @SuppressWarnings("unchecked")
@@ -178,35 +183,17 @@ final class WindowForTests implements AutoCloseable {
                 .filter(kind::isInstance).map(kind::cast).toList();
     }
 
-    /**
-     * What a report's tab of the window shows (ADR-344 §6): whether the tab is selected, the file its viewer is on, null
-     * before it is on any, the title of the page it shows, and whether that page has loaded.
-     */
-    record ReportTab(boolean selected, Path shows, String title, boolean loaded) {
+    /** What a report's tab of the window shows (ADR-362 §10): whether the tab is selected. */
+    record ReportTab(boolean selected) {
     }
 
-    /** The tab of {@code report}, a file name of the working directory, and what its viewer shows; empty where none is open. */
+    /** The tab of {@code report}, an analysis report's name, and whether it is selected; empty where none is open. */
     static Optional<ReportTab> reportTab(Parent root, String report) {
-        Optional<Tab> tab = HeadlessToolkit.tabWithId(root, "report-" + report);
+        Optional<Tab> tab = HeadlessToolkit.tabWithId(root, "analysis-report-" + report);
         if (tab.isEmpty()) {
             return Optional.empty();
         }
-        Optional<WebView> viewer = HeadlessToolkit.nodeWithId(root, "viewer-" + report)
-                .filter(WebView.class::isInstance).map(WebView.class::cast);
-        if (viewer.isEmpty()) {
-            return Optional.of(new ReportTab(tab.get().isSelected(), null, null, false));
-        }
-        WebEngine engine = viewer.get().getEngine();
-        String location = engine.getLocation();
-        Path shows = location == null || location.isEmpty() ? null : Path.of(URI.create(location.split("#", 2)[0]));
-        boolean loaded = engine.getLoadWorker().getState() == Worker.State.SUCCEEDED;
-        String title = loaded ? String.valueOf(engine.executeScript("document.title")) : null;
-        return Optional.of(new ReportTab(tab.get().isSelected(), shows, title, loaded));
-    }
-
-    /** Whether {@code report}'s tab is open and its viewer has loaded the page it is on. */
-    static boolean loaded(Optional<ReportTab> tab) {
-        return tab.isPresent() && tab.get().loaded();
+        return Optional.of(new ReportTab(tab.get().isSelected()));
     }
 
     /** The ids of the tabs of the pane the Profile tab stands in, in their order. */
@@ -221,12 +208,6 @@ final class WindowForTests implements AutoCloseable {
         every(root, id, Hyperlink.class).stream().filter(link -> report.equals(link.getText())).findFirst()
                 .orElseThrow(() -> new AssertionError("the window holds no link to " + report + " under " + id))
                 .fire();
-    }
-
-    /** Clicks, by the page's own script, the element whose id is {@code element} in the page {@code report}'s viewer shows. */
-    static void clickInsideTheReport(Parent root, String report, String element) {
-        node(root, "viewer-" + report, WebView.class).getEngine()
-                .executeScript("document.getElementById('" + element + "').click()");
     }
 
     @Override

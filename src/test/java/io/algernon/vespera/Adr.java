@@ -2602,6 +2602,10 @@ public final class Adr {
     public static final String THE_COCKPITS_STEPS_FOLD_INTO_THE_PROGRESS_PAGES_FOUR_LEGS =
             FILE + "0361-the-cockpits-steps-fold-into-the-progress-pages-four-legs-and-its-copy-of-their-table-is-held-to-the-pages-by-a-test.md";
 
+    /** ADR-362 -- an invocation's report is one JSON file, drawn as static HTML, and no command opens anything. */
+    public static final String AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE = FILE
+            + "0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md";
+
     /**
      * ADR-364 -- the output panel is copyable text of the whole output, from a file of its own, and every text of the
      * window is copyable; the banner is logged and every line the jar writes goes through logback (amends ADR-093,

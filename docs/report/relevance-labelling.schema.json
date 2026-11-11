@@ -1,0 +1,167 @@
+{
+  "type": "object",
+  "description": "The numbers of relevance-labelling.html, written beside it as relevance-labelling.json by the step that writes the page (ADR-362 section 9). It holds what the page shows: every number, and each document the page puts to a person by its path and its opening.",
+  "properties": {
+    "format": {
+      "type": "integer",
+      "const": 1,
+      "description": "The format of this JSON, raised by a change that removes, renames or changes the meaning or type of a field."
+    },
+    "analysisReport": {
+      "type": "string",
+      "const": "relevance-labelling",
+      "description": "The name of the report."
+    },
+    "title": {
+      "type": "string",
+      "description": "The page's title."
+    },
+    "writtenAt": {
+      "type": "string",
+      "description": "The instant it was written, ISO 8601 in UTC with Z, to the millisecond."
+    },
+    "headline": {
+      "type": "array",
+      "description": "The few numbers the page states first, in the page's order.",
+      "items": {
+        "type": "object",
+        "description": "One headline number.",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Which number: scored, the documents that carry a score; lowest and highest, the least and the most any scored; bands, how many the range is cut into; sampled, the documents put to a person; judged, the answers counted so far.",
+            "enum": ["scored", "lowest", "highest", "bands", "sampled", "judged"]
+          },
+          "label": {
+            "type": "string",
+            "description": "Its label."
+          },
+          "value": {
+            "type": "number",
+            "description": "Its value."
+          },
+          "unit": {
+            "type": "string",
+            "description": "Its unit: count for a number of documents or bands, number for a score.",
+            "enum": ["count", "share", "bytes", "seconds", "number"]
+          }
+        },
+        "required": ["key", "label", "value", "unit"],
+        "additionalProperties": false
+      }
+    },
+    "sections": {
+      "type": "array",
+      "description": "The page's parts in its order: the threshold not applied where there is one, how the scores are spread, if the bands look alike, what the answers say so far and what each cut would cost where any answer was given, and the documents to judge.",
+      "items": {
+        "type": "object",
+        "description": "One part of the page.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Which part.",
+            "enum": [
+              "threshold-not-applied",
+              "score-spread",
+              "if-the-bands-look-alike",
+              "what-the-answers-say-so-far",
+              "what-each-cut-would-cost",
+              "the-documents-to-judge"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "The part's heading."
+          },
+          "text": {
+            "type": "array",
+            "description": "Its paragraphs, in order.",
+            "items": {
+              "type": "string",
+              "description": "One paragraph, as plain text."
+            }
+          },
+          "chart": {
+            "type": ["object", "null"],
+            "description": "The chart drawn from the part's table, or null where it has none.",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "description": "How it is drawn.",
+                "enum": ["bars", "lines"]
+              },
+              "x": {
+                "type": "string",
+                "description": "The id of the column that is its horizontal axis."
+              },
+              "series": {
+                "type": "array",
+                "description": "The ids of the columns it draws.",
+                "items": {
+                  "type": "string",
+                  "description": "A column's id."
+                }
+              }
+            },
+            "required": ["kind", "x", "series"],
+            "additionalProperties": false
+          },
+          "table": {
+            "type": ["object", "null"],
+            "description": "The part's table, or null where it has none.",
+            "properties": {
+              "columns": {
+                "type": "array",
+                "description": "Its columns, in the page's order: band, from, to, documents, asked and short in the spread; band, judged and relevant in the answers so far; cut, surviving, judgedAbove, relevantAbove, discarded, judgedBelow and relevantBelow in the cuts; band, document, score, seed and opening in the documents to judge.",
+                "items": {
+                  "type": "object",
+                  "description": "One column.",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Its id.",
+                      "enum": [
+                        "band", "from", "to", "documents", "asked", "short",
+                        "judged", "relevant",
+                        "cut", "surviving", "judgedAbove", "relevantAbove", "discarded", "judgedBelow", "relevantBelow",
+                        "document", "score", "seed", "opening"
+                      ]
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "Its label."
+                    },
+                    "kind": {
+                      "type": "string",
+                      "description": "What its cells hold.",
+                      "enum": ["text", "count", "share", "number", "bytes", "seconds", "instant", "path", "analysisReport"]
+                    }
+                  },
+                  "required": ["id", "label", "kind"],
+                  "additionalProperties": false
+                }
+              },
+              "rows": {
+                "type": "array",
+                "description": "Its rows, in the page's order.",
+                "items": {
+                  "type": "array",
+                  "description": "One row: a cell for each column, in the columns' order.",
+                  "items": {
+                    "description": "One cell: text, a count or a number, by its column's kind."
+                  }
+                }
+              }
+            },
+            "required": ["columns", "rows"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "title", "text", "chart", "table"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["format", "analysisReport", "title", "writtenAt", "headline", "sections"],
+  "additionalProperties": false
+}

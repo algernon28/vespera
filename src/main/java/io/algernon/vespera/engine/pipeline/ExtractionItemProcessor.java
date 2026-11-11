@@ -190,8 +190,8 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
                                         ledger,
                                         extractionRun,
                                         page -> extractionMetrics.recordedAmong(extractionRun, page)));
-        // what this invocation takes in is what entered the step, for the progress page (ADR-268 section 2)
-        ProgressPage.entered(toRead);
+        // what this invocation takes in is what entered the step, for the report (ADR-268 section 2)
+        JobSampler.entered(toRead);
         this.progress = StageProgress.over("Stage 2 (extraction)", toRead);
     }
 

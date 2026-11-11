@@ -113,7 +113,7 @@ public class RedundancyJobConfiguration {
         // gate twice would let it shut on one reading of the file and word its sentence from another.
         NumericValue floor = redundancyGate.value();
         if (RedundancyGate.floorOf(floor).isEmpty()) {
-            new ShutGates(jobContext).record(StepNames.REDUNDANCY_SIGNATURE);
+            new ShutGates(jobContext).record(StepNames.REDUNDANCY_SIGNATURE, "boilerplateDocumentFrequencyFloor");
             logGateClosed(LoggerFactory.getLogger(RedundancyJobConfiguration.class), floor);
             return OccurrenceReader.yieldingNothing();
         }

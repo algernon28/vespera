@@ -65,8 +65,6 @@ class TheTreeInHtmlInvocationTest {
     /** One piece of writing stands behind this corpus's tree, however many invocations draw it. */
     private static final int ONE_RUN = 1;
 
-    /** How many times the index is opened in an invocation that writes the tree. */
-    private static final int ONCE = 1;
 
     /** Both of the corpus's documents. */
     private static final int BOTH = 2;
@@ -89,9 +87,6 @@ class TheTreeInHtmlInvocationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private RecordingPageOpener opener;
-
-    @Autowired
     private Ledger ledger;
 
     private ListAppender<ILoggingEvent> logged;
@@ -100,7 +95,6 @@ class TheTreeInHtmlInvocationTest {
     @BeforeEach
     void forgetWhatAnEarlierClassScripted() {
         GenerationScriptedBeans.forgetScriptedAnswers();
-        opener.forget();
         logged = new ListAppender<>();
         logged.start();
         applicationLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(APPLICATION_LOGGER);
@@ -111,7 +105,6 @@ class TheTreeInHtmlInvocationTest {
     @AfterEach
     void forgetWhatWasScripted() {
         GenerationScriptedBeans.forgetScriptedAnswers();
-        opener.forget();
         applicationLogger.detachAppender(logged);
         ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(logged);
         logged.stop();
@@ -218,11 +211,9 @@ class TheTreeInHtmlInvocationTest {
         return logged.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
     }
 
-    /** Every request the opener was given for a tree's index since it was last told to forget. */
-    private List<RecordingPageOpener.Request> indexRequests() {
-        return opener.requests().stream()
-                .filter(request -> request.page().getPath().endsWith("/index.html"))
-                .toList();
+    /** The last line that does not start Report: , which is the closing line, the report line following it (ADR-362 section 7). */
+    private String theClosingLine() {
+        return operatorLines().reversed().stream().filter(line -> !line.startsWith("Report: ")).findFirst().orElseThrow();
     }
 
     /** Whether the writing step is recorded finished under this corpus's one generation run. */

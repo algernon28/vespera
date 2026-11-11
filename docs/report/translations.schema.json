@@ -1,0 +1,186 @@
+{
+  "type": "object",
+  "description": "The translation report's JSON, translations.json (ADR-362 section 9), format 1: what translations.html shows, written beside it by the translation step.",
+  "properties": {
+    "format": {
+      "const": 1,
+      "description": "The report's format, the integer AnalysisReportJson.FORMAT holds; raised by a change that removes, renames or retypes a field."
+    },
+    "analysisReport": {
+      "const": "translations",
+      "description": "The report's name."
+    },
+    "title": {
+      "const": "Copies in another language",
+      "description": "The page's title."
+    },
+    "writtenAt": {
+      "type": "string",
+      "description": "The instant it was written, ISO 8601 in UTC to the millisecond."
+    },
+    "headline": {
+      "type": "array",
+      "description": "The numbers the page states first, in order: survivors, the survivors that entered the step; sets, the translation sets found; removed, the copies removed as translation-of. Numbers alone.",
+      "items": {
+        "type": "object",
+        "description": "One figure.",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Its key.",
+            "enum": [
+              "survivors",
+              "sets",
+              "removed"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "description": "Its label."
+          },
+          "value": {
+            "type": "number",
+            "description": "Its value."
+          },
+          "unit": {
+            "type": "string",
+            "description": "Its unit; every figure of this report is a count.",
+            "enum": [
+              "count",
+              "share",
+              "bytes",
+              "seconds",
+              "number"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "value",
+          "unit"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "sections": {
+      "type": "array",
+      "description": "The page's parts in its order: scoring, languages, paths, likenesses, sets and keys. The languages table has the columns language (text) and survivors (count); the likenesses table has similarity (number), likenesses (count), confirmed (count) and refuted (count); the others have no table.",
+      "items": {
+        "type": "object",
+        "description": "One part of the page.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Its id.",
+            "enum": [
+              "scoring",
+              "languages",
+              "paths",
+              "likenesses",
+              "sets",
+              "keys"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "Its title."
+          },
+          "text": {
+            "type": "array",
+            "description": "Its paragraphs.",
+            "items": {
+              "type": "string",
+              "description": "One paragraph."
+            }
+          },
+          "chart": {
+            "type": "null",
+            "description": "The page draws no chart."
+          },
+          "table": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Its table, null where it has none.",
+            "properties": {
+              "columns": {
+                "type": "array",
+                "description": "Its columns in the page's order.",
+                "items": {
+                  "type": "object",
+                  "description": "One column.",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Its id."
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "Its heading."
+                    },
+                    "kind": {
+                      "type": "string",
+                      "description": "Its kind.",
+                      "enum": [
+                        "text",
+                        "count",
+                        "share",
+                        "number",
+                        "bytes",
+                        "seconds",
+                        "instant",
+                        "path",
+                        "analysisReport"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "rows": {
+                "type": "array",
+                "description": "Its rows in the page's order, each a list of cells in the columns' order.",
+                "items": {
+                  "type": "array",
+                  "description": "One row.",
+                  "items": {
+                    "description": "One cell: a string for a text column, a number for the others."
+                  }
+                }
+              }
+            },
+            "required": [
+              "columns",
+              "rows"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "text",
+          "chart",
+          "table"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "format",
+    "analysisReport",
+    "title",
+    "writtenAt",
+    "headline",
+    "sections"
+  ],
+  "additionalProperties": false
+}

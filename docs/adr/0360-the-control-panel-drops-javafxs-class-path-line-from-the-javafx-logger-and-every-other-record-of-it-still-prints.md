@@ -127,7 +127,7 @@ The tests read the JavaFX the build declares, 26.0.2. A change of `javafx.versio
 | `…theLinesOpeningWordsAreAStringOfTheClassJavaFxStartsBy` | `PlatformImpl`'s constant pool holds the message's first words (§6) |
 | `controlpanel.TheControlPanelLinksNoClassOfTheJarTest.theControlPanelNamesOnlyTypesOfItsOwnPackageTheJdksBaseJavaFxAndJackson` | every class of the control panel but `ClassPathLine` names only its own package, `java.base`, `javafx.` packages and `tools.jackson` (§3) |
 | `…onlyTheClassPathLineNamesTheJdksLoggingModule` | `ClassPathLine` is there, and names only those and `java.logging` (§3) |
-| `CliExitIT.aJarThatCannotOpenTheWindowWritesNoLineOfJavaFxsAboutItsClassPath` | the packaged jar, started with no argument and a glass platform JavaFX does not have, writes ADR-342 §2's line and no line of the words (§1) |
+| `CliExitIT.aJarThatCannotOpenTheWindowWritesNoLineOfJavaFxsAboutItsClassPath` | the packaged jar, started with no argument, a display present and a glass platform JavaFX does not have (ADR-362 §1), writes ADR-342 §2's line and no line of the words (§1) |
 
 ## What the implementation owes
 
