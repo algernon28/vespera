@@ -41,8 +41,8 @@ import org.junit.jupiter.api.io.TempDir;
  * drawn on; and the state's words read as they did before, {@code running <N>%} included (ADR-365 §4, §5).
  *
  * <p>Each test draws the window from a first start's state on the Headless platform (ADR-342 §6), as
- * {@code TheControlPanelsWindowTest} does, and hands the steps chart, {@code steps}, files built by hand as the window
- * reads them, the way the cockpit hands it each reading. A row's state words are the part of its row right after the part
+ * {@code TheControlPanelsWindowTest} does, and hands the steps chart, {@code steps}, reports of {@code report.json}'s
+ * shape built by hand, their steps alone (ADR-362), the way the cockpit hands it each reading. A row's state words are the part of its row right after the part
  * that holds its bar, which reads the same whether the bar stands alone or with its percent; a leg's are
  * {@code leg-state-<leg>}.
  */
@@ -97,7 +97,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
         // one window a reading, so that no single turn on the toolkit outlasts its bound on a loaded machine
         Map<String, Seen> read = new LinkedHashMap<>();
         read.put("before any file", inTheWindow(EveryBarOfTheStepsCarriesItsPercentTest::seenIn));
-        for (Map.Entry<String, InvocationReportFile.Report> file : stepFiles().entrySet()) {
+        for (Map.Entry<String, InvocationReportFile.Report> file : stepReports().entrySet()) {
             read.put(file.getKey(), inTheWindow(root -> {
                 shown(root, file.getValue());
                 return seenIn(root);
@@ -168,24 +168,36 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
     @Story("The window says how far each step and each part has got")
     @DisplayName("A folded part's bar carries the whole percent of its bar, and an open part shows none")
     void aFoldedLegsBarCarriesTheWholePercentOfItsBarAndAnOpenLegsNone() throws Exception {
-        Map<String, Seen> read = inTheWindow(root -> {
-            Map<String, Seen> seen = new LinkedHashMap<>();
-            seen.put("before any file", seenIn(root));
-            shown(root, extractionAt(340, 1000));
-            seen.put("extraction at 340 of 1000", seenIn(root));
-            operatorFolds(root, "deduplication");
-            seen.put("deduplication folded by the operator", seenIn(root));
-            shown(root, contentRedundancyAtItsTotal());
-            seen.put("content redundancy at its total", seenIn(root));
-            shown(root, byteLevelReductionFailedAt3Of4());
-            seen.put("byte-level reduction failed at 3 of 4", seenIn(root));
-            shown(root, seedExtractionWithNoCounter());
-            operatorFolds(root, "translation");
-            seen.put("seed extraction with no counter, translation folded by the operator", seenIn(root));
-            shown(root, firstStoppedAtAGateInTranslation());
-            seen.put("first stopped at a gate in translation", seenIn(root));
-            return seen;
-        });
+        // one window, so that the operator's folds carry across readings, and one turn on the toolkit a reading
+        Map<String, Seen> read = new LinkedHashMap<>();
+        try (OpenWindow window = OpenWindow.drawn()) {
+            read.put("before any file", window.read(EveryBarOfTheStepsCarriesItsPercentTest::seenIn));
+            read.put("extraction at 340 of 1000", window.read(root -> {
+                shown(root, extractionAt(340, 1000));
+                return seenIn(root);
+            }));
+            read.put("deduplication folded by the operator", window.read(root -> {
+                operatorFolds(root, "deduplication");
+                return seenIn(root);
+            }));
+            read.put("content redundancy at its total", window.read(root -> {
+                shown(root, contentRedundancyAtItsTotal());
+                return seenIn(root);
+            }));
+            read.put("byte-level reduction failed at 3 of 4", window.read(root -> {
+                shown(root, byteLevelReductionFailedAt3Of4());
+                return seenIn(root);
+            }));
+            read.put("seed extraction with no counter, translation folded by the operator", window.read(root -> {
+                shown(root, seedExtractionWithNoCounter());
+                operatorFolds(root, "translation");
+                return seenIn(root);
+            }));
+            read.put("first stopped at a gate in translation", window.read(root -> {
+                shown(root, firstStoppedAtAGateInTranslation());
+                return seenIn(root);
+            }));
+        }
 
         claim("before any file is read, each of the four parts, folded, shows 0% on its bar",
                 () -> {
@@ -253,38 +265,46 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
     @Story("The window says how far each step and each part has got")
     @DisplayName("Each percent stands centred inside its bar, and the bars and the states keep their columns")
     void eachPercentStandsCentredOnItsBarAndTheBarsAndStatesKeepTheirColumns() throws Exception {
-        Layout layout = inTheWindow(root -> {
-            shown(root, extractionAt(375, 1000));
-            operatorFolds(root, "deduplication");
-            List<String> missing = new ArrayList<>();
-            Map<String, Placed> legs = new LinkedHashMap<>();
-            for (Legs.Leg leg : Legs.ALL) {
-                Optional<Node> percent = HeadlessToolkit.nodeWithId(root, "leg-percent-" + leg.name());
-                if (percent.isEmpty() || !shownOnScreen(percent.get())) {
-                    missing.add("leg-percent-" + leg.name());
-                    continue;
+        // one window, the folded reading and the opened reading each a turn of its own on the toolkit
+        List<String> missing = new ArrayList<>();
+        Map<String, Placed> legs = new LinkedHashMap<>();
+        Map<String, Placed> rows = new LinkedHashMap<>();
+        try (OpenWindow window = OpenWindow.drawn()) {
+            window.read(root -> {
+                shown(root, extractionAt(375, 1000));
+                operatorFolds(root, "deduplication");
+                for (Legs.Leg leg : Legs.ALL) {
+                    Optional<Node> percent = HeadlessToolkit.nodeWithId(root, "leg-percent-" + leg.name());
+                    if (percent.isEmpty() || !shownOnScreen(percent.get())) {
+                        missing.add("leg-percent-" + leg.name());
+                        continue;
+                    }
+                    legs.put(leg.name(), new Placed(
+                            inScene(WindowForTests.node(root, "leg-bar-" + leg.name(), Node.class)),
+                            inScene(percent.get()),
+                            inScene(WindowForTests.node(root, "leg-state-" + leg.name(), Node.class)).getMinX()));
                 }
-                legs.put(leg.name(), new Placed(inScene(WindowForTests.node(root, "leg-bar-" + leg.name(), Node.class)),
-                        inScene(percent.get()),
-                        inScene(WindowForTests.node(root, "leg-state-" + leg.name(), Node.class)).getMinX()));
-            }
-            for (Legs.Leg leg : Legs.ALL) {
-                WindowForTests.node(root, "leg-" + leg.name(), TitledPane.class).setExpanded(true);
-            }
-            root.applyCss();
-            root.layout();
-            Map<String, Placed> rows = new LinkedHashMap<>();
-            for (StopCosts.StopCost cost : StopCosts.ROWS) {
-                Optional<Node> percent = HeadlessToolkit.nodeWithId(root, "step-percent-" + cost.step());
-                if (percent.isEmpty() || !shownOnScreen(percent.get())) {
-                    missing.add("step-percent-" + cost.step());
-                    continue;
+                return null;
+            });
+            window.read(root -> {
+                for (Legs.Leg leg : Legs.ALL) {
+                    WindowForTests.node(root, "leg-" + leg.name(), TitledPane.class).setExpanded(true);
                 }
-                rows.put(cost.step(), new Placed(inScene(barOf(root, cost.step())), inScene(percent.get()),
-                        inScene(stateWordsNode(root, cost.step())).getMinX()));
-            }
-            return new Layout(legs, rows, missing);
-        });
+                root.applyCss();
+                root.layout();
+                for (StopCosts.StopCost cost : StopCosts.ROWS) {
+                    Optional<Node> percent = HeadlessToolkit.nodeWithId(root, "step-percent-" + cost.step());
+                    if (percent.isEmpty() || !shownOnScreen(percent.get())) {
+                        missing.add("step-percent-" + cost.step());
+                        continue;
+                    }
+                    rows.put(cost.step(), new Placed(inScene(barOf(root, cost.step())), inScene(percent.get()),
+                            inScene(stateWordsNode(root, cost.step())).getMinX()));
+                }
+                return null;
+            });
+        }
+        Layout layout = new Layout(legs, rows, missing);
 
         claim("every one of the four folded parts and, with every part opened, every one of the sixteen steps shows a"
                         + " percent on its bar",
@@ -367,6 +387,44 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                 stage.close();
             }
         });
+    }
+
+    /**
+     * A window drawn from a first start's state and shown, kept open across several turns on the toolkit, so that each
+     * reading is a turn of its own and none outlasts the toolkit's bound on a loaded machine, while what the operator
+     * folds carries from one reading to the next.
+     */
+    private record OpenWindow(Stage stage, Parent root) implements AutoCloseable {
+
+        static OpenWindow drawn() throws Exception {
+            ControlPanelState state = new ControlPanelState(
+                    new ChildRuntime(temporary.resolve("java"), temporary.resolve("vespera.jar")),
+                    temporary.resolve("launch-values.properties"),
+                    temporary.resolve("corpus-root-locks"),
+                    "tester");
+            return HeadlessToolkit.onTheToolkit(() -> {
+                Parent root = ControlPanelWindow.drawn(state);
+                Stage stage = new Stage();
+                stage.setScene(new Scene(root, WIDTH, HEIGHT));
+                stage.show();
+                root.applyCss();
+                root.layout();
+                return new OpenWindow(stage, root);
+            });
+        }
+
+        /** Answers what {@code reading} reads of the window, in a turn of its own on the toolkit. */
+        <T> T read(Function<Parent, T> reading) throws Exception {
+            return HeadlessToolkit.onTheToolkit(() -> reading.apply(root));
+        }
+
+        @Override
+        public void close() throws Exception {
+            HeadlessToolkit.onTheToolkit(() -> {
+                stage.close();
+                return null;
+            });
+        }
     }
 
     /** Hands the steps chart {@code progress}, as the cockpit does at each reading, and lays the window out again. */
@@ -512,16 +570,16 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
     // ---- the files the window reads
 
     /** The files {@link #eachStepsBarCarriesItsWholePercentAndItsStateWordsAreUnchanged} hands the chart, by name, in turn. */
-    private static Map<String, InvocationReportFile.Report> stepFiles() {
+    private static Map<String, InvocationReportFile.Report> stepReports() {
         Map<String, InvocationReportFile.Report> files = new LinkedHashMap<>();
         files.put("extraction at 375 of 1000", extractionAt(375, 1000));
         files.put("extraction at 29 of 100", extractionAt(29, 100));
         files.put("extraction at 2000 of 2000", extractionAt(2000, 2000));
-        files.put("extraction with no counter", progress(step("census", "finished", 10L, 10L),
+        files.put("extraction with no counter", reportOf(step("census", "finished", 10L, 10L),
                 step("byte-level-reduction", "finished", null, null), step("extraction", "running", null, null)));
         files.put("extraction at 5 of a total of 0", extractionAt(5, 0));
         files.put("byte-level reduction failed at 3 of 4", byteLevelReductionFailedAt3Of4());
-        files.put("census failed with no counter", progress(step("census", "failed", null, null),
+        files.put("census failed with no counter", reportOf(step("census", "failed", null, null),
                 step("byte-level-reduction", "not started", null, null)));
         files.put("first stopped at a gate in translation", firstStoppedAtAGateInTranslation());
         return files;
@@ -532,7 +590,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
      * with no count, and deduplication's three later steps not started; no later step named.
      */
     private static InvocationReportFile.Report extractionAt(long done, long total) {
-        return progress(step("census", "finished", 10L, 10L), step("byte-level-reduction", "finished", null, null),
+        return reportOf(step("census", "finished", 10L, 10L), step("byte-level-reduction", "finished", null, null),
                 step("extraction", "running", done, total), step("content-census", "not started", null, null),
                 step("redundancy-signature", "not started", null, null),
                 step("content-redundancy", "not started", null, null));
@@ -540,7 +598,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
 
     /** Deduplication's first five steps finished and content redundancy running at 2,000 of 2,000. */
     private static InvocationReportFile.Report contentRedundancyAtItsTotal() {
-        return progress(step("census", "finished", null, null), step("byte-level-reduction", "finished", null, null),
+        return reportOf(step("census", "finished", null, null), step("byte-level-reduction", "finished", null, null),
                 step("extraction", "finished", null, null), step("content-census", "finished", null, null),
                 step("redundancy-signature", "finished", null, null),
                 step("content-redundancy", "running", 2000L, 2000L));
@@ -582,7 +640,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
         return report(true, List.copyOf(steps));
     }
 
-    private static InvocationReportFile.Report progress(InvocationReportFile.Step... steps) {
+    private static InvocationReportFile.Report reportOf(InvocationReportFile.Step... steps) {
         return report(false, List.of(steps));
     }
 
