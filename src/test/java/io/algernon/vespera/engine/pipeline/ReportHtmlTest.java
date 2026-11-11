@@ -187,6 +187,45 @@ class ReportHtmlTest {
         claim("and drawn raw nowhere", () -> assertThat(page).doesNotContain("a<b").doesNotContain("c\"d"));
     }
 
+    @Test
+    @Story("A size of memory is written in powers of 1,024")
+    @DisplayName("A size is written in B, then KB from 1,024 bytes, MB, GB and TB, each 1,024 of the one before, and a count is not")
+    @Link(name = "ADR-371", url = Adr.A_SIZE_OF_MEMORY_IS_WRITTEN_IN_POWERS_OF_1024, type = "adr")
+    void aSizeOfMemoryIsWrittenInPowersOf1024() throws IOException {
+        claim("0, 1,023, 1,024, 2,050, 1,000,000, 1,234,567, 1,048,575 and 5 × 1,024⁴ bytes are written 0 B, 1,023 B,"
+                        + " 1.00 KB, 2.00 KB, 976.56 KB, 1.18 MB, 1.00 MB and 5.00 TB: each unit 1,024 of the one before,"
+                        + " and a value that rounds to 1,024.00 of a unit written in the next",
+                () -> assertThat(List.of(Sizes.size(0), Sizes.size(1_023), Sizes.size(1_024), Sizes.size(2_050),
+                        Sizes.size(1_000_000), Sizes.size(1_234_567), Sizes.size(1_048_575), Sizes.size(5L << 40)))
+                        .as("each size as written")
+                        .containsExactly("0 B", "1,023 B", "1.00 KB", "2.00 KB", "976.56 KB", "1.18 MB", "1.00 MB",
+                                "5.00 TB"));
+        claim("a value axis spanning 1,023, 1,024 and three times 1,024² bytes is in B, KB and MB",
+                () -> assertThat(List.of(Sizes.UNITS.get(Sizes.unitOfSpan(1_023)),
+                        Sizes.UNITS.get(Sizes.unitOfSpan(1_024)), Sizes.UNITS.get(Sizes.unitOfSpan(3 * 1_048_576.0))))
+                        .as("the unit of each span's axis").containsExactly("B", "KB", "MB"));
+
+        TheClock clock = new TheClock(T0);
+        InvocationReport report = aReport(workingDirectory, clock, "");
+        report.begins("run");
+        report.job(aJobOverBytes(1, 1_000, 2_050));
+        String page = page();
+        List<String> points = new ArrayList<>();
+        Matcher point = A_POINT.matcher(page);
+        while (point.find()) {
+            points.add(point.group(1));
+        }
+
+        claim("a job whose database grew from 1,000 to 2,050 bytes, on an axis in KB, draws the database tile as 2.00 KB",
+                () -> assertThat(page).as("report.html").contains("2.00 KB").doesNotContain("2.05 KB"));
+        claim("and its two points' titles as 1,000 B and 2.00 KB, each value multiplied back by 1,024",
+                () -> assertThat(points).as("the points' titles")
+                        .anySatisfy(title -> assertThat(title).endsWith(": 1,000 B"))
+                        .anySatisfy(title -> assertThat(title).endsWith(": 2.00 KB")));
+        claim("while a count of 51,732,300 verdicts is still grouped by thousands, never counted in 1,024",
+                () -> assertThat(page).as("report.html").contains("51,732,300"));
+    }
+
     // ---- the fixtures
 
     private InvocationReport aReport(Path directory, Clock clock, String template) {
@@ -254,12 +293,14 @@ class ReportHtmlTest {
                 new InvocationReport.Runs("none", List.of()), Map.of(), List.of());
     }
 
-    /** A job whose database is each of {@code bytes} in turn, at a second apart, on a chart in the unit that fits. */
-    private static InvocationReport.Reading aJobOverBytes(long... bytes) {
+    /**
+     * A job whose database is each of {@code bytes} in turn, at a second apart, on a chart whose axis is in {@code unit}
+     * of {@code B}, {@code KB} and {@code MB}, its values divided by that unit's power of 1,024, as the sampler writes
+     * them (ADR-371 §1).
+     */
+    private static InvocationReport.Reading aJobOverBytes(int unit, long... bytes) {
         InvocationReport.Reading base = aJob(false, 5, "2000");
-        long most = java.util.Arrays.stream(bytes).max().orElse(0);
-        int unit = most >= 1_000_000 ? 2 : most >= 1000 ? 1 : 0;
-        double divisor = Math.pow(1000, unit);
+        double divisor = Math.pow(1024, unit);
         List<Long> seconds = new ArrayList<>();
         double[] values = new double[bytes.length];
         for (int i = 0; i < bytes.length; i++) {

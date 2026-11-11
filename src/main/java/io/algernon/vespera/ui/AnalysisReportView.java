@@ -286,16 +286,29 @@ final class AnalysisReportView {
         return (stripped.scale() < 0 ? stripped.setScale(0) : stripped).toPlainString();
     }
 
+    /**
+     * A size of memory as the jar's {@code Sizes} writes it (ADR-371 §1), which ADR-285 §3 keeps this from linking: the
+     * largest of B, KB, MB, GB and TB, each 1,024 of the one before, whose value is at least 1, moved up where it would
+     * read 1,024.00; whole bytes in B, two decimals in any other unit, grouped by thousands.
+     */
     private static String bytes(BigDecimal value) {
         String[] units = {"B", "KB", "MB", "GB", "TB"};
-        BigDecimal thousand = BigDecimal.valueOf(1000);
-        BigDecimal shown = value;
+        BigDecimal base = BigDecimal.valueOf(1024);
+        BigDecimal magnitude = value.abs();
         int unit = 0;
-        while (shown.abs().compareTo(thousand) >= 0 && unit < units.length - 1) {
-            shown = shown.divide(thousand);
+        while (unit < units.length - 1 && magnitude.compareTo(base.pow(unit + 1)) >= 0) {
             unit++;
         }
-        return unit == 0 ? plain(shown) + " B" : shown.setScale(2, RoundingMode.HALF_UP).toPlainString() + " " + units[unit];
+        if (unit > 0 && unit < units.length - 1
+                && magnitude.divide(base.pow(unit), 2, RoundingMode.HALF_UP).compareTo(base) >= 0) {
+            unit++;
+        }
+        String sign = value.signum() < 0 ? "-" : "";
+        if (unit == 0) {
+            return sign + String.format(Locale.ROOT, "%,d", magnitude.setScale(0, RoundingMode.HALF_UP).toBigInteger()) + " B";
+        }
+        return sign + String.format(Locale.ROOT, "%,.2f", magnitude.divide(base.pow(unit), 2, RoundingMode.HALF_UP))
+                + " " + units[unit];
     }
 
     /** An instant in the machine's zone; the text where it is not one. */

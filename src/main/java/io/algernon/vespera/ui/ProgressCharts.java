@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.DoubleFunction;
+import java.util.regex.Pattern;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Side;
 import javafx.scene.Node;
@@ -16,9 +18,19 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
+import javafx.util.StringConverter;
 
 /** The progress page's three charts side by side, each drawn again whole at each reading (ADR-344 §1, ADR-365). */
 final class ProgressCharts extends HBox {
+
+    /** The title of a value axis whose unit is memory: it ends with a size's unit in parentheses (ADR-371 §3). */
+    private static final Pattern A_SIZES_AXIS = Pattern.compile("\\((B|KB|MB|GB|TB)\\)\\s*$");
+
+    /**
+     * The title of a value axis whose unit is time: it ends with a space and {@code (s)}, so that a plural marker, as in
+     * {@code Cluster(s)}, is not read as seconds (ADR-371 §4).
+     */
+    private static final Pattern A_TIME_AXIS = Pattern.compile("\\s\\(s\\)\\s*$");
 
     private final Map<String, LineChart<Number, Number>> charts = new LinkedHashMap<>();
 
@@ -31,11 +43,16 @@ final class ProgressCharts extends HBox {
 
     private LineChart<Number, Number> chart(String id, String title, String axis) {
         NumberAxis time = new NumberAxis();
-        time.setLabel("Elapsed (s)");
+        // each tick names its own unit, seconds, minutes or hours (ADR-371 §4)
+        time.setLabel("Elapsed");
         time.setForceZeroInRange(false);
+        // the unit follows the spacing of the ticks, so that two ticks side by side never read alike
+        time.setTickLabelFormatter(drawnAs(tick -> timeTick(tick, time.getTickUnit())));
         NumberAxis value = new NumberAxis();
         value.setLabel(axis);
         value.setForceZeroInRange(false);
+        // the title is the report's at each reading, so the rule follows the unit the jar chose
+        value.setTickLabelFormatter(drawnAs(tick -> tickText(value.getLabel(), tick, value.getTickUnit())));
         LineChart<Number, Number> chart = new LineChart<>(time, value);
         chart.setId(id);
         chart.setTitle(title);
@@ -47,6 +64,80 @@ final class ProgressCharts extends HBox {
         HBox.setHgrow(chart, Priority.ALWAYS);
         charts.put(id, chart);
         return chart;
+    }
+
+    /** A formatter that draws each tick as {@code text} writes it; a tick label is never read back. */
+    private static StringConverter<Number> drawnAs(DoubleFunction<String> text) {
+        return new StringConverter<>() {
+            @Override
+            public String toString(Number tick) {
+                return text.apply(tick.doubleValue());
+            }
+
+            @Override
+            public Number fromString(String label) {
+                throw new UnsupportedOperationException("tick labels are only drawn");
+            }
+        };
+    }
+
+    /**
+     * A value tick of an axis titled {@code axisTitle}: on a size's axis, whose title ends with {@code (B)}, {@code (KB)},
+     * {@code (MB)}, {@code (GB)} or {@code (TB)}, a plain number in that unit, grouped by thousands, to two decimals at
+     * most (ADR-371 §3); on an axis of time, whose title ends with a space and {@code (s)}, {@link #timeTick in seconds,
+     * minutes and hours}, by the ticks' {@code spacing} (§4); on any other, {@link #shortened shortened}.
+     */
+    static String tickText(String axisTitle, double tick, double spacing) {
+        if (axisTitle != null && A_SIZES_AXIS.matcher(axisTitle).find()) {
+            return trimmed(String.format(Locale.ROOT, "%,.2f", tick));
+        }
+        if (axisTitle != null && A_TIME_AXIS.matcher(axisTitle).find()) {
+            return timeTick(tick, spacing);
+        }
+        return shortened(tick);
+    }
+
+    /** As {@link #tickText(String, double, double)}, for an axis that is not one of time. */
+    static String tickText(String axisTitle, double tick) {
+        return tickText(axisTitle, tick, 0);
+    }
+
+    /**
+     * A tick of time, {@code seconds} into the job, on an axis ticked every {@code spacing} seconds (ADR-371 §4): in the
+     * largest of {@code s}, {@code min} and {@code h} in which the spacing is at least 1, so that two ticks side by side
+     * never read alike, to one decimal at most, grouped by thousands. A spacing not above 0 reads in seconds.
+     */
+    static String timeTick(double seconds, double spacing) {
+        String[] units = {"s", "min", "h"};
+        double[] lengths = {1, 60, 3_600};
+        int unit = 0;
+        while (unit < units.length - 1 && spacing / lengths[unit + 1] >= 1) {
+            unit++;
+        }
+        String sign = seconds < 0 ? "-" : "";
+        return sign + trimmed(String.format(Locale.ROOT, "%,.1f", Math.abs(seconds) / lengths[unit])) + " " + units[unit];
+    }
+
+    /** A value axis tick shortened: 1.5K from 1,500, 2M from 2,000,000, then B and T; below 1,000 as it is. */
+    static String shortened(double value) {
+        double magnitude = Math.abs(value);
+        String sign = value < 0 ? "-" : "";
+        if (magnitude < 1000) {
+            return sign + trimmed(String.format(Locale.ROOT, "%.2f", magnitude));
+        }
+        String[] suffixes = {"K", "M", "B", "T"};
+        double scaled = magnitude / 1000;
+        int step = 0;
+        // 999,950 rounds to 1000.0K at one decimal, so it moves up to 1M
+        while (Math.round(scaled * 10) >= 10_000 && step < suffixes.length - 1) {
+            scaled /= 1000;
+            step++;
+        }
+        return sign + trimmed(String.format(Locale.ROOT, "%.1f", scaled)) + suffixes[step];
+    }
+
+    private static String trimmed(String decimal) {
+        return decimal.contains(".") ? decimal.replaceAll("0+$", "").replaceAll("\\.$", "") : decimal;
     }
 
     /** Draws each chart from the chart of the progress page that has its id, or empties it where the page has none. */

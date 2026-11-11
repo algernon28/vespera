@@ -74,7 +74,6 @@ final class JobSampler implements JobExecutionListener {
             "^(" + StageProgress.LABEL_SHAPE + "): ([0-9,]+)(?: of ([0-9,]+) \\([0-9]+%\\)| so far)$");
 
 
-    private static final String[] SIZE_UNITS = {"B", "KB", "MB", "GB", "TB"};
 
 
     private static final String DATABASE_FILE = "vespera.db";
@@ -568,16 +567,13 @@ final class JobSampler implements JobExecutionListener {
         double span = Math.max(most - min, 1);
         double lo = Math.max(0, min - (span - (most - min)) / 2 - span * 0.05);
         double hi = most + (span - (most - min)) / 2 + span * 0.05;
-        // the axis is written in the largest unit in which its span is at least 1
-        int unit = 0;
-        while (unit < SIZE_UNITS.length - 1 && (hi - lo) / Math.pow(1000, unit + 1) >= 1) {
-            unit++;
-        }
-        double divisor = Math.pow(1000, unit);
+        // the axis is written in the largest unit in which its span is at least 1, in powers of 1,024 (ADR-371 §1)
+        int unit = Sizes.unitOfSpan(hi - lo);
+        double divisor = Sizes.divisor(unit);
         return new ChartData(
                 "database",
                 "Database size over time",
-                "Database size (" + SIZE_UNITS[unit] + ")",
+                "Database size (" + Sizes.UNITS.get(unit) + ")",
                 samples.stream().map(Sample::seconds).toList(),
                 List.of(new Line("size", Arrays.stream(values).map(v -> v / divisor).toArray())));
     }

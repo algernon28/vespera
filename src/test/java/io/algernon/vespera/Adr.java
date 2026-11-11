@@ -2639,6 +2639,15 @@ public final class Adr {
     public static final String EVERY_BAR_OF_THE_COCKPITS_STEPS_CARRIES_ITS_PERCENT =
             FILE + "0370-every-bar-of-the-cockpits-steps-carries-its-whole-percent-drawn-on-it-and-nothing-else-of-the-window-changes.md";
 
+    /**
+     * ADR-371 -- a size of memory is written in {@code B}, {@code KB}, {@code MB}, {@code GB} and {@code TB}, each 1,024
+     * of the one before, and a count stays in powers of 1,000; the cockpit shortens a value tick to {@code K}, {@code M},
+     * {@code B} and {@code T} except on an axis titled with a size's unit, and writes a tick of time in {@code s},
+     * {@code min} or {@code h}, the unit chosen from the ticks' spacing (amends ADR-268 §6).
+     */
+    public static final String A_SIZE_OF_MEMORY_IS_WRITTEN_IN_POWERS_OF_1024 =
+            FILE + "0371-a-size-of-memory-is-written-in-powers-of-1024-and-only-a-count-axis-of-the-cockpit-is-shortened-to-k-m-b-and-t.md";
+
     private Adr() {
     }
 }
