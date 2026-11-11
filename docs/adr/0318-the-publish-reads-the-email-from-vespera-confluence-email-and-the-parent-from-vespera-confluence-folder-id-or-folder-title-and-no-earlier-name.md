@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-359](0359-the-publish-reads-its-confluence-values-from-the-profile-and-the-control-panel-passes-the-token-to-its-child-alone.md).** §1's email is read from `VESPERA_CONFLUENCE_EMAIL` or, where it is not set, from the profile's `confluenceEmail`, and the parent from the profile's `confluenceFolderId` or `confluenceFolderTitle` where the shell names neither. The names, §2 and §3 stand.
 
+> **Partly amended — see [ADR-372](0372-a-publish-the-control-panel-started-refuses-a-parent-named-twice-or-a-wrong-address-naming-the-profile-keys.md).** Of §3: a parent named by both is refused naming `VESPERA_CONFLUENCE_FOLDER_ID` and `VESPERA_CONFLUENCE_FOLDER_TITLE` on the command line; started by the control panel the refusal names `confluenceFolderId` and `confluenceFolderTitle` and the Profile tab. The rest of §3 stands.
+
 - **Date**: 2026-10-22
 - **Status**: accepted on 2026-10-22.
 - **Supersedes**: [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md) §3, in the names of three of its five values alone: the account's email is read from `VESPERA_CONFLUENCE_EMAIL`, not `VESPERA_CONFLUENCE_USER`; the parent by its id from the property `vespera.confluence.folder-id`, set by `VESPERA_CONFLUENCE_FOLDER_ID`, not `vespera.confluence.parent-id` and `VESPERA_CONFLUENCE_PARENT_ID`; and the parent by its title from the property `vespera.confluence.folder-title`, set by `VESPERA_CONFLUENCE_FOLDER_TITLE`, not `vespera.confluence.parent-title` and `VESPERA_CONFLUENCE_PARENT_TITLE` (§1, §2).

@@ -2648,6 +2648,14 @@ public final class Adr {
     public static final String A_SIZE_OF_MEMORY_IS_WRITTEN_IN_POWERS_OF_1024 =
             FILE + "0371-a-size-of-memory-is-written-in-powers-of-1024-and-only-a-count-axis-of-the-cockpit-is-shortened-to-k-m-b-and-t.md";
 
+    /**
+     * ADR-372 -- a publish the control panel started refuses a parent named both by id and by title, and an address
+     * that is not a Cloud site's, naming the profile's keys and the Profile tab and no {@code VESPERA_CONFLUENCE_*}
+     * variable; on the command line both lines are unchanged (amends ADR-359 §4 and ADR-318 §3).
+     */
+    public static final String THE_CONTROL_PANELS_PUBLISH_NAMES_THE_PROFILE_KEYS_FOR_A_PARENT_NAMED_TWICE_OR_A_WRONG_ADDRESS =
+            FILE + "0372-a-publish-the-control-panel-started-refuses-a-parent-named-twice-or-a-wrong-address-naming-the-profile-keys.md";
+
     private Adr() {
     }
 }
