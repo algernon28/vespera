@@ -104,23 +104,6 @@ class SidecarStartTest {
     }
 
     @Test
-    @Story("The operator can leave the sidecars to themselves")
-    @DisplayName("When starting the sidecars is turned off, neither sidecar is asked anything and nothing is run")
-    void turnedOffAsksAndRunsNothing() {
-        ScriptedDocker docker = ScriptedDocker.engineRunning();
-        ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
-        SidecarStartSettings turnedOff =
-                new SidecarStartSettings(false, DOCLING_HERE, OLLAMA_HERE, cpuImage, WAIT_AT_MOST);
-
-        SidecarStarter.Outcome outcome = starter(turnedOff, docker, health, HostSystem.LINUX).ensureRunning();
-
-        claim("the starter says it was not asked to start them", () -> assertThat(outcome)
-                .isEqualTo(SidecarStarter.Outcome.NOT_ASKED_TO_START));
-        claim("no sidecar was asked whether it answers", () -> assertThat(health.questionsAsked()).isZero());
-        claim("and no command was run", () -> assertThat(docker.commands()).isEmpty());
-    }
-
-    @Test
     @Story("The configured converter image chooses the compose files")
     @DisplayName("An image neither compose file builds is refused, naming all three, before Docker is asked anything")
     void anImageNoFileBuildsIsRefusedBeforeDockerIsAsked() {

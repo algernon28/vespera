@@ -243,6 +243,12 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "StepFailure",
             "StepFailureClosingLine",
             "StepNames",
+            // ADR-364: the jar's own lines and the closing lines a tasklet records for after its step are logged on
+            // the operator logger; neither decides a verdict, a cache key, a cluster or text of the deliverable.
+            "OperatorLines",
+            "RecordedClosingLines",
+            "InvocationOutput",
+            "InvocationOutputAppender",
             // ADR-250: the survivor list reads who survived and what was measured, and decides neither.
             "SurvivorListListener",
             "SurvivorListReport",

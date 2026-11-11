@@ -33,7 +33,7 @@ public class MisshapenProfileRefusal implements SpringBootExceptionReporter {
         if (misshapen == null) {
             return false;
         }
-        System.err.println(misshapen.getMessage());
+        OperatorLines.warn(misshapen.getMessage());
         return true;
     }
 

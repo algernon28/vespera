@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Optional;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
-import javafx.scene.control.Label;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
@@ -21,7 +20,7 @@ final class InclusionsTab {
     private final Runnable saved;
     private final NotRelevantPane notRelevant;
     private final InclusionsTree inclusions = new InclusionsTree();
-    private final Label inclusionsOutcome = new Label();
+    private final SelectableText.Wrapping inclusionsOutcome = SelectableText.wrapping("");
     private List<String> notWalkedListed = List.of();
 
     /** {@code saved} runs after a Save has written the profile. */
@@ -44,11 +43,9 @@ final class InclusionsTab {
             inclusionsOutcome.setText("the tree is back to profile.yaml as last saved");
         });
         inclusionsOutcome.setId("inclusions-outcome");
-        inclusionsOutcome.setWrapText(true);
         VBox.setVgrow(inclusions.view(), Priority.ALWAYS);
-        Label words = new Label("Untick a folder holding nothing you want. An unticked folder is never read, and a"
-                + " change makes the next walk another, so every run after it is new.");
-        words.setWrapText(true);
+        SelectableText.Wrapping words = SelectableText.wrapping("Untick a folder holding nothing you want. An unticked folder is never read,"
+                + " and a change makes the next walk another, so every run after it is new.");
         VBox content = new VBox(words, inclusions.view(), inclusionsOutcome, row(save, reset), notRelevant.pane());
         content.getStyleClass().add("tab-content");
         return content;

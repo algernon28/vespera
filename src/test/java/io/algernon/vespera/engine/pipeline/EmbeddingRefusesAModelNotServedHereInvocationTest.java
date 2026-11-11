@@ -66,6 +66,10 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-197", url = Adr.A_LOCAL_MODEL_LABELS_AND_THE_FLOOR_IS_A_RULE, type = "adr")
 class EmbeddingRefusesAModelNotServedHereInvocationTest {
 
+    /** A line in the console's pattern, {@code HH:mm:ss.SSS LEVEL ...}, which a closing line is no longer (ADR-364 section 4). */
+    private static final java.util.regex.Pattern IN_THE_CONSOLES_PATTERN =
+            java.util.regex.Pattern.compile("^\\d{2}:\\d{2}:\\d{2}\\.\\d{3} .*");
+
     /** What the refusal line calls this stage, so an operator reading the log knows which one stopped. */
     private static final String THE_STAGE = "stage 5's scoring step";
 
@@ -118,9 +122,11 @@ class EmbeddingRefusesAModelNotServedHereInvocationTest {
         howOllamaAnswers.accept(embeddingModel);
         aCorpusScoredUnder(root, seeds, embeddingModel);
         int before = output.getAll().length();
+        int beforeErr = output.getErr().length();
 
         cli.run("run", root.toString());
         String said = output.getAll().substring(before);
+        String saidOnError = output.getErr().substring(beforeErr);
 
         CharSequence[] otherReasons =
                 EVERY_REASON.stream().filter(other -> !other.equals(reason)).toArray(CharSequence[]::new);
@@ -134,7 +140,7 @@ class EmbeddingRefusesAModelNotServedHereInvocationTest {
         claim(
                 "exactly one line, at error level, names " + THE_STAGE + " and the embedding model "
                         + embeddingModel + " and says \"" + reason + "\", and no stack trace stands in its place",
-                () -> oneErrorLineSays(said, embeddingModel, reason));
+                () -> oneErrorLineSays(said, saidOnError, embeddingModel, reason));
         claim(
                 "and no line naming it gives another of the reasons a model is refused: an operator who"
                         + " mistyped embeddingModel is told the name is not served here, and not that its"
@@ -193,7 +199,7 @@ class EmbeddingRefusesAModelNotServedHereInvocationTest {
      * Exactly one line names {@code model} and says {@code reason}, it is at error level, it names the
      * stage, and nothing printed a stack trace.
      */
-    private static void oneErrorLineSays(String said, String model, String reason) {
+    private static void oneErrorLineSays(String said, String saidOnError, String model, String reason) {
         List<String> lines = said.lines()
                 .filter(line -> line.contains(model) && line.contains(reason))
                 .toList();
@@ -201,8 +207,9 @@ class EmbeddingRefusesAModelNotServedHereInvocationTest {
                 .as("the lines naming %s and saying \"%s\"", model, reason)
                 .hasSize(1);
         assertThat(lines.getFirst())
-                .as("the one line naming %s", model)
-                .matches("^\\S+ ERROR .*")
+                .as("the one line naming %s, on standard error as its words alone", model)
+                .doesNotMatch(IN_THE_CONSOLES_PATTERN)
+                .isIn(saidOnError.lines().toList())
                 .contains(THE_STAGE);
         assertThat(said).as("what the invocation printed").doesNotContain(A_STACK_FRAME);
     }

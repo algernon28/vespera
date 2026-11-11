@@ -6,6 +6,10 @@
   one id across invocations) — correlation across lines is by run/walk/occurrence id in the message
   text, not by filename.
 
+  ADR-364. The jar's own lines (refusals, closing lines, the lines of label and publish) go through the logger
+  io.algernon.vespera.operator, which reads on the stream as their words alone and is in vespera.log as well; the
+  invocation's output file, logs/output-<invocation>.log, holds what the invocation writes to its streams (sections 2, 3).
+
   ${vespera.working-dir} is the same Spring property WorkingDirectoryPreparer resolves and the
   application's own beans (@Value("${vespera.working-dir}")) read; Logback's Spring extension exposes
   it here via springProperty so this file needs no separate configuration of its own.
@@ -48,19 +52,98 @@
         </encoder>
     </appender>
 
+    <!--
+      ADR-364 sections 2 and 3. Each invocation's output file, logs/output-<invocation>.log: one sink, which the three
+      appenders below write to, holding what is logged before the invocation begins and writing each line as it comes
+      once InvocationReport begins it with the id it mints. In the console's pattern for the root and the two library
+      loggers, held at WARN as on the console; the jar's own lines as their words alone.
+    -->
+    <appender name="OUTPUT" class="io.algernon.vespera.engine.pipeline.InvocationOutputAppender">
+        <folder>${workingDir}/logs</folder>
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="OUTPUT_WARN" class="io.algernon.vespera.engine.pipeline.InvocationOutputAppender">
+        <folder>${workingDir}/logs</folder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>WARN</level>
+        </filter>
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="OUTPUT_OPERATOR" class="io.algernon.vespera.engine.pipeline.InvocationOutputAppender">
+        <folder>${workingDir}/logs</folder>
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%msg%n</pattern>
+        </encoder>
+    </appender>
+
     <logger name="com.zaxxer.hikari" additivity="false">
         <appender-ref ref="CONSOLE_WARN"/>
         <appender-ref ref="FILE"/>
+        <appender-ref ref="OUTPUT_WARN"/>
     </logger>
 
     <logger name="org.springframework.batch.core.launch.support.TaskExecutorJobLauncher" additivity="false">
         <appender-ref ref="CONSOLE_WARN"/>
         <appender-ref ref="FILE"/>
+        <appender-ref ref="OUTPUT_WARN"/>
+    </logger>
+
+
+    <!--
+      ADR-364 section 4. The jar's own lines, its refusals, its closing lines and the lines of label and publish,
+      are logged on a logger of their own and read, on the stream, as their words alone: a line printed on standard
+      output is logged at INFO and one printed on standard error at WARN, and a closing line logged at ERROR is on
+      standard error. The charsets are the streams' own, so the bytes of a line on a console that is not UTF-8 are
+      what println wrote. The logger is at INFO whatever the level of its parents, and adds to none of them.
+    -->
+    <appender name="OPERATOR" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>WARN</level>
+            <onMatch>DENY</onMatch>
+            <onMismatch>NEUTRAL</onMismatch>
+        </filter>
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>ERROR</level>
+            <onMatch>DENY</onMatch>
+            <onMismatch>NEUTRAL</onMismatch>
+        </filter>
+        <encoder>
+            <charset>${stdout.encoding:-UTF-8}</charset>
+            <pattern>%msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="OPERATOR_WARN" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.err</target>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>WARN</level>
+        </filter>
+        <encoder>
+            <charset>${stderr.encoding:-UTF-8}</charset>
+            <pattern>%msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="io.algernon.vespera.operator" level="INFO" additivity="false">
+        <appender-ref ref="OPERATOR"/>
+        <appender-ref ref="OPERATOR_WARN"/>
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="OUTPUT_OPERATOR"/>
     </logger>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="FILE"/>
+        <appender-ref ref="OUTPUT"/>
     </root>
 
 </configuration>

@@ -17,7 +17,6 @@ import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Hyperlink;
-import javafx.scene.control.Label;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.control.TextField;
@@ -46,7 +45,7 @@ final class ProfileRow {
     private final String idPrefix;
     private final VBox node = new VBox();
     private final TextField note = new TextField();
-    private final Label inUse = new Label();
+    private final SelectableText.Wrapping inUse = SelectableText.wrapping("");
     private final HBox links = new HBox();
     private Consumer<String> opensReport;
     private Supplier<String> value = () -> "";
@@ -68,17 +67,16 @@ final class ProfileRow {
         this.idPrefix = idPrefix;
         node.getStyleClass().add("profile-row");
         node.setId(idPrefix + "row-" + key.key());
-        Label title = new Label(nameOf(key));
+        SelectableText.Line title = SelectableText.line(nameOf(key));
         title.getStyleClass().add("key-name");
-        Label small = new Label(key.key());
+        SelectableText.Line small = SelectableText.line(key.key());
         small.getStyleClass().add("small");
-        Label about = new Label(key.about() + " Read from " + key.hint() + ".");
-        about.setWrapText(true);
+        SelectableText.Wrapping about = SelectableText.wrapping(key.about() + " Read from " + key.hint() + ".");
         about.getStyleClass().add("dim");
         node.getChildren().addAll(title, small, about);
         if (key == ProfileKey.CODE_SET_FOLDERS
                 || ((key == ProfileKey.SEED_FOLDER || key == ProfileKey.FOLDERS_NOT_WALKED) && opensSection != null)) {
-            Label shown = new Label();
+            SelectableText.Line shown = SelectableText.line("");
             shown.setId(idPrefix + key.key());
             Hyperlink opens = new Hyperlink(key == ProfileKey.FOLDERS_NOT_WALKED ? "Edit it in the Inclusions tab"
                     : "Edit it in its section");
@@ -93,8 +91,7 @@ final class ProfileRow {
                 + said.source() + ")"));
         inUse.getStyleClass().add("small");
         node.getChildren().add(inUse);
-        Label cost = new Label(costOf(key));
-        cost.setWrapText(true);
+        SelectableText.Wrapping cost = SelectableText.wrapping(costOf(key));
         cost.getStyleClass().add("small");
         node.getChildren().add(cost);
         this.opensReport = opensReport;
@@ -103,13 +100,12 @@ final class ProfileRow {
             node.getChildren().add(links);
             showReports(reportsWritten);
         }
-        Label noteLabel = new Label("Note saved with it");
+        SelectableText.Line noteLabel = SelectableText.line("Note saved with it");
         note.setId(idPrefix + key.key() + ".provenance");
         note.setPromptText(ProfileEdit.FILLED_IN_NOTE);
         HBox.setHgrow(note, Priority.ALWAYS);
-        Label hint = new Label("Saved beside the value in profile.yaml so that whoever reads it later knows where the"
-                + " value came from. You may write how you chose the value instead.");
-        hint.setWrapText(true);
+        SelectableText.Wrapping hint = SelectableText.wrapping("Saved beside the value in profile.yaml so that whoever reads it later knows"
+                + " where the value came from. You may write how you chose the value instead.");
         hint.getStyleClass().add("small");
         HBox noteLine = spaced(noteLabel, note);
         node.getChildren().addAll(noteLine, hint);
@@ -117,14 +113,14 @@ final class ProfileRow {
 
     /** Draws the key's reports, each a link where the working directory holds it and grey where it does not (ADR-344 §6). */
     void showReports(Map<String, Boolean> written) {
-        links.getChildren().setAll(new Label("Reports:"));
+        links.getChildren().setAll(SelectableText.line("Reports:"));
         for (String report : Reports.OF_A_KEY.getOrDefault(key.key(), List.of())) {
             if (written.getOrDefault(report, false)) {
                 Hyperlink link = new Hyperlink(report);
                 link.setOnAction(event -> opensReport.accept(report));
                 links.getChildren().add(link);
             } else {
-                Label grey = new Label(report + " (not written yet)");
+                SelectableText.Line grey = SelectableText.line(report + " (not written yet)");
                 grey.getStyleClass().add("grey");
                 links.getChildren().add(grey);
             }
@@ -241,7 +237,7 @@ final class ProfileRow {
         return switch (key.kind()) {
             case NUMBER -> numberControl();
             case NAME_ENDINGS, LANGUAGES -> listControl();
-            case FOLDERS, CORPUS_FOLDERS -> new Label();
+            case FOLDERS, CORPUS_FOLDERS -> SelectableText.line("");
             case TEXT -> switch (key) {
                 case EMBEDDING_MODEL, GENERATION_MODEL -> choice(models);
                 case ARRANGEMENT_APPROVED -> choice(List.of("auto"));

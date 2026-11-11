@@ -25,8 +25,7 @@ import javafx.scene.Parent;
 import javafx.scene.control.Accordion;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
-import javafx.scene.control.Label;
-import javafx.scene.control.ListView;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SplitPane;
@@ -57,16 +56,17 @@ final class Cockpit {
     private final Dialogs dialogs;
     private final BorderPane root = new BorderPane();
 
-    private final Label where = new Label();
-    private final Label child = new Label();
-    private final Label outcome = new Label();
+    private final SelectableText.Line where = SelectableText.line("");
+    private final SelectableText.Line child = SelectableText.line("");
+    private final SelectableText.Wrapping outcome = SelectableText.wrapping("");
     private final Button run = new Button("Run");
     private final Button stop = new Button("Stop");
     private final Button publish = new Button("Publish");
     private final Button label = new Button("Record my answers");
     private final Button labelAuto = new Button("Let the local model answer");
     private final HBox actions = new HBox();
-    private final ListView<String> output = new ListView<>();
+    private final TextArea output = new TextArea();
+    private final OutputPanel outputPanel = new OutputPanel(output);
     private final TabPane tabs = new TabPane();
     private final Tab profileTab = new Tab("Profile");
     private final Tab inclusionsTab = new Tab("Inclusions");
@@ -74,7 +74,7 @@ final class Cockpit {
     private final Map<String, TitledPane> sections = new LinkedHashMap<>();
     private final Map<String, LaunchField> fields = new LinkedHashMap<>();
     private final HBox publishTo = new HBox();
-    private final Label seedOutcome = new Label();
+    private final SelectableText.Wrapping seedOutcome = SelectableText.wrapping("");
     private final WorkingFolders folders = new WorkingFolders(this::workingDirectory, this::corpusRoot);
     private final StepsChart steps = new StepsChart(this::stopAfterConfirming);
     private final ProgressCharts charts = new ProgressCharts();
@@ -104,7 +104,6 @@ final class Cockpit {
     private boolean wasShown;
     private Timeline timeline;
     private Ending wantedFor;
-    private List<String> lastOutput = List.of();
 
     Cockpit(ControlPanelState state, Dialogs dialogs) {
         this.state = state;
@@ -148,7 +147,6 @@ final class Cockpit {
         where.setId("where");
         child.setId("child");
         outcome.setId("outcome");
-        outcome.setWrapText(true);
         outcome.getStyleClass().add("outcome");
 
         run.setId("run");
@@ -165,12 +163,10 @@ final class Cockpit {
         publishTo.getStyleClass().add("spaced-row");
         actions.getChildren().addAll(run, stop, publishTo);
         actions.getStyleClass().add("actions");
-        Label recordWords = new Label("You answered in relevance-labels.yaml, and this saves those answers for the next"
-                + " Run.");
-        Label autoWords = new Label();
+        SelectableText.Wrapping recordWords = SelectableText.wrapping("You answered in relevance-labels.yaml, and this saves those answers"
+                + " for the next Run.");
+        SelectableText.Wrapping autoWords = SelectableText.wrapping("");
         autoWords.setId("label-auto-words");
-        autoWords.setWrapText(true);
-        recordWords.setWrapText(true);
         fields.get("vespera.label.model").input.textProperty().addListener(
                 (observed, was, now) -> autoWords.setText(autoSentence(now)));
         autoWords.setText(autoSentence(fields.get("vespera.label.model").text()));
@@ -355,10 +351,10 @@ final class Cockpit {
     }
 
     private Node fieldBox(LaunchField field, String name, boolean browse) {
-        Label heading = new Label(name);
+        SelectableText.Line heading = SelectableText.line(name);
         heading.getStyleClass().add("field-name");
-        Label hint = new Label(LaunchValues.hintOf(field.property));
-        hint.setWrapText(true);
+        SelectableText.Wrapping hint = SelectableText.wrapping(LaunchValues.hintOf(field.property));
+        hint.setId("hint-" + field.property);
         hint.getStyleClass().add("small");
         HBox line = row(field.input);
         HBox.setHgrow(field.input, Priority.ALWAYS);
@@ -417,8 +413,8 @@ final class Cockpit {
         for (RadioButton radio : List.of(gpu, cpu, other)) {
             radio.setToggleGroup(group);
         }
-        Label gpuName = new Label(StartingValues.DOCLING_IMAGE_GPU);
-        Label cpuName = new Label(StartingValues.DOCLING_IMAGE_CPU);
+        SelectableText.Line gpuName = SelectableText.line(StartingValues.DOCLING_IMAGE_GPU);
+        SelectableText.Line cpuName = SelectableText.line(StartingValues.DOCLING_IMAGE_CPU);
         gpuName.getStyleClass().add("small");
         cpuName.getStyleClass().add("small");
         other.setVisible(false);
@@ -437,10 +433,10 @@ final class Cockpit {
         follow.run();
         VBox images = tight(gpu, gpuName, cpu, cpuName, other);
         images.setId("docling-images");
-        Label hint = new Label(LaunchValues.hintOf(image.property));
-        hint.setWrapText(true);
+        SelectableText.Wrapping hint = SelectableText.wrapping(LaunchValues.hintOf(image.property));
+        hint.setId("hint-" + image.property);
         hint.getStyleClass().add("small");
-        VBox pane = new VBox(new Label("Converter's image"), images, image.input, image.startingLine, hint,
+        VBox pane = new VBox(SelectableText.line("Converter's image"), images, image.input, image.startingLine, hint,
                 fieldBox(converter, "Converter's address", false), fieldBox(ollama, "Ollama's address", false),
                 fieldBox(model, "Label model", false));
         pane.getStyleClass().add("section");
@@ -453,7 +449,6 @@ final class Cockpit {
         Button save = new Button("Save");
         save.setId("seed-folder-save");
         seedOutcome.setId("seed-folder-outcome");
-        seedOutcome.setWrapText(true);
         save.setOnAction(event -> {
             ProfileRow.Saved saved = ProfileRow.save(state, workingDirectory(), List.of(seedRow));
             seedOutcome.setText(saved.line());
@@ -593,15 +588,8 @@ final class Cockpit {
         }
         drawDestinations(drawnDestinations);
         child.setText(childWords(runs, ending));
-        List<String> tail = state.tail();
-        if (!tail.equals(lastOutput)) {
-            lastOutput = tail;
-            output.getItems().setAll(tail);
-            if (!tail.isEmpty()) {
-                output.scrollTo(tail.size() - 1);
-            }
-        }
         readReport(runs, ending, holders);
+        outputPanel.tick(state::held);
         child.setText(childWords(runs, ending));
         if (ending.isPresent() && ending.get() != wantedFor) {
             wantedFor = ending.get();
@@ -679,6 +667,11 @@ final class Cockpit {
         }
         boolean fresh = !who.equals(watching);
         if (fresh) {
+            if (ownChild) {
+                outputPanel.showsTheChild();
+            } else {
+                outputPanel.showsNoChild();
+            }
             watching = who;
             watchedReportDrawn = false;
             lastDrawn = null;
@@ -730,6 +723,7 @@ final class Cockpit {
                 closingOfItsReport = report.closing();
                 howItEnded = childWords(false, endingOfItsChild);
             }
+            outputPanel.fileNamedBy(folder, invocation.id(), state::letGo);
             steps.show(report);
             charts.show(report);
             live.shows(report, Instant.now(), childEnded, howItEnded);

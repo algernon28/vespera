@@ -2,7 +2,6 @@ package io.algernon.vespera.ui;
 
 import javafx.geometry.Pos;
 import javafx.scene.Node;
-import javafx.scene.control.Label;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -35,13 +34,13 @@ final class ThemeSwitch {
             dark.setAlignment(now ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
             state.keepDark(now);
         });
-        Label lightWords = new Label("Light");
+        SelectableText.Line lightWords = SelectableText.line("Light");
         lightWords.setOnMouseClicked(event -> dark.setSelected(false));
-        Label darkWords = new Label("Dark");
+        SelectableText.Line darkWords = SelectableText.line("Dark");
         darkWords.setOnMouseClicked(event -> dark.setSelected(true));
         HBox switchRow = new HBox(8, lightWords, dark, darkWords);
         switchRow.setAlignment(Pos.CENTER);
-        Label themeWords = new Label("Theme");
+        SelectableText.Line themeWords = SelectableText.line("Theme");
         themeWords.getStyleClass().add("field-name");
         VBox themeBox = new VBox(4, themeWords, switchRow);
         themeBox.setAlignment(Pos.TOP_CENTER);

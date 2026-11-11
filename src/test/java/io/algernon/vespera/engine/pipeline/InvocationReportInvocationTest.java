@@ -132,11 +132,13 @@ class InvocationReportInvocationTest {
         logged.start();
         rootLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
         rootLogger.addAppender(logged);
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).addAppender(logged);
     }
 
     @AfterEach
     void releaseTheLinesAndPutAProfileBack() throws IOException {
         rootLogger.detachAppender(logged);
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(logged);
         logged.stop();
         System.clearProperty(DisplayPresence.HEADLESS_PROPERTY);
         removeTheReports();

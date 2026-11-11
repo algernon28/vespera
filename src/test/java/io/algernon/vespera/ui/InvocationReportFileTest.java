@@ -15,7 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import javafx.scene.control.Label;
+import javafx.scene.control.TextInputControl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -51,9 +51,9 @@ class InvocationReportFileTest {
             Files.writeString(working.resolve(InvocationReportFile.FILE_NAME), ReportFixtures.reportOf(THE_JOB,
                     window.state.watchedChild().orElseThrow().pid(), Instant.now().truncatedTo(ChronoUnit.MILLIS),
                     Instant.now(), 1).replace("\"format\":1", "\"format\":" + ANOTHER_FORMAT), StandardCharsets.UTF_8);
-            outcome = window.awaiting(root -> WindowForTests.node(root, "outcome", Label.class).getText(),
+            outcome = window.awaiting(root -> WindowForTests.node(root, "outcome", TextInputControl.class).getText(),
                     text -> !text.isEmpty());
-            status = window.read(root -> WindowForTests.node(root, "report-status", Label.class).getText());
+            status = window.read(root -> WindowForTests.node(root, "report-status", TextInputControl.class).getText());
         }
 
         claim("read refuses a report whose format is " + ANOTHER_FORMAT + " and says which format it is",
