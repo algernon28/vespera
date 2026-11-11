@@ -2630,6 +2630,15 @@ public final class Adr {
     public static final String THE_JARS_PACKAGES_LIE_UNDER_ENGINE_PUBLISH_AND_UI =
             FILE + "0367-the-jars-packages-lie-under-engine-publish-and-ui-and-the-eleven-modules-keep-their-names.md";
 
+    /**
+     * ADR-370 -- every bar of the cockpit's steps, each row's and each leg's summary's, carries its whole percent drawn
+     * centred on it, {@code step-percent-<name>} and {@code leg-percent-<leg>}, the percent of the bar it is drawn on, in
+     * the theme's ink with a halo of its surface; the state's words and every other part of the window are unchanged
+     * (amends ADR-344 §1, ADR-361 §3, §4 and §7 and two of ADR-365's refused alternatives).
+     */
+    public static final String EVERY_BAR_OF_THE_COCKPITS_STEPS_CARRIES_ITS_PERCENT =
+            FILE + "0370-every-bar-of-the-cockpits-steps-carries-its-whole-percent-drawn-on-it-and-nothing-else-of-the-window-changes.md";
+
     private Adr() {
     }
 }
