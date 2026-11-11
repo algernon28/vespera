@@ -71,8 +71,6 @@ final class ReportHtml {
     private static final int TIMELINE_ROW = 24;
     private static final long RATE_SECONDS = 600;
 
-    private static final String[] SIZE_UNITS = {"B", "KB", "MB", "GB", "TB"};
-
     /** The dash of each series after the first: a second line of equal values is seen beside the first. */
     private static final String[] DASHES = {"", "6 4", "2 3", "8 3 2 3", "1 4"};
 
@@ -301,27 +299,9 @@ final class ReportHtml {
         return String.format(Locale.ROOT, "%,d", value);
     }
 
-    private static int unitOf(double bytes) {
-        int unit = 0;
-        double value = bytes;
-        while (unit < SIZE_UNITS.length - 1 && value >= 1000) {
-            value /= 1000;
-            unit++;
-            if (unit < SIZE_UNITS.length - 1 && Math.round(value * 100) >= 100_000) {
-                value /= 1000;
-                unit++;
-            }
-        }
-        return unit;
-    }
-
-    /** A size in the largest unit of B, KB, MB, GB and TB whose value is at least 1 (ADR-268 section 6). */
+    /** A size in the largest unit of B, KB, MB, GB and TB whose value is at least 1, in powers of 1,024 (ADR-371 §1). */
     static String size(long bytes) {
-        int unit = unitOf(bytes);
-        if (unit == 0) {
-            return count(bytes) + " B";
-        }
-        return String.format(Locale.ROOT, "%,.2f", bytes / Math.pow(1000, unit)) + " " + SIZE_UNITS[unit];
+        return Sizes.size(bytes);
     }
 
     private static String clockTime(Duration duration) {
@@ -481,7 +461,7 @@ final class ReportHtml {
             if (seconds.size() < 2 || lines.isEmpty()) {
                 return null;
             }
-            double divisor = Math.pow(1000, unitIndex(str(chart.get("axis"))));
+            double divisor = Sizes.divisor(unitIndex(str(chart.get("axis"))));
             List<Object> values = asList(asMap(lines.getFirst()).get("values"));
             int latest = seconds.size() - 1;
             int base = 0;
@@ -516,7 +496,7 @@ final class ReportHtml {
         if (!unit.find()) {
             return 0;
         }
-        return Arrays.asList(SIZE_UNITS).indexOf(unit.group(1));
+        return Sizes.unitNamed(unit.group(1));
     }
 
     // ---- the timeline
@@ -677,7 +657,7 @@ final class ReportHtml {
         }
         boolean sizes = "database".equals(id);
         int unit = sizes ? unitIndex(str(chart.get("axis"))) : 0;
-        double divisor = Math.pow(1000, unit);
+        double divisor = Sizes.divisor(unit);
         DoubleFunction<String> show = sizes ? v -> size(Math.round(v * divisor)) : v -> count(Math.round(v));
         Axis axis;
         if (sizes) {

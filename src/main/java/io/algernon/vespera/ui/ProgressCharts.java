@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Side;
 import javafx.scene.Node;
@@ -20,6 +21,9 @@ import javafx.util.StringConverter;
 
 /** The progress page's three charts side by side, each drawn again whole at each reading (ADR-344 §1, ADR-365). */
 final class ProgressCharts extends HBox {
+
+    /** The title of a value axis whose unit is memory: it ends with a size's unit in parentheses (ADR-371 §3). */
+    private static final Pattern A_SIZES_AXIS = Pattern.compile("\\((B|KB|MB|GB|TB)\\)\\s*$");
 
     private final Map<String, LineChart<Number, Number>> charts = new LinkedHashMap<>();
 
@@ -40,7 +44,8 @@ final class ProgressCharts extends HBox {
         value.setTickLabelFormatter(new StringConverter<>() {
             @Override
             public String toString(Number tick) {
-                return shortened(tick.doubleValue());
+                // the title is the report's at each reading, so the rule follows the unit the jar chose
+                return tickText(value.getLabel(), tick.doubleValue());
             }
 
             @Override
@@ -59,6 +64,18 @@ final class ProgressCharts extends HBox {
         HBox.setHgrow(chart, Priority.ALWAYS);
         charts.put(id, chart);
         return chart;
+    }
+
+    /**
+     * A value tick of an axis titled {@code axisTitle} (ADR-371 §3): on a size's axis, whose title ends with {@code (B)},
+     * {@code (KB)}, {@code (MB)}, {@code (GB)} or {@code (TB)}, a plain number in that unit, grouped by thousands, to two
+     * decimals at most; on any other, {@link #shortened shortened}.
+     */
+    static String tickText(String axisTitle, double tick) {
+        if (axisTitle != null && A_SIZES_AXIS.matcher(axisTitle).find()) {
+            return trimmed(String.format(Locale.ROOT, "%,.2f", tick));
+        }
+        return shortened(tick);
     }
 
     /** A value axis tick shortened: 1.5K from 1,500, 2M from 2,000,000, then B and T; below 1,000 as it is. */
