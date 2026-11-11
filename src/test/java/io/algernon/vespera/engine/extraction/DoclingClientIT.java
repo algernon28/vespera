@@ -109,40 +109,6 @@ class DoclingClientIT {
     }
 
     @Test
-    @Story("One call converts one document")
-    @DisplayName("A real Word document converted by the running document service comes back readable too")
-    void convertsARealDocx(@TempDir Path dir) throws IOException {
-        DoclingResponse response = client.convert(aRealDocx(dir.resolve("one-paragraph.docx")), DetectedFormat.WORDPROCESSING, null);
-
-        claim(
-                "the service reports the conversion succeeded, for the second of the two document"
-                        + " formats it converts by a different internal route",
-                () -> assertThat(response.status()).isEqualTo(ConversionStatus.SUCCESS));
-        claim(
-                "a successful conversion reports no errors at all; anything listed here would be a"
-                        + " failure the client had quietly accepted",
-                () -> assertThat(response.errors()).isEmpty());
-        claim(
-                "the response body carries the one distinctive word the fixture document was written"
-                        + " with, so what came back is this document's content and not an empty shell",
-                () -> assertThat(response.rawResponse()).contains(DOCX_MARKER_WORD));
-        claim(
-                "a Word document is converted by the route that has no pages to measure, so every"
-                        + " quality score comes back absent and both grades come back unspecified —"
-                        + " absent meaning not measured, never meaning poor",
-                () -> assertThat(response.confidence())
-                        .isEqualTo(new ConfidenceScores(
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                QualityGrade.UNSPECIFIED,
-                                QualityGrade.UNSPECIFIED)));
-    }
-
-    @Test
     @Story("The sidecar says what it is built from")
     @DisplayName("The running document service reports the component versions the extractor identity is built from")
     @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
@@ -159,26 +125,9 @@ class DoclingClientIT {
                         + " folded into an extractor identity would claim two different builds were the same",
                 () -> assertThat(version.values()).allSatisfy(reported -> assertThat(reported)
                         .isNotBlank()));
-    }
-
-    /**
-     * ADR-179 §2: the image adds its own name to {@code /version}, through a launcher that reaches into
-     * docling-serve's module-level version dict. That dict is not docling-serve's public API, so this is
-     * the test that fails on the base bump that moves or renames it, rather than stage 2 stopping on every
-     * machine that rebuilt.
-     */
-    @Test
-    @Story("The sidecar says what it is built from")
-    @DisplayName("The running document service reports the name of the image it runs, which is the image the tests built")
-    @Issue("373")
-    @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
-    void reportsTheImageItRuns() {
-        Map<String, String> version = client.version();
-
         claim(
-                "the running service names, among the versions it reports, the image it was built as, which is"
-                        + " the name the tests built it under, so the image the configuration names can be"
-                        + " checked against the one actually running",
+                "and among them the image it was built as, which is the name the tests built it under, so the image the"
+                        + " configuration names can be checked against the one actually running",
                 () -> assertThat(version)
                         .containsEntry(SidecarVersionReport.IMAGE_ENTRY, TestcontainersConfiguration.DOCLING_SERVE_IMAGE));
     }

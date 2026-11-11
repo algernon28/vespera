@@ -26,12 +26,25 @@ public final class Child {
 
     public static final int TAIL_LINES = 200;
 
+    /** How many lines read are held for the output panel at most until it lets them go (ADR-364 section 7). */
+    public static final int HELD_LINES = 10_000;
+
+    /** The lines held, the last of {@code lines} being line {@code count} of every line read since the start. */
+    public record Held(long count, List<String> lines) {
+        public Held {
+            lines = List.copyOf(lines);
+        }
+    }
+
     public static final String STOP_CONFIRMATION =
             "Stopping loses the work done since the running step's last commit, and the next vespera run continues"
                     + " from there.";
 
     private final Process process;
     private final Deque<String> tail = new ArrayDeque<>();
+    private final Deque<String> held = new ArrayDeque<>();
+    private long count;
+    private boolean letGo;
     private final Thread reader;
     private final AtomicBoolean stoppedByItsOwnStop = new AtomicBoolean();
 
@@ -56,6 +69,21 @@ public final class Child {
     public List<String> tail() {
         synchronized (tail) {
             return List.copyOf(tail);
+        }
+    }
+
+    /** Every line read since the start that is still held, and how many have been read (ADR-364 section 7). */
+    public Held held() {
+        synchronized (tail) {
+            return new Held(count, List.copyOf(held));
+        }
+    }
+
+    /** Lets the held lines go, and holds no line read after: the panel shows the output file from now on. */
+    public void letGo() {
+        synchronized (tail) {
+            letGo = true;
+            held.clear();
         }
     }
 
@@ -130,6 +158,13 @@ public final class Child {
                     tail.addLast(line);
                     if (tail.size() > TAIL_LINES) {
                         tail.removeFirst();
+                    }
+                    count++;
+                    if (!letGo) {
+                        held.addLast(line);
+                        if (held.size() > HELD_LINES) {
+                            held.removeFirst();
+                        }
                     }
                 }
             }

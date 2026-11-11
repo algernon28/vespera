@@ -163,7 +163,10 @@ class RecordedClosingLinesTest {
                     int stop = lines.indexOf("the stop the tasklet recorded");
                     assertThat(stop).isPositive();
                     assertThat(lines.get(stop - 1)).doesNotContain("the stop the tasklet recorded");
-                    assertThat(lines.getLast()).startsWith("Step " + THE_STEP + " failed and is not recorded as finished");
+                    assertThat(lines.getLast())
+                            .startsWith("Step " + THE_STEP + " failed and is not recorded as finished: ")
+                            .contains("the commit failed")
+                            .endsWith(" Fix what that names and run the same command again.");
                     assertThat(lines.indexOf(lines.getLast())).isGreaterThan(stop);
                     assertThat(lines.indexOf(lines.stream().filter(line -> line.contains("executed in")).findFirst().orElseThrow()))
                             .isLessThan(stop);

@@ -25,7 +25,7 @@ import javafx.scene.Parent;
 import javafx.scene.control.Accordion;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
-import javafx.scene.control.ListView;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SplitPane;
@@ -65,7 +65,8 @@ final class Cockpit {
     private final Button label = new Button("Record my answers");
     private final Button labelAuto = new Button("Let the local model answer");
     private final HBox actions = new HBox();
-    private final ListView<String> output = new ListView<>();
+    private final TextArea output = new TextArea();
+    private final OutputPanel outputPanel = new OutputPanel(output);
     private final TabPane tabs = new TabPane();
     private final Tab profileTab = new Tab("Profile");
     private final Tab inclusionsTab = new Tab("Inclusions");
@@ -103,7 +104,6 @@ final class Cockpit {
     private boolean wasShown;
     private Timeline timeline;
     private Ending wantedFor;
-    private List<String> lastOutput = List.of();
 
     Cockpit(ControlPanelState state, Dialogs dialogs) {
         this.state = state;
@@ -588,15 +588,8 @@ final class Cockpit {
         }
         drawDestinations(drawnDestinations);
         child.setText(childWords(runs, ending));
-        List<String> tail = state.tail();
-        if (!tail.equals(lastOutput)) {
-            lastOutput = tail;
-            output.getItems().setAll(tail);
-            if (!tail.isEmpty()) {
-                output.scrollTo(tail.size() - 1);
-            }
-        }
         readReport(runs, ending, holders);
+        outputPanel.tick(state::held);
         child.setText(childWords(runs, ending));
         if (ending.isPresent() && ending.get() != wantedFor) {
             wantedFor = ending.get();
@@ -674,6 +667,11 @@ final class Cockpit {
         }
         boolean fresh = !who.equals(watching);
         if (fresh) {
+            if (ownChild) {
+                outputPanel.showsTheChild();
+            } else {
+                outputPanel.showsNoChild();
+            }
             watching = who;
             watchedReportDrawn = false;
             lastDrawn = null;
@@ -725,6 +723,7 @@ final class Cockpit {
                 closingOfItsReport = report.closing();
                 howItEnded = childWords(false, endingOfItsChild);
             }
+            outputPanel.fileNamedBy(folder, invocation.id(), state::letGo);
             steps.show(report);
             charts.show(report);
             live.shows(report, Instant.now(), childEnded, howItEnded);
