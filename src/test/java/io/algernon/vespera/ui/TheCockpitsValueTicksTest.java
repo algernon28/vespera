@@ -9,6 +9,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,5 +39,12 @@ class TheCockpitsValueTicksTest {
                         ProgressCharts.tickText("Database size (MB)", 51_700),
                         ProgressCharts.tickText("Database size (KB)", 1.5)))
                         .as("each tick of a size axis").containsExactly("51,700,000,000", "51,700", "1.5"));
+        claim("an analysis report's value in bytes, as the window's own tab shows it, is counted in 1,024 as the page"
+                        + " counts it: 512, 2,050, 1,030,000, 1,048,575 and -2,050 bytes read 512 B, 2.00 KB, 1,005.86 KB,"
+                        + " 1.00 MB and -2.00 KB",
+                () -> assertThat(List.of(512L, 2_050L, 1_030_000L, 1_048_575L, -2_050L).stream()
+                        .map(bytes -> AnalysisReportView.number(BigDecimal.valueOf(bytes), "bytes")).toList())
+                        .as("each value in bytes on the analysis report's tab")
+                        .containsExactly("512 B", "2.00 KB", "1,005.86 KB", "1.00 MB", "-2.00 KB"));
     }
 }

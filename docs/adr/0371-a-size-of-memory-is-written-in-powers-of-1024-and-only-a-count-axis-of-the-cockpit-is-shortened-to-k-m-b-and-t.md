@@ -18,11 +18,11 @@ ADR-268 §6 wrote a size in the largest of `B`, `KB`, `MB`, `GB` and `TB` whose 
 
 A size is written in the largest of `B`, `KB`, `MB`, `GB` and `TB`, **each 1,024 of the one before**, whose value is at least 1: bytes as a whole number, every other unit to two decimal places, grouped by thousands. A value that rounds to 1,024.00 of a unit is written in the next. So 0, 1,023, 1,024, 2,050 and 1,234,567 bytes are `0 B`, `1,023 B`, `1.00 KB`, `2.00 KB` and `1.18 MB`; 1,048,575 bytes, 1,023.999 KB, is `1.00 MB`; and 5 × 1,024⁴ bytes is `5.00 TB`. Between 1,000 and 1,024 of a unit a size stays in it, grouped: 1,000,000 bytes are `976.56 KB`, and 1,030,000 bytes are `1,005.86 KB`.
 
-The value axis of a size is written in the largest of the five in which its span, margins included, is at least 1, counted the same way: a span of 1,023 bytes is an axis in `B`, of 1,024 bytes in `KB`, of three times 1,024² in `MB`. The sampler titles the axis in that unit and writes the values divided by its power of 1,024, and the page multiplies them back by it. One rule writes them all, `Sizes` in `engine.pipeline`, which the sampler and the page both call.
+The value axis of a size is written in the largest of the five in which its span, margins included, is at least 1, counted the same way: a span of 1,023 bytes is an axis in `B`, of 1,024 bytes in `KB`, of three times 1,024² in `MB`. The sampler titles the axis in that unit and writes the values divided by its power of 1,024, and the page multiplies them back by it. One rule writes them all in the jar, `Sizes` in `engine.pipeline`, which the sampler and the page both call. The control panel's tab of an analysis report writes a value in `bytes` by the same rule, held in `ui`, since it links no class of the jar (ADR-285 §3), so that the tab shows what the report's page shows (ADR-362 §10): 2,050 bytes are `2.00 KB` on both.
 
 ### 2. Only a size is counted in 1,024
 
-A count, a share, seconds and a number are written as before, in powers of 1,000 where they are grouped. Only a value whose unit is memory, the database's size, its growth and an analysis report's value in `bytes`, is counted in 1,024.
+A count, a share, seconds and a number are written as before, in powers of 1,000 where they are grouped. Of the values the report and the control panel's tabs write, only those whose unit is memory, the database's size, its growth and an analysis report's value in `bytes`, wherever each is drawn, are counted in 1,024.
 
 ### 3. The cockpit shortens the ticks of an axis that is not a size
 
@@ -47,14 +47,15 @@ Where the cockpit draws a chart whose value axis is not a size, each tick reads 
 
 - The decimals the report's page gives a memory axis's ticks, which ADR-268 §6 sets.
 - Any other chart of the cockpit; [#794](https://github.com/algernon28/vespera/issues/794) asks what each stage's chart plots.
+- Two other values of memory, which a later record may bring under §1: the counter line of a model's pull, `megabytes pulled`, in millions of bytes (ADR-329 §5), and the control panel's free space, in `GiB` (ADR-331 §6).
 
 ## Tests
 
 | Method | What it holds |
 | --- | --- |
 | `pipeline.ReportHtmlTest.aSizeOfMemoryIsWrittenInPowersOf1024` | §1, §2: 0, 1,023, 1,024, 2,050, 1,000,000, 1,234,567, 1,048,575 and 5 × 1,024⁴ bytes are `0 B`, `1,023 B`, `1.00 KB`, `2.00 KB`, `976.56 KB`, `1.18 MB`, `1.00 MB` and `5.00 TB`; a span of 1,023, 1,024 and three times 1,024² bytes is an axis in `B`, `KB` and `MB`; a job whose database grew from 1,000 to 2,050 bytes on an axis in `KB` draws the tile `2.00 KB` and its two points' titles `1,000 B` and `2.00 KB`; and a count of 51,732,300 verdicts is still grouped by thousands, `51,732,300` |
-| `ui.TheCockpitsValueTicksTest.aCountTickIsShortenedAndASizeTickIsNot` | §3: on an axis titled `Done (count)`, 2.5, 999, 1,500, 2,000,000, 999,950 and 3,000,000,000,000 read `2.5`, `999`, `1.5K`, `2M`, `1M` and `3T`; on axes titled `Database size (B)`, `Database size (MB)` and `Database size (KB)`, 51,700,000,000, 51,700 and 1.5 read `51,700,000,000`, `51,700` and `1.5` |
+| `ui.TheCockpitsValueTicksTest.aCountTickIsShortenedAndASizeTickIsNot` | §3: on an axis titled `Done (count)`, 2.5, 999, 1,500, 2,000,000, 999,950 and 3,000,000,000,000 read `2.5`, `999`, `1.5K`, `2M`, `1M` and `3T`; on axes titled `Database size (B)`, `Database size (MB)` and `Database size (KB)`, 51,700,000,000, 51,700 and 1.5 read `51,700,000,000`, `51,700` and `1.5`; and §1: on the control panel's tab of an analysis report, 512, 2,050, 1,030,000, 1,048,575 and -2,050 bytes read `512 B`, `2.00 KB`, `1,005.86 KB`, `1.00 MB` and `-2.00 KB` |
 
 ## What the implementation owes
 
-Beside the tests above, which it turns green, the change adds `Sizes` to `engine.pipeline`, listed in `PipelineHoldsOnlyTheRulesOnRecordTest` as deciding no verdict, cache key, cluster or text of the deliverable, and has `ReportHtml` and `JobSampler` call it for every size, unit and divisor; gives `ProgressCharts` a tick formatter that reads its axis's title at each tick; and puts a note at ADR-268's head.
+Beside the tests above, which it turns green, the change adds `Sizes` to `engine.pipeline`, listed in `PipelineHoldsOnlyTheRulesOnRecordTest` as deciding no verdict, cache key, cluster or text of the deliverable, and has `ReportHtml` and `JobSampler` call it for every size, unit and divisor; writes the same rule in `AnalysisReportView` of `ui` for a value in `bytes`; gives `ProgressCharts` a tick formatter that reads its axis's title at each tick; and puts a note at ADR-268's head.
