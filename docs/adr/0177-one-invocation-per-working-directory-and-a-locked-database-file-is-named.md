@@ -8,6 +8,8 @@
 
 > **Partly amended — see [ADR-333](0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** Of §1's "Every invocation takes": `vespera serve` takes no lock and opens no database. The rest of this record stands.
 
+> **Partly amended — see [ADR-377](0377-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §1, as ADR-295 amends it: the control panel takes `vespera.lock` for a write of `profile.yaml`, `relevance-labels.yaml` or `not-relevant-folders.yaml`, and never of `code-set-names.yaml`, which nothing writes. The rest of this record stands.
+
 - **Date**: 2026-10-03
 - **Status**: accepted
 - **Settles**: [#364](https://github.com/algernon28/vespera/issues/364).

@@ -2656,6 +2656,16 @@ public final class Adr {
     public static final String THE_CONTROL_PANELS_PUBLISH_NAMES_THE_PROFILE_KEYS_FOR_A_PARENT_NAMED_TWICE_OR_A_WRONG_ADDRESS =
             FILE + "0372-a-publish-the-control-panel-started-refuses-a-parent-named-twice-or-a-wrong-address-naming-the-profile-keys.md";
 
+    /**
+     * ADR-377 -- a profile row is one line, a toggle, its title over its key in brackets, and its control, the toggle
+     * opening its short description, the value in use, its cost line and warnings and its reports by title; the texts are
+     * profile-texts.json's; a value's provenance is in its title's tooltip alone, and a value changed in the window is
+     * saved with set in the control panel; a cut line shows an ellipsis; a list value is removable tags; a code set is
+     * named by its folder alone, code-set-names.yaml read by nothing; and the window offers no label file.
+     */
+    public static final String A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP =
+            FILE + "0377-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md";
+
     private Adr() {
     }
 }
