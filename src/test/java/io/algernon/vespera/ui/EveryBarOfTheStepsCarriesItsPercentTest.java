@@ -94,15 +94,15 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
     @Story("The window says how far each step and each part has got")
     @DisplayName("Each step's bar carries its whole percent, and its state reads as it did before")
     void eachStepsBarCarriesItsWholePercentAndItsStateWordsAreUnchanged() throws Exception {
-        Map<String, Seen> read = inTheWindow(root -> {
-            Map<String, Seen> seen = new LinkedHashMap<>();
-            seen.put("before any file", seenIn(root));
-            stepFiles().forEach((file, progress) -> {
-                shown(root, progress);
-                seen.put(file, seenIn(root));
-            });
-            return seen;
-        });
+        // one window a reading, so that no single turn on the toolkit outlasts its bound on a loaded machine
+        Map<String, Seen> read = new LinkedHashMap<>();
+        read.put("before any file", inTheWindow(EveryBarOfTheStepsCarriesItsPercentTest::seenIn));
+        for (Map.Entry<String, InvocationReportFile.Report> file : stepFiles().entrySet()) {
+            read.put(file.getKey(), inTheWindow(root -> {
+                shown(root, file.getValue());
+                return seenIn(root);
+            }));
+        }
 
         Map<String, String> everyStepAtNothing = new LinkedHashMap<>();
         StopCosts.ROWS.forEach(cost -> everyStepAtNothing.put(cost.step(), "0%"));
