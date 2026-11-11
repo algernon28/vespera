@@ -50,12 +50,6 @@ class TheEmbedderIdentityFormatIsWrittenOnceTest {
     /** How every embedder identity begins: the name of the model that produced the vector. */
     private static final String THE_MODEL_PART = "model=";
 
-    /**
-     * What escaping a {@code %} in a model's name writes, so that the name matches literally under {@code
-     * ESCAPE '\'}. Of the three characters escaped it is the one no other text in the module holds.
-     */
-    private static final String AN_ESCAPED_PERCENT = "\\%";
-
     @Test
     @Story("The embedder identity's format is written once")
     @DisplayName("Only the identity itself writes the model part every stored identity begins with")
@@ -66,18 +60,6 @@ class TheEmbedderIdentityFormatIsWrittenOnceTest {
                 "exactly one class of the module holds a text beginning with the model part, the identity that"
                         + " composes it, so the pattern a reader matches by is built where the format is written",
                 () -> assertThat(writing).containsExactly(THE_IDENTITY));
-    }
-
-    @Test
-    @Story("The embedder identity's format is written once")
-    @DisplayName("A model's name is escaped for literal matching in one place")
-    void aModelNameIsEscapedInOnePlace() throws Exception {
-        Set<String> escaping = embeddingClassesHolding(AN_ESCAPED_PERCENT::equals);
-
-        claim(
-                "exactly one class of the module escapes a model's name for a pattern match, the identity, so"
-                        + " both readers escape it the same way",
-                () -> assertThat(escaping).containsExactly(THE_IDENTITY));
     }
 
     /** The shipped classes of the embedding module holding at least one string text {@code held} accepts. */

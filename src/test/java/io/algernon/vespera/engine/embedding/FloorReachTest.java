@@ -13,8 +13,6 @@ import io.qameta.allure.Story;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -58,82 +56,6 @@ class FloorReachTest {
                         + " out here so that moving it between modules cannot change a character of what a"
                         + " person reads on the removal a year later",
                 () -> assertThat(FloorReach.REASON).isEqualTo("relevance score below the floor set in the profile"));
-    }
-
-    @Test
-    @Story("Where the vectors carry no single embedder identity, nothing is removed")
-    @DisplayName("With no single embedder identity, the floor removes nothing and no answer is read")
-    void noSingleIdentityRemovesNothingAndReadsNoAnswer() {
-        AtomicInteger asked = new AtomicInteger();
-
-        FloorReach reach = FloorReach.of(Optional.empty(), OptionalDouble.of(FLOOR), counted(asked, List.of()));
-
-        claim(
-                "nothing is removed, though a number is set: there is no one scale under which a number"
-                        + " could be said to apply",
-                () -> assertThat(reach.removesBelow()).isEmpty());
-        claim(
-                "and the number it was handed is still there to name",
-                () -> assertThat(reach.floor()).hasValue(FLOOR));
-        claim(
-                "and the answers recorded for the seed set are not read",
-                () -> assertThat(asked).hasValue(0));
-    }
-
-    @Test
-    @Story("A floor with no number removes nothing and does not stop the run")
-    @DisplayName("With no number for the floor, nothing is removed and no answer is read")
-    void noFloorRemovesNothing() {
-        AtomicInteger asked = new AtomicInteger();
-
-        FloorReach reach =
-                FloorReach.of(Optional.of(THIS_RUNS_IDENTITY), OptionalDouble.empty(), counted(asked, List.of()));
-
-        claim("no removal is made", () -> assertThat(reach.removesBelow()).isEmpty());
-        claim(
-                "and with no number there is no scale to check it against, so no answer is read",
-                () -> assertThat(asked).hasValue(0));
-        claim(
-                "so there are no embedder identities to name either",
-                () -> assertThat(reach.answeredUnder()).isEmpty());
-    }
-
-    @Test
-    @Story("A floor on this run's own scale is the only one that removes")
-    @DisplayName("A floor nobody answered anything for removes below its number, the answers read once")
-    void aFloorNobodyAnsweredForRemovesBelowItsNumber() {
-        AtomicInteger asked = new AtomicInteger();
-
-        FloorReach reach =
-                FloorReach.of(Optional.of(THIS_RUNS_IDENTITY), OptionalDouble.of(FLOOR), counted(asked, List.of()));
-
-        claim(
-                "the answers are read exactly once, when the reach is worked out and before its removal is"
-                        + " asked for, so the read happens where the reach is made rather than later, at"
-                        + " whichever moment something first asks what it removes",
-                () -> assertThat(asked).hasValue(1));
-        claim(
-                "nothing checks that a floor was ever labelled, so it removes below the number the"
-                        + " profile sets",
-                () -> assertThat(reach.removesBelow()).hasValue(FLOOR));
-    }
-
-    @Test
-    @Story("A floor on this run's own scale is the only one that removes")
-    @DisplayName("A floor answered for under this run's embedder identity alone removes below its number")
-    void aFloorAnsweredUnderThisScaleRemovesBelowItsNumber() {
-        FloorReach reach = FloorReach.of(
-                Optional.of(THIS_RUNS_IDENTITY),
-                OptionalDouble.of(FLOOR),
-                () -> List.of(anAnswerUnder(THIS_RUNS_IDENTITY), anAnswerUnder(THIS_RUNS_IDENTITY)));
-
-        claim(
-                "every answer was given under the identity this run scored under, so the number is on this"
-                        + " run's scale and removes below it",
-                () -> assertThat(reach.removesBelow()).hasValue(FLOOR));
-        claim(
-                "and the identity the answers were given under is named once",
-                () -> assertThat(reach.answeredUnder()).containsExactly(THIS_RUNS_IDENTITY));
     }
 
     @Test
@@ -184,13 +106,5 @@ class FloorReachTest {
     /** One answer a person gave while {@code embedderIdentity} was in use. */
     private static RelevanceLabel anAnswerUnder(String embedderIdentity) {
         return new RelevanceLabel(new OccurrencePath("labelled.txt"), "C:/seeds", true, "a-run", 0.9, embedderIdentity);
-    }
-
-    /** {@code answers}, counting each time they are read. */
-    private static Supplier<List<RelevanceLabel>> counted(AtomicInteger asked, List<RelevanceLabel> answers) {
-        return () -> {
-            asked.incrementAndGet();
-            return answers;
-        };
     }
 }

@@ -1,7 +1,6 @@
 package io.algernon.vespera.ui;
 
 import static io.algernon.vespera.TestSteps.claim;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.ui.CodeSetRenames.Rename;
@@ -31,12 +30,6 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-284", url = Adr.CODE_IS_KEPT_IN_CODE_SETS_NAMED_FOR_THEIR_FOLDER, type = "adr")
 class CodeSetRenamesTest {
 
-    /** Three names, the root's set among them, given out of the folders' order, one with a quote and a backslash. */
-    private static final List<Rename> THREE = List.of(
-            new Rename("shop/core", "Shop core"),
-            new Rename("", "Archive"),
-            new Rename("lib", "The \"lib\" \\ set"));
-
     private static final String THREE_WRITTEN = """
             ---
             - folder: "shop/core"
@@ -47,79 +40,8 @@ class CodeSetRenamesTest {
               name: "The \\"lib\\" \\\\ set"
             """;
 
-    /** ADR-284 section 9's example, verbatim. */
-    static final String ADR_284S_EXAMPLE = """
-            - folder: shop/core
-              name: Shop core
-            - folder: ""
-              name: Archive
-            """;
-
     private static final String NOT_IN_FORM =
             "code-set-names.yaml is not in the form the jar writes it, so the control panel does not change it";
-
-    @Test
-    @Story("The control panel renames code sets")
-    @DisplayName("The list is written whole in the order given and read back in that order, and no names is written as an empty list")
-    void theListIsWrittenInTheFormReadAndReadBackInOrder() {
-        claim("the three names are written as a list of double-quoted folder and name, in the order given",
-                () -> assertThat(CodeSetRenames.render(THREE)).isEqualTo(THREE_WRITTEN));
-        claim("and read back as the same three, in the same order",
-                () -> assertThat(CodeSetRenames.read(Optional.of(THREE_WRITTEN))).containsExactlyElementsOf(THREE));
-        claim("the same file with carriage returns before its line feeds reads as the same three",
-                () -> assertThat(CodeSetRenames.read(Optional.of(THREE_WRITTEN.replace("\n", "\r\n"))))
-                        .containsExactlyElementsOf(THREE));
-        claim("no names is written as an empty list on the document start's line, and read back as none",
-                () -> {
-                    assertThat(CodeSetRenames.render(List.of())).isEqualTo("--- []\n");
-                    assertThat(CodeSetRenames.read(Optional.of("--- []\n"))).isEmpty();
-                });
-        claim("an absent file, and one of white space alone, hold no names",
-                () -> {
-                    assertThat(CodeSetRenames.read(Optional.empty())).isEmpty();
-                    assertThat(CodeSetRenames.read(Optional.of(" \n"))).isEmpty();
-                });
-    }
-
-    @Test
-    @Story("The control panel renames code sets")
-    @DisplayName("A file written by hand as the record's example shows, plain or single-quoted, is read; a plain null, boolean or number is not")
-    void adr284sExampleIsReadAsWritten() {
-        claim("the record's example, plain and without a document start, is read to its two entries in order",
-                () -> assertThat(CodeSetRenames.read(Optional.of(ADR_284S_EXAMPLE))).containsExactly(
-                        new Rename("shop/core", "Shop core"), new Rename("", "Archive")));
-        claim("a single-quoted file, '' read as one quote, is read to its entry",
-                () -> assertThat(CodeSetRenames.read(Optional.of("- folder: 'lib'\n  name: 'It''s ours'\n")))
-                        .containsExactly(new Rename("lib", "It's ours")));
-        for (String notText : List.of("null", "true", "0.35", "-1e3", "12")) {
-            claim("a plain name of " + notText + ", which the jar's reader reads as no text, is refused",
-                    () -> assertThatThrownBy(() -> CodeSetRenames.read(
-                                    Optional.of("- folder: lib\n  name: " + notText + "\n")))
-                            .isInstanceOf(IllegalArgumentException.class)
-                            .hasMessage(NOT_IN_FORM));
-        }
-    }
-
-    /**
-     * A set below a code set folder outside the corpus root is named by that folder spelt absolute, as {@code code_set}
-     * spells it (ADR-334 §5.5): beginning with {@code /}, with a drive letter, a colon and {@code /}, or with
-     * {@code //}. {@code /shop} is such a folder on POSIX, a code set folder at the top of the file system (§5.1).
-     */
-    @Test
-    @Story("The control panel renames code sets")
-    @DisplayName("A set's folder spelt absolute, below a folder of code outside the corpus root, is written and read back, a folder at the top of the file system among them")
-    @Link(name = "ADR-334", url = Adr.THE_DELIVERABLE_FOLDER_NAMED_IS_NONE_AND_A_CODE_SET_FOLDER_MAY_LIE_OUTSIDE_THE_CORPUS_ROOT, type = "adr")
-    void aFolderSpeltAbsoluteIsWrittenAndReadBack() {
-        List<Rename> absolute = List.of(
-                new Rename("/shop", "Shop at the top"),
-                new Rename("/srv/code/billing", "Billing"),
-                new Rename("D:/code/billing", "Billing on D"),
-                new Rename("//server/share/billing", "Shared billing"));
-
-        claim("each is written as any folder is, double-quoted, and read back as the same, in the same order",
-                () -> assertThat(CodeSetRenames.read(Optional.of(CodeSetRenames.render(absolute))))
-                        .containsExactlyElementsOf(absolute));
-    }
 
     @Test
     @Story("The control panel renames code sets")

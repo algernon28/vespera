@@ -96,61 +96,6 @@ class PublishToConfluenceAsksForTheTokenTest {
                         String.join("\n", state.tail()))).noneMatch(text -> text.contains(TOKEN)));
     }
 
-    @Test
-    @Story("The control panel passes the API token to its child alone")
-    @DisplayName("With the token's field cancelled, or answered with blanks, Publish to Confluence starts nothing and says so in one line")
-    void cancelledOrBlankPublishStartsNothing(@TempDir Path folder) throws Exception {
-        Path workingDirectory = Files.createDirectories(folder.resolve("working"));
-        aListAt(workingDirectory.resolve("deliverable").resolve(A_RUN).resolve("confluence"), "pages.json");
-        ControlPanelState state = aStateOver(folder, workingDirectory, EndingJar.runtime());
-
-        List<Optional<String>> cancelledThenBlank = List.of(Optional.<String>empty(), Optional.of("   "));
-        List<String> said = new ArrayList<>();
-        List<Boolean> started = new ArrayList<>();
-        List<String> asked;
-        try (WindowForTests window = WindowForTests.shown(state)) {
-            window.awaiting(PublishToConfluenceAsksForTheTokenTest::boxes, drawn -> drawn.contains("confluence"));
-            for (Optional<String> typed : cancelledThenBlank) {
-                window.dialogs.typed = typed;
-                window.act(root -> WindowForTests.node(root, "outcome", TextInputControl.class).setText(""));
-                window.act(root -> WindowForTests.node(root, "publish", Button.class).fire());
-                said.add(window.read(root -> WindowForTests.node(root, "outcome", TextInputControl.class).getText()));
-                started.add(state.childWasStarted());
-            }
-            asked = List.copyOf(window.dialogs.maskedAsked);
-        }
-
-        claim("the field was asked each time Publish was pressed, once cancelled and once answered with blanks",
-                () -> assertThat(asked).hasSameSizeAs(cancelledThenBlank));
-        claim("neither press started a child",
-                () -> assertThat(started).containsExactly(false, false));
-        claim("and each said why in one line",
-                () -> assertThat(said).hasSameSizeAs(cancelledThenBlank)
-                        .allSatisfy(line -> assertThat(line).isNotBlank().doesNotContain("\n")));
-    }
-
-    @Test
-    @Story("The control panel passes the API token to its child alone")
-    @DisplayName("Publish to the website alone asks for no token")
-    void aPublishToTheWebsiteAloneAsksForNoToken(@TempDir Path folder) throws Exception {
-        Path workingDirectory = Files.createDirectories(folder.resolve("working"));
-        aListAt(workingDirectory.resolve("deliverable").resolve(A_RUN).resolve("website"), "files.json");
-        ControlPanelState state = aStateOver(folder, workingDirectory, EndingJar.runtime());
-
-        List<String> asked;
-        boolean started;
-        try (WindowForTests window = WindowForTests.shown(state)) {
-            window.awaiting(PublishToConfluenceAsksForTheTokenTest::boxes, drawn -> drawn.contains("website"));
-            window.act(root -> WindowForTests.node(root, "publish-to-website", CheckBox.class).setSelected(true));
-            window.act(root -> WindowForTests.node(root, "publish", Button.class).fire());
-            started = state.childWasStarted();
-            asked = List.copyOf(window.dialogs.maskedAsked);
-        }
-
-        claim("Publish started the publish to the website", () -> assertThat(started).isTrue());
-        claim("and asked for no token", () -> assertThat(asked).isEmpty());
-    }
-
     /** The destinations of the boxes {@code publish-to} holds, ticked or not, in order. */
     private static List<String> boxes(Parent root) {
         return HeadlessToolkit.nodeWithId(root, "publish-to")

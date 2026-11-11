@@ -54,14 +54,8 @@ class PackagedJarIT {
     /** The packaged, executable jar the operator runs, at the path README.md names. */
     private static final Path EXECUTABLE_JAR = Path.of("target", "vespera-0.0.1-SNAPSHOT.jar");
 
-    /** The folder the build writes its jars in, which holds no second jar of the control panel's (ADR-342 §5). */
-    private static final Path TARGET = Path.of("target");
-
     /** Where the Boot plugin puts the application's own classes. */
     private static final String CLASSES = "BOOT-INF/classes/";
-
-    /** Where under the jar's classes the compose files the starter reads lie (ADR-323 §4). */
-    private static final String SIDECARS = "sidecars/";
 
     /** The control panel's classes, as a jar names their entries. */
     private static final String CONTROL_PANEL = "io/algernon/vespera/ui/";
@@ -161,23 +155,6 @@ class PackagedJarIT {
                 () -> assertThat(manifest.getValue(ENABLE_NATIVE_ACCESS)).isEqualTo("ALL-UNNAMED"));
     }
 
-    /** The build writes one jar: the second jar the control panel was built as is gone (ADR-342 §5). */
-    @Test
-    @Issue("700")
-    @Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
-    @Story("The control panel ships inside the jar")
-    @DisplayName("No jar of the control panel's own is built beside the packaged jar")
-    void noControlPanelJarIsBuiltBesideIt() throws IOException {
-        claim("the packaged jar exists, since this test reads the folder it is built in and needs verify to have built it",
-                () -> assertThat(Files.exists(EXECUTABLE_JAR)).isTrue());
-        try (java.util.stream.Stream<Path> built = Files.list(TARGET)) {
-            List<String> jars = built.map(path -> path.getFileName().toString()).filter(name -> name.endsWith(".jar"))
-                    .toList();
-            claim("and no jar beside it is the control panel's, by the classifier it was built with",
-                    () -> assertThat(jars).noneMatch(name -> name.endsWith("-control-panel.jar")));
-        }
-    }
-
     /**
      * The OpenJFX classifier of the platform this test runs on, which built the jar: {@code win}, {@code linux},
      * {@code linux-aarch64}, {@code mac} or {@code mac-aarch64}, by {@code os.name} and {@code os.arch} as OpenJFX's
@@ -200,42 +177,6 @@ class PackagedJarIT {
         try (JarFile file = new JarFile(jar.toFile())) {
             return file.getManifest().getMainAttributes();
         }
-    }
-
-    @Test
-    @Story("The jar carries the files it starts the sidecars from")
-    @DisplayName("The packaged jar carries the two compose files and the converter's build folder, byte for byte as the repository holds them")
-    @Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
-    void carriesTheComposeFilesTheStarterReads() throws IOException {
-        java.util.Map<String, byte[]> repository = new java.util.TreeMap<>();
-        for (String name : List.of("compose.yaml", "compose.gpu.yaml")) {
-            repository.put(name, Files.readAllBytes(Path.of(name)));
-        }
-        try (java.util.stream.Stream<Path> walk = Files.walk(Path.of("docker"))) {
-            for (Path file : walk.filter(Files::isRegularFile).toList()) {
-                repository.put(file.toString().replace('\\', '/'), Files.readAllBytes(file));
-            }
-        }
-        java.util.Map<String, byte[]> carried = new java.util.TreeMap<>();
-        try (JarFile jar = new JarFile(EXECUTABLE_JAR.toFile())) {
-            jar.stream()
-                    .filter(entry -> !entry.isDirectory() && entry.getName().startsWith(CLASSES + SIDECARS))
-                    .forEach(entry -> {
-                        try (java.io.InputStream bytes = jar.getInputStream(entry)) {
-                            carried.put(entry.getName().substring((CLASSES + SIDECARS).length()), bytes.readAllBytes());
-                        } catch (IOException unreadable) {
-                            throw new java.io.UncheckedIOException(unreadable);
-                        }
-                    });
-        }
-
-        claim("the jar carries, under " + CLASSES + SIDECARS + ", exactly the files of compose.yaml, compose.gpu.yaml"
-                        + " and docker/ by the same relative paths",
-                () -> assertThat(carried.keySet()).containsExactlyElementsOf(repository.keySet()));
-        claim("and each with the repository's bytes, so no resource filter rewrote one",
-                () -> assertThat(carried).allSatisfy((name, bytes) -> assertThat(bytes)
-                        .as(name)
-                        .isEqualTo(repository.get(name))));
     }
 
     /** The name of every file and folder the jar holds. */

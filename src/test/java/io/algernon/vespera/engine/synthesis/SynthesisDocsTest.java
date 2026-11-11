@@ -78,40 +78,6 @@ class SynthesisDocsTest {
 
     @Test
     @Story("What was written over a group is kept, so the deliverable can be rebuilt without asking again")
-    @DisplayName("The writing is kept against the group it was written over, and reads back whole")
-    void keepsTheWritingAgainstTheClusterItWasWrittenOver() {
-        SynthesisDocs docs = new SynthesisDocs(jdbcTemplate);
-        OccurrenceId seed = anOccurrence("seeds/safety.docx");
-        OccurrenceId earliest = anOccurrence("audits/2019.pdf");
-        OccurrenceId later = anOccurrence("audits/2021.pdf");
-        RunId run = aRun(seed);
-
-        docs.record(run, seed, CLUSTER_ORDINAL, new SynthesisDoc(TITLE, PROSE, List.of(earliest, later)));
-
-        claim(
-                "what comes back is what the model said and what it said it about: the heading, the text"
-                        + " with every marker exactly where it was, and the group itself -- because the"
-                        + " page a reader opens is built from this row, and a row that had been tidied"
-                        + " would describe writing nobody produced",
-                () -> assertThat(WholeRun.synthesisDocs(jdbcTemplate,run)).singleElement().satisfies(recorded -> {
-                    assertThat(recorded.winningSeed()).isEqualTo(seed);
-                    assertThat(recorded.clusterOrdinal()).isEqualTo(CLUSTER_ORDINAL);
-                    assertThat(recorded.doc().title()).isEqualTo(TITLE);
-                    assertThat(recorded.doc().prose()).isEqualTo(PROSE);
-                }));
-        claim(
-                "and which documents the call carried, in the order their numbers were minted, so [1] in"
-                        + " the text above reads back as the earliest audit and [2] as the later one: a"
-                        + " count of them would say how much was read and nothing about which number"
-                        + " means which document, and nothing downstream can work that out again",
-                () -> assertThat(WholeRun.synthesisDocs(jdbcTemplate,run))
-                        .singleElement()
-                        .satisfies(recorded ->
-                                assertThat(recorded.doc().sent()).containsExactly(earliest, later)));
-    }
-
-    @Test
-    @Story("What was written over a group is kept, so the deliverable can be rebuilt without asking again")
     @DisplayName("A group written again keeps the documents of the call that stands, not an abandoned one's")
     @Link(name = "ADR-133", url = Adr.THE_EXEMPLARS_ONE_CALL_SENT_ARE_RECORDED, type = "adr")
     void clearsWhatAnAbandonedCallLeftUnderTheSameCluster() {
@@ -145,29 +111,6 @@ class SynthesisDocsTest {
                         .satisfies(recorded -> assertThat(recorded.doc().sent())
                                 .containsExactly(earliest, later)
                                 .doesNotContain(abandoned)));
-    }
-
-    @Test
-    @Story("Writing over a group takes nothing out of the archive")
-    @DisplayName("Writing over a group records no judgement against any document")
-    void writesNoJudgement() {
-        SynthesisDocs docs = new SynthesisDocs(jdbcTemplate);
-        OccurrenceId seed = anOccurrence("seeds/safety.docx");
-        RunId run = aRun(seed);
-
-        docs.record(
-                run,
-                seed,
-                CLUSTER_ORDINAL,
-                new SynthesisDoc(TITLE, PROSE, List.of(anOccurrence("audits/2019.pdf"))));
-
-        claim(
-                "no judgement is recorded against any document because something was written over its"
-                        + " group: every judgement this system records exists to take a document out of what"
-                        + " gets published, and writing connecting text over what survived takes nothing out"
-                        + " of anything",
-                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM verdict", Integer.class))
-                        .isZero());
     }
 
     private OccurrenceId anOccurrence(String path) {

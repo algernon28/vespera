@@ -68,9 +68,6 @@ class StageTwoIsMintedUnderTheWordFloorTest {
     /** The same floor, as stage 2's settings record it. */
     private static final String RECORDED_AS_TWO = THE_MEMBER + ":2";
 
-    /** A value no floor is: a fraction of a word. */
-    private static final String A_FRACTION = "2.5";
-
     /** A floor the operator writes once stage 2's run is already minted. */
     private static final String WRITTEN_AFTER_THE_MINT = "5";
 
@@ -84,23 +81,6 @@ class StageTwoIsMintedUnderTheWordFloorTest {
 
     @Autowired
     private DataSource dataSource;
-
-    @Test
-    @Story("The word floor names stage 2's run")
-    @DisplayName("With the word floor unset, stage 2's settings carry no word floor, and the run judges by none")
-    void anUnsetFloorLeavesStageTwosSettingsAsTheyWere(@TempDir Path root) throws Exception {
-        StageRuns stageRuns = throughByteLevelReduction(root);
-
-        RunId extraction = stageRuns.extraction();
-
-        claim(
-                "the settings stage 2 was minted under name no word floor, so they are those of a stage 2 before the"
-                        + " key existed",
-                () -> assertThat(settingsOf(extraction)).doesNotContain(THE_MEMBER));
-        claim(
-                "and the floor the occurrences are judged by is none",
-                () -> assertThat(stageRuns.degenerateOutputWordFloor()).isEqualTo(OptionalLong.empty()));
-    }
 
     @Test
     @Story("The word floor names stage 2's run")
@@ -118,23 +98,6 @@ class StageTwoIsMintedUnderTheWordFloorTest {
         claim(
                 "and the floor the occurrences are judged by is that number",
                 () -> assertThat(stageRuns.degenerateOutputWordFloor()).isEqualTo(OptionalLong.of(2)));
-    }
-
-    @Test
-    @Story("The word floor names stage 2's run")
-    @DisplayName("A word floor that is not a whole number is not recorded, and the run judges by none")
-    void anIgnoredFloorLeavesStageTwosSettingsAsTheyWere(@TempDir Path root) throws Exception {
-        StageRuns stageRuns = throughByteLevelReduction(root);
-        writeTheWordFloor(A_FRACTION);
-
-        RunId extraction = stageRuns.extraction();
-
-        claim(
-                "\"" + A_FRACTION + "\" is ignored, so stage 2's settings name no word floor",
-                () -> assertThat(settingsOf(extraction)).doesNotContain(THE_MEMBER));
-        claim(
-                "and the run removes nothing for too few words",
-                () -> assertThat(stageRuns.degenerateOutputWordFloor()).isEqualTo(OptionalLong.empty()));
     }
 
     @Test

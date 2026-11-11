@@ -20,8 +20,7 @@ import org.springframework.test.context.ActiveProfiles;
  * exist. Requires a running Docker daemon.
  * <p>
  * Starting contacts no sidecar: neither Ollama's clients nor docling-serve's reach anything while the
- * context starts. That the application starts with no sidecar at all is held under {@code ./mvnw test}
- * by {@link TheApplicationStartsWithNoVectorStoreTest}.
+ * context starts.
  * <p>
  * Module boundaries (ADR-040) are checked separately, by {@link ModuleBoundariesTest}: it runs
  * {@code ApplicationModules.verify()} and, unlike that call alone, also catches a module that ships

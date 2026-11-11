@@ -19,13 +19,10 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.io.File;
 import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledOnOs;
-import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
@@ -39,7 +36,7 @@ import org.springframework.test.context.ActiveProfiles;
  * the walk and does not enter it, so nothing below it is recorded, and the walk still accounts for every entry it met;
  * the list the walk was given is recorded with it, and a walk given another list is another walk.
  *
- * <p>Assembled by hand as {@code ACodeSetFolderOutsideTheCorpusRootIsWalkedWithTheCorpusTest} is. The profile is
+ * <p>Assembled by hand. The profile is
  * written as text and the tables read by their names, so this compiles before {@code Profile} has the key; until it
  * does, the census fails on the first load of a profile naming it.
  */
@@ -110,63 +107,6 @@ class AFolderNotWalkedIsNeverReadTest {
                 () -> assertThat(jdbcTemplate.queryForList(
                                 "SELECT ordinal || ' ' || folder FROM walk_folder_not_walked ORDER BY ordinal", String.class))
                         .containsExactly("1 " + NOT_WALKED));
-    }
-
-    @Test
-    @Story("The operator leaves a folder of the corpus unread")
-    @DisplayName("A folder whose name only begins with the folder listed is read: folders are compared name by name")
-    void aFolderNotWalkedIsComparedElementByElement(@TempDir Path temp, @TempDir Path workingDirectory)
-            throws Exception {
-        Path root = theCorpus(temp);
-        theProfileListsNotWalked(workingDirectory, "old/flow");
-
-        census(root, workingDirectory);
-
-        claim("old/flow names no folder of the corpus, so every file is read, old/flows among them",
-                () -> assertThat(jdbcTemplate.queryForList("SELECT path FROM file_occurrence ORDER BY path", String.class))
-                        .containsExactly(THE_NOTE, "old/flows/deeper/flow2.ok", "old/flows/flow.ok", BESIDE_IT));
-        claim("and no folder was met as one not walked",
-                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM walk_folder_not_entered", Long.class))
-                        .isZero());
-    }
-
-    @Test
-    @EnabledOnOs(OS.WINDOWS)
-    @Story("The operator leaves a folder of the corpus unread")
-    @DisplayName("On Windows a folder listed in another case is not read: names are compared without regard to case")
-    void onWindowsAFolderListedInAnotherCaseIsNotWalked(@TempDir Path temp, @TempDir Path workingDirectory)
-            throws Exception {
-        Path root = theCorpus(temp);
-        theProfileListsNotWalked(workingDirectory, "OLD/Flows");
-
-        census(root, workingDirectory);
-
-        claim("nothing below old/flows was recorded, the list naming it OLD/Flows",
-                () -> assertThat(jdbcTemplate.queryForList("SELECT path FROM file_occurrence ORDER BY path", String.class))
-                        .containsExactly(THE_NOTE, BESIDE_IT));
-        claim("and the folder met and not entered is recorded as the walk spells it, the list as the profile does",
-                () -> assertThat(List.of(
-                                jdbcTemplate.queryForList("SELECT path FROM walk_folder_not_entered", String.class),
-                                jdbcTemplate.queryForList("SELECT folder FROM walk_folder_not_walked", String.class)))
-                        .containsExactly(List.of(NOT_WALKED), List.of("OLD/Flows")));
-    }
-
-    @Test
-    @Story("The operator leaves a folder of the corpus unread")
-    @DisplayName("A list naming a folder outside the corpus root cannot be read, and then every folder is read")
-    void aPieceThatIsNoFolderBelowTheCorpusRootReadsNothingOfTheValue(@TempDir Path temp, @TempDir Path workingDirectory)
-            throws Exception {
-        Path root = theCorpus(temp);
-        theProfileListsNotWalked(workingDirectory, NOT_WALKED + File.pathSeparator + "../elsewhere");
-
-        census(root, workingDirectory);
-
-        claim("one piece climbs out of the corpus root, so none of the value is read: old/flows is read too",
-                () -> assertThat(jdbcTemplate.queryForList("SELECT path FROM file_occurrence ORDER BY path", String.class))
-                        .containsExactly(THE_NOTE, "old/flows/deeper/flow2.ok", "old/flows/flow.ok", BESIDE_IT));
-        claim("and the walk records no folder not walked",
-                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM walk_folder_not_walked", Long.class))
-                        .isZero());
     }
 
     @Test

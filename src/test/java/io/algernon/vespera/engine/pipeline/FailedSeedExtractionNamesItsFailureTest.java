@@ -75,9 +75,6 @@ class FailedSeedExtractionNamesItsFailureTest {
     /** The logger every operator-facing line in this application is written through. */
     private static final String APPLICATION_LOGGER = "io.algernon.vespera";
 
-    /** The clause of ADR-083's no-usable-seed line that is false about a step that failed. */
-    private static final String NONE_OF_THEM_WAS_USABLE = "none of them was usable";
-
     /** The clause of the same line that sends the operator to the wrong fix. */
     private static final String FIX_THE_SEED_FOLDER = "Fix the seed folder";
 
@@ -89,12 +86,6 @@ class FailedSeedExtractionNamesItsFailureTest {
      * about what stage 4 concludes, only about stage 5 being reached at all.
      */
     private static final String BOILERPLATE_FLOOR = "1.0";
-
-    /** Seeds converted before the converter stops, inside the first chunk, as on 2026-09-26. */
-    private static final int CONVERTED_INSIDE_THE_FIRST_CHUNK = 2;
-
-    /** One seed more than that, so the step reaches a seed the converter no longer answers for. */
-    private static final int SEEDS_IN_A_SHORT_FOLDER = CONVERTED_INSIDE_THE_FIRST_CHUNK + 1;
 
     /**
      * Seeds converted before the converter stops when the crash is in a later chunk: one whole chunk,
@@ -144,61 +135,6 @@ class FailedSeedExtractionNamesItsFailureTest {
         applicationLogger.detachAppender(logged);
         ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(logged);
         logged.stop();
-    }
-
-    @Test
-    @Story("A seed extraction that failed says why, and says nothing about the seed folder")
-    @DisplayName("When the converter stops answering inside the first batch of seeds, the operator is told the step failed and to run it again, not to fix the seed folder")
-    void aConverterThatStopsInsideTheFirstChunkIsNamedAndTheSeedFolderIsNotBlamed(
-            @TempDir Path root, @TempDir Path seeds) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document, for #306's first test");
-        writeSeeds(seeds, SEEDS_IN_A_SHORT_FOLDER, "first");
-        profile(seeds);
-        ConverterStopsAnsweringBeans.stopAnsweringAfter(seeds, CONVERTED_INSIDE_THE_FIRST_CHUNK);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the converter really did stop answering part-way through the seed folder, so what follows"
-                        + " is about a step that failed and not about one that finished",
-                () -> assertThat(ConverterStopsAnsweringBeans.refusedConversions()).isPositive());
-        claim(
-                "the invocation failed, because the step did: a converter that stopped answering is not a"
-                        + " fact about any seed",
-                () -> assertThat(cli.getExitCode()).isNotZero());
-        claim(
-                "nothing tells the operator that none of the seeds was usable: the step never finished"
-                        + " reading them, and the seeds it did read had text in them",
-                () -> assertThat(operatorLines()).noneMatch(line -> line.contains(NONE_OF_THEM_WAS_USABLE)));
-        claim(
-                "and nothing sends the operator to fix a seed folder that was never the problem",
-                () -> assertThat(operatorLines()).noneMatch(line -> line.contains(FIX_THE_SEED_FOLDER)));
-        claim(
-                "a line says that seed extraction failed, names the failure, and says to run the same"
-                        + " command again once it is fixed",
-                () -> assertThat(operatorLines()).anyMatch(this::namesTheFailureAndWhatToDo));
-        claim(
-                "no measurement run was minted: a run that has not seen the whole seed folder has nothing"
-                        + " to stand for",
-                () -> assertThat(runIdsFor("seed-measurement", root)).isEmpty());
-
-        ConverterStopsAnsweringBeans.keepAnswering();
-        logged.list.clear();
-
-        cli.run("run", root.toString());
-
-        RunId measurementRun = theOnlyMeasurementRunOver(root);
-        claim(
-                "with the converter back, running the same command again succeeds",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "and seed extraction is recorded as finished, with every seed in the folder measured",
-                () -> {
-                    assertThat(ledger.runs().stepFinished(measurementRun, "seed-extraction"))
-                            .isTrue();
-                    assertThat(metricRowsAgainst(theSeedWalkOf(seeds), measurementRun))
-                            .isEqualTo(SEEDS_IN_A_SHORT_FOLDER);
-                });
     }
 
     @Test

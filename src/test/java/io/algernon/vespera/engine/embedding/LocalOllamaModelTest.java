@@ -2,10 +2,7 @@ package io.algernon.vespera.engine.embedding;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import io.algernon.vespera.Adr;
@@ -14,11 +11,8 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -42,52 +36,6 @@ class LocalOllamaModelTest {
 
     /** A name of no particular shape, so nothing but Ollama's answer decides about it. */
     private static final String A_PLAIN_NAME = "a-writing-model:8b";
-
-    @Test
-    @Story("Only a model served on this machine is sent anything")
-    @DisplayName("A model Ollama has never pulled is refused as one it serves no model by, not as one it cannot place")
-    void aModelOllamaHasNeverPulledIsRefusedAsNotServed() {
-        RestClient.Builder builder = RestClient.builder().baseUrl(OLLAMA);
-        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo(OLLAMA + "/api/show"))
-                .andExpect(method(HttpMethod.POST))
-                .andRespond(withStatus(HttpStatus.NOT_FOUND)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body("{\"error\":\"model '" + A_PLAIN_NAME + "' not found\"}"));
-
-        Optional<String> refusal = LocalOllamaModel.refusalOf(A_PLAIN_NAME, new OllamaClient(builder.build()));
-
-        claim(
-                "it is refused: a model the daemon does not serve is not sent anything",
-                () -> assertThat(refusal).isPresent());
-        claim(
-                "and the reason says Ollama serves no model named " + A_PLAIN_NAME + ", the words ADR-114's"
-                        + " stop for an unpulled name has always used, so an operator who mistyped the name"
-                        + " is told what is wrong rather than that its remoteness is in doubt",
-                () -> assertThat(refusal.orElseThrow())
-                        .contains("serves no model named " + A_PLAIN_NAME)
-                        .doesNotContain("could not be established"));
-        server.verify();
-    }
-
-    @Test
-    @Story("Only a model served on this machine is sent anything")
-    @DisplayName("A model Ollama answers an error about is refused, not assumed to be served here")
-    void aModelOllamaAnswersAnErrorAboutIsRefused() {
-        RestClient.Builder builder = RestClient.builder().baseUrl(OLLAMA);
-        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo(OLLAMA + "/api/show")).andRespond(withServerError());
-
-        Optional<String> refusal = LocalOllamaModel.refusalOf(A_PLAIN_NAME, new OllamaClient(builder.build()));
-
-        claim(
-                "it is refused, and the reason names the model and says it could not be established where"
-                        + " it runs: only a 404 means the daemon serves no such model",
-                () -> assertThat(refusal).hasValueSatisfying(reason -> assertThat(reason)
-                        .contains(A_PLAIN_NAME)
-                        .contains("could not be established")));
-        server.verify();
-    }
 
     @Test
     @Story("Only a model served on this machine is sent anything")

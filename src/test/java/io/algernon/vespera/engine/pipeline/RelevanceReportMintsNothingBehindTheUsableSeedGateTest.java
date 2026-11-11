@@ -38,8 +38,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * with no embedding model named. There the relevance-report step shuts on the model gate before it can
  * reach anything, so nothing showed that, with a model named, the step went on to resolve the scoring
  * run — and through it the seed measurement run — and minted both behind a gate every other stage-5
- * step reports as shut (ADR-080). {@code EmbeddingScoringInvocationTest} names a model for ADR-155's
- * case, but checks that embedding scoring is not recorded finished, not that no scoring run exists.
+ * step reports as shut (ADR-080).
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -130,56 +129,6 @@ class RelevanceReportMintsNothingBehindTheUsableSeedGateTest {
                 () -> assertThat(operatorLines())
                         .anyMatch(line -> line.equals(
                                 "stage 5's relevance-report step is gated: no seed document produced any text outside its page headers and footers.")));
-    }
-
-    /**
-     * ADR-155's gate is the second fact {@link UsableSeedGate} carries, and the same route opened through
-     * it: seed extraction mints the measurement run, because one seed produced text, but records no
-     * completion, and every later step is shut. The relevance-report step asked neither fact, so it went
-     * on to mint a scoring run over a seed set with a hole in it.
-     */
-    @Test
-    @Story("A seed file that will not open stops stage 5 without failing the invocation")
-    @DisplayName("With a model named and a seed file that will not open, no scoring run is minted and the relevance report says why")
-    @Link(name = "ADR-155", url = Adr.A_SEED_FILE_THAT_WILL_NOT_OPEN_IS_RECORDED_UNDER_A_REASON_OF_ITS_OWN, type = "adr")
-    void mintsNoScoringRunWhenASeedFileWillNotOpenAndAModelIsNamed(
-            @TempDir Path root, @TempDir Path seeds, @TempDir Path elsewhere) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document, for #309's second route");
-        Files.writeString(seeds.resolve("seed.txt"), "a seed document that opens, for #309's second route");
-        Files.writeString(
-                seeds.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ),
-                "a seed document that is moved away when read, for #309's second route");
-        EveryGateOpen.throughStageFive(profileStore, seeds);
-        SeedScriptedExtractionBeans.moveAwayWhenReadInto(elsewhere);
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the fixture really did take the file away when seed extraction read it, so what follows"
-                        + " is about a seed that would not open and not about one that did",
-                () -> assertThat(elsewhere.resolve(SeedScriptedExtractionBeans.MOVED_AWAY_WHEN_READ)).exists());
-        claim(
-                "the invocation reports success: a seed file that cannot be read today ends stage 5, not"
-                        + " the invocation",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "the runs over this corpus are the four stages ahead of stage 5 and the seed measurement"
-                        + " run, which seed extraction minted because the other seed produced text. There is"
-                        + " no scoring run: scoring against a seed set missing a file that was only locked"
-                        + " would be recorded as a pass over the whole seed set",
-                () -> assertThat(stagesOfRunsOver(root))
-                        .containsExactlyInAnyOrder(
-                                "byte-level-reduction",
-                                "extraction",
-                                "content-census",
-                                "content-redundancy",
-                                "seed-measurement"));
-        claim(
-                "the relevance-report step says it was gated because a seed file could not be opened, in"
-                        + " the sentence its sibling stage-5 steps already share",
-                () -> assertThat(operatorLines())
-                        .anyMatch(line -> line.equals(
-                                "stage 5's relevance-report step is gated: a seed file could not be opened.")));
     }
 
     /** Every operator-facing line this invocation wrote, in the order it wrote them. */

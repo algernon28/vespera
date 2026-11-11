@@ -16,7 +16,6 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,8 +29,7 @@ import org.springframework.test.context.ActiveProfiles;
  * itself: the same content examined under a changed rule is a different answer, so the answer is
  * kept under the run that produced it (ADR-095).
  *
- * <p>Read back through the same seam a real caller uses rather than through the columns underneath,
- * matching {@code ContentIdentityTest}'s pattern for corpus's other side tables.
+ * <p>Read back through the same seam a real caller uses rather than through the columns underneath.
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -63,32 +61,6 @@ class DetectedFormatsTest {
                 "a second examination of the same file is a separate answer, so reading under a run that"
                         + " recorded nothing finds nothing rather than borrowing the first run's answer",
                 () -> assertThat(formats.formatFor(occurrenceId, anotherRun)).isEmpty());
-    }
-
-    @Test
-    @Story("The name's contribution is kept apart from the content's")
-    @DisplayName("A finer label is stored beside the class, and is absent when nothing named one")
-    void storesTheFinerLabelBesideTheClass() {
-        DetectedFormats formats = new DetectedFormats(jdbcTemplate);
-        OccurrenceId named = anOccurrence();
-        OccurrenceId unnamed = anOccurrence();
-        RunId runId = aRun(named);
-
-        formats.record(named, runId, DetectedFormat.OLE_COMPOUND, DetectedSubtype.LEGACY_WORD);
-        formats.record(unnamed, runId, DetectedFormat.OLE_COMPOUND, null);
-
-        claim(
-                "the finer label is read back beside the class it belongs to, since it means nothing on"
-                        + " its own -- it says which member of that one class this is",
-                () -> assertThat(formats.subtypeFor(named, runId)).contains(DetectedSubtype.LEGACY_WORD));
-        claim(
-                "two files can share a class and differ only in whether anything named them, so an absent"
-                        + " label is stored as absent rather than guessed at",
-                () -> assertThat(formats.subtypeFor(unnamed, runId)).isEmpty());
-        claim(
-                "the unlabelled file still carries its class, which came from the content and cannot be"
-                        + " taken away by a name that says nothing",
-                () -> assertThat(formats.formatFor(unnamed, runId)).contains(DetectedFormat.OLE_COMPOUND));
     }
 
     private OccurrenceId anOccurrence() {

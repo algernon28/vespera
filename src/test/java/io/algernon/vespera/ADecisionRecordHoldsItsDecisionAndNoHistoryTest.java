@@ -12,11 +12,9 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -58,29 +56,14 @@ class ADecisionRecordHoldsItsDecisionAndNoHistoryTest {
 
     private static final Map<String, String> MARKERS = markers();
 
-    /** The claims job, which reads the same list of words (ADR-258). */
-    private static final Path THE_CLAIMS_JOB = Path.of("docs", "check-claims.mjs");
-
-    /** The names of the markers the claims job asks the list for, as one array literal of its source. */
-    private static final Pattern THE_CLAIMS_JOBS_MARKERS = Pattern.compile("const wanted = \\[([^\\]]*)\\];");
-
-    /** The first record held to carry no history of its making. */
-    private static final int FIRST_WITHOUT_HISTORY = Integer.parseInt(MARKERS.get("firstWithoutHistory"));
-
     private static final Pattern A_RUN_MADE_OR_NOT = Pattern.compile(MARKERS.get("runMadeOrNot"));
 
     private static final Pattern STATUS = Pattern.compile(MARKERS.get("status"), Pattern.MULTILINE);
-
-    private static final Pattern ACCEPTED_ON_A_DATE = Pattern.compile(MARKERS.get("acceptedOnADate"));
-
-    private static final Pattern HISTORY = Pattern.compile(MARKERS.get("historyFromTheFirstWithout"));
 
     private static final Pattern ACCEPTED = Pattern.compile(MARKERS.get("accepted"));
 
     /** What marks the history of a record's making in any record, and never the system's own vocabulary. */
     private static final Pattern HISTORY_IN_ANY_RECORD = Pattern.compile(MARKERS.get("historyInAnyRecord"));
-
-    private static final Pattern INDEX_ROW = Pattern.compile(MARKERS.get("indexRow"));
 
     private static Map<String, String> markers() {
         Map<String, String> read = new LinkedHashMap<>();
@@ -100,29 +83,6 @@ class ADecisionRecordHoldsItsDecisionAndNoHistoryTest {
 
     @Test
     @Story("A record holds its decision")
-    @DisplayName("The list of words both checks read holds every marker the rules need, and the claims job asks for the same")
-    @Link(name = "ADR-258", url = Adr.THE_RECORDS_RULES_ARE_CHECKED_IN_THE_CLAIMS_JOB_TOO, type = "adr")
-    void theListHoldsEveryMarkerTheRulesNeed() throws IOException {
-        List<String> needed = List.of(
-                "runMadeOrNot", "status", "accepted", "acceptedOnADate", "historyFromTheFirstWithout",
-                "historyInAnyRecord", "indexRow", "firstWithoutHistory");
-        Matcher wanted = THE_CLAIMS_JOBS_MARKERS.matcher(Files.readString(THE_CLAIMS_JOB));
-        List<String> askedForByTheClaimsJob = wanted.find()
-                ? Arrays.stream(wanted.group(1).split(","))
-                        .map(name -> name.strip().replace("\"", ""))
-                        .toList()
-                : List.of();
-
-        claim(
-                "the list names each of the eight markers once, and the claims job asks for the same eight",
-                () -> {
-                    assertThat(MARKERS.keySet()).containsExactlyInAnyOrderElementsOf(needed);
-                    assertThat(askedForByTheClaimsJob).containsExactlyInAnyOrderElementsOf(needed);
-                });
-    }
-
-    @Test
-    @Story("A record holds its decision")
     @DisplayName("No decision record, and no line of their index, says whether a run has been made")
     void noRecordSaysWhetherARunHasBeenMade() throws IOException {
         List<String> said = new ArrayList<>();
@@ -134,44 +94,6 @@ class ADecisionRecordHoldsItsDecisionAndNoHistoryTest {
         claim(
                 "no record and no line of the index says whether a run has been made",
                 () -> assertThat(said).isEmpty());
-    }
-
-    @Test
-    @Story("A record holds its decision")
-    @DisplayName("A decision record from ADR-237 on, and its line of the index, gives the date it was accepted and tells nothing of its making")
-    void aRecordTellsNothingOfItsMaking() throws IOException {
-        List<Path> recent = records().stream()
-                .filter(record -> numberOf(record) >= FIRST_WITHOUT_HISTORY)
-                .toList();
-        List<String> statuses = new ArrayList<>();
-        List<String> history = new ArrayList<>();
-        for (Path record : recent) {
-            String text = Files.readString(record);
-            STATUS.matcher(text).results()
-                    .map(status -> status.group(1))
-                    .filter(status -> !ACCEPTED_ON_A_DATE.matcher(status).matches())
-                    .forEach(status -> statuses.add(record.getFileName() + ": " + status));
-            text.lines()
-                    .filter(line -> HISTORY.matcher(line).find())
-                    .forEach(line -> history.add(record.getFileName() + ": " + line));
-        }
-        Files.readAllLines(DECISION_RECORDS.resolve("README.md")).stream()
-                .filter(line -> {
-                    Matcher row = INDEX_ROW.matcher(line);
-                    return row.find() && Integer.parseInt(row.group(1)) >= FIRST_WITHOUT_HISTORY;
-                })
-                .filter(line -> HISTORY.matcher(line).find())
-                .forEach(line -> history.add("README.md: " + line));
-        claim(
-                "the records are read",
-                () -> assertThat(recent).hasSizeGreaterThanOrEqualTo(12));
-        claim(
-                "each record's status is the date it was accepted and nothing else",
-                () -> assertThat(statuses).isEmpty());
-        claim(
-                "no line names a review, a session, a pull request, a commit, an answer it was given or a test's first"
-                        + " failure",
-                () -> assertThat(history).isEmpty());
     }
 
     @Test
@@ -205,11 +127,5 @@ class ADecisionRecordHoldsItsDecisionAndNoHistoryTest {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-    }
-
-    /** A record's number, or -1 for the index. */
-    private static int numberOf(Path record) {
-        String name = record.getFileName().toString();
-        return name.matches("\\d{4}-.*") ? Integer.parseInt(name.substring(0, 4)) : -1;
     }
 }

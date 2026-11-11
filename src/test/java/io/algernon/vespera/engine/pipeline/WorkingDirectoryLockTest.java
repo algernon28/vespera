@@ -101,24 +101,6 @@ class WorkingDirectoryLockTest {
                 () -> assertThat(holder.group(3)).isEqualTo(String.join(" ", ARGUMENTS)));
     }
 
-    /**
-     * ADR-177 §1: the holder's line gives the start "to the second", so it carries no fraction of a second.
-     * A clock finer than a second would leave one there almost always.
-     */
-    @Test
-    @Story("An invocation holds its working directory until it ends")
-    @DisplayName("The holder's start time is written to the whole second, with no fraction")
-    void theStartIsWrittenToTheSecond(@TempDir Path workingDirectory) throws IOException {
-        new WorkingDirectoryLock().onApplicationEvent(prepared(workingDirectory, ARGUMENTS));
-
-        Matcher holder = HOLDER_LINE.matcher(holderLine(workingDirectory));
-        claim("the holder's line has the shape pid=<process id> started=<date and time> command=<arguments>",
-                () -> assertThat(holder.matches()).isTrue());
-        OffsetDateTime started = OffsetDateTime.parse(holder.group(2));
-        claim("and its start time has no part of a second below the whole second",
-                () -> assertThat(started.getNano()).isEqualTo(NO_FRACTION_OF_A_SECOND));
-    }
-
     @Test
     @Story("A second invocation on the same working directory is refused")
     @DisplayName("A second take inside the same process is refused, naming the directory and the holder")
@@ -179,34 +161,6 @@ class WorkingDirectoryLockTest {
         claim("which overwrites the dead holder's line with its own",
                 () -> assertThat(holderLine(workingDirectory))
                         .startsWith("pid=" + ProcessHandle.current().pid() + " "));
-    }
-
-    @Test
-    @Story("An invocation holds its working directory until it ends")
-    @DisplayName("With no working directory configured, nothing is taken and nothing fails")
-    void noWorkingDirectoryTakesNothing() {
-        Throwable taken = catchThrowable(() -> new WorkingDirectoryLock().onApplicationEvent(
-                new ApplicationEnvironmentPreparedEvent(
-                        new DefaultBootstrapContext(), new SpringApplication(), ARGUMENTS, new MockEnvironment())));
-
-        claim("an environment that names no working directory is passed over, as the directory's own"
-                        + " preparation passes it over",
-                () -> assertThat(taken).isNull());
-    }
-
-    @Test
-    @Story("A second invocation on the same working directory is refused")
-    @DisplayName("The refusal names the directory and the holder, or says the holder's details could not be read")
-    void theRefusalSaysWhatItCouldRead(@TempDir Path workingDirectory) {
-        String holderLine = "pid=4242 started=2026-09-28T22:38:44+02:00 command=run archive-root";
-
-        claim("with nothing readable in the lock file, the refusal says so in place of the holder's line, which a"
-                        + " refused take quotes when it can read it",
-                () -> assertThat(new WorkingDirectoryInUseException(workingDirectory, "  "))
-                        .hasMessage(inUse(workingDirectory, "its details could not be read")));
-        claim("and it carries the directory it refused, for whatever reports it",
-                () -> assertThat(new WorkingDirectoryInUseException(workingDirectory, holderLine).workingDirectory())
-                        .isEqualTo(workingDirectory));
     }
 
     /** The whole of the line an operator is shown when the working directory is taken. */

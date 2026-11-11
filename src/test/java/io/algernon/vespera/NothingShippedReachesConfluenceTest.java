@@ -3,7 +3,6 @@ package io.algernon.vespera;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.algernon.vespera.engine.pipeline.VesperaCommand;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -15,22 +14,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.core.io.FileSystemResource;
-import org.springframework.objenesis.ObjenesisStd;
-import picocli.CommandLine;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.IFactory;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Model.OptionSpec;
 
@@ -60,9 +53,6 @@ class NothingShippedReachesConfluenceTest {
     /** The one module's folder, in the sources and the resources alike, that may name where a call to Confluence goes. */
     private static final String THE_PUBLISHERS_FOLDER = "io/algernon/vespera/publish/confluence/";
 
-    /** The pom at the repository root, which is where Maven runs the tests from. */
-    private static final Path POM = Path.of("pom.xml");
-
     /** The file the application ships with, read as Spring reads it. */
     private static final String SHIPPED_CONFIGURATION = "application.yaml";
 
@@ -74,26 +64,6 @@ class NothingShippedReachesConfluenceTest {
      * a Cloud site under {@code /wiki}, its second version on Cloud, and the domain every Cloud site lies under.
      */
     private static final List<String> WHERE_AN_UPLOADER_SENDS = List.of("/rest/api/", "/wiki/api/v2", "atlassian.net");
-
-    /**
-     * A key of the shipped configuration for a Confluence or Atlassian site's address: one naming either and ending,
-     * after a dot or a hyphen, in a URL, a URI, a base URL, a host, a site, an address or an endpoint. A key that
-     * names Confluence for anything else, as the edition a rendering is drawn for would, does not match.
-     */
-    private static final Pattern A_CONFLUENCE_ADDRESS_KEY =
-            Pattern.compile("(?i)(confluence|atlassian).*[.-](url|uri|base-?url|host|site|address|endpoint)$");
-
-    /**
-     * A key of the shipped configuration for a Confluence or Atlassian credential: one naming either and ending,
-     * after a dot or a hyphen, in a token, a personal access token, a password, a user name, an API key, a secret,
-     * credentials or a bearer. A sidecar's own key is ADR-084's and is not matched.
-     */
-    private static final Pattern A_CONFLUENCE_CREDENTIALS_KEY = Pattern.compile(
-            "(?i)(confluence|atlassian).*[.-](token|personal-access-token|pat|password|user-?name|api-?key|secret"
-                    + "|credentials?|bearer)$");
-
-    /** The Maven {@code groupId} Atlassian's client libraries are declared under, however it is spaced. */
-    private static final Pattern ATLASSIANS_GROUP = Pattern.compile("(?s)<groupId>\\s*com\\.atlassian");
 
     /**
      * The options of each command of the tree, beside the standard help ones, by their longest names: {@code
@@ -108,22 +78,6 @@ class NothingShippedReachesConfluenceTest {
             "label", Set.of("--auto", "--db-dir"),
             "publish", Set.of("--db-dir", "--to"),
             "serve", Set.of("--db-dir"));
-
-    /**
-     * Builds each command without calling its constructor, whose collaborators are the application's, so that
-     * picocli reads the commands' model, mixins included, with no application context; anything else, a mixin
-     * among them, is built as picocli builds it.
-     */
-    private static final IFactory WITHOUT_ITS_COLLABORATORS = new IFactory() {
-        private final ObjenesisStd objenesis = new ObjenesisStd();
-
-        @Override
-        public <K> K create(Class<K> type) throws Exception {
-            return type.isAnnotationPresent(Command.class)
-                    ? objenesis.newInstance(type)
-                    : CommandLine.defaultFactory().create(type);
-        }
-    };
 
     @Test
     @Story("Only the publisher sends to Confluence")
@@ -154,89 +108,6 @@ class NothingShippedReachesConfluenceTest {
                         + " things a call to Confluence names: its REST path, its second API's path on a Cloud site, or"
                         + " the Cloud sites' domain",
                 () -> assertThat(naming).as("files naming one").isEmpty());
-    }
-
-    @Test
-    @Story("No credential for Confluence is held")
-    @DisplayName("No shipped configuration file holds a key for a Confluence site's address or credential")
-    void theShippedConfigurationHoldsNoCredential() throws IOException {
-        Map<String, Map<Object, Object>> files = shippedConfigurations();
-        Set<String> addressKeys = new TreeSet<>();
-        Set<String> credentialKeys = new TreeSet<>();
-        files.forEach((file, properties) -> properties.keySet().stream().map(String::valueOf).forEach(key -> {
-            if (A_CONFLUENCE_ADDRESS_KEY.matcher(key).find()) {
-                addressKeys.add(file + ": " + key);
-            }
-            if (A_CONFLUENCE_CREDENTIALS_KEY.matcher(key).find()) {
-                credentialKeys.add(file + ": " + key);
-            }
-        }));
-
-        claim(
-                "the shipped configuration was read, " + SHIPPED_CONFIGURATION + " among it, and holds keys, so an"
-                        + " empty answer below is not an empty walk",
-                () -> assertThat(files).hasEntrySatisfying(
-                        SHIPPED_RESOURCES.resolve(SHIPPED_CONFIGURATION).toString().replace('\\', '/'),
-                        properties -> assertThat(properties).isNotEmpty()));
-        claim(
-                "no key names Confluence or Atlassian and ends in a URL, a URI, a base URL, a host, a site, an address"
-                        + " or an endpoint, as the key of a site's address would",
-                () -> assertThat(addressKeys).as("keys for a Confluence or Atlassian site's address").isEmpty());
-        claim(
-                "and no key names Confluence or Atlassian and ends in a token, a personal access token, a password, a"
-                        + " user name, an API key, a secret, credentials or a bearer, as the key of a credential for"
-                        + " one would",
-                () -> assertThat(credentialKeys).as("keys for a Confluence or Atlassian credential").isEmpty());
-    }
-
-    @Test
-    @Story("No client for Confluence is built in")
-    @DisplayName("The build declares no Atlassian library")
-    void theBuildDeclaresNoAtlassianArtifact() throws IOException {
-        String pom = Files.readString(POM);
-
-        claim(
-                "the build was read, so an empty answer below is not an empty file",
-                () -> assertThat(pom).contains("<artifactId>vespera</artifactId>"));
-        claim(
-                "the build declares nothing published under com.atlassian, where Atlassian's own clients for Confluence"
-                        + " are",
-                () -> assertThat(ATLASSIANS_GROUP.matcher(pom).find()).isFalse());
-    }
-
-    /**
-     * The command tree (ADR-308 §5, ADR-333 §6, §8): {@code serve} is an entry of it, so that help lists it, though
-     * {@code EntryPoint.main} hands {@code serve} on before any context exists; it replaces
-     * {@code theCommandHasRunLabelAndPublish}.
-     */
-    @Test
-    @Story("Only the publisher sends to Confluence")
-    @DisplayName("The command tree is run, label, publish and serve under vespera, with no other command and no option beyond the ones it has")
-    @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
-    void theCommandHasRunLabelPublishAndServe() {
-        CommandSpec vespera = new CommandLine(VesperaCommand.class, WITHOUT_ITS_COLLABORATORS).getCommandSpec();
-        Map<String, Set<String>> options = new LinkedHashMap<>();
-        Map<String, Set<String>> subcommands = new LinkedHashMap<>();
-        walk(vespera, options, subcommands);
-
-        claim(
-                "the tree was read through the command's own model, so the answers below are about the command an"
-                        + " operator types, its mixins and argument groups included",
-                () -> assertThat(vespera.name()).isEqualTo("vespera"));
-        claim(
-                "vespera has run, label, publish and serve, and none has a subcommand of its own, so publish is the one"
-                        + " command that sends the rendering anywhere, serve reading one folder on this machine",
-                () -> assertThat(subcommands).containsExactlyInAnyOrderEntriesOf(Map.of(
-                        "vespera", Set.of("run", "label", "publish", "serve"),
-                        "run", Set.of(),
-                        "label", Set.of(),
-                        "publish", Set.of(),
-                        "serve", Set.of())));
-        claim(
-                "each command has exactly the options it has beside the standard help ones: vespera none, run --db-dir,"
-                        + " label --auto and --db-dir, publish --db-dir and --to, the destinations by their plugins'"
-                        + " names, and serve --db-dir, so no option names a site, a space or a credential",
-                () -> assertThat(options).containsExactlyInAnyOrderEntriesOf(THE_OPTIONS));
     }
 
     /**

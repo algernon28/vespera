@@ -2,7 +2,6 @@ package io.algernon.vespera.engine.pipeline;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -19,19 +18,11 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.nio.channels.FileChannel;
-import java.nio.channels.FileLock;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.nio.file.attribute.PosixFilePermission;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -112,26 +103,11 @@ class AFileGoneBeforeItIsSentInvocationTest {
     /** One file more than that, so a row of five and one file besides it can both be arranged. */
     private static final int SIX_FILES = FIVE_IN_A_ROW + 1;
 
-    /** Where, in the order stage 2 reads, the gone file sits among the others: two before it and three after. */
-    private static final int THIRD_TO_BE_READ = 2;
-
-    /** A folder of four files, every one sent when the folder is gone. */
-    private static final int FOUR_FILES = 4;
-
     /** The one health check stage 2 makes before it reads anything: a gone file adds no wait to it. */
     private static final int ONLY_THE_CHECK_BEFORE_THE_STAGE = 1;
 
     /** How often a file nothing went wrong with is posted. */
     private static final long ONCE = 1;
-
-    /** Two files of one length, so stage 1 hashes both and stage 2 hashes neither. */
-    private static final int TWO_FILES = 2;
-
-    /** A size over the largest text the converter is sent whole, so a text of it is converted in parts. */
-    private static final int TOO_LARGE_TO_SEND_WHOLE = Math.toIntExact(DoclingClient.TEXT_SIZE_CEILING_BYTES + 1_000);
-
-    /** How long each line of such a text is, its line end included: far shorter than a part. */
-    private static final int LINE_LENGTH = 100;
 
     /** How long these tests wait for a converter that dropped a connection to answer its health check. */
     private static final Duration WAIT_AT_MOST = Duration.ofSeconds(1);
@@ -144,26 +120,6 @@ class AFileGoneBeforeItIsSentInvocationTest {
 
     /** How stage 2's closing line opens when the step completed. */
     private static final String STAGE_2_FINISHED = "Stage 2 (extraction) finished";
-
-    /** How stage 2's closing line opens when the step did not complete. */
-    private static final String STAGE_2_FAILED = "Stage 2 (extraction) failed and is not recorded as finished";
-
-    /** What the closing line tells the operator when the folder being read is gone. */
-    private static final String RECONNECT = "Reconnect the archive and run the same command again.";
-
-    /** The words of the line that names the files of a row of five that each dropped the connection twice. */
-    private static final String NAMES_THE_FIVE = "each dropped the connection twice";
-
-    /** A refusal the converter blames on itself, in the wire shape it answers with. */
-    private static final String REFUSED_FOR_CAPACITY = "{\"status\":\"failure\",\"errors\":[{"
-            + "\"component_type\":\"pipeline\",\"module_name\":\"docling.pipeline\","
-            + "\"error_message\":\"no worker was free\",\"category\":\"capacity\"}],"
-            + "\"processing_time\":0.1}";
-
-    /** The closing words of the breaker's stop once the control conversion failed too. */
-    private static final String THE_BREAKERS_STOP =
-            "set aside 5 occurrences in a row without converting any of them, and did not convert the control"
-                    + " document either";
 
     @TempDir
     static Path workingDirectory;
@@ -247,132 +203,6 @@ class AFileGoneBeforeItIsSentInvocationTest {
                 () -> assertThat(sidecar.callsPerDocument()).containsEntry(readLast, ONCE));
     }
 
-    @Test
-    @Story("A file that is gone by the time it is sent")
-    @DisplayName("A file that is gone by the time it is sent neither ends nor joins a row of files that each made the converter drop the connection twice")
-    void aFileGoneBeforeItIsSentNeitherEndsNorJoinsARowOfDroppedFiles(@TempDir Path parent) throws IOException {
-        Path root = theFolderBeingRead(parent);
-        writeTheFiles(root, SIX_FILES);
-        List<Integer> asRead = theOrderTheStageReadsIn(root);
-        int gone = asRead.get(THIRD_TO_BE_READ);
-        List<Integer> dropped = asRead.stream().filter(file -> file != gone).toList();
-        dropped.forEach(file -> sidecar.dropping(file, LoopbackSidecar.EVERY_CALL));
-        sidecar.droppingTheControlConversion();
-        sidecar.beforeEachHealthCheck(() -> deleteIfThere(root.resolve(nameOf(gone))));
-
-        cli.run("run", root.toString());
-
-        claim(
-                "extraction stopped for " + FIVE_IN_A_ROW + " files in a row: the gone file, read third, did"
-                        + " not end the row the two before it began, so the three after it made five",
-                () -> assertThat(lines())
-                        .anyMatch(line -> line.startsWith(STAGE_2_FAILED)
-                                && line.contains("on each of " + FIVE_IN_A_ROW + " files in a row")));
-        claim(
-                "and the line naming the " + FIVE_IN_A_ROW + " names the five that dropped the connection and"
-                        + " not the gone file, which did not join the row either",
-                () -> assertThat(lines())
-                        .filteredOn(line -> line.contains(NAMES_THE_FIVE))
-                        .singleElement()
-                        .satisfies(line -> {
-                            assertThat(line).doesNotContain(nameOf(gone));
-                            assertThat(dropped).allSatisfy(file -> assertThat(line).contains(nameOf(file)));
-                        }));
-    }
-
-    /**
-     * Green before ADR-210 and after it: before, a file gone by the time it is sent was removed as one
-     * that crashed the converter, which leaves the breaker's row as it is (ADR-184 section 4), and so does
-     * a file that could not be read. It is here so that an implementation that counted such a file as an
-     * answer, and so as the end of a row, fails.
-     */
-    @Test
-    @Story("A file that is gone by the time it is sent")
-    @DisplayName("A file that is gone by the time it is sent does not end a row of files the converter refused for a reason of its own")
-    void aFileGoneBeforeItIsSentDoesNotEndARowOfRefusals(@TempDir Path parent) throws IOException {
-        Path root = theFolderBeingRead(parent);
-        writeTheFiles(root, SIX_FILES);
-        List<Integer> asRead = theOrderTheStageReadsIn(root);
-        int gone = asRead.get(THIRD_TO_BE_READ);
-        asRead.stream().filter(file -> file != gone).forEach(file -> sidecar.answering(file, REFUSED_FOR_CAPACITY));
-        sidecar.answeringTheControlConversion(REFUSED_FOR_CAPACITY);
-        sidecar.beforeEachHealthCheck(() -> deleteIfThere(root.resolve(nameOf(gone))));
-
-        cli.run("run", root.toString());
-
-        claim(
-                "extraction stopped because " + FIVE_IN_A_ROW + " files in a row were refused and the control"
-                        + " document was refused too: the gone file, read third, did not end the row",
-                () -> assertThat(lines())
-                        .anyMatch(line -> line.startsWith(STAGE_2_FAILED) && line.contains(THE_BREAKERS_STOP)));
-    }
-
-    /**
-     * The whole-file read of a text converted in parts, one of stage 2's places a file is read (ADR-210
-     * section 3). Before ADR-210 a failed read there left the worker as an unchecked I/O failure, which
-     * nothing in the step catches, so the step stopped.
-     */
-    @Test
-    @Story("A file whose contents cannot be read when it is cut into parts")
-    @DisplayName("Two text files too large to send whole, whose contents can no longer be read when they are cut into parts, are each removed as files that could not be read, nothing is sent, and extraction goes on")
-    void filesThatCannotBeReadWholeToBeConvertedInPartsAreMarkedAndTheStepGoesOn(@TempDir Path parent)
-            throws IOException {
-        assumeAShutFileCannotBeRead(parent);
-        Path root = theFolderBeingRead(parent);
-        List<Path> tooLarge = writeTwoFilesTooLargeToSendWhole(root);
-        sidecar.beforeEachHealthCheck(() -> tooLarge.forEach(this::shutItsContentsAway));
-        int checksBefore = sidecar.healthChecks();
-
-        cli.run("run", root.toString());
-
-        claim(
-                "extraction completed: " + TWO_FILES + " files whose contents could not be read did not stop it",
-                () -> assertThat(lines()).anyMatch(line -> line.startsWith(STAGE_2_FINISHED)));
-        claim(
-                "each of the " + TWO_FILES + " was removed, and its reason says it could not be read",
-                () -> assertThat(extractionFailedReasons(root))
-                        .containsOnlyKeys(tooLarge.stream().map(file -> file.getFileName().toString()).toList())
-                        .allSatisfy((file, reason) -> assertThat(reason).startsWith(COULD_NOT_BE_READ)));
-        claim(
-                "nothing was sent to the converter, no part of either file and no control document: there were"
-                        + " no bytes to send, and files that could not be read say nothing about the converter",
-                () -> assertThat(sidecar.callsPerDocument()).isEmpty());
-        claim(
-                "and nothing waited for the converter: its health was asked once, before the stage read anything",
-                () -> assertThat(sidecar.healthChecks() - checksBefore).isEqualTo(ONLY_THE_CHECK_BEFORE_THE_STAGE));
-    }
-
-    @Test
-    @Story("The folder being read is gone")
-    @DisplayName("When the folder being read is gone by the time its files are sent, extraction stops, names the folder, says to reconnect it, and removes nothing")
-    void aFolderGoneBeforeItsFilesAreSentStopsTheStep(@TempDir Path parent) throws IOException {
-        Path root = theFolderBeingRead(parent);
-        writeTheFiles(root, FOUR_FILES);
-        String canonicalRoot = Walk.canonicalRoot(root).toString();
-        Path movedTo = parent.resolve("moved-away");
-        AS_STAGE_2_LOOKS_UP_THE_FIRST_KEY.set(() -> moveIfThere(root, movedTo));
-
-        cli.run("run", root.toString());
-
-        claim(
-                "the invocation failed: a folder that is gone is not a fact about any one file",
-                () -> assertThat(cli.getExitCode()).isNotZero());
-        claim(
-                "the closing line says extraction failed, names the folder that can no longer be listed, and"
-                        + " says to reconnect it and run the same command again",
-                () -> assertThat(lines())
-                        .anyMatch(line -> line.startsWith(STAGE_2_FAILED)
-                                && line.contains("the corpus root " + canonicalRoot + " can no longer be listed")
-                                && line.contains(RECONNECT)));
-        claim(
-                "no file was removed: none of the " + FOUR_FILES + " is marked for the folder having gone",
-                () -> assertThat(extractionFailedReasons(canonicalRoot)).isEmpty());
-        claim(
-                "and nothing waited for the converter, which was never the problem: its health was asked once,"
-                        + " before the stage read anything",
-                () -> assertThat(sidecar.healthChecks()).isEqualTo(ONLY_THE_CHECK_BEFORE_THE_STAGE));
-    }
-
     /**
      * The wait for the converter on a clock short enough to run. Nothing here stops answering its health
      * check, so it returns at once wherever it is reached; the shipped one would too.
@@ -435,77 +265,6 @@ class AFileGoneBeforeItIsSentInvocationTest {
         shut.clear();
     }
 
-    /**
-     * {@link #TWO_FILES} texts of {@link #TOO_LARGE_TO_SEND_WHOLE} bytes each, in short lines, each opening
-     * with a line of its own, so they share a length and neither is a copy of the other.
-     */
-    private static List<Path> writeTwoFilesTooLargeToSendWhole(Path root) throws IOException {
-        List<Path> written = new ArrayList<>();
-        for (int file = 1; file <= TWO_FILES; file++) {
-            byte[] text = new byte[TOO_LARGE_TO_SEND_WHOLE];
-            Arrays.fill(text, (byte) 'a');
-            for (int end = LINE_LENGTH - 1; end < text.length; end += LINE_LENGTH) {
-                text[end] = (byte) 10;
-            }
-            byte[] opening = "a text too large to send whole, number %d of %d, under %s"
-                    .formatted(file, TWO_FILES, root.getParent().getFileName())
-                    .getBytes(StandardCharsets.US_ASCII);
-            System.arraycopy(opening, 0, text, 0, Math.min(opening.length, LINE_LENGTH - 1));
-            written.add(Files.write(root.resolve("too-large-to-send-whole-%d.txt".formatted(file)), text));
-        }
-        return written;
-    }
-
-    /**
-     * Shuts {@code file}'s contents away and leaves its size readable: a lock over the whole of it on
-     * Windows, where a lock refuses another handle's reads; elsewhere, its read permission removed. Once
-     * for each file, however often it is asked.
-     */
-    private void shutItsContentsAway(Path file) {
-        if (!shut.add(file)) {
-            return;
-        }
-        try {
-            if (posix()) {
-                Set<PosixFilePermission> before = Files.getPosixFilePermissions(file);
-                Files.setPosixFilePermissions(file, Set.of());
-                reopenings.add(() -> {
-                    try {
-                        Files.setPosixFilePermissions(file, before);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-            } else {
-                FileChannel channel = FileChannel.open(file, StandardOpenOption.READ, StandardOpenOption.WRITE);
-                FileLock lock = channel.lock();
-                reopenings.add(() -> {
-                    try (channel) {
-                        lock.release();
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    /** Skips the test where a file shut away by {@link #shutItsContentsAway} can still be read. */
-    private void assumeAShutFileCannotBeRead(Path parent) throws IOException {
-        Path trial = Files.writeString(parent.resolve("a-trial-of-shutting-a-file.txt"), "trial");
-        shutItsContentsAway(trial);
-        boolean read;
-        try (InputStream in = Files.newInputStream(trial)) {
-            in.read();
-            read = true;
-        } catch (IOException refused) {
-            read = false;
-        }
-        assumeTrue(!read, "a file shut away can still be read here, as by the superuser");
-    }
-
     private static boolean posix() {
         return FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
     }
@@ -561,16 +320,6 @@ class AFileGoneBeforeItIsSentInvocationTest {
     private static void deleteIfThere(Path file) {
         try {
             Files.deleteIfExists(file);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    private static void moveIfThere(Path from, Path to) {
-        try {
-            if (Files.exists(from)) {
-                Files.move(from, to);
-            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

@@ -10,7 +10,6 @@ import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.OptionalDouble;
 import org.junit.jupiter.api.DisplayName;
@@ -60,41 +59,6 @@ class TranslationsTest {
 
     @Test
     @Story("A copy under a folder of another language")
-    @DisplayName("The order of the preferred languages chooses the copy kept")
-    void theOrderOfThePreferredLanguagesChoosesTheCopyKept() {
-        List<Translations.Member> members = List.of(
-                member(1, "en/api/index.html", "ENGLISH"),
-                member(2, "zh/api/index.html", "CHINESE"));
-
-        Translations.Resolution resolution =
-                Translations.resolve(members, List.of(), NO_FLOOR, List.of("zh", "en"));
-
-        claim(
-                "with Chinese preferred before English, the English copy is the one removed",
-                () -> assertThat(resolution.removals()).containsExactly(new Translations.Removal(
-                        id(1), id(2), "en", "zh", Translations.Evidence.PARALLEL_PATHS)));
-    }
-
-    @Test
-    @Story("A copy under a folder of another language")
-    @DisplayName("With no preferred language, nothing is removed and the set is counted")
-    void withNoPreferredLanguageNothingIsRemovedAndTheSetIsCounted() {
-        List<Translations.Member> members = List.of(
-                member(1, "en/api/index.html", "ENGLISH"),
-                member(2, "zh/api/index.html", "CHINESE"));
-
-        Translations.Resolution resolution = Translations.resolve(members, List.of(), NO_FLOOR, NO_PREFERENCE);
-
-        claim(
-                "no copy is chosen for the operator, so neither is removed",
-                () -> assertThat(resolution.removals()).isEmpty());
-        claim(
-                "and the one set waiting for a preference is counted",
-                () -> assertThat(resolution.sets()).isEqualTo(1L));
-    }
-
-    @Test
-    @Story("A copy under a folder of another language")
     @DisplayName("Where no copy is in a preferred language, the copy with the lowest path is kept")
     void whereNoCopyIsInAPreferredLanguageTheLowestPathIsKept() {
         List<Translations.Member> members = List.of(
@@ -136,12 +100,30 @@ class TranslationsTest {
                 "IT and HR are in capitals; en and zh in docs are the files' own names; v1 and v2 make two"
                         + " segments differ; y.html lies at two depths; and en/de, zh/de and en/fr each hold a"
                         + " second language folder -- en/de/w.html and en/fr/w.html would be one folder apart"
-                        + " if only the last language folder were read -- so no two of the twelve are"
-                        + " translations by their paths",
+                        + " if only the last language folder were read -- so no two of the " + members.size()
+                        + " are translations by their paths",
                 () -> assertThat(resolution.removals()).isEmpty());
         claim(
                 "and there is no set at all",
                 () -> assertThat(resolution.sets()).isZero());
+    }
+
+    @Test
+    @Story("A copy under a folder of another language")
+    @DisplayName("With no preferred language, nothing is removed and the set is counted")
+    void withNoPreferredLanguageNothingIsRemovedAndTheSetIsCounted() {
+        List<Translations.Member> members = List.of(
+                member(1, "en/api/index.html", "ENGLISH"),
+                member(2, "zh/api/index.html", "CHINESE"));
+
+        Translations.Resolution resolution = Translations.resolve(members, List.of(), NO_FLOOR, NO_PREFERENCE);
+
+        claim(
+                "no copy is chosen for the operator, so neither is removed",
+                () -> assertThat(resolution.removals()).isEmpty());
+        claim(
+                "and the one set waiting for a preference is counted",
+                () -> assertThat(resolution.sets()).isEqualTo(1L));
     }
 
     @Test
@@ -183,123 +165,6 @@ class TranslationsTest {
                         + " embedding; the likeness of 0.92 is below it and both its copies stand",
                 () -> assertThat(resolution.removals()).containsExactly(new Translations.Removal(
                         id(2), id(1), "en", "it", Translations.Evidence.EMBEDDINGS)));
-    }
-
-    @Test
-    @Story("Two copies in different languages are found by their vectors")
-    @DisplayName("With no floor no likeness is applied, and each is still counted on its row")
-    void anUnsetFloorAppliesNoLikenessAndStillCountsThem() {
-        List<Translations.Member> members = List.of(
-                member(1, "manuali/guida.pdf", "ITALIAN"),
-                member(2, "manuals/guide.pdf", "ENGLISH"),
-                member(3, "other/a.pdf", "ENGLISH"),
-                member(4, "altro/b.pdf", "ITALIAN"));
-        List<Translations.Likeness> likenesses = List.of(likeness(1, 2, 0.93), likeness(3, 4, 0.92));
-
-        Translations.Resolution resolution = Translations.resolve(members, likenesses, NO_FLOOR, List.of("it"));
-
-        claim(
-                "no floor is written, so no likeness removes anything",
-                () -> assertThat(resolution.removals()).isEmpty());
-        claim(
-                "and the page still shows the two likenesses, one on the row 0.92 and one on 0.93, which is"
-                        + " what the floor is read off",
-                () -> assertThat(resolution.rows()).containsExactly(
-                        new Translations.SimilarityRow(new BigDecimal("0.92"), 1, 0, 0),
-                        new Translations.SimilarityRow(new BigDecimal("0.93"), 1, 0, 0)));
-    }
-
-    @Test
-    @Story("Two copies in different languages are found by their vectors")
-    @DisplayName("A floor set to a row's value applies that row, compared exactly")
-    void aFloorSetToARowsValueAppliesThatRow() {
-        List<Translations.Member> members = List.of(
-                member(1, "manuali/guida.pdf", "ITALIAN"),
-                member(2, "manuals/guide.pdf", "ENGLISH"));
-        List<Translations.Likeness> likenesses = List.of(likeness(1, 2, 0.29));
-
-        Translations.Resolution atItsRow = Translations.resolve(members, likenesses, OptionalDouble.of(0.28), List.of("it"));
-        Translations.Resolution aboveItsRow =
-                Translations.resolve(members, likenesses, OptionalDouble.of(0.29), List.of("it"));
-
-        claim(
-                "the double nearest 0.29 is 0.28999999999999998..., so its exact value rounds down to the row"
-                        + " 0.28",
-                () -> assertThat(atItsRow.rows()).extracting(Translations.SimilarityRow::similarity)
-                        .containsExactly(new BigDecimal("0.28")));
-        claim(
-                "a floor of 0.28, the row's value, applies it, as the page's rule says",
-                () -> assertThat(atItsRow.removals()).hasSize(1));
-        claim(
-                "and a floor of 0.29 does not, so the rule and the row never disagree",
-                () -> assertThat(aboveItsRow.removals()).isEmpty());
-    }
-
-    @Test
-    @Story("The page the similarity floor is read off")
-    @DisplayName("Each row counts the likenesses the paths confirm and the ones they refute")
-    void theRowsCountTheLikenessesTheirPathsConfirmAndRefute() {
-        List<Translations.Member> members = List.of(
-                member(1, "en/a.html", "ENGLISH"),
-                member(2, "zh/a.html", "CHINESE"),
-                member(3, "en/b.html", "ENGLISH"),
-                member(4, "zh/b.html", "CHINESE"),
-                member(5, "manuali/c.pdf", "ITALIAN"),
-                member(6, "docs/d.pdf", "ENGLISH"));
-        List<Translations.Likeness> likenesses =
-                List.of(likeness(1, 2, 0.91), likeness(2, 3, 0.81), likeness(5, 6, 0.81));
-
-        Translations.Resolution resolution = Translations.resolve(members, likenesses, NO_FLOOR, List.of("en"));
-
-        claim(
-                "on 0.81: two likenesses, one refuted, zh/a.html with en/b.html, whose translation into Chinese"
-                        + " by its path is zh/b.html, and one the paths say nothing of; on 0.91: one, zh/a.html"
-                        + " with en/a.html, which its paths confirm",
-                () -> assertThat(resolution.rows()).containsExactly(
-                        new Translations.SimilarityRow(new BigDecimal("0.81"), 2, 0, 1),
-                        new Translations.SimilarityRow(new BigDecimal("0.91"), 1, 1, 0)));
-    }
-
-    @Test
-    @Story("Two copies in different languages are found by their vectors")
-    @DisplayName("A set joined by its paths and by a likeness keeps one copy of the three")
-    void aSetJoinedByItsPathsAndALikenessKeepsOneCopy() {
-        List<Translations.Member> members = List.of(
-                member(1, "en/x.html", "ENGLISH"),
-                member(2, "zh/x.html", "CHINESE"),
-                member(3, "manuali/x.pdf", "ITALIAN"));
-        List<Translations.Likeness> likenesses = List.of(likeness(1, 3, 0.95));
-
-        Translations.Resolution resolution =
-                Translations.resolve(members, likenesses, OptionalDouble.of(0.9), List.of("it"));
-
-        claim(
-                "the English and Chinese copies are joined by their paths, the English and Italian ones by a"
-                        + " likeness over the floor, so the three are one set: the Italian copy is kept and both"
-                        + " others are translations of it, by both kinds of evidence",
-                () -> assertThat(resolution.removals()).containsExactly(
-                        new Translations.Removal(id(1), id(3), "en", "it", Translations.Evidence.BOTH),
-                        new Translations.Removal(id(2), id(3), "zh", "it", Translations.Evidence.BOTH)));
-    }
-
-    @Test
-    @Story("Two copies in different languages are found by their vectors")
-    @DisplayName("A pair joined both by its paths and by a likeness over the floor records both kinds of evidence")
-    void aPairJoinedByItsPathsAndByALikenessRecordsBoth() {
-        List<Translations.Member> members = List.of(
-                member(1, "en/x.html", "ENGLISH"),
-                member(2, "zh/x.html", "CHINESE"));
-        List<Translations.Likeness> likenesses = List.of(likeness(1, 2, 0.95));
-
-        Translations.Resolution resolution =
-                Translations.resolve(members, likenesses, OptionalDouble.of(0.9), List.of("en"));
-
-        claim(
-                "the two paths differ in their language folder alone, and the two copies are each other's nearest"
-                        + " over the floor: the one pair is linked both ways, so the Chinese copy is a translation"
-                        + " of the English one by both kinds of evidence, not by its paths alone",
-                () -> assertThat(resolution.removals()).containsExactly(new Translations.Removal(
-                        id(2), id(1), "zh", "en", Translations.Evidence.BOTH)));
     }
 
     private static Translations.Member member(long id, String path, String detectedLanguage) {

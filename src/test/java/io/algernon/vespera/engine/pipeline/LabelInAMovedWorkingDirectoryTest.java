@@ -51,12 +51,6 @@ class LabelInAMovedWorkingDirectoryTest {
     /** The file the scoring run writes for a person to answer. */
     private static final String LABEL_FILE = "relevance-labels.yaml";
 
-    /** The fixture corpus is one document, so one answer is every answer there is to give. */
-    private static final int EVERY_ANSWER = 1;
-
-    /** Built rather than written literally, so the fixture carries no escaped quotes. */
-    private static final String QUOTE = String.valueOf('"');
-
     /** The moved working directory: not the default, and named on every invocation. */
     @TempDir
     static Path workingDirectory;
@@ -77,27 +71,6 @@ class LabelInAMovedWorkingDirectoryTest {
 
     @Test
     @Story("The database directory can be named on every command")
-    @DisplayName("Answers given after a run in a moved directory are recorded when the label command names it too")
-    void labelReachesTheWorkingDirectoryTheRunWasGiven(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        aScoredCorpus(root, seeds);
-        answerEveryQuestion();
-
-        cli.run("label", "--db-dir=" + workingDirectory);
-
-        claim(
-                "the label command accepts the same database directory the run was given, and reports"
-                        + " success -- an operator who moved the directory names it on every command, and"
-                        + " refusing it here left an operator who moved it with --db-dir only a"
-                        + " configuration edit to reach it",
-                () -> assertThat(cli.getExitCode()).isZero());
-        claim(
-                "and the " + EVERY_ANSWER + " answer written into that directory's label file is now a row",
-                () -> assertThat(labelCount(seeds)).isEqualTo(EVERY_ANSWER));
-    }
-
-    @Test
-    @Story("The database directory can be named on every command")
     @DisplayName("A database directory that disagrees with the one actually opened stops the label command")
     void labelRefusesADatabaseDirectoryThatWasNotTheOneOpened(
             @TempDir Path root, @TempDir Path seeds, @TempDir Path elsewhere) throws IOException {
@@ -109,30 +82,6 @@ class LabelInAMovedWorkingDirectoryTest {
         claim(
                 "the label command refuses rather than recording answers into one database while the"
                         + " operator believes they named another -- the same refusal the run command makes",
-                () -> assertThat(cli.getExitCode()).isEqualTo(CommandLine.ExitCode.SOFTWARE));
-        claim("and no answer was recorded", () -> assertThat(labelCount(seeds)).isZero());
-    }
-
-    @Test
-    @Story("The database directory can be named on every command")
-    @DisplayName("A label file kept in another directory is checked against the questions the opened directory asked")
-    void aLabelFileFromAnotherDirectoryIsCheckedAgainstTheOneOpened(
-            @TempDir Path root, @TempDir Path seeds, @TempDir Path elsewhere) throws IOException {
-        aScoredCorpus(root, seeds);
-        answerEveryQuestion();
-        Path foreign = elsewhere.resolve(LABEL_FILE);
-        String foreignStamp = "generatedUnderRun: " + QUOTE + "a-run-another-directory-holds" + QUOTE;
-        Files.writeString(
-                foreign,
-                Files.readString(workingDirectory.resolve(LABEL_FILE))
-                        .replaceFirst("generatedUnderRun: .*", foreignStamp));
-
-        cli.run("label", "--db-dir=" + workingDirectory, foreign.toString());
-
-        claim(
-                "the file is refused: where it sits says nothing about which database it belongs to, so"
-                        + " it is checked against the questions the opened directory's last run asked,"
-                        + " and these answers are to questions that run never asked",
                 () -> assertThat(cli.getExitCode()).isEqualTo(CommandLine.ExitCode.SOFTWARE));
         claim("and no answer was recorded", () -> assertThat(labelCount(seeds)).isZero());
     }

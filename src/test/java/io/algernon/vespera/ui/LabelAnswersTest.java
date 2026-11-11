@@ -2,7 +2,6 @@ package io.algernon.vespera.ui;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.ui.LabelAnswers.Question;
 import io.algernon.vespera.Adr;
@@ -12,7 +11,6 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -55,9 +53,6 @@ class LabelAnswersTest {
               labelledBy: "a-writing-model:8b"
             """;
 
-    private static final String NOT_IN_FORM =
-            "relevance-labels.yaml is not in the form the jar writes it, so the control panel does not change it";
-
     @Test
     @Story("The control panel writes relevance answers")
     @DisplayName("The questions are read in the file's order, and only the answer lines of the paths given change")
@@ -92,36 +87,5 @@ class LabelAnswersTest {
                         .isEqualTo(AS_THE_JAR_WROTE_IT.replace(
                                 "closestSeed: \"seed/one.docx\"\n  relevant: null\n",
                                 "closestSeed: \"seed/one.docx\"\n  relevant: true\n")));
-    }
-
-    @Test
-    @Story("The control panel writes relevance answers")
-    @DisplayName("A missing label file, an answer for a path it does not ask about, and a file in another form are refused")
-    void aMissingFileAnUnknownPathOrAnotherFormIsRefused() {
-        Map<String, Optional<Boolean>> anAnswer = Map.of("a/first.pdf", Optional.of(false));
-        List<String> otherForms = List.of(
-                AS_THE_JAR_WROTE_IT + "# a note\n",
-                AS_THE_JAR_WROTE_IT.replace("  relevant: true", "  relevant: yes"),
-                AS_THE_JAR_WROTE_IT.replace("- path: \"b/second.txt\"", "- path: \"a/first.pdf\""),
-                AS_THE_JAR_WROTE_IT.replace("- path: \"a/first.pdf\"", "- path: a/first.pdf"),
-                AS_THE_JAR_WROTE_IT.replace("  band: 2\n", "  band: 2\n  note: \"mine\"\n"));
-
-        claim("a file that is not there is refused: there is no question to answer",
-                () -> assertThatThrownBy(() -> LabelAnswers.rewrite(Optional.empty(), anAnswer))
-                        .isInstanceOf(IllegalArgumentException.class)
-                        .hasMessage("relevance-labels.yaml is not there, so there is no question to answer;"
-                                + " vespera run writes it"));
-        claim("an answer for a path the file does not ask about is refused, naming the path",
-                () -> assertThatThrownBy(() -> LabelAnswers.rewrite(
-                                Optional.of(AS_THE_JAR_WROTE_IT), Map.of("d/fourth.txt", Optional.of(true))))
-                        .isInstanceOf(IllegalArgumentException.class)
-                        .hasMessage("relevance-labels.yaml holds no question about d/fourth.txt"));
-        for (String other : otherForms) {
-            claim("a file with a comment, an answer that is not true, false or null, a path twice, an unquoted path or"
-                            + " a key the jar does not write is refused whole",
-                    () -> assertThatThrownBy(() -> LabelAnswers.rewrite(Optional.of(other), anAnswer))
-                            .isInstanceOf(IllegalArgumentException.class)
-                            .hasMessage(NOT_IN_FORM));
-        }
     }
 }

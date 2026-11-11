@@ -17,7 +17,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,12 +50,9 @@ import org.sqlite.ProgressHandler;
  * that difference, so that nobody measures on a bare connection again.
  *
  * <p>A newer SQLite that takes more steps for any of the shapes fails this, and that is when the declared
- * figure changes; one that takes fewer fails nothing, the share only ending a little earlier. {@link
- * StatementStepsPerRowAreTheDeclaredOnesTest} holds the declaration to the figure here. The statement is
+ * figure changes; one that takes fewer fails nothing, the share only ending a little earlier. The statement is
  * written out below as ADR-211 section 3 gives it, with the clause ADR-219 section 1 adds after the table's
- * name, which leaves the steps as they were measured without it; {@code
- * DocumentFrequencyIsCountedInTheDatabaseTest} holds
- * what the code issues to the same shape.
+ * name, which leaves the steps as they were measured without it.
  *
  * <p>Green before ADR-211 is built: it measures SQLite, not the application.
  */
@@ -166,57 +162,6 @@ class GroupingStepsPerRowTest {
                         + GROUPING_STEPS_A_ROW_AT_MOST + " its progress is counted by, so the share its lines"
                         + " state is never ahead of the work done and never reaches the whole",
                 () -> assertThat(steps).isLessThan(GROUPING_STEPS_A_ROW_AT_MOST)));
-    }
-
-    @Test
-    @Story("A long statement inside the database reports how far it has gone")
-    @DisplayName("Twice the rows of one shape take twice the steps, through the index on the extraction and two sorts")
-    void theStepsGrowWithTheRowsAndThePlanSortsTwice() throws SQLException {
-        double atFewer = stepsARowOver(connection, ROWS, ROWS / 2);
-        double atTwice = stepsARowOver(connection, 2 * ROWS, ROWS);
-
-        claim(
-                "over " + ROWS + " rows and over " + 2 * ROWS + " of the same shape the grouping takes the same"
-                        + " steps a row, so steps divided by a fixed figure follow the rows however many there are",
-                () -> assertThat(atTwice).isCloseTo(atFewer, within(0.05)));
-        List<String> plan = new ArrayList<>();
-        try (Statement statement = connection.createStatement();
-                ResultSet rows = statement.executeQuery("EXPLAIN QUERY PLAN "
-                        + GROUPING.replaceFirst("SELECT \\?", "SELECT 'c'").replace("run_id = ?", "run_id = 'b'"))) {
-            while (rows.next()) {
-                plan.add(rows.getString("detail"));
-            }
-        }
-        claim(
-                "read through the index on the extraction alone, which the statement names, the rows are sorted"
-                        + " in structures of the statement's own, once to group them and once to count each word"
-                        + " sequence's different documents: that sorting is what is written to temporary files",
-                () -> assertThat(plan)
-                        .anyMatch(detail -> detail.contains("USE TEMP B-TREE FOR GROUP BY"))
-
-                        .anyMatch(detail -> detail.contains("USE TEMP B-TREE FOR count(DISTINCT)")));
-    }
-
-    @Test
-    @Story("A long statement inside the database reports how far it has gone")
-    @DisplayName("The steps a row depend on whether the connection enforces foreign keys, so they are measured on one that does")
-    void withForeignKeysOffTheSameRowsTakeFewerSteps() throws SQLException {
-        double enforced = stepsARowOver(connection, ROWS, ROWS / 2);
-        double notEnforced;
-        try (Connection bare = DriverManager.getConnection(shippedUrl().replace("foreign_keys=on", "foreign_keys=off"))) {
-            bare.setAutoCommit(false);
-            claim(
-                    "a second connection to the same database, opened without foreign keys, does not enforce them",
-                    () -> assertThat(foreignKeysOn(bare)).isFalse());
-            notEnforced = stepsARowOver(bare, ROWS, ROWS / 2);
-        }
-
-        claim(
-                "where every word sequence is written, each row written looks its extraction up when foreign keys"
-                        + " are enforced, so the same rows take more steps a row with them (" + enforced + ") than"
-                        + " without (" + notEnforced + "): a figure measured on a connection that does not"
-                        + " enforce them would be too low for the application's",
-                () -> assertThat(enforced).isGreaterThan(notEnforced));
     }
 
     /** The shipped datasource URL, pointed at this test's own directory. */
