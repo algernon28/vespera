@@ -2666,6 +2666,15 @@ public final class Adr {
             FILE + "0373-a-folder-differing-in-case-alone-from-one-the-drawing-wrote-is-left-behind-only-where-the-file-system-tells-them-apart.md";
 
     /**
+     * ADR-374 -- every text of the control panel's window stands at 4.5 : 1 against what lies behind it, and every line,
+     * swatch, marker and bar of its charts and of each analysis report's native view at 3 : 1, in the light theme and the
+     * dark; the stylesheet names the charts' colours of each theme, and a native view names no colour of its own; the
+     * jar's HTML stays light and the system's setting is not read (amends ADR-342 §3, ADR-362 §10 and ADR-365).
+     */
+    public static final String EVERY_TEXT_LINE_AND_MARKER_OF_THE_WINDOW_STANDS_AT_AA_IN_BOTH_THEMES =
+            FILE + "0374-every-text-line-and-marker-of-the-window-its-charts-and-each-analysis-reports-native-view-stands-at-aa-in-both-themes.md";
+
+    /**
      * ADR-375 -- a model whose check Ollama cannot complete is taken as local at stage 5's scoring step and the
      * generation step, and {@code vespera run} refuses at its start, before anything is walked, every model it names
      * whose tag ends in {@code cloud} or that Ollama reports as remote (amends ADR-202 §2 and §3 and ADR-329 §3).
