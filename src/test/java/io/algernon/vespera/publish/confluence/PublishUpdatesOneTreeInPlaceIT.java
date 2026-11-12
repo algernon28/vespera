@@ -91,6 +91,13 @@ class PublishUpdatesOneTreeInPlaceIT {
 
     private static final String AN_EARLIER_LIST = "key,name,size\r\n\"1.1\",\"an earlier copy.pdf\",7\r\n";
 
+    /** What a publish says of that list, removed or not (ADR-378 §10). */
+    private static final String THE_EARLIER_LIST_IS_REMOVED = "confluence-not-carried.csv, which an earlier version of"
+            + " vespera publish wrote, is removed from the working directory";
+
+    private static final String THE_EARLIER_LIST_COULD_NOT_BE_REMOVED = "confluence-not-carried.csv, which an earlier"
+            + " version of vespera publish wrote, could not be removed from the working directory (";
+
     /** The statuses a site refuses an account with, and fails a request of its own with. */
     private static final int FORBIDDEN = 403;
 
@@ -656,7 +663,7 @@ class PublishUpdatesOneTreeInPlaceIT {
 
     @Test
     @Story("A publish sends each page whole")
-    @DisplayName("A copy the site refuses as too large is said and counted with its bytes, no file lists it, and a list an earlier version wrote stands as it stood")
+    @DisplayName("A copy the site refuses as too large is said and counted with its bytes, no file lists it, and the list an earlier version wrote is removed, a line saying so")
     void aFileTheSiteRefusesAsTooLargeIsSaidAndCountedAndListedInNoFile() throws IOException {
         Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
@@ -678,15 +685,38 @@ class PublishUpdatesOneTreeInPlaceIT {
                             .endsWith("; 1 copy was refused by the site as too large and is not on its page, "
                                     + copyBytes + " bytes")
                             .doesNotContain(THE_LIST_AN_EARLIER_VERSION_WROTE, "listed in"));
-            claim("the working directory holds the earlier list alone, byte for byte as it was, and no list of this"
-                            + " publish's",
+            claim("the line right after the totals says the earlier list is removed",
+                    () -> assertThat(lines.get(1)).isEqualTo(THE_EARLIER_LIST_IS_REMOVED));
+            claim("and the working directory is left empty: the earlier list gone, and no list of this publish's",
                     () -> {
                         try (Stream<Path> files = Files.list(workingDirectory)) {
-                            assertThat(files.map(file -> file.getFileName().toString()).toList())
-                                    .containsExactly(THE_LIST_AN_EARLIER_VERSION_WROTE);
+                            assertThat(files.map(file -> file.getFileName().toString()).toList()).isEmpty();
                         }
-                        assertThat(Files.readString(earlierList, StandardCharsets.UTF_8)).isEqualTo(AN_EARLIER_LIST);
                     });
+        }
+    }
+
+    @Test
+    @Story("A publish sends each page whole")
+    @DisplayName("An earlier list the publish cannot remove is said on a line, left as it stands, and stops nothing")
+    void anEarlierListThatCannotBeRemovedIsSaidAndStopsNothing() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
+        Path aFolderOfThatName = Files.createDirectories(workingDirectory.resolve(THE_LIST_AN_EARLIER_VERSION_WROTE));
+        Files.writeString(aFolderOfThatName.resolve("held.txt"), AN_EARLIER_LIST, StandardCharsets.UTF_8);
+        List<String> lines = new ArrayList<>();
+        try (StubConfluence site = StubConfluence.start()) {
+            Publisher.Outcome outcome = site.publisher(new ArrayList<>())
+                    .publish(rendering.confluence(), Rendering.RUN, workingDirectory, lines::add);
+
+            claim("the line right after the totals says it could not be removed, and why, and that it is left",
+                    () -> assertThat(lines.get(1)).startsWith(THE_EARLIER_LIST_COULD_NOT_BE_REMOVED)
+                            .endsWith("), and is left as it stands"));
+            claim("the folder of that name stands with what it holds",
+                    () -> assertThat(aFolderOfThatName.resolve("held.txt")).hasContent(AN_EARLIER_LIST));
+            claim("and the publish went to its end, every page created",
+                    () -> assertThat(List.of(outcome.published(), outcome.closingLine().contains(
+                            "3 pages (3 created, 0 updated, 0 unchanged)"))).containsExactly(true, true));
         }
     }
 
