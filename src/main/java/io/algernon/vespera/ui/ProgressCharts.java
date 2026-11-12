@@ -1,11 +1,12 @@
 package io.algernon.vespera.ui;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.DoubleFunction;
 import java.util.regex.Pattern;
 import javafx.collections.ListChangeListener;
@@ -14,14 +15,42 @@ import javafx.scene.Node;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.util.StringConverter;
 
-/** The progress page's three charts side by side, each drawn again whole at each reading (ADR-344 §1, ADR-365). */
-final class ProgressCharts extends HBox {
+/**
+ * The cockpit's eight charts, one for each stage, in two rows inside a pane that scrolls sideways where the window is
+ * narrower than their least width (ADR-375 §1, §8), each drawn from the file the jar keeps for its stage (ADR-375 §4),
+ * with the legend and the values of ADR-365; a chart whose stage has finished is drawn frozen (ADR-375 §6). The window
+ * draws what a file holds and decides none of it.
+ */
+final class ProgressCharts extends ScrollPane {
+
+    /** The stages, in the order their charts stand: the first four in the upper row, the last four in the lower one. */
+    static final List<String> STAGES = List.of("0", "1", "2", "3", "4", "5", "6a", "6b");
+
+    /** Each stage's title: its number and its name as {@code docs/architecture.md} §1.2 names them, brackets left out. */
+    private static final Map<String, String> TITLES = Map.of(
+            "0", "0 \u00b7 Census",
+            "1", "1 \u00b7 Byte-level reduction",
+            "2", "2 \u00b7 Extraction",
+            "3", "3 \u00b7 Content census",
+            "4", "4 \u00b7 Content redundancy",
+            "5", "5 \u00b7 Relevance",
+            "6a", "6a \u00b7 Arrangement",
+            "6b", "6b \u00b7 Generation");
+
+    /** The stages that judge, whose chart draws their verdicts by kind beside their counts (ADR-375 §2). */
+    private static final List<String> JUDGING = List.of("1", "2", "4", "5");
+
+    /** The finished-at time of a frozen chart's title, in the machine's zone on the 24-hour clock (ADR-375 §6). */
+    private static final DateTimeFormatter HOURS_AND_MINUTES =
+            DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT).withZone(ZoneId.systemDefault());
 
     /** The title of a value axis whose unit is memory: it ends with a size's unit in parentheses (ADR-371 §3). */
     private static final Pattern A_SIZES_AXIS = Pattern.compile("\\((B|KB|MB|GB|TB)\\)\\s*$");
@@ -35,13 +64,31 @@ final class ProgressCharts extends HBox {
     private final Map<String, LineChart<Number, Number>> charts = new LinkedHashMap<>();
 
     ProgressCharts() {
-        getChildren().addAll(chart("database-chart", "Database size over time", "Database size"),
-                chart("counts-chart", "Counts of the running step", "Count"),
-                chart("verdicts-chart", "Verdicts by kind", "Verdicts"));
-        getStyleClass().add("charts");
+        HBox upper = row("stage-charts-row-1", STAGES.subList(0, 4));
+        HBox lower = row("stage-charts-row-2", STAGES.subList(4, 8));
+        VBox rows = new VBox(upper, lower);
+        rows.getStyleClass().add("charts");
+        setContent(rows);
+        setId("stage-charts");
+        getStyleClass().add("stage-charts");
+        // the rows keep their four charts each and are fitted to the pane's width, scrolling sideways below their
+        // least width, which the charts' own least width gives them (ADR-375 §8)
+        setFitToWidth(true);
+        setHbarPolicy(ScrollBarPolicy.AS_NEEDED);
+        setVbarPolicy(ScrollBarPolicy.NEVER);
     }
 
-    private LineChart<Number, Number> chart(String id, String title, String axis) {
+    private HBox row(String id, List<String> stages) {
+        HBox row = new HBox();
+        row.setId(id);
+        row.getStyleClass().add("charts");
+        for (String stage : stages) {
+            row.getChildren().add(chart(stage));
+        }
+        return row;
+    }
+
+    private LineChart<Number, Number> chart(String stage) {
         NumberAxis time = new NumberAxis();
         // each tick names its own unit, seconds, minutes or hours (ADR-371 §4)
         time.setLabel("Elapsed");
@@ -49,21 +96,25 @@ final class ProgressCharts extends HBox {
         // the unit follows the spacing of the ticks, so that two ticks side by side never read alike
         time.setTickLabelFormatter(drawnAs(tick -> timeTick(tick, time.getTickUnit())));
         NumberAxis value = new NumberAxis();
-        value.setLabel(axis);
+        value.setLabel(axisOf(stage));
         value.setForceZeroInRange(false);
-        // the title is the report's at each reading, so the rule follows the unit the jar chose
         value.setTickLabelFormatter(drawnAs(tick -> tickText(value.getLabel(), tick, value.getTickUnit())));
         LineChart<Number, Number> chart = new LineChart<>(time, value);
-        chart.setId(id);
-        chart.setTitle(title);
+        chart.setId("stage-chart-" + stage);
+        chart.setTitle(TITLES.get(stage));
         chart.setAnimated(false);
         chart.setCreateSymbols(false);
         chart.setLegendSide(Side.TOP);
         chart.setLegendVisible(false);
         chart.getStyleClass().add("progress-chart");
         HBox.setHgrow(chart, Priority.ALWAYS);
-        charts.put(id, chart);
+        charts.put(stage, chart);
         return chart;
+    }
+
+    /** The title of a stage's value axis: its counts, and its verdicts too where it judges (ADR-375 §2). */
+    private static String axisOf(String stage) {
+        return JUDGING.contains(stage) ? "Done and verdicts (count)" : "Done (count)";
     }
 
     /** A formatter that draws each tick as {@code text} writes it; a tick label is never read back. */
@@ -140,42 +191,50 @@ final class ProgressCharts extends HBox {
         return decimal.contains(".") ? decimal.replaceAll("0+$", "").replaceAll("\\.$", "") : decimal;
     }
 
-    /** Draws each chart from the chart of the progress page that has its id, or empties it where the page has none. */
-    void show(InvocationReportFile.Report progress) {
+    /**
+     * Draws each stage's chart from the file the working directory keeps for it, or empties it, under its title, where
+     * {@code kept} holds none (ADR-375 §4). A chart whose file gives the instant its stage finished is drawn frozen, its
+     * title ending with that time and no sample marked as the latest (ADR-375 §6).
+     */
+    void show(Map<String, StageChartFile.Chart> kept) {
         for (Map.Entry<String, LineChart<Number, Number>> entry : charts.entrySet()) {
-            String id = entry.getKey().replace("-chart", "");
             LineChart<Number, Number> chart = entry.getValue();
-            Optional<InvocationReportFile.Chart> drawn = progress.charts().stream().filter(each -> each.id().equals(id)).findFirst();
+            StageChartFile.Chart drawn = kept.get(entry.getKey());
+            boolean frozen = drawn != null && drawn.finishedAt() != null;
             chart.getData().clear();
-            if (drawn.isEmpty()) {
+            chart.setTitle(TITLES.get(entry.getKey())
+                    + (frozen ? ", finished at " + HOURS_AND_MINUTES.format(drawn.finishedAt()) : ""));
+            if (frozen && !chart.getStyleClass().contains("frozen")) {
+                chart.getStyleClass().add("frozen");
+            } else if (!frozen) {
+                chart.getStyleClass().remove("frozen");
+            }
+            if (drawn == null) {
                 chart.setLegendVisible(false);
                 continue;
             }
-            chart.setTitle(drawn.get().title());
-            chart.getYAxis().setLabel(drawn.get().axis());
             List<XYChart.Series<Number, Number>> drawnSeries = new ArrayList<>();
-            for (InvocationReportFile.Line line : drawn.get().lines()) {
+            for (StageChartFile.Line line : drawn.lines()) {
                 XYChart.Series<Number, Number> series = new XYChart.Series<>();
                 series.setName(line.name());
-                int count = Math.min(line.values().size(), drawn.get().seconds().size());
+                int count = Math.min(line.values().size(), line.seconds().size());
                 boolean whole = line.values().stream().allMatch(value -> value == Math.rint(value));
                 for (int i = 0; i < count; i++) {
-                    XYChart.Data<Number, Number> data = new XYChart.Data<>(drawn.get().seconds().get(i),
-                            line.values().get(i));
+                    XYChart.Data<Number, Number> data = new XYChart.Data<>(line.seconds().get(i), line.values().get(i));
                     data.setNode(sampleNode(line.values().get(i), whole));
                     series.getData().add(data);
                 }
                 drawnSeries.add(series);
                 // the chart sets a plotted node's style classes as it adds it and again as its lines change, so each
-                // node puts its own back whenever they are set
+                // node puts its own back whenever they are set; a frozen chart marks none as the latest
                 for (int i = 0; i < series.getData().size(); i++) {
-                    keepClasses(series.getData().get(i).getNode(), i == count - 1);
+                    keepClasses(series.getData().get(i).getNode(), !frozen && i == count - 1);
                 }
             }
             // all the lines at once: one change to the chart per reading
             chart.getData().setAll(drawnSeries);
             // a legend for two lines or more, decided at each reading (ADR-365 §1)
-            chart.setLegendVisible(drawn.get().lines().size() >= 2);
+            chart.setLegendVisible(drawn.lines().size() >= 2);
         }
     }
 

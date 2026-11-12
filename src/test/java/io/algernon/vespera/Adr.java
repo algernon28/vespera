@@ -2679,6 +2679,17 @@ public final class Adr {
     public static final String EVERY_VIEW_OF_THE_CONTROL_PANELS_WINDOW_FOLLOWS_ITS_THEME =
             FILE + "0374-every-view-inside-the-control-panels-window-follows-its-light-and-dark-switch-at-once-its-popups-included.md";
 
+    /**
+     * ADR-375 -- each stage has a chart of its own, in two rows, frozen once it finishes and kept under its run beside
+     * the report: eight charts, stages 0 to 3 above 4 to 6b, each its counts and the verdicts by kind of a stage that
+     * judges; the database's size a line of the header; each stage's chart kept by the job in a file of its own beside
+     * {@code report.json}, keyed by its run, frozen and dimmed once its stage has finished, continued by its run and
+     * started afresh by a new one; the rows scrolling sideways below their least width; a sixth series token (amends
+     * ADR-344 §1 and §2, ADR-362 §8, ADR-365 §2 and §3 and ADR-374 §2 to §5).
+     */
+    public static final String EACH_STAGE_HAS_A_CHART_OF_ITS_OWN =
+            FILE + "0375-each-stage-has-a-chart-of-its-own-in-two-rows-frozen-once-it-finishes-and-kept-under-its-run-beside-the-report.md";
+
     private Adr() {
     }
 }

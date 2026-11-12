@@ -124,11 +124,11 @@ class TheControlPanelsThemeTest {
     private static final double MARKS = 3.0;
 
     /** How many lines a chart of the window draws at most, each in a series colour of its own. */
-    private static final int SERIES = 5;
+    private static final int SERIES = 6;
 
     /** The series colours, one for each line a chart draws at most, in the order the lines take them. */
     private static final List<String> SERIES_TOKENS = List.of("-vespera-series-1", "-vespera-series-2",
-            "-vespera-series-3", "-vespera-series-4", "-vespera-series-5");
+            "-vespera-series-3", "-vespera-series-4", "-vespera-series-5", "-vespera-series-6");
 
     /** The marks held at 3 : 1: the series colours and a bar's fill, the accent. */
     private static final List<String> MARK_TOKENS = Stream.concat(SERIES_TOKENS.stream(), Stream.of("-vespera-accent"))
@@ -178,11 +178,25 @@ class TheControlPanelsThemeTest {
 
     private static final String A_STEP = "extraction";
 
+    /** The chart of a stage of six lines, stage 1's, which the window test reads (ADR-375 §1, §2). */
+    private static final String A_CHART = "stage-chart-1";
+
+    /**
+     * Stage 1's chart as the working directory keeps it (ADR-375 §4), not finished: its counts and its five kinds, two
+     * samples each, so that it draws six lines, each in a series colour of its own.
+     */
+    private static final String STAGE_1_CHART = "{\"format\":1,\"stage\":\"1\",\"key\":{\"byte-level-reduction\":"
+            + "\"aa11bb22cc33dd44ee55ff6600778899aa11bb22cc33dd44ee55ff6600778899\"},\"finishedAt\":null,\"lines\":["
+            + Stream.of("done", "broken", "duplicate-of", "superseded-by", "out-of-scope", "code")
+                    .map(name -> "{\"name\":\"" + name + "\",\"seconds\":[0,10],\"values\":[1,2]}")
+                    .collect(java.util.stream.Collectors.joining(","))
+            + "]}";
+
     /** The look-up key under which {@link Tooltip#install} keeps a node's tooltip among its properties. */
     private static final String TOOLTIP_KEY = "javafx.scene.control.Tooltip";
 
     /**
-     * Each colour the window test reads, by what it is, and the token it is drawn in (ADR-374 §3, §6); the five lines
+     * Each colour the window test reads, by what it is, and the token it is drawn in (ADR-374 §3, §6); the six lines
      * of a chart and the two series of an analysis report's bar chart are added in order after these.
      */
     private static final Map<String, String> DRAWN_IN = drawnIn();
@@ -377,6 +391,7 @@ class TheControlPanelsThemeTest {
 
     @Test
     @Link(name = "ADR-374", url = Adr.EVERY_VIEW_OF_THE_CONTROL_PANELS_WINDOW_FOLLOWS_ITS_THEME, type = "adr")
+    @Link(name = "ADR-375", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
     @Story("Every view of the window follows its theme")
     @DisplayName("Every colour of the window is one of its stylesheet's two themes' colours, and each reads at its contrast in both themes")
     void everyColourOfTheWindowIsAThemeTokenAndStandsAtItsContrastInBothThemes() throws IOException {
@@ -416,7 +431,7 @@ class TheControlPanelsThemeTest {
         claim("no rule of the stylesheet but its light and its dark theme writes a colour of its own: every colour any"
                         + " other declares names a colour the two themes set, or is transparent",
                 () -> assertThat(writtenOutsideTheThemes).as("the rules and the colours each writes").isEmpty());
-        claim("each theme defines five series colours, one for each line a chart draws at most, no two alike",
+        claim("each theme defines six series colours, one for each line a chart draws at most, no two alike",
                 () -> {
                     assertThat(seriesByTheme.get("light")).as("the light theme's series").hasSize(SERIES)
                             .doesNotHaveDuplicates().noneMatch(colour -> colour.endsWith("not set"));
@@ -435,12 +450,18 @@ class TheControlPanelsThemeTest {
 
     @Test
     @Link(name = "ADR-374", url = Adr.EVERY_VIEW_OF_THE_CONTROL_PANELS_WINDOW_FOLLOWS_ITS_THEME, type = "adr")
+    @Link(name = "ADR-375", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
     @Story("Every view of the window follows its theme")
     @DisplayName("The charts, the steps' bars, a report's own view, and a tooltip and a context menu showing over the window take the theme as the switch flips, nothing reopened")
     void everyViewOfTheWindowAndAPopupShowingOverItTakeTheThemeAsTheSwitchFlips(@TempDir Path folder)
             throws Exception {
         Map<String, Map<String, String>> themes = themes(stylesheet());
-        try (WindowForTests window = WindowForTests.shown(WindowForTests.aState(folder, aRuntime(folder)))) {
+        Path working = Files.createDirectories(folder.resolve("working"));
+        Files.writeString(working.resolve("chart-stage-1.json"), STAGE_1_CHART, UTF_8);
+        ControlPanelState state = WindowForTests.aState(folder, aRuntime(folder));
+        state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(), working.toString(),
+                "", "", "", "", "", ""));
+        try (WindowForTests window = WindowForTests.shown(state)) {
             Popups popups = window.read(TheControlPanelsThemeTest::drawnAndShown);
             Map<String, Paint> asOpened = window.read(root -> drawn(root, popups));
             window.act(root -> toggle(root).fire());
@@ -450,7 +471,7 @@ class TheControlPanelsThemeTest {
             window.act(root -> popups.hide());
 
             claim("as the window opens light, the plot, the chart's title, its time axis's title and ticks, its legend"
-                            + " and the legend's first name, its five lines, the two series' bars of a report's own view,"
+                            + " and the legend's first name, its six lines, the two series' bars of a report's own view,"
                             + " the running step's bar, track and its percent's halo, the leg's summary and its name, the"
                             + " selected row of a focused table and its text, a row not selected and its text, a"
                             + " sample's tooltip and its text, and the table's context menu, its item under the keys and"
@@ -619,15 +640,15 @@ class TheControlPanelsThemeTest {
     }
 
     /**
-     * Hands the window a reading of a chart of five lines and of the steps at extraction running 375 of 1,000, opens an
+     * Hands the window a reading of the steps at extraction running 375 of 1,000, its chart of stage 1 drawing the six
+     * lines of the file {@link #STAGE_1_CHART} the working directory keeps (ADR-375 §4), opens an
      * analysis report's native view in a tab, scrolled as the window opens one, selects a row of its table and focuses the table,
      * and shows a sample's tooltip and the table's context menu over the window, its item under the keys.
      */
     @SuppressWarnings("unchecked")
     private static Popups drawnAndShown(Parent root) {
         InvocationReportFile.Report reading = aReading();
-        LineChart<Number, Number> chart = WindowForTests.node(root, "verdicts-chart", LineChart.class);
-        ((ProgressCharts) chart.getParent()).show(reading);
+        LineChart<Number, Number> chart = WindowForTests.node(root, A_CHART, LineChart.class);
         WindowForTests.node(root, "steps", StepsChart.class).show(reading);
         VBox view = AnalysisReportView.of(AN_ANALYSIS_REPORT, anAnalysisReport(), AN_ANALYSIS_REPORT + ".html",
                 name -> { }, address -> { });
@@ -664,7 +685,7 @@ class TheControlPanelsThemeTest {
         popups.tooltip().getScene().getRoot().applyCss();
         popups.menu().getScene().getRoot().applyCss();
         Map<String, Paint> drawn = new LinkedHashMap<>();
-        LineChart<?, ?> chart = WindowForTests.node(root, "verdicts-chart", LineChart.class);
+        LineChart<?, ?> chart = WindowForTests.node(root, A_CHART, LineChart.class);
         drawn.put("the plot", innermost(chart.lookup(".chart-plot-background")));
         drawn.put("the chart's title", inkOf(chart.lookup(".chart-title")));
         drawn.put("the time axis's title", inkOf(chart.getXAxis().lookup(".axis-label")));
@@ -752,7 +773,7 @@ class TheControlPanelsThemeTest {
         return row.lookupAll(".table-cell").stream().filter(TableCell.class::isInstance).findFirst().orElse(null);
     }
 
-    /** A reading of a running job: extraction at 375 of 1,000, and the verdicts chart drawing five lines. */
+    /** A reading of a running job: extraction at 375 of 1,000. */
     private static InvocationReportFile.Report aReading() {
         InvocationReportFile.Invocation invocation = new InvocationReportFile.Invocation("20261112T000000Z", 1L,
                 "run", Instant.EPOCH, null, "running", null, null, Instant.EPOCH, 1L);
@@ -760,14 +781,8 @@ class TheControlPanelsThemeTest {
                 new InvocationReportFile.Step("census", null, "finished", 10L, 10L),
                 new InvocationReportFile.Step("byte-level-reduction", null, "finished", null, null),
                 new InvocationReportFile.Step(A_STEP, null, "running", 375L, 1000L));
-        List<InvocationReportFile.Line> lines = new ArrayList<>();
-        for (int line = 1; line <= SERIES; line++) {
-            lines.add(new InvocationReportFile.Line("kind-" + line, List.of((double) line, line + 1.0)));
-        }
-        InvocationReportFile.Chart verdicts = new InvocationReportFile.Chart("verdicts", "Verdicts by kind",
-                "Verdicts", List.of(0L, 10L), List.copyOf(lines));
         return new InvocationReportFile.Report(InvocationReportFile.FORMAT, invocation, null, null, null, steps,
-                List.of(), List.of(verdicts), List.of(), List.of(), List.of(), null, null, List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of(), List.of(), null, null, List.of(), List.of());
     }
 
     /** An analysis report of one section, a bar chart of two series over a table of four rows. */

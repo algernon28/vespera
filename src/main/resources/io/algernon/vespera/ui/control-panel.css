@@ -17,6 +17,7 @@
     -vespera-series-3: #15895f;
     -vespera-series-4: #a86f00;
     -vespera-series-5: #c94c80;
+    -vespera-series-6: #8f5bd6;
     -fx-font-size: 13px;
     -fx-base: #efedf3;
     -fx-background: -vespera-ground;
@@ -34,6 +35,7 @@
     CHART_COLOR_3: -vespera-series-3;
     CHART_COLOR_4: -vespera-series-4;
     CHART_COLOR_5: -vespera-series-5;
+    CHART_COLOR_6: -vespera-series-6;
 }
 
 /* the dark theme: the same tokens redefined, every pair at WCAG AA (4.5:1) or better; Modena derives the controls from -fx-base */
@@ -52,6 +54,7 @@
     -vespera-series-3: #199e70;
     -vespera-series-4: #c98500;
     -vespera-series-5: #d55181;
+    -vespera-series-6: #9b74e6;
     -fx-base: #2c2a38;
     -fx-background: -vespera-ground;
     -fx-control-inner-background: #211f2a;
@@ -219,8 +222,34 @@
     -fx-pref-height: 420px;
 }
 
+/*
+ * A stage's chart (ADR-375 section 1, 8): 340 px high and at least 250 px wide, so that its title stands on two lines, a
+ * legend of six names in three rows and its plot 150 px high; below four of them the rows scroll sideways.
+ */
 .progress-chart {
     -fx-pref-height: 340px;
+    -fx-min-width: 250px;
+}
+
+.progress-chart .chart-title {
+    -fx-wrap-text: true;
+}
+
+.stage-charts,
+.stage-charts > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+/* a chart whose stage has finished: its lines and its legend's swatches dimmed, each line thinner (ADR-375 section 6) */
+.progress-chart.frozen .chart-series-line {
+    -fx-opacity: 0.85;
+    -fx-stroke-width: 1.5px;
+}
+
+.progress-chart.frozen .chart-legend-item-symbol {
+    -fx-opacity: 0.85;
 }
 
 /* a sample is a hit area 24 px across, unseen but for each line's latest, a marker in the line's colour (ADR-365 §3) */
@@ -245,6 +274,7 @@
 .progress-chart .default-color2.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-3; }
 .progress-chart .default-color3.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-4; }
 .progress-chart .default-color4.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-5; }
+.progress-chart .default-color5.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-6; }
 
 .step {
     -fx-alignment: center-left;

@@ -290,7 +290,7 @@ final class AnalysisReportView {
      * largest of B, KB, MB, GB and TB, each 1,024 of the one before, whose value is at least 1, moved up where it would
      * read 1,024.00; whole bytes in B, two decimals in any other unit, grouped by thousands.
      */
-    private static String bytes(BigDecimal value) {
+    static String bytes(BigDecimal value) {
         String[] units = {"B", "KB", "MB", "GB", "TB"};
         BigDecimal base = BigDecimal.valueOf(1024);
         BigDecimal magnitude = value.abs();

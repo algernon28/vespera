@@ -84,11 +84,15 @@ public class Verdicts {
 
     private final Map<VerdictKind, AtomicLong> recorded = new EnumMap<>(VerdictKind.class);
 
+    /** The verdicts this process has deleted, by kind, each discard counting the rows it deletes (ADR-375 §5). */
+    private final Map<VerdictKind, AtomicLong> discarded = new EnumMap<>(VerdictKind.class);
+
     private final ThreadLocal<Boolean> countingAtInsert = new ThreadLocal<>();
 
     public Verdicts(JdbcTemplate jdbcTemplate) {
         for (VerdictKind kind : VerdictKind.values()) {
             recorded.put(kind, new AtomicLong());
+            discarded.put(kind, new AtomicLong());
         }
         this.jdbcTemplate = jdbcTemplate;
     }
@@ -104,13 +108,11 @@ public class Verdicts {
         if (kinds.length == 0) {
             return;
         }
-        String placeholders = Arrays.stream(kinds).map(kind -> "?").collect(Collectors.joining(", "));
-        Object[] arguments = new Object[kinds.length + 1];
-        arguments[0] = runId.value();
-        for (int i = 0; i < kinds.length; i++) {
-            arguments[i + 1] = kinds[i].name();
+        // one delete for each kind, so that the rows each deletes are counted under it (ADR-375 §5)
+        for (VerdictKind kind : kinds) {
+            discarded.get(kind).addAndGet(
+                    jdbcTemplate.update("DELETE FROM verdict WHERE run_id = ? AND kind = ?", runId.value(), kind.name()));
         }
-        jdbcTemplate.update("DELETE FROM verdict WHERE run_id = ? AND kind IN (" + placeholders + ")", arguments);
     }
 
     /**
@@ -130,10 +132,10 @@ public class Verdicts {
             for (int i = 0; i < batch.size(); i++) {
                 arguments[2 + i] = batch.get(i).value();
             }
-            jdbcTemplate.update(
+            discarded.get(kind).addAndGet(jdbcTemplate.update(
                     "DELETE FROM verdict WHERE run_id = ? AND kind = ? AND occurrence_id IN ("
                             + occurrencePlaceholders + ")",
-                    arguments);
+                    arguments));
         });
     }
 
@@ -226,6 +228,22 @@ public class Verdicts {
     public Map<String, Long> recorded() {
         Map<String, Long> counts = new LinkedHashMap<>();
         recorded.forEach((kind, count) -> {
+            if (kind.blocking()) {
+                counts.put(kind.name().toLowerCase(Locale.ROOT).replace('_', '-'), count.get());
+            }
+        });
+        return counts;
+    }
+
+    /**
+     * How many verdicts of each blocking kind this process has deleted, by the kind's name and in the order of
+     * {@link #recorded}, held in memory as {@code recorded} is so that a reading makes no query (ADR-375 §5): each
+     * discard counts the rows it deletes, so that a step that discards its run's verdicts and records them again is
+     * counted once.
+     */
+    public Map<String, Long> discarded() {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        discarded.forEach((kind, count) -> {
             if (kind.blocking()) {
                 counts.put(kind.name().toLowerCase(Locale.ROOT).replace('_', '-'), count.get());
             }
