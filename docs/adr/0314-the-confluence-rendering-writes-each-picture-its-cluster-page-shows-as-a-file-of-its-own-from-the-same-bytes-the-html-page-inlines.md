@@ -1,5 +1,7 @@
 # ADR-314 — The Confluence rendering writes each picture its cluster's page shows as a file of its own, from the same bytes the HTML page inlines
 
+> **Partly amended — see [ADR-378](0378-each-deliverable-language-is-a-tree-of-its-own-its-titles-carrying-its-code-and-an-earlier-tree-taken-by-its-heading.md).** A picture's file the site refuses as too large is said and counted as a copy is, and listed in no file: no publish writes `confluence-not-carried.csv`. The rest of this record stands.
+
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.
 - **Amends**: [ADR-286](0286-a-clusters-page-is-one-file-written-an-entry-at-a-time-through-its-part-with-its-pictures-and-a-png-or-jpeg-image-inlined.md) §1 and §4, for the Confluence rendering alone: under `confluence/` a picture is a file of its own and the page names it, where the HTML tree's page carries it as a `data:` URI and writes no picture file (§1, §2). The HTML tree is unchanged.

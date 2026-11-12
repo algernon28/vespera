@@ -4,7 +4,7 @@
 
 > **Partly amended — see [ADR-364](0364-the-output-panel-is-copyable-text-of-the-whole-output-from-a-file-of-its-own-and-every-text-of-the-window-is-copyable.md).** The publisher's lines go to the operator logger, `io.algernon.vespera.operator`, at INFO, as their words alone on standard output, and the control panel shows its child's whole output, from the invocation's output file, and no longer the last 200 lines (`Child.TAIL_LINES`); so the sentence on what the control panel reads, and the clause of `<j>` on totals having left its last 200 lines, no longer hold. `<j>` stays, saying how far a publish has got on any line read alone. The rest of this record stands.
 
-> **Partly amended — see [ADR-378](0378-each-deliverable-language-is-a-tree-of-its-own-its-titles-carrying-its-code-and-an-earlier-tree-taken-by-its-heading.md).** §4's totals and closing line name the tree after the space's key, `, tree Vespera_<code>`; a line before the first page says an earlier tree of another language is left as it stands; and a line may name the deliverable language's English name. §1 to §3 and §5 stand.
+> **Partly amended — see [ADR-378](0378-each-deliverable-language-is-a-tree-of-its-own-its-titles-carrying-its-code-and-an-earlier-tree-taken-by-its-heading.md).** §4's totals and closing line name the tree after the space's key, `, tree Vespera_<code>`; a line before the first page says an earlier tree of another language is left as it stands; and a line may name the deliverable language's English name. §5's `confluence-not-carried.csv` is written by no publish. §1 to §3 and the rest of §5 stand.
 
 - **Date**: 2026-10-22
 - **Status**: accepted on 2026-10-22.

@@ -173,6 +173,7 @@ final class StubConfluence implements AutoCloseable {
     private final List<Page> trash = new ArrayList<>();
     private final Map<String, Integer> labelRemovalsRefused = new HashMap<>();
     private final Map<String, Integer> childrenRefused = new HashMap<>();
+    private final Map<String, Integer> bodyReadsAnsweredWith = new HashMap<>();
     private Integer folderReadsAnsweredWith;
     private boolean labelSearchNewestFirst;
     private int pacesLeft;
@@ -336,6 +337,14 @@ final class StubConfluence implements AutoCloseable {
     /** Answers every listing of the children of the page or folder {@code id} with {@code status}. */
     synchronized void answerTheListingOfTheChildrenOf(String id, int status) {
         childrenRefused.put(id, status);
+    }
+
+    /**
+     * Answers every read of the page {@code pageId}'s body, {@code GET /wiki/api/v2/pages/{id}?body-format=storage},
+     * with {@code status}; a read of the page without its body is answered as before (ADR-378 §5).
+     */
+    synchronized void answerTheBodyReadOf(String pageId, int status) {
+        bodyReadsAnsweredWith.put(pageId, status);
     }
 
     /** Answers every read of a folder, {@code GET /wiki/api/v2/folders/{id}}, with {@code status}. */
@@ -542,6 +551,9 @@ final class StubConfluence implements AutoCloseable {
             }
             if (method.equals("GET")) {
                 Map<String, Object> json = pageJson(page);
+                if ("storage".equals(request.query("body-format")) && bodyReadsAnsweredWith.containsKey(page.id)) {
+                    return Answer.of(bodyReadsAnsweredWith.get(page.id), Map.of("message", "The body could not be read"));
+                }
                 if ("storage".equals(request.query("body-format"))) {
                     json.put("body", Map.of("storage", Map.of("value", page.body, "representation", "storage")));
                 }

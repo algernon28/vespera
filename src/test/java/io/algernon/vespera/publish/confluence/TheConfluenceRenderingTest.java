@@ -119,6 +119,12 @@ class TheConfluenceRenderingTest {
     /** A language code no record gives the fixed words of, which a page list may not name (ADR-321 §1). */
     private static final String A_LANGUAGE_NO_RECORD_NAMES = "fr";
 
+    /** English's code as no drawing writes it, in upper case (ADR-378 §4). */
+    private static final String ENGLISH_IN_UPPER_CASE = "EN";
+
+    /** The root page's key as ADR-328 wrote it, with no language's code before it (ADR-378 §2). */
+    private static final String A_KEY_WITH_NO_CODE = "root";
+
     /** A group's text longer than a whole title may be, 255 code units (ADR-310 §4). */
     private static final int LONGER_THAN_A_TITLE = 300;
 
@@ -221,7 +227,7 @@ class TheConfluenceRenderingTest {
 
     @Test
     @Story("Each deliverable language is a tree of its own")
-    @DisplayName("Each page is keyed by the language's code and its place, the page list is of format 3 naming its language, and a publish refuses an earlier format or another language")
+    @DisplayName("Each page is keyed by the language's code and its place, the page list is of format 3 naming its language, and a publish refuses an earlier format, another language, the code in upper case or a key with no code")
     void aKeyIsTheCodeAndThePlaceAndThePageListOfFormatThreeNamesItsLanguage(@TempDir Path base) throws IOException {
         Path tree = draw(base, picturesOfTheFirst());
         Path confluence = tree.resolve(ConfluencePages.DIRECTORY_NAME);
@@ -234,6 +240,12 @@ class TheConfluenceRenderingTest {
         rewritten(confluence, "format", THE_FORMAT);
         rewritten(confluence, "language", A_LANGUAGE_NO_RECORD_NAMES);
         PageList.Read ofAnotherLanguage = PageList.in(confluence, ListedTree.RUN_ID);
+        rewritten(confluence, "language", ENGLISH_IN_UPPER_CASE);
+        PageList.Read ofTheCodeInUpperCase = PageList.in(confluence, ListedTree.RUN_ID);
+        rewritten(confluence, "language", "en");
+        PageList.Read asDrawnAgain = PageList.in(confluence, ListedTree.RUN_ID);
+        rootKeyed(confluence, A_KEY_WITH_NO_CODE);
+        PageList.Read ofAKeyWithNoCode = PageList.in(confluence, ListedTree.RUN_ID);
 
         claim(
                 "the page list is of format 3 and names the language it was drawn in, en",
@@ -256,6 +268,33 @@ class TheConfluenceRenderingTest {
                 "and refuses it naming a language no record gives words to, saying to draw the deliverable again",
                 () -> assertThat(ofAnotherLanguage).isInstanceOfSatisfying(PageList.Read.Refused.class,
                         refused -> assertThat(refused.line()).contains("Run vespera run to draw the deliverable again")));
+        claim(
+                "and refuses it naming its own language in upper case, EN, which no drawing writes",
+                () -> assertThat(ofTheCodeInUpperCase).isInstanceOfSatisfying(PageList.Read.Refused.class,
+                        refused -> assertThat(refused.line()).contains("Run vespera run to draw the deliverable again")));
+        claim(
+                "the list named en again is read once more, so what follows is refused for its key alone",
+                () -> assertThat(asDrawnAgain).isInstanceOf(PageList.Read.Listed.class));
+        claim(
+                "and it refuses a list whose root page is keyed root, with no code and colon before it",
+                () -> assertThat(ofAKeyWithNoCode).isInstanceOfSatisfying(PageList.Read.Refused.class,
+                        refused -> assertThat(refused.line()).contains("Run vespera run to draw the deliverable again")));
+    }
+
+    /** Rewrites the root page's key in the page list in {@code confluence}, and its children's parent with it. */
+    private static void rootKeyed(Path confluence, String key) throws IOException {
+        Path file = confluence.resolve(ConfluencePages.PAGE_LIST_FILE_NAME);
+        ObjectNode list = (ObjectNode) JSON.readTree(file.toFile());
+        String was = list.get("pages").get(0).get("key").asString();
+        for (JsonNode page : list.get("pages")) {
+            if (page.get("key").asString().equals(was)) {
+                ((ObjectNode) page).put("key", key);
+            }
+            if (!page.get("parent").isNull() && page.get("parent").asString().equals(was)) {
+                ((ObjectNode) page).put("parent", key);
+            }
+        }
+        Files.write(file, JSON.writeValueAsBytes(list));
     }
 
     @Test
