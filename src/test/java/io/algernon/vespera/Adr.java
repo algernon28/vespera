@@ -2649,6 +2649,16 @@ public final class Adr {
     public static final String A_SIZE_OF_MEMORY_IS_WRITTEN_IN_POWERS_OF_1024 =
             FILE + "0371-a-size-of-memory-is-written-in-powers-of-1024-and-only-a-count-axis-of-the-cockpit-is-shortened-to-k-m-b-and-t.md";
 
+    /**
+     * ADR-378 -- each deliverable language is published to the site as a tree of its own under the one parent: its root
+     * page {@code Vespera_<code>}, every other title's suffix ending {@code · <code>)}, each page keyed {@code
+     * <code>:<place>} and labelled {@code vespera-<code>}, the page list of format 3; a publish touches its own
+     * language's tree alone, and an earlier tree is taken only by the language its root page's heading names (amends
+     * ADR-328 §1, §3, §4, §6 and §7, ADR-310 §2 to §4, ADR-321 §5, ADR-316 §2 to §4 and ADR-320 §4).
+     */
+    public static final String EACH_DELIVERABLE_LANGUAGE_IS_PUBLISHED_AS_A_TREE_OF_ITS_OWN = FILE
+            + "0378-each-deliverable-language-is-a-tree-of-its-own-its-titles-carrying-its-code-and-an-earlier-tree-taken-by-its-heading.md";
+
     private Adr() {
     }
 }
