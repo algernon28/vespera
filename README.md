@@ -174,7 +174,6 @@ cluster-page-sizes.html          how large each group's page is, in bytes, writt
 cluster-page-sizes.json          the same report's numbers and rows as data, written beside its page; report.json copies its headline
 arrangement.html                 the groups, named and in order, for you to approve
 arrangement.json                 the same report's numbers and rows as data, written beside its page; report.json copies its headline
-confluence-not-carried.csv       the copies a vespera publish could not send because the site refused them as too large, written only when it refused one
 deliverable/<run>/index.html     what was written, group by group, and what produced it, opened when written
 deliverable/<run>/documents.csv  every surviving document, with its place in the order and its copy
 deliverable/<run>/code.csv       every file of every code set, with its set, its role and its copy
