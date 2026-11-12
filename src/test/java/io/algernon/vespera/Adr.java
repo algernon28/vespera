@@ -2649,6 +2649,17 @@ public final class Adr {
     public static final String A_SIZE_OF_MEMORY_IS_WRITTEN_IN_POWERS_OF_1024 =
             FILE + "0371-a-size-of-memory-is-written-in-powers-of-1024-and-only-a-count-axis-of-the-cockpit-is-shortened-to-k-m-b-and-t.md";
 
+    /**
+     * ADR-372 -- the control panel's window has a light and a dark theme, switched by {@code theme-toggle} at the
+     * header's right between the words Light and Dark, light by default and the system's setting not read; the choice is
+     * kept in a {@code theme} file beside the launch values, only where that folder exists and is the user's own; the
+     * stylesheet defines its colour tokens once and redefines them for the dark theme, each text token at WCAG AA, and a
+     * dialog takes the window's stylesheet and, over a dark window, the dark tokens (amends ADR-292 §3, ADR-342
+     * §3, ADR-344 §1 and its What this does not decide).
+     */
+    public static final String THE_CONTROL_PANELS_WINDOW_HAS_A_LIGHT_AND_A_DARK_THEME =
+            FILE + "0372-the-control-panels-window-has-a-light-and-a-dark-theme-switched-in-its-header-and-kept-beside-the-launch-values.md";
+
     private Adr() {
     }
 }
