@@ -167,6 +167,16 @@ final class ConfluenceApi {
         return Optional.of(sitePage(expect(reply, "reading the page " + id).body()));
     }
 
+    /**
+     * The body of the page of this id in storage format, read by {@code GET pages/{id}?body-format=storage}, which
+     * answers it as {@code body.storage.value} (ADR-378 §5). Any answer but {@code 2xx} is a refusal.
+     */
+    String storageBody(String id) throws InterruptedException {
+        Reply reply = expect(get(uri("/wiki/api/v2/pages/" + segment(id), "body-format", "storage")),
+                "reading the body of the page " + id);
+        return reply.body().path("body").path("storage").path("value").asString("");
+    }
+
     /** The page of the space titled exactly {@code title}, if one stands. */
     Optional<SitePage> pageTitled(String spaceId, String title) throws InterruptedException {
         Reply reply = expect(get(uri("/wiki/api/v2/pages", "space-id", spaceId, "title", title, "status", "current")),
