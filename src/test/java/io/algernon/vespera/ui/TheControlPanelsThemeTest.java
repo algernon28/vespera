@@ -174,8 +174,8 @@ class TheControlPanelsThemeTest {
 
     @Test
     @Story("The operator switches the control panel between a light and a dark theme")
-    @DisplayName("The theme is kept nowhere where the folder is missing, is not a folder, or others can write in it")
-    void theThemeIsKeptNowhereWhereTheFolderIsAbsentOrNotTheUsersOwn(@TempDir Path folder) throws IOException {
+    @DisplayName("The theme is kept nowhere where the folder is missing, is not a folder, or others can write in it, and is not read from a folder others can write in")
+    void theThemeIsKeptNowhereAndReadFromNowhereWhereTheFolderIsAbsentOrNotTheUsersOwn(@TempDir Path folder) throws IOException {
         Path absent = folder.resolve("absent");
         ControlPanelState overAbsent = WindowForTests.aState(absent, aRuntime(folder));
         overAbsent.keepDark(true);
@@ -205,10 +205,16 @@ class TheControlPanelsThemeTest {
         Path shared = folder.resolve("shared");
         Path sharedFolder = Files.createDirectories(launchValuesFolder(shared));
         Files.setPosixFilePermissions(sharedFolder, PosixFilePermissions.fromString("rwxrwxrwx"));
-        WindowForTests.aState(shared, aRuntime(folder)).keepDark(true);
+        ControlPanelState overShared = WindowForTests.aState(shared, aRuntime(folder));
+        overShared.keepDark(true);
 
         claim("where the folder exists and others can write in it, choosing dark writes nothing there",
                 () -> assertThat(namesIn(sharedFolder)).isEmpty());
+
+        Files.writeString(sharedFolder.resolve("theme"), "dark", UTF_8);
+
+        claim("and a theme file reading dark that another user left in that folder is not read: the window opens light",
+                () -> assertThat(overShared.darkChosen()).as("dark read back").isFalse());
     }
 
     @Test
