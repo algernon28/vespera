@@ -234,6 +234,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // a cache key, a cluster or text of the deliverable.
             "ModelPull",
             "ModelPullSettings",
+            // ADR-375: refuses a cloud or remote model at the start of vespera run; decides no verdict, key, cluster or text.
+            "ModelsAtTheStart",
             "StageFiveGates",
             "StageModules",
             "StageProgress",
@@ -393,6 +395,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-329: run by stage 5's scoring step and the generation step; it asks ADR-202's check and pulls, and
             // hands the stage the check's answer.
             Map.entry("ModelPull", Set.of("embedding.LocalOllamaModel", "embedding.OllamaClient")),
+            // ADR-375: asks ADR-202's check of both models at the start of vespera run.
+            Map.entry("ModelsAtTheStart", Set.of("embedding.LocalOllamaModel", "embedding.OllamaClient")),
             Map.entry("StageFiveGates", Set.of()),
             Map.entry(
                     "EmbeddingScoringTasklet",

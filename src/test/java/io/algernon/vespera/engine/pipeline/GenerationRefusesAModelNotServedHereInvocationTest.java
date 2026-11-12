@@ -15,7 +15,6 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,19 +30,17 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * Stage 6b sends nothing to a generation model that is not served on this machine (ADR-202, #431).
+ * A generation model that is not local is refused at the start of every invocation that names it, before anything is
+ * walked, and not first at the generation step (ADR-375, #725, extending ADR-202 and #431).
  *
- * <p>A loopback address does not keep a cluster's text here: Ollama serves a cloud model through the
- * local daemon and forwards each request to ollama.com. So before stage 6b mints its run or puts a
- * single question, the generation model it resolved passes the check the labeller already makes
- * (ADR-197 section 6): a tag that ends in {@code cloud} is refused without asking Ollama anything, a
- * model {@code /api/show} reports as remote is refused, a model Ollama has never pulled is refused as
- * one it does not serve, and a model Ollama cannot answer about is refused rather than assumed local.
- * A refusal is exactly one line at error level naming the stage, the generation model and the reason;
- * the invocation ends non-zero, and no run is minted. A stage whose gate is shut asks nothing at all.
+ * <p>A loopback address does not keep a cluster's text here: Ollama serves a cloud model through the local daemon
+ * and forwards each request to ollama.com. {@code vespera run} checks, at its start, every model the profile and the
+ * configuration name for it, the generation model among them, whether or not the invocation will reach the step that
+ * sends to it: the generation step comes invocations after the walk, behind the arrangement's approval. A tag that
+ * ends in {@code cloud} is refused without asking Ollama anything, in one line on standard error, and the invocation
+ * ends with exit code 1.
  *
- * <p>The serving engine here is {@link EmbeddingScriptedBeans}' client, scripted by name, and the chat
- * model is {@link GenerationScriptedBeans}' double, which counts every call. No test reaches a model or
+ * <p>The serving engine here is {@link EmbeddingScriptedBeans}' client, scripted by name. No test reaches a model or
  * a daemon.
  *
  * <p><b>A class of its own, for the working directory</b>, for {@link GenerationIdentityInvocationTest}'s
@@ -55,20 +52,23 @@ import org.springframework.test.context.DynamicPropertySource;
 @ExtendWith(OutputCaptureExtension.class)
 @Epic("Synthesis")
 @Feature("Only a model served on this machine is sent anything")
-@Issue("431")
+@Issue("725")
+@Link(name = "ADR-375", url = Adr.AN_UNANSWERED_CHECK_TAKES_A_MODEL_AS_LOCAL_AND_A_CLOUD_MODEL_IS_REFUSED_AT_THE_START, type = "adr")
 @Link(name = "ADR-202", url = Adr.GENERATION_AND_EMBEDDING_REFUSE_A_MODEL_NOT_SERVED_HERE, type = "adr")
-@Link(name = "ADR-197", url = Adr.A_LOCAL_MODEL_LABELS_AND_THE_FLOOR_IS_A_RULE, type = "adr")
 @Link(name = "ADR-114", url = Adr.THE_GENERATION_MODEL_IS_CONFIGURATION_WITH_A_DEFAULT, type = "adr")
 class GenerationRefusesAModelNotServedHereInvocationTest {
-
-    /** What the refusal line calls this stage, so an operator reading the log knows which one stopped. */
-    private static final String THE_STAGE = "the generation step";
 
     /** A tag Ollama gives a cloud model: served by the local daemon, answered by ollama.com. */
     private static final String A_CLOUD_TAGGED_GENERATION_MODEL = "a-large-model:120b-cloud";
 
-    /** The one line of Java's stack trace format that a refusal must not print. */
-    private static final String A_STACK_FRAME = "\tat ";
+    /** The exit code of every refusal at the start of {@code vespera run}. */
+    private static final int REFUSED = 1;
+
+    /** The whole line the refusal prints on standard error. */
+    private static final String THE_LINE = "vespera run stopped at its start: the generation model "
+            + A_CLOUD_TAGGED_GENERATION_MODEL + " was refused, so nothing was walked and no run was minted -- the model "
+            + A_CLOUD_TAGGED_GENERATION_MODEL + " is a cloud model: Ollama forwards it to a hosted service, and no"
+            + " document's text may be sent there";
 
     @TempDir
     static Path workingDirectory;
@@ -97,89 +97,37 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
 
     @Test
     @Story("No cluster's text leaves this machine through Ollama")
-    @DisplayName("A generation model whose tag ends in cloud is refused before any question is put, without asking Ollama")
-    void aCloudTaggedGenerationModelIsRefusedBeforeAnyQuestion(
+    @DisplayName("A generation model whose tag ends in cloud is refused at the start of an invocation that would not reach generation, before anything is walked")
+    void aCloudTaggedGenerationModelIsRefusedAtTheStartOfAnInvocationThatWouldNotReachIt(
             @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
-        anApprovedArrangementToWriteUnder(root, seeds, A_CLOUD_TAGGED_GENERATION_MODEL);
-        int before = output.getAll().length();
-
-        cli.run("run", root.toString());
-        String said = output.getAll().substring(before);
-
-        claim("the invocation ends non-zero, because it was stopped", () -> assertThat(cli.getExitCode())
-                .isNotZero());
-        claim(
-                "no question reached the generation model -- neither a counting call nor a call for the"
-                        + " writing -- because a cloud model is answered by a hosted service, and the"
-                        + " first question would already carry a cluster's text there",
-                () -> {
-                    assertThat(GenerationScriptedBeans.countingCallsMade()).isZero();
-                    assertThat(GenerationScriptedBeans.callsMade()).isZero();
-                });
-        claim(
-                "exactly one line, at error level, names " + THE_STAGE + " and says the generation model "
-                        + A_CLOUD_TAGGED_GENERATION_MODEL + " is a cloud model, and no stack trace stands in"
-                        + " its place",
-                () -> oneErrorLineSays(said, A_CLOUD_TAGGED_GENERATION_MODEL, " is a cloud model"));
-        claim(
-                "Ollama was not asked about it: the tag alone settles it, so the refusal needs no answer"
-                        + " from anything",
-                () -> assertThat(EmbeddingScriptedBeans.shownModels())
-                        .doesNotContain(A_CLOUD_TAGGED_GENERATION_MODEL));
-        claim(
-                "no generation run was minted, because a run that sent nothing would read as one that"
-                        + " found nothing to write",
-                () -> assertThat(generationRunsOver(root)).isEmpty());
-    }
-
-    /**
-     * Exactly one line names {@code model} and says {@code reason}, it is at error level, it names the
-     * stage, and nothing printed a stack trace.
-     */
-    private static void oneErrorLineSays(String said, String model, String reason) {
-        List<String> lines = said.lines()
-                .filter(line -> line.contains(model) && line.contains(reason))
-                .toList();
-        assertThat(lines)
-                .as("the lines naming %s and saying \"%s\"", model, reason)
-                .hasSize(1);
-        assertThat(lines.getFirst())
-                .as("the one line naming %s", model)
-                .matches("^\\S+ ERROR .*")
-                .contains(THE_STAGE);
-        assertThat(said).as("what the invocation printed").doesNotContain(A_STACK_FRAME);
-    }
-
-    /** One corpus document and one seed, with every gate up to the arrangement open. */
-    private void aCorpus(Path root, Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         EveryGateOpen.throughStageFive(profileStore, seeds);
-    }
-
-    /**
-     * {@link #aCorpus}, run once so an arrangement exists, then that arrangement approved and {@code
-     * generationModel} named, so the next invocation reaches stage 6b.
-     */
-    private void anApprovedArrangementToWriteUnder(Path root, Path seeds, String generationModel)
-            throws IOException {
-        aCorpus(root, seeds);
-        cli.run("run", root.toString());
         profileStore.save(ProfileFixture.profileFrom(profileStore.load())
-                .arrangementApproved(
-                        ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement")),
-                        "read by this test")
-                .generationModel(generationModel, "set by this test")
+                .generationModel(A_CLOUD_TAGGED_GENERATION_MODEL, "set by this test, with no arrangement approved")
                 .build());
-        GenerationScriptedBeans.forgetScriptedAnswers();
+        int before = output.getErr().length();
+
+        cli.run("run", root.toString());
+        String onStandardError = output.getErr().substring(before);
+
+        claim(
+                "the invocation ends with exit code " + REFUSED + ", the code of every refusal at its start, where"
+                        + " with no arrangement approved it would have ended at that approval with exit code 0",
+                () -> assertThat(cli.getExitCode()).isEqualTo(REFUSED));
+        claim(
+                "standard error carries the refusal once, whole: \"" + THE_LINE + "\"",
+                () -> assertThat(onStandardError.lines().filter(THE_LINE::equals)).hasSize(1));
+        claim("nothing was walked, so no stage ran before the refusal", () -> assertThat(walksOf(root)).isZero());
+        claim(
+                "Ollama was not asked about it: the tag alone settles it",
+                () -> assertThat(EmbeddingScriptedBeans.shownModels()).doesNotContain(A_CLOUD_TAGGED_GENERATION_MODEL));
     }
 
-    /** Every generation run over this method's own corpus. */
-    private List<String> generationRunsOver(Path root) {
-        return jdbcTemplate.queryForList(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id WHERE r.stage = ? AND w.root = ?",
-                String.class,
-                "generation",
-                Walk.canonicalRoot(root).toString());
+    /** How many walks were recorded over this method's own corpus. */
+    private int walksOf(Path root) {
+        Integer walks = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM walk WHERE root = ?", Integer.class, Walk.canonicalRoot(root).toString());
+        return walks == null ? 0 : walks;
     }
 }

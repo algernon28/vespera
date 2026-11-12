@@ -2666,6 +2666,14 @@ public final class Adr {
             FILE + "0373-a-folder-differing-in-case-alone-from-one-the-drawing-wrote-is-left-behind-only-where-the-file-system-tells-them-apart.md";
 
     /**
+     * ADR-375 -- a model whose check Ollama cannot complete is taken as local at stage 5's scoring step and the
+     * generation step, and {@code vespera run} refuses at its start, before anything is walked, every model it names
+     * whose tag ends in {@code cloud} or that Ollama reports as remote (amends ADR-202 §2 and §3 and ADR-329 §3).
+     */
+    public static final String AN_UNANSWERED_CHECK_TAKES_A_MODEL_AS_LOCAL_AND_A_CLOUD_MODEL_IS_REFUSED_AT_THE_START =
+            FILE + "0375-a-model-whose-check-cannot-be-completed-is-taken-as-local-and-a-cloud-model-is-refused-at-the-start-of-vespera-run.md";
+
+    /**
      * ADR-377 -- a profile row is one line, a toggle, its title over its key in brackets, and its control, the toggle
      * opening its short description, the value in use, its cost line and warnings and its reports by title; the texts are
      * profile-texts.json's; a value's provenance is in its title's tooltip alone, and a value changed in the window is
