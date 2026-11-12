@@ -1,8 +1,12 @@
 package io.algernon.vespera.ui;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -87,10 +91,11 @@ final class HeadlessToolkit {
     /** Every node under {@code root}, itself first, reached through children, split items, tabs and panes' content. */
     static List<Node> everyNodeUnder(Node root) {
         List<Node> found = new ArrayList<>();
-        List<Node> toVisit = new ArrayList<>(List.of(root));
+        Set<Node> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        ArrayDeque<Node> toVisit = new ArrayDeque<>(List.of(root));
         while (!toVisit.isEmpty()) {
             Node node = toVisit.removeFirst();
-            if (found.stream().anyMatch(seen -> seen == node)) {
+            if (!seen.add(node)) {
                 continue;
             }
             found.add(node);

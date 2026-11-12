@@ -361,6 +361,18 @@ final class ControlPanelState {
         return childCommand;
     }
 
+    /** The child's held lines and their count, none where there is no child (ADR-364 section 7). */
+    synchronized Child.Held held() {
+        return child == null ? new Child.Held(0, List.of()) : child.held();
+    }
+
+    /** Lets the child's held lines go, once the output file is shown. */
+    synchronized void letGo() {
+        if (child != null) {
+            child.letGo();
+        }
+    }
+
     synchronized List<String> tail() {
         return child == null ? List.of() : child.tail();
     }

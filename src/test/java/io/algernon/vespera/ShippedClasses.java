@@ -136,7 +136,46 @@ final class ShippedClasses {
         return appended;
     }
 
+    /**
+     * The standard streams every class under {@code io.algernon} reads or prints on, the control panel and the entry
+     * point included, by class name in order: a read of the field {@code System.out}, {@code System.err},
+     * {@code FileDescriptor.out} or {@code FileDescriptor.err}, and a call of {@code Throwable.printStackTrace()} with no
+     * argument (ADR-364 §4).
+     */
+    static Map<String, List<String>> standardStreamUseByClass() throws ClassNotFoundException, IOException {
+        return readByClass(ShippedClasses::standardStreamUseOf, false);
+    }
+
+    private static List<String> standardStreamUseOf(ClassModel compiled) {
+        List<String> used = new ArrayList<>();
+        for (MethodModel method : compiled.methods()) {
+            for (CodeElement element : method.code().map(CodeModel::elementList).orElse(List.of())) {
+                if (element instanceof java.lang.classfile.instruction.FieldInstruction field
+                        && field.opcode() == java.lang.classfile.Opcode.GETSTATIC) {
+                    String owner = field.owner().asInternalName();
+                    String name = field.name().stringValue();
+                    if ((owner.equals("java/lang/System") && (name.equals("out") || name.equals("err")))
+                            || (owner.equals("java/io/FileDescriptor") && (name.equals("out") || name.equals("err")))) {
+                        used.add(owner.replace('/', '.') + "." + name);
+                    }
+                }
+                if (element instanceof InvokeInstruction call
+                        && call.name().equalsString("printStackTrace")
+                        && call.type().equalsString("()V")) {
+                    used.add(call.owner().asInternalName().replace('/', '.') + ".printStackTrace()");
+                }
+            }
+        }
+        return used;
+    }
+
     private static Map<String, List<String>> readByClass(Function<ClassModel, List<String>> read)
+            throws ClassNotFoundException, IOException {
+        return readByClass(read, true);
+    }
+
+    private static Map<String, List<String>> readByClass(
+            Function<ClassModel, List<String>> read, boolean leavingOutTheControlPanelAndTheEntryPoint)
             throws ClassNotFoundException, IOException {
         ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(false) {
             @Override
@@ -147,10 +186,11 @@ final class ShippedClasses {
         scanner.addIncludeFilter(new AssignableTypeFilter(Object.class));
 
         Map<String, List<String>> held = new TreeMap<>();
-        for (BeanDefinition candidate : scanner.findCandidateComponents(SHIPPED_PACKAGE)) {
+        for (BeanDefinition candidate : scanner.findCandidateComponents(leavingOutTheControlPanelAndTheEntryPoint ? SHIPPED_PACKAGE : "io.algernon")) {
             Class<?> type =
                     Class.forName(candidate.getBeanClassName(), false, Thread.currentThread().getContextClassLoader());
-            if (compiledFromTheTestTree(type) || leftOut(type.getName())) {
+            if (compiledFromTheTestTree(type)
+                    || (leavingOutTheControlPanelAndTheEntryPoint && leftOut(type.getName()))) {
                 continue;
             }
             held.put(type.getName(), read.apply(compiledFormOf(type)));

@@ -12,7 +12,6 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
-import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -36,7 +35,7 @@ final class CodeSetsPane {
     private final VBox codeSets = new VBox();
     private final List<CodeSet> codeSetEntries = new ArrayList<>();
     private final TextField codeSetNote = new TextField();
-    private final Label codeSetOutcome = new Label();
+    private final SelectableText.Wrapping codeSetOutcome = SelectableText.wrapping("");
 
     /**
      * {@code otherFolders} are the folders of the window a code set outside the corpus root must stay apart from, as
@@ -79,10 +78,9 @@ final class CodeSetsPane {
         save.setId("code-sets-save");
         save.setOnAction(event -> saveCodeSets());
         codeSetOutcome.setId("code-set-outcome");
-        codeSetOutcome.setWrapText(true);
         HBox.setHgrow(folder, Priority.ALWAYS);
         VBox pane = new VBox(codeSets, row(folder, browse, add), name,
-                row(new Label("Note saved with the folders outside"), codeSetNote), save, codeSetOutcome);
+                row(SelectableText.line("Note saved with the folders outside"), codeSetNote), save, codeSetOutcome);
         pane.getStyleClass().add("section");
         return pane;
     }
@@ -150,7 +148,7 @@ final class CodeSetsPane {
     private void draw() {
         codeSets.getChildren().clear();
         for (CodeSet each : new ArrayList<>(codeSetEntries)) {
-            Label words = new Label(each.outside() ? each.folder() + "  (outside the corpus root)"
+            SelectableText.Line words = SelectableText.line(each.outside() ? each.folder() + "  (outside the corpus root)"
                     : each.name().isEmpty() ? each.folder() + "  (under the corpus root, no name)"
                     : each.folder() + "  named " + each.name());
             Button remove = new Button("Remove");

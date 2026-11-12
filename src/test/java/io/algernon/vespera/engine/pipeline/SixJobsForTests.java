@@ -148,9 +148,14 @@ final class SixJobsForTests {
     }
 
     static InvocationReport aReport(Path directory) {
+        return aReport(directory, invocation -> { });
+    }
+
+    /** As {@link #aReport(Path)}, the output begun through {@code beginning} (ADR-364 section 3). */
+    static InvocationReport aReport(Path directory, InvocationOutput.Beginning beginning) {
         return new InvocationReport(
                 directory, NO_SCHEDULED_WRITE_MEANWHILE, aClock(),
-                () -> new DisplayPresence.Answer(true, "display-variable", null), "");
+                () -> new DisplayPresence.Answer(true, "display-variable", null), "", "", beginning);
     }
 
     static Clock aClock() {

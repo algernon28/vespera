@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import javafx.scene.control.Button;
-import javafx.scene.control.Label;
 import javafx.scene.layout.VBox;
 
 /** What the next invocation wants: a row for each profile value it asks for, beneath the actions, with its own Save (ADR-344 §1). */
@@ -72,7 +71,7 @@ final class WantedValues {
         }
         Optional<EffectiveValues> effective = state.effectiveValues(folders.workingDirectory());
         Map<String, Boolean> written = folders.writtenReports();
-        wanted.getChildren().add(new Label("The next invocation wants these values:"));
+        wanted.getChildren().add(SelectableText.line("The next invocation wants these values:"));
         for (String want : next.get().wants()) {
             Optional<ProfileKey> key = ProfileKey.named(want);
             if (key.isEmpty()) {

@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -79,6 +80,138 @@ class CliExitIT {
                 () -> assertThat(launched.finished()).isTrue());
         claim("and its exit code is picocli's usage code for the rejected option, not success",
                 () -> assertThat(launched.exitCode()).isEqualTo(CommandLine.ExitCode.USAGE));
+        theJarsOwnLinesReadAsTheirWordsAloneOnTheStreamTheyAreFor();
+    }
+
+    /** The start of a line in the console's pattern, {@code HH:mm:ss.SSS LEVEL}, which a line of the jar's own lacks. */
+    private static final Pattern IN_THE_CONSOLES_PATTERN = Pattern.compile("^\\d{2}:\\d{2}:\\d{2}\\.\\d{3} [A-Z]+ .*");
+
+    /** What a launch returned with its two streams kept apart. */
+    private record Streams(
+            boolean finished, int exitCode, List<String> standardOutput, List<String> standardError, Path workingDirectory) {
+        String lastErrorLine() {
+            return standardError.isEmpty() ? "" : standardError.getLast();
+        }
+    }
+
+    /**
+     * The jar's own lines are logged on the operator logger and read, on the stream they were printed on, as their
+     * words alone (ADR-364 section 4): a refusal and picocli's refusal of an argument, with its usage, on standard
+     * error; the usage of the bare command on standard output; and a closing line that used to be logged in the console's
+     * pattern. Held here, among this class's launches, because the suite holds at most seven integration tests and
+     * 700 test methods (ADR-368). The usage is not compared with picocli's own rendering, which needs the Spring beans
+     * the commands are built from.
+     */
+    private void theJarsOwnLinesReadAsTheirWordsAloneOnTheStreamTheyAreFor() throws Exception {
+        Streams noRoot = launchSplit("run");
+        claim("a refusal is the last line of standard error, its words whole with nothing before them, none of it on"
+                        + " standard output, and the exit code is picocli's usage code",
+                () -> {
+                    assertThat(noRoot.finished()).isTrue();
+                    assertThat(noRoot.lastErrorLine())
+                            .startsWith("vespera run named no root and ")
+                            .endsWith("A root is never guessed, because a census of the wrong tree reports success.");
+                    assertThat(String.join("\n", noRoot.standardOutput())).doesNotContain("vespera run named no root");
+                    assertThat(noRoot.exitCode()).isEqualTo(CommandLine.ExitCode.USAGE);
+                });
+        claim("the banner is logged, so vespera.log in that working directory holds Spring Boot's banner line, one"
+                        + " event at INFO whichever logger Spring Boot logs it on (ADR-364 section 5)",
+                () -> assertThat(Files.readAllLines(noRoot.workingDirectory().resolve("logs").resolve("vespera.log")))
+                        .anyMatch(line -> line.contains(":: Spring Boot ::")));
+
+        Streams bogus = launchSplit("run", "--bogus-option");
+        claim("picocli's refusal of an argument and the usage it writes with it are on standard error as their words"
+                        + " alone, and standard output holds none of them",
+                () -> {
+                    assertThat(bogus.standardError()).contains("Unknown option: '--bogus-option'");
+                    assertThat(bogus.standardError()).anyMatch(line -> line.startsWith("Usage: vespera run"));
+                    assertThat(bogus.standardError()).noneMatch(line -> IN_THE_CONSOLES_PATTERN.matcher(line).matches());
+                    assertThat(bogus.standardOutput()).noneMatch(line -> line.startsWith("Usage: vespera run"));
+                    assertThat(String.join("\n", bogus.standardOutput())).doesNotContain("Unknown option");
+                });
+
+        Streams bare = launchSplit("--headless");
+        List<String> output = bare.standardOutput();
+        int usageStarts = output.indexOf(output.stream().filter(line -> line.startsWith("Usage: vespera")).findFirst().orElse(""));
+        claim("the usage of the bare command is on standard output from a first line beginning Usage: vespera, naming"
+                        + " the commands, in no line the console's pattern, and ends on no blank line",
+                () -> {
+                    assertThat(usageStarts).isGreaterThanOrEqualTo(0);
+                    List<String> usage = output.subList(usageStarts, output.size());
+                    assertThat(usage).noneMatch(line -> IN_THE_CONSOLES_PATTERN.matcher(line).matches());
+                    assertThat(usage.getLast()).isNotBlank();
+                    for (String command : List.of("run", "label", "publish", "serve")) {
+                        assertThat(usage).anyMatch(line -> line.strip().startsWith(command));
+                    }
+                    assertThat(bare.exitCode()).isEqualTo(CommandLine.ExitCode.USAGE);
+                });
+
+        Path root = Files.createDirectories(workingDirectory.resolve("a-corpus-with-a-document"));
+        Files.writeString(root.resolve("a document.txt"), "a document of the corpus");
+        Streams stageTwo = launchSplit("run", root.toString());
+        claim("a closing line that used to be logged in the console's pattern, stage 2's failure with no converter"
+                        + " answering, is the last line of standard error as its words alone, and the exit code is 1",
+                () -> {
+                    assertThat(stageTwo.lastErrorLine())
+                            .startsWith("Stage 2 (extraction) failed and is not recorded as finished")
+                            .endsWith("and run the same command again.");
+                    assertThat(stageTwo.exitCode()).isEqualTo(1);
+                });
+        Path logs = stageTwo.workingDirectory().resolve("logs");
+        List<Path> outputFiles;
+        try (Stream<Path> each = Files.list(logs)) {
+            outputFiles = each.filter(path -> path.getFileName().toString().matches("output-\\d{8}T\\d{6}Z(-\\d+)?\\.log"))
+                    .toList();
+        }
+        claim("the invocation wrote one output file in its logs folder, holding every line of its two streams, the"
+                        + " banner and the closing line among them, the closing line as its words alone (ADR-364 section 2)",
+                () -> {
+                    assertThat(outputFiles).hasSize(1);
+                    List<String> inTheFile = Files.readAllLines(outputFiles.getFirst(), StandardCharsets.UTF_8);
+                    assertThat(inTheFile).anyMatch(line -> line.contains(":: Spring Boot ::"));
+                    assertThat(inTheFile).containsAll(stageTwo.standardOutput().stream()
+                            .filter(line -> !line.isBlank()).toList());
+                    assertThat(inTheFile).containsAll(stageTwo.standardError().stream()
+                            .filter(line -> !line.isBlank()).toList());
+                    assertThat(inTheFile).contains(stageTwo.lastErrorLine());
+                });
+    }
+
+    /** As {@link #launch}, standard output and standard error kept in two files, so the stream a line is on is read. */
+    private static Streams launchSplit(String... args) throws Exception {
+        Path out = Files.createTempFile(workingDirectory, "split", ".out");
+        Path err = Files.createTempFile(workingDirectory, "split", ".err");
+        Path launchedIn = workingDirectory.resolve("split-" + out.getFileName());
+        ProcessBuilder builder = new ProcessBuilder(
+                        Stream.of(
+                                        Stream.of(
+                                                javaExecutable(),
+                                                "--enable-native-access=ALL-UNNAMED",
+                                                "-Dspring.docker.compose.enabled=false",
+                                                "-Dvespera.sidecars.start=false",
+                                                "-Dvespera.sidecars.wait-at-most=1s",
+                                                "-Dvespera.working-dir=" + launchedIn,
+                                                "-jar",
+                                                EXECUTABLE_JAR.toString()),
+                                        Stream.of(args))
+                                .flatMap(each -> each)
+                                .toList())
+                .redirectOutput(out.toFile())
+                .redirectError(err.toFile());
+        builder.environment().put("CI", "true");
+        builder.environment().putIfAbsent("DISPLAY", ":99");
+        Process process = builder.start();
+        boolean finished = process.waitFor(EXIT_BOUND_SECONDS, TimeUnit.SECONDS);
+        if (!finished) {
+            process.destroyForcibly();
+            process.waitFor();
+        }
+        return new Streams(
+                finished,
+                finished ? process.exitValue() : -1,
+                Files.readAllLines(out, StandardCharsets.UTF_8),
+                Files.readAllLines(err, StandardCharsets.UTF_8),
+                launchedIn);
     }
 
     /**

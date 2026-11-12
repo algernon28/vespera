@@ -67,7 +67,8 @@ public class VesperaJobConfiguration {
                 clock,
                 display.getIfAvailable(() -> DisplayPresence::ofThisProcess),
                 deliverableRoot,
-                reportTemplate);
+                reportTemplate,
+                InvocationOutput::beginInThisContext);
     }
 
     /** What the job's report is handed while it runs (ADR-362 section 3), shared by the job. */
@@ -150,115 +151,124 @@ public class VesperaJobConfiguration {
      */
     @Bean
     Step censusStep(
-            JobRepository jobRepository, PlatformTransactionManager transactionManager, CensusTasklet censusTasklet) {
+            JobRepository jobRepository, PlatformTransactionManager transactionManager, RecordedClosingLines recordedClosingLines, CensusTasklet censusTasklet) {
         return TaskletSteps.taskletStepOutsideAnyTransaction(
-                StepNames.CENSUS, jobRepository, transactionManager, censusTasklet);
+                StepNames.CENSUS, jobRepository, transactionManager, recordedClosingLines, censusTasklet);
     }
 
     /** Stage 1's own step: byte-level reduction. */
     @Bean
     Step byteLevelReductionStep(
             JobRepository jobRepository,
-            PlatformTransactionManager transactionManager,
+            PlatformTransactionManager transactionManager, RecordedClosingLines recordedClosingLines,
             ByteLevelReductionTasklet byteLevelReductionTasklet) {
         return TaskletSteps.taskletStep(
-                StepNames.BYTE_LEVEL_REDUCTION, jobRepository, transactionManager, byteLevelReductionTasklet);
+                StepNames.BYTE_LEVEL_REDUCTION, jobRepository, transactionManager, recordedClosingLines, byteLevelReductionTasklet);
     }
 
     /** Stage 3's own step: content census. */
     @Bean
     Step contentCensusStep(
             JobRepository jobRepository,
-            PlatformTransactionManager transactionManager,
+            PlatformTransactionManager transactionManager, RecordedClosingLines recordedClosingLines,
             ContentCensusTasklet contentCensusTasklet) {
         return TaskletSteps.taskletStep(
-                StepNames.CONTENT_CENSUS, jobRepository, transactionManager, contentCensusTasklet);
+                StepNames.CONTENT_CENSUS, jobRepository, transactionManager, recordedClosingLines, contentCensusTasklet);
     }
 
     /** Stage 5's first scoring-half step: gate 3, embedding and re-chunking (ADR-084, #107). */
     @Bean
     Step embeddingScoringStep(
             JobRepository jobRepository,
-            PlatformTransactionManager transactionManager,
+            PlatformTransactionManager transactionManager, RecordedClosingLines recordedClosingLines,
             EmbeddingScoringTasklet embeddingScoringTasklet) {
         return TaskletSteps.taskletStep(
-                StepNames.EMBEDDING_SCORING, jobRepository, transactionManager, embeddingScoringTasklet);
+                StepNames.EMBEDDING_SCORING, jobRepository, transactionManager, recordedClosingLines, embeddingScoringTasklet);
     }
 
     /** Stage 5's translation step: one copy of a translation set survives (ADR-271). */
     @Bean
     Step translationStep(
             JobRepository jobRepository,
-            PlatformTransactionManager transactionManager,
+            PlatformTransactionManager transactionManager, RecordedClosingLines recordedClosingLines,
             TranslationTasklet translationTasklet) {
-        return TaskletSteps.taskletStep(StepNames.TRANSLATION, jobRepository, transactionManager, translationTasklet);
+        return TaskletSteps.taskletStep(StepNames.TRANSLATION, jobRepository, transactionManager, recordedClosingLines, translationTasklet);
     }
 
     /** Stage 5's fourth step: relevance scoring (ADR-020, #108). */
     @Bean
     Step relevanceScoringStep(
             JobRepository jobRepository,
-            PlatformTransactionManager transactionManager,
+            PlatformTransactionManager transactionManager, RecordedClosingLines recordedClosingLines,
             RelevanceScoringTasklet relevanceScoringTasklet) {
         return TaskletSteps.taskletStep(
-                StepNames.RELEVANCE_SCORING, jobRepository, transactionManager, relevanceScoringTasklet);
+                StepNames.RELEVANCE_SCORING, jobRepository, transactionManager, recordedClosingLines, relevanceScoringTasklet);
     }
 
     /** The relevance floor's own step (ADR-088, #112). */
     @Bean
     Step relevanceFloorStep(
             JobRepository jobRepository,
-            PlatformTransactionManager transactionManager,
+            PlatformTransactionManager transactionManager, RecordedClosingLines recordedClosingLines,
             RelevanceFloorTasklet relevanceFloorTasklet) {
         return TaskletSteps.taskletStep(
-                StepNames.RELEVANCE_FLOOR, jobRepository, transactionManager, relevanceFloorTasklet);
+                StepNames.RELEVANCE_FLOOR, jobRepository, transactionManager, recordedClosingLines, relevanceFloorTasklet);
     }
 
     /** Stage 5's fifth step: clustering (ADR-087, #109). */
     @Bean
     Step clusteringStep(
             JobRepository jobRepository,
-            PlatformTransactionManager transactionManager,
+            PlatformTransactionManager transactionManager, RecordedClosingLines recordedClosingLines,
             ClusteringTasklet clusteringTasklet) {
-        return TaskletSteps.taskletStep(StepNames.CLUSTERING, jobRepository, transactionManager, clusteringTasklet);
+        return TaskletSteps.taskletStep(StepNames.CLUSTERING, jobRepository, transactionManager, recordedClosingLines, clusteringTasklet);
     }
 
     /** Stage 5's last step: the labelling report (ADR-088). */
     @Bean
     Step relevanceReportStep(
             JobRepository jobRepository,
-            PlatformTransactionManager transactionManager,
+            PlatformTransactionManager transactionManager, RecordedClosingLines recordedClosingLines,
             RelevanceReportTasklet relevanceReportTasklet) {
         return TaskletSteps.taskletStep(
-                StepNames.RELEVANCE_REPORT, jobRepository, transactionManager, relevanceReportTasklet);
+                StepNames.RELEVANCE_REPORT, jobRepository, transactionManager, recordedClosingLines, relevanceReportTasklet);
     }
 
     /** Stage 5's second step: the seed/corpus comparison (ADR-086, ADR-092). */
     @Bean
     Step seedCorpusComparisonStep(
             JobRepository jobRepository,
-            PlatformTransactionManager transactionManager,
+            PlatformTransactionManager transactionManager, RecordedClosingLines recordedClosingLines,
             SeedCorpusComparisonTasklet seedCorpusComparisonTasklet) {
         return TaskletSteps.taskletStep(
-                StepNames.SEED_CORPUS_COMPARISON, jobRepository, transactionManager, seedCorpusComparisonTasklet);
+                StepNames.SEED_CORPUS_COMPARISON, jobRepository, transactionManager, recordedClosingLines, seedCorpusComparisonTasklet);
     }
 
     /** Stage 6a's own step: arrangement (ADR-110, #175). */
     @Bean
     Step arrangementStep(
             JobRepository jobRepository,
-            PlatformTransactionManager transactionManager,
+            PlatformTransactionManager transactionManager, RecordedClosingLines recordedClosingLines,
             ArrangementTasklet arrangementTasklet) {
-        return TaskletSteps.taskletStep(StepNames.ARRANGEMENT, jobRepository, transactionManager, arrangementTasklet);
+        return TaskletSteps.taskletStep(StepNames.ARRANGEMENT, jobRepository, transactionManager, recordedClosingLines, arrangementTasklet);
     }
 
     /** Stage 6b's own step: generation (ADR-110, #179). */
     @Bean
     Step generationStep(
             JobRepository jobRepository,
-            PlatformTransactionManager transactionManager,
+            PlatformTransactionManager transactionManager, RecordedClosingLines recordedClosingLines,
             GenerationTasklet generationTasklet) {
-        return TaskletSteps.taskletStep(StepNames.GENERATION, jobRepository, transactionManager, generationTasklet);
+        return TaskletSteps.taskletStep(StepNames.GENERATION, jobRepository, transactionManager, recordedClosingLines, generationTasklet);
+    }
+
+    /**
+     * The closing lines a tasklet records for after its step (ADR-364 section 4), one holder for every step. A bean of
+     * this configuration and not a component of its own, so that each context that imports the job's steps has it.
+     */
+    @Bean
+    RecordedClosingLines recordedClosingLines() {
+        return new RecordedClosingLines();
     }
 
     /** The clock census stamps its measurements with, injectable so a test can hold time still. */

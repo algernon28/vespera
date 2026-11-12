@@ -13,7 +13,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import javafx.scene.Node;
 import javafx.scene.control.Hyperlink;
-import javafx.scene.control.Label;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tab;
 import javafx.scene.layout.VBox;
@@ -41,15 +41,15 @@ final class LiveReport {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT);
 
     private final Tab tab = new Tab("Report");
-    private final Label status = new Label(WAITING);
-    private final Label stale = new Label();
-    private final Label ended = new Label();
-    private final Label display = new Label();
+    private final TextInputControl status = SelectableText.wrapping(WAITING);
+    private final TextInputControl stale = SelectableText.wrapping("");
+    private final TextInputControl ended = SelectableText.wrapping("");
+    private final TextInputControl display = SelectableText.wrapping("");
     private final VBox gates = new VBox();
     private final VBox refusals = new VBox();
     private final VBox faults = new VBox();
-    private final Label closing = new Label();
-    private final Label next = new Label();
+    private final TextInputControl closing = SelectableText.wrapping("");
+    private final TextInputControl next = SelectableText.wrapping("");
     private final VBox analysis = new VBox();
     private final VBox files = new VBox();
     private InvocationReportFile.Invocation drawn;
@@ -72,9 +72,6 @@ final class LiveReport {
         next.setId("report-next");
         analysis.setId("report-analysis");
         files.setId("report-files");
-        for (Label label : List.of(status, stale, ended, display, closing, next)) {
-            label.setWrapText(true);
-        }
         stale.setVisible(false);
         stale.setManaged(false);
         VBox content = new VBox(status, stale, ended, display, gates, refusals, faults, closing, next, analysis, files);
@@ -146,7 +143,7 @@ final class LiveReport {
                 link.setOnAction(event -> openReport.accept(each.name()));
                 analysis.getChildren().add(link);
             } else {
-                Label grey = new Label(each.name() + " (not written yet)");
+                TextInputControl grey = SelectableText.line(each.name() + " (not written yet)");
                 grey.getStyleClass().add("grey");
                 analysis.getChildren().add(grey);
             }
@@ -201,8 +198,6 @@ final class LiveReport {
     }
 
     private static Node line(String text) {
-        Label label = new Label(text);
-        label.setWrapText(true);
-        return label;
+        return SelectableText.wrapping(text);
     }
 }

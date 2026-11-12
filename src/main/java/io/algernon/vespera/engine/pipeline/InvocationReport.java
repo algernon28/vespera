@@ -240,15 +240,28 @@ final class InvocationReport {
     private String htmlFailure;
     private String copyFailure;
     private ReportHtml html;
+    private final InvocationOutput.Beginning beginning;
 
     InvocationReport(Path workingDirectory, Duration interval, Clock clock, Display display, String deliverableRoot) {
-        this(workingDirectory, interval, clock, display, deliverableRoot, "");
+        this(workingDirectory, interval, clock, display, deliverableRoot, "", InvocationOutput::beginInThisContext);
     }
 
     /** {@code reportTemplate} is {@code vespera.report.template}: the absolute path of the operator's template, blank where unset. */
     InvocationReport(
             Path workingDirectory, Duration interval, Clock clock, Display display, String deliverableRoot,
             String reportTemplate) {
+        this(workingDirectory, interval, clock, display, deliverableRoot, reportTemplate,
+                InvocationOutput::beginInThisContext);
+    }
+
+    /**
+     * {@code beginning} begins the invocation's output file with the id this report mints, before the report's first
+     * write (ADR-364 section 3): {@code InvocationOutput::beginInThisContext} as shipped, a recording one in a test.
+     */
+    InvocationReport(
+            Path workingDirectory, Duration interval, Clock clock, Display display, String deliverableRoot,
+            String reportTemplate, InvocationOutput.Beginning beginning) {
+        this.beginning = beginning;
         this.reportTemplate = reportTemplate;
         this.html = new ReportHtml(reportTemplate);
         this.workingDirectory = workingDirectory.toAbsolutePath().normalize();
@@ -293,6 +306,7 @@ final class InvocationReport {
             html = new ReportHtml(reportTemplate);
             displayAnswer = askTheDisplay();
             mintTheId();
+            beginning.begin(id);
         }
     }
 

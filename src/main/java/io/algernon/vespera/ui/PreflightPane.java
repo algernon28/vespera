@@ -6,7 +6,6 @@ import java.util.function.Function;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
-import javafx.scene.control.Label;
 import javafx.scene.layout.VBox;
 
 /** The sidebar's Preflight section: what the folders and the sidecars are, and a Check that asks the sidecars (ADR-344 §1). */
@@ -76,8 +75,8 @@ final class PreflightPane {
                 "Corpus root held by: " + holders.corpusRoot().orElse("nobody"),
                 "Free space: " + FolderStatus.usable(working).map(FolderStatus::gib).orElse("not known")));
         for (String line : lines) {
-            preflight.getChildren().add(new Label(line));
+            preflight.getChildren().add(SelectableText.line(line));
         }
-        checks.docling().warnings().forEach(warning -> preflight.getChildren().add(new Label(warning)));
+        checks.docling().warnings().forEach(warning -> preflight.getChildren().add(SelectableText.line(warning)));
     }
 }

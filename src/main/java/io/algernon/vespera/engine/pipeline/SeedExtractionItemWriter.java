@@ -120,7 +120,7 @@ class SeedExtractionItemWriter implements ItemWriter<SeedExtractionOutcome>, Ste
             // seed set missing every seed after the crash, which no later invocation would revisit.
             // So nothing is concluded: usableSeedGate stays as it starts, closed, no run is minted, and
             // no row is written. The job stops at this failed step, so no later step asks the gate.
-            log.error(
+            OperatorLines.error(
                     "Stage 5a (seed extraction) failed before it had read the whole seed folder, so stage 5"
                             + " minted no run and nothing is concluded about the seeds: {}. {}",
                     StepFailure.named(stepExecution),

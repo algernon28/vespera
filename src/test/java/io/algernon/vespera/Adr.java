@@ -2608,10 +2608,11 @@ public final class Adr {
 
     /**
      * ADR-364 -- the output panel is copyable text of the whole output, from a file of its own, and every text of the
-     * window is copyable, the rows of a native view's table among them.
+     * window is copyable; the banner is logged and every line the jar writes goes through logback (amends ADR-093,
+     * ADR-344 §1, ADR-362, ADR-278, ADR-281, ADR-270, ADR-333 §8, ADR-342 §2, ADR-320, ADR-289 and ADR-285 §3).
      */
-    public static final String EVERY_TEXT_OF_THE_WINDOW_IS_COPYABLE = FILE
-            + "0364-the-output-panel-is-copyable-text-of-the-whole-output-from-a-file-of-its-own-and-every-text-of-the-window-is-copyable.md";
+    public static final String THE_OUTPUT_PANEL_IS_COPYABLE_TEXT_AND_EVERY_LINE_GOES_THROUGH_LOGBACK =
+            FILE + "0364-the-output-panel-is-copyable-text-of-the-whole-output-from-a-file-of-its-own-and-every-text-of-the-window-is-copyable.md";
 
     /**
      * ADR-365 -- the cockpit's charts carry JavaFX's legend above the plot where they draw two lines or more and none for
