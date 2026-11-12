@@ -1,5 +1,7 @@
 # ADR-372 — The control panel's window has a light and a dark theme, switched in its header and kept beside the launch values
 
+> **Partly amended — see [ADR-373](0373-every-html-page-vespera-writes-is-drawn-dark-whatever-the-systems-setting-and-the-control-panels-theme.md).** Of §5: `report.html`, each analysis report's page and the deliverable's pages keep a look of their own whatever the window's theme, and that look is dark, drawn from §3's dark tokens. Of What this does not decide: a page drawn outside the window does not take the theme, every page Vespera writes being dark. The rest of this record stands.
+
 - **Date**: 2026-11-12
 - **Status**: accepted on 2026-11-12.
 - **Decided**: under the operator's delegation on [#780](https://github.com/algernon28/vespera/issues/780) of 2026-11-08, to take its decisions and build the window's dark theme: a Light and Dark switch in the window, light by default, the operating system's setting not read (§1); the choice kept per user beside the launch values (§2); the colours a set of tokens defined once and redefined for dark, at WCAG AA (§3); the window and its dialogs covered (§4); the files the jar writes left as they are (§5). The switch's words and id, the tokens' values, the rule for a folder that is missing or not the user's own, and the tests are decided under the same delegation. That the theme is not read from a folder that is not the user's own (§2) is the operator's, on [#794](https://github.com/algernon28/vespera/issues/794) of 2026-11-12.

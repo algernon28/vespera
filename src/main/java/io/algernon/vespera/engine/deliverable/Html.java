@@ -12,13 +12,19 @@ import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
  */
 public final class Html {
 
-    /** {@code ReportPage}'s shared rules (font, margins, table and cell borders), and a picture held to its page. */
-    private static final String STYLES = "body { font-family: sans-serif; margin: 2em; max-width: 900px; }\n"
+    /**
+     * {@code ReportPage}'s shared rules (font, margins, table and cell borders), and a picture held to its page.
+     * Contract (ADR-373): drawn dark and only dark, whatever the system's setting or the control panel's theme; one
+     * {@code :root} rule declares {@code color-scheme: dark} and every colour, and no other rule writes one.
+     */
+    private static final String STYLES = ":root { color-scheme: dark; --ground: #1a1922; --surface: #25232f; --ink: #ecebf3; --dim: #aeaac2; --rule: #3b3949; --accent: #b0a6ff; }\n"
+            + "body { background: var(--ground); color: var(--ink); font-family: sans-serif; margin: 2em; max-width: 900px; }\n"
+            + "a { color: var(--accent); }\n"
             + "table { border-collapse: collapse; margin-bottom: 1.5em; width: 100%; }\n"
-            + "td, th { border: 1px solid #ccc; padding: 0.3em 0.8em; text-align: left; }\n"
+            + "td, th { border: 1px solid var(--rule); padding: 0.3em 0.8em; text-align: left; }\n"
             + "td.count { text-align: right; }\n"
-            + "code.name { font-size: 1.2em; padding: 0.2em 0.4em; background: #eee; }\n"
-            + "blockquote { color: #444; font-style: italic; margin: 0.4em 0 0 1em; }\n"
+            + "code.name { font-size: 1.2em; padding: 0.2em 0.4em; background: var(--surface); }\n"
+            + "blockquote { color: var(--dim); font-style: italic; margin: 0.4em 0 0 1em; }\n"
             + "li { margin-bottom: 0.6em; }\n"
             + "img { max-width: 100%; }\n";
 
@@ -35,7 +41,7 @@ public final class Html {
 
     /**
      * Everything of a page before its body: the document type, the language the page names (ADR-321 §4), the character
-     * set, the title and the stylesheet.
+     * set, the title and the stylesheet, which draws the page dark alone (ADR-373).
      */
     static String head(String title, DeliverableLanguage language) {
         return "<!DOCTYPE html>\n<html lang=\"" + language.code() + "\">\n<head>\n<meta charset=\"UTF-8\">\n<title>" + escape(title)

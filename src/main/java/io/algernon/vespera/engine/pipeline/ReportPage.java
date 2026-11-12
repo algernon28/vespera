@@ -36,15 +36,21 @@ final class ReportPage {
     /**
      * The stylesheet every report page shares. One copy, so the look of the reports changes in one
      * place rather than six; the union of what the six pages used, so none lost a rule it relied on.
+     *
+     * <p>Contract (ADR-373): drawn dark and only dark, whatever the system's setting or the control panel's
+     * theme. One {@code :root} rule declares {@code color-scheme: dark} and every colour; no other rule writes one,
+     * each draws through {@code var(--...)}.
      */
     private static final String STYLES =
-            "body { font-family: sans-serif; margin: 2em; max-width: 900px; }\n"
+            ":root { color-scheme: dark; --ground: #1a1922; --surface: #25232f; --ink: #ecebf3; --dim: #aeaac2; --rule: #3b3949; --accent: #b0a6ff; }\n"
+            + "body { background: var(--ground); color: var(--ink); font-family: sans-serif; margin: 2em; max-width: 900px; }\n"
+            + "a { color: var(--accent); }\n"
             + "table { border-collapse: collapse; margin-bottom: 1.5em; width: 100%; }\n"
-            + "td, th { border: 1px solid #ccc; padding: 0.3em 0.8em; text-align: left; }\n"
+            + "td, th { border: 1px solid var(--rule); padding: 0.3em 0.8em; text-align: left; }\n"
             + "td.count { text-align: right; }\n"
-            + "code.name { font-size: 1.2em; padding: 0.2em 0.4em; background: #eee; }\n"
-            + ".bar { background: #4a90d9; height: 1em; }\n"
-            + "blockquote { color: #444; font-style: italic; margin: 0.4em 0 0 1em; }\n"
+            + "code.name { font-size: 1.2em; padding: 0.2em 0.4em; background: var(--surface); }\n"
+            + ".bar { background: var(--accent); height: 1em; }\n"
+            + "blockquote { color: var(--dim); font-style: italic; margin: 0.4em 0 0 1em; }\n"
             + "li { margin-bottom: 0.6em; }\n";
 
     /**

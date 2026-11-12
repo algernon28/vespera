@@ -20,6 +20,8 @@
 
 > **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §7: the index is handed to no opener and nothing opens it; the closing line still names it. The tree is untouched. The rest of this record stands.
 
+> **Partly amended — see [ADR-373](0373-every-html-page-vespera-writes-is-drawn-dark-whatever-the-systems-setting-and-the-control-panels-theme.md).** Of §1.1: the stylesheet of a page of the tree carries, beside `ReportPage`'s shared rules, the same dark colours as `ReportPage`'s, as properties of one `:root` rule declaring `color-scheme: dark`, whatever the system's setting. The rest of this record stands.
+
 - **Date**: 2026-10-17
 - **Status**: accepted on 2026-10-17.
 - **Amends**: [ADR-103](0103-the-deliverable-is-a-markdown-tree-in-the-working-directory-one-tree-per-run-id.md), in "Markdown, not HTML", the tree drawn under its Decision, `index.md`'s name, and "A re-run under a changed configuration writes a new tree beside the old one", which holds of a change to what the generation run is keyed by and not of a change to how the tree is drawn (§1, §6). One tree per generation run, in the working directory, with no new key, and "every link inside the deliverable resolves with no database, no ledger and no network" stand.

@@ -2660,6 +2660,16 @@ public final class Adr {
     public static final String THE_CONTROL_PANELS_WINDOW_HAS_A_LIGHT_AND_A_DARK_THEME =
             FILE + "0372-the-control-panels-window-has-a-light-and-a-dark-theme-switched-in-its-header-and-kept-beside-the-launch-values.md";
 
+    /**
+     * ADR-373 -- every HTML page Vespera writes is drawn dark, whatever the system's setting and the control panel's
+     * theme: the analysis reports, the HTML tree's pages, {@code report.html} and the website rendering, each stylesheet
+     * with one {@code :root} declaring {@code color-scheme: dark} and every colour as a property, no rule of the
+     * reader's colour scheme, every text at WCAG AA against every background and every chart mark at 3 : 1 (amends
+     * ADR-372 §5, ADR-130, ADR-274 §1.1, ADR-267 §4, ADR-268 §9, ADR-362 §6 and ADR-333 §3).
+     */
+    public static final String EVERY_HTML_PAGE_VESPERA_WRITES_IS_DRAWN_DARK =
+            FILE + "0373-every-html-page-vespera-writes-is-drawn-dark-whatever-the-systems-setting-and-the-control-panels-theme.md";
+
     private Adr() {
     }
 }
