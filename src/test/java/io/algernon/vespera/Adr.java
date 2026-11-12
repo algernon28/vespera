@@ -2670,6 +2670,15 @@ public final class Adr {
     public static final String EVERY_HTML_PAGE_VESPERA_WRITES_IS_DRAWN_DARK =
             FILE + "0373-every-html-page-vespera-writes-is-drawn-dark-whatever-the-systems-setting-and-the-control-panels-theme.md";
 
+    /**
+     * ADR-374 -- every view inside the control panel's window follows its Light and Dark switch at once, its popups
+     * included: every colour a token of the stylesheet's two theme rules, five series tokens, text at WCAG AA and a
+     * chart's marks and a bar's fill at 3 : 1 in both themes, a bar's track the colour of its percent's halo (amends
+     * ADR-365 §2, ADR-370 §4 and ADR-372 §3 and §5).
+     */
+    public static final String EVERY_VIEW_OF_THE_CONTROL_PANELS_WINDOW_FOLLOWS_ITS_THEME =
+            FILE + "0374-every-view-inside-the-control-panels-window-follows-its-light-and-dark-switch-at-once-its-popups-included.md";
+
     private Adr() {
     }
 }

@@ -12,10 +12,28 @@
     -vespera-accent-ink: #ffffff;
     -vespera-bad: #b3282d;
     -vespera-faint: #6f6a85;
+    -vespera-series-1: #2a78d6;
+    -vespera-series-2: #c8541f;
+    -vespera-series-3: #15895f;
+    -vespera-series-4: #a86f00;
+    -vespera-series-5: #c94c80;
     -fx-font-size: 13px;
     -fx-base: #efedf3;
     -fx-background: -vespera-ground;
     -fx-text-fill: -vespera-ink;
+    -fx-control-inner-background: -vespera-surface;
+    -fx-text-background-color: -vespera-ink;
+    -fx-text-inner-color: -vespera-ink;
+    -fx-prompt-text-fill: -vespera-dim;
+    -fx-focus-color: -vespera-accent;
+    -fx-faint-focus-color: transparent;
+    -fx-accent: -vespera-accent;
+    -fx-selection-bar-non-focused: -vespera-rule;
+    CHART_COLOR_1: -vespera-series-1;
+    CHART_COLOR_2: -vespera-series-2;
+    CHART_COLOR_3: -vespera-series-3;
+    CHART_COLOR_4: -vespera-series-4;
+    CHART_COLOR_5: -vespera-series-5;
 }
 
 /* the dark theme: the same tokens redefined, every pair at WCAG AA (4.5:1) or better; Modena derives the controls from -fx-base */
@@ -29,6 +47,11 @@
     -vespera-accent-ink: #16132b;
     -vespera-bad: #ff8f94;
     -vespera-faint: #8e8aa6;
+    -vespera-series-1: #3987e5;
+    -vespera-series-2: #d95926;
+    -vespera-series-3: #199e70;
+    -vespera-series-4: #c98500;
+    -vespera-series-5: #d55181;
     -fx-base: #2c2a38;
     -fx-background: -vespera-ground;
     -fx-control-inner-background: #211f2a;
@@ -217,14 +240,11 @@
     -fx-background-insets: 8px;
 }
 
-.progress-chart .default-color0.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_1; }
-.progress-chart .default-color1.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_2; }
-.progress-chart .default-color2.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_3; }
-.progress-chart .default-color3.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_4; }
-.progress-chart .default-color4.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_5; }
-.progress-chart .default-color5.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_6; }
-.progress-chart .default-color6.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_7; }
-.progress-chart .default-color7.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_8; }
+.progress-chart .default-color0.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-1; }
+.progress-chart .default-color1.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-2; }
+.progress-chart .default-color2.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-3; }
+.progress-chart .default-color3.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-4; }
+.progress-chart .default-color4.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-5; }
 
 .step {
     -fx-alignment: center-left;
@@ -280,4 +300,32 @@
 .sidebar {
     -fx-pref-width: 420px;
     -fx-background-color: -vespera-surface;
+}
+
+.chart-plot-background { -fx-background-color: -vespera-surface; }
+.chart-title, .axis-label, .chart-legend-item { -fx-text-fill: -vespera-ink; }
+.axis { -fx-tick-label-fill: -vespera-dim; }
+.chart-vertical-grid-lines, .chart-horizontal-grid-lines, .axis-tick-mark, .axis-minor-tick-mark,
+.chart-vertical-zero-line, .chart-horizontal-zero-line { -fx-stroke: -vespera-rule; }
+.chart-legend { -fx-background-color: -vespera-rule, -vespera-surface; -fx-background-insets: 0, 1; }
+.chart-bar.default-color0 { -fx-background-color: -vespera-series-1; }
+.chart-bar.default-color1 { -fx-background-color: -vespera-series-2; }
+.chart-bar.default-color2 { -fx-background-color: -vespera-series-3; }
+.chart-bar.default-color3 { -fx-background-color: -vespera-series-4; }
+.chart-bar.default-color4 { -fx-background-color: -vespera-series-5; }
+.progress-bar > .bar { -fx-background-color: -vespera-accent; }
+.progress-bar:indeterminate > .bar { -fx-background-color: linear-gradient(to left, transparent, -vespera-accent); }
+.progress-bar > .track { -fx-background-color: -vespera-rule, -vespera-surface; -fx-background-insets: 0, 1; }
+.leg > .title { -fx-background-color: -vespera-rule, -vespera-surface; -fx-background-insets: 0, 1; }
+.leg > .title > .arrow-button > .arrow { -fx-background-color: -vespera-dim; }
+.tooltip { -fx-background: -vespera-surface; -fx-background-color: -vespera-rule, -vespera-surface; -fx-background-insets: 0, 1; -fx-text-fill: -vespera-ink; }
+.context-menu { -fx-background-color: -vespera-rule, -vespera-surface; -fx-background-insets: 0, 1; }
+.context-menu .menu-item .label { -fx-text-fill: -vespera-ink; }
+.context-menu .menu-item:focused { -fx-background-color: -vespera-accent; }
+.context-menu .menu-item:focused .label { -fx-text-fill: -vespera-accent-ink; }
+.text-input:focused { -fx-highlight-text-fill: -vespera-accent-ink; }
+.list-view:focused > .virtual-flow > .clipped-container > .sheet > .list-cell:filled:selected,
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:filled:selected,
+.tree-view:focused > .virtual-flow > .clipped-container > .sheet > .tree-cell:filled:selected {
+    -fx-text-background-color: -vespera-accent-ink;
 }
