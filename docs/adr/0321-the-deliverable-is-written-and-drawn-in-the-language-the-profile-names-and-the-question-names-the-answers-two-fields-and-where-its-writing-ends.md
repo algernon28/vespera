@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-333](0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** Every fixed word of the website rendering is drawn in the deliverable language too, from the same table. The rest of this record stands.
 
+> **Partly amended — see [ADR-378](0378-each-deliverable-language-is-a-tree-of-its-own-its-titles-carrying-its-code-and-an-earlier-tree-taken-by-its-heading.md).** §5's root page is `Vespera_<code>`, and every other Confluence title ends with the code, the Italian form of ADR-310 §2 reading `TEXT (P.C pagina K · it)`; each language is published as a tree of its own. The rest of this record stands.
+
 - **Date**: 2026-10-22
 - **Status**: accepted on 2026-10-22.
 - **Decided**: by the operator, who decided that what the deliverable shows its readers is in Italian: the fixed words Vespera writes on its pages, the title and the writing of each cluster, which the local model writes in Italian itself and nothing translates afterwards, and every page title Vespera or the model makes; and that the question states the shape of the answer it imposes. Whether the HTML tree follows the Confluence rendering, whether the language is a value or fixed, the Italian words, the language the instruction is written in and the wording of the shape are decided under delegation.

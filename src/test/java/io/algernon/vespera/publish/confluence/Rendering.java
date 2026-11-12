@@ -12,10 +12,10 @@ import java.util.Map;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * A Confluence rendering drawn by hand as stage 6b draws one (ADR-312, ADR-316, ADR-328): a root page carrying {@code
- * documents.csv}, a seed partition's page, and a cluster's page carrying a copy and a picture's file, with the page
- * list naming them, each page keyed and titled by its place and none carrying the run's id. Every text in it is
- * synthetic.
+ * A Confluence rendering drawn by hand as stage 6b draws one (ADR-312, ADR-316, ADR-328, ADR-378): a root page carrying
+ * {@code documents.csv}, a seed partition's page, and a cluster's page carrying a copy and a picture's file, with the
+ * page list naming them, each page keyed by its language's code and its place, titled by its text, its place and the
+ * code, and none carrying the run's id. English unless drawn in another language. Every text in it is synthetic.
  */
 final class Rendering {
 
@@ -29,25 +29,40 @@ final class Rendering {
 
     static final String LATER_MARKER = "1234567890ab";
 
-    /** The page list's format, whose keys are places alone (ADR-328 §3). */
-    static final int FORMAT = 2;
+    /** The generation run of the same arrangement drawn in Italian, another run (ADR-321 §1), and its marker. */
+    static final String ITALIAN_RUN = "13579bdf02468ace13579bdf02468ace13579bdf02468ace13579bdf02468ace";
 
-    /** Each page's key: its place, unpadded (ADR-328 §3). */
-    static final String ROOT = "root";
+    static final String ITALIAN_MARKER = "13579bdf0246";
 
-    static final String PARTITION = "1";
+    /** The two deliverable languages' codes, as the profile names them (ADR-321 §1). */
+    static final String ENGLISH = "en";
 
-    static final String CLUSTER = "1.1";
+    static final String ITALIAN = "it";
 
-    /** Each page's title: its text and its place, and no marker (ADR-328 §1). */
-    static final String ROOT_TITLE = "Vespera";
+    /** The page list's format, whose keys are a language's code and a place (ADR-378 §4). */
+    static final int FORMAT = 3;
 
-    static final String PARTITION_TITLE = "Seeds (1)";
+    /** Each page's key in the English rendering: the code and its place, unpadded (ADR-378 §2). */
+    static final String ROOT = "en:root";
 
-    static final String CLUSTER_TITLE = "Payroll and leave (1.1)";
+    static final String PARTITION = "en:1";
 
-    /** The label every page of the tree carries (ADR-328 §4). */
-    static final String LABEL = "vespera";
+    static final String CLUSTER = "en:1.1";
+
+    /** Each page's title in the English rendering: its text, its place and the code, and no marker (ADR-378 §1). */
+    static final String ROOT_TITLE = "Vespera_en";
+
+    static final String PARTITION_TITLE = "Seeds (1 · en)";
+
+    static final String CLUSTER_TITLE = "Payroll and leave (1.1 · en)";
+
+    /** The label every page of the English tree carries (ADR-378 §2). */
+    static final String LABEL = "vespera-en";
+
+    /** The texts the titles are drawn from, the same in either language: a seed's stem and a cluster's label. */
+    static final String PARTITION_TEXT = "Seeds";
+
+    static final String CLUSTER_TEXT = "Payroll and leave";
 
     static final String COPY = "leave-policy.pdf";
 
@@ -58,24 +73,34 @@ final class Rendering {
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private final Path tree;
+    private final String language;
     private final Map<String, String> bodies = new LinkedHashMap<>();
-    private String run = RUN;
-    private String marker = MARKER;
+    private String run;
+    private String marker;
     private int format = FORMAT;
-    private String clusterTitle = CLUSTER_TITLE;
+    private String clusterTitle;
 
     /**
      * Each body names its page's files by {@code ri:attachment}, and the root page and the seed partition's page link
      * to the page after them by title, as stage 6b draws them (ADR-313 §1, ADR-314, ADR-315, ADR-309): so a body sent
      * before its files, or a link to a page not yet created, is there for a test to see.
      */
-    private Rendering(Path tree) {
+    private Rendering(Path tree, String language, String run, String marker) {
         this.tree = tree;
-        bodies.put(ROOT, "<p>The groups.</p>\n<h2>" + pageLink(PARTITION_TITLE, "Seeds") + "</h2>\n<p>"
+        this.language = language;
+        this.run = run;
+        this.marker = marker;
+        this.clusterTitle = titleOf(CLUSTER_TEXT, "1.1", language);
+        bodies.put(key("root"), "<p>The groups.</p>\n<h2>" + pageLink(partitionTitle(), PARTITION_TEXT) + "</h2>\n<p>"
                 + fileLink(LISTING) + "</p>");
-        bodies.put(PARTITION, partitionBody(CLUSTER_TITLE));
-        bodies.put(CLUSTER, "<p>What the group holds.</p>\n<p>" + fileLink(COPY) + "</p>\n<p><ac:image ac:alt=\"a"
+        bodies.put(key("1"), partitionBody(clusterTitle));
+        bodies.put(key("1.1"), "<p>What the group holds.</p>\n<p>" + fileLink(COPY) + "</p>\n<p><ac:image ac:alt=\"a"
                 + " chart\"><ri:attachment ri:filename=\"" + PICTURE + "\" /></ac:image></p>");
+    }
+
+    /** A title of ADR-378 §1's form: {@code text (place · code)}. */
+    static String titleOf(String text, String place, String language) {
+        return text + " (" + place + " · " + language + ")";
     }
 
     private static String partitionBody(String clusterTitle) {
@@ -92,9 +117,16 @@ final class Rendering {
                 + "</ac:link-body></ac:link>";
     }
 
-    /** Draws the rendering in {@code tree}, and gives it. */
+    /** Draws the English rendering in {@code tree}, and gives it. */
     static Rendering drawnIn(Path tree) {
-        Rendering rendering = new Rendering(tree);
+        return drawnIn(tree, ENGLISH);
+    }
+
+    /** Draws the rendering in the language {@code language} names in {@code tree}, and gives it. */
+    static Rendering drawnIn(Path tree, String language) {
+        Rendering rendering = ITALIAN.equals(language)
+                ? new Rendering(tree, language, ITALIAN_RUN, ITALIAN_MARKER)
+                : new Rendering(tree, language, RUN, MARKER);
         try {
             Files.createDirectories(tree.resolve("001/001"));
             Files.createDirectories(tree.resolve("confluence/001/001"));
@@ -111,6 +143,34 @@ final class Rendering {
     /** The rendering's folder, {@code confluence/}. */
     Path confluence() {
         return tree.resolve("confluence");
+    }
+
+    /** The generation run this rendering is of. */
+    String run() {
+        return run;
+    }
+
+    /** The page of {@code place}'s key in this rendering's language (ADR-378 §2). */
+    String key(String place) {
+        return language + ":" + place;
+    }
+
+    /** The root page's title, {@code Vespera_<code>} (ADR-378 §1). */
+    String rootTitle() {
+        return "Vespera_" + language;
+    }
+
+    String partitionTitle() {
+        return titleOf(PARTITION_TEXT, "1", language);
+    }
+
+    String clusterTitle() {
+        return clusterTitle;
+    }
+
+    /** The label every page of this language's tree carries (ADR-378 §2). */
+    String label() {
+        return "vespera-" + language;
     }
 
     /** Draws the page {@code key} with another body. */
@@ -133,7 +193,7 @@ final class Rendering {
 
     /** Draws the rendering without its cluster's page. */
     Rendering withoutTheCluster() {
-        bodies.remove(CLUSTER);
+        bodies.remove(key("1.1"));
         write();
         return this;
     }
@@ -146,7 +206,7 @@ final class Rendering {
         run = LATER_RUN;
         marker = LATER_MARKER;
         clusterTitle = title;
-        bodies.put(PARTITION, partitionBody(title));
+        bodies.put(key("1"), partitionBody(title));
         write();
         return this;
     }
@@ -160,20 +220,23 @@ final class Rendering {
 
     private void write() {
         try {
-            Files.writeString(confluence().resolve("page.xml"), bodies.get(ROOT), StandardCharsets.UTF_8);
-            Files.writeString(confluence().resolve("001/page.xml"), bodies.get(PARTITION), StandardCharsets.UTF_8);
+            Files.writeString(confluence().resolve("page.xml"), bodies.get(key("root")), StandardCharsets.UTF_8);
+            Files.writeString(confluence().resolve("001/page.xml"), bodies.get(key("1")), StandardCharsets.UTF_8);
             List<Object> pages = new ArrayList<>();
-            pages.add(page(ROOT, null, ROOT_TITLE, "page.xml", List.of(file(LISTING, "../" + LISTING, "listing"))));
-            pages.add(page(PARTITION, ROOT, PARTITION_TITLE, "001/page.xml", List.of()));
-            if (bodies.containsKey(CLUSTER)) {
-                Files.writeString(confluence().resolve("001/001/page.xml"), bodies.get(CLUSTER), StandardCharsets.UTF_8);
-                pages.add(page(CLUSTER, PARTITION, clusterTitle, "001/001/page.xml", List.of(
+            pages.add(page(key("root"), null, rootTitle(), "page.xml",
+                    List.of(file(LISTING, "../" + LISTING, "listing"))));
+            pages.add(page(key("1"), key("root"), partitionTitle(), "001/page.xml", List.of()));
+            if (bodies.containsKey(key("1.1"))) {
+                Files.writeString(confluence().resolve("001/001/page.xml"), bodies.get(key("1.1")),
+                        StandardCharsets.UTF_8);
+                pages.add(page(key("1.1"), key("1"), clusterTitle, "001/001/page.xml", List.of(
                         file(COPY, "../001/001/" + COPY, "copy"), file(PICTURE, "001/001/" + PICTURE, "picture"))));
             }
             Map<String, Object> list = new LinkedHashMap<>();
             list.put("format", format);
             list.put("generationRun", run);
             list.put("marker", marker);
+            list.put("language", language);
             list.put("pages", pages);
             Files.write(confluence().resolve(PageList.FILE_NAME), JSON.writeValueAsBytes(list));
         } catch (IOException e) {

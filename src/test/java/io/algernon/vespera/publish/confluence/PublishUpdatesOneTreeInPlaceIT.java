@@ -14,9 +14,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -32,6 +34,12 @@ import org.junit.jupiter.api.io.TempDir;
  * taken, a parent the site will not say is a folder or a page or will not list, a tree under another parent and a page
  * list of the earlier format stop the publish before anything is written. Against a stub; every text is synthetic.
  *
+ * <p><b>One tree for each deliverable language</b> (ADR-378): an English and an Italian rendering are two trees under
+ * the one parent, each titled, labelled and keyed by its language's code, and a publish of one writes to no page of the
+ * other; a tree an earlier publish made is left by a publish in the other language and taken by the one its root page's
+ * heading names, one whose heading names neither, or two of one language, stopping the publish; and a language's tree
+ * standing under another parent stops its own publish alone.
+ *
  * <p>It also holds, since this is the one class publishing to the stub, what ADR-308 §2 and §3 decide of every publish:
  * each request goes to the configured {@code https} host alone, an {@code http} address is refused and a link to
  * another host is not followed, before anything is sent there; and the environment's email and token go as Basic
@@ -42,11 +50,69 @@ import org.junit.jupiter.api.io.TempDir;
 @Issue("667")
 @Link(name = "ADR-328", url = Adr.THE_CONFLUENCE_RENDERING_IS_ONE_TREE_UPDATED_IN_PLACE_WITH_NO_RUN_ID, type = "adr")
 @Link(name = "ADR-320", url = Adr.A_PUBLISH_SENDS_EACH_PAGE_WHOLE_AND_SAYS_HOW_FAR_IT_HAS_GOT, type = "adr")
+@Link(name = "ADR-378", url = Adr.EACH_DELIVERABLE_LANGUAGE_IS_PUBLISHED_AS_A_TREE_OF_ITS_OWN, type = "adr")
 @Tag("confluence")
 class PublishUpdatesOneTreeInPlaceIT {
 
-    /** The title the later run's group at place 1.1 is drawn with. */
-    private static final String THE_LATER_GROUPS_TITLE = "Overtime and pay (1.1)";
+    /** The title the later run's group at place 1.1 is drawn with, in the English tree (ADR-378 §1). */
+    private static final String THE_LATER_GROUPS_TITLE = "Overtime and pay (1.1 · en)";
+
+    /** The root page's title of a tree of ADR-328's form, which an earlier publish made with no language. */
+    private static final String THE_EARLIER_ROOT_TITLE = "Vespera";
+
+    /** That tree's label and its pages' keys, its places alone (ADR-328 §3, §4). */
+    private static final String THE_EARLIER_LABEL = "vespera";
+
+    /** Its seed partition's and its group's titles, their places alone in their suffixes (ADR-328 §1). */
+    private static final String THE_EARLIER_PARTITION_TITLE = "Seeds (1)";
+
+    private static final String THE_EARLIER_CLUSTER_TITLE = "Payroll and leave (1.1)";
+
+    /** A root page's body as an Italian drawing opens it, its heading's Italian words (ADR-328 §2, ADR-321 §4). */
+    private static final String AN_ITALIAN_ROOT_BODY = "<h1>Base di conoscenza</h1>\n<p>An earlier body.</p>";
+
+    /** The same Italian heading in bold, its two words kept apart by a no-break space, as an editor may save it. */
+    private static final String AN_ITALIAN_ROOT_BODY_IN_MARKUP =
+            "<h1><strong>Base di&nbsp;conoscenza</strong></h1>\n<p>An earlier body.</p>";
+
+    /** A root page's body as an English drawing opens it (ADR-328 §2). */
+    private static final String AN_ENGLISH_ROOT_BODY = "<h1>Deliverable</h1>\n<p>An earlier body.</p>";
+
+    /** The key the earlier tree's group's page holds, its place alone (ADR-328 §3). */
+    private static final String THE_GROUPS_EARLIER_KEY = "1.1";
+
+    /** Two pages someone copied with the group's page's label and key: one under another parent, one under the tree. */
+    private static final String A_PAGE_OF_ONE_KEY_OUTSIDE = "Payroll and leave, a copy elsewhere (1.1)";
+
+    private static final String A_LATER_PAGE_OF_ONE_KEY = "Payroll and leave, a later copy (1.1)";
+
+    /** The list of refused files an earlier version wrote in the working directory, which no publish writes now. */
+    private static final String THE_LIST_AN_EARLIER_VERSION_WROTE = "confluence-not-carried.csv";
+
+    private static final String AN_EARLIER_LIST = "key,name,size\r\n\"1.1\",\"an earlier copy.pdf\",7\r\n";
+
+    /** What a publish says of that list, removed or not (ADR-378 §10). */
+    private static final String THE_EARLIER_LIST_IS_REMOVED = "confluence-not-carried.csv, which an earlier version of"
+            + " vespera publish wrote, is removed from the working directory";
+
+    private static final String THE_EARLIER_LIST_COULD_NOT_BE_REMOVED = "confluence-not-carried.csv, which an earlier"
+            + " version of vespera publish wrote, could not be removed from the working directory (";
+
+    /** The statuses a site refuses an account with, and fails a request of its own with. */
+    private static final int FORBIDDEN = 403;
+
+    private static final int SERVER_ERROR = 500;
+
+    /** A root page's body whose heading someone took out, so it names no language. */
+    private static final String A_ROOT_BODY_WITH_NO_HEADING = "<p>An earlier body.</p>";
+
+    /** What the English publish says of an earlier tree drawn in Italian, which it leaves (ADR-378 §7). */
+    private static final String LEFT_FOR_AN_ITALIAN_PUBLISH = " an earlier publish made was drawn in Italian, and is"
+            + " left as it stands for a publish in Italian to take";
+
+    /** What the Italian publish says of an earlier tree drawn in English, which it leaves (ADR-378 §7). */
+    private static final String LEFT_FOR_AN_ENGLISH_PUBLISH = " an earlier publish made was drawn in English, and is"
+            + " left as it stands for a publish in English to take";
 
     /** A generation run an earlier publish sent under ADR-310, its marker in every title, and its marker. */
     private static final String EARLIER_RUN = "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210";
@@ -68,10 +134,14 @@ class PublishUpdatesOneTreeInPlaceIT {
     /** The status a site answers a page, a label or a listing it does not hold with, and a failure of its own. */
     private static final int NOT_FOUND = 404;
 
-    /** Pages of the tree an earlier publish of a larger rendering left, which this rendering no longer has. */
-    private static final String FORMER_PARTITION_TITLE = "Former seeds (2)";
+    /** Pages of the English tree an earlier publish of a larger rendering left, which this rendering no longer has. */
+    private static final String FORMER_PARTITION_TITLE = "Former seeds (2 · en)";
 
-    private static final String FORMER_CLUSTER_TITLE = "Former payroll (2.1)";
+    private static final String FORMER_CLUSTER_TITLE = "Former payroll (2.1 · en)";
+
+    private static final String FORMER_PARTITION_KEY = "en:2";
+
+    private static final String FORMER_CLUSTER_KEY = "en:2.1";
 
     /** A page someone put in the space, which no publish made. */
     private static final String A_PERSONS_PAGE = "Notes on overtime";
@@ -169,23 +239,194 @@ class PublishUpdatesOneTreeInPlaceIT {
 
     @Test
     @Story("A tree an earlier publish made is taken as this tree")
-    @DisplayName("Two trees an earlier publish made under the parent stop the publish before anything is written, naming both")
+    @DisplayName("Two trees an earlier publish made in English under the parent stop an English publish before anything is written, naming both, and an Italian publish under them makes its own tree")
     void twoTreesWithTheirMarkerUnderTheParentStopThePublishBeforeAnyWrite() throws IOException {
         Path tree = folder.resolve("tree");
         Rendering rendering = Rendering.drawnIn(tree);
+        Rendering italian = Rendering.drawnIn(folder.resolve("it"), Rendering.ITALIAN);
         try (StubConfluence site = StubConfluence.start()) {
-            anEarlierTree(site, tree, EARLIER_RUN, EARLIER_MARKER);
-            anEarlierTree(site, tree, ANOTHER_EARLIER_RUN, ANOTHER_EARLIER_MARKER);
+            List<String> earlier = new ArrayList<>(anEarlierTree(site, tree, EARLIER_RUN, EARLIER_MARKER));
+            earlier.addAll(anEarlierTree(site, tree, ANOTHER_EARLIER_RUN, ANOTHER_EARLIER_MARKER));
+            List<String> before = describedById(site, earlier);
             Publisher.Outcome outcome = publish(site, rendering, Rendering.RUN, new ArrayList<>());
+            List<StubConfluence.Request> sentByTheEnglishPublish = site.sent();
+            site.forgetTheRequests();
+            List<String> italianLines = new ArrayList<>();
+            Publisher.Outcome italianOutcome = publish(site, italian, italian.run(), italianLines);
 
-            claim("the publish stopped, naming both trees' root pages",
+            claim("the English publish stopped, saying two trees an earlier publish made in English stand under the"
+                            + " parent, naming both their root pages",
                     () -> assertThat(List.of(outcome.published(),
-                            outcome.closingLine().startsWith("vespera publish stopped: "),
+                            outcome.closingLine().startsWith(
+                                    "vespera publish stopped: the parent holds 2 trees an earlier publish made in"
+                                            + " English, "),
                             outcome.closingLine().contains("Vespera " + EARLIER_MARKER),
                             outcome.closingLine().contains("Vespera " + ANOTHER_EARLIER_MARKER)))
                             .containsExactly(false, true, true, true));
-            claim("and it sent nothing but reads", () -> assertThat(site.sent()).isNotEmpty()
+            claim("and it sent nothing but reads", () -> assertThat(sentByTheEnglishPublish).isNotEmpty()
                     .allSatisfy(request -> assertThat(request.method()).isEqualTo("GET")));
+            claim("the Italian publish under the same parent went to its end, creating its own three pages",
+                    () -> assertThat(List.of(italianOutcome.published(), italianOutcome.closingLine().contains(
+                            "tree Vespera_it: 3 pages (3 created, 0 updated, 0 unchanged)")))
+                            .containsExactly(true, true));
+            claim("saying of each English tree that it is left for an English publish to take",
+                    () -> assertThat(italianLines).contains(
+                            "the tree Vespera " + EARLIER_MARKER + LEFT_FOR_AN_ENGLISH_PUBLISH,
+                            "the tree Vespera " + ANOTHER_EARLIER_MARKER + LEFT_FOR_AN_ENGLISH_PUBLISH));
+            claim("and the six pages of the two English trees stand as they stood, titled, labelled and keyed as an"
+                            + " earlier publish left them",
+                    () -> assertThat(describedById(site, earlier)).isEqualTo(before));
+        }
+    }
+
+    @Test
+    @Story("Each deliverable language is a tree of its own")
+    @DisplayName("An English and an Italian publish make two trees under one parent, and an English publish that removes a page writes to no Italian page")
+    void twoLanguagesAreTwoTreesUnderOneParentAndAPublishOfOneWritesToNoPageOfTheOther() throws IOException {
+        Rendering english = Rendering.drawnIn(folder.resolve("en"));
+        Rendering italian = Rendering.drawnIn(folder.resolve("it"), Rendering.ITALIAN);
+        try (StubConfluence site = StubConfluence.start()) {
+            List<String> englishLines = new ArrayList<>();
+            Publisher.Outcome first = publish(site, english, english.run(), englishLines);
+            Publisher.Outcome second = publish(site, italian, italian.run(), new ArrayList<>());
+            List<String> afterBoth = site.pages().stream().map(PublishUpdatesOneTreeInPlaceIT::described).toList();
+            List<String> italianIds = site.pages().stream().filter(page -> page.labels.contains(italian.label()))
+                    .map(page -> page.id).toList();
+            List<String> italianBefore = describedById(site, italianIds);
+            english.withoutTheCluster();
+            site.forgetTheRequests();
+            Publisher.Outcome third = publish(site, english, english.run(), new ArrayList<>());
+
+            claim("the English totals line names the generation run, the site, the space and the tree it sends to",
+                    () -> assertThat(englishLines.getFirst()).startsWith("vespera publish is sending the rendering of"
+                            + " generation run " + Rendering.MARKER + " to " + StubConfluence.SITE_HOST + ", space "
+                            + StubConfluence.SPACE_KEY + ", tree Vespera_en: 3 pages and 3 files holding "));
+            claim("each of the two publishes went to its end creating three pages, its closing line naming its tree",
+                    () -> assertThat(List.of(first.closingLine(), second.closingLine())).containsExactly(
+                            closingLineOf(Rendering.MARKER, "Vespera_en") + "3 pages (3 created, 0 updated, 0"
+                                    + " unchanged) and 3 files (3 added, 0 replaced, 0 unchanged)",
+                            closingLineOf(Rendering.ITALIAN_MARKER, "Vespera_it") + "3 pages (3 created, 0 updated, 0"
+                                    + " unchanged) and 3 files (3 added, 0 replaced, 0 unchanged)"));
+            claim("the site then held two trees, each page titled with its language's code, labelled vespera and the"
+                            + " code, and keyed by the code and its place",
+                    () -> assertThat(afterBoth).containsExactly(
+                            "Vespera_en [vespera-en] en:root",
+                            "Seeds (1 · en) [vespera-en] en:1",
+                            "Payroll and leave (1.1 · en) [vespera-en] en:1.1",
+                            "Vespera_it [vespera-it] it:root",
+                            "Seeds (1 · it) [vespera-it] it:1",
+                            "Payroll and leave (1.1 · it) [vespera-it] it:1.1"));
+            claim("both root pages stand directly under the one parent named",
+                    () -> assertThat(List.of(page(site, "Vespera_en").parentId, page(site, "Vespera_it").parentId))
+                            .containsExactly(StubConfluence.PARENT_ID, StubConfluence.PARENT_ID));
+            claim("the English publish that no longer has its group moved the English group's page alone to the trash",
+                    () -> assertThat(List.of(third.published(), site.trash().stream().map(page -> page.title).toList()))
+                            .containsExactly(true, List.of(english.clusterTitle())));
+            claim("and it sent no request but a read naming any Italian page, each of which stands as it stood",
+                    () -> assertThat(List.of(writesNaming(site, italianIds), describedById(site, italianIds)))
+                            .containsExactly(List.of(), italianBefore));
+        }
+    }
+
+    @Test
+    @Story("A tree an earlier publish made is taken as this tree")
+    @DisplayName("The tree an earlier publish made with no language is left by an English publish and taken by an Italian one, its root page's heading being Italian")
+    void theTreeOfTheEarlierFormIsLeftByTheOtherLanguageAndTakenByTheLanguageItsHeadingNames() throws IOException {
+        Path italianTree = folder.resolve("it");
+        Rendering english = Rendering.drawnIn(folder.resolve("en"));
+        Rendering italian = Rendering.drawnIn(italianTree, Rendering.ITALIAN);
+        try (StubConfluence site = StubConfluence.start()) {
+            List<String> earlier = aTreeOfTheEarlierForm(site, italianTree, AN_ITALIAN_ROOT_BODY);
+            List<String> before = describedById(site, earlier);
+            List<String> englishLines = new ArrayList<>();
+            Publisher.Outcome englishOutcome = publish(site, english, english.run(), englishLines);
+            List<String> afterTheEnglishPublish = describedById(site, earlier);
+            List<String> englishIds = site.pages().stream().filter(page -> page.labels.contains(english.label()))
+                    .map(page -> page.id).toList();
+            site.forgetTheRequests();
+            List<String> italianLines = new ArrayList<>();
+            Publisher.Outcome italianOutcome = publish(site, italian, italian.run(), italianLines);
+
+            claim("the English publish went to its end creating a tree of its own, and said why it left the earlier one",
+                    () -> assertThat(List.of(englishOutcome.published(),
+                            englishOutcome.closingLine().contains("tree Vespera_en: 3 pages (3 created, 0 updated, 0"
+                                    + " unchanged)"),
+                            englishLines.contains("the tree " + THE_EARLIER_ROOT_TITLE + LEFT_FOR_AN_ITALIAN_PUBLISH)))
+                            .containsExactly(true, true, true));
+            claim("the earlier tree's three pages stood after it as they stood before it",
+                    () -> assertThat(afterTheEnglishPublish).isEqualTo(before));
+            claim("the Italian publish went to its end creating no page, the earlier tree's three updated",
+                    () -> assertThat(List.of(italianOutcome.published(), italianOutcome.closingLine().contains(
+                            "tree Vespera_it: 3 pages (0 created, 3 updated, 0 unchanged)")))
+                            .containsExactly(true, true));
+            claim("and said before the first page that it took the earlier tree as the Italian one",
+                    () -> assertThat(italianLines).contains("the tree " + THE_EARLIER_ROOT_TITLE + " an earlier"
+                            + " publish made is taken as the tree Vespera_it: its 3 pages are retitled and updated in"
+                            + " place"));
+            claim("the earlier tree's pages keep their addresses, retitled with the Italian code, labelled vespera-it"
+                            + " alone and keyed by the code and their place",
+                    () -> assertThat(describedById(site, earlier)).containsExactly(
+                            earlier.get(0) + " Vespera_it [vespera-it] it:root",
+                            earlier.get(1) + " Seeds (1 · it) [vespera-it] it:1",
+                            earlier.get(2) + " Payroll and leave (1.1 · it) [vespera-it] it:1.1"));
+            claim("their files standing at their size and digest, none was sent again",
+                    () -> assertThat(site.writes()).extracting(StubConfluence.Write::kind)
+                            .doesNotContain(StubConfluence.Kind.FILE));
+            claim("and the Italian publish sent no request but a read naming any page of the English tree",
+                    () -> assertThat(writesNaming(site, englishIds)).isEmpty());
+        }
+    }
+
+    @Test
+    @Story("A tree an earlier publish made is taken as this tree")
+    @DisplayName("A tree an earlier publish made whose root page's heading names neither language stops the publish before anything is written")
+    void anEarlierTreeWhoseHeadingNamesNeitherLanguageStopsThePublishBeforeAnyWrite() throws IOException {
+        Path tree = folder.resolve("tree");
+        Rendering rendering = Rendering.drawnIn(tree);
+        try (StubConfluence site = StubConfluence.start()) {
+            aTreeOfTheEarlierForm(site, tree, A_ROOT_BODY_WITH_NO_HEADING);
+            Publisher.Outcome outcome = publish(site, rendering, Rendering.RUN, new ArrayList<>());
+
+            claim("the publish stopped, saying the earlier tree's language cannot be told from its heading",
+                    () -> assertThat(List.of(outcome.published(), outcome.closingLine().startsWith(
+                            "vespera publish stopped: the parent holds the tree " + THE_EARLIER_ROOT_TITLE + " an"
+                                    + " earlier publish made, and its root page's heading is neither Deliverable nor"
+                                    + " Base di conoscenza, so the language it was drawn in cannot be told")))
+                            .containsExactly(false, true));
+            claim("and it sent nothing but reads, so no tree was made beside it",
+                    () -> assertThat(site.sent()).isNotEmpty()
+                            .allSatisfy(request -> assertThat(request.method()).isEqualTo("GET")));
+        }
+    }
+
+    @Test
+    @Story("Each deliverable language is a tree of its own")
+    @DisplayName("An English tree standing under another parent stops the English publish naming its root page, and an Italian publish to that parent makes its own tree there")
+    void theTreeOfItsLanguageUnderAnotherParentStopsThePublishNamingItsRootPage() throws IOException {
+        Rendering english = Rendering.drawnIn(folder.resolve("en"));
+        Rendering italian = Rendering.drawnIn(folder.resolve("it"), Rendering.ITALIAN);
+        try (StubConfluence site = StubConfluence.start()) {
+            publish(site, english, english.run(), new ArrayList<>());
+            site.forgetTheRequests();
+            Publisher.Outcome elsewhere = site.publisher(StubConfluence.theAccount(), StubConfluence.BASE_URL,
+                            StubConfluence.OTHER_PARENT_ID, "", new ArrayList<>())
+                    .publish(english.confluence(), english.run(), folder, line -> {});
+            List<StubConfluence.Request> sentByTheEnglishPublish = site.sent();
+            Publisher.Outcome italianOutcome = site.publisher(StubConfluence.theAccount(), StubConfluence.BASE_URL,
+                            StubConfluence.OTHER_PARENT_ID, "", new ArrayList<>())
+                    .publish(italian.confluence(), italian.run(), folder, line -> {});
+
+            claim("the English publish stopped, naming the parent its tree stands under and its root page",
+                    () -> assertThat(List.of(elsewhere.published(), elsewhere.closingLine().startsWith(
+                            "vespera publish stopped: the tree Vespera_en it updates stands under "
+                                    + StubConfluence.PARENT_ID + ", not under the parent named. Name that parent, or"
+                                    + " move the page Vespera_en under the one named")))
+                            .containsExactly(false, true));
+            claim("and it sent nothing but reads", () -> assertThat(sentByTheEnglishPublish).isNotEmpty()
+                    .allSatisfy(request -> assertThat(request.method()).isEqualTo("GET")));
+            claim("the Italian publish to that other parent went to its end, its root page standing directly under it",
+                    () -> assertThat(List.of(italianOutcome.published(), page(site, "Vespera_it").parentId))
+                            .containsExactly(true, StubConfluence.OTHER_PARENT_ID));
         }
     }
 
@@ -236,8 +477,8 @@ class PublishUpdatesOneTreeInPlaceIT {
         try (StubConfluence site = StubConfluence.start()) {
             publish(site, rendering, Rendering.RUN, new ArrayList<>());
             StubConfluence.Page partition = site.aPageOfTheTree(page(site, Rendering.ROOT_TITLE).id,
-                    FORMER_PARTITION_TITLE, "2");
-            StubConfluence.Page cluster = site.aPageOfTheTree(partition.id, FORMER_CLUSTER_TITLE, "2.1");
+                    FORMER_PARTITION_TITLE, FORMER_PARTITION_KEY);
+            StubConfluence.Page cluster = site.aPageOfTheTree(partition.id, FORMER_CLUSTER_TITLE, FORMER_CLUSTER_KEY);
             site.aPageNoPublishMadeUnder(cluster.id, A_PERSONS_PAGE);
             site.forgetTheRequests();
             List<String> lines = new ArrayList<>();
@@ -409,9 +650,8 @@ class PublishUpdatesOneTreeInPlaceIT {
             claim("no line holds the token, the email or the Basic value encoding the two",
                     () -> assertThat(lines).isNotEmpty()
                             .noneMatch(line -> secrets.stream().anyMatch(line::contains)));
-            claim("and no file in the working directory holds any of them, the list of what was not carried among them",
+            claim("and no file under the test's folder, the rendering and the working directory, holds any of them",
                     () -> {
-                        assertThat(workingDirectory.resolve(Publisher.NOT_CARRIED_FILE_NAME)).exists();
                         try (Stream<Path> files = Files.walk(folder)) {
                             assertThat(files.filter(Files::isRegularFile).toList()).allSatisfy(file -> assertThat(
                                     new String(Files.readAllBytes(file), StandardCharsets.ISO_8859_1))
@@ -421,30 +661,304 @@ class PublishUpdatesOneTreeInPlaceIT {
         }
     }
 
+    @Test
+    @Story("A publish sends each page whole")
+    @DisplayName("A copy the site refuses as too large is said and counted with its bytes, no file lists it, and the list an earlier version wrote is removed, a line saying so")
+    void aFileTheSiteRefusesAsTooLargeIsSaidAndCountedAndListedInNoFile() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
+        Path earlierList = workingDirectory.resolve(THE_LIST_AN_EARLIER_VERSION_WROTE);
+        Files.writeString(earlierList, AN_EARLIER_LIST, StandardCharsets.UTF_8);
+        long copyBytes = Files.size(folder.resolve("tree/001/001/" + Rendering.COPY));
+        List<String> lines = new ArrayList<>();
+        try (StubConfluence site = StubConfluence.start()) {
+            site.refuseAsTooLarge(Rendering.COPY);
+            Publisher.Outcome outcome = site.publisher(new ArrayList<>())
+                    .publish(rendering.confluence(), Rendering.RUN, workingDirectory, lines::add);
+
+            claim("the publish went to its end, the copy's line saying the site refused it as too large",
+                    () -> assertThat(List.of(outcome.published(), lines.stream().anyMatch(line -> line.endsWith(
+                            Rendering.COPY + ", " + copyBytes + " bytes, refused by the site as too large"))))
+                            .containsExactly(true, true));
+            claim("the closing line counts it and its bytes, and ends there, naming no file",
+                    () -> assertThat(outcome.closingLine())
+                            .endsWith("; 1 copy was refused by the site as too large and is not on its page, "
+                                    + copyBytes + " bytes")
+                            .doesNotContain(THE_LIST_AN_EARLIER_VERSION_WROTE, "listed in"));
+            claim("the line right after the totals says the earlier list is removed",
+                    () -> assertThat(lines.get(1)).isEqualTo(THE_EARLIER_LIST_IS_REMOVED));
+            claim("and the working directory is left empty: the earlier list gone, and no list of this publish's",
+                    () -> {
+                        try (Stream<Path> files = Files.list(workingDirectory)) {
+                            assertThat(files.map(file -> file.getFileName().toString()).toList()).isEmpty();
+                        }
+                    });
+        }
+    }
+
+    @Test
+    @Story("A publish sends each page whole")
+    @DisplayName("An earlier list the publish cannot remove is said on a line, left as it stands, and stops nothing")
+    void anEarlierListThatCannotBeRemovedIsSaidAndStopsNothing() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        Path workingDirectory = Files.createDirectories(folder.resolve("work"));
+        Path aFolderOfThatName = Files.createDirectories(workingDirectory.resolve(THE_LIST_AN_EARLIER_VERSION_WROTE));
+        Files.writeString(aFolderOfThatName.resolve("held.txt"), AN_EARLIER_LIST, StandardCharsets.UTF_8);
+        List<String> lines = new ArrayList<>();
+        try (StubConfluence site = StubConfluence.start()) {
+            Publisher.Outcome outcome = site.publisher(new ArrayList<>())
+                    .publish(rendering.confluence(), Rendering.RUN, workingDirectory, lines::add);
+
+            claim("the line right after the totals says it could not be removed, and why, and that it is left",
+                    () -> assertThat(lines.get(1)).startsWith(THE_EARLIER_LIST_COULD_NOT_BE_REMOVED)
+                            .endsWith("), and is left as it stands"));
+            claim("the folder of that name stands with what it holds",
+                    () -> assertThat(aFolderOfThatName.resolve("held.txt")).hasContent(AN_EARLIER_LIST));
+            claim("and the publish went to its end, every page created",
+                    () -> assertThat(List.of(outcome.published(), outcome.closingLine().contains(
+                            "3 pages (3 created, 0 updated, 0 unchanged)"))).containsExactly(true, true));
+        }
+    }
+
+    @Test
+    @Story("A tree an earlier publish made is taken as this tree")
+    @DisplayName("A tree an earlier version published with its run's characters, headed in English, is taken by an English publish as Vespera_en, its places read without their padding")
+    void aTreeOfTheMarkersFormHeadedInEnglishIsTakenAsVesperaEnItsPlacesUnpadded() throws IOException {
+        Path tree = folder.resolve("tree");
+        Rendering rendering = Rendering.drawnIn(tree);
+        try (StubConfluence site = StubConfluence.start()) {
+            List<String> earlier = anEarlierTree(site, tree, EARLIER_RUN, EARLIER_MARKER);
+            List<String> lines = new ArrayList<>();
+            Publisher.Outcome outcome = publish(site, rendering, Rendering.RUN, lines);
+
+            claim("the publish went to its end creating no page, the earlier tree's three updated",
+                    () -> assertThat(List.of(outcome.published(), outcome.closingLine().contains(
+                            "tree Vespera_en: 3 pages (0 created, 3 updated, 0 unchanged)")))
+                            .containsExactly(true, true));
+            claim("and said before the first page that it took the earlier tree as the English one",
+                    () -> assertThat(lines).contains("the tree Vespera " + EARLIER_MARKER + " an earlier publish made"
+                            + " is taken as the tree Vespera_en: its 3 pages are retitled and updated in place"));
+            claim("its pages keep their addresses, retitled, labelled vespera-en alone, the label with the run's"
+                            + " characters taken off, and keyed by the code and their place read without its padding",
+                    () -> assertThat(describedById(site, earlier)).containsExactly(
+                            earlier.get(0) + " Vespera_en [vespera-en] en:root",
+                            earlier.get(1) + " Seeds (1 · en) [vespera-en] en:1",
+                            earlier.get(2) + " Payroll and leave (1.1 · en) [vespera-en] en:1.1"));
+            claim("their files standing at their size and digest, none was sent again",
+                    () -> assertThat(site.writes()).extracting(StubConfluence.Write::kind)
+                            .doesNotContain(StubConfluence.Kind.FILE));
+        }
+    }
+
+    @Test
+    @Story("A tree an earlier publish made is taken as this tree")
+    @DisplayName("A taking the site stopped at a seed partition's page and then at the root page is finished by the next publish in its language, the root page keyed last")
+    void aTakingStoppedPartWayIsFinishedByTheNextPublishInItsLanguageTheRootPageKeyedLast() throws IOException {
+        Path tree = folder.resolve("it");
+        Rendering italian = Rendering.drawnIn(tree, Rendering.ITALIAN);
+        try (StubConfluence site = StubConfluence.start()) {
+            List<String> earlier = aTreeOfTheEarlierForm(site, tree, AN_ITALIAN_ROOT_BODY);
+            site.refuseToTakeALabelOff(earlier.get(1), FORBIDDEN);
+            Publisher.Outcome first = publish(site, italian, italian.run(), new ArrayList<>());
+            Object rootKeyAfterTheFirst = site.pages().getFirst().property.get("key");
+            site.refuseToTakeALabelOff(earlier.get(0), FORBIDDEN);
+            Publisher.Outcome second = publish(site, italian, italian.run(), new ArrayList<>());
+            Object rootKeyAfterTheSecond = site.pages().getFirst().property.get("key");
+            Publisher.Outcome third = publish(site, italian, italian.run(), new ArrayList<>());
+
+            claim("the first two publishes stopped at the label the site would not take off, the third went to its end"
+                            + " creating no page",
+                    () -> assertThat(List.of(first.published(), second.published(), third.published(),
+                            third.closingLine().contains("tree Vespera_it: 3 pages (0 created, 3 updated")))
+                            .containsExactly(false, false, true, true));
+            claim("after each stop the root page still held its earlier key, its own being the taking's last write",
+                    () -> assertThat(List.of(rootKeyAfterTheFirst, rootKeyAfterTheSecond))
+                            .containsExactly("root", "root"));
+            claim("and once taken, every page keeps its address, labelled vespera-it alone and keyed by the code and"
+                            + " its place",
+                    () -> assertThat(describedById(site, earlier)).containsExactly(
+                            earlier.get(0) + " Vespera_it [vespera-it] it:root",
+                            earlier.get(1) + " Seeds (1 · it) [vespera-it] it:1",
+                            earlier.get(2) + " Payroll and leave (1.1 · it) [vespera-it] it:1.1"));
+            claim("and the site holds no other page", () -> assertThat(site.pages()).hasSize(earlier.size()));
+        }
+    }
+
+    @Test
+    @Story("A tree an earlier publish made is taken as this tree")
+    @DisplayName("An earlier root page whose body the site answers 404 or 500 to stops the publish before anything is written")
+    void aRootPagesBodyTheSiteWillNotGiveStopsThePublishBeforeAnyWrite() throws IOException {
+        for (int status : List.of(NOT_FOUND, SERVER_ERROR)) {
+            Path tree = folder.resolve("tree-" + status);
+            Rendering rendering = Rendering.drawnIn(tree);
+            try (StubConfluence site = StubConfluence.start()) {
+                List<String> earlier = aTreeOfTheEarlierForm(site, tree, AN_ITALIAN_ROOT_BODY);
+                site.answerTheBodyReadOf(earlier.getFirst(), status);
+                Publisher.Outcome outcome = publish(site, rendering, Rendering.RUN, new ArrayList<>());
+
+                claim("answered " + status + ", the publish stopped saying what the site answered",
+                        () -> assertThat(List.of(outcome.published(), outcome.closingLine().startsWith(
+                                "vespera publish stopped: the site answered HTTP " + status)))
+                                .containsExactly(false, true));
+                claim("answered " + status + ", it sent nothing but reads, so no tree was made and none taken",
+                        () -> assertThat(site.sent()).isNotEmpty()
+                                .allSatisfy(request -> assertThat(request.method()).isEqualTo("GET")));
+            }
+        }
+    }
+
+    @Test
+    @Story("A tree an earlier publish made is taken as this tree")
+    @DisplayName("A root page's heading in bold with a no-break space between its words is read as Italian, and its tree taken by an Italian publish")
+    void aHeadingInMarkupWithANoBreakSpaceIsReadAsItsLanguage() throws IOException {
+        Path tree = folder.resolve("it");
+        Rendering italian = Rendering.drawnIn(tree, Rendering.ITALIAN);
+        try (StubConfluence site = StubConfluence.start()) {
+            aTreeOfTheEarlierForm(site, tree, AN_ITALIAN_ROOT_BODY_IN_MARKUP);
+            List<String> lines = new ArrayList<>();
+            Publisher.Outcome outcome = publish(site, italian, italian.run(), lines);
+
+            claim("the publish went to its end, taking the earlier tree as the Italian one",
+                    () -> assertThat(List.of(outcome.published(), lines.contains("the tree " + THE_EARLIER_ROOT_TITLE
+                            + " an earlier publish made is taken as the tree Vespera_it: its 3 pages are retitled and"
+                            + " updated in place"))).containsExactly(true, true));
+        }
+    }
+
+    @Test
+    @Story("A tree an earlier publish made is taken as this tree")
+    @DisplayName("Of two earlier pages of one key under the root page the earlier made is taken, and the later and one outside the tree are left as they stand")
+    void ofTwoEarlierPagesOfOneKeyUnderTheRootTheLowerIdIsTakenAndAPageOutsideTheTreeIsNot() throws IOException {
+        Path tree = folder.resolve("it");
+        Rendering italian = Rendering.drawnIn(tree, Rendering.ITALIAN);
+        try (StubConfluence site = StubConfluence.start()) {
+            StubConfluence.Page outside = site.aPageAnEarlierPublishMade(StubConfluence.OTHER_PARENT_ID,
+                    A_PAGE_OF_ONE_KEY_OUTSIDE, THE_EARLIER_LABEL, THE_GROUPS_EARLIER_KEY, Map.of());
+            List<String> earlier = aTreeOfTheEarlierForm(site, tree, AN_ITALIAN_ROOT_BODY);
+            StubConfluence.Page later = site.aPageAnEarlierPublishMade(earlier.get(1), A_LATER_PAGE_OF_ONE_KEY,
+                    THE_EARLIER_LABEL, THE_GROUPS_EARLIER_KEY, Map.of());
+            List<String> strays = List.of(outside.id, later.id);
+            List<String> before = describedById(site, strays);
+            site.forgetTheRequests();
+            Publisher.Outcome outcome = publish(site, italian, italian.run(), new ArrayList<>());
+
+            claim("the publish went to its end, the earlier tree's three pages updated and none created",
+                    () -> assertThat(List.of(outcome.published(), outcome.closingLine().contains(
+                            "tree Vespera_it: 3 pages (0 created, 3 updated, 0 unchanged)")))
+                            .containsExactly(true, true));
+            claim("the group's page the tree made first, the lower id under the root page, is the one taken",
+                    () -> assertThat(describedById(site, List.of(earlier.get(2)))).containsExactly(
+                            earlier.get(2) + " Payroll and leave (1.1 · it) [vespera-it] it:1.1"));
+            claim("the page of that key made later under the root page and the one under another parent stand as they"
+                            + " stood, titled, labelled and keyed as before",
+                    () -> assertThat(describedById(site, strays)).isEqualTo(before));
+            claim("and the publish sent no request but a read naming either",
+                    () -> assertThat(writesNaming(site, strays)).isEmpty());
+        }
+    }
+
+    @Test
+    @Story("Each deliverable language is a tree of its own")
+    @DisplayName("The language's own root page that lost its label is found by its title, so no earlier tree is looked for or said to be left, and it is labelled again")
+    void itsOwnRootPageThatLostItsLabelIsFoundByItsTitleAndNoEarlierTreeIsLookedFor() throws IOException {
+        Path tree = folder.resolve("it");
+        Rendering italian = Rendering.drawnIn(tree, Rendering.ITALIAN);
+        try (StubConfluence site = StubConfluence.start()) {
+            aTreeOfTheEarlierForm(site, tree, AN_ENGLISH_ROOT_BODY);
+            publish(site, italian, italian.run(), new ArrayList<>());
+            StubConfluence.Page root = page(site, italian.rootTitle());
+            root.labels.remove(italian.label());
+            List<String> lines = new ArrayList<>();
+            Publisher.Outcome again = publish(site, italian, italian.run(), lines);
+
+            claim("the publish went to its end creating no page",
+                    () -> assertThat(List.of(again.published(), again.closingLine().contains(
+                            "tree Vespera_it: 3 pages (0 created, 0 updated, 3 unchanged)")))
+                            .containsExactly(true, true));
+            claim("no line speaks of a tree an earlier publish made, left or taken",
+                    () -> assertThat(lines).noneMatch(line -> line.contains("an earlier publish made")));
+            claim("and the root page carries its language's label again, keyed as it was",
+                    () -> assertThat(described(page(site, italian.rootTitle())))
+                            .isEqualTo("Vespera_it [vespera-it] it:root"));
+        }
+    }
+
     private Publisher.Outcome publish(StubConfluence site, Rendering rendering, String run, List<String> lines) {
         return site.publisher(new ArrayList<>()).publish(rendering.confluence(), run, folder, lines::add);
     }
 
+    /** The closing line of a publish that went to its end, to the colon after the tree it names (ADR-378 §7). */
+    private static String closingLineOf(String marker, String tree) {
+        return "vespera publish sent the rendering of generation run " + marker + " to " + StubConfluence.SITE_HOST
+                + ", space " + StubConfluence.SPACE_KEY + ", tree " + tree + ": ";
+    }
+
+    /** A page of the site as a test compares it: its title, its labels in order and its property's key. */
+    private static String described(StubConfluence.Page page) {
+        return page.title + " " + new TreeSet<>(page.labels) + " " + (page.property == null ? null : page.property.get("key"));
+    }
+
+    /** The pages of {@code ids}, in that order, each with its id first and then as {@link #described} has it. */
+    private static List<String> describedById(StubConfluence site, List<String> ids) {
+        return ids.stream().map(id -> site.pages().stream().filter(page -> page.id.equals(id)).findFirst()
+                .map(page -> page.id + " " + described(page)).orElse(id + " not in the space")).toList();
+    }
+
+    /** Every request but a read that names one of {@code ids} as a segment of its path, as its method and path. */
+    private static List<String> writesNaming(StubConfluence site, List<String> ids) {
+        return site.sent().stream()
+                .filter(request -> !request.method().equals("GET"))
+                .filter(request -> Arrays.stream(request.path().split("/")).anyMatch(ids::contains))
+                .map(request -> request.method() + " " + request.path())
+                .toList();
+    }
+
+    /**
+     * Puts under the parent the tree an earlier publish made under ADR-328, which named no language: its root page
+     * {@code Vespera}, its body {@code rootBody}, and its seed partition's and group's pages titled by their place
+     * alone, all labelled {@code vespera} and keyed by their place, carrying the files the rendering in {@code tree}
+     * lists at their digests; gives the pages' ids, root first.
+     */
+    private static List<String> aTreeOfTheEarlierForm(StubConfluence site, Path tree, String rootBody)
+            throws IOException {
+        StubConfluence.Page root = site.aPageAnEarlierPublishMade(StubConfluence.PARENT_ID, THE_EARLIER_ROOT_TITLE,
+                THE_EARLIER_LABEL, "root",
+                Map.of(Rendering.LISTING, Files.readAllBytes(tree.resolve(Rendering.LISTING))));
+        root.body = rootBody;
+        StubConfluence.Page partition = site.aPageAnEarlierPublishMade(root.id, THE_EARLIER_PARTITION_TITLE,
+                THE_EARLIER_LABEL, "1", Map.of());
+        StubConfluence.Page cluster = site.aPageAnEarlierPublishMade(partition.id, THE_EARLIER_CLUSTER_TITLE,
+                THE_EARLIER_LABEL, "1.1", Map.of(
+                        Rendering.COPY, Files.readAllBytes(tree.resolve("001/001/" + Rendering.COPY)),
+                        Rendering.PICTURE, Files.readAllBytes(tree.resolve("confluence/001/001/" + Rendering.PICTURE))));
+        return List.of(root.id, partition.id, cluster.id);
+    }
+
     /**
      * Puts under the parent the tree an earlier publish made of {@code run} under ADR-310 and ADR-316: its three pages
-     * titled with {@code marker}, labelled {@code vespera-<marker>}, keyed {@code <run>:<place>}, and carrying the files
-     * the rendering in {@code tree} lists at their digests; gives the pages' ids, root first.
+     * titled with {@code marker}, labelled {@code vespera-<marker>}, keyed {@code <run>:<place>}, its root page's body
+     * opening with the English heading and the run's id as such a drawing opened it (ADR-315 §2), and carrying the
+     * files the rendering in {@code tree} lists at their digests; gives the pages' ids, root first.
      */
     private static List<String> anEarlierTree(StubConfluence site, Path tree, String run, String marker)
             throws IOException {
         return anEarlierTreeUnder(site, StubConfluence.PARENT_ID, tree, run, marker);
     }
 
-    /** {@link #anEarlierTree}, under the page or folder {@code parentId}. */
+    /**
+     * {@link #anEarlierTree}, under the page or folder {@code parentId}, its places padded to two digits as ADR-310
+     * padded a place of a rendering of ten or more, {@code 01} and {@code 01.01}.
+     */
     private static List<String> anEarlierTreeUnder(StubConfluence site, String parentId, Path tree, String run,
             String marker) throws IOException {
         String label = "vespera-" + marker;
         StubConfluence.Page root = site.aPageAnEarlierPublishMade(parentId, "Vespera " + marker, label,
                 run + ":root", Map.of(Rendering.LISTING, Files.readAllBytes(tree.resolve(Rendering.LISTING))));
-        StubConfluence.Page partition = site.aPageAnEarlierPublishMade(root.id, "Seeds (1 · " + marker + ")", label,
-                run + ":1", Map.of());
+        root.body = "<h1>Deliverable " + run + "</h1>\n<p>An earlier body.</p>";
+        StubConfluence.Page partition = site.aPageAnEarlierPublishMade(root.id, "Seeds (01 · " + marker + ")", label,
+                run + ":01", Map.of());
         StubConfluence.Page cluster = site.aPageAnEarlierPublishMade(partition.id,
-                "Payroll and leave (1.1 · " + marker + ")", label, run + ":1.1", Map.of(
+                "Payroll and leave (01.01 · " + marker + ")", label, run + ":01.01", Map.of(
                         Rendering.COPY, Files.readAllBytes(tree.resolve("001/001/" + Rendering.COPY)),
                         Rendering.PICTURE, Files.readAllBytes(tree.resolve("confluence/001/001/" + Rendering.PICTURE))));
         return List.of(root.id, partition.id, cluster.id);

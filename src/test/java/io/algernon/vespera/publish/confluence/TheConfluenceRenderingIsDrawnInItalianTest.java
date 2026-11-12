@@ -16,6 +16,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -23,6 +24,8 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * An Italian tree's Confluence rendering, and what every page and title of it says (ADR-321 §4, §5): its root page,
@@ -42,6 +45,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-328", url = Adr.THE_CONFLUENCE_RENDERING_IS_ONE_TREE_UPDATED_IN_PLACE_WITH_NO_RUN_ID, type = "adr")
 @Link(name = "ADR-315", url = Adr.THE_ROOT_PAGE_CARRIES_NEITHER_THE_CORPUS_ROOT_NOR_THE_PROFILE, type = "adr")
 @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
+@Link(name = "ADR-378", url = Adr.EACH_DELIVERABLE_LANGUAGE_IS_PUBLISHED_AS_A_TREE_OF_ITS_OWN, type = "adr")
 class TheConfluenceRenderingIsDrawnInItalianTest {
 
     private static final DeliverableLanguage ITALIAN = DeliverableLanguage.ITALIAN;
@@ -60,6 +64,8 @@ class TheConfluenceRenderingIsDrawnInItalianTest {
 
     private static final String DOORS_TITLE = AnItalianTreeIsDrawnInItalianTest.DOORS_TITLE;
 
+    private static final JsonMapper JSON = JsonMapper.builder().build();
+
     @Test
     @Story("An Italian deliverable's pages say in Italian what Vespera writes on them")
     @DisplayName("No Confluence page of an Italian tree carries a fixed English word")
@@ -77,6 +83,33 @@ class TheConfluenceRenderingIsDrawnInItalianTest {
                 () -> assertThat(pages).allSatisfy((name, page) -> assertThat(page)
                         .as(name)
                         .doesNotContain(AnItalianTreeIsDrawnInItalianTest.ENGLISH_FIXED_WORDS)));
+    }
+
+    @Test
+    @Story("Each deliverable language is a tree of its own")
+    @DisplayName("An Italian rendering's root page is Vespera_it, and every page is keyed by it and titled with it, a split group's later pages saying pagina")
+    void anItalianTreeIsVesperaItAndEveryPageCarriesIt(@TempDir Path base) throws IOException {
+        Path tree = draw(base);
+        JsonNode list = JSON.readTree(
+                tree.resolve(ConfluencePages.DIRECTORY_NAME).resolve(ConfluencePages.PAGE_LIST_FILE_NAME).toFile());
+        List<String> pages = list.get("pages").valueStream()
+                .map(page -> page.get("key").asString() + " " + page.get("title").asString())
+                .toList();
+        List<String> expected = new ArrayList<>(List.of("it:root Vespera_it", "it:1 Sicurezza (1 · it)",
+                "it:1.1 " + DOORS_TITLE + " (1.1 · it)"));
+        for (int page = 2; page <= FIVE_ENTRIES; page++) {
+            expected.add("it:1.1." + page + " " + DOORS_TITLE + " (1.1 pagina " + page + " · it)");
+        }
+        expected.add("it:1.2 Serrande (1.2 · it)");
+
+        claim(
+                "the page list names the language the rendering was drawn in, it",
+                () -> assertThat(list.path("language").asString("")).isEqualTo("it"));
+        claim(
+                "in the list's order, each page keyed by it and its place and titled with its place and it: the root"
+                        + " page, the seed partition's, the written group's five, its later four saying pagina, and the"
+                        + " unwritten group's one",
+                () -> assertThat(pages).containsExactlyElementsOf(expected));
     }
 
     /** {@code deliverable}'s Italian fixture, drawn with the Confluence rendering's plugin. */

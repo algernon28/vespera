@@ -64,7 +64,7 @@ final class ConfluencePages implements Drawing {
     static final String BODY_NAME = "page.xml";
 
     /** The page list's format (ADR-316 §2, ADR-328 §3). */
-    private static final int FORMAT = 2;
+    private static final int FORMAT = 3;
 
     /** How many hexadecimal characters of the run's id its marker is (ADR-310 §1); the page list names it, no page does. */
     private static final int MARKER_LENGTH = 12;
@@ -125,9 +125,9 @@ final class ConfluencePages implements Drawing {
     public void partitionStarted(ListedPartition partition, int partitionCount) throws IOException {
         String place = IndexPage.pad(partition.partitionOrder(), IndexPage.widthOf(partitionCount));
         partitionFolder = IndexPage.partitionDirectoryName(partition, partitionCount);
-        partitionKey = Integer.toString(partition.partitionOrder());
+        partitionKey = language.code() + ":" + partition.partitionOrder();
         partitionPlace = place;
-        partitionTitle = ConfluenceTitles.partition(FilenameStem.of(partition.seedPath()), place);
+        partitionTitle = ConfluenceTitles.partition(FilenameStem.of(partition.seedPath()), place, language);
         Files.createDirectories(directory.resolve(partitionFolder));
         written.add(DIRECTORY_NAME + "/" + partitionFolder);
         partitionRows.setLength(0);
@@ -243,7 +243,7 @@ final class ConfluencePages implements Drawing {
         ListedPage rootPage = new ListedPage(
                 rootKey(),
                 null,
-                ConfluenceTitles.root(),
+                ConfluenceTitles.root(language),
                 BODY_NAME,
                 rootDigest,
                 List.of(new PageFile(
@@ -253,7 +253,8 @@ final class ConfluencePages implements Drawing {
         Path listPart = directory.resolve(PAGE_LIST_FILE_NAME + Deliverable.PART_SUFFIX);
         try (OutputStream list = Files.newOutputStream(listPart)) {
             list.write(("{\"format\":" + FORMAT + ",\"generationRun\":" + JSON.writeValueAsString(runId) + ",\"marker\":"
-                    + JSON.writeValueAsString(marker) + ",\"pages\":[\n" + JSON.writeValueAsString(rootPage))
+                    + JSON.writeValueAsString(marker) + ",\"language\":" + JSON.writeValueAsString(language.code())
+                    + ",\"pages\":[\n" + JSON.writeValueAsString(rootPage))
                     .getBytes(StandardCharsets.UTF_8));
             Files.copy(restPart, list);
             list.write("\n]}\n".getBytes(StandardCharsets.UTF_8));
@@ -270,7 +271,7 @@ final class ConfluencePages implements Drawing {
     }
 
     private String rootKey() {
-        return "root";
+        return language.code() + ":root";
     }
 
     private void listed(ListedPage page) throws IOException {

@@ -25,6 +25,7 @@ import io.algernon.vespera.engine.deliverable.Plugin;
 import io.algernon.vespera.engine.deliverable.SurvivorPictures;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.synthesis.ClusterSlot;
+import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
 import io.algernon.vespera.engine.synthesis.SynthesisDoc;
 import io.qameta.allure.Epic;
@@ -49,6 +50,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The Confluence rendering drawn under {@code confluence/} beside the HTML tree (ADR-301, ADR-309, ADR-310, ADR-312 to
@@ -75,6 +77,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Link(name = "ADR-315", url = Adr.THE_ROOT_PAGE_CARRIES_NEITHER_THE_CORPUS_ROOT_NOR_THE_PROFILE, type = "adr")
 @Link(name = "ADR-316", url = Adr.THE_PAGE_LIST_IS_PAGES_JSON, type = "adr")
 @Link(name = "ADR-328", url = Adr.THE_CONFLUENCE_RENDERING_IS_ONE_TREE_UPDATED_IN_PLACE_WITH_NO_RUN_ID, type = "adr")
+@Link(name = "ADR-378", url = Adr.EACH_DELIVERABLE_LANGUAGE_IS_PUBLISHED_AS_A_TREE_OF_ITS_OWN, type = "adr")
 class TheConfluenceRenderingTest {
 
     private static final OccurrenceId THE_SEED = new OccurrenceId(1);
@@ -107,6 +110,23 @@ class TheConfluenceRenderingTest {
     private static final byte[] A_SCAN = anImage("png", 5, 5);
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
+
+    /** The page list's format, whose keys carry the language's code (ADR-378 §4), and the one before it. */
+    private static final int THE_FORMAT = 3;
+
+    private static final int THE_EARLIER_FORMAT = 2;
+
+    /** A language code no record gives the fixed words of, which a page list may not name (ADR-321 §1). */
+    private static final String A_LANGUAGE_NO_RECORD_NAMES = "fr";
+
+    /** English's code as no drawing writes it, in upper case (ADR-378 §4). */
+    private static final String ENGLISH_IN_UPPER_CASE = "EN";
+
+    /** The root page's key as ADR-328 wrote it, with no language's code before it (ADR-378 §2). */
+    private static final String A_KEY_WITH_NO_CODE = "root";
+
+    /** A group's text longer than a whole title may be, 255 code units (ADR-310 §4). */
+    private static final int LONGER_THAN_A_TITLE = 300;
 
     /** The one plugin the tree is drawn with here: the Confluence rendering's, its publisher never asked to send. */
     private static final List<Plugin> THE_CONFLUENCE_PLUGIN =
@@ -184,6 +204,131 @@ class TheConfluenceRenderingTest {
         claim(
                 "the page list is the same, byte for byte, so each key, title and body digest is kept",
                 () -> assertThat(second).isEqualTo(first));
+    }
+
+    @Test
+    @Story("Each deliverable language is a tree of its own")
+    @DisplayName("Every title carries the language's code: the root page is Vespera_en, and every other page's place is followed by en")
+    void everyTitleCarriesTheLanguagesCodeAndTheRootPageIsVesperaAndTheCode(@TempDir Path base) throws IOException {
+        Path tree = draw(base, picturesOfTheFirst());
+        List<String> titles = pageList(tree).get("pages").valueStream().map(page -> page.get("title").asString())
+                .toList();
+
+        claim(
+                "in the list's order: the root page Vespera_en, the seed partition's page its seed's stem, place and"
+                        + " code, and each group's page its title, or its label where nothing was written, its place"
+                        + " and code",
+                () -> assertThat(titles).containsExactly(
+                        "Vespera_en",
+                        "Fire Safety (1 · en)",
+                        DOORS_TITLE + " (1.1 · en)",
+                        "Smoke dampers (1.2 · en)"));
+    }
+
+    @Test
+    @Story("Each deliverable language is a tree of its own")
+    @DisplayName("Each page is keyed by the language's code and its place, the page list is of format 3 naming its language, and a publish refuses an earlier format, another language, the code in upper case or a key with no code")
+    void aKeyIsTheCodeAndThePlaceAndThePageListOfFormatThreeNamesItsLanguage(@TempDir Path base) throws IOException {
+        Path tree = draw(base, picturesOfTheFirst());
+        Path confluence = tree.resolve(ConfluencePages.DIRECTORY_NAME);
+        JsonNode list = pageList(tree);
+        List<String> keys = list.get("pages").valueStream().map(page -> page.get("key").asString() + " under "
+                + (page.get("parent").isNull() ? "nothing" : page.get("parent").asString())).toList();
+        PageList.Read asDrawn = PageList.in(confluence, ListedTree.RUN_ID);
+        rewritten(confluence, "format", THE_EARLIER_FORMAT);
+        PageList.Read ofTheEarlierFormat = PageList.in(confluence, ListedTree.RUN_ID);
+        rewritten(confluence, "format", THE_FORMAT);
+        rewritten(confluence, "language", A_LANGUAGE_NO_RECORD_NAMES);
+        PageList.Read ofAnotherLanguage = PageList.in(confluence, ListedTree.RUN_ID);
+        rewritten(confluence, "language", ENGLISH_IN_UPPER_CASE);
+        PageList.Read ofTheCodeInUpperCase = PageList.in(confluence, ListedTree.RUN_ID);
+        rewritten(confluence, "language", "en");
+        PageList.Read asDrawnAgain = PageList.in(confluence, ListedTree.RUN_ID);
+        rootKeyed(confluence, A_KEY_WITH_NO_CODE);
+        PageList.Read ofAKeyWithNoCode = PageList.in(confluence, ListedTree.RUN_ID);
+
+        claim(
+                "the page list is of format 3 and names the language it was drawn in, en",
+                () -> assertThat(List.of(list.path("format").asInt(), list.path("language").asString("")))
+                        .containsExactly(THE_FORMAT, "en"));
+        claim(
+                "each page is keyed by the code, a colon and its place unpadded, under its parent's key",
+                () -> assertThat(keys).containsExactly(
+                        "en:root under nothing", "en:1 under en:root", "en:1.1 under en:1", "en:1.2 under en:1"));
+        claim(
+                "a publish reads the list as it is drawn",
+                () -> assertThat(asDrawn).isInstanceOf(PageList.Read.Listed.class));
+        claim(
+                "and refuses it rewritten as format 2, saying it reads format 3 and to draw the deliverable again",
+                () -> assertThat(ofTheEarlierFormat).isInstanceOfSatisfying(PageList.Read.Refused.class,
+                        refused -> assertThat(refused.line()).contains(
+                                "it is of format 2, and this publish reads format 3",
+                                "Run vespera run to draw the deliverable again")));
+        claim(
+                "and refuses it naming a language no record gives words to, saying to draw the deliverable again",
+                () -> assertThat(ofAnotherLanguage).isInstanceOfSatisfying(PageList.Read.Refused.class,
+                        refused -> assertThat(refused.line()).contains("Run vespera run to draw the deliverable again")));
+        claim(
+                "and refuses it naming its own language in upper case, EN, which no drawing writes",
+                () -> assertThat(ofTheCodeInUpperCase).isInstanceOfSatisfying(PageList.Read.Refused.class,
+                        refused -> assertThat(refused.line()).contains("Run vespera run to draw the deliverable again")));
+        claim(
+                "the list named en again is read once more, so what follows is refused for its key alone",
+                () -> assertThat(asDrawnAgain).isInstanceOf(PageList.Read.Listed.class));
+        claim(
+                "and it refuses a list whose root page is keyed root, with no code and colon before it",
+                () -> assertThat(ofAKeyWithNoCode).isInstanceOfSatisfying(PageList.Read.Refused.class,
+                        refused -> assertThat(refused.line()).contains("Run vespera run to draw the deliverable again")));
+    }
+
+    /** Rewrites the root page's key in the page list in {@code confluence}, and its children's parent with it. */
+    private static void rootKeyed(Path confluence, String key) throws IOException {
+        Path file = confluence.resolve(ConfluencePages.PAGE_LIST_FILE_NAME);
+        ObjectNode list = (ObjectNode) JSON.readTree(file.toFile());
+        String was = list.get("pages").get(0).get("key").asString();
+        for (JsonNode page : list.get("pages")) {
+            if (page.get("key").asString().equals(was)) {
+                ((ObjectNode) page).put("key", key);
+            }
+            if (!page.get("parent").isNull() && page.get("parent").asString().equals(was)) {
+                ((ObjectNode) page).put("parent", key);
+            }
+        }
+        Files.write(file, JSON.writeValueAsBytes(list));
+    }
+
+    @Test
+    @Story("Each deliverable language is a tree of its own")
+    @DisplayName("A long title is cut in its text and its suffix, the language's code inside it, is kept whole; whitespace and control characters fold")
+    void aLongTitleIsCutInItsTextAndItsSuffixWithTheCodeIsKeptWhole() {
+        String suffix = " (1.1 pagina 2 · it)";
+        String cut = ConfluenceTitles.cluster("a".repeat(LONGER_THAN_A_TITLE), "1.1", 2, DeliverableLanguage.ITALIAN);
+        String folded = ConfluenceTitles.cluster("Fire\tdoors \n\n and\u0007frames ", "1.1", 1, DeliverableLanguage.ENGLISH);
+        String empty = ConfluenceTitles.cluster(" \t ", "1.1", 1, DeliverableLanguage.ENGLISH);
+
+        claim(
+                "a group's text longer than a title is cut so the whole is 255 code units, Confluence's limit: its"
+                        + " text, an ellipsis, then the suffix with its page and the code whole",
+                () -> assertThat(cut).isEqualTo(
+                        "a".repeat(ConfluenceTitles.LONGEST_TITLE - suffix.length() - "…".length()) + "…" + suffix));
+        claim(
+                "a tab, a line break and a bell become spaces, runs of them one space, and the text is trimmed",
+                () -> assertThat(folded).isEqualTo("Fire doors and frames (1.1 · en)"));
+        claim(
+                "a text of blanks alone leaves the suffix with the code alone",
+                () -> assertThat(empty).isEqualTo("(1.1 · en)"));
+    }
+
+    /** Rewrites one field of the page list in {@code confluence}, the rest as it stands. */
+    private static void rewritten(Path confluence, String field, Object value) throws IOException {
+        Path file = confluence.resolve(ConfluencePages.PAGE_LIST_FILE_NAME);
+        ObjectNode list = (ObjectNode) JSON.readTree(file.toFile());
+        if (value instanceof Integer number) {
+            list.put(field, number);
+        } else {
+            list.put(field, value.toString());
+        }
+        Files.write(file, JSON.writeValueAsBytes(list));
     }
 
     /** The fixture drawn into {@code base}: its archive, its working directory and its tree. */

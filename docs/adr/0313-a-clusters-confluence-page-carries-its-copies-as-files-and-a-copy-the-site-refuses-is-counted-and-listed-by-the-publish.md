@@ -1,5 +1,7 @@
 # ADR-313 — A cluster's Confluence page carries its copies as files, and a copy the site refuses is counted and listed by the publish
 
+> **Partly amended — see [ADR-378](0378-each-deliverable-language-is-a-tree-of-its-own-its-titles-carrying-its-code-and-an-earlier-tree-taken-by-its-heading.md).** §3's `confluence-not-carried.csv` is no longer written: a copy refused as too large is said on its line and counted with its bytes in the closing line, whose clause names no file, and a list an earlier version wrote is removed by the next publish that sends, a line saying so. The rest of §3 stands.
+
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.
 - **Rests on**: [ADR-301](0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md) §3, which partly reopens ADR-023 and leaves how copies are carried to this record; [ADR-308](0308-vespera-publishes-the-confluence-rendering-to-the-operators-cloud-site-itself-on-an-explicit-publish-with-a-token-read-from-the-environment-alone.md), by which a publish sends the rendering and its files; and [ADR-312](0312-the-confluence-rendering-lies-under-confluence-at-the-trees-root-drawn-by-every-drawing-and-what-an-earlier-drawing-left-in-it-is-counted-and-kept.md), by which it lies under `confluence/`.
