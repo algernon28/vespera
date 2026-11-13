@@ -633,6 +633,10 @@ final class ProfileRow {
             return "Changing it rewrites only the group pages (a split group's pictures are read again); everything"
                     + " else is kept.";
         }
+        if (key == ProfileKey.MODELS_RUN_ON) {
+            // Read at the start of the next invocation alone, and never written by the window (ADR-388 §2).
+            return "Changing it in profile.yaml redoes no work; it takes effect the next time you start Vespera.";
+        }
         return key.earliestRun().map(run -> switch (run) {
             case BYTE_LEVEL_REDUCTION -> "Changing it redoes everything from sorting your files to writing the pages;"
                     + " text already read out of your files is kept.";

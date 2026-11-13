@@ -2785,6 +2785,16 @@ public final class Adr {
     public static final String A_STEP_STILL_RUNNING_IN_THE_REPORT_OF_A_CHILD_THAT_ENDED_IS_DRAWN_STOPPED_OR_FAILED =
             FILE + "0387-a-step-still-running-in-the-report-of-a-child-that-ended-is-drawn-stopped-or-failed.md";
 
+    /**
+     * ADR-388 -- {@code modelsRunOn}'s row is titled <i>Where the AI models work</i>, its short description and tooltip
+     * worded under ADR-377 §4's rules, saying no <i>run</i>; a change of it redoes no work and takes effect the next time
+     * Vespera is started, a cost line of its own; the writing model's tooltip says nothing checks where a model works;
+     * and {@code confluenceBaseUrl}'s tooltip shows {@code https://wiki.example.com} where ADR-377 §4 gives a Cloud
+     * site's domain, which ADR-308 keeps out of shipped files (amends ADR-384 §7 and ADR-377 §4).
+     */
+    public static final String WHERE_THE_MODELS_RUN_IS_WORDED_UNDER_A_PROFILE_ROWS_RULES = FILE
+            + "0388-where-the-models-run-is-worded-under-a-profile-rows-rules-and-a-change-of-it-takes-effect-the-next-time-vespera-starts.md";
+
     private Adr() {
     }
 }

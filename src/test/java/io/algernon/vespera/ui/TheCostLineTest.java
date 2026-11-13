@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 @Feature("The control panel")
 @Issue("802")
 @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
+@Link(name = "ADR-388", url = Adr.WHERE_THE_MODELS_RUN_IS_WORDED_UNDER_A_PROFILE_ROWS_RULES, type = "adr")
 class TheCostLineTest {
 
     /** The cost line of each earliest run, as §4's table gives it. */
@@ -46,6 +47,10 @@ class TheCostLineTest {
     /** The cost line of the five Confluence keys, which a publish alone reads. */
     private static final String A_PUBLISHS_LINE =
             "Changing it redoes no work; it takes effect the next time you press Publish.";
+
+    /** The cost line of where the AI models work, read at the start of the next invocation alone (ADR-388 §2). */
+    private static final String THE_NEXT_STARTS_LINE =
+            "Changing it in profile.yaml redoes no work; it takes effect the next time you start Vespera.";
 
     /** The cost line of the largest group page, which enters no run but draws the group pages again. */
     private static final String THE_GROUP_PAGES_LINE = "Changing it rewrites only the group pages (a split group's"
@@ -87,11 +92,13 @@ class TheCostLineTest {
         claim("no key enters first the content census or the grouping's proposal, which the table gives no line",
                 () -> assertThat(Arrays.stream(ProfileKey.values()).map(ProfileKey::earliestRun).flatMap(Optional::stream))
                         .doesNotContainAnyElementsOf(RUNS_GIVEN_NO_LINE));
-        claim("each key's cost line is the table's line for its earliest run; the largest group page's its own; and the"
-                        + " five Confluence values', which enter no run, the line of a publish",
+        claim("each key's cost line is the table's line for its earliest run; the largest group page's and where the AI"
+                        + " models work's each their own; and the five Confluence values', which enter no run, the line"
+                        + " of a publish",
                 () -> assertThat(ProfileKey.values()).allSatisfy(key -> assertThat(ProfileRow.costOf(key))
                         .as("%s's cost line", key.key())
                         .isEqualTo(key == ProfileKey.CLUSTER_PAGE_BYTE_CEILING ? THE_GROUP_PAGES_LINE
+                                : key == ProfileKey.MODELS_RUN_ON ? THE_NEXT_STARTS_LINE
                                 : key.earliestRun().map(THE_LINE_OF_EACH_RUN::get).orElse(A_PUBLISHS_LINE))));
     }
 
