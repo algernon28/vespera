@@ -1,6 +1,5 @@
 package io.algernon.vespera.ui;
 
-import static io.algernon.vespera.ui.Layout.row;
 import static io.algernon.vespera.ui.Layout.tight;
 
 import java.util.LinkedHashMap;
@@ -13,9 +12,6 @@ import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Spinner;
-import javafx.scene.control.TextField;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 /**
@@ -29,16 +25,13 @@ final class OptionsPane {
     private static final List<String> FLAGS = List.of("vespera.sidecars.start", "vespera.models.pull");
 
     private final ControlPanelState state;
-    private final Dialogs dialogs;
     private final Runnable changed;
     private final Map<String, Preset> presets = new LinkedHashMap<>();
     private final Map<ControlPanelState.Start, SelectableText.Wrapping> commandLines = new LinkedHashMap<>();
-    private final TextField labelFile = new TextField();
 
     /** {@code changed} runs whenever a control of the pane changes what a command line would be. */
-    OptionsPane(ControlPanelState state, Dialogs dialogs, Runnable changed) {
+    OptionsPane(ControlPanelState state, Runnable changed) {
         this.state = state;
-        this.dialogs = dialogs;
         this.changed = changed;
     }
 
@@ -91,15 +84,7 @@ final class OptionsPane {
     }
 
     Node pane() {
-        labelFile.setId("label-file");
-        labelFile.setPromptText("The label file for Record my answers (optional)");
-        labelFile.textProperty().addListener((observed, was, now) -> changed.run());
-        Button browse = new Button("Browse");
-        browse.setId("label-file.browse");
-        browse.setOnAction(event -> dialogs.file("Choose the label file", "")
-                .ifPresent(chosen -> labelFile.setText(chosen.toString())));
-        HBox.setHgrow(labelFile, Priority.ALWAYS);
-        VBox pane = new VBox(SelectableText.line("Label file"), row(labelFile, browse));
+        VBox pane = new VBox();
         for (ChildCommand.Option option : ChildCommand.OPTIONS) {
             Preset preset = new Preset(option.property());
             SelectableText.Line words = SelectableText.line(option.property() + "  (" + String.join(", ", option.commands()) + ")");
@@ -110,10 +95,7 @@ final class OptionsPane {
         }
         Button defaults = new Button("Back to the defaults");
         defaults.setId("options-defaults");
-        defaults.setOnAction(event -> {
-            presets.values().forEach(Preset::toTheDefault);
-            labelFile.clear();
-        });
+        defaults.setOnAction(event -> presets.values().forEach(Preset::toTheDefault));
         pane.getChildren().add(defaults);
         for (ControlPanelState.Start kind : List.of(ControlPanelState.Start.RUN, ControlPanelState.Start.LABEL,
                 ControlPanelState.Start.LABEL_AUTO, ControlPanelState.Start.PUBLISH)) {
@@ -130,11 +112,6 @@ final class OptionsPane {
         }
         pane.getStyleClass().add("section");
         return pane;
-    }
-
-    /** The label file's text as typed. */
-    String labelFileText() {
-        return labelFile.getText();
     }
 
     /** Whether the command lines are drawn yet. */

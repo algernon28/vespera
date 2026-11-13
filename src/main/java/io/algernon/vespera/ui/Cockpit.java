@@ -89,6 +89,10 @@ final class Cockpit {
     private final InclusionsTab inclusions;
     private final ProfileForm profile;
     private final WantedValues wanted;
+    /** The keys whose rows are open on the Profile tab, in Seed folder and in what the next invocation wants (ADR-377 §3). */
+    private final ProfileRow.OpenKeys profileOpen = new ProfileRow.OpenKeys(false);
+    private final ProfileRow.OpenKeys seedOpen = new ProfileRow.OpenKeys(false);
+    private final ProfileRow.OpenKeys wantedOpen = new ProfileRow.OpenKeys(true);
     private ProfileRow seedRow;
     private boolean seedStated;
 
@@ -112,15 +116,16 @@ final class Cockpit {
     Cockpit(ControlPanelState state, Dialogs dialogs) {
         this.state = state;
         this.dialogs = dialogs;
-        this.options = new OptionsPane(state, dialogs, this::showCommandLines);
+        this.options = new OptionsPane(state, this::showCommandLines);
         this.reports = new ReportsPane(tabs, dialogs, folders, this::say);
         this.live = new LiveReport(this::openReport, dialogs::handToTheSystem);
         this.preflight = new PreflightPane(state, folders, property -> fields.get(property).text());
         this.codeSets = new CodeSetsPane(state, dialogs, folders, this::foldersToKeepApart, this::loadFiles);
         this.inclusions = new InclusionsTab(state, dialogs, folders, this::loadFiles);
-        this.profile = new ProfileForm(state, dialogs, folders, this::pointTo, this::openReport, this::loadFiles);
+        this.profile = new ProfileForm(state, dialogs, folders, this::pointTo, this::openReport, this::loadFiles,
+                profileOpen);
         this.wanted = new WantedValues(state, dialogs, folders, this::say, this::openReport, this::loadFiles,
-                this::showBadges);
+                this::showBadges, wantedOpen);
         root.getStyleClass().add("cockpit");
         if (state.darkChosen()) {
             root.getStyleClass().add("dark");
@@ -227,8 +232,6 @@ final class Cockpit {
         String seed = seedRow == null || seedRow.value().isBlank() ? state.values().lastSeedFolder()
                 : seedRow.value().stripTrailing();
         Map<String, String> passedOptions = options.passed(sources);
-        String labelText = options.labelFileText();
-        Path file = labelText.isBlank() ? null : InclusionsTree.pathOf(labelText.strip()).orElse(null);
         if (!passed.containsKey("vespera.working-dir")) {
             // the field left empty stands for the folder the jar would use on this machine (ADR-345 §1)
             passed.put("vespera.working-dir", state.workingDirectoryDefault().folder());
@@ -236,7 +239,7 @@ final class Cockpit {
         List<String> ticked = publishTo.getChildren().stream().filter(CheckBox.class::isInstance)
                 .map(CheckBox.class::cast).filter(CheckBox::isSelected)
                 .map(box -> box.getId().substring("publish-to-".length())).toList();
-        return new ControlPanelState.Plan(valuesOf(passed, seed), valuesOf(kept, seed), passedOptions, file, ticked);
+        return new ControlPanelState.Plan(valuesOf(passed, seed), valuesOf(kept, seed), passedOptions, ticked);
     }
 
     /** Draws a box for each destination whose rendering is drawn, Confluence's ticked and the others not, as each is added (ADR-345 §4). */
@@ -366,18 +369,17 @@ final class Cockpit {
             return Optional.of(unreadable.getMessage() == null ? ProfileEdit.FILE_NAME + " cannot be read"
                     : unreadable.getMessage());
         }
-        Optional<String> note = ProfileEdit.noteToSave(ProfileKey.CONFLUENCE_FOLDER_TITLE, title,
-                ProfileEdit.noteShown(inFile), inFile);
-        if (note.isEmpty()) {
+        Optional<String> provenance = ProfileEdit.provenanceToSave(ProfileKey.CONFLUENCE_FOLDER_TITLE, title, inFile);
+        if (provenance.isEmpty()) {
             return Optional.empty();
         }
-        Optional<String> refused = ProfileEdit.refusalOfSave(ProfileKey.CONFLUENCE_FOLDER_TITLE, title, note.get(),
-                inFile, Optional.empty());
+        Optional<String> refused = ProfileEdit.refusalOfSave(ProfileKey.CONFLUENCE_FOLDER_TITLE, title,
+                provenance.get(), inFile, Optional.empty());
         if (refused.isPresent()) {
             return refused;
         }
         return state.write(folder, ProfileEdit.FILE_NAME, current -> ProfileEdit.rewrite(current,
-                ProfileKey.CONFLUENCE_FOLDER_TITLE, title, note.get()));
+                ProfileKey.CONFLUENCE_FOLDER_TITLE, title, provenance.get()));
     }
 
     /** Stop is confirmed with the one sentence a stop is confirmed by (ADR-278 §6); the child is stopped only on the answer that goes on. */
@@ -471,6 +473,8 @@ final class Cockpit {
         working.input.textProperty().addListener((observed, was, now) -> {
             where();
             reports.closeTabs();
+            // the rows drawn for another working directory start as they first do (ADR-377 section 3)
+            List.of(profileOpen, seedOpen, wantedOpen).forEach(ProfileRow.OpenKeys::forget);
             loadFiles();
         });
         VBox pane = new VBox(fieldBox(corpus, "Corpus root", true), fieldBox(working, "Working directory", true),
@@ -535,7 +539,7 @@ final class Cockpit {
 
     private Node seedPane() {
         seedRow = new ProfileRow(ProfileKey.SEED_FOLDER, "seed-", List.of(), Optional.empty(), dialogs, null,
-                this::openReport, folders.writtenReports());
+                this::openReport, folders.writtenReports(), seedOpen, new ProfileRow.TitleColumn());
         Button save = new Button("Save");
         save.setId("seed-folder-save");
         seedOutcome.setId("seed-folder-outcome");
@@ -618,6 +622,7 @@ final class Cockpit {
         profile.draw(stated, problem, notInForm, text, written);
         seedRow.load(Optional.ofNullable(stated.get(ProfileKey.SEED_FOLDER)));
         seedRow.showReports(written);
+        wanted.load(stated);
         wanted.showReports(written);
         seedStated = !seedRow.value().isBlank();
         if (seedRow.value().isBlank() && !state.values().lastSeedFolder().isEmpty()) {

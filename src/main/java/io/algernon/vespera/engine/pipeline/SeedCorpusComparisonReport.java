@@ -29,12 +29,13 @@ final class SeedCorpusComparisonReport {
     /** The format its JSON is written in. */
     static final int FORMAT = 1;
 
-    private static final String TITLE = "Seed/corpus mismatch";
+    /** The page's title and first heading, and its JSON's {@code title} (ADR-377 §5). */
+    private static final String TITLE = "Your documents compared with your seed documents";
 
     private SeedCorpusComparisonReport() {}
 
     static String render(SeedCorpusComparison.Comparison comparison) {
-        String body = ReportPage.heading(1, "How the seed set compares to the corpus")
+        String body = ReportPage.heading(1, TITLE)
                 + ReportPage.paragraph(populationSentence(comparison))
                 + ReportPage.bulletList(comparison.statements());
         return ReportPage.render(TITLE, body);

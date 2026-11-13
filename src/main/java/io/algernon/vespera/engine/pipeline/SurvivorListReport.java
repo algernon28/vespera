@@ -17,7 +17,8 @@ import java.util.function.Consumer;
  */
 final class SurvivorListReport {
 
-    private static final String TITLE = "Files stage 2 read and kept";
+    /** The page's title and first heading, and its JSON's {@code title} (ADR-377 §5). */
+    private static final String TITLE = "Files whose text was read and kept";
 
     /** What stands where a row holds no page count. */
     private static final String A_DASH = "&mdash;";

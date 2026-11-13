@@ -26,19 +26,23 @@ final class ProfileForm {
     private final VBox profileBody = new VBox();
     private final SelectableText.Wrapping profileOutcome = SelectableText.wrapping("");
     private final List<ProfileRow> profileRows = new ArrayList<>();
+    private final ProfileRow.OpenKeys open;
+    private final ProfileRow.TitleColumn titles = new ProfileRow.TitleColumn();
 
     /**
      * {@code pointTo} takes the operator to where a key not edited in the form is edited, {@code openReport} opens a
-     * report, and {@code reload} runs after the form has written the file.
+     * report, {@code reload} runs after the form has written the file, and {@code open} holds the keys whose rows are
+     * open.
      */
     ProfileForm(ControlPanelState state, Dialogs dialogs, WorkingFolders folders, Consumer<ProfileKey> pointTo,
-            Consumer<String> openReport, Runnable reload) {
+            Consumer<String> openReport, Runnable reload, ProfileRow.OpenKeys open) {
         this.state = state;
         this.dialogs = dialogs;
         this.folders = folders;
         this.pointTo = pointTo;
         this.openReport = openReport;
         this.reload = reload;
+        this.open = open;
     }
 
     Node content() {
@@ -76,6 +80,7 @@ final class ProfileForm {
         Optional<EffectiveValues> effective = state.effectiveValues(folders.workingDirectory());
         List<String> models = state.lastChecks().ollama().models();
         profileRows.clear();
+        titles.clear();
         profileBody.getChildren().clear();
         if (folders.workingDirectory().isEmpty()) {
             profileBody.getChildren().add(SelectableText.line("Name the working directory: profile.yaml lies in it."));
@@ -89,7 +94,8 @@ final class ProfileForm {
         for (ProfileKey key : ProfileKey.values()) {
             Optional<EffectiveValues.Value> beneath = key.hasAValueBeneath()
                     ? effective.flatMap(said -> said.named(key.key())) : Optional.empty();
-            ProfileRow row = new ProfileRow(key, "profile-", models, beneath, dialogs, pointTo, openReport, written);
+            ProfileRow row = new ProfileRow(key, "profile-", models, beneath, dialogs, pointTo, openReport, written,
+                    open, titles);
             row.load(Optional.ofNullable(stated.get(key)));
             profileRows.add(row);
             profileBody.getChildren().add(row.node());

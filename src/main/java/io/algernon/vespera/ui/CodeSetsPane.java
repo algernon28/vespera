@@ -3,7 +3,6 @@ package io.algernon.vespera.ui;
 import static io.algernon.vespera.ui.Layout.row;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,19 +12,20 @@ import java.util.function.Supplier;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 /**
- * The sidebar's Code sets section: the code sets the operator lists, a folder under the corpus root with a name or one
- * outside it, and their Save into the working directory (ADR-344 §1).
+ * The sidebar's Code sets section: the folders of code outside the corpus root that {@code codeSetFolders} states, and
+ * their Save into the working directory (ADR-344 §1, as ADR-377 §8 amends it). It opens with {@code codeSetFolders}'
+ * title, whose tooltip holds the provenance the file states; it lists those folders alone, a folder under the corpus
+ * root being refused, since stage 1 finds the sets under it by their build files and nothing names them (ADR-377 §8,
+ * §9); and its Save writes {@code codeSetFolders} by ADR-377 §2 and nothing else, refused where the file changed the
+ * value since the section was loaded (ADR-330 §5).
  */
 final class CodeSetsPane {
-
-    /** A code set the operator listed: a folder under the corpus root with a name, or one outside it. */
-    private record CodeSet(String folder, String name, boolean outside) {
-    }
 
     private final ControlPanelState state;
     private final Dialogs dialogs;
@@ -33,13 +33,16 @@ final class CodeSetsPane {
     private final Supplier<List<CodeSetFolderChecks.Apart>> otherFolders;
     private final Runnable saved;
     private final VBox codeSets = new VBox();
-    private final List<CodeSet> codeSetEntries = new ArrayList<>();
-    private final TextField codeSetNote = new TextField();
+    /** The folders outside the corpus root, as listed now, in order. */
+    private final List<String> outsideFolders = new ArrayList<>();
+    private final SelectableText.Line codeSetTitle = SelectableText.line(ProfileKey.CODE_SET_FOLDERS.title());
     private final SelectableText.Wrapping codeSetOutcome = SelectableText.wrapping("");
+    /** What the file stated for {@code codeSetFolders} as the section was loaded, which a Save is checked against. */
+    private Optional<ProfileEdit.Stated> loaded = Optional.empty();
 
     /**
-     * {@code otherFolders} are the folders of the window a code set outside the corpus root must stay apart from, as
-     * they stand now; {@code saved} runs after a Save has written.
+     * {@code otherFolders} are the folders of the window a code set outside the corpus root must stay apart from, the
+     * corpus root among them, as they stand now; {@code saved} runs after a Save has written.
      */
     CodeSetsPane(ControlPanelState state, Dialogs dialogs, WorkingFolders folders,
             Supplier<List<CodeSetFolderChecks.Apart>> otherFolders, Runnable saved) {
@@ -54,10 +57,7 @@ final class CodeSetsPane {
         codeSets.setId("code-set-list");
         TextField folder = new TextField();
         folder.setId("code-set-folder");
-        folder.setPromptText("A folder, under the corpus root or outside it");
-        TextField name = new TextField();
-        name.setId("code-set-name");
-        name.setPromptText("A name for the deliverable (optional)");
+        folder.setPromptText("A folder of code outside the corpus root");
         Button browse = new Button("Browse");
         browse.setId("code-set-browse");
         browse.setOnAction(event -> dialogs.folder("Choose a folder of code", folder.getText())
@@ -65,112 +65,78 @@ final class CodeSetsPane {
         Button add = new Button("+");
         add.setId("code-set-add");
         add.setOnAction(event -> {
-            Optional<String> refusal = addCodeSet(folder.getText().strip(), name.getText().strip());
+            Optional<String> refusal = addFolder(folder.getText().strip());
             codeSetOutcome.setText(refusal.orElse(""));
             if (refusal.isEmpty()) {
                 folder.clear();
-                name.clear();
             }
         });
-        codeSetNote.setId("code-set-note");
-        codeSetNote.setPromptText(ProfileEdit.FILLED_IN_NOTE);
+        codeSetTitle.setId("code-set-title");
+        codeSetTitle.getStyleClass().add("key-name");
+        codeSetTitle.setTooltip(new Tooltip(ProfileKey.CODE_SET_FOLDERS.tooltip()));
         Button save = new Button("Save");
         save.setId("code-sets-save");
         save.setOnAction(event -> saveCodeSets());
         codeSetOutcome.setId("code-set-outcome");
         HBox.setHgrow(folder, Priority.ALWAYS);
-        VBox pane = new VBox(codeSets, row(folder, browse, add), name,
-                row(SelectableText.line("Note saved with the folders outside"), codeSetNote), save, codeSetOutcome);
+        VBox pane = new VBox(codeSetTitle, codeSets, row(folder, browse, add), save, codeSetOutcome);
         pane.getStyleClass().add("section");
         return pane;
     }
 
-    /** Lists the code sets the working directory's files state: the renames, then the folders outside the corpus root. */
+    /** Lists the folders outside the corpus root the working directory's profile states for {@code codeSetFolders}. */
     void load(Map<ProfileKey, ProfileEdit.Stated> stated) {
-        codeSetEntries.clear();
-        try {
-            for (CodeSetRenames.Rename rename : CodeSetRenames.read(folders.readFile(CodeSetRenames.FILE_NAME))) {
-                codeSetEntries.add(new CodeSet(rename.folder(), rename.name(), false));
-            }
-        } catch (IOException | IllegalArgumentException unreadable) {
-            codeSetOutcome.setText(String.valueOf(unreadable.getMessage()));
-        }
+        outsideFolders.clear();
         ProfileEdit.Stated codeFolders = stated.get(ProfileKey.CODE_SET_FOLDERS);
         if (codeFolders != null && codeFolders.value() != null) {
-            CodeSetFolderChecks.statedIn(codeFolders.value()).forEach(each -> codeSetEntries.add(new CodeSet(each, "", true)));
+            outsideFolders.addAll(CodeSetFolderChecks.statedIn(codeFolders.value()));
         }
-        codeSetNote.setText(ProfileEdit.noteShown(Optional.ofNullable(codeFolders)));
+        loaded = Optional.ofNullable(codeFolders);
+        codeSetTitle.getTooltip().setText(ProfileRow.tooltipOf(ProfileKey.CODE_SET_FOLDERS, loaded));
         draw();
     }
 
-    private Optional<String> addCodeSet(String typed, String name) {
+    /**
+     * Adds {@code typed} where {@link CodeSetFolderChecks#refusal} refuses it nothing: a folder under the corpus root is
+     * refused as inside it, as every folder the window keeps apart is (ADR-377 §8).
+     */
+    private Optional<String> addFolder(String typed) {
         if (typed.isEmpty()) {
             return Optional.of("choose a folder first");
         }
-        Optional<Path> chosen = InclusionsTree.pathOf(typed);
-        if (chosen.isEmpty() || !chosen.get().isAbsolute()) {
-            return Optional.of("the folder " + typed + " is not added: it is not the whole path of a folder");
-        }
-        Optional<Path> root = folders.corpusRoot();
-        Path real = realOf(chosen.get());
-        if (root.isPresent() && Files.isDirectory(root.get())) {
-            Path realRoot = realOf(root.get());
-            if (real.startsWith(realRoot) && !real.equals(realRoot)) {
-                String relative = realRoot.relativize(real).toString().replace('\\', '/');
-                codeSetEntries.add(new CodeSet(relative, name, false));
-                draw();
-                return Optional.empty();
-            }
-        }
         List<CodeSetFolderChecks.Apart> apart = new ArrayList<>(otherFolders.get());
-        for (CodeSet each : codeSetEntries) {
-            if (each.outside()) {
-                apart.add(new CodeSetFolderChecks.Apart("folder already stated", each.folder()));
-            }
+        for (String each : outsideFolders) {
+            apart.add(new CodeSetFolderChecks.Apart("folder already stated", each));
         }
         Optional<String> refusal = CodeSetFolderChecks.refusal(typed, apart);
         if (refusal.isPresent()) {
             return refusal;
         }
-        codeSetEntries.add(new CodeSet(typed, "", true));
+        outsideFolders.add(typed);
         draw();
         return Optional.empty();
     }
 
-    private static Path realOf(Path path) {
-        try {
-            return path.toRealPath();
-        } catch (IOException | RuntimeException unreal) {
-            return path.toAbsolutePath().normalize();
-        }
-    }
-
     private void draw() {
         codeSets.getChildren().clear();
-        for (CodeSet each : new ArrayList<>(codeSetEntries)) {
-            SelectableText.Line words = SelectableText.line(each.outside() ? each.folder() + "  (outside the corpus root)"
-                    : each.name().isEmpty() ? each.folder() + "  (under the corpus root, no name)"
-                    : each.folder() + "  named " + each.name());
+        for (String each : new ArrayList<>(outsideFolders)) {
             Button remove = new Button("Remove");
             remove.setOnAction(event -> {
-                codeSetEntries.remove(each);
+                outsideFolders.remove(each);
                 draw();
             });
-            codeSets.getChildren().add(row(words, remove));
+            codeSets.getChildren().add(row(SelectableText.line(each), remove));
         }
     }
 
+    /** Writes {@code codeSetFolders} by ADR-377 §2, in {@code ProfileRow.save}'s words, and nothing else (ADR-377 §8). */
     private void saveCodeSets() {
         Optional<Path> folder = folders.workingDirectory();
         if (folder.isEmpty()) {
             codeSetOutcome.setText("name the working directory first");
             return;
         }
-        List<CodeSetRenames.Rename> renames = codeSetEntries.stream()
-                .filter(each -> !each.outside() && !each.name().isEmpty())
-                .map(each -> new CodeSetRenames.Rename(each.folder(), each.name())).toList();
-        String outside = String.join(java.io.File.pathSeparator,
-                codeSetEntries.stream().filter(CodeSet::outside).map(CodeSet::folder).toList());
+        String outside = String.join(java.io.File.pathSeparator, outsideFolders);
         Map<ProfileKey, ProfileEdit.Stated> stated;
         try {
             stated = ProfileRow.statedIn(folder.get());
@@ -178,22 +144,29 @@ final class CodeSetsPane {
             codeSetOutcome.setText(String.valueOf(unreadable.getMessage()));
             return;
         }
+        // compared with what the section was loaded from, and refused where the file moved since (ADR-377 section 8)
         Optional<ProfileEdit.Stated> inFile = Optional.ofNullable(stated.get(ProfileKey.CODE_SET_FOLDERS));
-        Optional<String> note = ProfileEdit.noteToSave(ProfileKey.CODE_SET_FOLDERS, outside,
-                codeSetNote.getText(), inFile);
-        Optional<String> refusal = note.flatMap(words -> ProfileEdit.refusalOfSave(ProfileKey.CODE_SET_FOLDERS, outside,
-                words, inFile, Optional.empty()));
+        Optional<String> provenance = ProfileEdit.provenanceToSave(ProfileKey.CODE_SET_FOLDERS, outside, loaded);
+        if (provenance.isEmpty()) {
+            codeSetOutcome.setText("nothing was written: every value is as profile.yaml states it");
+            return;
+        }
+        String drawn = ProfileEdit.drawnOf(ProfileKey.CODE_SET_FOLDERS, loaded.map(ProfileEdit.Stated::value).orElse(null),
+                loaded.map(ProfileEdit.Stated::provenance).orElse(null));
+        Optional<String> refusal = ProfileEdit.refusalOfSave(ProfileKey.CODE_SET_FOLDERS, outside, provenance.get(),
+                inFile, Optional.of(drawn));
         if (refusal.isPresent()) {
             codeSetOutcome.setText(refusal.get());
             return;
         }
-        List<WorkingDirectoryWrite.Change> changes = new ArrayList<>();
-        changes.add(new WorkingDirectoryWrite.Change(CodeSetRenames.FILE_NAME,
-                current -> CodeSetRenames.render(renames)));
-        note.ifPresent(words -> changes.add(new WorkingDirectoryWrite.Change(ProfileEdit.FILE_NAME,
-                current -> ProfileEdit.rewrite(current, ProfileKey.CODE_SET_FOLDERS, outside, words))));
-        Optional<String> failed = state.write(folder.get(), changes);
-        codeSetOutcome.setText(failed.orElse("code sets saved in " + folder.get()));
+        Optional<String> failed = state.write(folder.get(), ProfileEdit.FILE_NAME,
+                current -> ProfileEdit.rewrite(current, ProfileKey.CODE_SET_FOLDERS, outside, provenance.get()));
+        if (failed.isPresent()) {
+            codeSetOutcome.setText(failed.get());
+            return;
+        }
+        codeSetOutcome.setText(ProfileKey.CODE_SET_FOLDERS.key() + " saved in "
+                + folder.get().resolve(ProfileEdit.FILE_NAME));
         saved.run();
     }
 }

@@ -1,8 +1,12 @@
 package io.algernon.vespera.ui;
 
+import java.util.List;
+import javafx.collections.ObservableList;
 import javafx.event.Event;
+import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
+import javafx.geometry.Point2D;
 import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.Scene;
@@ -11,7 +15,9 @@ import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.input.ScrollEvent;
+import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.Region;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.Text;
 
@@ -113,8 +119,27 @@ sealed interface SelectableText permits SelectableText.Line, SelectableText.Wrap
                 width(ELLIPSIS, control.getFont()));
     }
 
-    /** A text on one line (ADR-364 §8): as wide as its text, shrinking to the width a label would, its start shown. */
+    /**
+     * A text on one line (ADR-364 §8): as wide as its text, shrinking to the width a label would, its start shown. Where
+     * its text runs past its right edge it shows "…" there (ADR-377 §6): a {@link Text} of its own font and colour, on
+     * the ground beneath it, laid over its right edge inside its padding, taking no mouse event and holding no part of
+     * its text, visible exactly while the end of the text is out of view.
+     */
     final class Line extends TextField implements SelectableText {
+
+        /** What the "…" reads. */
+        static final String CUT = "…";
+
+        /** How far past the inner right edge the end of the text may lie and still be in view: the caret's width. */
+        private static final double IN_VIEW = 1.0;
+
+        private final Text ellipsis = new Text(CUT);
+
+        /** The ground beneath the "…", so that the cut text does not show through it. */
+        private final Rectangle ground = new Rectangle();
+
+        /** The text the skin draws, once it is found. */
+        private Text drawn;
 
         private Line(String text) {
             SelectableText.prepare(this, text);
@@ -125,6 +150,83 @@ sealed interface SelectableText permits SelectableText.Line, SelectableText.Wrap
                     selectRange(0, 0);
                 }
             });
+            ellipsis.getStyleClass().add("ellipsis");
+            ellipsis.fontProperty().bind(fontProperty());
+            for (Node each : List.of(ground, ellipsis)) {
+                each.setManaged(false);
+                each.setMouseTransparent(true);
+                each.setVisible(false);
+            }
+        }
+
+        /** The "…" this line shows while the end of its text is out of view. */
+        Text ellipsis() {
+            return ellipsis;
+        }
+
+        @Override
+        protected void layoutChildren() {
+            super.layoutChildren();
+            ObservableList<Node> children = getChildren();
+            int count = children.size();
+            if (count < 2 || children.get(count - 2) != ground || children.get(count - 1) != ellipsis) {
+                children.removeAll(ground, ellipsis);
+                children.addAll(ground, ellipsis);
+            }
+            if (drawn == null && lookup(".text") instanceof Text found && found != ellipsis) {
+                drawn = found;
+                // the skin scrolls its text as the caret moves, and draws it in the theme's colour, outside a layout
+                drawn.boundsInParentProperty().addListener((observed, was, now) -> placeEllipsis());
+                drawn.fillProperty().addListener((observed, was, now) -> placeEllipsis());
+            }
+            placeEllipsis();
+        }
+
+        private void placeEllipsis() {
+            if (drawn == null) {
+                return;
+            }
+            Insets inside = getInsets();
+            double right = getWidth() - inside.getRight();
+            Bounds text = sceneToLocal(drawn.localToScene(drawn.getLayoutBounds()));
+            boolean cut = text != null && text.getMaxX() > right + IN_VIEW;
+            ellipsis.setVisible(cut);
+            ground.setVisible(cut);
+            if (!cut) {
+                return;
+            }
+            double wide = ellipsis.getLayoutBounds().getWidth();
+            Point2D baseline = sceneToLocal(drawn.localToScene(0, drawn.getY()));
+            ellipsis.setFill(drawn.getFill());
+            // a line narrower than the "…" keeps it inside its own left edge, so its bounds are still its own
+            double left = Math.max(inside.getLeft(), right - wide);
+            ellipsis.setLayoutX(left);
+            ellipsis.setLayoutY(baseline.getY());
+            ground.setX(left);
+            ground.setY(inside.getTop());
+            ground.setWidth(Math.max(0, right - left));
+            ground.setHeight(Math.max(0, getHeight() - inside.getTop() - inside.getBottom()));
+            groundBeneath();
+        }
+
+        /**
+         * Fills the ground with the topmost opaque fill of this line's background or the nearest parent's that has one,
+         * else the scene's: a colour the stylesheet gave, never one of this class's own (ADR-342 §3).
+         */
+        private void groundBeneath() {
+            for (Node at = this; at != null; at = at.getParent()) {
+                if (at instanceof Region region && region.getBackground() != null) {
+                    List<BackgroundFill> fills = region.getBackground().getFills();
+                    for (int i = fills.size() - 1; i >= 0; i--) {
+                        if (fills.get(i).getFill().isOpaque()) {
+                            ground.setFill(fills.get(i).getFill());
+                            return;
+                        }
+                    }
+                }
+            }
+            Scene scene = getScene();
+            ground.setFill(scene == null ? null : scene.getFill());
         }
 
         @Override

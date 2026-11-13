@@ -39,6 +39,7 @@ import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.control.TitledPane;
+import javafx.scene.control.ToggleButton;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.ContextMenuEvent;
@@ -98,8 +99,6 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                 Optional.empty(), ProfileKey.GENERATION_MODEL, "a-writing-model:8b", "measured on the seed set")),
                 ProfileKey.CODE_SET_FOLDERS, elsewhere.toString(), "folders outside the corpus root"),
                 StandardCharsets.UTF_8);
-        Files.writeString(working.resolve(CodeSetRenames.FILE_NAME),
-                CodeSetRenames.render(List.of(new CodeSetRenames.Rename("papers", "Papers"))), StandardCharsets.UTF_8);
         Files.writeString(working.resolve(A_REPORT_WRITTEN), "<html></html>", StandardCharsets.UTF_8);
         Files.writeString(working.resolve(NextInvocation.FILE_NAME),
                 "invocation=run\nwants=boilerplateDocumentFrequencyFloor\nanswer=false\n", StandardCharsets.UTF_8);
@@ -123,7 +122,16 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                     root -> HeadlessToolkit.nodeWithId(root, "wanted-row-boilerplateDocumentFrequencyFloor").isPresent(),
                     Boolean::booleanValue);
             assumeThat(drawn).as("the wanted value's row is drawn once the invocation has ended").isTrue();
-            reached = window.read(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl);
+            // every profile row opened, so that the walk reaches the texts behind each toggle
+            reached = window.read(root -> {
+                HeadlessToolkit.everyNodeUnder(root).stream().filter(ToggleButton.class::isInstance)
+                        .map(ToggleButton.class::cast)
+                        .filter(toggle -> toggle.getStyleClass().contains("more") && !toggle.isSelected())
+                        .forEach(ToggleButton::fire);
+                root.applyCss();
+                root.layout();
+                return outsideAControl(root);
+            });
         }
         try (WindowForTests window = WindowForTests.shown(otherState)) {
             reachedWhenNotInForm = window.read(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl);
@@ -152,10 +160,10 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                     assertThat(reached).filteredOn(node -> "outcome".equals(node.getId())).hasSize(1);
                     assertThat(texts(reached, "step-census")).as("the row of the census step").contains("waiting");
                     assertThat(texts(reached, "profile-row-" + ProfileKey.GENERATION_MODEL.key()))
-                            .contains("Generation model");
+                            .contains(ProfileKey.GENERATION_MODEL.title());
                     assertThat(texts(reached, "preflight-list")).anyMatch(line -> line.startsWith("Corpus root: "));
                     assertThat(texts(reached, "wanted-row-boilerplateDocumentFrequencyFloor")).isNotEmpty();
-                    assertThat(texts(reached, "code-sets")).anyMatch(line -> line.endsWith("named Papers"));
+                    assertThat(texts(reached, "code-sets")).contains(elsewhere.toString());
                     assertThat(reachedWhenNotInForm).filteredOn(node -> "profile-problem".equals(node.getId()))
                             .hasSize(1);
                     assertThat(texts(reachedWhenNotInForm, "profile-problem"))
@@ -332,6 +340,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         Map<String, Double> startOfTheText = new LinkedHashMap<>();
         int[] caretAndSelection = new int[3];
         int[] caretAfterTheChange = new int[3];
+        boolean[] ellipsisShown = new boolean[1];
         try (WindowForTests window = WindowForTests.shown(WindowForTests.aState(folder, SleepingJar.runtime()))) {
             window.act(root -> {
                 window.stage.setWidth(TIGHT_WIDTH);
@@ -340,6 +349,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
             });
             window.act(root -> {
                 TextInputControl where = WindowForTests.node(root, "where", TextInputControl.class);
+                ellipsisShown[0] = ((SelectableText.Line) where).ellipsis().isVisible();
                 for (String id : beside) {
                     asText.put(id, placed(WindowForTests.node(root, id, Node.class)));
                 }
@@ -384,6 +394,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
 
         claim("the path in where is wider than the window of 700 leaves it, so that where is shrunk",
                 () -> assertThat(whereWidth).isLessThan(textWidth));
+        claim("and where, shrunk, shows its ellipsis over its end", () -> assertThat(ellipsisShown[0]).isTrue());
         claim("where is as wide as a label of the same text and style laid out there, within a pixel",
                 () -> assertThat(asText.get("where").width()).isCloseTo(asLabel.get("where").width(),
                         offset(ONE_PIXEL)));
@@ -447,9 +458,11 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         try (WindowForTests window = WindowForTests.shown(state)) {
             double[] seen = new double[4];
             int[] heard = new int[2];
+            String row = "profile-" + ProfileKey.GENERATION_MODEL.key();
+            window.act(root -> WindowForTests.node(root, row + ".more", ToggleButton.class).fire());
             window.act(root -> {
-                SelectableText.Wrapping description = WindowForTests.every(root,
-                        "profile-row-" + ProfileKey.GENERATION_MODEL.key(), SelectableText.Wrapping.class).getFirst();
+                SelectableText.Wrapping description = WindowForTests.node(root, row + ".short",
+                        SelectableText.Wrapping.class);
                 ScrollPane tab = tabScroll(root);
                 seen[0] = tab.getVvalue();
                 seen[2] = description.getScrollTop();

@@ -725,7 +725,7 @@ function markerPattern(source, whole = false) {
   const NAME = "the tests the decision records name";
   const FIRST = 50;
   // Accepted records whose code is not built yet. A number leaves this set in the change that builds its record.
-  const NOT_YET_BUILT = new Set([377]);
+  const NOT_YET_BUILT = new Set([]);
   // ADR-368: the names the cut of the suite deleted, one `ADR-NNN Name` a line as this check prints it. A record keeps
   // naming them as the tests that held it; this list says they are gone, and a line naming a test that exists is stale.
   // It speaks for records before ADR-368 only: a later record's section is corrected in place (ADR-337 §5).

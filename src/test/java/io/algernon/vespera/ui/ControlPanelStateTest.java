@@ -169,7 +169,7 @@ class ControlPanelStateTest {
     private static ControlPanelState.Plan passing(Path corpusRoot, Path workingDirectory) {
         return new ControlPanelState.Plan(
                 new LaunchValues(corpusRoot.toString(), workingDirectory.toString(), "", "", "", "", "", ""),
-                new LaunchValues("", "", "", "", "", "", "", ""), Map.of(), null);
+                new LaunchValues("", "", "", "", "", "", "", ""), Map.of());
     }
 
     /** A control panel's state with no invocation started, its launch values file and lock folder under {@code folder}. */

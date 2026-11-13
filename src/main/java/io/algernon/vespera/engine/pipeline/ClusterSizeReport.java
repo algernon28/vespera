@@ -30,7 +30,8 @@ final class ClusterSizeReport {
     /** The format of {@code cluster-sizes.json}, raised by a change that removes, renames or retypes a field. */
     static final int FORMAT = 1;
 
-    private static final String TITLE = "How the documents grouped under each exemplar";
+    /** The page's title and first heading, and its JSON's {@code title} (ADR-377 §5). */
+    private static final String TITLE = "Group sizes";
 
     private static final String INTRO =
             "Each document was matched to one exemplar, and the"
@@ -211,12 +212,12 @@ final class ClusterSizeReport {
 
     static String render(List<Partition> partitions) {
         StringBuilder body = new StringBuilder();
-        body.append(ReportPage.heading(1, "How the documents grouped under each exemplar"))
+        body.append(ReportPage.heading(1, TITLE))
                 .append(ReportPage.paragraph(INTRO));
 
         if (partitions.isEmpty()) {
             return ReportPage.render(
-                    "How the documents grouped under each exemplar",
+                    TITLE,
                     body.append(ReportPage.paragraph(NONE))
                             .toString());
         }
@@ -251,7 +252,7 @@ final class ClusterSizeReport {
                 .append(ReportPage.heading(2, "What this page cannot see"))
                 .append(ReportPage.paragraph(CANNOT_SEE));
 
-        return ReportPage.render("How the documents grouped under each exemplar", body.toString());
+        return ReportPage.render(TITLE, body.toString());
     }
 
     /**

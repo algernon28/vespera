@@ -36,6 +36,9 @@ final class ConfidenceDistributionReport {
 
     private ConfidenceDistributionReport() {}
 
+    /** The page's title and first heading, and its JSON's {@code title} (ADR-377 §5). */
+    private static final String TITLE = "Text quality distribution";
+
     /** What every grade's bar shows (ADR-275 section 2). */
     private static final String BAR_HOVER = "The length of the bar is this grade's share of the documents counted.";
 
@@ -53,7 +56,7 @@ final class ConfidenceDistributionReport {
                             + "%\" title=\"" + ReportPage.escapeAttribute(BAR_HOVER) + "\"></div>")));
         }
 
-        String body = ReportPage.heading(1, "Confidence-score distribution")
+        String body = ReportPage.heading(1, TITLE)
                 + ReportPage.paragraph("Stage 2's <code>extraction_metric.mean_score</code> over every "
                         + "stage-2 survivor, excluding any occurrence whose score is not computed. Total "
                         + "documents counted: " + total + ".")
@@ -75,7 +78,7 @@ final class ConfidenceDistributionReport {
                         + "unset, and while it is unset no score is low enough to remove anything — this "
                         + "distribution is what a first run measures so that the number can be read off "
                         + "it rather than guessed.");
-        return ReportPage.render("Confidence-score distribution", body);
+        return ReportPage.render(TITLE, body);
     }
 
     /** The name of the page, and of its JSON, without the ending (ADR-362 section 9). */
@@ -98,7 +101,7 @@ final class ConfidenceDistributionReport {
         return new AnalysisReportJson.Document(
                 1,
                 NAME,
-                "Confidence-score distribution",
+                TITLE,
                 writtenAt,
                 List.of(
                         new AnalysisReportJson.Figure("documentsCounted", "Documents counted", total, "count"),

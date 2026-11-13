@@ -257,7 +257,7 @@ public final class ProfileEdit {
     /**
      * §5's second step for one value, before anything is written: the line refusing it where the file moved since the
      * form was drawn, or by §4's checks; empty where it may be written. A value changed under the provenance the file
-     * states is no refusal: the form sends the filled-in note then (ADR-343 §3).
+     * states is no refusal: the window sends the filled-in provenance then (ADR-343 §3, ADR-377 §2).
      *
      * @param inFile what the file states for the key now, empty where it states none
      * @param drawn what the form carried as {@code drawn}, empty where it carried none
@@ -271,34 +271,31 @@ public final class ProfileEdit {
         return refusalOf(key, value, provenance);
     }
 
-    /** The words a note is filled in with where the file states no provenance, and saved with where ADR-343 §2 says. */
-    public static final String FILLED_IN_NOTE = "set in the control panel";
+    /** The words a value changed in the window is saved with (ADR-343 §1, ADR-377 §2). */
+    public static final String FILLED_IN_PROVENANCE = "set in the control panel";
 
-    /** The note a form shows beside a key: the provenance the file states, where not blank, else {@link #FILLED_IN_NOTE} (ADR-343 §1). */
-    public static String noteShown(Optional<Stated> inFile) {
-        return inFile.map(Stated::provenance).filter(stated -> !stated.isBlank()).orElse(FILLED_IN_NOTE);
+    /** The provenance the file states for a key, where it is not blank; empty otherwise (ADR-377 §1, §11). */
+    public static Optional<String> provenanceStated(Optional<Stated> inFile) {
+        return inFile.map(Stated::provenance).filter(stated -> !stated.isBlank());
     }
 
     /**
-     * The provenance a save writes for the key by the table of ADR-343 §2; empty where the key is not written (the
-     * first row: the value as the file states it and the note left as shown).
+     * The provenance a save writes for the key by the table of ADR-377 §2: empty where the value is as the file states
+     * it, so the key is not written, and {@link #FILLED_IN_PROVENANCE} where it changed, a value emptied among them.
+     * {@code modelsRunOn} is never written, whatever the form holds: it is changed in {@code profile.yaml} alone
+     * (ADR-384 §7).
      *
      * @param value what the form holds for the value
-     * @param note what the form holds for the note
      * @param inFile what the file states for the key, empty where it states none
      */
-    public static Optional<String> noteToSave(ProfileKey key, String value, String note, Optional<Stated> inFile) {
-        Stated now = inFile.orElse(new Stated(null, null));
-        boolean valueChanged = !normalized(key, value).equals(normalized(key, now.value()));
-        String typed = withoutBreaks(note == null ? "" : note).strip();
-        boolean left = typed.equals(withoutBreaks(noteShown(inFile)).strip());
-        if (!valueChanged && left) {
+    public static Optional<String> provenanceToSave(ProfileKey key, String value, Optional<Stated> inFile) {
+        if (key == ProfileKey.MODELS_RUN_ON) {
+            // A value is changed in profile.yaml alone, so that a key held commented out stays so (ADR-384 §7).
             return Optional.empty();
         }
-        if (typed.isEmpty() || (valueChanged && left)) {
-            return Optional.of(FILLED_IN_NOTE);
-        }
-        return Optional.of(note.strip());
+        String stated = inFile.map(Stated::value).orElse(null);
+        return normalized(key, value).equals(normalized(key, stated)) ? Optional.empty()
+                : Optional.of(FILLED_IN_PROVENANCE);
     }
 
     /** Throws {@link NotInFormException} naming the first line, from 1, where {@code text} leaves the form of §3. */
@@ -465,7 +462,8 @@ public final class ProfileEdit {
         return !pieces.isEmpty() && pieces.stream().allMatch(piece -> LANGUAGE.matcher(piece).matches());
     }
 
-    private static List<String> piecesOf(String value) {
+    /** The pieces of a list value, split at white space and commas, none empty (ADR-377 §7 splits a box's text so). */
+    static List<String> piecesOf(String value) {
         return List.of(PIECES.split(value)).stream().filter(piece -> !piece.isEmpty()).toList();
     }
 

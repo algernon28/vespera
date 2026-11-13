@@ -28,7 +28,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * How the control panel writes into a working directory (ADR-295 §1, §2): only while no invocation it started runs,
  * only in a folder of the user's own (ADR-291 §8, checked as ADR-292 §3 checks its folder), only holding
- * {@code vespera.lock} as the jar takes it, never waiting for it, and only the four files (ADR-334 §6), each written
+ * {@code vespera.lock} as the jar takes it, never waiting for it, and only the three files (ADR-334 §6, ADR-377 §9), each written
  * whole by a move. A save of {@code profile.yaml} alone makes a working directory that is not there, owner-only
  * (ADR-330 §7). Taking the lock against the jar's own lock in another process is the contract test's,
  * {@code pipeline.TheJarReadsWhatTheControlPanelWritesTest}.

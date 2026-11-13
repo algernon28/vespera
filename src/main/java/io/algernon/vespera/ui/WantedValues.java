@@ -21,13 +21,16 @@ final class WantedValues {
     private final Runnable rowsDrawn;
     private final VBox wanted = new VBox();
     private final List<ProfileRow> wantedRows = new ArrayList<>();
+    private final ProfileRow.OpenKeys open;
+    private final ProfileRow.TitleColumn titles = new ProfileRow.TitleColumn();
+    private Optional<String> arrangementOffered = Optional.empty();
 
     /**
-     * {@code say} is the outcome line, {@code openReport} opens a report, {@code reload} runs after a Save has written
-     * and {@code rowsDrawn} after rows have been drawn.
+     * {@code say} is the outcome line, {@code openReport} opens a report, {@code reload} runs after a Save has written,
+     * {@code rowsDrawn} after rows have been drawn, and {@code open} holds the keys whose rows are open.
      */
     WantedValues(ControlPanelState state, Dialogs dialogs, WorkingFolders folders, Consumer<String> say,
-            Consumer<String> openReport, Runnable reload, Runnable rowsDrawn) {
+            Consumer<String> openReport, Runnable reload, Runnable rowsDrawn, ProfileRow.OpenKeys open) {
         this.state = state;
         this.dialogs = dialogs;
         this.folders = folders;
@@ -35,8 +38,35 @@ final class WantedValues {
         this.openReport = openReport;
         this.reload = reload;
         this.rowsDrawn = rowsDrawn;
+        this.open = open;
         wanted.setId("wanted");
         wanted.getStyleClass().add("wanted");
+    }
+
+    /**
+     * Loads each row drawn from {@code stated}, the file as it stands after a Save that wrote (ADR-377 §1), offering
+     * again what the file states no value for.
+     */
+    void load(Map<ProfileKey, ProfileEdit.Stated> stated) {
+        for (ProfileRow row : wantedRows) {
+            ProfileEdit.Stated inFile = stated.get(row.key());
+            row.load(Optional.ofNullable(inFile));
+            if (inFile == null || inFile.value() == null || inFile.value().isBlank()) {
+                offerTo(row);
+            }
+        }
+    }
+
+    /** Offers a row what the next invocation names for it, or the last seed folder, where there is one to offer. */
+    private void offerTo(ProfileRow row) {
+        if (row.key() == ProfileKey.ARRANGEMENT_APPROVED && arrangementOffered.isPresent()) {
+            // the arrangement the jar arrives at, offered for the operator to confirm (ADR-294 section 4)
+            row.offer(arrangementOffered.get());
+        } else if (row.key() == ProfileKey.SEED_FOLDER && row.value().isBlank()
+                && !state.values().lastSeedFolder().isEmpty()) {
+            // offered, not stated by the file: a save writes it (ADR-292 section 6)
+            row.offer(state.values().lastSeedFolder());
+        }
     }
 
     VBox node() {
@@ -57,6 +87,8 @@ final class WantedValues {
     void draw(Optional<NextInvocation> next) {
         wanted.getChildren().clear();
         wantedRows.clear();
+        titles.clear();
+        arrangementOffered = next.flatMap(NextInvocation::arrangement);
         if (next.isEmpty() || next.get().wants().isEmpty()) {
             return;
         }
@@ -80,16 +112,9 @@ final class WantedValues {
             Optional<EffectiveValues.Value> beneath = key.get().hasAValueBeneath()
                     ? effective.flatMap(said -> said.named(key.get().key())) : Optional.empty();
             ProfileRow row = new ProfileRow(key.get(), "wanted-", state.lastChecks().ollama().models(), beneath,
-                    dialogs, null, openReport, written);
+                    dialogs, null, openReport, written, open, titles);
             row.load(Optional.ofNullable(stated.get(key.get())));
-            if (key.get() == ProfileKey.ARRANGEMENT_APPROVED && next.get().arrangement().isPresent()) {
-                // the arrangement the jar arrives at, offered for the operator to confirm (ADR-294 section 4)
-                row.offer(next.get().arrangement().get());
-            } else if (key.get() == ProfileKey.SEED_FOLDER && row.value().isBlank()
-                    && !state.values().lastSeedFolder().isEmpty()) {
-                // offered, not stated by the file: a save writes it (ADR-292 section 6)
-                row.offer(state.values().lastSeedFolder());
-            }
+            offerTo(row);
             wantedRows.add(row);
             wanted.getChildren().add(row.node());
         }

@@ -25,9 +25,9 @@ import picocli.CommandLine.Model.PositionalParamSpec;
  * Every option and positional argument of the commands the control panel starts is accounted for by the control
  * panel (ADR-336 §2): {@link ChildCommand#ARGUMENTS} holds each one of picocli's model of {@code vespera} and of each
  * of its commands, once, by the command's name and the argument's, with the control of the control panel's window
- * that sets it or none, and why (ADR-344 §4: label's file is set by the label file option; ADR-345 §4: publish's
- * destinations are set by the boxes beside Publish, and vespera's help and version and serve's working directory are
- * the only three never passed, the window starting no serve, ADR-341 §2).
+ * that sets it or none, and why (ADR-345 §4: publish's destinations are set by the boxes beside Publish; vespera's help
+ * and version, serve's working directory and label's file are the only four never passed, the window starting no
+ * serve, ADR-341 §2, and answering the questions in the working directory's label file, ADR-377 §10).
  *
  * <p>The table names an option without its leading {@code --}, {@code help} for {@code --help}, so that no class of the
  * control panel holds the text of the two options ADR-278 §1's scan forbids it (ADR-336 §2); this test strips the

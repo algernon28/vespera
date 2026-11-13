@@ -111,10 +111,10 @@ No run id moves: the profile's provenance enters no run's identity, and no file 
 
 | Method | What it holds |
 | --- | --- |
-| `controlpanel.TheNoteSavedWithAValueTest.theNoteShownIsTheProvenanceTheFileStatesOrTheFilledInOne` | a provenance stated, none, `null` and blank: the stated one, else `set in the control panel` (§1) |
-| `controlpanel.TheNoteSavedWithAValueTest.eachValueAndNoteIsWrittenAsTheTableSays` | §2's table, row by row, a key the file states nothing for among them, left alone and not written (§2) |
+| `ui.TheProvenanceSavedWithAValueTest.theProvenanceShownIsTheOneTheFileStatesOrTheFilledInOne` (removed: no provenance is shown beside a value, and `provenanceStated` replaces `provenanceShown`, ADR-377) | a provenance stated, none, `null` and blank: the stated one, else `set in the control panel` (§1) |
+| `ui.TheProvenanceSavedWithAValueTest.eachValueIsWrittenAsTheTableSays`, named `eachValueAndNoteIsWrittenAsTheTableSays`, in a class named for a note, until ADR-377, which calls a provenance no note | §2's table, row by row, a key the file states nothing for among them, left alone and not written (§2) |
 | `controlpanel.TheNoteSavedWithAValueTest.aValueChangedUnderTheProvenanceTheFileStatesIsNotRefused` | `refusalOfSave` lets a value changed under the stated provenance through (§3) |
-| `controlpanel.TheNoteSavedWithAValueTest.aFloorTheLocalModelSetChangedUnderItsNoteBecomesTheOperators` | the floor changed under the rule's words is saved with the filled-in note, which `refusalOf` accepts for the floor (§4) |
+| `ui.TheProvenanceSavedWithAValueTest.aFloorTheLocalModelSetChangedUnderItsProvenanceBecomesTheOperators`, named `aFloorTheLocalModelSetChangedUnderItsNoteBecomesTheOperators`, in a class named for a note, until ADR-377, which calls a provenance no note | the floor changed under the rule's words is saved with the filled-in note, which `refusalOf` accepts for the floor (§4) |
 
 `controlpanel.ProfileEditTest.theProvenanceIsRequiredAndNeverTheAutoRules` stands, holding that every write still refuses a blank provenance and the rule's words for the floor (§3). The two screen tests that read the refusal of a value changed under its old provenance go with the pages (ADR-342 §6), and the refusal with them (§3).
 

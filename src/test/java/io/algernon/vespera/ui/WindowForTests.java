@@ -210,6 +210,14 @@ final class WindowForTests implements AutoCloseable {
                 .fire();
     }
 
+    /**
+     * Presses the link of {@code key}'s row, in the list whose ids start {@code prefix}, to the report {@code name}, by
+     * its id {@code <prefix><key>.report-<name>} and not by its text (ADR-377 §5); the test fails where it is no link.
+     */
+    static void pressRowAnalysisReportLink(Parent root, String prefix, ProfileKey key, String name) {
+        node(root, prefix + key.key() + ".report-" + name, Hyperlink.class).fire();
+    }
+
     @Override
     public void close() throws Exception {
         try {
