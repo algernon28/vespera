@@ -865,7 +865,10 @@ final class Cockpit {
                 howItEnded = childWords(false, endingOfItsChild);
             }
             outputPanel.fileNamedBy(folder, invocation.id(), state::letGo);
-            steps.show(report);
+            // a child that ended before its last write leaves no step of its report running (ADR-387 section 1)
+            steps.show(report, childEnded && endingOfItsChild.isPresent() && !report.ended()
+                    ? endingOfItsChild.get().howItEnded() == HowItEnded.STOPPED ? StepsChart.STOPPED : StepsChart.FAILED
+                    : null);
             live.shows(report, Instant.now(), childEnded, howItEnded);
             lastDrawn = invocation;
             return true;

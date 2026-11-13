@@ -2768,6 +2768,15 @@ public final class Adr {
     public static final String WORK_ON_THE_TOOLKITS_THREAD_IS_BOUNDED_ON_ITS_PROCESSOR_TIME =
             FILE + "0385-work-a-test-posts-to-the-toolkits-thread-is-bounded-on-that-threads-processor-time-and-not-on-the-wall.md";
 
+    /**
+     * ADR-387 -- a step still running in the report of a child that has ended is drawn stopped or failed: once the
+     * window's own child has ended and its last report did not, each step that report says is {@code running} reads
+     * {@code stopped} after Stop and {@code failed} otherwise, its bar no longer moving and its own Stop gone, and a leg
+     * it would leave running says the same word (amends ADR-365 §4 and §5 and ADR-370 §2).
+     */
+    public static final String A_STEP_STILL_RUNNING_IN_THE_REPORT_OF_A_CHILD_THAT_ENDED_IS_DRAWN_STOPPED_OR_FAILED =
+            FILE + "0387-a-step-still-running-in-the-report-of-a-child-that-ended-is-drawn-stopped-or-failed.md";
+
     private Adr() {
     }
 }
