@@ -34,7 +34,7 @@ final class CodeSetsPane {
     private final Runnable saved;
     private final VBox codeSets = new VBox();
     private final List<CodeSet> codeSetEntries = new ArrayList<>();
-    private final TextField codeSetNote = new TextField();
+    private final TextField codeSetProvenance = new TextField();
     private final SelectableText.Wrapping codeSetOutcome = SelectableText.wrapping("");
 
     /**
@@ -72,15 +72,15 @@ final class CodeSetsPane {
                 name.clear();
             }
         });
-        codeSetNote.setId("code-set-note");
-        codeSetNote.setPromptText(ProfileEdit.FILLED_IN_NOTE);
+        codeSetProvenance.setId("code-set-provenance");
+        codeSetProvenance.setPromptText(ProfileEdit.FILLED_IN_PROVENANCE);
         Button save = new Button("Save");
         save.setId("code-sets-save");
         save.setOnAction(event -> saveCodeSets());
         codeSetOutcome.setId("code-set-outcome");
         HBox.setHgrow(folder, Priority.ALWAYS);
         VBox pane = new VBox(codeSets, row(folder, browse, add), name,
-                row(SelectableText.line("Note saved with the folders outside"), codeSetNote), save, codeSetOutcome);
+                row(SelectableText.line("Note saved with the folders outside"), codeSetProvenance), save, codeSetOutcome);
         pane.getStyleClass().add("section");
         return pane;
     }
@@ -99,7 +99,7 @@ final class CodeSetsPane {
         if (codeFolders != null && codeFolders.value() != null) {
             CodeSetFolderChecks.statedIn(codeFolders.value()).forEach(each -> codeSetEntries.add(new CodeSet(each, "", true)));
         }
-        codeSetNote.setText(ProfileEdit.noteShown(Optional.ofNullable(codeFolders)));
+        codeSetProvenance.setText(ProfileEdit.provenanceShown(Optional.ofNullable(codeFolders)));
         draw();
     }
 
@@ -179,9 +179,9 @@ final class CodeSetsPane {
             return;
         }
         Optional<ProfileEdit.Stated> inFile = Optional.ofNullable(stated.get(ProfileKey.CODE_SET_FOLDERS));
-        Optional<String> note = ProfileEdit.noteToSave(ProfileKey.CODE_SET_FOLDERS, outside,
-                codeSetNote.getText(), inFile);
-        Optional<String> refusal = note.flatMap(words -> ProfileEdit.refusalOfSave(ProfileKey.CODE_SET_FOLDERS, outside,
+        Optional<String> provenance = ProfileEdit.provenanceToSave(ProfileKey.CODE_SET_FOLDERS, outside,
+                codeSetProvenance.getText(), inFile);
+        Optional<String> refusal = provenance.flatMap(words -> ProfileEdit.refusalOfSave(ProfileKey.CODE_SET_FOLDERS, outside,
                 words, inFile, Optional.empty()));
         if (refusal.isPresent()) {
             codeSetOutcome.setText(refusal.get());
@@ -190,7 +190,7 @@ final class CodeSetsPane {
         List<WorkingDirectoryWrite.Change> changes = new ArrayList<>();
         changes.add(new WorkingDirectoryWrite.Change(CodeSetRenames.FILE_NAME,
                 current -> CodeSetRenames.render(renames)));
-        note.ifPresent(words -> changes.add(new WorkingDirectoryWrite.Change(ProfileEdit.FILE_NAME,
+        provenance.ifPresent(words -> changes.add(new WorkingDirectoryWrite.Change(ProfileEdit.FILE_NAME,
                 current -> ProfileEdit.rewrite(current, ProfileKey.CODE_SET_FOLDERS, outside, words))));
         Optional<String> failed = state.write(folder.get(), changes);
         codeSetOutcome.setText(failed.orElse("code sets saved in " + folder.get()));

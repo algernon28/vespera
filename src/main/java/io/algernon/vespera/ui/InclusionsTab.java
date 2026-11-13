@@ -82,7 +82,7 @@ final class InclusionsTab {
     /**
      * Writes the profile's {@code foldersNotWalked} and nothing else (ADR-345 §2): the highest unticked folder of each
      * branch, the pieces already listed first; a value as the file states it is not written, a changed one is written
-     * with the note filled in, and with no folder unticked and none kept the key is taken out.
+     * with the provenance filled in, and with no folder unticked and none kept the key is taken out.
      */
     private void saveInclusions() {
         Optional<Path> folder = folders.workingDirectory();
@@ -114,19 +114,19 @@ final class InclusionsTab {
             return;
         }
         String value = String.join(java.io.File.pathSeparator, pieces);
-        Optional<String> note = ProfileEdit.noteToSave(key, value, ProfileEdit.noteShown(inFile), inFile);
-        if (note.isEmpty()) {
+        Optional<String> provenance = ProfileEdit.provenanceToSave(key, value, ProfileEdit.provenanceShown(inFile), inFile);
+        if (provenance.isEmpty()) {
             inclusionsOutcome.setText("nothing was written: the folders not walked are as " + ProfileEdit.FILE_NAME
                     + " states them");
             return;
         }
-        Optional<String> refusal = ProfileEdit.refusalOfSave(key, value, note.get(), inFile, Optional.empty());
+        Optional<String> refusal = ProfileEdit.refusalOfSave(key, value, provenance.get(), inFile, Optional.empty());
         if (refusal.isPresent()) {
             inclusionsOutcome.setText(refusal.get());
             return;
         }
         Optional<String> failed = state.write(folder.get(), ProfileEdit.FILE_NAME,
-                current -> ProfileEdit.rewrite(current, key, value, note.get()));
+                current -> ProfileEdit.rewrite(current, key, value, provenance.get()));
         inclusionsOutcome.setText(failed.orElse(key.key() + " saved in " + folder.get().resolve(ProfileEdit.FILE_NAME)
                 + saidSo));
         if (failed.isEmpty()) {

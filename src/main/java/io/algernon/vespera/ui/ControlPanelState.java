@@ -54,7 +54,7 @@ final class ControlPanelState {
     private final Path corpusRootLockFolder;
     private final String userName;
     private final WorkingDirectoryWrite writer;
-    private final List<String> notes = new ArrayList<>();
+    private final List<String> launchLines = new ArrayList<>();
 
     private volatile StartingValues.Sources sources = StartingValues.Sources.none();
     private volatile WorkingDirectoryDefault workingDirectoryDefault = WorkingDirectoryDefault.of(Path.of(""), Map.of(),
@@ -75,7 +75,7 @@ final class ControlPanelState {
         this.corpusRootLockFolder = corpusRootLockFolder;
         this.userName = userName;
         this.writer = new WorkingDirectoryWrite(this::childRuns, userName);
-        this.values = LaunchValues.load(launchValuesFile, userName, notes::add);
+        this.values = LaunchValues.load(launchValuesFile, userName, launchLines::add);
     }
 
     /** Whether the operator chose the dark theme, kept beside the launch values; light where none was kept or it cannot be read. */
@@ -228,8 +228,8 @@ final class ControlPanelState {
     }
 
     /** The lines the launch values' file gave as it was loaded. */
-    List<String> notes() {
-        return List.copyOf(notes);
+    List<String> launchLines() {
+        return List.copyOf(launchLines);
     }
 
     /**

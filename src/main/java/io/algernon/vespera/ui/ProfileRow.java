@@ -27,8 +27,8 @@ import javafx.scene.layout.VBox;
 /**
  * One value of the profile in the window (ADR-344 §1, ADR-343): its descriptive name, its key beneath it in small type,
  * a plain description and which steps a change makes again; a control that constrains the value by its kind; the
- * reports that inform it; and the note saved with it, filled in. The row holds what the file stated as it was loaded, and
- * a save compares the form with it by {@link ProfileEdit#noteToSave} and writes by {@link ProfileEdit#rewrite}, never a
+ * reports that inform it; and the provenance saved with it, filled in. The row holds what the file stated as it was loaded, and
+ * a save compares the form with it by {@link ProfileEdit#provenanceToSave} and writes by {@link ProfileEdit#rewrite}, never a
  * key left as it was shown.
  */
 final class ProfileRow {
@@ -44,7 +44,7 @@ final class ProfileRow {
     private final ProfileKey key;
     private final String idPrefix;
     private final VBox node = new VBox();
-    private final TextField note = new TextField();
+    private final TextField provenance = new TextField();
     private final SelectableText.Wrapping inUse = SelectableText.wrapping("");
     private final HBox links = new HBox();
     private Consumer<String> opensReport;
@@ -100,15 +100,15 @@ final class ProfileRow {
             node.getChildren().add(links);
             showReports(reportsWritten);
         }
-        SelectableText.Line noteLabel = SelectableText.line("Note saved with it");
-        note.setId(idPrefix + key.key() + ".provenance");
-        note.setPromptText(ProfileEdit.FILLED_IN_NOTE);
-        HBox.setHgrow(note, Priority.ALWAYS);
+        SelectableText.Line provenanceLabel = SelectableText.line("Note saved with it");
+        provenance.setId(idPrefix + key.key() + ".provenance");
+        provenance.setPromptText(ProfileEdit.FILLED_IN_PROVENANCE);
+        HBox.setHgrow(provenance, Priority.ALWAYS);
         SelectableText.Wrapping hint = SelectableText.wrapping("Saved beside the value in profile.yaml so that whoever reads it later knows"
                 + " where the value came from. You may write how you chose the value instead.");
         hint.getStyleClass().add("small");
-        HBox noteLine = spaced(noteLabel, note);
-        node.getChildren().addAll(noteLine, hint);
+        HBox provenanceLine = spaced(provenanceLabel, provenance);
+        node.getChildren().addAll(provenanceLine, hint);
     }
 
     /** Draws the key's reports, each a link where the working directory holds it and grey where it does not (ADR-344 §6). */
@@ -152,11 +152,11 @@ final class ProfileRow {
         return value.get();
     }
 
-    /** Fills the control and the note from what the file states for the key now. */
+    /** Fills the control and the provenance from what the file states for the key now. */
     void load(Optional<ProfileEdit.Stated> inFile) {
         loaded = inFile;
         setValue.accept(inFile.map(ProfileEdit.Stated::value).orElse(""));
-        note.setText(ProfileEdit.noteShown(inFile));
+        provenance.setText(ProfileEdit.provenanceShown(inFile));
     }
 
     /** Puts the form back to the file as last loaded. */
@@ -165,8 +165,8 @@ final class ProfileRow {
     }
 
     /** The provenance to write for this row by ADR-343 §2's table; empty where the key is not written. */
-    Optional<String> noteToSave() {
-        return ProfileEdit.noteToSave(key, value(), note.getText(), loaded);
+    Optional<String> provenanceToSave() {
+        return ProfileEdit.provenanceToSave(key, value(), provenance.getText(), loaded);
     }
 
     /** The digest of what the form was loaded from, which a save checks the file against (ADR-330 §5). */
@@ -200,19 +200,19 @@ final class ProfileRow {
                     : unreadable.getMessage(), false);
         }
         List<ProfileRow> written = new ArrayList<>();
-        List<String> notes = new ArrayList<>();
+        List<String> provenances = new ArrayList<>();
         for (ProfileRow row : rows) {
-            Optional<String> note = row.noteToSave();
-            if (note.isEmpty()) {
+            Optional<String> provenance = row.provenanceToSave();
+            if (provenance.isEmpty()) {
                 continue;
             }
-            Optional<String> refusal = ProfileEdit.refusalOfSave(row.key, row.value(), note.get(),
+            Optional<String> refusal = ProfileEdit.refusalOfSave(row.key, row.value(), provenance.get(),
                     Optional.ofNullable(fresh.get(row.key)), Optional.of(row.drawn()));
             if (refusal.isPresent()) {
                 return new Saved(refusal.get(), false);
             }
             written.add(row);
-            notes.add(note.get());
+            provenances.add(provenance.get());
         }
         if (written.isEmpty()) {
             return new Saved("nothing was written: every value is as profile.yaml states it", false);
@@ -220,7 +220,7 @@ final class ProfileRow {
         Optional<String> refusal = state.write(folder.get(), ProfileEdit.FILE_NAME, current -> {
             Optional<String> text = current;
             for (int i = 0; i < written.size(); i++) {
-                text = Optional.of(ProfileEdit.rewrite(text, written.get(i).key, written.get(i).value(), notes.get(i)));
+                text = Optional.of(ProfileEdit.rewrite(text, written.get(i).key, written.get(i).value(), provenances.get(i)));
             }
             return text.orElseThrow();
         });

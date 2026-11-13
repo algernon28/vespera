@@ -419,9 +419,9 @@ Each existing test this record changes, at the step that does it. Each record wh
 | Step | Test | What happens |
 | --- | --- | --- |
 | 1 | `ui.TheNoteSavedWithAValueTest` is renamed `ui.TheProvenanceSavedWithAValueTest` | its methods as the Tests above, its calls `provenanceShown` and `provenanceToSave`, its claims unchanged |
-| 1 | `ui.TheNoteSavedWithAValueTest.aValueChangedUnderTheProvenanceTheFileStatesIsNotRefused` is renamed `ui.TheProvenanceSavedWithAValueTest.aValueChangedUnderTheProvenanceTheFileStatesIsNotRefused` | its claims unchanged |
-| 1 | `ui.TheWindowSavesTheProfileTest.theProfileTabsSaveWritesEachValueAndNoteAsTheTableSays` is renamed `ui.TheWindowSavesTheProfileTest.theProfileTabsSaveWritesEachValueAsTheTableSays` | its body changes at step 3 |
-| 1 | `ui.TheValuesTheNextInvocationWantsTest` | its calls of `FILLED_IN_NOTE` and `noteShown` renamed; its claims unchanged |
+| 1 | `ui.TheNoteSavedWithAValueTest.aValueChangedUnderTheProvenanceTheFileStatesIsNotRefused` removed: ADR-368 cut it before this step, so nothing is renamed | none |
+| 1 | `ui.TheWindowSavesTheProfileTest.theProfileTabsSaveWritesEachValueAndNoteAsTheTableSays` removed: ADR-368 cut its class before this step, so nothing is renamed | none |
+| 1 | `ui.TheValuesTheNextInvocationWantsTest` removed: ADR-368 cut its methods before this step, so no call is renamed | none |
 | 3 | `ui.TheProvenanceSavedWithAValueTest.theProvenanceShownIsTheOneTheFileStatesOrTheFilledInOne` removed | with `provenanceShown`, the Tests' row `theProvenanceStatedIsTheFilesWhereNotBlank` in its place |
 | 3 | `ui.TheProvenanceSavedWithAValueTest.eachValueIsWrittenAsTheTableSays` | holds §2's two rows, a key the file states nothing for among them, through `provenanceToSave(key, value, inFile)` |
 | 3 | `ui.TheProvenanceSavedWithAValueTest.aFloorTheLocalModelSetChangedUnderItsProvenanceBecomesTheOperators` | calls `provenanceToSave` with no provenance; its claims of the value changed unchanged, its case of a note changed by the operator gone |
