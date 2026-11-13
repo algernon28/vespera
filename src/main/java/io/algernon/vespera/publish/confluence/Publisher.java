@@ -6,12 +6,14 @@ import io.algernon.vespera.publish.confluence.ConfluenceApi.SiteFile;
 import io.algernon.vespera.publish.confluence.ConfluenceApi.SitePage;
 import io.algernon.vespera.publish.confluence.PageList.Page;
 import io.algernon.vespera.publish.confluence.PageList.PageFile;
-import io.algernon.vespera.engine.ledger.ReplacingMove;
+import io.algernon.vespera.engine.deliverable.FixedWords;
+import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -33,6 +35,7 @@ import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.util.HtmlUtils;
 
 /**
  * Publishes the Confluence rendering of one generation run to the operator's site (ADR-308, ADR-316 §4).
@@ -53,16 +56,16 @@ import org.springframework.web.client.RestClientException;
  * changed, with the page's version plus one; its closing line is printed; the next page is taken. A line says as each
  * page starts and after each file (ADR-320 §4). A {@code 409} on a body is answered by reading the page's version again
  * and sending once more; a second stops the publish, saying which page it stopped at (ADR-320 §5). A copy or a
- * picture's file the site refuses as too large ({@code 413}) is skipped, counted and listed in
- * {@value #NOT_CARRIED_FILE_NAME}; any other refusal stops the publish (ADR-313 §3). A page of the tree the list no
+ * picture's file the site refuses as too large ({@code 413}) is skipped, said and counted, and listed in no file; any
+ * other refusal stops the publish (ADR-378 §10). A page of the tree the list no
  * longer holds is moved to the trash after every page is sent, deepest first, and only where nothing stands under it
  * (ADR-328 §5).
  */
 @Component
 public class Publisher {
 
-    /** What a publish writes into the working directory when the site refused a file as too large (ADR-313 §3). */
-    public static final String NOT_CARRIED_FILE_NAME = "confluence-not-carried.csv";
+    /** The list of refused files an earlier version wrote, which a publish removes and none writes (ADR-378 §10). */
+    private static final String THE_EARLIER_LIST = "confluence-not-carried.csv";
 
     /** The templates a publish refused for a missing value writes into the working directory (ADR-308 §3). */
     static final List<String> TEMPLATES = List.of("confluence-env.sh", "confluence-env.ps1");
@@ -73,22 +76,34 @@ public class Publisher {
     /** The page list's name in the rendering's folder (ADR-316 §1). */
     public static final String PAGE_LIST_FILE_NAME = PageList.FILE_NAME;
 
-    /** What every page of the tree is labelled (ADR-328 §4). */
+    /** What every page of ADR-328's tree is labelled, an earlier tree's label a publish takes off (ADR-378 §2, §5). */
     static final String LABEL = "vespera";
 
-    /** What an earlier publish labelled a run's pages with, before the run's marker (ADR-316 §4). */
+    /**
+     * What a page of a language's tree is labelled begins with, {@code vespera-<code>} (ADR-378 §2); what an earlier
+     * publish labelled a run's pages with, before the run's marker (ADR-316 §4).
+     */
     static final String LABEL_PREFIX = "vespera-";
 
     /** How many characters of a run's id an earlier publish's label carries as its marker (ADR-328 §6). */
     private static final int EARLIER_MARKER_LENGTH = 12;
 
-    /** A key of this tree's form (ADR-328 §3). */
-    private static final java.util.regex.Pattern TREE_KEY =
-            java.util.regex.Pattern.compile("root|[1-9][0-9]*(\\.[1-9][0-9]*){0,2}");
+    /** A place as ADR-328 §3 writes it. */
+    private static final String PLACE = "[1-9][0-9]*(\\.[1-9][0-9]*){0,2}";
 
-    /** The key an earlier publish gave a page: its run, hexadecimal, and its place (ADR-316 §3). */
+    /** A key of ADR-328's tree (ADR-328 §3): its place alone. */
+    private static final java.util.regex.Pattern ADR_328_KEY = java.util.regex.Pattern.compile("root|" + PLACE);
+
+    /**
+     * The key an ADR-310 tree's publish gave a page: its run, sixty-four hexadecimal characters exactly, and its place
+     * (ADR-316 §3, ADR-378 §2).
+     */
     private static final java.util.regex.Pattern EARLIER_KEY =
-            java.util.regex.Pattern.compile("([0-9a-f]+):(root|[0-9]+(\\.[0-9]+){0,2})");
+            java.util.regex.Pattern.compile("([0-9a-f]{64}):(root|[0-9]+(\\.[0-9]+){0,2})");
+
+    /** The first {@code h1} element of a body in storage format (ADR-378 §5). */
+    private static final java.util.regex.Pattern FIRST_HEADING =
+            java.util.regex.Pattern.compile("(?is)<h1(?:\\s[^>]*)?>(.*?)</h1\\s*>");
 
     /** The status a site refuses a file with as too large. */
     private static final int TOO_LARGE = 413;
@@ -170,8 +185,9 @@ public class Publisher {
 
     /**
      * Publishes the rendering in {@code confluence}, drawn for {@code generationRun}, telling {@code out} the totals,
-     * a line as each page starts, a line per file and the page's closing line (ADR-320 §4);
-     * {@value #NOT_CARRIED_FILE_NAME} and any template are written in {@code workingDirectory}.
+     * a line as each page starts, a line per file and the page's closing line (ADR-320 §4). A template is written in
+     * {@code workingDirectory}, and the list an earlier version wrote there is removed (ADR-378 §10); no file of
+     * refused files is written.
      */
     public Outcome publish(Path confluence, String generationRun, Path workingDirectory, Consumer<String> out) {
         ConfluenceSite.Read read = ConfluenceSite.of(environment, baseUrl, spaceKey, parentId, parentTitle,
@@ -192,7 +208,7 @@ public class Publisher {
             return new Outcome(false, "vespera publish sent nothing: " + unlike.get() + ". Run vespera run to draw the"
                     + " deliverable again, and publish again.");
         }
-        Run run = new Run(site, list, confluence, new ConfluenceApi(site, requests, pause, clock), out);
+        Run run = new Run(site, list, confluence, workingDirectory, new ConfluenceApi(site, requests, pause, clock), out);
         try {
             run.publish();
         } catch (TheSiteRefusedThePublishException | RestClientException | UncheckedIOException stopped) {
@@ -201,12 +217,6 @@ public class Publisher {
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             return new Outcome(false, "vespera publish stopped: it was interrupted. " + run.doneSoFar());
-        }
-        try {
-            run.writeNotCarried(workingDirectory);
-        } catch (IOException unwritten) {
-            return new Outcome(false, run.closingLine() + "; but " + NOT_CARRIED_FILE_NAME + " could not be written in"
-                    + " " + workingDirectory + ": " + unwritten.getClass().getSimpleName());
         }
         return new Outcome(true, run.closingLine());
     }
@@ -287,7 +297,7 @@ public class Publisher {
     private record Standing(SitePage page, Property property) {}
 
     /** A file the site refused as too large: its page's key, its name and its size (ADR-313 §3). */
-    private record NotCarried(String key, String name, long size, String kind) {}
+    private record NotCarried(long size, String kind) {}
 
     /** One publish, from the space to the closing line. */
     private static final class Run {
@@ -315,7 +325,23 @@ public class Publisher {
         private int pageNumber;
         private String pageTitle;
 
-        Run(ConfluenceSite site, PageList list, Path confluence, ConfluenceApi api, Consumer<String> out) {
+        private final DeliverableLanguage language;
+        private final String treeRootTitle;
+        private final String rootKey;
+        private final String label;
+        private final java.util.regex.Pattern treeKey;
+
+        private final Path workingDirectory;
+
+        Run(ConfluenceSite site, PageList list, Path confluence, Path workingDirectory, ConfluenceApi api,
+                Consumer<String> out) {
+            this.workingDirectory = workingDirectory;
+            this.language = list.drawnIn();
+            this.treeRootTitle = ConfluenceTitles.root(language);
+            this.rootKey = language.code() + ":root";
+            this.label = LABEL_PREFIX + language.code();
+            this.treeKey = java.util.regex.Pattern.compile(java.util.regex.Pattern.quote(language.code() + ":")
+                    + "(root|" + PLACE + ")");
             this.site = site;
             this.list = list;
             this.confluence = confluence;
@@ -335,20 +361,36 @@ public class Publisher {
             }
             this.fileTotal = fileCount;
             out.accept("vespera publish is sending the rendering of generation run " + list.marker() + " to "
-                    + site.site().getHost() + ", space " + site.spaceKey() + ": " + pages.size()
+                    + site.site().getHost() + ", space " + site.spaceKey() + ", tree " + treeRootTitle + ": " + pages.size()
                     + (pages.size() == 1 ? " page" : " pages") + " and " + fileCount
                     + (fileCount == 1 ? " file" : " files") + " holding " + bytes + (bytes == 1 ? " byte" : " bytes"));
+            removeTheListAnEarlierVersionWrote();
             String spaceId = api.spaceId(site.spaceKey()).orElseThrow(() -> new TheSiteRefusedThePublishException(
                     "the site holds no space with the key " + site.spaceKey() + " that this account can read"));
             String parent = parent(spaceId);
-            String label = LABEL;
-            Map<String, Standing> found = ofTheTree(label);
-            Earlier toTake = found.containsKey("root") ? Earlier.NONE : earlierTree(parent, found);
-            Standing root = found.get("root");
+            Map<String, Standing> found = ofTheTree();
+            Standing root = found.get(rootKey);
+            Earlier toTake = Earlier.NONE;
+            if (root == null) {
+                // The tree's own root page may have lost its label: found by its title, it is the root page, and no
+                // earlier tree is looked for; a page so titled that is not is a stop (ADR-378 §5, ADR-320 §3).
+                Optional<SitePage> own = api.pageTitled(spaceId, treeRootTitle);
+                if (own.isPresent()) {
+                    Optional<Property> property = api.property(own.get().id());
+                    if (property.isEmpty() || !property.get().key().equals(rootKey)) {
+                        throw new TheSiteRefusedThePublishException("a page titled " + treeRootTitle + " stands in the"
+                                + " space and is not the page " + rootKey + " of this rendering, so it was left as it"
+                                + " stands");
+                    }
+                    root = new Standing(own.get(), property.get());
+                } else {
+                    toTake = earlierTree(parent, found);
+                }
+            }
             if (root != null && !parent.equals(root.page().parentId())) {
-                throw new TheSiteRefusedThePublishException("the tree it updates stands under "
-                        + root.page().parentId() + ", not under the parent named. Name that parent, or move the page"
-                        + " Vespera under the one named");
+                throw new TheSiteRefusedThePublishException("the tree " + treeRootTitle + " it updates stands under "
+                        + root.page().parentId() + ", not under the parent named. Name that parent, or move the page "
+                        + treeRootTitle + " under the one named");
             }
             Set<String> listed = new HashSet<>();
             Map<String, Standing> byTitle = new HashMap<>();
@@ -366,6 +408,9 @@ public class Publisher {
                         byTitle.put(page.key(), at);
                     }
                 }
+            }
+            for (String left : toTake.left()) {
+                out.accept(left);
             }
             take(toTake, found);
             for (Page page : pages) {
@@ -407,14 +452,14 @@ public class Publisher {
         private record Taken(Standing at, String newKey, String earlierLabel) {}
 
         /**
-         * The pages of the tree that stand: labelled {@value #LABEL}, keyed in this tree's form; of two alike, the
-         * lower id.
+         * The pages of the language's tree that stand: labelled {@code vespera-<code>}, keyed {@code <code>:<place>}; of
+         * two alike, the lower id (ADR-378 §2).
          */
-        private Map<String, Standing> ofTheTree(String label) throws InterruptedException {
+        private Map<String, Standing> ofTheTree() throws InterruptedException {
             Map<String, Standing> found = new LinkedHashMap<>();
             for (String id : api.pagesLabelled(site.spaceKey(), label)) {
                 Optional<Property> property = api.property(id);
-                if (property.isEmpty() || !TREE_KEY.matcher(property.get().key()).matches()) {
+                if (property.isEmpty() || !treeKey.matcher(property.get().key()).matches()) {
                     continue;
                 }
                 Optional<SitePage> page = api.page(id);
@@ -447,60 +492,181 @@ public class Publisher {
             List<ConfluenceApi.Child> children = api.children(parent, api.isFolder(parent)).orElseThrow(() ->
                     new TheSiteRefusedThePublishException("the site answered HTTP 404 while listing the children of the"
                             + " parent " + parent + ", which it holds"));
-            List<Standing> roots = new ArrayList<>();
+            List<EarlierRoot> roots = new ArrayList<>();
             for (ConfluenceApi.Child child : children) {
                 if (!child.type().isEmpty() && !child.type().equals("page")) {
                     continue;
                 }
                 Optional<Property> property = api.property(child.id());
-                if (property.isPresent() && property.get().key().matches("[0-9a-f]+:root")) {
+                if (property.isPresent() && (property.get().key().equals("root")
+                        || EARLIER_KEY.matcher(property.get().key()).matches()
+                        && property.get().key().endsWith(":root"))) {
                     Optional<SitePage> page = api.page(child.id());
-                    page.ifPresent(standing -> roots.add(new Standing(standing, property.get())));
+                    if (page.isPresent()) {
+                        roots.add(new EarlierRoot(new Standing(page.get(), property.get()),
+                                headingsLanguage(page.get())));
+                    }
                 }
             }
             if (roots.isEmpty()) {
                 return Earlier.NONE;
             }
-            if (roots.size() > 1) {
-                throw new TheSiteRefusedThePublishException("the parent holds " + roots.size() + " trees an earlier"
-                        + " publish made, " + String.join(", ", roots.stream().map(r -> r.page().title()).toList())
-                        + ", and one can be taken as this tree. Remove all but the one to keep");
+            for (EarlierRoot root : roots) {
+                if (root.drawnIn().isEmpty()) {
+                    String title = root.at().page().title();
+                    throw new TheSiteRefusedThePublishException("the parent holds the tree " + title + " an earlier"
+                            + " publish made, and its root page's heading is neither "
+                            + FixedWords.theDeliverable(DeliverableLanguage.ENGLISH).strip() + " nor "
+                            + FixedWords.theDeliverable(DeliverableLanguage.ITALIAN).strip() + ", so the language it was"
+                            + " drawn in cannot be told. Put the heading back, or move the page " + title
+                            + " from under the parent named");
+                }
             }
-            Standing earlierRoot = roots.getFirst();
-            String run = earlierRoot.property().key().substring(0, earlierRoot.property().key().indexOf(':'));
-            String earlierLabel = LABEL_PREFIX + run.substring(0, Math.min(EARLIER_MARKER_LENGTH, run.length()));
-            List<Taken> taken = new ArrayList<>();
-            List<String> unlabelled = new ArrayList<>();
+            List<EarlierRoot> ofThisLanguage = roots.stream().filter(root -> root.drawnIn().get() == language).toList();
+            List<String> left = new ArrayList<>();
+            for (EarlierRoot root : roots) {
+                if (root.drawnIn().get() != language) {
+                    left.add("the tree " + root.at().page().title() + " an earlier publish made was drawn in "
+                            + root.drawnIn().get().englishName() + ", and is left as it stands for a publish in "
+                            + root.drawnIn().get().englishName() + " to take");
+                }
+            }
+            if (ofThisLanguage.size() > 1) {
+                throw new TheSiteRefusedThePublishException("the parent holds " + ofThisLanguage.size()
+                        + " trees an earlier publish made in " + language.englishName() + ", "
+                        + String.join(", ", ofThisLanguage.stream().map(r -> r.at().page().title()).toList())
+                        + ", and one can be taken as the tree " + treeRootTitle + ". Remove all but the one to keep");
+            }
+            if (ofThisLanguage.isEmpty()) {
+                return new Earlier(List.of(), List.of(), "", left);
+            }
+            Standing earlierRoot = ofThisLanguage.getFirst().at();
+            String earlierKey = earlierRoot.property().key();
+            String run = earlierKey.equals("root") ? "" : earlierKey.substring(0, earlierKey.indexOf(':'));
+            String earlierLabel = run.isEmpty()
+                    ? LABEL
+                    : LABEL_PREFIX + run.substring(0, Math.min(EARLIER_MARKER_LENGTH, run.length()));
+            // The candidates by the key they would hold, each the page of the lower id of its key (ADR-378 §5).
+            Map<String, Taken> candidates = new LinkedHashMap<>();
+            Map<String, Boolean> halfTaken = new HashMap<>();
+            Map<String, Boolean> underTheRoot = new HashMap<>();
             for (String id : api.pagesLabelled(site.spaceKey(), earlierLabel)) {
                 Optional<Property> property = api.property(id);
                 if (property.isEmpty() || id.equals(earlierRoot.page().id())) {
                     continue;
                 }
-                if (TREE_KEY.matcher(property.get().key()).matches()) {
-                    unlabelled.add(id);
-                    continue;
-                }
-                java.util.regex.Matcher key = EARLIER_KEY.matcher(property.get().key());
-                if (!key.matches() || !key.group(1).equals(run) || key.group(2).equals("root")) {
-                    continue;
+                // A page a stopped taking set already: the tree's page of its key, whose earlier label goes.
+                boolean set = treeKey.matcher(property.get().key()).matches();
+                String place;
+                if (set) {
+                    place = property.get().key().substring(language.code().length() + 1);
+                    if (place.equals("root")) {
+                        continue;
+                    }
+                } else if (run.isEmpty()) {
+                    if (!ADR_328_KEY.matcher(property.get().key()).matches() || property.get().key().equals("root")) {
+                        continue;
+                    }
+                    place = property.get().key();
+                } else {
+                    java.util.regex.Matcher key = EARLIER_KEY.matcher(property.get().key());
+                    if (!key.matches() || !key.group(1).equals(run) || key.group(2).equals("root")) {
+                        continue;
+                    }
+                    place = unpadded(key.group(2));
                 }
                 Optional<SitePage> page = api.page(id);
-                if (page.isEmpty()) {
+                if (page.isEmpty() || !standsUnder(page.get(), earlierRoot.page().id(), parent, underTheRoot)) {
                     continue;
                 }
-                String place = unpadded(key.group(2));
-                if (found.containsKey(place)) {
-                    continue;
+                String newKey = language.code() + ":" + place;
+                Taken held = candidates.get(newKey);
+                if (held == null || lower(id, held.at().page().id())) {
+                    candidates.put(newKey, new Taken(new Standing(page.get(), property.get()), newKey, earlierLabel));
+                    halfTaken.put(newKey, set);
                 }
-                taken.add(new Taken(new Standing(page.get(), property.get()), place, earlierLabel));
             }
-            taken.add(new Taken(earlierRoot, "root", earlierLabel));
-            return new Earlier(taken, unlabelled, earlierLabel);
+            List<Taken> taken = new ArrayList<>();
+            List<String> unlabelled = new ArrayList<>();
+            for (Map.Entry<String, Taken> candidate : candidates.entrySet()) {
+                if (halfTaken.get(candidate.getKey())) {
+                    unlabelled.add(candidate.getValue().at().page().id());
+                } else if (!found.containsKey(candidate.getKey())) {
+                    taken.add(candidate.getValue());
+                }
+            }
+            taken.add(new Taken(earlierRoot, rootKey, earlierLabel));
+            return new Earlier(taken, unlabelled, earlierLabel, left);
         }
 
-        /** What an earlier publish's tree needs: its pages to take, root last, and those it half took, to unlabel. */
-        private record Earlier(List<Taken> taken, List<String> unlabelled, String label) {
-            static final Earlier NONE = new Earlier(List.of(), List.of(), "");
+        /**
+         * Whether the page stands under the earlier tree's root page at any depth: its {@code parentId}, then that
+         * page's, read by {@code GET pages/{id}}, reaches the root page. Reaching the parent named, a {@code 404} or a
+         * folder (which that read answers {@code 404}) ends the walk with no (ADR-378 §5). {@code known} remembers
+         * each id's answer.
+         */
+        private boolean standsUnder(SitePage page, String rootId, String named, Map<String, Boolean> known)
+                throws InterruptedException {
+            List<String> walked = new ArrayList<>();
+            String above = page.parentId();
+            boolean under = false;
+            while (above != null && !walked.contains(above)) {
+                if (above.equals(rootId)) {
+                    under = true;
+                    break;
+                }
+                if (above.equals(named)) {
+                    break;
+                }
+                Boolean remembered = known.get(above);
+                if (remembered != null) {
+                    under = remembered;
+                    break;
+                }
+                walked.add(above);
+                Optional<SitePage> next = api.page(above);
+                if (next.isEmpty()) {
+                    break;
+                }
+                above = next.get().parentId();
+            }
+            for (String id : walked) {
+                known.put(id, under);
+            }
+            return under;
+        }
+
+        /** An earlier tree's root page as the site holds it, and the language its heading names, if it names one. */
+        private record EarlierRoot(Standing at, Optional<DeliverableLanguage> drawnIn) {}
+
+        /**
+         * The language the root page's heading names: the text of the body's first {@code h1}, its markup taken out,
+         * its character references read and its whitespace folded, being a language's heading words or beginning with
+         * them and a space (ADR-378 §5). The body is read by the page's id, the site's answer standing for nothing but
+         * {@code 2xx}.
+         */
+        private Optional<DeliverableLanguage> headingsLanguage(SitePage root) throws InterruptedException {
+            java.util.regex.Matcher heading = FIRST_HEADING.matcher(api.storageBody(root.id()));
+            if (!heading.find()) {
+                return Optional.empty();
+            }
+            String text = HtmlUtils.htmlUnescape(heading.group(1).replaceAll("<[^>]*>", ""))
+                    .replaceAll("[\\s\\u00a0]+", " ").strip();
+            for (DeliverableLanguage candidate : DeliverableLanguage.values()) {
+                String words = FixedWords.theDeliverable(candidate).strip();
+                if (text.equals(words) || text.startsWith(words + " ")) {
+                    return Optional.of(candidate);
+                }
+            }
+            return Optional.empty();
+        }
+
+        /**
+         * What an earlier publish's tree needs: its pages to take, root last, those a stopped taking half took, to
+         * unlabel, and the lines saying which earlier trees of another language are left.
+         */
+        private record Earlier(List<Taken> taken, List<String> unlabelled, String label, List<String> left) {
+            static final Earlier NONE = new Earlier(List.of(), List.of(), "", List.of());
         }
 
         /** A place read without its padding: {@code 01.10} is {@code 1.10}. */
@@ -521,17 +687,17 @@ public class Publisher {
             if (toTake.isEmpty()) {
                 return;
             }
-            String rootTitle = toTake.getLast().newKey().equals("root") ? toTake.getLast().at().page().title() : "";
-            out.accept("the tree " + rootTitle + " an earlier publish made is taken as this tree: its "
-                    + (toTake.size() == 1 ? "1 page is" : toTake.size() + " pages are")
+            String rootTitle = toTake.getLast().at().page().title();
+            out.accept("the tree " + rootTitle + " an earlier publish made is taken as the tree " + treeRootTitle
+                    + ": its " + (toTake.size() == 1 ? "1 page is" : toTake.size() + " pages are")
                     + " retitled and updated in place");
             for (String id : earlier.unlabelled()) {
                 takeLabelOff(id, earlier.label(), id);
             }
             for (Taken one : toTake) {
                 String id = one.at().page().id();
-                api.label(id, LABEL);
-                boolean root = one.newKey().equals("root");
+                api.label(id, label);
+                boolean root = one.newKey().equals(rootKey);
                 if (root) {
                     takeLabelOff(id, one.earlierLabel(), one.at().page().title());
                 }
@@ -557,13 +723,14 @@ public class Publisher {
         private void removeWhatTheListNoLongerHolds(Map<String, Standing> found, Set<String> listed)
                 throws InterruptedException {
             List<String> keys = new ArrayList<>(found.keySet().stream()
-                    .filter(key -> !listed.contains(key) && !key.equals("root")).toList());
+                    .filter(key -> !listed.contains(key) && !key.equals(rootKey)).toList());
             if (keys.isEmpty()) {
                 return;
             }
+            int codeLength = language.code().length() + 1;
             keys.sort((one, other) -> {
-                String[] a = one.split("\\.");
-                String[] b = other.split("\\.");
+                String[] a = one.substring(codeLength).split("\\.");
+                String[] b = other.substring(codeLength).split("\\.");
                 if (a.length != b.length) {
                     return Integer.compare(b.length, a.length);
                 }
@@ -712,7 +879,7 @@ public class Publisher {
                     Reply reply = api.sendFile(id, Optional.ofNullable(there).map(SiteFile::id),
                             confluence.resolve(file.path()), file.name(), file.sha256());
                     if (reply.status() == TOO_LARGE && file.skippedWhenTooLarge()) {
-                        notCarried.add(new NotCarried(page.key(), file.name(), file.size(), file.kind()));
+                        notCarried.add(new NotCarried(file.size(), file.kind()));
                         refused++;
                         out.accept(said + "refused by the site as too large");
                         continue;
@@ -734,24 +901,21 @@ public class Publisher {
                     + (refused == 0 ? "" : ", " + refused + " refused by the site as too large");
         }
 
-        void writeNotCarried(Path workingDirectory) throws IOException {
-            if (notCarried.isEmpty()) {
-                return;
+        /**
+         * Removes the list an earlier version wrote in the working directory, deleting what stands at its name and
+         * never reading it, and says so; a deletion that fails is said and stops nothing (ADR-378 §10).
+         */
+        private void removeTheListAnEarlierVersionWrote() {
+            String said = THE_EARLIER_LIST + ", which an earlier version of vespera publish wrote, ";
+            try {
+                Files.delete(workingDirectory.resolve(THE_EARLIER_LIST));
+                out.accept(said + "is removed from the working directory");
+            } catch (NoSuchFileException nothingThere) {
+                // Where nothing stands there, nothing is said.
+            } catch (IOException | RuntimeException unremoved) {
+                out.accept(said + "could not be removed from the working directory ("
+                        + unremoved.getClass().getSimpleName() + "), and is left as it stands");
             }
-            StringBuilder csv = new StringBuilder("key,name,size\r\n");
-            for (NotCarried file : notCarried) {
-                csv.append(field(file.key())).append(',').append(field(file.name())).append(',').append(file.size())
-                        .append("\r\n");
-            }
-            Path target = workingDirectory.resolve(NOT_CARRIED_FILE_NAME);
-            Path part = workingDirectory.resolve(NOT_CARRIED_FILE_NAME + ".part");
-            Files.writeString(part, csv, StandardCharsets.UTF_8);
-            ReplacingMove.ATOMIC.intoPlace(part, target);
-        }
-
-        private static String field(String value) {
-            String quote = "\"";
-            return quote + value.replace(quote, quote + quote) + quote;
         }
 
         String doneSoFar() {
@@ -773,7 +937,8 @@ public class Publisher {
             int files = filesAdded + filesReplaced + filesUnchanged;
             StringBuilder line = new StringBuilder("vespera publish sent the rendering of generation run ")
                     .append(list.marker()).append(" to ").append(site.site().getHost()).append(", space ")
-                    .append(site.spaceKey()).append(": ").append(pages).append(pages == 1 ? " page (" : " pages (")
+                    .append(site.spaceKey()).append(", tree ").append(treeRootTitle).append(": ").append(pages)
+                    .append(pages == 1 ? " page (" : " pages (")
                     .append(created).append(" created, ").append(updated).append(" updated, ").append(unchanged)
                     .append(" unchanged) and ").append(files).append(files == 1 ? " file (" : " files (")
                     .append(filesAdded).append(" added, ").append(filesReplaced).append(" replaced, ")
@@ -802,8 +967,7 @@ public class Publisher {
             line.append("; ").append(refused.size()).append(' ').append(refused.size() == 1 ? one : many)
                     .append(" refused by the site as too large and ").append(refused.size() == 1 ? "is" : "are")
                     .append(" not on ").append(refused.size() == 1 ? "its page" : "their pages").append(", ")
-                    .append(bytes).append(bytes == 1 ? " byte" : " bytes").append(", listed in ")
-                    .append(NOT_CARRIED_FILE_NAME);
+                    .append(bytes).append(bytes == 1 ? " byte" : " bytes");
         }
     }
 }

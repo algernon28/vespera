@@ -48,12 +48,13 @@ import org.junit.jupiter.api.io.TempDir;
  * {@code leg-state-<leg>}.
  *
  * <p>Two tests hold ADR-374, the window's colours in both themes, here beside ADR-370's contrast of the percent, whose
- * window and WCAG ratio they share: every text of the window and every line, swatch and marker of the cockpit's charts,
- * and an analysis report's native view, its code naming no colour and what it draws standing at AA. A text is measured
- * against the topmost fill of the nearest region it stands in that is not wholly transparent, a translucent fill laid
- * over what lies under it and each stop of a gradient taken on its own; a chart's mark against the chart's plot, or a
- * swatch against its legend, read the same way. The colours are read as JavaFX resolves the stylesheet over Modena, not
- * from the pixels drawn.
+ * window and WCAG ratio they share: every text of the window and every line, swatch and marker of the stages' charts,
+ * a frozen one's dimmed (ADR-382 §6, §9), and an analysis report's native view, its code naming no colour and what it
+ * draws standing at AA. A text is measured against the topmost fill of the nearest region it stands in that is not
+ * wholly transparent, a translucent fill laid over what lies under it and each stop of a gradient taken on its own; a
+ * chart's mark against the chart's plot, or a swatch against its legend, read the same way, the mark's colour laid over
+ * it at the opacity the mark and the nodes it stands in are drawn at. The colours are read as JavaFX resolves the
+ * stylesheet over Modena, not from the pixels drawn.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -378,39 +379,44 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
     @Story("Every part of the window reads in the light and the dark theme")
     @DisplayName("Every text of the window, and every line, swatch and marker of its charts, stands at WCAG AA in the light and the dark theme")
     @Link(name = "ADR-374", url = Adr.EVERY_TEXT_LINE_AND_MARKER_OF_THE_WINDOW_STANDS_AT_AA_IN_BOTH_THEMES, type = "adr")
+    @Link(name = "ADR-382", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
     void everyTextOfTheWindowAndEveryMarkOfItsChartsStandsAtAaInBothThemes(@TempDir Path folder) throws Exception {
         Map<String, String> faults = new LinkedHashMap<>();
-        int[] measured = new int[2];
+        int[] measured = new int[3];
         try (WindowForTests window = WindowForTests.shown(WindowForTests.aState(folder,
                 new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar"))))) {
-            window.act(root -> {
-                shown(root, extractionAt(375, 1000));
-                chartsOf(root).show(threeCharts());
-            });
-            for (String theme : THEMES) {
-                window.act(root -> themed(root, theme));
-                List<String> sections = window.read(EveryBarOfTheStepsCarriesItsPercentTest::sidebarSections);
-                for (String section : sections) {
-                    window.act(root -> WindowForTests.node(root, section, TitledPane.class).setExpanded(true));
-                    keptOncePerPair(faults,
-                            window.read(root -> faultsIn(root, theme + ", " + section + " open", measured)));
-                }
-                for (String tab : window.read(WindowForTests::tabIds)) {
-                    window.act(root -> select(root, tab));
-                    keptOncePerPair(faults,
-                            window.read(root -> faultsIn(root, theme + ", " + tab + " tab", measured)));
+            window.act(root -> shown(root, extractionAt(375, 1000)));
+            for (boolean stage1Finished : List.of(false, true)) {
+                String drawing = stage1Finished ? "stage 1 finished" : "stage 1 running";
+                window.act(root -> chartsOf(root).show(stagesCharts(stage1Finished)));
+                for (String theme : THEMES) {
+                    window.act(root -> themed(root, theme));
+                    List<String> sections = window.read(EveryBarOfTheStepsCarriesItsPercentTest::sidebarSections);
+                    for (String section : sections) {
+                        window.act(root -> WindowForTests.node(root, section, TitledPane.class).setExpanded(true));
+                        keptOncePerPair(faults, window.read(root -> faultsIn(root,
+                                theme + ", " + drawing + ", " + section + " open", measured)));
+                    }
+                    for (String tab : window.read(WindowForTests::tabIds)) {
+                        window.act(root -> select(root, tab));
+                        keptOncePerPair(faults, window.read(root -> faultsIn(root,
+                                theme + ", " + drawing + ", " + tab + " tab", measured)));
+                    }
                 }
             }
         }
 
-        claim("the window was measured: texts and chart marks were found in it",
-                () -> assertThat(measured).as("texts measured, chart marks measured").doesNotContain(0));
+        claim("the window was measured: texts and chart marks were found in it, and marks of a finished stage's chart"
+                        + " drawn dimmed",
+                () -> assertThat(measured).as("texts measured, chart marks measured, dimmed chart marks measured")
+                        .doesNotContain(0));
         claim("in the light theme and in the dark, with each section of the sidebar open in turn and each tab selected in"
-                        + " turn, the database chart drawing one line, the counts chart two and the verdicts chart five,"
-                        + " every text shown, not disabled and not drawn transparent stands at 4.5 : 1 or more against what"
-                        + " is drawn behind it,"
-                        + " and every line, legend swatch and marked sample of the three charts at 3 : 1 or more against"
-                        + " the chart's plot or its legend, WCAG AA",
+                        + " turn, the chart of stage 0 drawing one line, of stage 1 six and of stage 2 three, stage 1"
+                        + " running and then finished, every text shown, not disabled and not drawn transparent stands at"
+                        + " 4.5 : 1 or more against what is drawn behind it,"
+                        + " and every line, legend swatch and marked sample of the charts, a finished stage's dimmed"
+                        + " ones as dimmed as they are drawn, at 3 : 1 or more against the chart's plot or its legend,"
+                        + " WCAG AA",
                 () -> assertThat(faults.values()).as("each text or mark under AA, once for each theme and pair of colours")
                         .isEmpty());
     }
@@ -430,7 +436,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
         state.hold(new LaunchValues(java.nio.file.Files.createDirectories(folder.resolve("corpus")).toString(),
                 workingDirectory.toString(), "", "", "", "", "", ""));
         Map<String, String> faults = new LinkedHashMap<>();
-        int[] measured = new int[2];
+        int[] measured = new int[3];
         try (WindowForTests window = WindowForTests.shown(state)) {
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", AN_ANALYSIS_REPORT));
             for (String theme : THEMES) {
@@ -446,7 +452,8 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                         + " draws takes its colours from the window's stylesheet, as the theme the window wears says",
                 () -> assertThat(coloursInCode).as("what the native view's classes name of colour or style").isEmpty());
         claim("the view was measured: texts and chart marks were found in it",
-                () -> assertThat(measured).as("texts measured, chart marks measured").doesNotContain(0));
+                () -> assertThat(new int[] {measured[0], measured[1]}).as("texts measured, chart marks measured")
+                        .doesNotContain(0));
         claim("in the light theme and in the dark, a report's view of a headline, a paragraph, a bars chart of eight"
                         + " series, a lines chart of three and a table with links draws every text shown at 4.5 : 1 or"
                         + " more against what lies behind it, and every bar, line, marker and legend swatch at 3 : 1 or"
@@ -513,29 +520,35 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
         tab.getTabPane().getSelectionModel().select(tab);
     }
 
-    /** The three charts of the cockpit. */
+    /** The stages' charts of the cockpit. */
     private static ProgressCharts chartsOf(Parent root) {
-        return (ProgressCharts) WindowForTests.node(root, "database-chart", Node.class).getParent();
+        return WindowForTests.node(root, "stage-charts", ProgressCharts.class);
     }
 
-    /** A reading whose database chart draws one line, its counts chart two and its verdicts chart five. */
-    private static InvocationReportFile.Report threeCharts() {
-        List<Long> seconds = List.of(0L, 10L, 20L);
-        List<InvocationReportFile.Chart> charts = List.of(
-                new InvocationReportFile.Chart("database", "Database size over time", "Database size (MB)", seconds,
-                        List.of(new InvocationReportFile.Line("size", List.of(1.5, 2.0, 3.25)))),
-                new InvocationReportFile.Chart("counts", "Counts of the running step", "Count", seconds,
-                        List.of(new InvocationReportFile.Line("read", List.of(5.0, 1234.0, 2000.0)),
-                                new InvocationReportFile.Line("written", List.of(0.0, 12.0, 1200.0)))),
-                new InvocationReportFile.Chart("verdicts", "Verdicts by kind", "Verdicts", seconds, List.of(
-                        new InvocationReportFile.Line("zero-byte", List.of(1.0, 2.0, 3.0)),
-                        new InvocationReportFile.Line("exact-duplicate", List.of(2.0, 4.0, 6.0)),
-                        new InvocationReportFile.Line("unreadable", List.of(3.0, 6.0, 9.0)),
-                        new InvocationReportFile.Line("extraction-failed", List.of(4.0, 8.0, 12.0)),
-                        new InvocationReportFile.Line("degenerate-output", List.of(5.0, 10.0, 15.0)))));
-        InvocationReportFile.Report none = InvocationReportFile.Report.none();
-        return new InvocationReportFile.Report(none.format(), null, null, null, null, List.of(), List.of(), charts,
-                List.of(), List.of(), List.of(), null, null, List.of(), List.of());
+    /** When stage 1 finished, in the chart drawn finished. */
+    private static final Instant STAGE_1_FINISHED = Instant.parse("2026-11-12T13:32:05Z");
+
+    /**
+     * The stages' charts as the working directory's files keep them: stage 0's of one line, stage 1's of six, its
+     * counts and its five kinds, running or, where {@code stage1Finished}, finished and drawn dimmed, and stage 2's of
+     * three, running.
+     */
+    private static Map<String, StageChartFile.Chart> stagesCharts(boolean stage1Finished) {
+        List<Double> seconds = List.of(0.0, 10.0, 20.0);
+        return Map.of(
+                "0", new StageChartFile.Chart("0", null,
+                        List.of(new StageChartFile.Line("done", seconds, List.of(100.0, 900.0, 2000.0)))),
+                "1", new StageChartFile.Chart("1", stage1Finished ? STAGE_1_FINISHED : null, List.of(
+                        new StageChartFile.Line("done", seconds, List.of(5.0, 1234.0, 2000.0)),
+                        new StageChartFile.Line("broken", seconds, List.of(1.0, 2.0, 3.0)),
+                        new StageChartFile.Line("duplicate-of", seconds, List.of(2.0, 4.0, 6.0)),
+                        new StageChartFile.Line("superseded-by", seconds, List.of(3.0, 6.0, 9.0)),
+                        new StageChartFile.Line("out-of-scope", seconds, List.of(4.0, 8.0, 12.0)),
+                        new StageChartFile.Line("code", seconds, List.of(5.0, 10.0, 15.0)))),
+                "2", new StageChartFile.Chart("2", null, List.of(
+                        new StageChartFile.Line("done", seconds, List.of(10.0, 400.0, 900.0)),
+                        new StageChartFile.Line("extraction-failed", seconds, List.of(0.0, 3.0, 4.0)),
+                        new StageChartFile.Line("degenerate-output", seconds, List.of(0.0, 1.0, 2.0)))));
     }
 
     /**
@@ -597,9 +610,10 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
 
     /**
      * Every text shown under {@code root}, not disabled and not drawn transparent, as a focused field's prompt is, whose
-     * fill stands under 4.5 : 1 against what is drawn behind it, and every line, swatch, marked sample and bar of a chart under {@code root} whose colour stands under 3 : 1
-     * against the chart's plot, or, for a swatch, its legend; each said with {@code where}, and counted in
-     * {@code measured}, texts first.
+     * fill stands under 4.5 : 1 against what is drawn behind it, and every line, swatch, marked sample and bar of a
+     * chart under {@code root} whose colour, laid over it at the opacity it is drawn at, stands under 3 : 1 against the
+     * chart's plot, or, for a swatch, its legend; each said with {@code where}, and counted in {@code measured}: texts,
+     * chart marks, and chart marks drawn at an opacity under 1.
      */
     private static List<String> faultsIn(Parent root, String where, int[] measured) {
         List<String> found = new ArrayList<>();
@@ -627,15 +641,17 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                     continue;
                 }
                 List<String> classes = part.getStyleClass();
+                double opacity = drawnOpacity(part);
                 String colourClass = classes.stream().filter(name -> name.startsWith("default-color")).findFirst()
                         .orElse("");
                 if (classes.contains("chart-series-line") && part instanceof javafx.scene.shape.Shape line) {
-                    measured[1]++;
-                    fault(chartName + "'s line " + colourClass, colours(line.getStroke()), plotColours, AA_GRAPHICS)
+                    counted(measured, opacity);
+                    fault(chartName + "'s line " + colourClass, faded(colours(line.getStroke()), opacity), plotColours,
+                            AA_GRAPHICS)
                             .ifPresent(why -> found.add(where + ": " + why));
                 } else if (classes.contains("chart-legend-item-symbol")) {
-                    measured[1]++;
-                    fault(chartName + "'s legend swatch " + colourClass, outermostFill(part),
+                    counted(measured, opacity);
+                    fault(chartName + "'s legend swatch " + colourClass, faded(outermostFill(part), opacity),
                             behind(part.getParent()), AA_GRAPHICS)
                             .ifPresent(why -> found.add(where + ": " + why));
                 } else if (classes.contains("chart-line-symbol") || classes.contains("chart-bar")) {
@@ -643,14 +659,38 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                     if (mark.isEmpty() || mark.stream().allMatch(colour -> colour.getOpacity() == 0)) {
                         continue; // a sample's hit area, drawn transparent, is no mark
                     }
-                    measured[1]++;
-                    fault(chartName + "'s " + (classes.contains("chart-bar") ? "bar " : "marker ") + colourClass, mark,
+                    counted(measured, opacity);
+                    fault(chartName + "'s " + (classes.contains("chart-bar") ? "bar " : "marker ") + colourClass,
+                            faded(mark, opacity),
                             plotColours, AA_GRAPHICS)
                             .ifPresent(why -> found.add(where + ": " + why));
                 }
             }
         }
         return found;
+    }
+
+    /** Counts a chart's mark in {@code measured}, and, where it is drawn at an opacity under 1, a dimmed one too. */
+    private static void counted(int[] measured, double opacity) {
+        measured[1]++;
+        if (opacity < 1) {
+            measured[2]++;
+        }
+    }
+
+    /** The opacity {@code node} is drawn at: its own, times that of every node it stands in. */
+    private static double drawnOpacity(Node node) {
+        double opacity = 1;
+        for (Node at = node; at != null; at = at.getParent()) {
+            opacity *= at.getOpacity();
+        }
+        return opacity;
+    }
+
+    /** Each of {@code colours} drawn at {@code opacity}: its own alpha times it. */
+    private static List<Color> faded(List<Color> colours, double opacity) {
+        return colours.stream().map(colour -> Color.color(colour.getRed(), colour.getGreen(), colour.getBlue(),
+                colour.getOpacity() * opacity)).toList();
     }
 
     /**

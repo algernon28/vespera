@@ -95,9 +95,6 @@ class TheWebsiteIsSelfContainedTest {
                     }
                 }));
         claim(
-                "the theme is light and dark by the reader's preferred colour scheme",
-                () -> assertThat(css).contains("prefers-color-scheme"));
-        claim(
                 "the script fetches nothing and loads no code: what it searches is what search-index.js set",
                 () -> assertThat(script).doesNotContain(WHAT_FETCHES));
         claim(

@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-364](0364-the-output-panel-is-copyable-text-of-the-whole-output-from-a-file-of-its-own-and-every-text-of-the-window-is-copyable.md).** Of §8: `io.algernon.EntryPoint.main`, and no longer `VesperaApplication.main`, reads the first argument it passes on and hands `serve` and the arguments after it to `ServeCommand`, giving it `System.out` and `System.err`, before `VesperaApplication.main` is called; `serve` still starts with no Spring context, writes no `vespera.log` and no output file, and prints its lines outside logback. A `serve` that reaches Spring anyway is answered by `VesperaCommand.Serve.call`'s line on the operator logger, exit 1. The rest of this record stands.
 
+> **Partly amended — see [ADR-380](0380-every-html-page-vespera-writes-is-drawn-dark-whatever-the-systems-setting-and-the-control-panels-theme.md).** Of §3: the website rendering's theme is dark alone, `website.css` declaring `color-scheme: dark` and one set of colours under `:root`, and none under `@media (prefers-color-scheme: dark)`; it follows no setting of the reader's. The rest of this record stands.
+
 - **Date**: 2026-11-02
 - **Status**: accepted on 2026-11-02.
 - **Decided**: by the operator on 2026-11-02: the ruling in bold at the head of each of §1 to §12, the order of §13 and the refusals under Alternatives refused marked as theirs. What a section adds beneath its ruling is what building it needs, and Decided here lists each such choice.

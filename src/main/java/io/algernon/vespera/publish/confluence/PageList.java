@@ -1,6 +1,7 @@
 package io.algernon.vespera.publish.confluence;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,16 +19,22 @@ import tools.jackson.databind.json.JsonMapper;
  * @param format the page list's format, {@value #FORMAT}
  * @param generationRun the generation run's id
  * @param marker the run's marker (ADR-310 §1)
+ * @param language the code the rendering was drawn in (ADR-378 §4)
  * @param pages the pages, parents first
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-record PageList(int format, String generationRun, String marker, List<Page> pages) {
+record PageList(int format, String generationRun, String marker, String language, List<Page> pages) {
 
     /** The page list's own name in {@code confluence/}. */
     static final String FILE_NAME = "pages.json";
 
-    /** The one format this publish reads. */
-    static final int FORMAT = 2;
+    /** The one format this publish reads (ADR-378 §4). */
+    static final int FORMAT = 3;
+
+    /** The language the list names, once it is read and checked. */
+    DeliverableLanguage drawnIn() {
+        return DeliverableLanguage.ofCode(language).orElseThrow();
+    }
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -83,17 +90,26 @@ record PageList(int format, String generationRun, String marker, List<Page> page
         if (!generationRun.equals(list.generationRun())) {
             return refused(file, "it is the rendering of another generation run than the one the ledger names");
         }
-        Optional<String> misshapen = misshapen(confluence, list.pages());
+        // A code is two lower-case letters as ADR-321 §1 writes it; ofCode would also take upper case.
+        if (list.language() == null || DeliverableLanguage.ofCode(list.language()).isEmpty()
+                || !list.language().equals(DeliverableLanguage.ofCode(list.language()).get().code())) {
+            return refused(file, "it names the language " + list.language() + ", which is no language a deliverable is"
+                    + " drawn in");
+        }
+        Optional<String> misshapen = misshapen(confluence, list.pages(), list.language() + ":");
         return misshapen.<Read>map(why -> refused(file, why)).orElseGet(() -> new Read.Listed(list));
     }
 
     /** Why the pages are not a tree parents first with paths inside the deliverable tree, if they are not. */
-    private static Optional<String> misshapen(Path confluence, List<Page> pages) {
+    private static Optional<String> misshapen(Path confluence, List<Page> pages, String keyStart) {
         Set<String> listed = new HashSet<>();
         Path tree = confluence.toAbsolutePath().normalize().getParent();
         for (Page page : pages) {
             if (page.key() == null || page.title() == null || page.body() == null || page.bodySha256() == null) {
                 return Optional.of("a page lacks its key, title, body or digest");
+            }
+            if (!page.key().startsWith(keyStart)) {
+                return Optional.of("the key " + page.key() + " does not begin with the language's code and a colon");
             }
             if (page.parent() == null ? !listed.isEmpty() : !listed.contains(page.parent())) {
                 return Optional.of("the page " + page.key() + " is listed before its parent, or is a second root");

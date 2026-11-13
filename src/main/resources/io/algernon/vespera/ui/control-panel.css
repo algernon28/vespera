@@ -1,7 +1,8 @@
 /*
  * The control panel's one stylesheet (ADR-342 section 3): every colour, size and space the window draws. No class sets
  * a style of its own. In both themes every text stands at 4.5:1 or more, and every chart line, swatch, marker and bar at
- * 3:1 or more against its plot or legend (ADR-374): the eight chart colours are this stylesheet's own, one set per theme.
+ * 3:1 or more against its plot or legend (ADR-374), a frozen chart's dimmed lines and swatches too (ADR-382): the eight
+ * chart colours are this stylesheet's own series tokens, one set per theme (ADR-381).
  */
 .root {
     -vespera-ink: #1e1b2e;
@@ -13,18 +14,34 @@
     -vespera-accent-ink: #ffffff;
     -vespera-bad: #b3282d;
     -vespera-faint: #5f5a78;
+    -vespera-series-1: #2a78d6;
+    -vespera-series-2: #c8541f;
+    -vespera-series-3: #15895f;
+    -vespera-series-4: #a86f00;
+    -vespera-series-5: #c94c80;
+    -vespera-series-6: #8f5bd6;
+    -vespera-series-7: #0e7490;
+    -vespera-series-8: #525252;
     -fx-font-size: 13px;
     -fx-base: #efedf3;
     -fx-background: -vespera-ground;
     -fx-text-fill: -vespera-ink;
-    CHART_COLOR_1: #c2410c;
-    CHART_COLOR_2: #a16207;
-    CHART_COLOR_3: #15803d;
-    CHART_COLOR_4: #0e7490;
-    CHART_COLOR_5: #4338ca;
-    CHART_COLOR_6: #9333ea;
-    CHART_COLOR_7: #be185d;
-    CHART_COLOR_8: #525252;
+    -fx-control-inner-background: -vespera-surface;
+    -fx-text-background-color: -vespera-ink;
+    -fx-text-inner-color: -vespera-ink;
+    -fx-prompt-text-fill: -vespera-dim;
+    -fx-focus-color: -vespera-accent;
+    -fx-faint-focus-color: transparent;
+    -fx-accent: -vespera-accent;
+    -fx-selection-bar-non-focused: -vespera-rule;
+    CHART_COLOR_1: -vespera-series-1;
+    CHART_COLOR_2: -vespera-series-2;
+    CHART_COLOR_3: -vespera-series-3;
+    CHART_COLOR_4: -vespera-series-4;
+    CHART_COLOR_5: -vespera-series-5;
+    CHART_COLOR_6: -vespera-series-6;
+    CHART_COLOR_7: -vespera-series-7;
+    CHART_COLOR_8: -vespera-series-8;
 }
 
 /* the dark theme: the same tokens redefined, every pair at WCAG AA (4.5:1) or better; Modena derives the controls from -fx-base */
@@ -38,6 +55,14 @@
     -vespera-accent-ink: #16132b;
     -vespera-bad: #ff8f94;
     -vespera-faint: #8e8aa6;
+    -vespera-series-1: #3987e5;
+    -vespera-series-2: #d95926;
+    -vespera-series-3: #199e70;
+    -vespera-series-4: #c98500;
+    -vespera-series-5: #d55181;
+    -vespera-series-6: #9b74e6;
+    -vespera-series-7: #38bdf8;
+    -vespera-series-8: #a3a3a3;
     -fx-base: #2c2a38;
     -fx-background: -vespera-ground;
     -fx-control-inner-background: #211f2a;
@@ -47,14 +72,6 @@
     -fx-prompt-text-fill: -vespera-dim;
     -fx-focus-color: -vespera-accent;
     -fx-faint-focus-color: transparent;
-    CHART_COLOR_1: #ff7a4d;
-    CHART_COLOR_2: #fbbf24;
-    CHART_COLOR_3: #4ade80;
-    CHART_COLOR_4: #38bdf8;
-    CHART_COLOR_5: #818cf8;
-    CHART_COLOR_6: #c084fc;
-    CHART_COLOR_7: #f472b6;
-    CHART_COLOR_8: #a3a3a3;
 }
 
 /* Modena sets the prompt on the field itself, over the root's value */
@@ -218,8 +235,34 @@
     -fx-pref-height: 420px;
 }
 
+/*
+ * A stage's chart (ADR-382 section 1, 8): 340 px high and at least 250 px wide, so that its title stands on two lines, a
+ * legend of six names in three rows and its plot 150 px high; below four of them the rows scroll sideways.
+ */
 .progress-chart {
     -fx-pref-height: 340px;
+    -fx-min-width: 250px;
+}
+
+.progress-chart .chart-title {
+    -fx-wrap-text: true;
+}
+
+.stage-charts,
+.stage-charts > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+/* a chart whose stage has finished: its lines and its legend's swatches dimmed, each line thinner (ADR-382 section 6) */
+.progress-chart.frozen .chart-series-line {
+    -fx-opacity: 0.85;
+    -fx-stroke-width: 1.5px;
+}
+
+.progress-chart.frozen .chart-legend-item-symbol {
+    -fx-opacity: 0.85;
 }
 
 /* a sample is a hit area 24 px across, unseen but for each line's latest, a marker in the line's colour (ADR-365 §3) */
@@ -239,14 +282,14 @@
     -fx-background-insets: 8px;
 }
 
-.progress-chart .default-color0.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_1; }
-.progress-chart .default-color1.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_2; }
-.progress-chart .default-color2.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_3; }
-.progress-chart .default-color3.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_4; }
-.progress-chart .default-color4.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_5; }
-.progress-chart .default-color5.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_6; }
-.progress-chart .default-color6.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_7; }
-.progress-chart .default-color7.chart-line-symbol.latest-sample { -fx-background-color: CHART_COLOR_8; }
+.progress-chart .default-color0.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-1; }
+.progress-chart .default-color1.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-2; }
+.progress-chart .default-color2.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-3; }
+.progress-chart .default-color3.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-4; }
+.progress-chart .default-color4.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-5; }
+.progress-chart .default-color5.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-6; }
+.progress-chart .default-color6.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-7; }
+.progress-chart .default-color7.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-8; }
 
 .step {
     -fx-alignment: center-left;
@@ -302,4 +345,35 @@
 .sidebar {
     -fx-pref-width: 420px;
     -fx-background-color: -vespera-surface;
+}
+
+.chart-plot-background { -fx-background-color: -vespera-surface; }
+.chart-title, .axis-label, .chart-legend-item { -fx-text-fill: -vespera-ink; }
+.axis { -fx-tick-label-fill: -vespera-dim; }
+.chart-vertical-grid-lines, .chart-horizontal-grid-lines, .axis-tick-mark, .axis-minor-tick-mark,
+.chart-vertical-zero-line, .chart-horizontal-zero-line { -fx-stroke: -vespera-rule; }
+.chart-legend { -fx-background-color: -vespera-rule, -vespera-surface; -fx-background-insets: 0, 1; }
+.chart-bar.default-color0 { -fx-background-color: -vespera-series-1; }
+.chart-bar.default-color1 { -fx-background-color: -vespera-series-2; }
+.chart-bar.default-color2 { -fx-background-color: -vespera-series-3; }
+.chart-bar.default-color3 { -fx-background-color: -vespera-series-4; }
+.chart-bar.default-color4 { -fx-background-color: -vespera-series-5; }
+.chart-bar.default-color5 { -fx-background-color: -vespera-series-6; }
+.chart-bar.default-color6 { -fx-background-color: -vespera-series-7; }
+.chart-bar.default-color7 { -fx-background-color: -vespera-series-8; }
+.progress-bar > .bar { -fx-background-color: -vespera-accent; }
+.progress-bar:indeterminate > .bar { -fx-background-color: linear-gradient(to left, transparent, -vespera-accent); }
+.progress-bar > .track { -fx-background-color: -vespera-rule, -vespera-surface; -fx-background-insets: 0, 1; }
+.leg > .title { -fx-background-color: -vespera-rule, -vespera-surface; -fx-background-insets: 0, 1; }
+.leg > .title > .arrow-button > .arrow { -fx-background-color: -vespera-dim; }
+.tooltip { -fx-background: -vespera-surface; -fx-background-color: -vespera-rule, -vespera-surface; -fx-background-insets: 0, 1; -fx-text-fill: -vespera-ink; }
+.context-menu { -fx-background-color: -vespera-rule, -vespera-surface; -fx-background-insets: 0, 1; }
+.context-menu .menu-item .label { -fx-text-fill: -vespera-ink; }
+.context-menu .menu-item:focused { -fx-background-color: -vespera-accent; }
+.context-menu .menu-item:focused .label { -fx-text-fill: -vespera-accent-ink; }
+.text-input:focused { -fx-highlight-text-fill: -vespera-accent-ink; }
+.list-view:focused > .virtual-flow > .clipped-container > .sheet > .list-cell:filled:selected,
+.table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:filled:selected,
+.tree-view:focused > .virtual-flow > .clipped-container > .sheet > .tree-cell:filled:selected {
+    -fx-text-background-color: -vespera-accent-ink;
 }

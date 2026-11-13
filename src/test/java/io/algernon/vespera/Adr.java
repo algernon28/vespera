@@ -2693,6 +2693,57 @@ public final class Adr {
     public static final String A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP =
             FILE + "0377-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md";
 
+    /**
+     * ADR-378 -- each deliverable language is published to the site as a tree of its own under the one parent: its root
+     * page {@code Vespera_<code>}, every other title's suffix ending {@code · <code>)}, each page keyed {@code
+     * <code>:<place>} and labelled {@code vespera-<code>}, the page list of format 3; a publish touches its own
+     * language's tree alone, and an earlier tree is taken only by the language its root page's heading names (amends
+     * ADR-328 §1, §3, §4, §6 and §7, ADR-310 §2 to §4, ADR-321 §5, ADR-316 §2 to §4 and ADR-320 §4).
+     */
+    public static final String EACH_DELIVERABLE_LANGUAGE_IS_PUBLISHED_AS_A_TREE_OF_ITS_OWN = FILE
+            + "0378-each-deliverable-language-is-a-tree-of-its-own-its-titles-carrying-its-code-and-an-earlier-tree-taken-by-its-heading.md";
+
+    /**
+     * ADR-379 -- the control panel's window has a light and a dark theme, switched by {@code theme-toggle} at the
+     * header's right between the words Light and Dark, light by default and the system's setting not read; the choice is
+     * kept in a {@code theme} file beside the launch values, only where that folder exists and is the user's own; the
+     * stylesheet defines its colour tokens once and redefines them for the dark theme, each text token at WCAG AA, and a
+     * dialog takes the window's stylesheet and, over a dark window, the dark tokens (amends ADR-292 §3, ADR-342
+     * §3, ADR-344 §1 and its What this does not decide).
+     */
+    public static final String THE_CONTROL_PANELS_WINDOW_HAS_A_LIGHT_AND_A_DARK_THEME =
+            FILE + "0379-the-control-panels-window-has-a-light-and-a-dark-theme-switched-in-its-header-and-kept-beside-the-launch-values.md";
+
+    /**
+     * ADR-380 -- every HTML page Vespera writes is drawn dark, whatever the system's setting and the control panel's
+     * theme: the analysis reports, the HTML tree's pages, {@code report.html} and the website rendering, each stylesheet
+     * with one {@code :root} declaring {@code color-scheme: dark} and every colour as a property, no rule of the
+     * reader's colour scheme, every text at WCAG AA against every background and every chart mark at 3 : 1 (amends
+     * ADR-379 §5, ADR-130, ADR-274 §1.1, ADR-267 §4, ADR-268 §9, ADR-362 §6 and ADR-333 §3).
+     */
+    public static final String EVERY_HTML_PAGE_VESPERA_WRITES_IS_DRAWN_DARK =
+            FILE + "0380-every-html-page-vespera-writes-is-drawn-dark-whatever-the-systems-setting-and-the-control-panels-theme.md";
+
+    /**
+     * ADR-381 -- every view inside the control panel's window follows its Light and Dark switch at once, its popups
+     * included: every colour a token of the stylesheet's two theme rules, eight series tokens set as the chart
+     * colours, text at WCAG AA and a chart's marks and a bar's fill at 3 : 1 in both themes, a bar's track the colour of
+     * its percent's halo (amends ADR-365 §2, ADR-370 §4, ADR-374 §2 and ADR-379 §3 and §5).
+     */
+    public static final String EVERY_VIEW_OF_THE_CONTROL_PANELS_WINDOW_FOLLOWS_ITS_THEME =
+            FILE + "0381-every-view-inside-the-control-panels-window-follows-its-light-and-dark-switch-at-once-its-popups-included.md";
+
+    /**
+     * ADR-382 -- each stage has a chart of its own, in two rows, frozen once it finishes and kept under its run beside
+     * the report: eight charts, stages 0 to 3 above 4 to 6b, each its counts and the verdicts by kind of a stage that
+     * judges; the database's size a line of the header; each stage's chart kept by the job in a file of its own beside
+     * {@code report.json}, keyed by its run, frozen and dimmed once its stage has finished, continued by its run and
+     * started afresh by a new one; the rows scrolling sideways below their least width (amends ADR-344 §1 and §2,
+     * ADR-362 §8, ADR-365 §2 and §3, ADR-374 §1 and ADR-381 §1).
+     */
+    public static final String EACH_STAGE_HAS_A_CHART_OF_ITS_OWN =
+            FILE + "0382-each-stage-has-a-chart-of-its-own-in-two-rows-frozen-once-it-finishes-and-kept-under-its-run-beside-the-report.md";
+
     private Adr() {
     }
 }

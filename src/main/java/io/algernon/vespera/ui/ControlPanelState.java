@@ -78,11 +78,12 @@ final class ControlPanelState {
         this.values = LaunchValues.load(launchValuesFile, userName, launchLines::add);
     }
 
-    /** Whether the operator chose the dark theme, kept beside the launch values; light where none was kept or it cannot be read. */
+    /** Whether the operator chose the dark theme, kept beside the launch values in a folder of the user's own; light where none was kept there or it cannot be read. */
     boolean darkChosen() {
         try {
-            Path file = launchValuesFile.resolveSibling("theme");
-            return Files.exists(file) && "dark".equals(Files.readString(file, java.nio.charset.StandardCharsets.UTF_8).strip());
+            Path folder = launchValuesFile.toAbsolutePath().getParent();
+            Path file = folder.resolve("theme");
+            return LaunchValues.refusalOfFolder(folder, userName).isEmpty() && Files.exists(file) && "dark".equals(Files.readString(file, java.nio.charset.StandardCharsets.UTF_8).strip());
         } catch (IOException | RuntimeException unreadable) {
             return false;
         }

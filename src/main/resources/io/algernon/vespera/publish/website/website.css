@@ -1,25 +1,14 @@
-/* The website's theme (ADR-333 section 3): ours, shipped inside the website, with no font, image or sheet
-   fetched from anywhere. Light by default and dark by the reader's preferred colour scheme; a narrow window
-   takes one column. */
+/* The website's theme (ADR-333 section 3, ADR-380): ours, shipped inside the website, with no font, image or sheet
+   fetched from anywhere. Dark alone, whatever the reader's preferred colour scheme; a narrow window takes one
+   column. */
 :root {
-  color-scheme: light dark;
-  --background: #ffffff;
-  --text: #1c1e21;
-  --muted: #5f6368;
-  --line: #d6d9dd;
-  --accent: #0b57d0;
-  --panel: #f3f5f8;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #16181c;
-    --text: #e6e8eb;
-    --muted: #a0a6ad;
-    --line: #3a3f46;
-    --accent: #8ab4f8;
-    --panel: #20242a;
-  }
+  color-scheme: dark;
+  --background: #1a1922;
+  --text: #ecebf3;
+  --muted: #aeaac2;
+  --line: #3b3949;
+  --accent: #b0a6ff;
+  --panel: #25232f;
 }
 
 * {
@@ -65,6 +54,10 @@ a {
   padding: 0.3em 0.6em;
   width: 22em;
   max-width: 100%;
+}
+
+#search::placeholder {
+  color: var(--muted);
 }
 
 #search-results {

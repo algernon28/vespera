@@ -6,9 +6,9 @@
  *
  * <p>It is the one module that opens a connection to Confluence, and the one place under {@code src/main} that names a
  * Confluence REST path ({@code NothingShippedReachesConfluenceTest}). The publisher reads the page list and the files it
- * names from disk, by the page list's contract. It declares {@code ledger} for the move that puts {@code
- * confluence-not-carried.csv} in place (ADR-313 §3), {@code deliverable}, whose seam it implements, and {@code
- * synthesis}, whose records the seam hands it (ADR-333 §1).
+ * names from disk, by the page list's contract. It declares {@code ledger} for the move that puts the page list in place,
+ * {@code deliverable}, whose seam it implements, and {@code synthesis}, whose records the seam hands it (ADR-333 §1).
+ * A publish writes no file of refused files (ADR-378 §10).
  *
  * <p>No stage's version names this module, so a change here moves no run id (ADR-308 §10, ADR-333 §14).
  */
