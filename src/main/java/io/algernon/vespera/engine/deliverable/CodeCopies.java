@@ -3,6 +3,7 @@ package io.algernon.vespera.engine.deliverable;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.ReplacingMove;
 import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -16,6 +17,7 @@ import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,7 +34,9 @@ import java.util.function.LongSupplier;
  * size and time are read and found as recorded, and its size and time are read again when the stream ends.
  *
  * <p><b>What is held is a drawn name for each set, and one set's members and kept paths while that set is copied</b>
- * (ADR-296 §3.4, ADR-220). This class writes no line; it reports numbers through {@link DeliverableProgress}.
+ * (ADR-296 §3.4, ADR-220), and, from the earlier listing, one folder in {@code code/} for each set it holds (ADR-377
+ * §9). This class writes no line; it reports numbers through {@link DeliverableProgress}, and hands the sets whose
+ * folder in {@code code/} changed to {@link Deliverable}, which tells them once the listing is in place.
  */
 final class CodeCopies {
 
@@ -46,6 +50,14 @@ final class CodeCopies {
     private static final String HEADER =
             "occurrence_id,path,code_set,role,generator,size_bytes,last_modified,copy,copy_outcome";
 
+    /** The header's columns, by which an earlier listing's columns are found. */
+    private static final List<String> COLUMNS = List.of(HEADER.split(","));
+
+    /** Where {@link #HEADER} names the set's folder in the archive, and the member's copy, counting from 0. */
+    private static final int SET_COLUMN = 2;
+
+    private static final int COPY_COLUMN = 7;
+
     private static final int BUFFER_BYTES = 1 << 16;
 
     private final Path tree;
@@ -54,6 +66,7 @@ final class CodeCopies {
     private final LongSupplier usableSpace;
     private final DeliverableProgress progress;
     private long atALongPath;
+    private List<FolderChange> foldersChanged = List.of();
 
     CodeCopies(
             Path tree,
@@ -74,29 +87,33 @@ final class CodeCopies {
     }
 
     /**
-     * Tells {@code progress} of the names file, copies every member of every set, writes {@code code.csv} beside its
-     * target and the index's section of code as each set ends, and returns where {@code code.csv} is; none where the
-     * run has no code set, which writes nothing.
+     * The sets of this drawing whose folder in {@code code/} is not the one the tree's earlier {@code code.csv} gave
+     * them, each as its earlier folder and its folder now, in the order the sets are drawn (ADR-377 §9); none before
+     * {@link #draw} or where it found no change. The caller tells them once the listing is in place.
+     */
+    List<FolderChange> foldersChanged() {
+        return foldersChanged;
+    }
+
+    /** A set's folder in {@code code/} as the earlier listing gave it, and as this drawing gives it. */
+    record FolderChange(String earlier, String now) {}
+
+    /**
+     * Copies every member of every set, writes {@code code.csv} beside its target and the index's section of code as
+     * each set ends, and returns where {@code code.csv} is; none where the run has no code set, which writes nothing.
+     * Before it writes the listing it reads the one the tree holds from the drawing before, where there is one, for
+     * {@link #foldersChanged}.
      *
-     * @param typed the entries of the names file, empty where it is absent, refused or holds nothing
      * @param written the folders of the tree this drawing wrote, to which {@code code} and each set's folder are added
      */
-    Path draw(
-            ListedCodeSets code,
-            List<CodeSetNames.Entry> typed,
-            Appendable index,
-            Set<String> written,
-            DeliverableLanguage language)
+    Path draw(ListedCodeSets code, Appendable index, Set<String> written, DeliverableLanguage language)
             throws IOException {
         List<ListedCodeSet> sets = code.sets();
-        long dormant = CodeSetFolderNames.dormant(sets, typed);
-        if (dormant > 0) {
-            progress.dormantCodeSetNames(dormant);
-        }
         if (sets.isEmpty()) {
             return null;
         }
-        Map<String, String> folders = CodeSetFolderNames.of(sets, typed);
+        Map<String, String> folders = CodeSetFolderNames.of(sets);
+        foldersChanged = changesFrom(earlierFolders(tree.resolve(LISTING_FILE_NAME)), sets, folders);
 
         long files = 0;
         long bytes = 0;
@@ -251,6 +268,113 @@ final class CodeCopies {
     private static boolean asRecorded(Path original, long size, ListedCodeFile member) throws IOException {
         Instant time = Files.getLastModifiedTime(original).toInstant();
         return size == member.recordedSizeBytes() && time.equals(member.recordedLastModified());
+    }
+
+    /**
+     * The changes of folder in {@code code/}: each set of {@code sets}, in their order, whose earlier folder shares no
+     * key of ADR-280 §1.4 with the one {@code folders} gives it. A change of case alone shares a key and is no change.
+     */
+    private static List<FolderChange> changesFrom(
+            Map<String, String> earlier, List<ListedCodeSet> sets, Map<String, String> folders) {
+        List<FolderChange> changes = new ArrayList<>();
+        for (ListedCodeSet set : sets) {
+            String was = earlier.get(ManifestCsv.shownAsText(set.folder()));
+            String now = folders.get(set.folder());
+            if (was != null && CopyNames.keysOf(was).stream().noneMatch(CopyNames.keysOf(now)::contains)) {
+                changes.add(new FolderChange(was, now));
+            }
+        }
+        return List.copyOf(changes);
+    }
+
+    /**
+     * The earlier listing's folder in {@code code/} for each set folder of its {@code code_set} column, as it spells
+     * the cell: the folder of the first {@code copy} cell of that set's rows that is not empty (ADR-377 §9). None where
+     * there is no listing, or it cannot be read, a quoted cell cut short among the ways, or its header names neither
+     * column. One string pair a set is held, and no row; the rows decide no name and key nothing.
+     */
+    private static Map<String, String> earlierFolders(Path listing) {
+        if (!Files.isRegularFile(listing)) {
+            return Map.of();
+        }
+        Map<String, String> folders = new HashMap<>();
+        try (BufferedReader in = Files.newBufferedReader(listing, StandardCharsets.UTF_8)) {
+            List<String> header = recordOf(in);
+            if (header == null) {
+                return Map.of();
+            }
+            int setColumn = header.indexOf(COLUMNS.get(SET_COLUMN));
+            int copyColumn = header.indexOf(COLUMNS.get(COPY_COLUMN));
+            if (setColumn < 0 || copyColumn < 0) {
+                return Map.of();
+            }
+            for (List<String> row = recordOf(in); row != null; row = recordOf(in)) {
+                if (row.size() <= Math.max(setColumn, copyColumn) || folders.containsKey(row.get(setColumn))) {
+                    continue;
+                }
+                String copy = row.get(copyColumn);
+                String prefix = DIRECTORY_NAME + "/";
+                int end = copy.indexOf('/', prefix.length());
+                if (copy.startsWith(prefix) && end > prefix.length()) {
+                    folders.put(row.get(setColumn), copy.substring(prefix.length(), end));
+                }
+            }
+            return folders;
+        } catch (IOException | RuntimeException unreadable) {
+            // A listing that cannot be read tells nothing, and the drawing goes on (ADR-377 §9).
+            return Map.of();
+        }
+    }
+
+    /**
+     * The next record of an RFC 4180 listing as {@link ManifestCsv#quoted} writes it, its cells unquoted; {@code null}
+     * at the end of the text. A blank line is no record.
+     *
+     * @throws IOException where a quoted cell is not closed before the text ends
+     */
+    private static List<String> recordOf(BufferedReader in) throws IOException {
+        List<String> cells = new ArrayList<>();
+        StringBuilder cell = new StringBuilder();
+        boolean quoted = false;
+        boolean any = false;
+        for (int c = in.read(); ; c = in.read()) {
+            if (quoted) {
+                if (c < 0) {
+                    throw new IOException("a quoted cell is not closed");
+                }
+                if (c == '"') {
+                    in.mark(1);
+                    if (in.read() == '"') {
+                        cell.append('"');
+                    } else {
+                        in.reset();
+                        quoted = false;
+                    }
+                } else {
+                    cell.append((char) c);
+                }
+                continue;
+            }
+            if (c < 0 || c == '\n') {
+                if (!any && cells.isEmpty() && cell.isEmpty()) {
+                    if (c < 0) {
+                        return null;
+                    }
+                    continue;
+                }
+                cells.add(cell.toString());
+                return cells;
+            }
+            any = true;
+            if (c == '"') {
+                quoted = true;
+            } else if (c == ',') {
+                cells.add(cell.toString());
+                cell.setLength(0);
+            } else if (c != '\r') {
+                cell.append((char) c);
+            }
+        }
     }
 
     private static void leaveNoPart(Path part) {

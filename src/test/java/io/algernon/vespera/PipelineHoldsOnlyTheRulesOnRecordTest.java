@@ -526,7 +526,6 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "deliverable.ArrangedSurvivors",
                             // ADR-303: the page ceiling, read through ClusterPageByteCeiling and handed to the tree.
                             "deliverable.ClusterPageCeiling",
-                            "deliverable.CodeSetNames",
                             "deliverable.Deliverable",
                             "deliverable.DeliverableProgress",
                             "deliverable.DeliverableProvenance",

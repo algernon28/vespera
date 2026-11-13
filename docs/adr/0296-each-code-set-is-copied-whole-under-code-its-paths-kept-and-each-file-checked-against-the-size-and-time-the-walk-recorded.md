@@ -181,7 +181,7 @@ No line names a set, a folder, a path or a file.
 
 | Class | What it holds |
 | --- | --- |
-| `deliverable.CodeSetFolderNamesTest.aTypedNameOutranksADefaultNameAndAmongAlikeTheLowestMemberKeepsIt` | §3.1: a typed `Core` keeps its name against a default `core`, which takes `~` and its lowest member; of two alike defaults the lower lowest member keeps it; the same names whatever order the sets arrive in |
+| `deliverable.CodeSetFolderNamesTest.amongDefaultNamesAlikeTheLowestMemberKeepsIt`, named `aTypedNameOutranksADefaultNameAndAmongAlikeTheLowestMemberKeepsIt` until ADR-377, which names a set by its folder alone | §3.1: a typed `Core` keeps its name against a default `core`, which takes `~` and its lowest member; of two alike defaults the lower lowest member keeps it; the same names whatever order the sets arrive in |
 | `…namesAreToldApartOnceTheyAreMadeSafe` | §3.1: `a:b` and `a_b` collide, made safe; `Shop.Core` and `shop.core` collide, the suffix at the end |
 | `…aNameIsMadeSafeAndCutAndOneLeftEmptyIsTheLowestMemberOccurrence` | §3.1: `...` is the lowest member's id, `CON` is `_CON`, a name of 120 units is cut to 100 |
 | `…aSuffixedNameThatStillCollidesTakesTheSuffixAgain` | §3.1: `core`, `core~7` and `CORE` are `core`, `core~7` and `CORE~7~7` |
@@ -201,7 +201,7 @@ No line names a set, a folder, a path or a file.
 | `…aTreeWithNoCodeSetHasNoCodeFolderNoCodeListingAndNoCodeSection` | §1 |
 | `…aFolderInCodeThisDrawingDidNotWriteIsCountedAsLeftBehind` | §6.3: one folder in `code/` counted, `code/` itself not |
 | `…theTypedNamesAreAppliedAndTheDormantOnesToldAsACount` | §3.1, §6.2 |
-| `…aNamesFileThatIsRefusedLeavesTheDefaultNamesAndIsToldOnce` | §6.2 |
+| `…aNamesFileThatIsRefusedLeavesTheDefaultNamesAndIsToldOnce` (removed: no names file is read, ADR-377) | §6.2 |
 | `…theCodeCopiesAreSurveyedBeforeTheFirstInNumbersOnly` | §7: told once with sets, members, the walk's bytes and the free bytes; one outcome told for each member |
 | `pipeline.TheClosingLineCountsTheFilesOfCodeNotCopiedTest` | §6.1, §6.2: `0 files`, `1 file` and `2 files of code not copied`; no clause with no set or no tree; `1 name … names` and `2 names … name`, before the clause of what an earlier drawing left |
 | `deliverable.WhatTheTreeReportsNamesNoDocumentTest` | §7: every new method of `DeliverableProgress` takes only primitives and enumerations |

@@ -96,8 +96,6 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                 Optional.empty(), ProfileKey.GENERATION_MODEL, "a-writing-model:8b", "measured on the seed set")),
                 ProfileKey.CODE_SET_FOLDERS, elsewhere.toString(), "folders outside the corpus root"),
                 StandardCharsets.UTF_8);
-        Files.writeString(working.resolve(CodeSetRenames.FILE_NAME),
-                CodeSetRenames.render(List.of(new CodeSetRenames.Rename("papers", "Papers"))), StandardCharsets.UTF_8);
         Files.writeString(working.resolve(A_REPORT_WRITTEN), "<html></html>", StandardCharsets.UTF_8);
         Files.writeString(working.resolve(NextInvocation.FILE_NAME),
                 "invocation=run\nwants=boilerplateDocumentFrequencyFloor\nanswer=false\n", StandardCharsets.UTF_8);
@@ -161,7 +159,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                             .contains(ProfileKey.GENERATION_MODEL.title());
                     assertThat(texts(reached, "preflight-list")).anyMatch(line -> line.startsWith("Corpus root: "));
                     assertThat(texts(reached, "wanted-row-boilerplateDocumentFrequencyFloor")).isNotEmpty();
-                    assertThat(texts(reached, "code-sets")).anyMatch(line -> line.endsWith("named Papers"));
+                    assertThat(texts(reached, "code-sets")).contains(elsewhere.toString());
                     assertThat(reachedWhenNotInForm).filteredOn(node -> "profile-problem".equals(node.getId()))
                             .hasSize(1);
                     assertThat(texts(reachedWhenNotInForm, "profile-problem"))

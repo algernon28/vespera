@@ -6,7 +6,8 @@ package io.algernon.vespera.engine.deliverable;
  * the line; this module writes none and declares no logger.
  *
  * <p><b>Every method takes numbers alone</b> (ADR-274 §8), so nothing it reports can name a path, a file or a
- * document's text.
+ * document's text; but for {@link #pluginDrawingFailed}, which takes words of ours, and {@link #codeSetFolderChanged},
+ * which takes two folders of the tree's {@code code/} (ADR-377 §9).
  *
  * <p><b>The contract, for each {@code to...} method:</b> called exactly once each time its loop is reached,
  * with the loop's total, before the loop's first item, zero included; its completion method is called once
@@ -142,16 +143,13 @@ public interface DeliverableProgress {
     default void codeFileNotCopied() {}
 
     /**
-     * Called once, where {@code code-set-names.yaml} is refused whole or cannot be read, and the tree is drawn with every
-     * set's default name (ADR-296 §6.2). It names no entry.
+     * Called once for each code set whose folder in {@code code/} is not the one the tree's earlier {@code code.csv}
+     * gave it, a change of case alone being none, in the order the sets are drawn, after the new {@code code.csv} is in
+     * place (ADR-377 §9). Its two names are folders of the tree's {@code code/}, the tree's own names: each a set
+     * folder's last element made safe, or that with {@code ~} and an occurrence id, and never a path of the archive,
+     * a file's name or a document's text.
      */
-    default void codeSetNamesRefused() {}
-
-    /**
-     * Called once, where {@code entries} entries of {@code code-set-names.yaml} name a folder holding no code set of the
-     * run, and none where there are none (ADR-296 §6.2).
-     */
-    default void dormantCodeSetNames(long entries) {}
+    default void codeSetFolderChanged(String earlier, String now) {}
 
     /**
      * Called once for each plugin whose drawing failed and was stopped, with its name and the simple name of the type

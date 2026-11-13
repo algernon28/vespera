@@ -27,16 +27,25 @@ import org.junit.jupiter.api.Test;
  * <p><b>One method takes two words, each of ours</b> (ADR-333 §11, amending ADR-274 §8): the one telling of a
  * plugin whose drawing failed, which takes the plugin's name and the type of what it threw, and never the exception's
  * message. Neither word is a document's: a plugin's name is lowercase letters a to z, and a type is a class's name.
+ * And one more since ADR-377 §9, amending ADR-274 §8 again: the one telling of a code set whose folder in {@code code/}
+ * changed, which takes two folders of the tree's {@code code/}, the tree's own names, and no path of the archive.
  */
 @Epic("The deliverable")
 @Feature("The tree the operator is handed")
 @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
 @Link(name = "ADR-198", url = Adr.EVERY_INVOCATION_WRITES_AN_ACCOUNT_THAT_NAMES_NO_DOCUMENT, type = "adr")
 @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
+@Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
 class WhatTheTreeReportsNamesNoDocumentTest {
 
     /** The one method that takes words: a plugin's name and the type of what its drawing threw (ADR-333 §11). */
     private static final String A_PLUGINS_DRAWING_FAILED = "pluginDrawingFailed";
+
+    /** The other: a code set's two folders of the tree's {@code code/}, earlier and now (ADR-377 §9). */
+    private static final String A_SETS_FOLDER_CHANGED = "codeSetFolderChanged";
+
+    /** The methods that take two words, each of ours. */
+    private static final List<String> TAKING_TWO_WORDS = List.of(A_PLUGINS_DRAWING_FAILED, A_SETS_FOLDER_CHANGED);
 
     @Test
     @Story("Nothing outside the tree names a document")
@@ -44,7 +53,7 @@ class WhatTheTreeReportsNamesNoDocumentTest {
     void everyProgressMethodTakesOnlyNumbersAndKinds() {
         List<String> carryingMore = Arrays.stream(DeliverableProgress.class.getDeclaredMethods())
                 .filter(method -> !method.isSynthetic())
-                .filter(method -> !method.getName().equals(A_PLUGINS_DRAWING_FAILED))
+                .filter(method -> !TAKING_TWO_WORDS.contains(method.getName()))
                 .filter(method -> Arrays.stream(method.getParameterTypes())
                         .anyMatch(type -> !type.isPrimitive() && !type.isEnum()))
                 .map(Method::toString)
@@ -55,16 +64,18 @@ class WhatTheTreeReportsNamesNoDocumentTest {
                 DeliverableProgress.class.getDeclaredMethods().length > 0,
                 "the progress the tree's writer reports has methods to report through, so the claim below is about some");
         claim(
-                "no method but the one telling of a plugin's failed drawing takes anything but a number or a kind: one"
-                        + " named here could hand a path, a name or text out of the tree",
+                "no method but the one telling of a plugin's failed drawing and the one telling of a code set's folder"
+                        + " changed takes anything but a number or a kind: one named here could hand a path, a name or"
+                        + " text out of the tree",
                 () -> assertThat(carryingMore).isEmpty());
         claim(
-                "and that one takes two strings, the plugin's name and the exception's type, and nothing else: no"
-                        + " exception, whose message could name a document, and no path",
+                "and those two each take two strings, the plugin's name and the exception's type, or the set's earlier"
+                        + " folder and its folder now, and nothing else: no exception, whose message could name a"
+                        + " document, and no path",
                 () -> assertThat(Arrays.stream(DeliverableProgress.class.getDeclaredMethods())
-                                .filter(method -> method.getName().equals(A_PLUGINS_DRAWING_FAILED))
+                                .filter(method -> TAKING_TWO_WORDS.contains(method.getName()))
                                 .map(method -> List.of(method.getParameterTypes()))
                                 .toList())
-                        .containsExactly(List.of(String.class, String.class)));
+                        .containsExactly(List.of(String.class, String.class), List.of(String.class, String.class)));
     }
 }

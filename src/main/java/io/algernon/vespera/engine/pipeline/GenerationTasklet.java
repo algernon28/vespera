@@ -24,7 +24,6 @@ import io.algernon.vespera.engine.profile.Profile;
 import io.algernon.vespera.engine.profile.ProfileStore;
 import io.algernon.vespera.engine.deliverable.ArrangedSurvivors;
 import io.algernon.vespera.engine.deliverable.Deliverable;
-import io.algernon.vespera.engine.deliverable.CodeSetNames;
 import io.algernon.vespera.engine.deliverable.DeliverableProgress;
 import io.algernon.vespera.engine.deliverable.DeliverableProvenance;
 import io.algernon.vespera.engine.deliverable.DeliverableRoot;
@@ -582,7 +581,6 @@ class GenerationTasklet implements Tasklet {
                         Math.toIntExact(copies.filesLeftBehind));
         InvocationRuns handedOver = new InvocationRuns(
                 chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext());
-        handedOver.recordDormantCodeSetNames(Math.toIntExact(copies.dormantCodeSetNames));
         handedOver.recordRenderingsNotDrawn(copies.renderingsNotDrawn);
         if (copies.codeFiles > 0) {
             handedOver.recordCodeFilesNotCopied(copies.codeFilesNotStanding());
@@ -610,7 +608,6 @@ class GenerationTasklet implements Tasklet {
         long codeNoRoom;
         long codeOther;
         long codeBytes;
-        long dormantCodeSetNames;
 
         /** The plugins whose drawing failed, in the order the drawing told them (ADR-333 §11). */
         final List<NextAction.RenderingNotDrawn> renderingsNotDrawn = new ArrayList<>();
@@ -769,16 +766,10 @@ class GenerationTasklet implements Tasklet {
             }
 
             @Override
-            public void codeSetNamesRefused() {
-                LOG.warn(
-                        "{} was refused whole or could not be read, so none of its names is applied and every code"
-                                + " set is drawn with its default name",
-                        CodeSetNames.FILE_NAME);
-            }
-
-            @Override
-            public void dormantCodeSetNames(long entries) {
-                counts.dormantCodeSetNames = entries;
+            public void codeSetFolderChanged(String earlier, String now) {
+                // Two folders of the tree's code/, the tree's own names and no path of the archive (ADR-377 §9).
+                LOG.info(
+                        "A code set's folder in code/ is now {}, no longer {}, which is left as it is.", now, earlier);
             }
 
             @Override
