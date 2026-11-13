@@ -336,6 +336,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         Map<String, Double> startOfTheText = new LinkedHashMap<>();
         int[] caretAndSelection = new int[3];
         int[] caretAfterTheChange = new int[3];
+        boolean[] ellipsisShown = new boolean[1];
         try (WindowForTests window = WindowForTests.shown(WindowForTests.aState(folder, SleepingJar.runtime()))) {
             window.act(root -> {
                 window.stage.setWidth(TIGHT_WIDTH);
@@ -344,6 +345,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
             });
             window.act(root -> {
                 TextInputControl where = WindowForTests.node(root, "where", TextInputControl.class);
+                ellipsisShown[0] = ((SelectableText.Line) where).ellipsis().isVisible();
                 for (String id : beside) {
                     asText.put(id, placed(WindowForTests.node(root, id, Node.class)));
                 }
@@ -388,6 +390,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
 
         claim("the path in where is wider than the window of 700 leaves it, so that where is shrunk",
                 () -> assertThat(whereWidth).isLessThan(textWidth));
+        claim("and where, shrunk, shows its ellipsis over its end", () -> assertThat(ellipsisShown[0]).isTrue());
         claim("where is as wide as a label of the same text and style laid out there, within a pixel",
                 () -> assertThat(asText.get("where").width()).isCloseTo(asLabel.get("where").width(),
                         offset(ONE_PIXEL)));
