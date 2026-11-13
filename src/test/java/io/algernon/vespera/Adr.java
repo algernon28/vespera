@@ -2744,6 +2744,14 @@ public final class Adr {
     public static final String EACH_STAGE_HAS_A_CHART_OF_ITS_OWN =
             FILE + "0382-each-stage-has-a-chart-of-its-own-in-two-rows-frozen-once-it-finishes-and-kept-under-its-run-beside-the-report.md";
 
+    /**
+     * ADR-386 -- surefire and failsafe start the tests' Java with {@code -Duser.language=en -Duser.country=US}, so every
+     * test runs in one locale on every machine, and a text JavaFX or the JDK localizes reads as a test expects whatever
+     * the machine's own locale; the shipped jar keeps the machine's (keeps ADR-357).
+     */
+    public static final String THE_TESTS_RUN_IN_ONE_LOCALE_ON_EVERY_MACHINE =
+            FILE + "0386-the-tests-java-runs-in-english-as-used-in-the-united-states-on-every-machine.md";
+
     private Adr() {
     }
 }
