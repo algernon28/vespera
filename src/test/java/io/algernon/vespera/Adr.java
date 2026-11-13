@@ -2744,6 +2744,15 @@ public final class Adr {
     public static final String EACH_STAGE_HAS_A_CHART_OF_ITS_OWN =
             FILE + "0382-each-stage-has-a-chart-of-its-own-in-two-rows-frozen-once-it-finishes-and-kept-under-its-run-beside-the-report.md";
 
+    /**
+     * ADR-383 -- a publish the control panel started, whose parent's title names no page or folder of the space or
+     * several, stops naming confluenceFolderTitle, confluenceFolderId and the Profile tab and exits 3 or 4; the window
+     * then warns, asking for a different title, saves the one entered as confluenceFolderTitle and starts the publish
+     * again, the token asked for again; Cancel saves and starts nothing (amends ADR-318 §3, ADR-333 §6 and ADR-372).
+     */
+    public static final String A_PARENT_TITLE_NAMING_NO_PAGE_OR_SEVERAL_ASKS_FOR_ANOTHER_IN_A_WARNING =
+            FILE + "0383-a-parents-title-naming-no-page-or-several-stops-a-control-panel-publish-with-its-own-code-and-a-warning-asks-for-another.md";
+
     private Adr() {
     }
 }

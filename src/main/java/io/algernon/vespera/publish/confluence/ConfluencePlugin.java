@@ -40,6 +40,6 @@ public final class ConfluencePlugin implements Plugin {
     @Override
     public Delivery deliver(Path rendering, String generationRun, Path workingDirectory, Consumer<String> out) {
         Publisher.Outcome outcome = publisher.publish(rendering, generationRun, workingDirectory, out);
-        return new Delivery(outcome.published(), outcome.closingLine());
+        return new Delivery(outcome.published(), outcome.closingLine(), outcome.exitCode());
     }
 }

@@ -36,8 +36,18 @@ public interface Plugin {
     /** Delivers the rendering in {@code rendering} of {@code generationRun} to this plugin's destination. */
     Delivery deliver(Path rendering, String generationRun, Path workingDirectory, Consumer<String> out);
 
-    /** How a delivery ended: whether it went to its end, and the one closing line saying so. */
-    record Delivery(boolean delivered, String closingLine) {}
+    /**
+     * How a delivery ended: whether it went to its end, the one closing line saying so, and the code the publish exits
+     * with for this destination (ADR-383 §6): 0 for a delivery that went to its end, 1 for a stop, or a code of the
+     * stop's own such as 3 or 4.
+     */
+    record Delivery(boolean delivered, String closingLine, int exitCode) {
+
+        /** A delivery with the code its outcome gives: 0 where it went to its end, 1 where it stopped. */
+        public Delivery(boolean delivered, String closingLine) {
+            this(delivered, closingLine, delivered ? 0 : 1);
+        }
+    }
 
     /** What a drawing is opened on: the tree, its generation run, how to move a file into place, and the language. */
     record DrawingContext(

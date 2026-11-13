@@ -117,6 +117,12 @@ public class Publisher {
     private final Clock clock;
     private final String baseUrl;
     private final String spaceKey;
+    /** The code of a publish the control panel started whose parent's title names no page or folder (ADR-383 §1). */
+    static final int NO_PAGE_EXIT_CODE = 3;
+
+    /** The code of one whose parent's title names several (ADR-383 §1). */
+    static final int SEVERAL_EXIT_CODE = 4;
+
     private final String parentId;
     private final String parentTitle;
     private final ConfluenceValues.InTheProfile profile;
@@ -180,8 +186,18 @@ public class Publisher {
         this.parentTitle = parentTitle;
     }
 
-    /** How a publish ended: whether it went to its end, and its closing line. */
-    public record Outcome(boolean published, String closingLine) {}
+    /**
+     * How a publish ended: whether it went to its end, its closing line, and the code the publish exits with for
+     * Confluence's destination: 0 where it was published, 1 for a stop, 3 where the control panel started it and the
+     * parent's title names no page or folder, 4 where it names several (ADR-383 §1).
+     */
+    public record Outcome(boolean published, String closingLine, int exitCode) {
+
+        /** An outcome with the code its ending gives: 0 where published, 1 where it stopped. */
+        public Outcome(boolean published, String closingLine) {
+            this(published, closingLine, published ? 0 : 1);
+        }
+    }
 
     /**
      * Publishes the rendering in {@code confluence}, drawn for {@code generationRun}, telling {@code out} the totals,
@@ -208,12 +224,14 @@ public class Publisher {
             return new Outcome(false, "vespera publish sent nothing: " + unlike.get() + ". Run vespera run to draw the"
                     + " deliverable again, and publish again.");
         }
-        Run run = new Run(site, list, confluence, workingDirectory, new ConfluenceApi(site, requests, pause, clock), out);
+        Run run = new Run(site, list, confluence, workingDirectory, new ConfluenceApi(site, requests, pause, clock), out,
+                ConfluenceSite.THE_CONTROL_PANEL.equals(environment.apply(ConfluenceSite.STARTED_BY_VARIABLE)));
         try {
             run.publish();
         } catch (TheSiteRefusedThePublishException | RestClientException | UncheckedIOException stopped) {
+            int code = stopped instanceof TheSiteRefusedThePublishException refused ? refused.exitCode() : 1;
             return new Outcome(false, "vespera publish stopped: " + reasonOf(stopped) + ". " + run.doneSoFar()
-                    + " Publish again to go on from there.");
+                    + " Publish again to go on from there.", code);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             return new Outcome(false, "vespera publish stopped: it was interrupted. " + run.doneSoFar());
@@ -333,8 +351,11 @@ public class Publisher {
 
         private final Path workingDirectory;
 
+        private final boolean fromTheControlPanel;
+
         Run(ConfluenceSite site, PageList list, Path confluence, Path workingDirectory, ConfluenceApi api,
-                Consumer<String> out) {
+                Consumer<String> out, boolean fromTheControlPanel) {
+            this.fromTheControlPanel = fromTheControlPanel;
             this.workingDirectory = workingDirectory;
             this.language = list.drawnIn();
             this.treeRootTitle = ConfluenceTitles.root(language);
@@ -791,10 +812,16 @@ public class Publisher {
             }
             List<String> titled = api.pagesOrFoldersTitled(site.spaceKey(), site.parentTitle());
             if (titled.size() != 1) {
-                throw new TheSiteRefusedThePublishException((titled.isEmpty() ? "no page or folder" : titled.size()
-                        + " pages or folders") + " of the space " + site.spaceKey() + " is titled "
-                        + site.parentTitle() + ", and the parent must be exactly one; name it by"
-                        + " VESPERA_CONFLUENCE_FOLDER_ID");
+                String subject = titled.isEmpty() ? "no page or folder" : titled.size() + " pages or folders";
+                String isOrAre = fromTheControlPanel && !titled.isEmpty() ? " are titled " : " is titled ";
+                String named = subject + " of the space " + site.spaceKey() + isOrAre + site.parentTitle()
+                        + ", and the parent must be exactly one; ";
+                if (!fromTheControlPanel) {
+                    throw new TheSiteRefusedThePublishException(named + "name it by VESPERA_CONFLUENCE_FOLDER_ID");
+                }
+                throw new TheSiteRefusedThePublishException(named + "set another title in confluenceFolderTitle, or"
+                        + " the parent's id in confluenceFolderId, in the control panel's Profile tab",
+                        titled.isEmpty() ? NO_PAGE_EXIT_CODE : SEVERAL_EXIT_CODE);
             }
             return titled.getFirst();
         }

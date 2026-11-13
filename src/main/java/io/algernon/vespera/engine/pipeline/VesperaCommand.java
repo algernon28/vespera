@@ -838,12 +838,18 @@ public class VesperaCommand implements Callable<Integer> {
             try {
                 Map<String, Set<String>> finished = ledger.runs().finishedSteps();
                 List<Runs.Listed> runs = ledger.runs().listed();
-                exit = CommandLine.ExitCode.OK;
+                boolean anyStopped = false;
+                int ownCode = CommandLine.ExitCode.OK;
                 for (Plugin plugin : chosen) {
-                    if (!deliverTo(plugin, bare, finished, runs)) {
-                        exit = CommandLine.ExitCode.SOFTWARE;
+                    int code = deliverTo(plugin, bare, finished, runs);
+                    anyStopped |= code != CommandLine.ExitCode.OK;
+                    if (ownCode == CommandLine.ExitCode.OK && code != CommandLine.ExitCode.OK
+                            && code != CommandLine.ExitCode.SOFTWARE) {
+                        ownCode = code;
                     }
                 }
+                exit = ownCode != CommandLine.ExitCode.OK ? ownCode
+                        : anyStopped ? CommandLine.ExitCode.SOFTWARE : CommandLine.ExitCode.OK;
                 return exit;
             } finally {
                 if (report != null) {
@@ -862,13 +868,17 @@ public class VesperaCommand implements Callable<Integer> {
         }
 
         /** A destination's stop: its line on standard error, whole, kept for the report as the refusal it is. */
-        private boolean stopped(Plugin plugin, String line) {
+        private int stopped(Plugin plugin, String line, int exitCode) {
             OperatorLines.warn(line);
             if (report != null) {
                 report.said(line);
                 report.destinationEnds(plugin.name(), "stopped", line);
             }
-            return false;
+            return exitCode;
+        }
+
+        private int stopped(Plugin plugin, String line) {
+            return stopped(plugin, line, CommandLine.ExitCode.SOFTWARE);
         }
 
         /**
@@ -877,9 +887,9 @@ public class VesperaCommand implements Callable<Integer> {
          * its line naming it and the exception's type and never its message, which could name a document (ADR-274 §8).
          *
          * @param bare whether this is a bare publish, which says what ADR-308 §5 said before {@code --to}
-         * @return whether it was delivered
+         * @return 0 where it was delivered, else the code its stop carries (1 where it carries none of its own)
          */
-        private boolean deliverTo(Plugin plugin, boolean bare, Map<String, Set<String>> finished, List<Runs.Listed> runs) {
+        private int deliverTo(Plugin plugin, boolean bare, Map<String, Set<String>> finished, List<Runs.Listed> runs) {
             Optional<String> generation = lastDrawn(plugin, finished, runs);
             if (generation.isEmpty()) {
                 return stopped(plugin, bare
@@ -903,13 +913,13 @@ public class VesperaCommand implements Callable<Integer> {
                         + " that is dealt with.");
             }
             if (!outcome.delivered()) {
-                return stopped(plugin, outcome.closingLine());
+                return stopped(plugin, outcome.closingLine(), outcome.exitCode());
             }
             OperatorLines.info(outcome.closingLine());
             if (report != null) {
                 report.destinationEnds(plugin.name(), "delivered", outcome.closingLine());
             }
-            return true;
+            return CommandLine.ExitCode.OK;
         }
 
         /**
