@@ -84,6 +84,7 @@ public class VesperaJobConfiguration {
                 progressInterval,
                 clock,
                 () -> ledger.verdicts().recorded(),
+                () -> ledger.verdicts().discarded(),
                 () -> JobSampler.readRuns(ledger));
         sampler.handTo(invocationReport);
         return sampler;

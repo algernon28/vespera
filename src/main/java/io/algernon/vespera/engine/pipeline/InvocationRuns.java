@@ -1,6 +1,7 @@
 package io.algernon.vespera.engine.pipeline;
 
 import io.algernon.vespera.engine.ledger.RunId;
+import io.algernon.vespera.engine.ledger.WalkId;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -59,6 +60,9 @@ class InvocationRuns {
     /** Where the count of clusters standing without writing is handed to the account (ADR-319 §5.2). */
     private static final String CLUSTERS_STANDING = "vespera.generation.clusters-standing-without-writing";
 
+    /** Where the corpus root's walk is handed to the job; outside {@link #KEY_PREFIX}, which {@link #all} reads as runs (ADR-382 §7). */
+    private static final String CORPUS_WALK = "vespera.invocation-walk.corpus";
+
     private final ExecutionContext executionContext;
 
     InvocationRuns(ExecutionContext executionContext) {
@@ -68,6 +72,21 @@ class InvocationRuns {
     /** Records {@code runId} as the run this invocation minted or continued for {@code stage}. */
     void record(String stage, RunId runId) {
         executionContext.putString(KEY_PREFIX + stage, runId.value());
+    }
+
+    /**
+     * Records {@code walkId} as the walk of the corpus root that the census walked or continued, which the job keeps
+     * stage 0's chart under (ADR-382 §7). Written by the census once the corpus root's walk is done.
+     */
+    void recordCorpusWalk(WalkId walkId) {
+        executionContext.putLong(CORPUS_WALK, walkId.value());
+    }
+
+    /** The walk {@link #recordCorpusWalk} recorded, or empty where the census has not walked the corpus root yet. */
+    Optional<WalkId> corpusWalk() {
+        return executionContext.containsKey(CORPUS_WALK)
+                ? Optional.of(new WalkId(executionContext.getLong(CORPUS_WALK)))
+                : Optional.empty();
     }
 
     /** Every run this invocation minted or continued so far, by stage name (ADR-198). */

@@ -41,8 +41,8 @@ import javafx.util.Duration;
 
 /**
  * The control panel's window as one cockpit (ADR-344 §1): Run and Stop, the job's steps as a bar each beside the
- * child's output, the progress page's three charts, the Profile and Inclusions tabs and a sidebar of seven sections in
- * their order. Every part is found by its id. The cockpit reads and writes only through the {@link ControlPanelState}
+ * child's output, a chart for each stage in two rows (ADR-382), the Profile and Inclusions tabs and a sidebar of seven
+ * sections in their order. Every part is found by its id. The cockpit reads and writes only through the {@link ControlPanelState}
  * it is given, and reads the sources its fields start from from that state (ADR-344 §3), so a cockpit a test draws
  * starts from what the test gives it. Every colour, size and space is the stylesheet's; no node here sets a style.
  * It composes the parts, each its own class, and keeps what they share: the launch fields, the plan a start is given,
@@ -58,6 +58,7 @@ final class Cockpit {
 
     private final SelectableText.Line where = SelectableText.line("");
     private final SelectableText.Line child = SelectableText.line("");
+    private final SelectableText.Line databaseSize = SelectableText.line("");
     private final SelectableText.Wrapping outcome = SelectableText.wrapping("");
     private final Button run = new Button("Run");
     private final Button stop = new Button("Stop");
@@ -139,13 +140,14 @@ final class Cockpit {
     // ---- the main pane
 
     private Node mainPane() {
-        VBox titles = new VBox(where, child);
+        VBox titles = new VBox(where, child, databaseSize);
         HBox.setHgrow(titles, Priority.ALWAYS);
         HBox header = new HBox(titles, ThemeSwitch.of(root, state));
         header.setAlignment(Pos.TOP_RIGHT);
         header.getStyleClass().add("header");
         where.setId("where");
         child.setId("child");
+        databaseSize.setId("database-size");
         outcome.setId("outcome");
         outcome.getStyleClass().add("outcome");
 
@@ -539,6 +541,54 @@ final class Cockpit {
         reports.draw();
         where();
         showBadges();
+        readStageCharts();
+    }
+
+    /**
+     * Reads the eight files the jar keeps the stages' charts in, at the top of the working directory, and draws each
+     * chart from its file: as the window opens, whenever another working directory is named and at each reading of
+     * the report (ADR-382 §4). A file not there, not readable, not that JSON or of another format leaves its chart
+     * empty under its title, and nothing is said.
+     */
+    private void readStageCharts() {
+        Map<String, StageChartFile.Chart> kept = new HashMap<>();
+        Optional<Path> folder = workingDirectory();
+        if (folder.isPresent()) {
+            for (String stage : ProgressCharts.STAGES) {
+                try {
+                    Path file = folder.get().resolve(StageChartFile.nameOf(stage));
+                    if (Files.isRegularFile(file)) {
+                        StageChartFile.read(Files.readString(file, StandardCharsets.UTF_8))
+                                .ifPresent(chart -> kept.put(stage, chart));
+                    }
+                } catch (IOException | RuntimeException unreadable) {
+                    // drawn empty under its title
+                }
+            }
+        }
+        charts.show(kept);
+    }
+
+    /**
+     * Writes the sum of the database file and its write-ahead log in the working directory, each read by a file system
+     * call and never opened, as {@code AnalysisReportView.bytes} writes a size (ADR-382 §3); {@code none yet} where
+     * neither is there.
+     */
+    private void showDatabaseSize() {
+        long bytes = 0;
+        boolean found = false;
+        Optional<Path> folder = workingDirectory();
+        if (folder.isPresent()) {
+            for (String name : List.of("vespera.db", "vespera.db-wal")) {
+                try {
+                    bytes += Files.size(folder.get().resolve(name));
+                    found = true;
+                } catch (IOException | RuntimeException absent) {
+                    // the log is there only while the database is open
+                }
+            }
+        }
+        databaseSize.setText("Database size: " + (found ? AnalysisReportView.bytes(java.math.BigDecimal.valueOf(bytes)) : "none yet"));
     }
 
     // ---- the ticks of the clock
@@ -569,6 +619,7 @@ final class Cockpit {
             timeline.stop();
             return;
         }
+        showDatabaseSize();
         boolean runs = state.childRuns();
         Optional<Ending> ending = state.ending();
         ControlPanelState.Holders holders = state.holders(workingDirectory(), corpusRoot());
@@ -678,7 +729,7 @@ final class Cockpit {
             closedAs = null;
             closingOfItsReport = null;
             steps.show(InvocationReportFile.Report.none());
-            charts.show(InvocationReportFile.Report.none());
+            readStageCharts();
             live.says(LiveReport.WAITING);
             ticksSinceProgress = options.intervalSeconds();
         }
@@ -693,6 +744,7 @@ final class Cockpit {
         ticksSinceProgress = 0;
         String how = ownChild && ending.isPresent() ? childWords(false, ending)
                 : ownChild ? "" : "held by " + holders.workingDirectory().orElse("another invocation");
+        readStageCharts();
         boolean drawn = readOnce(folder.get(), who, justEnded, how, ownChild ? ending : Optional.empty());
         watchedReportDrawn = watchedReportDrawn || drawn;
         if (justEnded) {
@@ -725,7 +777,6 @@ final class Cockpit {
             }
             outputPanel.fileNamedBy(folder, invocation.id(), state::letGo);
             steps.show(report);
-            charts.show(report);
             live.shows(report, Instant.now(), childEnded, howItEnded);
             lastDrawn = invocation;
             return true;

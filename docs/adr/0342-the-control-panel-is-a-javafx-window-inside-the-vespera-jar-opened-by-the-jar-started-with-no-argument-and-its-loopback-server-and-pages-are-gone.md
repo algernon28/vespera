@@ -10,6 +10,8 @@
 
 > **Partly amended — see [ADR-377](0377-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §4: `CodeSetRenames` goes from the classes of ADR-295's row, no code-set name being written. The rest of this record stands.
 
+> **Partly amended — see [ADR-379](0379-the-control-panels-window-has-a-light-and-a-dark-theme-switched-in-its-header-and-kept-beside-the-launch-values.md).** Of §3: the one stylesheet holds each colour token twice, the light set under `.root` and the dark under `.root.dark` and `.dark-dialog`, chosen by the style class `dark` on the window's root or `dark-dialog` on a dialog's pane, and a dialog's pane is given the window's stylesheet; no class sets a style of its own still. The rest of this record stands.
+
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.
 - **Decided**: by the operator, that a desktop window replaces the browser control panel rather than standing beside it, that it ships inside the Vespera jar and not as an application of its own, that a flag on the command line keeps a start that never opens the window, and that its layout is variant B of [#700](https://github.com/algernon28/vespera/issues/700), which [ADR-344](0344-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md) records. The rest, the dependencies and their version, how the window starts from the jar, which native libraries the jar carries, what a start does where no window can open, which records it supersedes and which it keeps, and how a window is tested, Claude recommended and the operator accepted as written.

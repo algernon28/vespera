@@ -1,5 +1,7 @@
 # ADR-370 — Every bar of the cockpit's steps carries its whole percent drawn on it, and nothing else of the window changes
 
+> **Partly amended — see [ADR-381](0381-every-view-inside-the-control-panels-window-follows-its-light-and-dark-switch-at-once-its-popups-included.md).** Of §4 and What this does not decide: a bar's fill is `-vespera-accent` and its track's inside `-vespera-surface`, the colour of the percent's halo, so that the percent stands on its halo against the fill and on the track's own colour against the rest, in both themes. The rest of this record stands.
+
 - **Date**: 2026-11-10
 - **Status**: accepted on 2026-11-10.
 - **Decided**: by the operator, in the prototype of [#791](https://github.com/algernon28/vespera/issues/791), variant A: the whole percent is drawn on every bar of the cockpit's steps, each step's row's and each leg's summary's, centred on the bar; what it reads in each state, as the verdict on #791 lists it; and that nothing else of the window changes, the state's words included, `running <N>%` as ADR-365 has it. The ids, the percent of a bar whose counter stops short of its total, the halo that keeps the text legible on the bar, and the tests are decided under delegation.
