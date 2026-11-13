@@ -184,14 +184,12 @@ class TheCodeSetsInTheTreeInvocationTest {
                 .toList();
     }
 
-    /** The tree of the latest generation run over {@code root}'s walks. */
+    /**
+     * The tree of the latest generation run over {@code root}'s walks, read through {@link RunsOver}, which compares
+     * the root the walk stored, its real path (a runner's temporary folder can be given by its short name).
+     */
     private Path theTreeOf(Path root) {
-        List<String> runs = jdbcTemplate.queryForList(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid",
-                String.class,
-                "generation",
-                root.toString());
-        return workingDirectory.resolve("deliverable").resolve(runs.getLast());
+        return workingDirectory.resolve("deliverable").resolve(new RunsOver(jdbcTemplate, root).latest("generation").value());
     }
 
     /**
