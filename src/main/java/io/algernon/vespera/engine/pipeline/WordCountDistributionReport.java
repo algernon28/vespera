@@ -19,6 +19,9 @@ final class WordCountDistributionReport {
 
     private WordCountDistributionReport() {}
 
+    /** The page's title and first heading, and its JSON's {@code title} (ADR-377 §5). */
+    private static final String TITLE = "Word count distribution";
+
     /** What a row of the first table is (ADR-275 section 2): the same for every distribution. */
     private static final String SURVIVORS_HOVER =
             "Each row is a count of words, and each cell the number of files of that kind holding that many words.";
@@ -67,7 +70,7 @@ final class WordCountDistributionReport {
             floorRows.append(ReportPage.row(cells.toArray(String[]::new)));
         }
 
-        String body = ReportPage.heading(1, "Word counts")
+        String body = ReportPage.heading(1, TITLE)
                 + ReportPage.paragraph("Content census run <code>" + ReportPage.escape(contentCensusRunId.value())
                         + "</code>. The words of every file text extraction kept, by the kind of file stage 1 found."
                         + " A word is whatever stands between two spaces of the extracted text, so <code>2026</code>"
@@ -87,7 +90,7 @@ final class WordCountDistributionReport {
                         + " alike. Write the number you choose into <code>" + DegenerateOutputWordFloor.KEY
                         + "</code> in the profile, and say in its <code>provenance</code> how you arrived at it."
                         + " The key ships unset, and while it is unset no file is removed for having too few words.");
-        return ReportPage.render("Word counts", body);
+        return ReportPage.render(TITLE, body);
     }
 
     /** The name of the page, and of its JSON, without the ending (ADR-362 section 9). */
@@ -146,7 +149,7 @@ final class WordCountDistributionReport {
         return new AnalysisReportJson.Document(
                 1,
                 NAME,
-                "Word counts",
+                TITLE,
                 writtenAt,
                 List.of(new AnalysisReportJson.Figure("filesCounted", "Files counted", totals[formats.size()], "count")),
                 List.of(

@@ -262,16 +262,24 @@ final class ProfileRow {
         details.setManaged(open);
     }
 
-    /** Draws the key's reports, each a link where the working directory holds it and grey where it does not (ADR-344 §6). */
+    /**
+     * Draws the key's reports, {@code <prefix><key>.report-<name>}, each a link reading its title that opens its native
+     * view where the working directory holds its JSON, and its title in grey, not written yet, where it does not
+     * (ADR-377 §5, ADR-362 §10).
+     */
     void showReports(Map<String, Boolean> written) {
         links.getChildren().setAll(SelectableText.line("Reports:"));
         for (String report : Reports.OF_A_KEY.getOrDefault(key.key(), List.of())) {
+            String id = idPrefix + key.key() + ".report-" + report;
+            String title = Reports.TITLES.get(report);
             if (written.getOrDefault(report, false)) {
-                Hyperlink link = new Hyperlink(report);
+                Hyperlink link = new Hyperlink(title);
+                link.setId(id);
                 link.setOnAction(event -> opensReport.accept(report));
                 links.getChildren().add(link);
             } else {
-                SelectableText.Line grey = SelectableText.line(report + " (not written yet)");
+                SelectableText.Line grey = SelectableText.line(title + " (not written yet)");
+                grey.setId(id);
                 grey.getStyleClass().add("grey");
                 links.getChildren().add(grey);
             }
