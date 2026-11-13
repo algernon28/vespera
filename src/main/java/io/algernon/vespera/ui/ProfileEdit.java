@@ -450,7 +450,8 @@ public final class ProfileEdit {
         return !pieces.isEmpty() && pieces.stream().allMatch(piece -> LANGUAGE.matcher(piece).matches());
     }
 
-    private static List<String> piecesOf(String value) {
+    /** The pieces of a list value, split at white space and commas, none empty (ADR-377 §7 splits a box's text so). */
+    static List<String> piecesOf(String value) {
         return List.of(PIECES.split(value)).stream().filter(piece -> !piece.isEmpty()).toList();
     }
 

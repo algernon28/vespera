@@ -24,6 +24,9 @@ import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -458,26 +461,80 @@ final class ProfileRow {
         return box;
     }
 
+    /**
+     * A list value as tags (ADR-377 §7): a tag for each item, in order, each with its remove button, then one box where
+     * Enter adds each piece typed not already a tag, and Backspace, while it is empty, removes the last tag. The value is
+     * the tags' items joined by one space, then the pieces still typed in the box, so that a Save loses nothing typed.
+     */
     private Node listControl() {
-        TextField list = new TextField();
-        list.setId(idPrefix + key.key());
-        list.setPromptText(key.example());
-        TextField add = new TextField();
-        add.setId(idPrefix + key.key() + ".add");
-        add.setPromptText(key.kind() == ProfileKey.Kind.LANGUAGES ? "it" : ".java");
-        Button plus = new Button("+");
-        plus.setId(idPrefix + key.key() + ".plus");
-        plus.setOnAction(event -> {
-            String piece = add.getText().strip();
-            if (!piece.isEmpty()) {
-                list.setText((list.getText().strip() + " " + piece).strip());
-                add.clear();
+        String id = idPrefix + key.key();
+        FlowPane tags = new FlowPane();
+        tags.setId(id);
+        tags.getStyleClass().add("tags");
+        TextField box = new TextField();
+        box.setId(id + ".add");
+        box.setPromptText("e.g. " + ProfileEdit.piecesOf(key.example()).getFirst() + ", then Enter");
+        List<String> items = new ArrayList<>();
+        Runnable[] draw = new Runnable[1];
+        draw[0] = () -> {
+            List<Node> children = new ArrayList<>();
+            for (int i = 0; i < items.size(); i++) {
+                int at = i;
+                String item = items.get(at);
+                SelectableText.Line text = SelectableText.line(item);
+                Button remove = new Button("×");
+                remove.setId(id + ".remove-" + (at + 1));
+                remove.getStyleClass().add("remove");
+                remove.setTooltip(new Tooltip("Remove " + item));
+                remove.setOnAction(event -> {
+                    items.remove(at);
+                    draw[0].run();
+                    box.requestFocus();
+                });
+                remove.setOnKeyPressed(event -> {
+                    if (event.getCode() == KeyCode.ENTER) {
+                        remove.fire();
+                        event.consume();
+                    }
+                });
+                HBox tag = new HBox(text, remove);
+                tag.setId(id + ".tag-" + (i + 1));
+                tag.getStyleClass().add("tag");
+                children.add(tag);
+            }
+            children.add(box);
+            tags.getChildren().setAll(children);
+        };
+        box.setOnAction(event -> {
+            for (String piece : ProfileEdit.piecesOf(box.getText())) {
+                if (!items.contains(piece)) {
+                    items.add(piece);
+                }
+            }
+            box.clear();
+            draw[0].run();
+        });
+        box.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == KeyCode.BACK_SPACE && box.getText().isEmpty() && !items.isEmpty()) {
+                items.removeLast();
+                draw[0].run();
+                box.requestFocus();
+                event.consume();
             }
         });
-        value = list::getText;
-        setValue = list::setText;
-        HBox.setHgrow(list, Priority.ALWAYS);
-        return spaced(list, add, plus);
+        value = () -> {
+            List<String> all = new ArrayList<>(items);
+            all.addAll(ProfileEdit.piecesOf(box.getText()));
+            return String.join(" ", all);
+        };
+        setValue = text -> {
+            items.clear();
+            items.addAll(ProfileEdit.piecesOf(text == null ? "" : text));
+            box.clear();
+            draw[0].run();
+        };
+        draw[0].run();
+        return tags;
     }
 
     private Node numberControl() {

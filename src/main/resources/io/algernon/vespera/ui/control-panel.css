@@ -224,6 +224,38 @@
     -fx-background-radius: 3px;
 }
 
+/* A list value's tags (ADR-377 section 7): each item a rounded box of the window's own colours, then the box to add one. */
+.tags {
+    -fx-hgap: 4px;
+    -fx-vgap: 4px;
+    -fx-alignment: center-left;
+}
+
+.tag {
+    -fx-background-color: -vespera-rule, -vespera-surface;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 10px, 9px;
+    -fx-padding: 1px 2px 1px 8px;
+    -fx-spacing: 2px;
+    -fx-alignment: center-left;
+}
+
+/* A tag's remove button, its ×: a small flat button. */
+.tag .remove,
+.tag .remove:hover,
+.tag .remove:armed {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-text-fill: -vespera-dim;
+    -fx-padding: 0 4px 0 4px;
+}
+
+.tag .remove:focused {
+    -fx-background-color: -vespera-accent, -vespera-surface;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 3px;
+}
+
 /* What a profile row's toggle opens, set in under its title. */
 .details {
     -fx-spacing: 2px;
