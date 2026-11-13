@@ -90,9 +90,42 @@ public class ProfileStore {
     public void save(Profile profile) {
         try {
             Files.createDirectories(file.getParent());
-            Files.writeString(file, YAML.writeValueAsString(profile), StandardCharsets.UTF_8);
+            String written = YAML.writeValueAsString(profile);
+            Files.writeString(file, whereTheModelsRunIsUnset(profile) ? withModelsRunOnCommented(written) : written,
+                    StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new UncheckedIOException("could not write the profile at " + file, e);
         }
+    }
+
+    /** Whether {@code modelsRunOn} holds no value, no provenance and no measurement, so that it is written commented (ADR-384 §6). */
+    private static boolean whereTheModelsRunIsUnset(Profile profile) {
+        TextValue where = profile.modelsRunOn();
+        return where.measurement() == null
+                && (where.value() == null || where.value().isBlank())
+                && (where.provenance() == null || where.provenance().isBlank());
+    }
+
+    /** The three lines ADR-384 §6 has the file hold in place of an unset {@code modelsRunOn}. */
+    private static final String MODELS_RUN_ON_COMMENTED = "# Where the models run: local, on this machine. Cloud is not"
+            + " supported yet.\n# modelsRunOn:\n#   value: local\n";
+
+    /** The written file with the lines of {@code modelsRunOn}'s block replaced by the three lines of comment. */
+    private static String withModelsRunOnCommented(String written) {
+        StringBuilder out = new StringBuilder();
+        boolean inTheBlock = false;
+        for (String line : written.split("(?<=\n)")) {
+            if (inTheBlock && (line.startsWith(" ") || line.startsWith("\t"))) {
+                continue;
+            }
+            inTheBlock = false;
+            if (line.startsWith("modelsRunOn:")) {
+                out.append(MODELS_RUN_ON_COMMENTED);
+                inTheBlock = true;
+                continue;
+            }
+            out.append(line);
+        }
+        return out.toString();
     }
 }

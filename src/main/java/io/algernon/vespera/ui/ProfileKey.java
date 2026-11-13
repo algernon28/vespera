@@ -44,6 +44,11 @@ public enum ProfileKey {
     GENERATION_MODEL("generationModel", Kind.TEXT, Run.GENERATION,
             "whichever model you can serve locally, if you want a different one", "qwen3:8b", "Writing model",
             "The local model that writes the text connecting the documents of each page."),
+    MODELS_RUN_ON("modelsRunOn", Kind.TEXT, null,
+            "nothing: the models run on this machine, local, and cloud is not supported yet", "local",
+            "Where the models run",
+            "The AI models that read your documents run on this machine; running them in the cloud is not supported"
+                    + " yet."),
     GENERATION_CONTEXT_WINDOW("generationContextWindow", Kind.NUMBER, Run.GENERATION,
             "how much your own machine can read in one go", "32768", "Writing model's reading size",
             "How many tokens of a group the writing model reads in one go."),

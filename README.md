@@ -59,6 +59,7 @@ Vespera writes reports beside the database. Each one measures something; none of
 | `extractionAttempt` | whether the files the converter did not answer about are worth asking again | `extraction-failures.html` |
 | `arrangementApproved` | whether the groups the tool formed are worth writing over | `arrangement.html` |
 | `generationModel` | whichever model you can serve locally, if you want a different one | — |
+| `modelsRunOn` | nothing: the models run on this machine, `local`, and `cloud` is not supported yet | — |
 | `generationContextWindow` | how much your own machine can read in one go | — |
 | `deliverableLanguage` | which language the people reading the pages read: `en` or `it` | — |
 | `clusterPageByteCeiling` | how large each group's page is when written whole, and how many groups pass each size | `cluster-page-sizes.html` |
@@ -328,7 +329,7 @@ docker compose -p vespera exec ollama ollama pull hf.co/Qwen/Qwen3-Embedding-8B-
 docker compose -p vespera exec ollama ollama pull qwen3:8b
 ```
 
-`vespera label --auto` pulls nothing. It answers the questions with `qwen3:8b`, whatever `generationModel` says, and `vespera run` pulls that model only at invocation 5 and only where `generationModel` is unset; so before you first use it, pull `qwen3:8b` with the second line above.
+The models run on this machine: `modelsRunOn` says so, `local` where the profile states nothing, and Vespera never judges where a model runs from its name or from Ollama. `cloud`, or any other value, stops `vespera run` and `vespera label --auto` at their start, before anything is walked. `vespera label --auto` pulls nothing. It answers the questions with `qwen3:8b`, whatever `generationModel` says, and `vespera run` pulls that model only at invocation 5 and only where `generationModel` is unset; so before you first use it, pull `qwen3:8b` with the second line above.
 
 Pulling the embedding model again can change it, because a name can be published again with other contents. Vespera then treats it as another model: the next `vespera run` embeds and scores every document again, the relevance threshold removes nothing until the sample is answered again from the new label file, and the arrangement has to be approved again. Pull it again only when you mean to, and not while `vespera run` is computing vectors: if the model changes under that step, the command stops there with a line saying so, and the next `vespera run` embeds again, storing the vectors that are missing under the model as it is now.
 

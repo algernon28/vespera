@@ -90,8 +90,11 @@ class SeedCorpusComparisonInvocationTest {
     private static final List<String> WORDING_THE_REPORT_REFUSES =
             List.of("mismatch score", "overall score", "verdict", "acceptable", "recommend", "warning");
 
-    /** A top-level key in the profile file: a name at the start of a line, followed by a colon. */
-    private static final Pattern PROFILE_KEY = Pattern.compile("(?m)^(\\w+):");
+    /**
+     * A top-level key in the profile file: a name at the start of a line, followed by a colon, or the same behind
+     * {@code "# "}, as an unset {@code modelsRunOn} is written commented out (ADR-384 §4).
+     */
+    private static final Pattern PROFILE_KEY = Pattern.compile("(?m)^(?:# )?(\\w+):");
 
     @DynamicPropertySource
     static void workingDirectory(DynamicPropertyRegistry registry) {

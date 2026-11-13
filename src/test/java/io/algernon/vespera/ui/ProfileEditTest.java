@@ -116,7 +116,6 @@ class ProfileEditTest {
     @DisplayName("A profile in a form the jar does not write is refused whole, with one line naming the file")
     void aFileInAnotherFormIsRefusedWhole() {
         Map<String, String> otherForms = new LinkedHashMap<>();
-        otherForms.put("a comment", "# mine\nseedFolder:\n  value: null\n");
         otherForms.put("a plain scalar over two lines", "relevanceScoreFloor:\n  value: 0.4\n    more\n");
         otherForms.put("a single-quoted scalar over two lines", "relevanceScoreFloor:\n  value: '0.4\n    more'\n");
         otherForms.put("a block scalar", "relevanceScoreFloor:\n  value: |\n    0.4\n");

@@ -1,64 +1,64 @@
 package io.algernon.vespera.engine.pipeline;
 
-import io.algernon.vespera.engine.embedding.LocalOllamaModel;
-import io.algernon.vespera.engine.embedding.OllamaClient;
+import io.algernon.vespera.engine.profile.Profile;
+import io.algernon.vespera.engine.profile.ProfileStore;
+import io.algernon.vespera.engine.profile.TextValue;
+import java.util.Locale;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * The refusal at the start of {@code vespera run} of a model it names that is not local (ADR-375 §2): the embedding
- * model first, then the generation model, each resolved as its step resolves it.
+ * The refusal at the start of {@code vespera run} and of {@code vespera label --auto} of a profile whose
+ * {@code modelsRunOn} is not {@code local} (ADR-384 §1 to §3).
  *
- * <p>A cloud tag is refused from its name; otherwise ADR-202's check is asked once, and only a model it reports as
- * remote is refused. A 404 and a check that cannot be completed refuse nothing here.
+ * <p>It reads the one key and nothing else: no model's name is read and Ollama is asked nothing. Unset or blank is
+ * local, as is {@code local} in any case with the blanks around it ignored; {@code cloud} is not supported yet, and any
+ * other value names neither. A profile that cannot be read refuses nothing here and is left to the job's own refusal.
  */
 @Component
 class ModelsAtTheStart {
 
-    private static final String EMBEDDING = "embedding model";
-    private static final String GENERATION = "generation model";
-    private static final String REMOTE_MARK = " as remote, so it is forwarded to a hosted service";
+    private static final String LOCAL = "local";
+    private static final String CLOUD = "cloud";
+    private static final String ADVICE = "set modelsRunOn to local in profile.yaml, or leave it unset, and the models"
+            + " run on this machine";
 
-    private final EmbeddingModelGate embeddingModel;
-    private final GenerationModel generationModel;
-    private final OllamaClient ollama;
+    private final ProfileStore profileStore;
 
     @Autowired
-    ModelsAtTheStart(EmbeddingModelGate embeddingModel, GenerationModel generationModel, OllamaClient ollama) {
-        this.embeddingModel = embeddingModel;
-        this.generationModel = generationModel;
-        this.ollama = ollama;
+    ModelsAtTheStart(ProfileStore profileStore) {
+        this.profileStore = profileStore;
     }
 
-    /** The line that ends the start, or empty where neither model is refused. */
+    /** The line that ends the start of {@code vespera run} (ADR-384 §2), or empty where the models are local. */
     Optional<String> refusal() {
-        Optional<String> embedding = resolved(() -> embeddingModel.modelName().orElse(null));
-        if (embedding.isPresent()) {
-            Optional<String> refused = refusalOf(EMBEDDING, embedding.get());
-            if (refused.isPresent()) {
-                return refused;
-            }
-        }
-        Optional<String> generation = resolved(generationModel::name);
-        return generation.isPresent() ? refusalOf(GENERATION, generation.get()) : Optional.empty();
+        return reason().map(why -> "vespera run stopped at its start: " + why
+                + ", so nothing was walked and no run was minted -- " + ADVICE);
     }
 
-    /** A model that resolves to nothing, or whose profile cannot be read, is not checked. */
-    private static Optional<String> resolved(java.util.function.Supplier<String> name) {
+    /** The line that ends {@code vespera label --auto} at its start (ADR-384 §3), or empty where the models are local. */
+    Optional<String> refusalOfLabelAuto() {
+        return reason().map(why -> "vespera label --auto recorded nothing: " + why + " -- " + ADVICE);
+    }
+
+    /** What is wrong with the key, in the words both lines share, or empty where it is unset or local. */
+    private Optional<String> reason() {
+        String stated;
         try {
-            String model = name.get();
-            return model == null || model.isBlank() ? Optional.empty() : Optional.of(model);
-        } catch (RuntimeException unresolved) {
+            Profile profile = profileStore.load();
+            TextValue where = profile.modelsRunOn();
+            stated = where == null || where.value() == null ? "" : where.value().strip();
+        } catch (RuntimeException unreadable) {
             return Optional.empty();
         }
-    }
-
-    private Optional<String> refusalOf(String role, String model) {
-        // ADR-202's check, once: a cloud tag is decided from the name, and only a cloud or remote reason refuses here.
-        return LocalOllamaModel.refusalOf(model, ollama)
-                .filter(words -> words.contains(" is a cloud model: ") || words.contains(REMOTE_MARK))
-                .map(words -> "vespera run stopped at its start: the " + role + " " + model
-                        + " was refused, so nothing was walked and no run was minted -- " + words);
+        String read = stated.toLowerCase(Locale.ROOT);
+        if (read.isEmpty() || read.equals(LOCAL)) {
+            return Optional.empty();
+        }
+        if (read.equals(CLOUD)) {
+            return Optional.of("modelsRunOn is cloud, and models that run in the cloud are not supported yet");
+        }
+        return Optional.of("modelsRunOn is \"" + stated + "\", which is neither local nor cloud");
     }
 }

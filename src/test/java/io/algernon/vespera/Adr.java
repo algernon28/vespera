@@ -2754,6 +2754,16 @@ public final class Adr {
             FILE + "0383-a-parents-title-naming-no-page-or-several-stops-a-control-panel-publish-with-its-own-code-and-a-warning-asks-for-another.md";
 
     /**
+     * ADR-384 -- whether the models run locally or in the cloud is the profile's {@code modelsRunOn} to say, local where
+     * unset, for every model; Vespera reads no model's tag and nothing of where Ollama says a model runs; {@code cloud},
+     * or any value but {@code local}, is refused at the start of {@code vespera run} and of {@code vespera label --auto};
+     * a step asks Ollama only whether it serves the model; {@code profile.yaml} holds the key commented out while it is
+     * unset; and the Profile tab shows it greyed out (amends ADR-375, ADR-202 §1, §3 and §4, ADR-329 §3, ADR-197 §6,
+     * ADR-062, ADR-295 §3 and ADR-330 §1 and §6).
+     */
+    public static final String WHETHER_THE_MODELS_RUN_LOCALLY_OR_IN_THE_CLOUD_IS_THE_PROFILES_TO_SAY = FILE
+            + "0384-whether-the-models-run-locally-or-in-the-cloud-is-the-profiles-to-say-local-by-default-and-cloud-refused-at-the-start.md";
+
     /** ADR-385: work a test posts to the toolkit's thread is bounded on that thread's processor time, not on the wall. */
     public static final String WORK_ON_THE_TOOLKITS_THREAD_IS_BOUNDED_ON_ITS_PROCESSOR_TIME =
             FILE + "0385-work-a-test-posts-to-the-toolkits-thread-is-bounded-on-that-threads-processor-time-and-not-on-the-wall.md";

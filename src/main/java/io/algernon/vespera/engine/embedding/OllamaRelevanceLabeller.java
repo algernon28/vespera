@@ -16,17 +16,13 @@ import org.springframework.stereotype.Component;
  * The first {@link RelevanceLabeller}: {@code qwen3:8b} through the Ollama chat model, asked for one
  * word (ADR-197 §1).
  *
- * <p><b>No hosted endpoint is configurable for it, and none is reachable through Ollama either</b>
- * (ADR-197 §6). It is built from {@link OllamaChatModel} and no other chat model and takes no URL or
- * key of its own. It refuses, before anything is sent, and checks in this order. First its own check: the
- * endpoint Spring AI will actually call (its connection details, not a property that may differ from
- * them) is not this machine. Then the check every call to Ollama passes, {@link LocalOllamaModel} (ADR-202):
- * the model's tag ends in {@code cloud}, {@code /api/show} reports the model as remote, the daemon answers
- * 404 because it serves no model of that name, or whether it is remote cannot be established. A loopback
- * address alone does not keep a document here, because an Ollama cloud model is served by the local
- * daemon and forwarded to ollama.com, and a model whose remoteness cannot be established is refused,
- * never assumed local. Last, the digest it reads for its identity: one
- * that cannot be read is refused too.
+ * <p><b>No hosted endpoint is configurable for it</b> (ADR-197 §6, as ADR-384 §4 amends it). It is built from
+ * {@link OllamaChatModel} and no other chat model and takes no URL or key of its own. It refuses, before anything is
+ * sent, in two cases and in this order. First its endpoint: the address Spring AI will actually call (its connection
+ * details, not a property that may differ from them) is not this machine. Then the digest it reads for its identity
+ * from {@code /api/tags}: a model Ollama lists no digest for, does not list, or does not answer for cannot have its
+ * answers recorded (ADR-197 §3). It asks {@code /api/show} nothing and reads no tag: whether the models run on this
+ * machine is the profile's {@code modelsRunOn}, read at the start of {@code vespera label --auto} (ADR-384 §3).
  *
  * <p>A reply that is not exactly one of the two words is no answer, and a question with no opening is
  * not put at all: a path alone would be a guess in a column the operator reads as an answer.
@@ -87,15 +83,11 @@ public class OllamaRelevanceLabeller implements RelevanceLabeller {
             return Optional.of("the chat model's endpoint is " + baseUrl + ", which is not this machine, and no"
                     + " document's text may be sent anywhere else");
         }
-        Optional<String> modelRefusal = LocalOllamaModel.refusalOf(modelName, ollama);
-        if (modelRefusal.isPresent()) {
-            return modelRefusal;
-        }
         try {
             identity = "ollama:" + modelName + ";digest=" + ollama.artefactOf(modelName).digest();
         } catch (RuntimeException unknown) {
-            return Optional.of("it could not be established that the model " + modelName + " runs on this"
-                    + " machine (" + unknown.getMessage() + "), and a model is not assumed to be local");
+            return Optional.of("the identity of the model " + modelName + " could not be read from Ollama ("
+                    + unknown.getMessage() + "), so none of its answers could be recorded");
         }
         return Optional.empty();
     }

@@ -20,6 +20,7 @@ import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -166,6 +167,10 @@ final class ProfileRow {
 
     /** The provenance to write for this row by ADR-343 §2's table; empty where the key is not written. */
     Optional<String> noteToSave() {
+        if (key == ProfileKey.MODELS_RUN_ON) {
+            // A value is changed in profile.yaml alone, so that a key held commented out stays so (ADR-384 §7).
+            return Optional.empty();
+        }
         return ProfileEdit.noteToSave(key, value(), note.getText(), loaded);
     }
 
@@ -242,6 +247,7 @@ final class ProfileRow {
                 case EMBEDDING_MODEL, GENERATION_MODEL -> choice(models);
                 case ARRANGEMENT_APPROVED -> choice(List.of("auto"));
                 case DELIVERABLE_LANGUAGE -> languageControl();
+                case MODELS_RUN_ON -> whereTheModelsRunControl();
                 case SEED_FOLDER -> folderControl(dialogs);
                 default -> textControl();
             };
@@ -280,6 +286,30 @@ final class ProfileRow {
         value = () -> box.getEditor().getText();
         setValue = text -> box.getEditor().setText(text);
         return box;
+    }
+
+    /**
+     * Where the models run, shown and not edited (ADR-384 §7): a disabled choice of the two values, in a holder that is
+     * not disabled and carries the tooltip, since JavaFX shows none over a disabled control. It shows the value the file
+     * states, as written, and {@code local} where it states none.
+     */
+    private Node whereTheModelsRunControl() {
+        ComboBox<String> box = new ComboBox<>();
+        box.setId(idPrefix + key.key());
+        box.getItems().setAll("local", "cloud");
+        box.setDisable(true);
+        value = () -> box.getValue() == null ? "" : box.getValue();
+        setValue = text -> {
+            String shown = text.isBlank() ? "local" : text.strip();
+            if (!box.getItems().contains(shown)) {
+                box.getItems().add(shown);
+            }
+            box.setValue(shown);
+        };
+        HBox holder = new HBox(box);
+        holder.setId(idPrefix + key.key() + ".holder");
+        Tooltip.install(holder, new Tooltip("Cloud is not supported yet."));
+        return holder;
     }
 
     private Node languageControl() {

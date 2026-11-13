@@ -82,7 +82,8 @@ class ProfileKeyTest {
 
     /**
      * Each key's cost, written out by hand from the records' tables: sixteen keys draw the sample again, the seed
-     * folder alone refuses the labels, the four generation keys close no approval and the page ceiling costs nothing.
+     * folder alone refuses the labels, the four generation keys close no approval, and the page ceiling and where the
+     * models run (ADR-384), which enters no run, cost nothing.
      */
     private static final Map<String, Cost> COST_OF_EACH_KEY = costOfEachKey();
 
@@ -103,8 +104,9 @@ class ProfileKeyTest {
                         Run.ARRANGEMENT, Run.GENERATION));
         claim("a change of each key costs its earliest run and every later one; it closes the approval only where the"
                         + " arrangement is among them, refuses the labels only for the seed folder, and draws the"
-                        + " sample again for the sixteen whose runs include embedding scoring; the page ceiling and the"
-                        + " five values of a publish cost no run, close no approval, refuse no labels and draw no sample",
+                        + " sample again for the sixteen whose runs include embedding scoring; the page ceiling, where the"
+                        + " models run and the five values of a publish cost no run, close no approval, refuse no labels"
+                        + " and draw no sample",
                 () -> assertThat(costs).containsExactlyEntriesOf(COST_OF_EACH_KEY));
     }
 
@@ -118,6 +120,7 @@ class ProfileKeyTest {
         costs.put("relevanceScoreFloor", scoringAgainFrom(FROM_EMBEDDING_SCORING));
         costs.put("arrangementApproved", new Cost(FROM_GENERATION, false, false, false));
         costs.put("generationModel", new Cost(FROM_GENERATION, false, false, false));
+        costs.put("modelsRunOn", new Cost(List.of(), false, false, false));
         costs.put("generationContextWindow", new Cost(FROM_GENERATION, false, false, false));
         costs.put("clusterPageByteCeiling", new Cost(List.of(), false, false, false));
         costs.put("logTimestampShareFloor", scoringAgainFrom(FROM_BYTE_LEVEL_REDUCTION));
