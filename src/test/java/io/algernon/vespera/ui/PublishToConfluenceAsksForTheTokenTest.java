@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 import javafx.scene.Node;
@@ -34,6 +35,12 @@ import org.junit.jupiter.api.io.TempDir;
  *
  * <p>The child that sees the token is a jar of the tests' own, {@link ATokenCheckingChildForTests}, which prints nothing
  * and says by its exit code what it was given.
+ *
+ * <p>A publish whose parent's title names no page or folder of the space, or several, ends with an exit code of its own
+ * where the control panel started it, and the window warns, asking for a different title (ADR-383): a title entered is
+ * saved as {@code confluenceFolderTitle} and the publish is started again, the token asked for again; Cancel, or a
+ * blank title, saves nothing and starts nothing. The child is {@link ATitleCheckingChildForTests}, which reads the title
+ * in {@code profile.yaml} as the jar does and exits as the jar would.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -49,6 +56,36 @@ class PublishToConfluenceAsksForTheTokenTest {
 
     /** The jar of {@link ATokenCheckingChildForTests}, written once for the test JVM outside every test's folder. */
     private static Path tokenCheckingJar;
+
+    /** The jar of {@link ATitleCheckingChildForTests}, written once for the test JVM outside every test's folder. */
+    private static Path titleCheckingJar;
+
+    /** The space's key the profile names. */
+    private static final String SPACE = "KT";
+
+    /** The provenance the profile states for the two values the test writes in it. */
+    private static final String THE_TESTS_PROVENANCE = "set by the test";
+
+    /** The provenance the window saves a value it changed with (ADR-343 §2). */
+    private static final String SET_IN_THE_CONTROL_PANEL = "set in the control panel";
+
+    /** The warning's title, and its sentences, the parent's title naming no page or folder, and several (ADR-383 §3). */
+    private static final String WARNING_TITLE = "The parent's title";
+
+    private static final String WARNING_OF_NO_PAGE = "No page or folder of the space " + SPACE + " is titled "
+            + ATitleCheckingChildForTests.TITLE_OF_NO_PAGE + ", so the publish to Confluence sent nothing. Enter a"
+            + " different title for the parent the pages are published under: it is saved as confluenceFolderTitle in"
+            + " the Profile tab, and the publish starts again.";
+
+    private static final String WARNING_OF_SEVERAL = "Several pages or folders of the space " + SPACE + " are titled "
+            + ATitleCheckingChildForTests.TITLE_OF_SEVERAL + ", so the publish to Confluence sent nothing. Enter a"
+            + " different title for the parent the pages are published under: it is saved as confluenceFolderTitle in"
+            + " the Profile tab, and the publish starts again.";
+
+    /** The window's outcome line where the warning is cancelled, or answered with blanks (ADR-383 §5). */
+    private static final String LEFT_AS_IT_WAS = "the publish to Confluence sent nothing: confluenceFolderTitle is left"
+            + " as profile.yaml states it; name the parent by confluenceFolderTitle or confluenceFolderId in the Profile"
+            + " tab, and publish again";
 
     @Test
     @Story("The control panel passes the API token to its child alone")
@@ -96,6 +133,96 @@ class PublishToConfluenceAsksForTheTokenTest {
                         String.join("\n", state.tail()))).noneMatch(text -> text.contains(TOKEN)));
     }
 
+    @Test
+    @Story("A parent's title naming no page or several asks for another")
+    @Link(name = "ADR-383", url = Adr.A_PARENT_TITLE_NAMING_NO_PAGE_OR_SEVERAL_ASKS_FOR_ANOTHER_IN_A_WARNING, type = "adr")
+    @DisplayName("A publish whose parent's title names no page of the space opens one warning naming the space and the title; the title entered is saved in profile.yaml as set in the control panel, and the publish starts again, asking for the token again")
+    void aTitleNamingNoPageAsksForAnotherSavesItAndPublishesAgain(@TempDir Path folder) throws Exception {
+        Path workingDirectory = Files.createDirectories(folder.resolve("working"));
+        aListAt(workingDirectory.resolve("deliverable").resolve(A_RUN).resolve("confluence"), "pages.json");
+        Path profile = aProfileTitling(workingDirectory, ATitleCheckingChildForTests.TITLE_OF_NO_PAGE);
+        ControlPanelState state = aStateOver(folder, workingDirectory, new ChildRuntime(java(), titleCheckingJar()));
+
+        boolean endedAgain;
+        Optional<Ending> ending;
+        List<AnsweringDialogs.Warned> warned;
+        List<String> asked;
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            window.dialogs.typed = Optional.of(TOKEN);
+            window.dialogs.entered = Optional.of(ATitleCheckingChildForTests.TITLE_ENTERED);
+            window.awaiting(PublishToConfluenceAsksForTheTokenTest::boxes, drawn -> drawn.contains("confluence"));
+            window.act(root -> WindowForTests.node(root, "publish", Button.class).fire());
+            endedAgain = WindowForTests.within(() -> state.ending().filter(
+                    ended -> ended.exitCode() != ATitleCheckingChildForTests.NO_PAGE_SO_TITLED).isPresent());
+            ending = state.ending();
+            warned = List.copyOf(window.dialogs.warned);
+            asked = List.copyOf(window.dialogs.maskedAsked);
+        }
+
+        claim("the publish ending " + ATitleCheckingChildForTests.NO_PAGE_SO_TITLED + " opened one warning, naming the"
+                        + " space and the title no page holds, its field holding that title",
+                () -> assertThat(warned).containsExactly(new AnsweringDialogs.Warned(WARNING_TITLE, WARNING_OF_NO_PAGE,
+                        ATitleCheckingChildForTests.TITLE_OF_NO_PAGE)));
+        claim("profile.yaml now states the title entered as the parent's, saved as set in the control panel, and the"
+                        + " space as it was",
+                () -> assertThat(ProfileEdit.read(Files.readString(profile, StandardCharsets.UTF_8))).isEqualTo(Map.of(
+                        ProfileKey.CONFLUENCE_SPACE_KEY, new ProfileEdit.Stated(SPACE, THE_TESTS_PROVENANCE),
+                        ProfileKey.CONFLUENCE_FOLDER_TITLE, new ProfileEdit.Stated(
+                                ATitleCheckingChildForTests.TITLE_ENTERED, SET_IN_THE_CONTROL_PANEL))));
+        claim("the token was asked for again, once for each publish started",
+                () -> assertThat(asked).hasSize(2));
+        claim("and the publish started again ended " + ATitleCheckingChildForTests.AS_EXPECTED + ", having read the"
+                        + " title entered and been given the token typed",
+                () -> assertThat(List.of(endedAgain, ending.map(Ending::exitCode)))
+                        .containsExactly(true, Optional.of(ATitleCheckingChildForTests.AS_EXPECTED)));
+    }
+
+    @Test
+    @Story("A parent's title naming no page or several asks for another")
+    @Link(name = "ADR-383", url = Adr.A_PARENT_TITLE_NAMING_NO_PAGE_OR_SEVERAL_ASKS_FOR_ANOTHER_IN_A_WARNING, type = "adr")
+    @DisplayName("A publish whose parent's title names several pages warns so; the warning cancelled, or answered with blanks, saves nothing, starts nothing and says the title is left as it was")
+    void aTitleNamingSeveralAsksTooAndCancelOrBlanksSaveAndStartNothing(@TempDir Path folder) throws Exception {
+        Path workingDirectory = Files.createDirectories(folder.resolve("working"));
+        aListAt(workingDirectory.resolve("deliverable").resolve(A_RUN).resolve("confluence"), "pages.json");
+        Path profile = aProfileTitling(workingDirectory, ATitleCheckingChildForTests.TITLE_OF_SEVERAL);
+        byte[] asWritten = Files.readAllBytes(profile);
+        ControlPanelState state = aStateOver(folder, workingDirectory, new ChildRuntime(java(), titleCheckingJar()));
+
+        List<String> outcomes = new ArrayList<>();
+        List<AnsweringDialogs.Warned> warned;
+        List<String> asked;
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            window.dialogs.typed = Optional.of(TOKEN);
+            window.awaiting(PublishToConfluenceAsksForTheTokenTest::boxes, drawn -> drawn.contains("confluence"));
+            for (Optional<String> answer : List.of(Optional.<String>empty(), Optional.of("   "))) {
+                int before = window.dialogs.warned.size();
+                window.dialogs.entered = answer;
+                window.awaiting(root -> WindowForTests.node(root, "publish", Button.class).isDisabled(),
+                        disabled -> !disabled);
+                window.act(root -> WindowForTests.node(root, "publish", Button.class).fire());
+                WindowForTests.within(() -> window.dialogs.warned.size() > before);
+                outcomes.add(window.read(
+                        root -> WindowForTests.node(root, "outcome", TextInputControl.class).getText()));
+            }
+            warned = List.copyOf(window.dialogs.warned);
+            asked = List.copyOf(window.dialogs.maskedAsked);
+        }
+
+        claim("each publish ending " + ATitleCheckingChildForTests.SEVERAL_SO_TITLED + " opened one warning, saying"
+                        + " several pages hold the title, its field holding that title",
+                () -> assertThat(warned).containsExactly(
+                        new AnsweringDialogs.Warned(WARNING_TITLE, WARNING_OF_SEVERAL,
+                                ATitleCheckingChildForTests.TITLE_OF_SEVERAL),
+                        new AnsweringDialogs.Warned(WARNING_TITLE, WARNING_OF_SEVERAL,
+                                ATitleCheckingChildForTests.TITLE_OF_SEVERAL)));
+        claim("cancelled, then answered with blanks, it said each time that the title is left as it was",
+                () -> assertThat(outcomes).containsExactly(LEFT_AS_IT_WAS, LEFT_AS_IT_WAS));
+        claim("no publish was started again: the token was asked for once for each Publish pressed and no more",
+                () -> assertThat(asked).hasSize(2));
+        claim("and profile.yaml is byte for byte as the test wrote it",
+                () -> assertThat(Files.readAllBytes(profile)).isEqualTo(asWritten));
+    }
+
     /** The destinations of the boxes {@code publish-to} holds, ticked or not, in order. */
     private static List<String> boxes(Parent root) {
         return HeadlessToolkit.nodeWithId(root, "publish-to")
@@ -141,6 +268,16 @@ class PublishToConfluenceAsksForTheTokenTest {
         return state;
     }
 
+    /**
+     * The working directory's {@code profile.yaml}, naming the space {@link #SPACE} and the parent by {@code title},
+     * each with {@link #THE_TESTS_PROVENANCE}, as the Profile tab writes a value.
+     */
+    private static Path aProfileTitling(Path workingDirectory, String title) throws IOException {
+        String text = ProfileEdit.rewrite(Optional.empty(), ProfileKey.CONFLUENCE_SPACE_KEY, SPACE, THE_TESTS_PROVENANCE);
+        text = ProfileEdit.rewrite(Optional.of(text), ProfileKey.CONFLUENCE_FOLDER_TITLE, title, THE_TESTS_PROVENANCE);
+        return Files.writeString(workingDirectory.resolve(ProfileEdit.FILE_NAME), text, StandardCharsets.UTF_8);
+    }
+
     private static Path java() {
         return Path.of(System.getProperty("java.home"), "bin",
                 System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java");
@@ -154,5 +291,16 @@ class PublishToConfluenceAsksForTheTokenTest {
             tokenCheckingJar.toFile().deleteOnExit();
         }
         return tokenCheckingJar;
+    }
+
+    private static synchronized Path titleCheckingJar() throws IOException {
+        if (titleCheckingJar == null) {
+            Path jarFolder = Files.createTempDirectory("vespera-title-checking-jar");
+            jarFolder.toFile().deleteOnExit();
+            titleCheckingJar = SleepingJar.write(jarFolder.resolve("title-checking.jar"),
+                    ATitleCheckingChildForTests.class);
+            titleCheckingJar.toFile().deleteOnExit();
+        }
+        return titleCheckingJar;
     }
 }

@@ -286,8 +286,8 @@ public class VesperaCommand implements Callable<Integer> {
         }
 
         /**
-         * The check of the models the invocation names, made at the start (ADR-375 §2); a command built without it, as
-         * some tests build it, checks none.
+         * The reading of {@code modelsRunOn} made at the start (ADR-384 §2); a command built without it, as some tests
+         * build it, reads none.
          */
         @Autowired(required = false)
         void refuseModelsNotLocalWith(ModelsAtTheStart modelsAtTheStart) {
@@ -356,6 +356,14 @@ public class VesperaCommand implements Callable<Integer> {
                     return refuse(unmakeableRun.get(), CommandLine.ExitCode.SOFTWARE);
                 }
             }
+            // A profile whose modelsRunOn is not local stops the invocation here, right after the presets' refusal and
+            // before the corpus-root lock, the sidecars and the job: nothing is asked of Ollama (ADR-384 §2).
+            if (modelsAtTheStart != null) {
+                Optional<String> notLocal = modelsAtTheStart.refusal();
+                if (notLocal.isPresent()) {
+                    return refuse(notLocal.get(), CommandLine.ExitCode.SOFTWARE);
+                }
+            }
             if (corpusRootLock != null) {
                 try {
                     corpusRootLock.take(corpusRoot, workingDirectoryInUse, arguments);
@@ -369,14 +377,6 @@ public class VesperaCommand implements Callable<Integer> {
                     sidecarStarter.ensureRunning();
                 } catch (SidecarStartRefusedException refused) {
                     return refuse(refused.getMessage(), CommandLine.ExitCode.SOFTWARE);
-                }
-            }
-            // After the sidecars are started, so that the Ollama just started is the one asked, and before the file of
-            // ADR-330 §1 is written and the job started: a cloud or remote model stops the invocation (ADR-375 §2).
-            if (modelsAtTheStart != null) {
-                Optional<String> notLocal = modelsAtTheStart.refusal();
-                if (notLocal.isPresent()) {
-                    return refuse(notLocal.get(), CommandLine.ExitCode.SOFTWARE);
                 }
             }
             // Past the last refusal of the start and before the first step: an invocation refused above writes none (ADR-330 §1).
@@ -440,7 +440,7 @@ public class VesperaCommand implements Callable<Integer> {
                     // names nothing here
                 }
             }
-            return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+            return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                     null, null, null, null, null, null, null, null, null, null, null);
         }
 
@@ -520,6 +520,7 @@ public class VesperaCommand implements Callable<Integer> {
         private final ObjectProvider<AutoLabelling> autoLabelling;
         private SidecarStarter sidecarStarter;
         private EffectiveValuesFile effectiveValues;
+        private ModelsAtTheStart modelsAtTheStart;
         private InvocationReport report;
 
         @Option(
@@ -566,6 +567,12 @@ public class VesperaCommand implements Callable<Integer> {
         @Autowired(required = false)
         void startSidecarsWith(SidecarStarter sidecarStarter) {
             this.sidecarStarter = sidecarStarter;
+        }
+
+        /** As {@link Run#refuseModelsNotLocalWith}: {@code --auto} reads {@code modelsRunOn} first (ADR-384 §3). */
+        @Autowired(required = false)
+        void refuseModelsNotLocalWith(ModelsAtTheStart modelsAtTheStart) {
+            this.modelsAtTheStart = modelsAtTheStart;
         }
 
         /** As {@link Run#sayWhatLiesBeneathTheProfileWith}: a label that has started has written the file (ADR-330 §1). */
@@ -668,6 +675,15 @@ public class VesperaCommand implements Callable<Integer> {
 
         private int recordTheAnswers() {
             if (auto) {
+                // Before the sidecars and before the labeller is asked anything: a profile saying cloud ends it here
+                // (ADR-384 §3).
+                if (modelsAtTheStart != null) {
+                    Optional<String> notLocal = modelsAtTheStart.refusalOfLabelAuto();
+                    if (notLocal.isPresent()) {
+                        endedAs = "refused";
+                        return refuse(notLocal.get(), CommandLine.ExitCode.SOFTWARE);
+                    }
+                }
                 if (sidecarStarter != null) {
                     try {
                         sidecarStarter.ensureRunning();
@@ -838,12 +854,18 @@ public class VesperaCommand implements Callable<Integer> {
             try {
                 Map<String, Set<String>> finished = ledger.runs().finishedSteps();
                 List<Runs.Listed> runs = ledger.runs().listed();
-                exit = CommandLine.ExitCode.OK;
+                boolean anyStopped = false;
+                int ownCode = CommandLine.ExitCode.OK;
                 for (Plugin plugin : chosen) {
-                    if (!deliverTo(plugin, bare, finished, runs)) {
-                        exit = CommandLine.ExitCode.SOFTWARE;
+                    int code = deliverTo(plugin, bare, finished, runs);
+                    anyStopped |= code != CommandLine.ExitCode.OK;
+                    if (ownCode == CommandLine.ExitCode.OK && code != CommandLine.ExitCode.OK
+                            && code != CommandLine.ExitCode.SOFTWARE) {
+                        ownCode = code;
                     }
                 }
+                exit = ownCode != CommandLine.ExitCode.OK ? ownCode
+                        : anyStopped ? CommandLine.ExitCode.SOFTWARE : CommandLine.ExitCode.OK;
                 return exit;
             } finally {
                 if (report != null) {
@@ -862,13 +884,17 @@ public class VesperaCommand implements Callable<Integer> {
         }
 
         /** A destination's stop: its line on standard error, whole, kept for the report as the refusal it is. */
-        private boolean stopped(Plugin plugin, String line) {
+        private int stopped(Plugin plugin, String line, int exitCode) {
             OperatorLines.warn(line);
             if (report != null) {
                 report.said(line);
                 report.destinationEnds(plugin.name(), "stopped", line);
             }
-            return false;
+            return exitCode;
+        }
+
+        private int stopped(Plugin plugin, String line) {
+            return stopped(plugin, line, CommandLine.ExitCode.SOFTWARE);
         }
 
         /**
@@ -877,9 +903,9 @@ public class VesperaCommand implements Callable<Integer> {
          * its line naming it and the exception's type and never its message, which could name a document (ADR-274 §8).
          *
          * @param bare whether this is a bare publish, which says what ADR-308 §5 said before {@code --to}
-         * @return whether it was delivered
+         * @return 0 where it was delivered, else the code its stop carries (1 where it carries none of its own)
          */
-        private boolean deliverTo(Plugin plugin, boolean bare, Map<String, Set<String>> finished, List<Runs.Listed> runs) {
+        private int deliverTo(Plugin plugin, boolean bare, Map<String, Set<String>> finished, List<Runs.Listed> runs) {
             Optional<String> generation = lastDrawn(plugin, finished, runs);
             if (generation.isEmpty()) {
                 return stopped(plugin, bare
@@ -903,13 +929,13 @@ public class VesperaCommand implements Callable<Integer> {
                         + " that is dealt with.");
             }
             if (!outcome.delivered()) {
-                return stopped(plugin, outcome.closingLine());
+                return stopped(plugin, outcome.closingLine(), outcome.exitCode());
             }
             OperatorLines.info(outcome.closingLine());
             if (report != null) {
                 report.destinationEnds(plugin.name(), "delivered", outcome.closingLine());
             }
-            return true;
+            return CommandLine.ExitCode.OK;
         }
 
         /**

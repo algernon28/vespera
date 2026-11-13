@@ -1,5 +1,7 @@
 # ADR-062 — Census merges new profile keys and never touches an existing value
 
+> **Partly amended — see [ADR-384](0384-whether-the-models-run-locally-or-in-the-cloud-is-the-profiles-to-say-local-by-default-and-cloud-refused-at-the-start.md).** Of its Decision: `modelsRunOn`, while its value and provenance are unset, is written as three lines of comment in its place, not as `value: null` and `provenance: null`. The merge stands.
+
 - **Date**: 2026-08-29
 - **Status**: accepted
 

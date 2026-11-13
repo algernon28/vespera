@@ -2,7 +2,6 @@ package io.algernon.vespera.engine.pipeline;
 
 import io.algernon.vespera.engine.embedding.ModelArtefact;
 import io.algernon.vespera.engine.embedding.OllamaClient;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -16,9 +15,6 @@ import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.ai.embedding.EmbeddingResponseMetadata;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.client.HttpClientErrorException;
 
 /**
  * {@link SeedScriptedExtractionBeans}' sibling for gate 3's scoring step (#107): every chunk embeds to
@@ -35,16 +31,16 @@ import org.springframework.web.client.HttpClientErrorException;
  * stop the cascade three stages before the one a 6b test is about. {@link #servesEveryModel()} is the
  * state it ships in, so nothing that does not script a refusal behaves any differently than before.
  *
- * <p><b>It can also be told a model is forwarded to a hosted service, or that it cannot say</b>
- * (ADR-202, #431). {@code OllamaClient.isRemote} is what {@code /api/show} says about a name, and the
- * check every call to Ollama passes asks it. Scripted by name for the reason above, and answering
- * "this machine" for every name nothing scripted, which is what a model pulled into the local daemon
- * answers. Every name it is asked about is kept, so a test can say whether the check was made and how
- * often. The embedding double counts its calls, so a test can say none was made.
+ * <p><b>It can also be told it cannot answer about a model</b> (ADR-375, ADR-384). {@code
+ * OllamaClient.serves} is whether {@code /api/show} answers for a name, which a step asks before it
+ * sends to the model; where a model runs is the profile's to say, and nothing here reports one as
+ * forwarded. Scripted by name for the reason above, and answering for every name nothing scripted.
+ * Every name it is asked about is kept, so a test can say whether Ollama was asked and how often. The
+ * embedding double counts its calls, so a test can say none was made.
  *
  * <p><b>A name it has never pulled is never pulled for {@code /api/show} either.</b> The real daemon
- * answers 404 there, and since ADR-202 the check asks {@code /api/show} before anything reads {@code
- * /api/tags}, so in production it is the check that meets an unpulled name first and ADR-114's stop in
+ * answers 404 there, and since ADR-202 the step asks {@code /api/show} before anything reads {@code
+ * /api/tags}, so in production it is that question that meets an unpulled name first and ADR-114's stop in
  * {@code artefactOf} is no longer reached for it. The double answers both endpoints alike so a test of
  * that case runs the path production runs.
  *
@@ -164,9 +160,6 @@ class EmbeddingScriptedBeans {
      */
     private static final Set<String> NEVER_PULLED = new HashSet<>();
 
-    /** The names this fixture's runtime reports as forwarded to a hosted service, as a cloud model is. */
-    private static final Set<String> FORWARDED = new HashSet<>();
-
     /** The names this fixture's runtime cannot answer {@code /api/show} about at all. */
     private static final Set<String> UNANSWERED = new HashSet<>();
 
@@ -194,18 +187,10 @@ class EmbeddingScriptedBeans {
     }
 
     /**
-     * Scripts this fixture's runtime as forwarding {@code modelName} to a hosted service: its {@code
-     * /api/show} answer carries {@code remote_host} and {@code remote_model}, whatever the name says.
-     */
-    static void forwardsToAHostedService(String modelName) {
-        FORWARDED.add(modelName);
-    }
-
-    /**
      * Scripts this fixture's runtime as unable to answer {@code /api/show} about {@code modelName}, the
      * way a daemon that is down or answers 500 cannot.
      */
-    static void cannotSayWhereItRuns(String modelName) {
+    static void cannotAnswerAbout(String modelName) {
         UNANSWERED.add(modelName);
     }
 
@@ -229,7 +214,6 @@ class EmbeddingScriptedBeans {
      */
     static void servesEveryModel() {
         NEVER_PULLED.clear();
-        FORWARDED.clear();
         UNANSWERED.clear();
         SHOWN.clear();
         embeddingCallsMade = 0;
@@ -269,30 +253,21 @@ class EmbeddingScriptedBeans {
             }
 
             /**
-             * What {@code /api/show} says about {@code modelName}. A name this runtime has never pulled
-             * is answered as the real daemon answers it, with 404 and {@code model '<name>' not found},
-             * raised as the {@code RestClient} behind the real client raises it, so the check meets
-             * the never-pulled case in the shape production gives it.
+             * Whether {@code /api/show} answers for {@code modelName}. A name this runtime has never
+             * pulled is answered as the real client answers a 404, {@code false}; a name scripted as
+             * unanswered raises, as the real client raises for an error answer or none.
              */
             @Override
-            public boolean isRemote(String modelName) {
+            public boolean serves(String modelName) {
                 SHOWN.add(modelName);
                 Runnable edit = editWhenFirstShown;
                 editWhenFirstShown = () -> {};
                 edit.run();
-                if (NEVER_PULLED.contains(modelName)) {
-                    throw HttpClientErrorException.create(
-                            HttpStatus.NOT_FOUND,
-                            "Not Found",
-                            HttpHeaders.EMPTY,
-                            ("{\"error\":\"model '" + modelName + "' not found\"}").getBytes(StandardCharsets.UTF_8),
-                            StandardCharsets.UTF_8);
-                }
                 if (UNANSWERED.contains(modelName)) {
                     throw new IllegalStateException("the runtime answered /api/show for " + modelName
                             + " with a server error");
                 }
-                return FORWARDED.contains(modelName);
+                return !NEVER_PULLED.contains(modelName);
             }
         };
     }

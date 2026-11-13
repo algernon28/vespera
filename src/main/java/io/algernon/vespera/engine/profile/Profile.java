@@ -76,6 +76,10 @@ package io.algernon.vespera.engine.profile;
  *     Or {@code auto} (ADR-317): the operator's standing approval of every arrangement an invocation
  *     arrives at, unread, written by the operator and never the default.
  * @param generationModel which model stage 6b writes the synthesis docs with (ADR-114, #179).
+ * @param modelsRunOn where the models Vespera sends a document's text to run (ADR-384 §1): {@code local} or
+ *     {@code cloud}, in any case, the blanks around it ignored. Unset or blank is local; {@code cloud}, or any other
+ *     value, stops the invocation at its start. Not a gate, enters no run's identity, no {@link Measurement} pointer.
+ *     While unset, {@link ProfileStore#save} writes it as three lines of comment in its place.
  *     <b>The first key whose unset state means neither "no threshold" nor "gate shut" but "a default
  *     applies"</b>: application configuration carries a name, this key overrides it, and an
  *     unanswered key resolves to the configured value rather than ending the invocation. It is
@@ -159,6 +163,7 @@ public record Profile(
         NumericValue relevanceScoreFloor,
         TextValue arrangementApproved,
         TextValue generationModel,
+        TextValue modelsRunOn,
         NumericValue generationContextWindow,
         NumericValue clusterPageByteCeiling,
         NumericValue logTimestampShareFloor,
@@ -189,6 +194,7 @@ public record Profile(
         relevanceScoreFloor = relevanceScoreFloor == null ? NumericValue.unset() : relevanceScoreFloor;
         arrangementApproved = arrangementApproved == null ? TextValue.unset() : arrangementApproved;
         generationModel = generationModel == null ? TextValue.unset() : generationModel;
+        modelsRunOn = modelsRunOn == null ? TextValue.unset() : modelsRunOn;
         generationContextWindow =
                 generationContextWindow == null ? NumericValue.unset() : generationContextWindow;
         clusterPageByteCeiling = clusterPageByteCeiling == null ? NumericValue.unset() : clusterPageByteCeiling;
@@ -254,7 +260,7 @@ public record Profile(
     static Profile skeleton() {
         return new Profile(
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -268,6 +274,7 @@ public record Profile(
                 relevanceScoreFloor,
                 arrangementApproved,
                 generationModel,
+                modelsRunOn,
                 generationContextWindow,
                 clusterPageByteCeiling,
                 logTimestampShareFloor,
@@ -303,6 +310,7 @@ public record Profile(
                 relevanceScoreFloor,
                 arrangementApproved,
                 generationModel,
+                modelsRunOn,
                 generationContextWindow,
                 clusterPageByteCeiling,
                 logTimestampShareFloor,
@@ -334,6 +342,7 @@ public record Profile(
                 relevanceScoreFloor,
                 arrangementApproved,
                 generationModel,
+                modelsRunOn,
                 generationContextWindow,
                 clusterPageByteCeiling,
                 logTimestampShareFloor,
@@ -368,6 +377,7 @@ public record Profile(
                 relevanceScoreFloor,
                 arrangementApproved,
                 generationModel,
+                modelsRunOn,
                 generationContextWindow,
                 clusterPageByteCeiling,
                 logTimestampShareFloor,
@@ -407,6 +417,7 @@ public record Profile(
                 relevanceScoreFloor.measuredBy(measurement),
                 arrangementApproved,
                 generationModel,
+                modelsRunOn,
                 generationContextWindow,
                 clusterPageByteCeiling,
                 logTimestampShareFloor,
@@ -441,6 +452,7 @@ public record Profile(
                 new NumericValue(value, provenance, relevanceScoreFloor.measurement()),
                 arrangementApproved,
                 generationModel,
+                modelsRunOn,
                 generationContextWindow,
                 clusterPageByteCeiling,
                 logTimestampShareFloor,
@@ -472,6 +484,7 @@ public record Profile(
                 relevanceScoreFloor,
                 arrangementApproved,
                 generationModel,
+                modelsRunOn,
                 generationContextWindow,
                 clusterPageByteCeiling,
                 logTimestampShareFloor.measuredBy(measurement),
@@ -503,6 +516,7 @@ public record Profile(
                 relevanceScoreFloor,
                 arrangementApproved,
                 generationModel,
+                modelsRunOn,
                 generationContextWindow,
                 clusterPageByteCeiling,
                 logTimestampShareFloor,
@@ -534,6 +548,7 @@ public record Profile(
                 relevanceScoreFloor,
                 arrangementApproved,
                 generationModel,
+                modelsRunOn,
                 generationContextWindow,
                 clusterPageByteCeiling,
                 logTimestampShareFloor,
@@ -565,6 +580,7 @@ public record Profile(
                 relevanceScoreFloor,
                 arrangementApproved,
                 generationModel,
+                modelsRunOn,
                 generationContextWindow,
                 clusterPageByteCeiling,
                 logTimestampShareFloor,
@@ -596,6 +612,7 @@ public record Profile(
                 relevanceScoreFloor,
                 arrangementApproved,
                 generationModel,
+                modelsRunOn,
                 generationContextWindow,
                 clusterPageByteCeiling,
                 logTimestampShareFloor,
@@ -627,6 +644,7 @@ public record Profile(
                 relevanceScoreFloor,
                 arrangementApproved,
                 generationModel,
+                modelsRunOn,
                 generationContextWindow,
                 clusterPageByteCeiling,
                 logTimestampShareFloor,

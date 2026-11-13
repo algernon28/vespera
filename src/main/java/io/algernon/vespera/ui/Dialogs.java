@@ -12,6 +12,7 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
@@ -36,6 +37,12 @@ interface Dialogs {
      */
     Optional<String> masked(String title, String sentence);
 
+    /**
+     * Opens a warning, {@code sentence} over one field holding {@code initial} and the answers Publish and Cancel
+     * (ADR-383 §3): what is typed, empty where the warning is cancelled.
+     */
+    Optional<String> warnAndAsk(String title, String sentence, String initial);
+
     /** Hands {@code address}, a document that is no report of the window, to the operating system to open (ADR-344 §6). */
     void handToTheSystem(URI address);
 
@@ -46,6 +53,11 @@ interface Dialogs {
     Dialogs NONE = new Dialogs() {
         @Override
         public Optional<String> masked(String title, String sentence) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> warnAndAsk(String title, String sentence, String initial) {
             return Optional.empty();
         }
 
@@ -104,6 +116,26 @@ interface Dialogs {
                     themed(ask.getDialogPane(), over);
                 }
                 return ask.showAndWait();
+            }
+
+            @Override
+            public Optional<String> warnAndAsk(String title, String sentence, String initial) {
+                ButtonType goOn = new ButtonType("Publish", ButtonBar.ButtonData.OK_DONE);
+                ButtonType keep = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+                Alert ask = new Alert(Alert.AlertType.WARNING, "", goOn, keep);
+                ask.setTitle(title);
+                ask.setHeaderText(null);
+                TextField field = new TextField(initial == null ? "" : initial);
+                field.setId("warning-field");
+                Label words = new Label(sentence);
+                words.setWrapText(true);
+                ask.getDialogPane().setContent(new VBox(8, words, field));
+                Window over = owner.get();
+                if (over != null) {
+                    ask.initOwner(over);
+                    themed(ask.getDialogPane(), over);
+                }
+                return ask.showAndWait().filter(answer -> answer == goOn).map(answer -> field.getText());
             }
 
             @Override

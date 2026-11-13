@@ -398,11 +398,11 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             Map.entry(
                     "SeedGate", Set.of("corpus.Walk", "profile.Profile", "profile.ProfileStore", "profile.TextValue")),
             Map.entry("UsableSeedGate", Set.of()),
-            // ADR-329: run by stage 5's scoring step and the generation step; it asks ADR-202's check and pulls, and
-            // hands the stage the check's answer.
-            Map.entry("ModelPull", Set.of("embedding.LocalOllamaModel", "embedding.OllamaClient")),
-            // ADR-375: asks ADR-202's check of both models at the start of vespera run.
-            Map.entry("ModelsAtTheStart", Set.of("embedding.LocalOllamaModel", "embedding.OllamaClient")),
+            // ADR-329, ADR-384 §5: run by stage 5's scoring step and the generation step; it asks Ollama whether it
+            // serves the model, pulls, and hands the stage the answer.
+            Map.entry("ModelPull", Set.of("embedding.OllamaClient")),
+            // ADR-384 §2: reads where the models run from the profile at the start of vespera run and label --auto.
+            Map.entry("ModelsAtTheStart", Set.of("profile.Profile", "profile.ProfileStore", "profile.TextValue")),
             Map.entry("StageFiveGates", Set.of()),
             Map.entry(
                     "EmbeddingScoringTasklet",

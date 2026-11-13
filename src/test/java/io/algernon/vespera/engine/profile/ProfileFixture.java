@@ -42,6 +42,8 @@ public final class ProfileFixture {
     private TextValue arrangementApproved = TextValue.unset();
     private TextValue generationModel = TextValue.unset();
 
+    private TextValue modelsRunOn = TextValue.unset();
+
     private NumericValue generationContextWindow = NumericValue.unset();
 
     private NumericValue clusterPageByteCeiling = NumericValue.unset();
@@ -96,6 +98,7 @@ public final class ProfileFixture {
         fixture.relevanceScoreFloor = existing.relevanceScoreFloor();
         fixture.arrangementApproved = existing.arrangementApproved();
         fixture.generationModel = existing.generationModel();
+        fixture.modelsRunOn = existing.modelsRunOn();
         fixture.generationContextWindow = existing.generationContextWindow();
         fixture.clusterPageByteCeiling = existing.clusterPageByteCeiling();
         fixture.logTimestampShareFloor = existing.logTimestampShareFloor();
@@ -203,6 +206,12 @@ public final class ProfileFixture {
 
     public ProfileFixture generationModel(TextValue value) {
         this.generationModel = value == null ? TextValue.unset() : value;
+        return this;
+    }
+
+    /** Where the models run (ADR-384): {@code local}, or {@code cloud}, which is refused at the start. */
+    public ProfileFixture modelsRunOn(String value, String provenance) {
+        this.modelsRunOn = someText(value, provenance);
         return this;
     }
 
@@ -317,6 +326,7 @@ public final class ProfileFixture {
                 relevanceScoreFloor,
                 arrangementApproved,
                 generationModel,
+                modelsRunOn,
                 generationContextWindow,
                 clusterPageByteCeiling,
                 logTimestampShareFloor,

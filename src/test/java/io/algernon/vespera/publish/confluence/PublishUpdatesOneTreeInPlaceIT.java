@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.engine.deliverable.Plugin;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -13,6 +14,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -43,7 +46,9 @@ import org.junit.jupiter.api.io.TempDir;
  * <p>It also holds, since this is the one class publishing to the stub, what ADR-308 §2 and §3 decide of every publish:
  * each request goes to the configured {@code https} host alone, an {@code http} address is refused and a link to
  * another host is not followed, before anything is sent there; and the environment's email and token go as Basic
- * authentication on every request and in no line or file the publish writes.
+ * authentication on every request and in no line or file the publish writes. And what ADR-383 §1 and §2 decide of a
+ * parent's title that no page or folder of the space holds, or several: the line and the exit code a delivery stops
+ * with, as the control panel started it and as typed on the command line.
  */
 @Epic("Operation")
 @Feature("The publish")
@@ -154,6 +159,41 @@ class PublishUpdatesOneTreeInPlaceIT {
 
     /** A host other than the site's, which a link the site answers with may name. */
     private static final String ANOTHER_HOST = "elsewhere.example";
+
+    /** A parent's title no page or folder of the stub's space holds. */
+    private static final String TITLE_OF_NO_PAGE = "Nowhere";
+
+    /** How far a publish stopped at its parent had got: nothing sent (ADR-320 §4). */
+    private static final String NOTHING_SENT = " It had created 0 pages, updated 0 and sent 0 files. Publish again to go"
+            + " on from there.";
+
+    /** A publish's closing lines where the parent's title names no page or folder, and two, on the command line (ADR-318 §3). */
+    private static final String ON_THE_COMMAND_LINE_NO_PAGE = "vespera publish stopped: no page or folder of the space "
+            + StubConfluence.SPACE_KEY + " is titled " + TITLE_OF_NO_PAGE + ", and the parent must be exactly one; name"
+            + " it by VESPERA_CONFLUENCE_FOLDER_ID." + NOTHING_SENT;
+
+    private static final String ON_THE_COMMAND_LINE_TWO = "vespera publish stopped: 2 pages or folders of the space "
+            + StubConfluence.SPACE_KEY + " is titled " + StubConfluence.PARENT_TITLE + ", and the parent must be exactly"
+            + " one; name it by VESPERA_CONFLUENCE_FOLDER_ID." + NOTHING_SENT;
+
+    /** The same two, the control panel having started the publish (ADR-383 §1). */
+    private static final String FROM_THE_CONTROL_PANEL_NO_PAGE = "vespera publish stopped: no page or folder of the"
+            + " space " + StubConfluence.SPACE_KEY + " is titled " + TITLE_OF_NO_PAGE + ", and the parent must be"
+            + " exactly one; set another title in confluenceFolderTitle, or the parent's id in confluenceFolderId, in"
+            + " the control panel's Profile tab." + NOTHING_SENT;
+
+    private static final String FROM_THE_CONTROL_PANEL_TWO = "vespera publish stopped: 2 pages or folders of the space "
+            + StubConfluence.SPACE_KEY + " are titled " + StubConfluence.PARENT_TITLE + ", and the parent must be"
+            + " exactly one; set another title in confluenceFolderTitle, or the parent's id in confluenceFolderId, in"
+            + " the control panel's Profile tab." + NOTHING_SENT;
+
+    /** The exit codes a publish the control panel started ends with, the parent's title naming none, and several (ADR-383 §1). */
+    private static final int NO_PAGE_SO_TITLED = 3;
+
+    private static final int SEVERAL_SO_TITLED = 4;
+
+    /** The exit code of any other stop (ADR-333 §6). */
+    private static final int STOPPED = 1;
 
     @TempDir
     Path folder;
@@ -881,6 +921,68 @@ class PublishUpdatesOneTreeInPlaceIT {
                     () -> assertThat(described(page(site, italian.rootTitle())))
                             .isEqualTo("Vespera_it [vespera-it] it:root"));
         }
+    }
+
+    @Test
+    @Story("A parent's title naming no page or several asks for another")
+    @Link(name = "ADR-383", url = Adr.A_PARENT_TITLE_NAMING_NO_PAGE_OR_SEVERAL_ASKS_FOR_ANOTHER_IN_A_WARNING, type = "adr")
+    @DisplayName("Started by the control panel, a parent's title the profile names that no page holds, or two, stops the publish before any write with an exit code of its own each, naming the profile's keys and the Profile tab")
+    void fromTheControlPanelATitleNamingNoPageOrTwoStopsWithItsOwnCodeNamingTheProfilesKeys() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            Plugin.Delivery none = fromTheControlPanel(site, TITLE_OF_NO_PAGE)
+                    .deliver(rendering.confluence(), Rendering.RUN, folder, line -> { });
+            site.aPageNoPublishMade(StubConfluence.PARENT_TITLE);
+            Plugin.Delivery two = fromTheControlPanel(site, StubConfluence.PARENT_TITLE)
+                    .deliver(rendering.confluence(), Rendering.RUN, folder, line -> { });
+
+            claim("a title no page holds stopped the publish with exit code " + NO_PAGE_SO_TITLED + ", its line naming"
+                            + " confluenceFolderTitle, confluenceFolderId and the Profile tab, and no variable",
+                    () -> assertThat(none).isEqualTo(
+                            new Plugin.Delivery(false, FROM_THE_CONTROL_PANEL_NO_PAGE, NO_PAGE_SO_TITLED)));
+            claim("a title a folder and a page both hold stopped it with exit code " + SEVERAL_SO_TITLED + ", its line"
+                            + " saying so",
+                    () -> assertThat(two).isEqualTo(
+                            new Plugin.Delivery(false, FROM_THE_CONTROL_PANEL_TWO, SEVERAL_SO_TITLED)));
+            claim("and neither sent anything but reads", () -> assertThat(site.sent()).isNotEmpty()
+                    .allSatisfy(request -> assertThat(request.method()).isEqualTo("GET")));
+        }
+    }
+
+    @Test
+    @Story("A parent's title naming no page or several asks for another")
+    @Link(name = "ADR-383", url = Adr.A_PARENT_TITLE_NAMING_NO_PAGE_OR_SEVERAL_ASKS_FOR_ANOTHER_IN_A_WARNING, type = "adr")
+    @DisplayName("Typed on the command line, a parent's title that no page holds, or two, stops the publish as before: exit code 1 and the line naming the folder id's variable")
+    void fromTheCommandLineATitleNamingNoPageOrTwoStopsAsBefore() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            Plugin.Delivery none = new ConfluencePlugin(site.publisher(StubConfluence.theAccount(),
+                    StubConfluence.BASE_URL, "", TITLE_OF_NO_PAGE, new ArrayList<>()))
+                    .deliver(rendering.confluence(), Rendering.RUN, folder, line -> { });
+            site.aPageNoPublishMade(StubConfluence.PARENT_TITLE);
+            Plugin.Delivery two = new ConfluencePlugin(site.publisher(StubConfluence.theAccount(),
+                    StubConfluence.BASE_URL, "", StubConfluence.PARENT_TITLE, new ArrayList<>()))
+                    .deliver(rendering.confluence(), Rendering.RUN, folder, line -> { });
+
+            claim("each stopped with exit code " + STOPPED + " and the line it stopped with before, word for word",
+                    () -> assertThat(List.of(none, two)).containsExactly(
+                            new Plugin.Delivery(false, ON_THE_COMMAND_LINE_NO_PAGE, STOPPED),
+                            new Plugin.Delivery(false, ON_THE_COMMAND_LINE_TWO, STOPPED)));
+        }
+    }
+
+    /**
+     * Confluence's plugin as a publish the control panel started has it: the environment holding the token and {@code
+     * VESPERA_STARTED_BY=control-panel} alone, no property set, and the profile naming the site, the space, the parent
+     * by {@code title} and the email (ADR-359 §2, §3).
+     */
+    private static ConfluencePlugin fromTheControlPanel(StubConfluence site, String title) {
+        Map<String, String> environment = Map.of(ConfluenceSite.TOKEN_VARIABLE, StubConfluence.TOKEN,
+                ConfluenceSite.STARTED_BY_VARIABLE, ConfluenceSite.THE_CONTROL_PANEL);
+        ConfluenceValues profile = new ConfluenceValues(StubConfluence.BASE_URL, StubConfluence.SPACE_KEY, null, title,
+                StubConfluence.USER);
+        return new ConfluencePlugin(new Publisher(environment::get, site.requests(), new ArrayList<Duration>()::add,
+                Clock.systemUTC(), "", "", "", "", workingDirectory -> profile));
     }
 
     private Publisher.Outcome publish(StubConfluence site, Rendering rendering, String run, List<String> lines) {

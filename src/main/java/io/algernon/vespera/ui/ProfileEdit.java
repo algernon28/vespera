@@ -124,7 +124,8 @@ public final class ProfileEdit {
 
     /**
      * The text of the file with {@code key}'s whole block taken out, every other byte kept, so that the jar reads the
-     * key as unset (ADR-345 §2); the text as it is where the file holds no block of the key.
+     * key as unset (ADR-345 §2); the text as it is where the file holds no block of the key. A comment at the margin
+     * after the block is kept, as belonging to no key (ADR-384 §6).
      */
     public static String without(String current, ProfileKey key) {
         Parsed parsed = parse(current);
@@ -140,6 +141,11 @@ public final class ProfileEdit {
         }
         List<Line> lines = parsed.lines();
         for (int n = next - 1; n >= block.keyLine(); n--) {
+            String text = lines.get(n).text();
+            if (YamlLines.indentOf(text) == 0 && text.startsWith("#")) {
+                // A comment at the margin belongs to no key's block, so it stays (ADR-384 §6).
+                continue;
+            }
             lines.remove(n);
         }
         return YamlLines.join(lines);
@@ -183,7 +189,7 @@ public final class ProfileEdit {
         try {
             for (int n = block.measurementFirst(); n <= block.measurementLast(); n++) {
                 String line = lines.get(n).text();
-                if (YamlLines.blank(line)) {
+                if (YamlLines.blank(line) || line.stripLeading().startsWith("#")) {
                     continue;
                 }
                 int indent = YamlLines.indentOf(line);
@@ -528,6 +534,11 @@ public final class ProfileEdit {
                     continue;
                 }
                 int indent = YamlLines.indentOf(line);
+                if (line.charAt(indent) == '#') {
+                    // A whole line that is a comment is in the form: at the margin it belongs to no key's block, and
+                    // inside a block to that block (ADR-384 §6). Every write keeps it.
+                    continue;
+                }
                 if (indent == 0) {
                     if (key != null) {
                         blocks.put(key, new Block(keyLine, value, provenance, measurementFirst, measurementLast));

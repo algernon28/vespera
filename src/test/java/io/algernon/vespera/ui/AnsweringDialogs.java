@@ -32,10 +32,26 @@ final class AnsweringDialogs implements Dialogs {
     /** What the next masked field is answered: what is typed, or empty where it is cancelled. */
     volatile Optional<String> typed = Optional.empty();
 
+    /** A warning that asked for a text: its title, its sentence and the text its field started with (ADR-383 §3). */
+    record Warned(String title, String sentence, String initial) {
+    }
+
+    /** Every warning the window opened asking for a text, in order (ADR-383 §3). */
+    final List<Warned> warned = new CopyOnWriteArrayList<>();
+
+    /** What the next such warning is answered: what is typed, or empty where it is cancelled. */
+    volatile Optional<String> entered = Optional.empty();
+
     @Override
     public Optional<String> masked(String title, String sentence) {
         maskedAsked.add(sentence);
         return typed;
+    }
+
+    @Override
+    public Optional<String> warnAndAsk(String title, String sentence, String initial) {
+        warned.add(new Warned(title, sentence, initial));
+        return entered;
     }
 
     @Override

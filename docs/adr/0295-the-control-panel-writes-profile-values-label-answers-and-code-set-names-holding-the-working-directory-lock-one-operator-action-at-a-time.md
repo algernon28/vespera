@@ -10,6 +10,8 @@
 
 > **Partly amended — see [ADR-377](0377-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §2: the control panel no longer writes `code-set-names.yaml`, a write naming it refused as any file not among its own. §7 goes, and `CodeSetRenames` of §9 with it: a code set is named by its folder alone. The rest of this record stands.
 
+> **Partly amended — see [ADR-384](0384-whether-the-models-run-locally-or-in-the-cloud-is-the-profiles-to-say-local-by-default-and-cloud-refused-at-the-start.md).** Of §3's form read: a whole line that is a comment, at any indent, is in the form, at the margin belonging to no block, and every write keeps it byte for byte; a comment after a key or a value on its line is still not in the form. The rest stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-061](0061-the-profile-is-yaml-typed-java-records-one-object-per-value.md), [ADR-062](0062-census-merges-new-profile-keys-and-never-touches-an-existing-value.md) and [ADR-120](0120-a-profile-values-type-is-its-keys-and-an-unreadable-value-is-a-third-state-beside-unset.md): a profile value is `value`, `provenance` and `measurement` under its key; a key the file does not hold is unset at the next load; a value the key cannot use is unreadable, a state beside unset. The control panel writes no unreadable value (§4) and keeps `measurement` as it is (§3).

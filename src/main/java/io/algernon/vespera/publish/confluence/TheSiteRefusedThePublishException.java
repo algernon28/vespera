@@ -8,7 +8,19 @@ package io.algernon.vespera.publish.confluence;
  */
 final class TheSiteRefusedThePublishException extends RuntimeException {
 
+    private final int exitCode;
+
     TheSiteRefusedThePublishException(String message) {
+        this(message, 1);
+    }
+
+    /** A stop whose publish exits with {@code exitCode}, 3 or 4 where the control panel reads it (ADR-383 §1). */
+    TheSiteRefusedThePublishException(String message, int exitCode) {
         super(message);
+        this.exitCode = exitCode;
+    }
+
+    int exitCode() {
+        return exitCode;
     }
 }

@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-375](0375-a-model-whose-check-cannot-be-completed-is-taken-as-local-and-a-cloud-model-is-refused-at-the-start-of-vespera-run.md).** Of §3's step 4: where ADR-202's check gives its reason that the model's place could not be established, that reason no longer stands; `ModelPull` writes one warning, asks Ollama nothing more, pulls nothing, and the step goes on. A 404 is still the one answer from which a model is pulled, and every other reason goes through §3 unchanged.
 
+> **Partly amended — see [ADR-384](0384-whether-the-models-run-locally-or-in-the-cloud-is-the-profiles-to-say-local-by-default-and-cloud-refused-at-the-start.md).** Of §3: a model Ollama does not serve is pulled whatever its name, the clause *the name does not end in `cloud`* gone, and what is asked before and after the pull is whether Ollama serves the model, `/api/show` answering 2xx or 404, its body unread. The rest stands.
+
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.
 - **Decided**: by the operator, who decided that Vespera pulls into Ollama, through `/api/pull` and showing its progress, a model the profile names, or the default, that Ollama does not serve, before the step that needs it: the embedding model for stage 5's scoring step and the generation model for the generation step; that a model Ollama already serves is never pulled again; and that `hf.co/…` GGUF names are covered as Ollama accepts them. Where the pull is made, which commands make it, the opt-out, how progress shows, the bound on the wait, an interrupted pull, the failure lines and the tests are decided under delegation.

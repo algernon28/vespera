@@ -30,15 +30,12 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * A generation model that is not local is refused at the start of every invocation that names it, before anything is
- * walked, and not first at the generation step (ADR-375, #725, extending ADR-202 and #431).
+ * A generation model is not refused for its name at the start of an invocation (ADR-384, amending ADR-375 §2): where
+ * the models run is the profile's {@code modelsRunOn} to say, and the start reads that alone, asking Ollama nothing
+ * about any model and reading nothing from a model's tag.
  *
- * <p>A loopback address does not keep a cluster's text here: Ollama serves a cloud model through the local daemon
- * and forwards each request to ollama.com. {@code vespera run} checks, at its start, every model the profile and the
- * configuration name for it, the generation model among them, whether or not the invocation will reach the step that
- * sends to it: the generation step comes invocations after the walk, behind the arrangement's approval. A tag that
- * ends in {@code cloud} is refused without asking Ollama anything, in one line on standard error, and the invocation
- * ends with exit code 1.
+ * <p>So a profile naming a generation model whose tag ends in {@code cloud}, with {@code modelsRunOn} unset, walks the
+ * corpus and goes as far as the arrangement's approval, as any other profile with no arrangement approved does.
  *
  * <p>The serving engine here is {@link EmbeddingScriptedBeans}' client, scripted by name. No test reaches a model or
  * a daemon.
@@ -54,6 +51,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Feature("Only a model served on this machine is sent anything")
 @Issue("725")
 @Link(name = "ADR-375", url = Adr.AN_UNANSWERED_CHECK_TAKES_A_MODEL_AS_LOCAL_AND_A_CLOUD_MODEL_IS_REFUSED_AT_THE_START, type = "adr")
+@Link(name = "ADR-384", url = Adr.WHETHER_THE_MODELS_RUN_LOCALLY_OR_IN_THE_CLOUD_IS_THE_PROFILES_TO_SAY, type = "adr")
 @Link(name = "ADR-202", url = Adr.GENERATION_AND_EMBEDDING_REFUSE_A_MODEL_NOT_SERVED_HERE, type = "adr")
 @Link(name = "ADR-114", url = Adr.THE_GENERATION_MODEL_IS_CONFIGURATION_WITH_A_DEFAULT, type = "adr")
 class GenerationRefusesAModelNotServedHereInvocationTest {
@@ -61,14 +59,11 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
     /** A tag Ollama gives a cloud model: served by the local daemon, answered by ollama.com. */
     private static final String A_CLOUD_TAGGED_GENERATION_MODEL = "a-large-model:120b-cloud";
 
-    /** The exit code of every refusal at the start of {@code vespera run}. */
-    private static final int REFUSED = 1;
+    /** The exit code of an invocation that ends at the arrangement's approval, as one with none approved does. */
+    private static final int ENDED_AT_THE_APPROVAL = 0;
 
-    /** The whole line the refusal prints on standard error. */
-    private static final String THE_LINE = "vespera run stopped at its start: the generation model "
-            + A_CLOUD_TAGGED_GENERATION_MODEL + " was refused, so nothing was walked and no run was minted -- the model "
-            + A_CLOUD_TAGGED_GENERATION_MODEL + " is a cloud model: Ollama forwards it to a hosted service, and no"
-            + " document's text may be sent there";
+    /** What every line of a refusal at the start of {@code vespera run} begins with. */
+    private static final String STOPPED_AT_ITS_START = "vespera run stopped at its start: ";
 
     @TempDir
     static Path workingDirectory;
@@ -96,9 +91,9 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
     }
 
     @Test
-    @Story("No cluster's text leaves this machine through Ollama")
-    @DisplayName("A generation model whose tag ends in cloud is refused at the start of an invocation that would not reach generation, before anything is walked")
-    void aCloudTaggedGenerationModelIsRefusedAtTheStartOfAnInvocationThatWouldNotReachIt(
+    @Story("Where the models run is the operator's to say")
+    @DisplayName("A generation model whose tag ends in cloud does not stop the start of an invocation: the corpus is walked and the invocation goes as far as the approval")
+    void aCloudTaggedGenerationModelDoesNotStopTheStart(
             @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
@@ -112,15 +107,17 @@ class GenerationRefusesAModelNotServedHereInvocationTest {
         String onStandardError = output.getErr().substring(before);
 
         claim(
-                "the invocation ends with exit code " + REFUSED + ", the code of every refusal at its start, where"
-                        + " with no arrangement approved it would have ended at that approval with exit code 0",
-                () -> assertThat(cli.getExitCode()).isEqualTo(REFUSED));
+                "the invocation ends with exit code " + ENDED_AT_THE_APPROVAL + ", at the arrangement's approval, as"
+                        + " one with no arrangement approved does",
+                () -> assertThat(cli.getExitCode()).isEqualTo(ENDED_AT_THE_APPROVAL));
         claim(
-                "standard error carries the refusal once, whole: \"" + THE_LINE + "\"",
-                () -> assertThat(onStandardError.lines().filter(THE_LINE::equals)).hasSize(1));
-        claim("nothing was walked, so no stage ran before the refusal", () -> assertThat(walksOf(root)).isZero());
+                "the start refused nothing, and the corpus was walked once",
+                () -> {
+                    assertThat(onStandardError.lines()).noneMatch(line -> line.startsWith(STOPPED_AT_ITS_START));
+                    assertThat(walksOf(root)).isEqualTo(1);
+                });
         claim(
-                "Ollama was not asked about it: the tag alone settles it",
+                "and Ollama was not asked about the generation model: no step that sends to it was reached",
                 () -> assertThat(EmbeddingScriptedBeans.shownModels()).doesNotContain(A_CLOUD_TAGGED_GENERATION_MODEL));
     }
 

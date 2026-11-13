@@ -11,8 +11,8 @@ import java.util.regex.Pattern;
 /**
  * What can be made of a {@code profile.yaml} that is not in the form {@link ProfileEdit} reads (ADR-330 §6): the first
  * line that is not in it, and, where nothing else is wrong, the two changes that put it there and the text they make.
- * The two are a comment removed, whether a whole line's, one after a key or one after a scalar on its line, a
- * measurement's lines among them; and a plain or single-quoted scalar over several lines joined with one space, as
+ * The two are a comment removed, whether one after a key or one after a scalar on its line, a
+ * measurement's lines among them (a whole line that is a comment is in the form, and is kept, ADR-384 §6); and a plain or single-quoted scalar over several lines joined with one space, as
  * YAML folds them. A scalar that loses a comment or is joined is written as ADR-295 §3 writes one, but a scalar is
  * never rewritten as a change of its own: none that keeps its comment and its line is touched, and no {@link Change}
  * records such a rewrite.
@@ -64,7 +64,8 @@ final class ProfileRepair {
             int indent = YamlLines.indentOf(line);
             String body = line.substring(indent);
             if (!YamlLines.blank(line) && body.startsWith("#")) {
-                changes.add(new Change(i + 1, "removes the comment that is this whole line"));
+                // A whole line that is a comment is in the form, and the repair keeps it (ADR-384 §6).
+                out.add(current);
                 i++;
                 continue;
             }
