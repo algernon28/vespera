@@ -39,7 +39,9 @@ import tools.jackson.databind.json.JsonMapper;
  * children, a page's {@code DELETE}, which moves it to the trash, and a label's {@code DELETE}. A page sent a title
  * another page of the space holds is refused with {@code 400}, as a page created so is. A page's {@code DELETE} takes
  * whatever stands under it into the trash with it: what the site does is not measured, and the stub does the worst a
- * site could (ADR-328 §5). No test reaches a real site.
+ * site could (ADR-328 §5). A page read with {@code body-format=storage} is answered with its body as {@code
+ * body.storage.value}, as the v2 reference has it, unmeasured, so a publish can read an earlier tree's heading (ADR-378
+ * §5). No test reaches a real site.
  *
  * <p>The publish is pointed at {@code https://} {@value #SITE_HOST}: {@link #requests()} sends each request it builds
  * to this server instead, recording the address it was built for, so a test can tell where a publish would have sent.
@@ -171,6 +173,7 @@ final class StubConfluence implements AutoCloseable {
     private final List<Page> trash = new ArrayList<>();
     private final Map<String, Integer> labelRemovalsRefused = new HashMap<>();
     private final Map<String, Integer> childrenRefused = new HashMap<>();
+    private final Map<String, Integer> bodyReadsAnsweredWith = new HashMap<>();
     private Integer folderReadsAnsweredWith;
     private boolean labelSearchNewestFirst;
     private int pacesLeft;
@@ -318,11 +321,12 @@ final class StubConfluence implements AutoCloseable {
     }
 
     /**
-     * Puts a page of this tree under {@code parentId}, as an earlier publish of a larger rendering left it: titled
-     * {@code title}, labelled {@code vespera}, its property holding {@code key} (ADR-328 §4), and gives it.
+     * Puts a page of the English tree under {@code parentId}, as an earlier publish of a larger rendering left it:
+     * titled {@code title}, labelled as that tree's pages are, its property holding {@code key} (ADR-328 §4, ADR-378
+     * §2), and gives it.
      */
     synchronized Page aPageOfTheTree(String parentId, String title, String key) {
-        return aPageAnEarlierPublishMade(parentId, title, "vespera", key, Map.of());
+        return aPageAnEarlierPublishMade(parentId, title, Rendering.LABEL, key, Map.of());
     }
 
     /** Answers the next {@code DELETE} of a label on the page {@code pageId} with {@code status}, the label kept. */
@@ -333,6 +337,14 @@ final class StubConfluence implements AutoCloseable {
     /** Answers every listing of the children of the page or folder {@code id} with {@code status}. */
     synchronized void answerTheListingOfTheChildrenOf(String id, int status) {
         childrenRefused.put(id, status);
+    }
+
+    /**
+     * Answers every read of the page {@code pageId}'s body, {@code GET /wiki/api/v2/pages/{id}?body-format=storage},
+     * with {@code status}; a read of the page without its body is answered as before (ADR-378 §5).
+     */
+    synchronized void answerTheBodyReadOf(String pageId, int status) {
+        bodyReadsAnsweredWith.put(pageId, status);
     }
 
     /** Answers every read of a folder, {@code GET /wiki/api/v2/folders/{id}}, with {@code status}. */
@@ -538,7 +550,14 @@ final class StubConfluence implements AutoCloseable {
                 return Answer.of(404, Map.of("message", "Not found"));
             }
             if (method.equals("GET")) {
-                return Answer.of(200, pageJson(page));
+                Map<String, Object> json = pageJson(page);
+                if ("storage".equals(request.query("body-format")) && bodyReadsAnsweredWith.containsKey(page.id)) {
+                    return Answer.of(bodyReadsAnsweredWith.get(page.id), Map.of("message", "The body could not be read"));
+                }
+                if ("storage".equals(request.query("body-format"))) {
+                    json.put("body", Map.of("storage", Map.of("value", page.body, "representation", "storage")));
+                }
+                return Answer.of(200, json);
             }
             if (method.equals("DELETE")) {
                 Integer refused = removalsRefused.get(page.title);
