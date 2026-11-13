@@ -6,7 +6,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -67,11 +66,11 @@ final class ProfileRow {
         this.idPrefix = idPrefix;
         node.getStyleClass().add("profile-row");
         node.setId(idPrefix + "row-" + key.key());
-        SelectableText.Line title = SelectableText.line(nameOf(key));
+        SelectableText.Line title = SelectableText.line(key.title());
         title.getStyleClass().add("key-name");
         SelectableText.Line small = SelectableText.line(key.key());
         small.getStyleClass().add("small");
-        SelectableText.Wrapping about = SelectableText.wrapping(key.about() + " Read from " + key.hint() + ".");
+        SelectableText.Wrapping about = SelectableText.wrapping(key.shortDescription());
         about.getStyleClass().add("dim");
         node.getChildren().addAll(title, small, about);
         if (key == ProfileKey.CODE_SET_FOLDERS
@@ -87,13 +86,17 @@ final class ProfileRow {
         } else {
             node.getChildren().add(controlFor(models, dialogs));
         }
-        beneath.ifPresent(said -> inUse.setText("In use where the profile names none: " + said.value() + " ("
-                + said.source() + ")"));
+        beneath.ifPresent(said -> inUse.setText(inUseOf(said)));
         inUse.getStyleClass().add("small");
         node.getChildren().add(inUse);
         SelectableText.Wrapping cost = SelectableText.wrapping(costOf(key));
         cost.getStyleClass().add("small");
         node.getChildren().add(cost);
+        for (String warning : warningsOf(key)) {
+            SelectableText.Wrapping line = SelectableText.wrapping(warning);
+            line.getStyleClass().add("small");
+            node.getChildren().add(line);
+        }
         this.opensReport = opensReport;
         if (!Reports.OF_A_KEY.getOrDefault(key.key(), List.of()).isEmpty()) {
             links.getStyleClass().addAll("spaced-row", "reports-of-a-key");
@@ -367,37 +370,58 @@ final class ProfileRow {
 
     // ---- words
 
-    /** The key's descriptive name: its words, the first with a capital. */
-    static String nameOf(ProfileKey key) {
-        StringBuilder words = new StringBuilder();
-        for (char c : key.key().toCharArray()) {
-            if (Character.isUpperCase(c)) {
-                words.append(' ').append(Character.toLowerCase(c));
-            } else {
-                words.append(c);
-            }
+    /** The words §4 of ADR-377 gives each source of a value in use. */
+    private static final Map<String, String> SOURCES_IN_WORDS = Map.of(
+            "shipped", "Vespera's settings",
+            "local-file", "your local settings file",
+            "command-line", "the command that started Vespera",
+            "environment", "this computer's environment",
+            "code", "Vespera's built-in value");
+
+    /** What a change of the key redoes and what it keeps, in one sentence, by the earliest work it redoes (ADR-377 §4). */
+    static String costOf(ProfileKey key) {
+        if (key == ProfileKey.CLUSTER_PAGE_BYTE_CEILING) {
+            return "Changing it rewrites only the group pages (a split group's pictures are read again); everything"
+                    + " else is kept.";
         }
-        String text = words.toString();
-        return text.substring(0, 1).toUpperCase(Locale.ROOT) + text.substring(1);
+        return key.earliestRun().map(run -> switch (run) {
+            case BYTE_LEVEL_REDUCTION -> "Changing it redoes everything from sorting your files to writing the pages;"
+                    + " text already read out of your files is kept.";
+            case EXTRACTION -> "Changing it redoes everything after reading the text out of your files; the text"
+                    + " already read is kept.";
+            case CONTENT_REDUNDANCY -> "Changing it redoes the search for documents that say the same thing, the"
+                    + " groups and the pages; your files are not read again.";
+            case SEED_MEASUREMENT -> "Changing it redoes everything from reading your seed documents to writing the"
+                    + " pages; your other files are not read again.";
+            case EMBEDDING_SCORING -> "Changing it redoes the measuring of closeness, the grouping and the writing of"
+                    + " the pages; your files are not read again.";
+            case GENERATION -> "Changing it redoes only the writing of the pages; everything before it is kept.";
+            case CONTENT_CENSUS, ARRANGEMENT -> throw new IllegalStateException(
+                    key.key() + " enters first a run the cost lines give no line: " + run.stageName());
+        }).orElse("Changing it redoes no work; it takes effect the next time you press Publish.");
     }
 
-    /** Which steps a change makes again, in words (ADR-330 §9). */
-    static String costOf(ProfileKey key) {
+    /** The one-line warnings a change of the key brings, in ADR-377 §4's order, none where its cost brings none. */
+    static List<String> warningsOf(ProfileKey key) {
         ProfileKey.Cost cost = key.cost();
-        if (cost.runs().isEmpty()) {
-            return "A change makes no step again.";
-        }
-        StringBuilder words = new StringBuilder("A change makes again: ")
-                .append(cost.runs().stream().map(ProfileKey.Run::stageName).collect(Collectors.joining(", "))).append('.');
+        List<String> warnings = new ArrayList<>();
         if (cost.approvalCloses()) {
-            words.append(" The approval written names an arrangement the next invocation no longer arrives at.");
+            warnings.add("Approval: a grouping you approved must be approved again in the Approved grouping row.");
         }
         if (cost.labelsRefused()) {
-            words.append(" The label file names the old seed set, so label refuses it.");
+            warnings.add("Answers: press Record my answers first; after the change the old answers file is refused.");
+        } else if (cost.sampleDrawnAgain()) {
+            warnings.add("Answers: press Record my answers first, or unsaved answers in relevance-labels.yaml are lost.");
         }
         if (cost.sampleDrawnAgain()) {
-            words.append(" The sample being answered is drawn again and the label file is written over.");
+            warnings.add("New sample: Vespera picks new documents for you to judge in relevance-labels.yaml.");
         }
-        return words.toString();
+        return warnings;
+    }
+
+    /** The line of the value in use where the profile names none, its source in plain words (ADR-377 §4). */
+    static String inUseOf(EffectiveValues.Value said) {
+        String source = SOURCES_IN_WORDS.get(said.source());
+        return "Left empty, Vespera uses " + said.value() + (source == null ? "" : " (" + source + ")") + ".";
     }
 }

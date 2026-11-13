@@ -1,8 +1,12 @@
 package io.algernon.vespera.ui;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -11,110 +15,70 @@ import java.util.Optional;
  * it and a run as the jar's stage is named, as text, because the control panel links no class of the jar
  * (ADR-285 §3); a contract test holds both to the jar's. {@code clusterPageByteCeiling} and the five Confluence values
  * a publish reads, {@code confluenceBaseUrl} to {@code confluenceEmail}, enter no run (ADR-303 §9, ADR-359 §1).
- * Each key also has its name in plain words and a line saying what it is, which the pages show beside the key itself
- * (ADR-340 §7).
+ * Each key's title, short description and tooltip are data in {@code profile-texts.json} beside this class (ADR-377
+ * §4), so that their words change in one file.
  */
 public enum ProfileKey {
     SEED_FOLDER("seedFolder", Kind.TEXT, Run.SEED_MEASUREMENT, "your own knowledge of the archive",
-            "D:\\archive\\exemplars", "Example documents",
-            "Documents you already know belong in what you keep; everything else is measured against them."),
+            "D:\\archive\\exemplars"),
     DEGENERATE_OUTPUT_CONFIDENCE_FLOOR("degenerateOutputConfidenceFloor", Kind.NUMBER, Run.EXTRACTION,
-            "how well the text extraction went", "0.5", "Lowest text quality",
-            "A file whose extracted text the converter rates below this, from 0 to 1, is set aside: its text is too"
-                    + " poor to use."),
+            "how well the text extraction went", "0.5"),
     DEGENERATE_OUTPUT_WORD_FLOOR("degenerateOutputWordFloor", Kind.NUMBER, Run.EXTRACTION,
             "how many words each kind of file held once its text was extracted, and what each floor would remove",
-            "20", "Fewest words in a file",
-            "A file holding fewer words than this once its text is extracted is set aside."),
+            "20"),
     BOILERPLATE_DOCUMENT_FREQUENCY_FLOOR("boilerplateDocumentFrequencyFloor", Kind.NUMBER, Run.CONTENT_REDUNDANCY,
-            "how many documents share the same passages", "0.4", "Repeated text",
-            "A passage found in at least this share of the documents, from 0 to 1, is taken for template text and not"
-                    + " compared."),
+            "how many documents share the same passages", "0.4"),
     EMBEDDING_MODEL("embeddingModel", Kind.TEXT, Run.EMBEDDING_SCORING,
             "whichever model you can serve locally, if you want one other than hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M",
-            "hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M",
-            "Comparing model",
-            "The local model that turns each text into numbers, so that documents can be compared."),
+            "hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M"),
     RELEVANCE_SCORE_FLOOR("relevanceScoreFloor", Kind.NUMBER, Run.EMBEDDING_SCORING,
-            "what each possible cut would cost you, in documents", "0.62", "Relevance cut-off",
-            "A document less like your example documents than this is left out."),
+            "what each possible cut would cost you, in documents", "0.62"),
     ARRANGEMENT_APPROVED("arrangementApproved", Kind.TEXT, Run.GENERATION,
-            "whether the groups the tool formed are worth writing over", "auto", "Approved grouping",
-            "The grouping you approve for writing, by its name, or auto to approve every grouping proposed."),
+            "whether the groups the tool formed are worth writing over", "auto"),
     GENERATION_MODEL("generationModel", Kind.TEXT, Run.GENERATION,
-            "whichever model you can serve locally, if you want a different one", "qwen3:8b", "Writing model",
-            "The local model that writes the text connecting the documents of each page."),
+            "whichever model you can serve locally, if you want a different one", "qwen3:8b"),
     GENERATION_CONTEXT_WINDOW("generationContextWindow", Kind.NUMBER, Run.GENERATION,
-            "how much your own machine can read in one go", "32768", "Writing model's reading size",
-            "How many tokens of a group the writing model reads in one go."),
+            "how much your own machine can read in one go", "32768"),
     CLUSTER_PAGE_BYTE_CEILING("clusterPageByteCeiling", Kind.NUMBER, null,
-            "how large each group's page is when written whole, and how many groups pass each size", "10485760",
-            "Largest page",
-            "A group whose page would be larger than this many bytes is split over several pages."),
+            "how large each group's page is when written whole, and how many groups pass each size", "10485760"),
     LOG_TIMESTAMP_SHARE_FLOOR("logTimestampShareFloor", Kind.NUMBER, Run.BYTE_LEVEL_REDUCTION,
-            "how much of each text file begins with a date or a time", "0.7", "Log detection",
-            "A text file in which at least this share of lines begin with a date or a time, from 0 to 1, is taken for a"
-                    + " log and left out."),
+            "how much of each text file begins with a date or a time", "0.7"),
     EXTRACTION_ATTEMPT("extractionAttempt", Kind.NUMBER, Run.EXTRACTION,
-            "whether the files the converter did not answer about are worth asking again", "2",
-            "Ask again about failed files",
-            "Raise it by one to ask the converter again about the files it did not answer about."),
+            "whether the files the converter did not answer about are worth asking again", "2"),
     CODE_NAME_ENDINGS("codeNameEndings", Kind.NAME_ENDINGS, Run.BYTE_LEVEL_REDUCTION,
             "which text files, or files of no known kind whose bytes read as text, are code by the ending of their"
                     + " name, kept apart from the documents",
-            ".java .sql", "Code file endings",
-            "File name endings that mark a file as code, kept apart from the documents."),
+            ".java .sql"),
     OUT_OF_SCOPE_NAME_ENDINGS("outOfScopeNameEndings", Kind.NAME_ENDINGS, Run.BYTE_LEVEL_REDUCTION,
             "which files, of no known kind or text, you know are not documents by the ending of their name",
-            ".ok .tmp", "Endings left out",
-            "File name endings that mark a file as no document at all, so that it is left out."),
+            ".ok .tmp"),
     TRANSLATION_SIMILARITY_FLOOR("translationSimilarityFloor", Kind.NUMBER, Run.EMBEDDING_SCORING,
-            "how alike two documents in different languages must be to be taken for one", "0.85",
-            "Translation match",
-            "How alike, from 0 to 1, two documents in different languages must be to be taken for one."),
+            "how alike two documents in different languages must be to be taken for one", "0.85"),
     PREFERRED_LANGUAGES("preferredLanguages", Kind.LANGUAGES, Run.EMBEDDING_SCORING,
-            "which language's copy you keep of a document held in several", "it, en", "Preferred languages",
-            "Which language's copy to keep, first choice first, of a document held in several."),
+            "which language's copy you keep of a document held in several", "it, en"),
     CONFIGURATION_SETTING_SHARE_FLOOR("configurationSettingShareFloor", Kind.NUMBER, Run.BYTE_LEVEL_REDUCTION,
             "how much of each text file is settings, which files open with a program's configuration, and which"
                     + " interface definitions were kept",
-            "0.8", "Configuration file detection",
-            "A text file in which at least this share of lines are a program's settings, from 0 to 1, is taken for a"
-                    + " configuration file and left out, unless it lies in a set of code."),
+            "0.8"),
     DELIVERABLE_LANGUAGE("deliverableLanguage", Kind.TEXT, Run.GENERATION,
-            "which language the people reading the pages read: en or it", "", "Language of the pages",
-            "The language the finished pages are written in, English or Italian."),
+            "which language the people reading the pages read: en or it", ""),
     CLUSTER_RESOLUTION("clusterResolution", Kind.NUMBER, Run.EMBEDDING_SCORING,
-            "how finely the documents under each exemplar divide into groups", "2.5", "Grouping detail",
-            "How finely the documents under each example divide into groups: higher makes more, smaller groups."),
+            "how finely the documents under each exemplar divide into groups", "2.5"),
     CODE_SET_FOLDERS("codeSetFolders", Kind.FOLDERS, Run.BYTE_LEVEL_REDUCTION,
-            "which folders outside the corpus root hold code that is read with the corpus", "D:\\code\\billing",
-            "Code folders elsewhere",
-            "Folders of code elsewhere on this machine, read with the documents and kept as code sets of their own."),
+            "which folders outside the corpus root hold code that is read with the corpus", "D:\\code\\billing"),
     FOLDERS_NOT_WALKED("foldersNotWalked", Kind.CORPUS_FOLDERS, Run.BYTE_LEVEL_REDUCTION,
-            "which folders of the corpus hold nothing you want read", "archive/old-flows", "Folders not read",
-            "Folders of the documents folder that Vespera never reads. Untick them in the Inclusions tab."),
+            "which folders of the corpus hold nothing you want read", "archive/old-flows"),
     CONFLUENCE_BASE_URL("confluenceBaseUrl", Kind.TEXT, null,
-            "the address of your Confluence Cloud site, where you publish to it", "https://wiki.example.com",
-            "Confluence site",
-            "The address of the Confluence Cloud site that Publish sends the pages to."),
+            "the address of your Confluence Cloud site, where you publish to it", "https://wiki.example.com"),
     CONFLUENCE_SPACE_KEY("confluenceSpaceKey", Kind.TEXT, null,
-            "the key of the Confluence space the pages go in", "DOCS", "Confluence space",
-            "The key of the space of that site the pages are published in."),
+            "the key of the Confluence space the pages go in", "DOCS"),
     CONFLUENCE_FOLDER_ID("confluenceFolderId", Kind.TEXT, null,
             "the id of the page or folder the pages go under, the number in its address; name this or its title, not both",
-            "123456789", "Confluence parent, by its id",
-            "The id of the page or folder the published pages go under. Leave it empty where you name the parent by its"
-                    + " title."),
+            "123456789"),
     CONFLUENCE_FOLDER_TITLE("confluenceFolderTitle", Kind.TEXT, null,
-            "the title of the page or folder the pages go under; name this or its id, not both", "Hand-overs",
-            "Confluence parent, by its title",
-            "The title of the page or folder the published pages go under. Leave it empty where you name the parent by"
-                    + " its id."),
+            "the title of the page or folder the pages go under; name this or its id, not both", "Hand-overs"),
     CONFLUENCE_EMAIL("confluenceEmail", Kind.TEXT, null,
-            "the email of your Confluence account", "you@example.com", "Confluence account",
-            "The email of the Confluence account the pages are published as. The API token is asked for when you press"
-                    + " Publish, and is never saved.");
+            "the email of your Confluence account", "you@example.com");
 
     /** The type of a key's value, which is how the jar reads it. */
     public enum Kind { TEXT, NUMBER, NAME_ENDINGS, LANGUAGES, FOLDERS, CORPUS_FOLDERS }
@@ -148,17 +112,13 @@ public enum ProfileKey {
     private final Run earliestRun;
     private final String hint;
     private final String example;
-    private final String plainName;
-    private final String about;
 
-    ProfileKey(String key, Kind kind, Run earliestRun, String hint, String example, String plainName, String about) {
+    ProfileKey(String key, Kind kind, Run earliestRun, String hint, String example) {
         this.key = key;
         this.kind = kind;
         this.earliestRun = earliestRun;
         this.hint = hint;
         this.example = example;
-        this.plainName = plainName;
-        this.about = about;
     }
 
     /**
@@ -174,14 +134,27 @@ public enum ProfileKey {
         return example;
     }
 
-    /** The key's name in plain words, which a page shows with the key beside it (ADR-340 §7). */
-    public String plainName() {
-        return plainName;
+    /** The row's title: the key's name in plain words, on one line (ADR-377 §4). */
+    public String title() {
+        return text("title");
     }
 
-    /** One line saying what the key is in plain words (ADR-340 §7). */
-    public String about() {
-        return about;
+    /** One sentence saying what the value is and what it does, which the row's details show (ADR-377 §4). */
+    public String shortDescription() {
+        return text("short");
+    }
+
+    /** The full explanation of the value, which the row's title shows as its tooltip (ADR-377 §1, §4). */
+    public String tooltip() {
+        return text("tooltip");
+    }
+
+    private String text(String name) {
+        Object text = Texts.OF_EACH_KEY.get(key) instanceof Map<?, ?> texts ? texts.get(name) : null;
+        if (!(text instanceof String words)) {
+            throw new IllegalStateException(Texts.FILE + " gives " + key + " no " + name);
+        }
+        return words;
     }
 
     /** The name {@code profile.yaml} spells. */
@@ -218,6 +191,36 @@ public enum ProfileKey {
         List<Run> all = List.of(Run.values());
         List<Run> runs = all.subList(all.indexOf(earliestRun), all.size());
         return new Cost(runs, runs.contains(Run.ARRANGEMENT), this == SEED_FOLDER, runs.contains(Run.EMBEDDING_SCORING));
+    }
+
+    /**
+     * The keys' texts, read once from {@link #FILE} beside this class (ADR-377 §4): a file the class path does not hold,
+     * or one missing a key, fails the first read with an {@link IllegalStateException} naming what is missing.
+     */
+    private static final class Texts {
+
+        static final String FILE = "profile-texts.json";
+
+        static final Map<?, ?> OF_EACH_KEY = read();
+
+        private static Map<?, ?> read() {
+            try (InputStream in = ProfileKey.class.getResourceAsStream(FILE)) {
+                if (in == null) {
+                    throw new IllegalStateException("the class path holds no " + FILE + " beside ProfileKey");
+                }
+                if (!(JsonReader.read(new String(in.readAllBytes(), StandardCharsets.UTF_8)) instanceof Map<?, ?> texts)) {
+                    throw new IllegalStateException(FILE + " is no JSON object");
+                }
+                for (ProfileKey key : values()) {
+                    if (!texts.containsKey(key.key)) {
+                        throw new IllegalStateException(FILE + " is missing " + key.key);
+                    }
+                }
+                return texts;
+            } catch (IOException e) {
+                throw new IllegalStateException("the class path's " + FILE + " could not be read", e);
+            }
+        }
     }
 
     /** The key {@code profile.yaml} spells as {@code name}, empty for a name the profile does not have. */

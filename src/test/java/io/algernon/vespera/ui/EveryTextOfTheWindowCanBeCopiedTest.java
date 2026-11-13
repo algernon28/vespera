@@ -148,7 +148,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                     assertThat(reached).filteredOn(node -> "outcome".equals(node.getId())).hasSize(1);
                     assertThat(texts(reached, "step-census")).as("the row of the census step").contains("waiting");
                     assertThat(texts(reached, "profile-row-" + ProfileKey.GENERATION_MODEL.key()))
-                            .contains("Generation model");
+                            .contains(ProfileKey.GENERATION_MODEL.title());
                     assertThat(texts(reached, "preflight-list")).anyMatch(line -> line.startsWith("Corpus root: "));
                     assertThat(texts(reached, "wanted-row-boilerplateDocumentFrequencyFloor")).isNotEmpty();
                     assertThat(texts(reached, "code-sets")).anyMatch(line -> line.endsWith("named Papers"));

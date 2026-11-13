@@ -20,6 +20,21 @@ public final class Reports {
             "seed-corpus-comparison", "translations", "cluster-sizes", "relevance-labelling",
             "arrangement", "cluster-page-sizes");
 
+    /** Each analysis report's title by its name, in {@link #ALL}'s order (ADR-377 §5). */
+    public static final Map<String, String> TITLES = titles(
+            "format-mix", "What the files turned out to be",
+            "extraction-failures", "Files whose text could not be read",
+            "extraction-survivors", "Files whose text was read and kept",
+            "confidence-distribution", "Text quality distribution",
+            "document-frequency", "Repeated text across documents",
+            "word-count-distribution", "Word count distribution",
+            "seed-corpus-comparison", "Your documents compared with your seed documents",
+            "translations", "Copies in another language",
+            "cluster-sizes", "Group sizes",
+            "relevance-labelling", "Choosing the relevance cut-off",
+            "arrangement", "Grouping to approve",
+            "cluster-page-sizes", "Group page sizes");
+
     /** The reports each key is read off, in the order the README's table of values names them. */
     public static final Map<String, List<String>> OF_A_KEY = Map.ofEntries(
             Map.entry("boilerplateDocumentFrequencyFloor", List.of("document-frequency")),
@@ -51,6 +66,14 @@ public final class Reports {
     /** The name of the report whose page is {@code file}, empty where it is no analysis report's page. */
     public static java.util.Optional<String> nameOfPage(String file) {
         return ALL.stream().filter(name -> pageOf(name).equals(file)).findFirst();
+    }
+
+    private static Map<String, String> titles(String... namesAndTitles) {
+        java.util.LinkedHashMap<String, String> titles = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < namesAndTitles.length; i += 2) {
+            titles.put(namesAndTitles[i], namesAndTitles[i + 1]);
+        }
+        return java.util.Collections.unmodifiableMap(titles);
     }
 
     private Reports() {
