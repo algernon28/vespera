@@ -408,24 +408,23 @@ final class ControlPanelState {
      */
     synchronized Optional<String> start(Start kind, List<String> stored) {
         LaunchValues held = values;
-        return start(kind, new Plan(held, held, Map.of(), null), stored);
+        return start(kind, new Plan(held, held, Map.of()), stored);
     }
 
     /**
      * What the window starts an invocation with (ADR-344 §3, §4, ADR-345 §4): the values passed to the child, the values
-     * kept in the launch values file as it starts, the presets passed as options of the command line, the label file,
-     * null where none is named, and the destinations ticked, which only a publish passes.
+     * kept in the launch values file as it starts, the presets passed as options of the command line, and the
+     * destinations ticked, which only a publish passes. No label file is among them (ADR-377 §10).
      */
-    record Plan(LaunchValues toPass, LaunchValues toKeep, Map<String, String> presets, Path labelFile,
-            List<String> destinations) {
+    record Plan(LaunchValues toPass, LaunchValues toKeep, Map<String, String> presets, List<String> destinations) {
 
         Plan {
             destinations = List.copyOf(destinations);
         }
 
         /** A plan ticking no destination, as every start but a publish has. */
-        Plan(LaunchValues toPass, LaunchValues toKeep, Map<String, String> presets, Path labelFile) {
-            this(toPass, toKeep, presets, labelFile, List.of());
+        Plan(LaunchValues toPass, LaunchValues toKeep, Map<String, String> presets) {
+            this(toPass, toKeep, presets, List.of());
         }
     }
 
@@ -438,8 +437,7 @@ final class ControlPanelState {
             case LABEL_AUTO -> ChildCommand.label(runtime.java(), runtime.jar(), true, now);
             case PUBLISH -> ChildCommand.publish(runtime.java(), runtime.jar(), now, plan.destinations());
         };
-        command = command.withOptions(plan.presets());
-        return kind == Start.LABEL && plan.labelFile() != null ? command.withLabelFile(plan.labelFile()) : command;
+        return command.withOptions(plan.presets());
     }
 
     ChildRuntime runtime() {

@@ -108,7 +108,7 @@ final class Cockpit {
     Cockpit(ControlPanelState state, Dialogs dialogs) {
         this.state = state;
         this.dialogs = dialogs;
-        this.options = new OptionsPane(state, dialogs, this::showCommandLines);
+        this.options = new OptionsPane(state, this::showCommandLines);
         this.reports = new ReportsPane(tabs, dialogs, folders, this::say);
         this.live = new LiveReport(this::openReport, dialogs::handToTheSystem);
         this.preflight = new PreflightPane(state, folders, property -> fields.get(property).text());
@@ -222,8 +222,6 @@ final class Cockpit {
         String seed = seedRow == null || seedRow.value().isBlank() ? state.values().lastSeedFolder()
                 : seedRow.value().stripTrailing();
         Map<String, String> passedOptions = options.passed(sources);
-        String labelText = options.labelFileText();
-        Path file = labelText.isBlank() ? null : InclusionsTree.pathOf(labelText.strip()).orElse(null);
         if (!passed.containsKey("vespera.working-dir")) {
             // the field left empty stands for the folder the jar would use on this machine (ADR-345 §1)
             passed.put("vespera.working-dir", state.workingDirectoryDefault().folder());
@@ -231,7 +229,7 @@ final class Cockpit {
         List<String> ticked = publishTo.getChildren().stream().filter(CheckBox.class::isInstance)
                 .map(CheckBox.class::cast).filter(CheckBox::isSelected)
                 .map(box -> box.getId().substring("publish-to-".length())).toList();
-        return new ControlPanelState.Plan(valuesOf(passed, seed), valuesOf(kept, seed), passedOptions, file, ticked);
+        return new ControlPanelState.Plan(valuesOf(passed, seed), valuesOf(kept, seed), passedOptions, ticked);
     }
 
     /** Draws a box for each destination whose rendering is drawn, Confluence's ticked and the others not, as each is added (ADR-345 §4). */

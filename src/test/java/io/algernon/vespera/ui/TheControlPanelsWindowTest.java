@@ -65,6 +65,36 @@ class TheControlPanelsWindowTest {
                 () -> assertThat(missing).as("controls the table names that the window does not hold").isEmpty());
     }
 
+    /** ADR-377 §10: Command options offers the five presets and no label file. */
+    @Test
+    @Story("Every option of the jar's commands is set from the control panel or said not to be")
+    @DisplayName("Command options offers no label file, and Record my answers' command line names none")
+    @Issue("808")
+    @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
+    void theCommandOptionsOfferNoLabelFile() throws Exception {
+        record Read(boolean field, boolean browse, boolean heading, String commandLine) {
+        }
+        Read read = inTheWindow(root -> new Read(
+                HeadlessToolkit.nodeWithId(root, "label-file").isPresent(),
+                HeadlessToolkit.nodeWithId(root, "label-file.browse").isPresent(),
+                HeadlessToolkit.everyNodeUnder(root).stream().anyMatch(node -> "Label file".equals(textOf(node))),
+                HeadlessToolkit.nodeWithId(root, "command-line-label").map(TheControlPanelsWindowTest::textOf)
+                        .orElse("")));
+
+        claim("the window holds no label file field and no Browse for one",
+                () -> assertThat(List.of(read.field(), read.browse())).containsOnly(false));
+        claim("no text of the window reads \"Label file\"",
+                () -> assertThat(read.heading()).isFalse());
+        claim("and Record my answers' command line reads vespera label --db-dir=<working directory>, and nothing after",
+                () -> assertThat(read.commandLine()).matches("vespera label --db-dir=(\\S+|\"[^\"]+\")"));
+    }
+
+    /** The text a node shows, where it is a text of the window, a label's or a text control's. */
+    private static String textOf(Node node) {
+        return node instanceof javafx.scene.control.TextInputControl text ? text.getText()
+                : node instanceof javafx.scene.control.Labeled labeled ? labeled.getText() : null;
+    }
+
     /** Draws the window from a first start's state, shows it, and answers what {@code reading} reads of it. */
     private static <T> T inTheWindow(Function<Parent, T> reading) throws Exception {
         ControlPanelState state = new ControlPanelState(

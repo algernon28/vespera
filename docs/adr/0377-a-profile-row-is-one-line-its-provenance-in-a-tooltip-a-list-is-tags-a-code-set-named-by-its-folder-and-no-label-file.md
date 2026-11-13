@@ -452,8 +452,8 @@ Each existing test this record changes, at the step that does it. Each record wh
 | 7 | `ui.WorkingDirectoryWriteTest.aWorkingDirectoryThatDoesNotExistIsRefusedForTheOtherTwoFiles` is renamed `ui.WorkingDirectoryWriteTest.aWorkingDirectoryThatDoesNotExistIsRefusedForTheLabelFile` | `relevance-labels.yaml` alone in its loop |
 | 7 | `PipelineHoldsOnlyTheRulesOnRecordTest` | `deliverable.CodeSetNames` leaves the collaborators it lists for `GenerationTasklet` |
 | 7 | ADR-364's `ui.EveryTextOfTheWindowCanBeCopiedTest.everyTextShownOutsideAControlIsSelectableText`, where it stands | its working directory holds no code set renamed, a file nothing reads |
-| 8 | `ui.TheCommandOptionsTest.theLabelFileIsPassedToLabelAndNeverToLabelAuto` removed | with `withLabelFile`, the Tests' row `recordMyAnswersIsGivenNoLabelFile` in its place |
-| 8 | `pipeline.TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest.eachArgumentIsSetByAControlOfTheControlPanelOrNeverPassedAndSaysWhy` | `label <file>` among the never passed, which are four, and no longer set by `label-file` |
+| 8 | `ui.TheCommandOptionsTest.theLabelFileIsPassedToLabelAndNeverToLabelAuto` removed: ADR-368 cut it before this step, and `withLabelFile` goes | the Tests' row `recordMyAnswersIsGivenNoLabelFile` in its place |
+| 8 | `pipeline.TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest.eachArgumentIsSetByAControlOfTheControlPanelOrNeverPassedAndSaysWhy` removed: ADR-368 cut it before this step; `pipeline.TheControlPanelAccountsForEveryArgumentOfTheJarsCommandsTest`'s javadoc names `label <file>` among the never passed, which are four | none |
 | 8 | `ui.ControlPanelStateTest` | its helper `passing` builds a `Plan` with no label file |
 | 8 | `ui.TheControlPanelsWindowTest.everyControlTheArgumentsTableNamesIsAControlOfTheWindow` | unchanged: the table names no `label-file` |
 
