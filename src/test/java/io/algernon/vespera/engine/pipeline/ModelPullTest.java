@@ -3,6 +3,7 @@ package io.algernon.vespera.engine.pipeline;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -13,7 +14,9 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.net.URI;
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
@@ -83,6 +86,13 @@ class ModelPullTest {
     /** What ADR-202's check says of a model Ollama has never pulled. */
     private static final String NEVER_PULLED = "Ollama serves no model named %s: it has not been pulled on this machine,"
             + " so nothing is sent to it";
+
+    /** The step's warning where the check of a model could not be completed (ADR-375 §1), its step and its model. */
+    private static final String TAKEN_AS_LOCAL =
+            "%s could not establish whether the model %s runs on this machine, so it is taken as local and the step goes on";
+
+    /** An answer to {@code /api/show} that is neither the model nor its absence. */
+    private static final int HTTP_SERVER_ERROR = 500;
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -178,6 +188,49 @@ class ModelPullTest {
         claim(
                 "and Ollama was asked nothing at all: a stub pulled for a cloud model would be sent nothing",
                 () -> assertThat(ollama.requests()).isEmpty());
+    }
+
+    /**
+     * A check Ollama cannot complete no longer stops the step (ADR-375 §1, §4): an error answer from {@code /api/show}
+     * and an Ollama that cannot be reached at all are each taken as local, the step goes on with one warning, nothing
+     * is pulled, and Ollama is not asked a second time. The connection refused stands for every way the question goes
+     * unanswered, a read past the client's timeout among them: the client raises the same exception for each, and a
+     * read timeout would hold the test for the client's ten seconds.
+     */
+    @Test
+    @Story("A model whose check cannot be completed is taken as local")
+    @DisplayName("An error answer, or no answer at all, about whether a model runs on this machine lets the step go on, with one warning")
+    @Link(name = "ADR-375", url = Adr.AN_UNANSWERED_CHECK_TAKES_A_MODEL_AS_LOCAL_AND_A_CLOUD_MODEL_IS_REFUSED_AT_THE_START, type = "adr")
+    void aCheckOllamaCannotCompleteLetsTheStepGoOn() {
+        ollama.answersShowWith(MODEL, HTTP_SERVER_ERROR);
+        ollama.pulls(MODEL, aPullThatEnds(SUCCESS));
+        Optional<String> afterAnErrorAnswer = pull.refusalOf(STAGE, MODEL);
+
+        URI nobodyListens;
+        try (StubOllama gone = StubOllama.started()) {
+            nobodyListens = gone.baseUrl();
+        }
+        Optional<String> withNoAnswer = new ModelPull(
+                        new ModelPullSettings(true, nobodyListens, A_BOUND_NO_PULL_HERE_REACHES),
+                        new OllamaClient(nobodyListens.toString()))
+                .refusalOf(STAGE, MODEL);
+
+        claim(
+                "neither stops the step: a model Ollama could not answer about is taken as local",
+                () -> assertThat(List.of(afterAnErrorAnswer, withNoAnswer)).containsOnly(Optional.empty()));
+        claim(
+                "the Ollama that answered with an error was asked about the model once, by the check alone, and no pull"
+                        + " was asked for",
+                () -> assertThat(ollama.requests())
+                        .extracting(StubOllama.Request::path)
+                        .containsExactly("/api/show"));
+        claim(
+                "each said so in one line at warning level, naming the step and the model",
+                () -> assertThat(logged.list)
+                        .filteredOn(event -> event.getLoggerName().equals(ModelPull.class.getName())
+                                && event.getLevel() == Level.WARN)
+                        .extracting(ILoggingEvent::getFormattedMessage)
+                        .containsExactly(TAKEN_AS_LOCAL.formatted(STAGE, MODEL), TAKEN_AS_LOCAL.formatted(STAGE, MODEL)));
     }
 
     private static StubOllama.Streamed aPullThatEnds(String... lines) {

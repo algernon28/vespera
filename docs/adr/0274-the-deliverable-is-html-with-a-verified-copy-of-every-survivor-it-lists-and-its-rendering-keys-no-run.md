@@ -20,6 +20,8 @@
 
 > **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §7: the index is handed to no opener and nothing opens it; the closing line still names it. The tree is untouched. The rest of this record stands.
 
+> **Partly amended — see [ADR-377](0377-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §8: `DeliverableProgress` takes, beside numbers and enumerations, the two names of one method, `codeSetFolderChanged(String earlier, String now)`: a code set's folder in the tree's `code/` before and now, the tree's own names, which name no document, no file and no path of the archive; the line `pipeline` writes of them names those two folders and nothing else. That no line names a document stands. The rest of this record stands.
+
 - **Date**: 2026-10-17
 - **Status**: accepted on 2026-10-17.
 - **Amends**: [ADR-103](0103-the-deliverable-is-a-markdown-tree-in-the-working-directory-one-tree-per-run-id.md), in "Markdown, not HTML", the tree drawn under its Decision, `index.md`'s name, and "A re-run under a changed configuration writes a new tree beside the old one", which holds of a change to what the generation run is keyed by and not of a change to how the tree is drawn (§1, §6). One tree per generation run, in the working directory, with no new key, and "every link inside the deliverable resolves with no database, no ledger and no network" stand.

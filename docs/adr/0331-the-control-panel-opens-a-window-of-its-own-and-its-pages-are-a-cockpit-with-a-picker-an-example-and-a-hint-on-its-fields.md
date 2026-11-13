@@ -16,6 +16,8 @@
 
 > **Partly amended — see [ADR-353](0353-the-embedding-models-shipped-default-is-qwen3-embedding-8b-and-only-a-profile-naming-no-model-moves-its-scoring-run.md).** Of §8: the example of `embeddingModel` is `hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M`, the shipped default, and its hint names it.
 
+> **Partly amended — see [ADR-377](0377-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §8: the rows of `new-name` and `name-<i>`, and of `provenance` and `<key>.provenance`, go: a code set takes no name, and no field holds a value's provenance, which its title's tooltip shows. A profile key's hint stands in no row, which shows the texts `profile-texts.json` gives the key. The rest of what ADR-342 keeps of this record stands.
+
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the control panel names its own package, `java.base` and `jdk.httpserver` alone, and starts the window by `ProcessBuilder`, `java.desktop` not added (§1). Its §4: one class owns the pages' skeleton, styling and escaping (§3).

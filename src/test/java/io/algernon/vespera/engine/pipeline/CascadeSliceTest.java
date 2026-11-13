@@ -168,6 +168,8 @@ import org.springframework.transaction.annotation.Transactional;
     // Asked by stage 5's scoring step and the generation step before ADR-202's check stands (ADR-329); it pulls
     // nothing under the test profile, where vespera.models.pull is false.
     ModelPull.class,
+    // Checks both models at the start of vespera run (ADR-375).
+    ModelsAtTheStart.class,
     // The translation step between embedding and relevance scoring (ADR-271 §5).
     TranslationTasklet.class,
     TranslationOf.class,

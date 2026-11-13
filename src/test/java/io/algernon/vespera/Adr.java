@@ -2650,6 +2650,50 @@ public final class Adr {
             FILE + "0371-a-size-of-memory-is-written-in-powers-of-1024-and-only-a-count-axis-of-the-cockpit-is-shortened-to-k-m-b-and-t.md";
 
     /**
+     * ADR-372 -- a publish the control panel started refuses a parent named both by id and by title, and an address
+     * that is not a Cloud site's, naming the profile's keys and the Profile tab and no {@code VESPERA_CONFLUENCE_*}
+     * variable; on the command line both lines are unchanged (amends ADR-359 §4 and ADR-318 §3).
+     */
+    public static final String THE_CONTROL_PANELS_PUBLISH_NAMES_THE_PROFILE_KEYS_FOR_A_PARENT_NAMED_TWICE_OR_A_WRONG_ADDRESS =
+            FILE + "0372-a-publish-the-control-panel-started-refuses-a-parent-named-twice-or-a-wrong-address-naming-the-profile-keys.md";
+
+    /**
+     * ADR-373 -- a folder the listing of what an earlier drawing left finds is one this drawing wrote where its path
+     * equals one written, or meets one written in the same folder by {@link
+     * io.algernon.vespera.engine.deliverable.CopyNames#keysOf} and the file system takes the two for one folder; any
+     * other is counted as left behind (keeps ADR-280 §4 and ADR-296 §6.3).
+     */
+    public static final String A_FOLDER_DIFFERING_IN_CASE_ALONE_IS_LEFT_BEHIND_ONLY_WHERE_HELD_APART =
+            FILE + "0373-a-folder-differing-in-case-alone-from-one-the-drawing-wrote-is-left-behind-only-where-the-file-system-tells-them-apart.md";
+
+    /**
+     * ADR-374 -- every text of the control panel's window stands at 4.5 : 1 against what lies behind it, and every line,
+     * swatch, marker and bar of its charts and of each analysis report's native view at 3 : 1, in the light theme and the
+     * dark; the stylesheet names the charts' colours of each theme, and a native view names no colour of its own; the
+     * jar's HTML stays light and the system's setting is not read (amends ADR-342 §3, ADR-362 §10 and ADR-365).
+     */
+    public static final String EVERY_TEXT_LINE_AND_MARKER_OF_THE_WINDOW_STANDS_AT_AA_IN_BOTH_THEMES =
+            FILE + "0374-every-text-line-and-marker-of-the-window-its-charts-and-each-analysis-reports-native-view-stands-at-aa-in-both-themes.md";
+
+    /**
+     * ADR-375 -- a model whose check Ollama cannot complete is taken as local at stage 5's scoring step and the
+     * generation step, and {@code vespera run} refuses at its start, before anything is walked, every model it names
+     * whose tag ends in {@code cloud} or that Ollama reports as remote (amends ADR-202 §2 and §3 and ADR-329 §3).
+     */
+    public static final String AN_UNANSWERED_CHECK_TAKES_A_MODEL_AS_LOCAL_AND_A_CLOUD_MODEL_IS_REFUSED_AT_THE_START =
+            FILE + "0375-a-model-whose-check-cannot-be-completed-is-taken-as-local-and-a-cloud-model-is-refused-at-the-start-of-vespera-run.md";
+
+    /**
+     * ADR-377 -- a profile row is one line, a toggle, its title over its key in brackets, and its control, the toggle
+     * opening its short description, the value in use, its cost line and warnings and its reports by title; the texts are
+     * profile-texts.json's; a value's provenance is in its title's tooltip alone, and a value changed in the window is
+     * saved with set in the control panel; a cut line shows an ellipsis; a list value is removable tags; a code set is
+     * named by its folder alone, code-set-names.yaml read by nothing; and the window offers no label file.
+     */
+    public static final String A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP =
+            FILE + "0377-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md";
+
+    /**
      * ADR-378 -- each deliverable language is published to the site as a tree of its own under the one parent: its root
      * page {@code Vespera_<code>}, every other title's suffix ending {@code · <code>)}, each page keyed {@code
      * <code>:<place>} and labelled {@code vespera-<code>}, the page list of format 3; a publish touches its own

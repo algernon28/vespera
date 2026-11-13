@@ -597,7 +597,9 @@ public final class Deliverable {
     /**
      * Lists the tree's top level and each partition folder this drawing wrote, and tells {@code progress} once of the
      * folders it did not write: {@code documents/}, which an earlier layout wrote, apart from the rest, which are
-     * counted. A file is not counted, and nothing inside a folder this drawing wrote is looked at (ADR-280 §4).
+     * counted. A file is not counted, and nothing inside a folder this drawing wrote is looked at (ADR-280 §4). A
+     * listed folder is one this drawing wrote under another spelling where a key of its path meets a key of a path
+     * written beside it and the file system takes the two for one folder (ADR-373 §1, §2).
      *
      * <p>A plugin's folder, {@code confluence/} for one, is a folder every drawing writes, so it is never counted; inside
      * it, a seed partition's folder and a cluster's folder in one this drawing wrote there are looked at as the tree's
@@ -608,9 +610,10 @@ public final class Deliverable {
         boolean documentsFolder = false;
         long others = 0;
         try (Stream<Path> top = Files.list(tree)) {
+            WrittenHere topLevel = new WrittenHere(tree, "", written);
             for (Path entry : (Iterable<Path>) top::iterator) {
                 String name = entry.getFileName().toString();
-                if (!Files.isDirectory(entry) || written.contains(name)) {
+                if (!Files.isDirectory(entry) || topLevel.wrote(entry, name)) {
                     continue;
                 }
                 if (name.equals(Copies.DIRECTORY_NAME)) {
@@ -626,9 +629,10 @@ public final class Deliverable {
                             || pluginFolders.stream().anyMatch(plugin -> name.startsWith(plugin + "/")
                                     && name.indexOf('/', plugin.length() + 1) < 0))
                     .toList()) {
+                WrittenHere here = new WrittenHere(tree, folder + "/", written);
                 try (Stream<Path> inside = Files.list(tree.resolve(folder))) {
                     for (Path entry : (Iterable<Path>) inside::iterator) {
-                        if (Files.isDirectory(entry) && !written.contains(folder + "/" + entry.getFileName())) {
+                        if (Files.isDirectory(entry) && !here.wrote(entry, folder + "/" + entry.getFileName())) {
                             others++;
                         }
                     }
@@ -638,6 +642,51 @@ public final class Deliverable {
             // A tree that cannot be listed is a tree nothing is said of: the listing is a courtesy (ADR-280 §4).
         }
         progress.leftBehind(documentsFolder, others);
+    }
+
+    /**
+     * The paths this drawing wrote directly in one folder being listed, and the {@link CopyNames#keysOf keys} of each,
+     * held while that folder is listed and let go after it (ADR-373 §3).
+     *
+     * <p>A listed folder was written by this drawing where its path equals a written one, or where a key of it meets a
+     * key of a path written in the same folder and {@link Files#isSameFile} says the two are one folder on this file
+     * system; any other, including one {@code isSameFile} cannot answer for, is left behind (ADR-373 §1, §2).
+     */
+    private static final class WrittenHere {
+
+        private final Path tree;
+        private final Set<String> exact;
+        private final Map<String, List<String>> byKey = new HashMap<>();
+
+        WrittenHere(Path tree, String prefix, Set<String> written) {
+            this.tree = tree;
+            this.exact = written;
+            for (String path : written) {
+                if (path.startsWith(prefix) && path.indexOf('/', prefix.length()) < 0 && path.length() > prefix.length()) {
+                    for (String key : CopyNames.keysOf(path)) {
+                        byKey.computeIfAbsent(key, k -> new ArrayList<>()).add(path);
+                    }
+                }
+            }
+        }
+
+        boolean wrote(Path listed, String path) {
+            if (exact.contains(path)) {
+                return true;
+            }
+            for (String key : CopyNames.keysOf(path)) {
+                for (String candidate : byKey.getOrDefault(key, List.of())) {
+                    try {
+                        if (Files.isSameFile(listed, tree.resolve(candidate))) {
+                            return true;
+                        }
+                    } catch (IOException | RuntimeException cannotTell) {
+                        // Sameness that cannot be told is a folder left behind (ADR-373 §2).
+                    }
+                }
+            }
+            return false;
+        }
     }
 
     /**

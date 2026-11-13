@@ -12,6 +12,8 @@
 
 > **Partly amended — see [ADR-364](0364-the-output-panel-is-copyable-text-of-the-whole-output-from-a-file-of-its-own-and-every-text-of-the-window-is-copyable.md).** Of §3: the files that are the control panel's contract with the jar also hold `logs/output-<invocation>.log`, the invocation's whole output, which the jar writes and the window reads, never writes, and finds through the invocation report it accepts, by an id of the report's own form alone. The merged output stays part of the contract. The rest of this record stands.
 
+> **Partly amended — see [ADR-377](0377-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §3, as ADR-295 amends it: `code-set-names.yaml` leaves the jar's formats the control panel reads and writes, the file being read and written by nothing. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-040](0040-modules-are-capability-shaped-not-stage-shaped.md) and [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md): the nine modules stay nine, and the module rule is unchanged, since the control panel's code is outside `io.algernon.vespera` (§1).
