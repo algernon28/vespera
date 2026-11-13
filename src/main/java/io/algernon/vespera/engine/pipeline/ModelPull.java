@@ -63,6 +63,11 @@ class ModelPull {
     /** The end of the answer, as the reading thread hands it over. */
     private static final Object END = new Object();
 
+    /** The words ADR-202 §3 gives a check that could not be completed, which ModelPullTest holds. */
+    private static final String UNESTABLISHED_PREFIX = "it could not be established that the model ";
+
+    private static final String UNESTABLISHED_INFIX = " runs on this machine";
+
     private static final String NOTHING_SERVED =
             "it serves nothing of it until a pull ends, and the next pull resumes what was downloaded.";
 
@@ -88,6 +93,15 @@ class ModelPull {
      */
     Optional<String> refusalOf(String stage, String modelName) {
         Optional<String> refusal = LocalOllamaModel.refusalOf(modelName, ollama);
+        if (refusal.isPresent() && refusal.get().startsWith(UNESTABLISHED_PREFIX + modelName + UNESTABLISHED_INFIX)) {
+            // ADR-375 §1, §4: a check that cannot be completed takes the model as local; nothing is asked or pulled.
+            LOG.warn(
+                    "{} could not establish whether the model {} runs on this machine, so it is taken as local and"
+                            + " the step goes on",
+                    stage,
+                    modelName);
+            return Optional.empty();
+        }
         if (refusal.isEmpty()
                 || !settings.pull()
                 || modelName.toLowerCase(Locale.ROOT).endsWith("cloud")

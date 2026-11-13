@@ -20,6 +20,8 @@
 
 > **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §7: the index is handed to no opener and nothing opens it; the closing line still names it. The tree is untouched. The rest of this record stands.
 
+> **Partly amended — see [ADR-377](0377-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §8: `DeliverableProgress` takes, beside numbers and enumerations, the two names of one method, `codeSetFolderChanged(String earlier, String now)`: a code set's folder in the tree's `code/` before and now, the tree's own names, which name no document, no file and no path of the archive; the line `pipeline` writes of them names those two folders and nothing else. That no line names a document stands. The rest of this record stands.
+
 > **Partly amended — see [ADR-380](0380-every-html-page-vespera-writes-is-drawn-dark-whatever-the-systems-setting-and-the-control-panels-theme.md).** Of §1.1: the stylesheet of a page of the tree carries, beside `ReportPage`'s shared rules, the same dark colours as `ReportPage`'s, as properties of one `:root` rule declaring `color-scheme: dark`, whatever the system's setting. The rest of this record stands.
 
 - **Date**: 2026-10-17

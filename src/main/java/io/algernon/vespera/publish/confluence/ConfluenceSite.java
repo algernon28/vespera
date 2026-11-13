@@ -85,7 +85,8 @@ final class ConfluenceSite {
      * profile}'s, else missing (ADR-359 §2). The parent is taken whole from one side: where the shell names it by id
      * or by title, the profile's parent is not read. The token is read from {@code environment} alone. Where the
      * control panel started the publish ({@link #STARTED_BY_VARIABLE}), a missing value is named by its profile key
-     * and the Profile tab, and a missing token as the API token Publish asks for (ADR-359 §4).
+     * and the Profile tab, and a missing token as the API token Publish asks for (ADR-359 §4); so are a parent named
+     * both by id and by title, and an address that is not a Confluence Cloud site's (ADR-372 §1).
      */
     static Read of(
             Function<String, String> environment,
@@ -146,14 +147,20 @@ final class ConfluenceSite {
                     + " publish again.");
         }
         if (blankToNull(parentId) != null && blankToNull(parentTitle) != null) {
-            return new Read.Refused("vespera publish sent nothing: the parent is named both by"
-                    + " VESPERA_CONFLUENCE_FOLDER_ID and by VESPERA_CONFLUENCE_FOLDER_TITLE. Name it by one.");
+            return new Read.Refused(fromTheControlPanel
+                    ? "vespera publish sent nothing: the parent is named both by confluenceFolderId and by"
+                            + " confluenceFolderTitle. Clear one in the control panel's Profile tab, and publish again."
+                    : "vespera publish sent nothing: the parent is named both by VESPERA_CONFLUENCE_FOLDER_ID and by"
+                            + " VESPERA_CONFLUENCE_FOLDER_TITLE. Name it by one.");
         }
         Optional<URI> site = siteOf(baseUrl.strip());
         if (site.isEmpty()) {
-            return new Read.Refused("vespera publish sent nothing: VESPERA_CONFLUENCE_BASE_URL is not the https"
-                    + " address of a Confluence Cloud site, https://<site> or https://<site>/wiki, with no user,"
-                    + " query or other path.");
+            String notASite = " is not the https address of a Confluence Cloud site, https://<site> or"
+                    + " https://<site>/wiki, with no user, query or other path.";
+            return new Read.Refused(fromTheControlPanel
+                    ? "vespera publish sent nothing: confluenceBaseUrl" + notASite
+                            + " Correct it in the control panel's Profile tab, and publish again."
+                    : "vespera publish sent nothing: VESPERA_CONFLUENCE_BASE_URL" + notASite);
         }
         String basic = Base64.getEncoder().encodeToString((user + ":" + token).getBytes(StandardCharsets.UTF_8));
         return new Read.Given(new ConfluenceSite(

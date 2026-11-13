@@ -46,6 +46,15 @@ import org.junit.jupiter.api.io.TempDir;
  * shape built by hand, their steps alone (ADR-362), the way the cockpit hands it each reading. A row's state words are the part of its row right after the part
  * that holds its bar, which reads the same whether the bar stands alone or with its percent; a leg's are
  * {@code leg-state-<leg>}.
+ *
+ * <p>Two tests hold ADR-374, the window's colours in both themes, here beside ADR-370's contrast of the percent, whose
+ * window and WCAG ratio they share: every text of the window and every line, swatch and marker of the stages' charts,
+ * a frozen one's dimmed (ADR-382 §6, §9), and an analysis report's native view, its code naming no colour and what it
+ * draws standing at AA. A text is measured against the topmost fill of the nearest region it stands in that is not
+ * wholly transparent, a translucent fill laid over what lies under it and each stop of a gradient taken on its own; a
+ * chart's mark against the chart's plot, or a swatch against its legend, read the same way, the mark's colour laid over
+ * it at the opacity the mark and the nodes it stands in are drawn at. The colours are read as JavaFX resolves the
+ * stylesheet over Modena, not from the pixels drawn.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -364,6 +373,457 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                         + " 0.8 of it solid, in an opaque colour the text stands against at 4.5 : 1 or more, WCAG AA,"
                         + " whatever of the bar's fill or its track lies under it",
                 () -> assertThat(faults).as("the percents whose text does not stand at AA against its halo").isEmpty());
+    }
+
+    @Test
+    @Story("Every part of the window reads in the light and the dark theme")
+    @DisplayName("Every text of the window, and every line, swatch and marker of its charts, stands at WCAG AA in the light and the dark theme")
+    @Link(name = "ADR-374", url = Adr.EVERY_TEXT_LINE_AND_MARKER_OF_THE_WINDOW_STANDS_AT_AA_IN_BOTH_THEMES, type = "adr")
+    @Link(name = "ADR-382", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
+    void everyTextOfTheWindowAndEveryMarkOfItsChartsStandsAtAaInBothThemes(@TempDir Path folder) throws Exception {
+        Map<String, String> faults = new LinkedHashMap<>();
+        int[] measured = new int[3];
+        try (WindowForTests window = WindowForTests.shown(WindowForTests.aState(folder,
+                new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar"))))) {
+            window.act(root -> shown(root, extractionAt(375, 1000)));
+            for (boolean stage1Finished : List.of(false, true)) {
+                String drawing = stage1Finished ? "stage 1 finished" : "stage 1 running";
+                window.act(root -> chartsOf(root).show(stagesCharts(stage1Finished)));
+                for (String theme : THEMES) {
+                    window.act(root -> themed(root, theme));
+                    List<String> sections = window.read(EveryBarOfTheStepsCarriesItsPercentTest::sidebarSections);
+                    for (String section : sections) {
+                        window.act(root -> WindowForTests.node(root, section, TitledPane.class).setExpanded(true));
+                        keptOncePerPair(faults, window.read(root -> faultsIn(root,
+                                theme + ", " + drawing + ", " + section + " open", measured)));
+                    }
+                    for (String tab : window.read(WindowForTests::tabIds)) {
+                        window.act(root -> select(root, tab));
+                        keptOncePerPair(faults, window.read(root -> faultsIn(root,
+                                theme + ", " + drawing + ", " + tab + " tab", measured)));
+                    }
+                }
+            }
+        }
+
+        claim("the window was measured: texts and chart marks were found in it, and marks of a finished stage's chart"
+                        + " drawn dimmed",
+                () -> assertThat(measured).as("texts measured, chart marks measured, dimmed chart marks measured")
+                        .doesNotContain(0));
+        claim("in the light theme and in the dark, with each section of the sidebar open in turn and each tab selected in"
+                        + " turn, the chart of stage 0 drawing one line, of stage 1 six and of stage 2 three, stage 1"
+                        + " running and then finished, every text shown, not disabled and not drawn transparent stands at"
+                        + " 4.5 : 1 or more against what is drawn behind it,"
+                        + " and every line, legend swatch and marked sample of the charts, a finished stage's dimmed"
+                        + " ones as dimmed as they are drawn, at 3 : 1 or more against the chart's plot or its legend,"
+                        + " WCAG AA",
+                () -> assertThat(faults.values()).as("each text or mark under AA, once for each theme and pair of colours")
+                        .isEmpty());
+    }
+
+    @Test
+    @Story("Every part of the window reads in the light and the dark theme")
+    @DisplayName("A report's native view takes every colour from the window's stylesheet and stands at WCAG AA in the light and the dark theme")
+    @Link(name = "ADR-374", url = Adr.EVERY_TEXT_LINE_AND_MARKER_OF_THE_WINDOW_STANDS_AT_AA_IN_BOTH_THEMES, type = "adr")
+    void aNativeViewNamesNoColourOfItsOwnAndStandsAtAaInBothThemes(@TempDir Path folder) throws Exception {
+        List<String> coloursInCode = coloursNamedBy(A_NATIVE_VIEW);
+
+        Path workingDirectory = java.nio.file.Files.createDirectories(folder.resolve("working"));
+        java.nio.file.Files.writeString(workingDirectory.resolve(Reports.jsonOf(AN_ANALYSIS_REPORT)),
+                analysisReportJson(), java.nio.charset.StandardCharsets.UTF_8);
+        ControlPanelState state = WindowForTests.aState(folder,
+                new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")));
+        state.hold(new LaunchValues(java.nio.file.Files.createDirectories(folder.resolve("corpus")).toString(),
+                workingDirectory.toString(), "", "", "", "", "", ""));
+        Map<String, String> faults = new LinkedHashMap<>();
+        int[] measured = new int[3];
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            window.act(root -> WindowForTests.pressReportLink(root, "reports-list", AN_ANALYSIS_REPORT));
+            for (String theme : THEMES) {
+                window.act(root -> themed(root, theme));
+                keptOncePerPair(faults, window.read(root -> faultsIn(HeadlessToolkit.tabWithId(root, "analysis-report-"
+                        + AN_ANALYSIS_REPORT).map(javafx.scene.control.Tab::getContent).filter(Parent.class::isInstance)
+                        .map(Parent.class::cast).orElseThrow(() -> new AssertionError("the report's tab did not open")),
+                        theme + ", " + AN_ANALYSIS_REPORT + "'s view", measured)));
+            }
+        }
+
+        claim("the native view's code names no colour, paint, background, border or effect, and sets no style: what it"
+                        + " draws takes its colours from the window's stylesheet, as the theme the window wears says",
+                () -> assertThat(coloursInCode).as("what the native view's classes name of colour or style").isEmpty());
+        claim("the view was measured: texts and chart marks were found in it",
+                () -> assertThat(new int[] {measured[0], measured[1]}).as("texts measured, chart marks measured")
+                        .doesNotContain(0));
+        claim("in the light theme and in the dark, a report's view of a headline, a paragraph, a bars chart of eight"
+                        + " series, a lines chart of three and a table with links draws every text shown at 4.5 : 1 or"
+                        + " more against what lies behind it, and every bar, line, marker and legend swatch at 3 : 1 or"
+                        + " more against the chart's plot or its legend, WCAG AA",
+                () -> assertThat(faults.values()).as("each text or mark under AA, once for each theme and pair of colours")
+                        .isEmpty());
+    }
+
+    // ---- measuring the colours (ADR-374)
+
+    /** The two themes, the light first as the window opens. */
+    private static final List<String> THEMES = List.of("light", "dark");
+
+    /** WCAG AA's least contrast for a graphical object: a chart's line, a legend's swatch, a sample's marker, a bar. */
+    private static final double AA_GRAPHICS = 3.0;
+
+    /** The class of an analysis report's native view, whose code names no colour of its own. */
+    private static final String A_NATIVE_VIEW = "io.algernon.vespera.ui.AnalysisReportView";
+
+    /** The analysis report whose native view the test opens. */
+    private static final String AN_ANALYSIS_REPORT = "format-mix";
+
+    /** The packages and members whose naming in a native view's code would set a colour or a style of its own. */
+    private static final List<String> COLOUR_PACKAGES = List.of("javafx.scene.paint", "javafx.scene.effect");
+
+    private static final Set<String> COLOUR_TYPES = Set.of("javafx.scene.layout.Background",
+            "javafx.scene.layout.BackgroundFill", "javafx.scene.layout.Border", "javafx.scene.layout.BorderStroke");
+
+    private static final Set<String> STYLE_CALLS = Set.of("setStyle", "getStylesheets", "setBackground", "setBorder",
+            "setTextFill", "setFill", "setStroke", "setEffect", "setBlendMode");
+
+    /**
+     * Keeps each of {@code found} whose theme, pair of colours and threshold no fault kept before holds, for a text, or
+     * whose theme, pair and mark, for a chart's, so that a pair drawn on many texts is said once, with the first text it
+     * was found on.
+     */
+    private static void keptOncePerPair(Map<String, String> kept, List<String> found) {
+        for (String fault : found) {
+            String theme = fault.substring(0, fault.indexOf(','));
+            String pair = fault.substring(fault.indexOf(": ") + 2, fault.indexOf(" ("));
+            String what = fault.substring(fault.indexOf(" (") + 2).replaceAll("^text .*", "text");
+            kept.putIfAbsent(theme + " " + pair.replaceAll(" stands at [0-9.]+ : 1", "") + " " + what, fault);
+        }
+    }
+
+    /** Puts the window in {@code theme} with its switch, as the operator does, and lays it out again. */
+    private static void themed(Parent root, String theme) {
+        javafx.scene.control.ToggleButton dark = WindowForTests.node(root, "theme-toggle",
+                javafx.scene.control.ToggleButton.class);
+        dark.setSelected(theme.equals("dark"));
+        root.applyCss();
+        root.layout();
+    }
+
+    /** The ids of the sidebar's sections, in order. */
+    private static List<String> sidebarSections(Parent root) {
+        return WindowForTests.every(root, "sidebar", TitledPane.class).stream().map(Node::getId)
+                .filter(id -> id != null).toList();
+    }
+
+    /** Selects the tab {@code id} of the pane the Profile tab stands in. */
+    private static void select(Parent root, String id) {
+        javafx.scene.control.Tab tab = HeadlessToolkit.tabWithId(root, id).orElseThrow();
+        tab.getTabPane().getSelectionModel().select(tab);
+    }
+
+    /** The stages' charts of the cockpit. */
+    private static ProgressCharts chartsOf(Parent root) {
+        return WindowForTests.node(root, "stage-charts", ProgressCharts.class);
+    }
+
+    /** When stage 1 finished, in the chart drawn finished. */
+    private static final Instant STAGE_1_FINISHED = Instant.parse("2026-11-12T13:32:05Z");
+
+    /**
+     * The stages' charts as the working directory's files keep them: stage 0's of one line, stage 1's of six, its
+     * counts and its five kinds, running or, where {@code stage1Finished}, finished and drawn dimmed, and stage 2's of
+     * three, running.
+     */
+    private static Map<String, StageChartFile.Chart> stagesCharts(boolean stage1Finished) {
+        List<Double> seconds = List.of(0.0, 10.0, 20.0);
+        return Map.of(
+                "0", new StageChartFile.Chart("0", null,
+                        List.of(new StageChartFile.Line("done", seconds, List.of(100.0, 900.0, 2000.0)))),
+                "1", new StageChartFile.Chart("1", stage1Finished ? STAGE_1_FINISHED : null, List.of(
+                        new StageChartFile.Line("done", seconds, List.of(5.0, 1234.0, 2000.0)),
+                        new StageChartFile.Line("broken", seconds, List.of(1.0, 2.0, 3.0)),
+                        new StageChartFile.Line("duplicate-of", seconds, List.of(2.0, 4.0, 6.0)),
+                        new StageChartFile.Line("superseded-by", seconds, List.of(3.0, 6.0, 9.0)),
+                        new StageChartFile.Line("out-of-scope", seconds, List.of(4.0, 8.0, 12.0)),
+                        new StageChartFile.Line("code", seconds, List.of(5.0, 10.0, 15.0)))),
+                "2", new StageChartFile.Chart("2", null, List.of(
+                        new StageChartFile.Line("done", seconds, List.of(10.0, 400.0, 900.0)),
+                        new StageChartFile.Line("extraction-failed", seconds, List.of(0.0, 3.0, 4.0)),
+                        new StageChartFile.Line("degenerate-output", seconds, List.of(0.0, 1.0, 2.0)))));
+    }
+
+    /**
+     * An analysis report's JSON in ADR-362 §9's shape: two headline numbers, one section of a paragraph, a bars chart of
+     * eight series, so that each of the eight colours a chart names is drawn, and a table of text, counts, a file and
+     * another report, and one section of a lines chart of three series.
+     */
+    private static String analysisReportJson() {
+        StringBuilder columns = new StringBuilder("{\"id\":\"kind\",\"label\":\"Kind\",\"kind\":\"text\"}");
+        StringBuilder series = new StringBuilder();
+        for (int at = 1; at <= 8; at++) {
+            columns.append(",{\"id\":\"s").append(at).append("\",\"label\":\"Series ").append(at)
+                    .append("\",\"kind\":\"count\"}");
+            series.append(at == 1 ? "" : ",").append("\"s").append(at).append('"');
+        }
+        columns.append(",{\"id\":\"link\",\"label\":\"Report\",\"kind\":\"analysisReport\"}")
+                .append(",{\"id\":\"where\",\"label\":\"Where\",\"kind\":\"path\"}");
+        String file = new java.io.File(System.getProperty("java.io.tmpdir"), "lead.txt").getAbsolutePath()
+                .replace("\\", "\\\\");
+        String rows = "[\"docx\",1,2,3,4,5,6,7,8,\"translations\",\"" + file + "\"],"
+                + "[\"pdf\",8,7,6,5,4,3,2,1,\"cluster-sizes\",\"\"]";
+        return "{\"format\":1,\"analysisReport\":\"" + AN_ANALYSIS_REPORT + "\",\"title\":\"Format mix\","
+                + "\"writtenAt\":\"2026-11-08T10:00:00Z\",\"headline\":[{\"key\":\"files\",\"label\":\"Files\","
+                + "\"value\":51732300,\"unit\":\"count\"},{\"key\":\"code\",\"label\":\"Code\",\"value\":0.25,"
+                + "\"unit\":\"share\"}],\"sections\":[{\"id\":\"kinds\",\"title\":\"By kind\",\"text\":[\"One"
+                + " paragraph.\"],\"chart\":{\"kind\":\"bars\",\"x\":\"kind\",\"series\":[" + series + "]},"
+                + "\"table\":{\"columns\":[" + columns + "],\"rows\":[" + rows + "]}},"
+                + "{\"id\":\"over-time\",\"title\":\"Over time\",\"text\":[],\"chart\":{\"kind\":\"lines\",\"x\":\"kind\","
+                + "\"series\":[\"s1\",\"s2\",\"s3\"]},\"table\":{\"columns\":[" + columns + "],\"rows\":[" + rows
+                + "]}}]}";
+    }
+
+    /**
+     * What the classes of {@code className}, itself and its nested classes, name of colour or style: a type of
+     * {@link #COLOUR_PACKAGES} or {@link #COLOUR_TYPES}, or a call of {@link #STYLE_CALLS}.
+     */
+    private static List<String> coloursNamedBy(String className) {
+        com.tngtech.archunit.core.domain.JavaClasses classes = new com.tngtech.archunit.core.importer.ClassFileImporter()
+                .withImportOption(com.tngtech.archunit.core.importer.ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+                .importPackages("io.algernon.vespera.ui");
+        List<String> found = new ArrayList<>();
+        List<com.tngtech.archunit.core.domain.JavaClass> ofTheView = classes.stream()
+                .filter(each -> each.getName().equals(className) || each.getName().startsWith(className + "$"))
+                .toList();
+        if (ofTheView.isEmpty()) {
+            found.add("(no class " + className + " was found)");
+        }
+        for (com.tngtech.archunit.core.domain.JavaClass each : ofTheView) {
+            each.getDirectDependenciesFromSelf().stream().map(dependency -> dependency.getTargetClass().getName())
+                    .filter(name -> COLOUR_TYPES.contains(name)
+                            || COLOUR_PACKAGES.stream().anyMatch(name::startsWith))
+                    .distinct().forEach(name -> found.add(each.getSimpleName() + " names " + name));
+            each.getMethodCallsFromSelf().stream().map(call -> call.getTarget().getName())
+                    .filter(STYLE_CALLS::contains).distinct()
+                    .forEach(name -> found.add(each.getSimpleName() + " calls " + name));
+        }
+        return found;
+    }
+
+    /**
+     * Every text shown under {@code root}, not disabled and not drawn transparent, as a focused field's prompt is, whose
+     * fill stands under 4.5 : 1 against what is drawn behind it, and every line, swatch, marked sample and bar of a
+     * chart under {@code root} whose colour, laid over it at the opacity it is drawn at, stands under 3 : 1 against the
+     * chart's plot, or, for a swatch, its legend; each said with {@code where}, and counted in {@code measured}: texts,
+     * chart marks, and chart marks drawn at an opacity under 1.
+     */
+    private static List<String> faultsIn(Parent root, String where, int[] measured) {
+        List<String> found = new ArrayList<>();
+        for (Node node : drawnUnder(root)) {
+            if (node instanceof javafx.scene.text.Text text && text.getText() != null && !text.getText().isBlank()
+                    && !text.isDisabled() && shownOnScreen(text) && !(text.getFill() instanceof Color ink
+                            && ink.getOpacity() == 0)) {
+                measured[0]++;
+                fault("text \"" + firstWords(text.getText()) + "\" " + placeOf(text), colours(text.getFill()),
+                        behind(text.getParent()),
+                        AA).ifPresent(why -> found.add(where + ": " + why));
+            }
+        }
+        for (Node node : drawnUnder(root)) {
+            if (!(node instanceof javafx.scene.chart.XYChart<?, ?> chart) || !shownOnScreen(chart)) {
+                continue;
+            }
+            List<Node> parts = drawnUnder(chart);
+            Optional<Node> plot = parts.stream().filter(part -> part.getStyleClass().contains("chart-plot-background"))
+                    .findFirst();
+            List<Color> plotColours = plot.map(EveryBarOfTheStepsCarriesItsPercentTest::behind).orElse(List.of());
+            String chartName = chart.getId() == null ? "a chart" : chart.getId();
+            for (Node part : parts) {
+                if (!shownOnScreen(part)) {
+                    continue;
+                }
+                List<String> classes = part.getStyleClass();
+                double opacity = drawnOpacity(part);
+                String colourClass = classes.stream().filter(name -> name.startsWith("default-color")).findFirst()
+                        .orElse("");
+                if (classes.contains("chart-series-line") && part instanceof javafx.scene.shape.Shape line) {
+                    counted(measured, opacity);
+                    fault(chartName + "'s line " + colourClass, faded(colours(line.getStroke()), opacity), plotColours,
+                            AA_GRAPHICS)
+                            .ifPresent(why -> found.add(where + ": " + why));
+                } else if (classes.contains("chart-legend-item-symbol")) {
+                    counted(measured, opacity);
+                    fault(chartName + "'s legend swatch " + colourClass, faded(outermostFill(part), opacity),
+                            behind(part.getParent()), AA_GRAPHICS)
+                            .ifPresent(why -> found.add(where + ": " + why));
+                } else if (classes.contains("chart-line-symbol") || classes.contains("chart-bar")) {
+                    List<Color> mark = outermostFill(part);
+                    if (mark.isEmpty() || mark.stream().allMatch(colour -> colour.getOpacity() == 0)) {
+                        continue; // a sample's hit area, drawn transparent, is no mark
+                    }
+                    counted(measured, opacity);
+                    fault(chartName + "'s " + (classes.contains("chart-bar") ? "bar " : "marker ") + colourClass,
+                            faded(mark, opacity),
+                            plotColours, AA_GRAPHICS)
+                            .ifPresent(why -> found.add(where + ": " + why));
+                }
+            }
+        }
+        return found;
+    }
+
+    /** Counts a chart's mark in {@code measured}, and, where it is drawn at an opacity under 1, a dimmed one too. */
+    private static void counted(int[] measured, double opacity) {
+        measured[1]++;
+        if (opacity < 1) {
+            measured[2]++;
+        }
+    }
+
+    /** The opacity {@code node} is drawn at: its own, times that of every node it stands in. */
+    private static double drawnOpacity(Node node) {
+        double opacity = 1;
+        for (Node at = node; at != null; at = at.getParent()) {
+            opacity *= at.getOpacity();
+        }
+        return opacity;
+    }
+
+    /** Each of {@code colours} drawn at {@code opacity}: its own alpha times it. */
+    private static List<Color> faded(List<Color> colours, double opacity) {
+        return colours.stream().map(colour -> Color.color(colour.getRed(), colour.getGreen(), colour.getBlue(),
+                colour.getOpacity() * opacity)).toList();
+    }
+
+    /**
+     * Why {@code what}, drawn in {@code drawn}, does not stand at {@code least} against {@code behind}, each colour of a
+     * gradient taken on its own and the least ratio kept; empty where it does.
+     */
+    private static Optional<String> fault(String what, List<Color> drawn, List<Color> behind, double least) {
+        if (drawn.isEmpty() || behind.isEmpty()) {
+            return Optional.of("its colour " + drawn + " or what lies behind it " + behind + " is not read (" + what + ")");
+        }
+        double worst = Double.MAX_VALUE;
+        Color worstDrawn = null;
+        Color worstBehind = null;
+        for (Color ink : drawn) {
+            for (Color under : behind) {
+                Color seen = over(ink, under);
+                double ratio = contrast(seen, under);
+                if (ratio < worst) {
+                    worst = ratio;
+                    worstDrawn = seen;
+                    worstBehind = under;
+                }
+            }
+        }
+        return worst >= least ? Optional.empty()
+                : Optional.of(hex(worstDrawn) + " on " + hex(worstBehind) + " stands at "
+                        + Math.round(worst * 100) / 100.0 + " : 1, under " + least + " : 1 (" + what + ")");
+    }
+
+    /**
+     * What is drawn behind a node standing in {@code start}: the topmost fill of the nearest region, {@code start}
+     * included, whose background holds a fill not wholly transparent, a fill not wholly opaque laid over what lies under
+     * it, down to the scene's white; each stop of a gradient counted as a colour of its own.
+     */
+    private static List<Color> behind(Node start) {
+        List<List<Color>> layers = new ArrayList<>();
+        for (Node at = start; at != null; at = at.getParent()) {
+            if (at instanceof javafx.scene.layout.Region region && region.getBackground() != null) {
+                List<javafx.scene.layout.BackgroundFill> fills = region.getBackground().getFills();
+                for (int index = fills.size() - 1; index >= 0; index--) {
+                    List<Color> layer = colours(fills.get(index).getFill());
+                    if (!layer.isEmpty() && layer.stream().anyMatch(colour -> colour.getOpacity() > 0)) {
+                        layers.add(layer);
+                    }
+                }
+            }
+        }
+        layers.add(List.of(Color.WHITE));
+        return composed(layers, 0);
+    }
+
+    /** The colours {@code layers} show from {@code at} down, a layer not opaque laid over those under it. */
+    private static List<Color> composed(List<List<Color>> layers, int at) {
+        List<Color> layer = layers.get(at);
+        if (layer.stream().allMatch(colour -> colour.getOpacity() >= 1) || at == layers.size() - 1) {
+            return layer;
+        }
+        List<Color> under = composed(layers, at + 1);
+        List<Color> seen = new ArrayList<>();
+        for (Color colour : layer) {
+            for (Color below : under) {
+                seen.add(over(colour, below));
+            }
+        }
+        return seen;
+    }
+
+    /** {@code top} laid over the opaque {@code under}. */
+    private static Color over(Color top, Color under) {
+        double alpha = top.getOpacity();
+        return Color.color(top.getRed() * alpha + under.getRed() * (1 - alpha),
+                top.getGreen() * alpha + under.getGreen() * (1 - alpha),
+                top.getBlue() * alpha + under.getBlue() * (1 - alpha));
+    }
+
+    /** The first fill of {@code node}'s background, its outermost: the colour a swatch, a marker or a bar is drawn in. */
+    private static List<Color> outermostFill(Node node) {
+        if (node instanceof javafx.scene.layout.Region region && region.getBackground() != null
+                && !region.getBackground().getFills().isEmpty()) {
+            return colours(region.getBackground().getFills().getFirst().getFill());
+        }
+        return List.of();
+    }
+
+    /** The colours of {@code paint}: itself where it is one, each stop's where it is a gradient, none otherwise. */
+    private static List<Color> colours(Paint paint) {
+        if (paint instanceof Color colour) {
+            return List.of(colour);
+        }
+        if (paint instanceof javafx.scene.paint.LinearGradient linear) {
+            return linear.getStops().stream().map(javafx.scene.paint.Stop::getColor).toList();
+        }
+        if (paint instanceof javafx.scene.paint.RadialGradient radial) {
+            return radial.getStops().stream().map(javafx.scene.paint.Stop::getColor).toList();
+        }
+        return List.of();
+    }
+
+    /** Every node drawn under {@code root}, itself first, through the scene graph's children alone. */
+    private static List<Node> drawnUnder(Parent root) {
+        List<Node> found = new ArrayList<>();
+        java.util.ArrayDeque<Node> toVisit = new java.util.ArrayDeque<>(List.of(root));
+        while (!toVisit.isEmpty()) {
+            Node node = toVisit.removeFirst();
+            found.add(node);
+            if (node instanceof Parent parent) {
+                toVisit.addAll(parent.getChildrenUnmodifiable());
+            }
+        }
+        return found;
+    }
+
+    /** Where {@code text} stands: the control that draws it and the nearest node with an id it stands in. */
+    private static String placeOf(Node text) {
+        String control = "";
+        String id = "";
+        for (Node at = text.getParent(); at != null && id.isEmpty(); at = at.getParent()) {
+            if (control.isEmpty() && at instanceof javafx.scene.control.Control) {
+                control = at.getClass().getSimpleName() + " " + at.getStyleClass();
+            }
+            id = at.getId() == null ? "" : at.getId();
+        }
+        return "in " + (control.isEmpty() ? "no control" : control) + " under #" + id;
+    }
+
+    private static String firstWords(String text) {
+        String line = text.strip().replaceAll("\\s+", " ");
+        return line.length() <= 40 ? line : line.substring(0, 40) + "…";
+    }
+
+    private static String hex(Color colour) {
+        return String.format(java.util.Locale.ROOT, "#%02x%02x%02x", Math.round(colour.getRed() * 255),
+                Math.round(colour.getGreen() * 255), Math.round(colour.getBlue() * 255));
     }
 
     // ---- reading the window

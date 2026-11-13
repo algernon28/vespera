@@ -9,8 +9,10 @@ import static io.algernon.vespera.engine.deliverable.ListedTree.slotOf;
 import static io.algernon.vespera.engine.deliverable.ListedTree.survivor;
 import static io.algernon.vespera.engine.deliverable.ListedTree.writing;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.TestLinks;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.OccurrencePath;
 import io.algernon.vespera.engine.ledger.ReplacingMove;
@@ -26,10 +28,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -40,7 +44,8 @@ import org.junit.jupiter.api.io.TempDir;
  * differs, with the outcomes of ADR-274 §2.3 otherwise as for documents; one row a member in {@code code.csv}, and none
  * in {@code documents.csv}; a section of the index after the groups, one row a set; the operator's names applied, the
  * dormant ones counted and a refused file told; a folder in {@code code/} this drawing did not write counted as left
- * behind; and the code copies surveyed in numbers only.
+ * behind, and one whose name differs in case alone from a set's this drawing wrote counted only where the file system
+ * holds the two apart (ADR-373); and the code copies surveyed in numbers only.
  *
  * <p>Each test lays out {@code <base>/archive} as the corpus root and {@code <base>/work} as the working directory,
  * the tree drawn at the working directory's {@code deliverable/} folder, with one group of one document beside the
@@ -75,6 +80,16 @@ class CodeSetsInTheTreeTest {
 
     /** Free bytes reported to the writer where room is not what a test is about: four gibibytes. */
     private static final long ROOM_ENOUGH = 4L << 30;
+
+    /** A code set's folder and default name, and the name the operator renames it to, differing from it in case alone. */
+    private static final String THE_SET = "Core";
+
+    private static final String THE_RENAMED_SET = "core";
+
+    /** That set's one member, its occurrence and its text. */
+    private static final long THE_SETS_MEMBER = 170;
+
+    private static final String THE_SETS_TEXT = "int a;\n";
 
     @Test
     @Story("Each code set is copied whole in its own layout")
@@ -182,6 +197,127 @@ class CodeSetsInTheTreeTest {
         claim(
                 "and the drawing is told once that the file was refused",
                 () -> assertThat(refused[0]).isEqualTo(1L));
+    }
+
+    @Test
+    @Story("The operator renames a code set")
+    @DisplayName("A code set renamed in case alone, on a file system that takes both spellings for one folder, is copied into the folder it had, and no folder is counted as left behind")
+    @Issue("782")
+    @Link(name = "ADR-373", url = Adr.A_FOLDER_DIFFERING_IN_CASE_ALONE_IS_LEFT_BEHIND_ONLY_WHERE_HELD_APART, type = "adr")
+    void aSetRenamedInCaseAloneLeavesNoFolderBehindWhereTheFileSystemFoldsCase(@TempDir Path base)
+            throws IOException {
+        assumeTrue(foldsCase(base), "the file system under the test's folder takes a name and its upper case for one"
+                + " file, as NTFS and APFS by default do");
+        List<String> reported = new ArrayList<>();
+
+        Path tree = renameInCaseAlone(base, reported);
+
+        claim(
+                "code/ holds one folder, the one the first drawing wrote, and the set's file is reached through the"
+                        + " name the second drawing gave it",
+                () -> {
+                    assertThat(foldersIn(tree.resolve("code"))).hasSize(1);
+                    assertThat(tree.resolve("code").resolve(THE_RENAMED_SET).resolve("a.c"))
+                            .hasBinaryContent(bytes(THE_SETS_TEXT));
+                });
+        claim(
+                "and the second drawing reports once that nothing was left behind: no documents folder and 0 other"
+                        + " folders, the folder spelt as the set was first named being the folder it wrote",
+                () -> assertThat(reported).containsExactly("documents folder false, other folders 0"));
+    }
+
+    @Test
+    @Story("The operator renames a code set")
+    @DisplayName("A code set renamed in case alone, on a file system that tells the two spellings apart, is copied into a new folder, and the one it had is counted as left behind")
+    @Issue("782")
+    @Link(name = "ADR-373", url = Adr.A_FOLDER_DIFFERING_IN_CASE_ALONE_IS_LEFT_BEHIND_ONLY_WHERE_HELD_APART, type = "adr")
+    void aSetRenamedInCaseAloneLeavesItsEarlierFolderBehindWhereTheFileSystemTellsThemApart(@TempDir Path base)
+            throws IOException {
+        assumeTrue(!foldsCase(base), "the file system under the test's folder holds a name and its upper case as two"
+                + " files, as ext4 does");
+        List<String> reported = new ArrayList<>();
+
+        Path tree = renameInCaseAlone(base, reported);
+
+        claim(
+                "code/ holds two folders, the one the first drawing wrote and the one the second did, each spelt as"
+                        + " its drawing named the set",
+                () -> assertThat(foldersIn(tree.resolve("code"))).containsExactly(THE_SET, THE_RENAMED_SET));
+        claim(
+                "and the second drawing counts 1 other folder left behind, the first drawing's, though its name"
+                        + " differs from the one written in case alone",
+                () -> assertThat(reported).containsExactly("documents folder false, other folders 1"));
+    }
+
+    @Test
+    @Story("The operator renames a code set")
+    @DisplayName("A folder in code/ whose name differs in case alone from a set's folder and which leads to that folder is not counted as left behind")
+    @Issue("782")
+    @Link(name = "ADR-373", url = Adr.A_FOLDER_DIFFERING_IN_CASE_ALONE_IS_LEFT_BEHIND_ONLY_WHERE_HELD_APART, type = "adr")
+    void aFolderDifferingInCaseAloneThatLeadsToTheSetsFolderIsNotLeftBehind(@TempDir Path base) throws IOException {
+        Path archive = base.resolve("archive");
+        ListedCodeSets code = codeSets(Map.of(set(THE_RENAMED_SET, THE_RENAMED_SET, THE_SETS_MEMBER), List.of(
+                file(archive, THE_SETS_MEMBER, THE_RENAMED_SET + "/a.c", THE_RENAMED_SET, "code", null,
+                        THE_SETS_TEXT))));
+        Path tree = draw(base, archive, code, DeliverableProgress.NONE, () -> ROOM_ENOUGH);
+        Path written = tree.resolve("code").resolve(THE_RENAMED_SET);
+        assumeTrue(
+                TestLinks.make(tree.resolve("code").resolve(THE_SET), written.toAbsolutePath()),
+                "a link spelt as the set's folder in upper case can be made beside it, which a file system that"
+                        + " takes both spellings for one folder refuses");
+        List<String> reported = new ArrayList<>();
+
+        draw(base, archive, code, hearing(reported), () -> ROOM_ENOUGH);
+
+        claim(
+                "the drawing reports once that nothing was left behind: the link stands for the set's folder under"
+                        + " a name differing in case alone, as a file system that folds case presents it, and is"
+                        + " not counted",
+                () -> assertThat(reported).containsExactly("documents folder false, other folders 0"));
+    }
+
+    /**
+     * Draws {@link #THE_SET} under its default name, then again with {@link CodeSetNames#FILE_NAME} naming it {@link
+     * #THE_RENAMED_SET}, and returns the tree; {@code reported} hears what the second drawing found left behind.
+     */
+    private static Path renameInCaseAlone(Path base, List<String> reported) throws IOException {
+        Path archive = base.resolve("archive");
+        ListedCodeSets code = codeSets(Map.of(set(THE_SET, THE_SET, THE_SETS_MEMBER), List.of(
+                file(archive, THE_SETS_MEMBER, THE_SET + "/a.c", THE_SET, "code", null, THE_SETS_TEXT))));
+        draw(base, archive, code, DeliverableProgress.NONE, () -> ROOM_ENOUGH);
+        Files.writeString(base.resolve("work").resolve(CodeSetNames.FILE_NAME),
+                "- folder: " + THE_SET + "\n  name: " + THE_RENAMED_SET + "\n", StandardCharsets.UTF_8);
+        return draw(base, archive, code, hearing(reported), () -> ROOM_ENOUGH);
+    }
+
+    /** A hearing that adds to {@code reported} each listing of what was left behind it is told of. */
+    private static DeliverableProgress hearing(List<String> reported) {
+        return new DeliverableProgress() {
+            @Override
+            public void leftBehind(boolean documentsFolder, long otherFolders) {
+                reported.add("documents folder " + documentsFolder + ", other folders " + otherFolders);
+            }
+        };
+    }
+
+    /** The names of the folders directly in {@code folder}, in order. */
+    private static List<String> foldersIn(Path folder) throws IOException {
+        try (Stream<Path> inside = Files.list(folder)) {
+            return inside.filter(Files::isDirectory).map(entry -> entry.getFileName().toString()).sorted().toList();
+        }
+    }
+
+    /**
+     * Whether the file system under {@code folder} takes a name and its upper case for one file: a file written under
+     * a lower-case name is looked for under its upper case, and deleted.
+     */
+    private static boolean foldsCase(Path folder) throws IOException {
+        Path probe = Files.writeString(folder.resolve("case-probe"), "", StandardCharsets.UTF_8);
+        try {
+            return Files.exists(folder.resolve("CASE-PROBE"));
+        } finally {
+            Files.delete(probe);
+        }
     }
 
     /** The tree drawn over {@code archive} from {@code code}, with the one group, at {@code <base>/work}. */

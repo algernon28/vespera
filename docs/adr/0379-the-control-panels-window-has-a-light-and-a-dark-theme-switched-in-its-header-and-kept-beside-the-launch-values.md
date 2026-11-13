@@ -2,7 +2,7 @@
 
 > **Partly amended — see [ADR-380](0380-every-html-page-vespera-writes-is-drawn-dark-whatever-the-systems-setting-and-the-control-panels-theme.md).** Of §5: `report.html`, each analysis report's page and the deliverable's pages keep a look of their own whatever the window's theme, and that look is dark, drawn from §3's dark tokens. Of What this does not decide: a page drawn outside the window does not take the theme, every page Vespera writes being dark. The rest of this record stands.
 
-> **Partly amended — see [ADR-381](0381-every-view-inside-the-control-panels-window-follows-its-light-and-dark-switch-at-once-its-popups-included.md).** Of §3: each theme rule also defines five series colours, `-vespera-series-1` to `-5`, and the light rule sets the Modena colours the dark one sets, with `-fx-accent`, `-fx-selection-bar-non-focused` and `CHART_COLOR_1` to `_5` set from tokens for both themes. Of §5 and What this does not decide: the window's charts, its analysis reports' native views, its tooltips, context menus and every other popup over it, and the steps' bars follow the theme, a popup showing as the switch flips included. The rest of this record stands.
+> **Partly amended — see [ADR-381](0381-every-view-inside-the-control-panels-window-follows-its-light-and-dark-switch-at-once-its-popups-included.md).** Of §3: each theme rule also defines eight series colours, `-vespera-series-1` to `-8`, and the light rule sets the Modena colours the dark one sets, with `-fx-accent`, `-fx-selection-bar-non-focused` and `CHART_COLOR_1` to `_8` set from tokens for both themes. Of §5 and What this does not decide: the window's charts, its analysis reports' native views, its tooltips, context menus and every other popup over it, and the steps' bars follow the theme, a popup showing as the switch flips included. The rest of this record stands.
 
 - **Date**: 2026-11-12
 - **Status**: accepted on 2026-11-12.
@@ -10,7 +10,7 @@
 - **Amends**: [ADR-344](0344-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md) §1, the header's row, `where` and `child`: the header carries the theme switch, `theme-toggle`, at its right (§1); and its What this does not decide, *"A dark theme"*: decided here. It carries a note at its head.
 - **Amends**: [ADR-292](0292-the-control-panel-remembers-its-launch-values-in-a-file-of-the-users-own-under-the-temp-directory-and-passes-five-through-the-childs-environment.md) §3, the folder of the user's own, whose section covers one file: the folder holds a second, `theme`, written as the switch changes and only where the folder exists and is the user's own, never making the folder (§2). It carries a note at its head.
 - **Amends**: [ADR-342](0342-the-control-panel-is-a-javafx-window-inside-the-vespera-jar-opened-by-the-jar-started-with-no-argument-and-its-loopback-server-and-pages-are-gone.md) §3, the one stylesheet that owns every colour: it holds each colour token twice, the light set under `.root` and the dark under `.root.dark` and `.dark-dialog`, chosen by a style class on the window's root or a dialog's pane, and a dialog's pane is given the window's stylesheet (§3, §4). It carries a note at its head.
-- **Keeps**: ADR-342 §3, no class sets a style of its own: the switch and `Dialogs` add a style class and a stylesheet, never a style. ADR-292 §1 and §2: the launch values are the eight keys of one file, written as an invocation starts; the theme is no launch value and is not in that file. [ADR-370](0370-every-bar-of-the-cockpits-steps-carries-its-whole-percent-drawn-on-it-and-nothing-else-of-the-window-changes.md) §4: a bar's percent in the theme's ink with a halo of its surface, in either theme.
+- **Keeps**: ADR-342 §3, no class sets a style of its own: the switch and `Dialogs` add a style class and a stylesheet, never a style. ADR-292 §1 and §2: the launch values are the eight keys of one file, written as an invocation starts; the theme is no launch value and is not in that file. [ADR-370](0370-every-bar-of-the-cockpits-steps-carries-its-whole-percent-drawn-on-it-and-nothing-else-of-the-window-changes.md) §4: a bar's percent in the theme's ink with a halo of its surface, in either theme. [ADR-374](0374-every-text-line-and-marker-of-the-window-its-charts-and-each-analysis-reports-native-view-stands-at-aa-in-both-themes.md) §2: the light faint text, `#5f5a78`, and a field's prompt drawn in the dim text by a rule on `.text-input`, in both themes.
 - **Settles**: [#794](https://github.com/algernon28/vespera/issues/794), its Part D, which folds [#785](https://github.com/algernon28/vespera/issues/785).
 
 ## Context
@@ -33,7 +33,7 @@ The text on the accent, `-vespera-accent-ink`, `#16132b`, stands at 8.39 : 1 aga
 
 | Light theme | on the surface, `#ffffff` | on the ground, `#f5f4f1` |
 | --- | --- | --- |
-| faint text, `-vespera-faint`, `#6f6a85` | 5.15 : 1 | 4.68 : 1 |
+| faint text, `-vespera-faint`, `#5f5a78`, ADR-374's | 6.52 : 1 | 5.93 : 1 |
 | the faint text it replaced, `#a29db8` | 2.61 : 1 | 2.37 : 1 |
 
 The light theme's other text colours stand at 16.78 and 15.26 : 1 (text, `#1e1b2e`), 5.77 and 5.24 (dim, `#67637a`), 7.92 and 7.20 (accent, `#4c3fb1`) and 6.45 and 5.86 (error, `#b3282d`) on the surface and the ground, and its white text on the accent at 7.92 : 1.
@@ -64,7 +64,7 @@ The theme is no launch value: it is not in `launch-values.properties`, is not pa
 
 **The stylesheet defines each colour token once for the light theme, under `.root`, and redefines every one of them, by the same names, for the dark, under `.root.dark` and `.dark-dialog`**: the text, the dim text, the surface, the ground, the rule, the accent, the text on the accent, the error and the faint text, with Modena's `-fx-base` and, for the dark, its control backgrounds, text fills, prompt text and focus colour. Every rule of the window draws through the tokens, so the window's root carrying the style class `dark` moves every part at once.
 
-**In the dark theme the text, dim text, accent, error and faint text colours each stand at 4.5 : 1 or more against the surface, the ground and a control's inside, and the text on the accent against the accent**; the measured ratios are the Context's, the weakest the faint text on the surface at 4.66 : 1. **In the light theme the faint text stands at 4.5 : 1 or more against the surface and the ground**: 5.15 and 4.68 : 1, where the colour it replaced stood at 2.61 : 1 on white.
+**In the dark theme the text, dim text, accent, error and faint text colours each stand at 4.5 : 1 or more against the surface, the ground and a control's inside, and the text on the accent against the accent**; the measured ratios are the Context's, the weakest the faint text on the surface at 4.66 : 1. **In the light theme the faint text stands at 4.5 : 1 or more against the surface and the ground**: 6.52 and 5.93 : 1, where the colour it replaced stood at 2.61 : 1 on white.
 
 ### 4. The dialogs
 

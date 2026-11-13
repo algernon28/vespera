@@ -123,18 +123,24 @@ class TheControlPanelsThemeTest {
     /** The least contrast WCAG 2.1's 1.4.11 asks of a graphical object needed to read a chart. */
     private static final double MARKS = 3.0;
 
-    /** How many lines a chart of the window draws at most, each in a series colour of its own. */
-    private static final int SERIES = 6;
+    /** How many colours a chart of the window names, one for each line in the order the lines take them. */
+    private static final int SERIES = 8;
 
-    /** The series colours, one for each line a chart draws at most, in the order the lines take them. */
-    private static final List<String> SERIES_TOKENS = List.of("-vespera-series-1", "-vespera-series-2",
-            "-vespera-series-3", "-vespera-series-4", "-vespera-series-5", "-vespera-series-6");
+    /** The lines of stage 1's chart, its counts and its five kinds, the most a stage's chart draws. */
+    private static final int STAGE_1_LINES = 6;
 
-    /** The marks held at 3 : 1: the series colours and a bar's fill, the accent. */
-    private static final List<String> MARK_TOKENS = Stream.concat(SERIES_TOKENS.stream(), Stream.of("-vespera-accent"))
-            .toList();
+    /** The series colours, in the order the lines take them. */
+    private static final List<String> SERIES_TOKENS = java.util.stream.IntStream.rangeClosed(1, SERIES)
+            .mapToObj(n -> "-vespera-series-" + n).toList();
 
-    /** The backgrounds a mark stands on in either theme: the surface of a plot or a track, and the window's ground. */
+    /** Modena's names of the colours a chart's n-th line, its swatch and its markers are drawn in, in the same order. */
+    private static final List<String> CHART_COLOURS = java.util.stream.IntStream.rangeClosed(1, SERIES)
+            .mapToObj(n -> "CHART_COLOR_" + n).toList();
+
+    /** A bar's fill, the accent, held at 3 : 1 against the bar's track and the window's ground. */
+    private static final String BAR_FILL = "-vespera-accent";
+
+    /** The backgrounds a bar's fill stands on in either theme: the surface of its track, and the window's ground. */
     private static final List<String> MARK_BACKGROUNDS = List.of("-vespera-surface", "-vespera-ground");
 
     /** The two theme rules, by the selector each is written under; every colour is written in one of them. */
@@ -402,17 +408,18 @@ class TheControlPanelsThemeTest {
                 themes.get("dark").keySet());
 
         Map<String, List<String>> seriesByTheme = new LinkedHashMap<>();
+        Map<String, List<String>> chartColoursByTheme = new LinkedHashMap<>();
         List<String> marksBelowThreeToOne = new ArrayList<>();
         List<String> textBelowAa = new ArrayList<>();
         for (Map.Entry<String, Map<String, String>> theme : themes.entrySet()) {
             Map<String, String> declared = theme.getValue();
             seriesByTheme.put(theme.getKey(), SERIES_TOKENS.stream()
                     .map(token -> resolved(declared, token).map(Color::toString).orElse(token + " not set")).toList());
-            for (String mark : MARK_TOKENS) {
-                for (String background : MARK_BACKGROUNDS) {
-                    below(declared, mark, background, MARKS).ifPresent(why -> marksBelowThreeToOne.add(theme.getKey()
-                            + " " + why));
-                }
+            chartColoursByTheme.put(theme.getKey(), CHART_COLOURS.stream()
+                    .map(name -> resolved(declared, name).map(Color::toString).orElse(name + " not set")).toList());
+            for (String background : MARK_BACKGROUNDS) {
+                below(declared, BAR_FILL, background, MARKS).ifPresent(why -> marksBelowThreeToOne.add(theme.getKey()
+                        + " " + why));
             }
             for (String text : TEXT_TOKENS) {
                 for (String background : DARK_BACKGROUNDS) {
@@ -431,16 +438,24 @@ class TheControlPanelsThemeTest {
         claim("no rule of the stylesheet but its light and its dark theme writes a colour of its own: every colour any"
                         + " other declares names a colour the two themes set, or is transparent",
                 () -> assertThat(writtenOutsideTheThemes).as("the rules and the colours each writes").isEmpty());
-        claim("each theme defines six series colours, one for each line a chart draws at most, no two alike",
+        claim("each theme defines eight series colours, one for each colour a chart names, no two alike",
                 () -> {
                     assertThat(seriesByTheme.get("light")).as("the light theme's series").hasSize(SERIES)
                             .doesNotHaveDuplicates().noneMatch(colour -> colour.endsWith("not set"));
                     assertThat(seriesByTheme.get("dark")).as("the dark theme's series").hasSize(SERIES)
                             .doesNotHaveDuplicates().noneMatch(colour -> colour.endsWith("not set"));
                 });
-        claim("in the light theme and in the dark, each series colour and the accent, a bar's fill, reads at 3 : 1 or"
-                        + " more against the surface and the ground",
-                () -> assertThat(marksBelowThreeToOne).as("the marks below 3 : 1").isEmpty());
+        claim("in the light theme and in the dark, the eight colours a chart's lines are drawn in are the eight series"
+                        + " colours, the first line's the first, and so on in order",
+                () -> {
+                    assertThat(chartColoursByTheme.get("light")).as("the light theme's chart colours")
+                            .containsExactlyElementsOf(seriesByTheme.get("light"));
+                    assertThat(chartColoursByTheme.get("dark")).as("the dark theme's chart colours")
+                            .containsExactlyElementsOf(seriesByTheme.get("dark"));
+                });
+        claim("in the light theme and in the dark, the accent, a bar's fill, reads at 3 : 1 or more against the surface"
+                        + " and the ground",
+                () -> assertThat(marksBelowThreeToOne).as("the bar's fill below 3 : 1").isEmpty());
         claim("in the light theme and in the dark, the text, dim text, accent, error and faint text colours each read at"
                         + " 4.5 : 1 or more against the surface, the ground and a control's inside; the text on the"
                         + " accent against the accent; and the text against the rule, a row selected in a view not"
@@ -631,7 +646,7 @@ class TheControlPanelsThemeTest {
         drawn.put("the context menu", "-vespera-surface");
         drawn.put("the context menu's item under the keys", "-vespera-accent");
         drawn.put("the context menu's item's text", "-vespera-accent-ink");
-        for (int line = 1; line <= SERIES; line++) {
+        for (int line = 1; line <= STAGE_1_LINES; line++) {
             drawn.put("line " + line, SERIES_TOKENS.get(line - 1));
         }
         drawn.put("the bars of series 1", SERIES_TOKENS.get(0));
@@ -712,7 +727,7 @@ class TheControlPanelsThemeTest {
         drawn.put("the context menu", innermost(menu));
         drawn.put("the context menu's item under the keys", innermost(item));
         drawn.put("the context menu's item's text", item == null ? null : inkOf(item.lookup(".label")));
-        for (int line = 1; line <= SERIES; line++) {
+        for (int line = 1; line <= STAGE_1_LINES; line++) {
             String colour = "default-color" + (line - 1);
             drawn.put("line " + line, chart.lookupAll(".chart-series-line").stream()
                     .filter(each -> each.getStyleClass().contains(colour) && each instanceof Shape)

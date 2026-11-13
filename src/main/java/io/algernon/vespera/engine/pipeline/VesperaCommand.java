@@ -191,6 +191,7 @@ public class VesperaCommand implements Callable<Integer> {
         private SidecarStarter sidecarStarter;
         private EffectiveValuesFile effectiveValues;
         private Presets presets;
+        private ModelsAtTheStart modelsAtTheStart;
         private InvocationReport report;
         private String[] arguments = new String[0];
 
@@ -284,6 +285,15 @@ public class VesperaCommand implements Callable<Integer> {
             this.presets = presets;
         }
 
+        /**
+         * The check of the models the invocation names, made at the start (ADR-375 §2); a command built without it, as
+         * some tests build it, checks none.
+         */
+        @Autowired(required = false)
+        void refuseModelsNotLocalWith(ModelsAtTheStart modelsAtTheStart) {
+            this.modelsAtTheStart = modelsAtTheStart;
+        }
+
         /** The report this invocation writes, provided by the application; a command built without one writes none (ADR-362 section 3). */
         @Autowired(required = false)
         void writeTheReportWith(InvocationReport report) {
@@ -359,6 +369,14 @@ public class VesperaCommand implements Callable<Integer> {
                     sidecarStarter.ensureRunning();
                 } catch (SidecarStartRefusedException refused) {
                     return refuse(refused.getMessage(), CommandLine.ExitCode.SOFTWARE);
+                }
+            }
+            // After the sidecars are started, so that the Ollama just started is the one asked, and before the file of
+            // ADR-330 §1 is written and the job started: a cloud or remote model stops the invocation (ADR-375 §2).
+            if (modelsAtTheStart != null) {
+                Optional<String> notLocal = modelsAtTheStart.refusal();
+                if (notLocal.isPresent()) {
+                    return refuse(notLocal.get(), CommandLine.ExitCode.SOFTWARE);
                 }
             }
             // Past the last refusal of the start and before the first step: an invocation refused above writes none (ADR-330 §1).
