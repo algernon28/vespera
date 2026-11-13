@@ -1,6 +1,5 @@
 package io.algernon.vespera.engine.pipeline;
 
-import io.algernon.vespera.engine.embedding.LocalOllamaModel;
 import io.algernon.vespera.engine.embedding.OllamaClient;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -30,17 +29,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.HttpClientErrorException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Asks ADR-202's check whether a model may be sent text, and pulls into Ollama a model it does not serve before the
- * check is asked a last time (ADR-329).
+ * Asks Ollama whether it serves a model, and pulls into Ollama a model it does not serve, whatever its name, before
+ * asking a last time (ADR-329, ADR-384 §5).
  *
- * <p>The order (§3): the check is asked; a model it passes is never pulled. Only where it refused, pulling is on, the
- * name does not end in {@code cloud} and {@code /api/show} answers 404 again is {@code POST /api/pull} sent, with the
- * name as given and the answer streamed. The check is then asked again and its answer stands.
+ * <p>The order (§3): Ollama is asked; a model it serves is never pulled. Only where it does not serve it and pulling is
+ * on is {@code POST /api/pull} sent, with the name as given and the answer streamed. Ollama is then asked again and
+ * its answer stands. Where it cannot answer, nothing is pulled and the step goes on, with one line at WARN.
  *
  * <p>The pull is given up when it has not moved for {@code vespera.models.pull-stalled-at-most} (§6), whether Ollama
  * goes on sending lines that change nothing or sends none. Nothing is deleted whatever ends it (§4, §7).
@@ -63,11 +61,6 @@ class ModelPull {
     /** The end of the answer, as the reading thread hands it over. */
     private static final Object END = new Object();
 
-    /** The words ADR-202 §3 gives a check that could not be completed, which ModelPullTest holds. */
-    private static final String UNESTABLISHED_PREFIX = "it could not be established that the model ";
-
-    private static final String UNESTABLISHED_INFIX = " runs on this machine";
-
     private static final String NOTHING_SERVED =
             "it serves nothing of it until a pull ends, and the next pull resumes what was downloaded.";
 
@@ -86,27 +79,18 @@ class ModelPull {
     }
 
     /**
-     * The reason {@code modelName} must not be sent anything, or empty where Ollama serves it on this machine,
-     * after pulling it where ADR-329 §3 says to.
+     * The reason {@code modelName} must not be sent anything, or empty where Ollama serves it, after pulling it where
+     * ADR-329 §3 says to (ADR-384 §5). Where the model runs is not asked: the operator's profile says so.
      *
      * @param stage the step asking, as it names itself in its lines, such as {@code Stage 5c (embedding scoring)}
      */
     Optional<String> refusalOf(String stage, String modelName) {
-        Optional<String> refusal = LocalOllamaModel.refusalOf(modelName, ollama);
-        if (refusal.isPresent() && refusal.get().startsWith(UNESTABLISHED_PREFIX + modelName + UNESTABLISHED_INFIX)) {
-            // ADR-375 §1, §4: a check that cannot be completed takes the model as local; nothing is asked or pulled.
-            LOG.warn(
-                    "{} could not establish whether the model {} runs on this machine, so it is taken as local and"
-                            + " the step goes on",
-                    stage,
-                    modelName);
+        Boolean served = serves(stage, modelName);
+        if (served == null || served) {
             return Optional.empty();
         }
-        if (refusal.isEmpty()
-                || !settings.pull()
-                || modelName.toLowerCase(Locale.ROOT).endsWith("cloud")
-                || !ollamaServesNothingNamed(modelName)) {
-            return refusal;
+        if (!settings.pull()) {
+            return Optional.of(neverPulled(modelName));
         }
         LOG.info("{} Ollama serves no model named {}; pulling it", stage, modelName);
         long started = System.nanoTime();
@@ -119,19 +103,27 @@ class ModelPull {
                 stage,
                 modelName,
                 TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - started));
-        return LocalOllamaModel.refusalOf(modelName, ollama);
+        Boolean servedNow = serves(stage, modelName);
+        return servedNow == null || servedNow ? Optional.empty() : Optional.of(neverPulled(modelName));
     }
 
-    /** Whether {@code /api/show} answers 404: the one answer from which a model is pulled. */
-    private boolean ollamaServesNothingNamed(String modelName) {
+    /** Whether Ollama serves the model, or {@code null} after one WARN line where it could not be told. */
+    private Boolean serves(String stage, String modelName) {
         try {
-            ollama.isRemote(modelName);
-            return false;
-        } catch (HttpClientErrorException.NotFound neverPulled) {
-            return true;
-        } catch (RuntimeException other) {
-            return false;
+            return ollama.serves(modelName);
+        } catch (RuntimeException unanswered) {
+            LOG.warn(
+                    "{} could not establish whether Ollama serves the model {}, so nothing is pulled and the step goes on",
+                    stage,
+                    modelName);
+            return null;
         }
+    }
+
+    /** ADR-202 §3's third reason. */
+    private static String neverPulled(String modelName) {
+        return "Ollama serves no model named " + modelName + ": it has not been pulled on this machine, so nothing is"
+                + " sent to it";
     }
 
     /** Pulls the model, answering the reason it did not end in {@code success}, or empty where it did. */

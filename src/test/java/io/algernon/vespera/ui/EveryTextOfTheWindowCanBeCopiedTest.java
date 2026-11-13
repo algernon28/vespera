@@ -108,7 +108,8 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         Path otherWorking = Files.createDirectories(otherFolder.resolve("working"));
         Files.writeString(otherWorking.resolve(ProfileEdit.FILE_NAME),
                 ProfileEdit.rewrite(Optional.empty(), ProfileKey.GENERATION_MODEL, "a-writing-model:8b", "measured")
-                        + "# a comment the jar does not write\n", StandardCharsets.UTF_8);
+                        .replace("generationModel:\n", "generationModel: # a comment the jar does not write\n"),
+                StandardCharsets.UTF_8);
         ControlPanelState otherState = WindowForTests.aState(otherFolder, SleepingJar.runtime());
         otherState.hold(new LaunchValues(corpus.toString(), otherWorking.toString(), "", "", "", "", "", ""));
 

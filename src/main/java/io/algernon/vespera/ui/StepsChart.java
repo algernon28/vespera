@@ -138,14 +138,30 @@ final class StepsChart extends VBox {
         return made;
     }
 
+    /** The word a step or a leg still {@code running} in the report of a child stopped by Stop reads (ADR-387 §1). */
+    static final String STOPPED = "stopped";
+
+    /** The word a step or a leg still {@code running} in the report of a child that ended otherwise reads (ADR-387 §1). */
+    static final String FAILED = "failed";
+
     /** Draws each step's bar and state and each leg's summary from what the progress page holds. */
     void show(InvocationReportFile.Report progress) {
+        show(progress, null);
+    }
+
+    /**
+     * As {@link #show(InvocationReportFile.Report)}, for the report of a child that has ended where {@code endedAs} is
+     * not null: a step or a leg that report still says is running reads {@code endedAs}, {@link #STOPPED} or
+     * {@link #FAILED}, and is drawn as no longer running, since the child will write nothing more (ADR-387).
+     */
+    void show(InvocationReportFile.Report progress, String endedAs) {
         Map<String, InvocationReportFile.Step> byName = new HashMap<>();
         progress.steps().forEach(step -> byName.put(step.name(), step));
         Map<String, Double> fractions = new HashMap<>();
         stepRows.forEach((name, row) -> {
             InvocationReportFile.Step step = byName.get(name);
-            String words = step == null ? "waiting" : step.state();
+            String read = step == null ? "waiting" : step.state();
+            String words = endedAs != null && read.equals("running") ? endedAs : read;
             boolean running = words.equals("running");
             row.state().setText(running && step.done() != null && step.total() != null && step.total() > 0
                     ? "running " + Math.min(99L, 100L * step.done() / step.total()) + "%" : words);
@@ -167,7 +183,7 @@ final class StepsChart extends VBox {
                 row.percent().setText("…");
             } else {
                 row.bar().setProgress(0);
-                row.percent().setText(words.equals("failed") ? "—" : "0%");
+                row.percent().setText(words.equals(FAILED) || words.equals(STOPPED) ? "—" : "0%");
             }
         });
         Map<String, String> legStates = Legs.statesOf(progress);
@@ -177,7 +193,8 @@ final class StepsChart extends VBox {
             // a bar moving without a fraction counts as nothing (ADR-361 §4)
             double legBar = leg.steps().stream().mapToDouble(step -> fractions.getOrDefault(step, 0.0)).sum()
                     / leg.steps().size();
-            String legWord = legStates.get(leg.name());
+            String legRead = legStates.get(leg.name());
+            String legWord = endedAs != null && "running".equals(legRead) ? endedAs : legRead;
             // the tolerance keeps the binary error of the mean below a whole percent from being counted (ADR-365 §5)
             view.state().setText("running".equals(legWord)
                     ? "running " + Math.min(99L, (long) Math.floor(100 * legBar + 1e-6)) + "%" : legWord);

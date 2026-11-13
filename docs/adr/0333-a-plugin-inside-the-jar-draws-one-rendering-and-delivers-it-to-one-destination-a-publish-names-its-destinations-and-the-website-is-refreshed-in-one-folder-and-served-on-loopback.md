@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-380](0380-every-html-page-vespera-writes-is-drawn-dark-whatever-the-systems-setting-and-the-control-panels-theme.md).** Of §3: the website rendering's theme is dark alone, `website.css` declaring `color-scheme: dark` and one set of colours under `:root`, and none under `@media (prefers-color-scheme: dark)`; it follows no setting of the reader's. The rest of this record stands.
 
+> **Partly amended — see [ADR-383](0383-a-parents-title-naming-no-page-or-several-stops-a-control-panel-publish-with-its-own-code-and-a-warning-asks-for-another.md).** Of §6: the invocation exits with the code a destination's stop carries where one carries a code of its own, Confluence's 3 or 4 where a publish the control panel started stops at a parent's title naming no page or folder, or several, and 1 where any other stopped; `Plugin.Delivery` gains `exitCode`, its two-component constructor giving 0 and 1. The rest stands.
+
 - **Date**: 2026-11-02
 - **Status**: accepted on 2026-11-02.
 - **Decided**: by the operator on 2026-11-02: the ruling in bold at the head of each of §1 to §12, the order of §13 and the refusals under Alternatives refused marked as theirs. What a section adds beneath its ruling is what building it needs, and Decided here lists each such choice.

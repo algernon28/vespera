@@ -2745,12 +2745,45 @@ public final class Adr {
             FILE + "0382-each-stage-has-a-chart-of-its-own-in-two-rows-frozen-once-it-finishes-and-kept-under-its-run-beside-the-report.md";
 
     /**
+     * ADR-383 -- a publish the control panel started, whose parent's title names no page or folder of the space or
+     * several, stops naming confluenceFolderTitle, confluenceFolderId and the Profile tab and exits 3 or 4; the window
+     * then warns, asking for a different title, saves the one entered as confluenceFolderTitle and starts the publish
+     * again, the token asked for again; Cancel saves and starts nothing (amends ADR-318 §3, ADR-333 §6 and ADR-372).
+     */
+    public static final String A_PARENT_TITLE_NAMING_NO_PAGE_OR_SEVERAL_ASKS_FOR_ANOTHER_IN_A_WARNING =
+            FILE + "0383-a-parents-title-naming-no-page-or-several-stops-a-control-panel-publish-with-its-own-code-and-a-warning-asks-for-another.md";
+
+    /**
+     * ADR-384 -- whether the models run locally or in the cloud is the profile's {@code modelsRunOn} to say, local where
+     * unset, for every model; Vespera reads no model's tag and nothing of where Ollama says a model runs; {@code cloud},
+     * or any value but {@code local}, is refused at the start of {@code vespera run} and of {@code vespera label --auto};
+     * a step asks Ollama only whether it serves the model; {@code profile.yaml} holds the key commented out while it is
+     * unset; and the Profile tab shows it greyed out (amends ADR-375, ADR-202 §1, §3 and §4, ADR-329 §3, ADR-197 §6,
+     * ADR-062, ADR-295 §3 and ADR-330 §1 and §6).
+     */
+    public static final String WHETHER_THE_MODELS_RUN_LOCALLY_OR_IN_THE_CLOUD_IS_THE_PROFILES_TO_SAY = FILE
+            + "0384-whether-the-models-run-locally-or-in-the-cloud-is-the-profiles-to-say-local-by-default-and-cloud-refused-at-the-start.md";
+
+    /** ADR-385: work a test posts to the toolkit's thread is bounded on that thread's processor time, not on the wall. */
+    public static final String WORK_ON_THE_TOOLKITS_THREAD_IS_BOUNDED_ON_ITS_PROCESSOR_TIME =
+            FILE + "0385-work-a-test-posts-to-the-toolkits-thread-is-bounded-on-that-threads-processor-time-and-not-on-the-wall.md";
+
+    /**
      * ADR-386 -- surefire and failsafe start the tests' Java with {@code -Duser.language=en -Duser.country=US}, so every
      * test runs in one locale on every machine, and a text JavaFX or the JDK localizes reads as a test expects whatever
      * the machine's own locale; the shipped jar keeps the machine's (keeps ADR-357).
      */
     public static final String THE_TESTS_RUN_IN_ONE_LOCALE_ON_EVERY_MACHINE =
             FILE + "0386-the-tests-java-runs-in-english-as-used-in-the-united-states-on-every-machine.md";
+
+    /**
+     * ADR-387 -- a step still running in the report of a child that has ended is drawn stopped or failed: once the
+     * window's own child has ended and its last report did not, each step that report says is {@code running} reads
+     * {@code stopped} after Stop and {@code failed} otherwise, its bar no longer moving and its own Stop gone, and a leg
+     * it would leave running says the same word (amends ADR-365 §4 and §5 and ADR-370 §2).
+     */
+    public static final String A_STEP_STILL_RUNNING_IN_THE_REPORT_OF_A_CHILD_THAT_ENDED_IS_DRAWN_STOPPED_OR_FAILED =
+            FILE + "0387-a-step-still-running-in-the-report-of-a-child-that-ended-is-drawn-stopped-or-failed.md";
 
     private Adr() {
     }

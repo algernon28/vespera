@@ -22,7 +22,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,8 +42,8 @@ import picocli.CommandLine;
  * once; a name no plugin has is refused before anything is delivered, exit 2, in one line naming the plugins the
  * beans have; one destination stopping, or throwing, does not stop the next; each has its one closing line, a stop's
  * on standard error; the invocation's last line is the last destination's closing line, and it exits 1 if any
- * stopped. Each destination finds its own rendering: the last generation run whose tree holds that plugin's folder
- * with its list or a {@code drawing.txt}.
+ * stopped, or with the code of its own a stop carries, where one does (ADR-383 §1). Each destination finds its own
+ * rendering: the last generation run whose tree holds that plugin's folder with its list or a {@code drawing.txt}.
  *
  * <p>One invocation is one {@code publish} command line parsed by picocli over {@code VesperaCommand.Publish}, built
  * with the plugins it is handed, as Spring hands it the beans: two scripted destinations named as the jar's two
@@ -69,6 +71,12 @@ class PublishToEachDestinationInTurnInvocationTest {
     /** The line refusing a name no plugin has, the plugins' names after it (ADR-333 §6). */
     private static final String NO_DESTINATION_NOWHERE =
             "vespera publish has no destination nowhere: it knows confluence, website.";
+
+    /**
+     * The code a publish the control panel started ends with where Confluence's parent's title names no page or folder
+     * of the space (ADR-383 §1), carried by the destination's stop.
+     */
+    private static final int AN_EXIT_CODE_OF_ITS_OWN = 3;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -116,6 +124,24 @@ class PublishToEachDestinationInTurnInvocationTest {
                             "out: " + WEBSITE + " delivered");
                     assertThat(invocation.closingLine()).isEqualTo("out: " + WEBSITE + " delivered");
                 });
+    }
+
+    @Test
+    @Story("One destination stopping does not stop the next")
+    @Link(name = "ADR-383", url = Adr.A_PARENT_TITLE_NAMING_NO_PAGE_OR_SEVERAL_ASKS_FOR_ANOTHER_IN_A_WARNING, type = "adr")
+    @DisplayName("A destination that stops with an exit code of its own ends the publish with that code, the next destination still delivered")
+    void aStopWithAnExitCodeOfItsOwnEndsThePublishWithIt() throws IOException {
+        Ledger ledger = new Ledger(jdbcTemplate);
+        RunId run = generationRun(ledger, CONFLUENCE, WEBSITE);
+        Destinations destinations = new Destinations().stoppingWith(CONFLUENCE, AN_EXIT_CODE_OF_ITS_OWN);
+
+        Invocation invocation = publish(ledger, destinations, "--to", "confluence,website");
+
+        claim("the website was still asked, after Confluence",
+                () -> assertThat(destinations.asked)
+                        .containsExactly(CONFLUENCE + " " + run.value(), WEBSITE + " " + run.value()));
+        claim("and the publish ended " + AN_EXIT_CODE_OF_ITS_OWN + ", the code Confluence's stop carried, and not 1",
+                () -> assertThat(invocation.exit()).isEqualTo(AN_EXIT_CODE_OF_ITS_OWN));
     }
 
     /** How one invocation ended: its exit, and every line it wrote, each after {@code out: } or {@code err: }. */
@@ -211,8 +237,16 @@ class PublishToEachDestinationInTurnInvocationTest {
 
         private final List<String> throwing = new ArrayList<>();
 
+        private final Map<String, Integer> stoppingWith = new HashMap<>();
+
         Destinations stopping(String name) {
             stopping.add(name);
+            return this;
+        }
+
+        /** {@code name} stops, its stop carrying {@code exitCode} (ADR-383 §1). */
+        Destinations stoppingWith(String name, int exitCode) {
+            stoppingWith.put(name, exitCode);
             return this;
         }
 
@@ -252,6 +286,9 @@ class PublishToEachDestinationInTurnInvocationTest {
                     out.accept(name + " says a line of its own");
                     if (throwing.contains(name)) {
                         throw new IllegalStateException(THE_MESSAGE);
+                    }
+                    if (stoppingWith.containsKey(name)) {
+                        return new Delivery(false, name + " stopped", stoppingWith.get(name));
                     }
                     return stopping.contains(name)
                             ? new Delivery(false, name + " stopped")

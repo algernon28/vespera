@@ -13,8 +13,9 @@ import java.util.Optional;
  * The control panel's table of profile keys (ADR-295 §5): one constant for each key {@code profile.yaml} holds, in the
  * order the jar's profile holds them, with its type and the earliest run it enters. A key is named as the file spells
  * it and a run as the jar's stage is named, as text, because the control panel links no class of the jar
- * (ADR-285 §3); a contract test holds both to the jar's. {@code clusterPageByteCeiling} and the five Confluence values
- * a publish reads, {@code confluenceBaseUrl} to {@code confluenceEmail}, enter no run (ADR-303 §9, ADR-359 §1).
+ * (ADR-285 §3); a contract test holds both to the jar's. {@code clusterPageByteCeiling}, {@code modelsRunOn} and the
+ * five Confluence values a publish reads, {@code confluenceBaseUrl} to {@code confluenceEmail}, enter no run
+ * (ADR-303 §9, ADR-384 §1, ADR-359 §1).
  * Each key's title, short description and tooltip are data in {@code profile-texts.json} beside this class (ADR-377
  * §4), so that their words change in one file.
  */
@@ -37,6 +38,8 @@ public enum ProfileKey {
             "whether the groups the tool formed are worth writing over", "auto"),
     GENERATION_MODEL("generationModel", Kind.TEXT, Run.GENERATION,
             "whichever model you can serve locally, if you want a different one", "qwen3:8b"),
+    MODELS_RUN_ON("modelsRunOn", Kind.TEXT, null,
+            "nothing: the models run on this machine, local, and cloud is not supported yet", "local"),
     GENERATION_CONTEXT_WINDOW("generationContextWindow", Kind.NUMBER, Run.GENERATION,
             "how much your own machine can read in one go", "32768"),
     CLUSTER_PAGE_BYTE_CEILING("clusterPageByteCeiling", Kind.NUMBER, null,

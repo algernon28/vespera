@@ -63,6 +63,9 @@ final class Cockpit {
     private final Button run = new Button("Run");
     private final Button stop = new Button("Stop");
     private final Button publish = new Button("Publish");
+    /** What this window's own child was last started as, and the ending the parent's title warning was last opened for. */
+    private ControlPanelState.Start startedKind;
+    private Ending warnedFor;
     private final Button label = new Button("Record my answers");
     private final Button labelAuto = new Button("Let the local model answer");
     private final HBox actions = new HBox();
@@ -292,7 +295,91 @@ final class Cockpit {
         Optional<String> refusal = state.start(kind, plan, token, stored);
         say(refusal.orElse(words + " started" + (stored.isEmpty() ? "" : "; " + String.join("; ", stored))));
         sawChild = refusal.isEmpty() || sawChild;
+        if (refusal.isEmpty()) {
+            startedKind = kind;
+        }
         refresh();
+    }
+
+    // ---- the warning of a parent's title naming no page or several (ADR-383)
+
+    /** The exit codes of a publish the control panel started whose parent's title names no page or folder, and several. */
+    private static final int NO_PAGE_SO_TITLED = 3;
+    private static final int SEVERAL_SO_TITLED = 4;
+
+    private static final String TITLE_LEFT_AS_IT_WAS = "the publish to Confluence sent nothing: confluenceFolderTitle is"
+            + " left as profile.yaml states it; name the parent by confluenceFolderTitle or confluenceFolderId in the"
+            + " Profile tab, and publish again";
+
+    /** Opens the warning for an ending of this window's own Publish child with 3 or 4, once for that ending. */
+    private void warnOfTheParentsTitle(Ending ending) {
+        if (ending == warnedFor || startedKind != ControlPanelState.Start.PUBLISH
+                || ending.howItEnded() != HowItEnded.FAILED_OR_REFUSED
+                || (ending.exitCode() != NO_PAGE_SO_TITLED && ending.exitCode() != SEVERAL_SO_TITLED)) {
+            return;
+        }
+        warnedFor = ending;
+        Platform.runLater(() -> askForAnotherTitle(ending.exitCode()));
+    }
+
+    private void askForAnotherTitle(int exitCode) {
+        Optional<Path> folder = workingDirectory();
+        if (folder.isEmpty()) {
+            return;
+        }
+        Map<ProfileKey, ProfileEdit.Stated> stated;
+        try {
+            stated = ProfileRow.statedIn(folder.get());
+        } catch (IOException | RuntimeException unreadable) {
+            return;
+        }
+        String title = Optional.ofNullable(stated.get(ProfileKey.CONFLUENCE_FOLDER_TITLE))
+                .map(ProfileEdit.Stated::value).orElse("");
+        if (title.isBlank()) {
+            return;
+        }
+        String space = Optional.ofNullable(stated.get(ProfileKey.CONFLUENCE_SPACE_KEY))
+                .map(ProfileEdit.Stated::value).orElse("");
+        String sentence = (exitCode == NO_PAGE_SO_TITLED ? "No page or folder" : "Several pages or folders")
+                + " of the space " + space + (exitCode == NO_PAGE_SO_TITLED ? " is" : " are") + " titled " + title
+                + ", so the publish to Confluence sent nothing. Enter a different title for the parent the pages are"
+                + " published under: it is saved as confluenceFolderTitle in the Profile tab, and the publish starts"
+                + " again.";
+        Optional<String> entered = dialogs.warnAndAsk("The parent's title", sentence, title)
+                .map(String::strip).filter(typed -> !typed.isEmpty());
+        if (entered.isEmpty()) {
+            say(TITLE_LEFT_AS_IT_WAS);
+            return;
+        }
+        Optional<String> refusal = saveTheTitle(folder.get(), entered.get());
+        loadFiles();
+        if (refusal.isPresent()) {
+            say(refusal.get());
+            return;
+        }
+        begin(ControlPanelState.Start.PUBLISH, "Publish");
+    }
+
+    /** Saves {@code title} as confluenceFolderTitle as the Profile tab saves a key; a title as the file states it is not written. */
+    private Optional<String> saveTheTitle(Path folder, String title) {
+        Optional<ProfileEdit.Stated> inFile;
+        try {
+            inFile = Optional.ofNullable(ProfileRow.statedIn(folder).get(ProfileKey.CONFLUENCE_FOLDER_TITLE));
+        } catch (IOException | RuntimeException unreadable) {
+            return Optional.of(unreadable.getMessage() == null ? ProfileEdit.FILE_NAME + " cannot be read"
+                    : unreadable.getMessage());
+        }
+        Optional<String> provenance = ProfileEdit.provenanceToSave(ProfileKey.CONFLUENCE_FOLDER_TITLE, title, inFile);
+        if (provenance.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<String> refused = ProfileEdit.refusalOfSave(ProfileKey.CONFLUENCE_FOLDER_TITLE, title,
+                provenance.get(), inFile, Optional.empty());
+        if (refused.isPresent()) {
+            return refused;
+        }
+        return state.write(folder, ProfileEdit.FILE_NAME, current -> ProfileEdit.rewrite(current,
+                ProfileKey.CONFLUENCE_FOLDER_TITLE, title, provenance.get()));
     }
 
     /** Stop is confirmed with the one sentence a stop is confirmed by (ADR-278 §6); the child is stopped only on the answer that goes on. */
@@ -628,6 +715,7 @@ final class Cockpit {
         showDatabaseSize();
         boolean runs = state.childRuns();
         Optional<Ending> ending = state.ending();
+        ending.ifPresent(this::warnOfTheParentsTitle);
         ControlPanelState.Holders holders = state.holders(workingDirectory(), corpusRoot());
         boolean busy = runs || holders.any();
         run.setDisable(busy);
@@ -782,7 +870,10 @@ final class Cockpit {
                 howItEnded = childWords(false, endingOfItsChild);
             }
             outputPanel.fileNamedBy(folder, invocation.id(), state::letGo);
-            steps.show(report);
+            // a child that ended before its last write leaves no step of its report running (ADR-387 section 1)
+            steps.show(report, childEnded && endingOfItsChild.isPresent() && !report.ended()
+                    ? endingOfItsChild.get().howItEnded() == HowItEnded.STOPPED ? StepsChart.STOPPED : StepsChart.FAILED
+                    : null);
             live.shows(report, Instant.now(), childEnded, howItEnded);
             lastDrawn = invocation;
             return true;

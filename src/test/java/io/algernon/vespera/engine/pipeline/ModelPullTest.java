@@ -29,11 +29,12 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Where Ollama does not serve the model a step is about to send to, the step has Ollama pull it, and never pulls one
- * Ollama serves (ADR-329 §3 to §8).
+ * Ollama serves (ADR-329 §3 to §8). Whether the model runs on this machine is not asked: the operator's profile says
+ * so (ADR-384), so neither the model's name nor what Ollama says of where it runs stops the step.
  *
  * <p>Ollama is a {@link StubOllama} on the loopback address, answering {@code /api/show} and {@code /api/pull} as
- * Ollama's source at {@code v0.33.2} reads; the client asking it is the production {@link OllamaClient}, and the
- * check asked before and after the pull the production one. The bound on a pull that has stopped moving is one second
+ * Ollama's source at {@code v0.33.2} reads; the client asking it is the production {@link OllamaClient}, which asks
+ * whether Ollama serves the model before and after the pull. The bound on a pull that has stopped moving is one second
  * in the tests of a pull that stops moving or never moves, and ten in the two where a refusal's status must come
  * inside it before its body stops; a test not about a pull that stopped moving has a bound no pull here comes near, so
  * a loaded machine slows it and does not fail it. Each that a pull which never ends could hold is cut by a timeout of
@@ -59,6 +60,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Link(name = "ADR-329", url = Adr.A_MODEL_OLLAMA_DOES_NOT_SERVE_IS_PULLED_AT_THE_STEP_THAT_NEEDS_IT, type = "adr")
 @Link(name = "ADR-202", url = Adr.GENERATION_AND_EMBEDDING_REFUSE_A_MODEL_NOT_SERVED_HERE, type = "adr")
 @Link(name = "ADR-358", url = Adr.A_BOUND_THE_CODE_KEEPS_IN_REAL_TIME_IS_HELD_ON_THE_WALL_CLOCK, type = "adr")
+@Link(name = "ADR-384", url = Adr.WHETHER_THE_MODELS_RUN_LOCALLY_OR_IN_THE_CLOUD_IS_THE_PROFILES_TO_SAY, type = "adr")
 class ModelPullTest {
 
     /** The step asking, as stage 5's scoring step names itself in its lines. */
@@ -81,15 +83,18 @@ class ModelPullTest {
     /** A name of the shape Ollama gives a cloud model. */
     private static final String CLOUD_MODEL = "a-comparing-model:0.6b-cloud";
 
+    /** Another name of that shape, one Ollama does not serve. */
+    private static final String A_CLOUD_TAGGED_MODEL_NOT_SERVED = "a-writing-model:120b-cloud";
+
     private static final String SUCCESS = "{\"status\":\"success\"}";
 
-    /** What ADR-202's check says of a model Ollama has never pulled. */
+    /** What the step says of a model Ollama has never pulled (ADR-202 §3's third case). */
     private static final String NEVER_PULLED = "Ollama serves no model named %s: it has not been pulled on this machine,"
             + " so nothing is sent to it";
 
-    /** The step's warning where the check of a model could not be completed (ADR-375 §1), its step and its model. */
-    private static final String TAKEN_AS_LOCAL =
-            "%s could not establish whether the model %s runs on this machine, so it is taken as local and the step goes on";
+    /** The step's warning where Ollama could not say whether it serves the model (ADR-384 §5), its step and its model. */
+    private static final String NOT_ANSWERED =
+            "%s could not establish whether Ollama serves the model %s, so nothing is pulled and the step goes on";
 
     /** An answer to {@code /api/show} that is neither the model nor its absence. */
     private static final int HTTP_SERVER_ERROR = 500;
@@ -149,8 +154,8 @@ class ModelPullTest {
                         .satisfies(request -> assertThat(JSON.readTree(request.body()))
                                 .isEqualTo(JSON.createObjectNode().put("model", MODEL))));
         claim(
-                "and the last question to Ollama was whether it serves the model, asked after the pull: the check is"
-                        + " asked again and its answer stands",
+                "and the last question to Ollama was whether it serves the model, asked after the pull, whose answer"
+                        + " stands",
                 () -> assertThat(ollama.requests().getLast().path()).isEqualTo("/api/show"));
     }
 
@@ -172,34 +177,55 @@ class ModelPullTest {
                 () -> assertThat(ollama.requestsTo("/api/show")).hasSize(1));
     }
 
+    /**
+     * Where a model runs is the operator's to say, in the profile, and the step reads it neither from the model's name
+     * nor from {@code /api/show}'s {@code remote_host} (ADR-384 §5): a model Ollama answers for as forwarded to a
+     * hosted service is served, and is not pulled; and a model whose tag ends in {@code cloud} that Ollama does not
+     * serve is pulled as any other is.
+     */
     @Test
-    @Story("A model Ollama serves is never pulled")
-    @DisplayName("A model whose name says it is a cloud model is refused as one, and not pulled")
-    void aCloudModelIsNotPulled() {
-        ollama.pulls(CLOUD_MODEL, aPullThatEnds(SUCCESS));
+    @Story("Where the models run is the operator's to say")
+    @DisplayName("Neither a model's name nor what Ollama says of where it runs stops the step: a model Ollama answers for is not pulled, and one it does not serve is pulled whatever its name")
+    void whereAModelRunsIsReadNeitherFromItsNameNorFromOllama() {
+        ollama.servesAsRemote(CLOUD_MODEL);
+        ollama.pulls(A_CLOUD_TAGGED_MODEL_NOT_SERVED, aPullThatEnds(SUCCESS));
 
-        Optional<String> refusal = pull.refusalOf(STAGE, CLOUD_MODEL);
+        Optional<String> served = pull.refusalOf(STAGE, CLOUD_MODEL);
+        Optional<String> pulled = pull.refusalOf(STAGE, A_CLOUD_TAGGED_MODEL_NOT_SERVED);
 
         claim(
-                "the step is stopped because the model is a cloud model, as the name alone says",
-                () -> assertThat(refusal)
-                        .contains("the model " + CLOUD_MODEL + " is a cloud model: Ollama forwards it to a hosted"
-                                + " service, and no document's text may be sent there"));
+                "neither stops the step: the one Ollama answered for, though its name ends in cloud and Ollama says it"
+                        + " forwards it, nor the one it pulled",
+                () -> assertThat(List.of(served, pulled)).containsOnly(Optional.empty()));
         claim(
-                "and Ollama was asked nothing at all: a stub pulled for a cloud model would be sent nothing",
-                () -> assertThat(ollama.requests()).isEmpty());
+                "Ollama was asked about the model it serves once, and was asked to pull only the one it did not serve,"
+                        + " by its name alone",
+                () -> {
+                    assertThat(ollama.requestsTo("/api/show"))
+                            .filteredOn(request -> request.body().contains(CLOUD_MODEL))
+                            .hasSize(1);
+                    assertThat(ollama.requestsTo("/api/pull"))
+                            .singleElement()
+                            .satisfies(request -> assertThat(JSON.readTree(request.body()))
+                                    .isEqualTo(JSON.createObjectNode().put("model", A_CLOUD_TAGGED_MODEL_NOT_SERVED)));
+                });
+        claim(
+                "and nothing was written at warning level or above: neither model is in doubt",
+                () -> assertThat(logged.list)
+                        .filteredOn(event -> event.getLoggerName().equals(ModelPull.class.getName()))
+                        .noneMatch(event -> event.getLevel().isGreaterOrEqual(Level.WARN)));
     }
 
     /**
-     * A check Ollama cannot complete no longer stops the step (ADR-375 §1, §4): an error answer from {@code /api/show}
-     * and an Ollama that cannot be reached at all are each taken as local, the step goes on with one warning, nothing
-     * is pulled, and Ollama is not asked a second time. The connection refused stands for every way the question goes
+     * A question Ollama cannot answer no longer stops the step (ADR-375 §1, §4, as ADR-384 §5 words it): an error answer
+     * from {@code /api/show} and an Ollama that cannot be reached at all each let the step go on with one warning,
+     * nothing is pulled, and Ollama is not asked a second time. The connection refused stands for every way the question goes
      * unanswered, a read past the client's timeout among them: the client raises the same exception for each, and a
      * read timeout would hold the test for the client's ten seconds.
      */
     @Test
-    @Story("A model whose check cannot be completed is taken as local")
-    @DisplayName("An error answer, or no answer at all, about whether a model runs on this machine lets the step go on, with one warning")
+    @Story("A step goes on where Ollama cannot say whether it serves the model")
+    @DisplayName("An error answer, or no answer at all, about whether Ollama serves a model lets the step go on, with one warning")
     @Link(name = "ADR-375", url = Adr.AN_UNANSWERED_CHECK_TAKES_A_MODEL_AS_LOCAL_AND_A_CLOUD_MODEL_IS_REFUSED_AT_THE_START, type = "adr")
     void aCheckOllamaCannotCompleteLetsTheStepGoOn() {
         ollama.answersShowWith(MODEL, HTTP_SERVER_ERROR);
@@ -216,11 +242,10 @@ class ModelPullTest {
                 .refusalOf(STAGE, MODEL);
 
         claim(
-                "neither stops the step: a model Ollama could not answer about is taken as local",
+                "neither stops the step: a model Ollama could not answer about is sent to as one it serves",
                 () -> assertThat(List.of(afterAnErrorAnswer, withNoAnswer)).containsOnly(Optional.empty()));
         claim(
-                "the Ollama that answered with an error was asked about the model once, by the check alone, and no pull"
-                        + " was asked for",
+                "the Ollama that answered with an error was asked about the model once, and no pull was asked for",
                 () -> assertThat(ollama.requests())
                         .extracting(StubOllama.Request::path)
                         .containsExactly("/api/show"));
@@ -230,7 +255,7 @@ class ModelPullTest {
                         .filteredOn(event -> event.getLoggerName().equals(ModelPull.class.getName())
                                 && event.getLevel() == Level.WARN)
                         .extracting(ILoggingEvent::getFormattedMessage)
-                        .containsExactly(TAKEN_AS_LOCAL.formatted(STAGE, MODEL), TAKEN_AS_LOCAL.formatted(STAGE, MODEL)));
+                        .containsExactly(NOT_ANSWERED.formatted(STAGE, MODEL), NOT_ANSWERED.formatted(STAGE, MODEL)));
     }
 
     private static StubOllama.Streamed aPullThatEnds(String... lines) {

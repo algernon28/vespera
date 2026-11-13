@@ -40,7 +40,6 @@ import org.springframework.web.client.RestClient;
 
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 /**
@@ -65,6 +64,8 @@ class LocalLabellerTest {
     private static final String THE_LABELLER = "ollama:a-writing-model:8b";
     private static final String OLLAMA = "http://ollama.example";
     private static final String A_DIGEST = "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d";
+    /** A tag of the shape Ollama gives a cloud model. */
+    private static final String A_CLOUD_TAGGED_MODEL = "a-large-model:120b-cloud";
     private static final String A_LOCAL_URL = "http://localhost:11434";
     private static final String A_HOSTED_URL = "https://api.openai.com/v1";
     private static final double LOWEST_RELEVANT_SCORE = 0.579;
@@ -172,32 +173,68 @@ class LocalLabellerTest {
     }
 
     /**
-     * Each case is at a loopback endpoint, so {@link LocalEndpoint} lets it through: what refuses it is
-     * the labeller asking whether the model itself runs here. The four cases share one test.
+     * Where the labeller's model runs is the operator's to say, in the profile, and {@code vespera label --auto} reads
+     * it there (ADR-384 §4): the labeller reads it neither from the model's tag nor from {@code /api/show}, and asks
+     * Ollama only for the model's digest, which its answers are recorded under. Each case is at a loopback endpoint,
+     * so {@link LocalEndpoint} lets it through. A request the stub was not told to expect, {@code /api/show} among
+     * them, fails the test.
      */
     @Test
-    @Story("No hosted endpoint is configurable for the labeller")
-    @DisplayName("A model not established as running on this machine is refused with no call made, though the endpoint is local")
-    void aModelNotEstablishedAsLocalIsRefusedWithNoCallMade() {
-        for (NotEstablishedAsLocal model : modelsNotEstablishedAsLocal()) {
-            AtomicInteger calls = new AtomicInteger();
-            OllamaRelevanceLabeller labeller =
-                    new OllamaRelevanceLabeller(saying("relevant", calls), model.name(), A_LOCAL_URL, model.client());
+    @Story("Where the models run is the operator's to say")
+    @DisplayName("The labeller asks Ollama for its model's digest alone: a model whose tag ends in cloud answers, and one whose digest Ollama does not list is refused with no call made")
+    @Link(name = "ADR-384", url = Adr.WHETHER_THE_MODELS_RUN_LOCALLY_OR_IN_THE_CLOUD_IS_THE_PROFILES_TO_SAY, type = "adr")
+    void theLabellerAsksOllamaForTheModelsDigestAlone() {
+        RestClient.Builder listingIt = RestClient.builder().baseUrl(OLLAMA);
+        MockRestServiceServer listing = MockRestServiceServer.bindTo(listingIt).build();
+        listing.expect(requestTo(OLLAMA + "/api/tags"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(
+                        "{\"models\": [{\"name\": \"" + A_CLOUD_TAGGED_MODEL + "\", \"digest\": \"" + A_DIGEST
+                                + "\", \"details\": {\"quantization_level\": \"Q4_K_M\"}}]}",
+                        MediaType.APPLICATION_JSON));
+        AtomicInteger callsOfTheCloudTagged = new AtomicInteger();
+        OllamaRelevanceLabeller cloudTagged = new OllamaRelevanceLabeller(
+                saying("relevant", callsOfTheCloudTagged), A_CLOUD_TAGGED_MODEL, A_LOCAL_URL,
+                new OllamaClient(listingIt.build()));
 
-            Optional<Boolean> answer = labeller.answer(aQuestion());
+        RestClient.Builder notListingIt = RestClient.builder().baseUrl(OLLAMA);
+        MockRestServiceServer notListing = MockRestServiceServer.bindTo(notListingIt).build();
+        notListing.expect(requestTo(OLLAMA + "/api/tags"))
+                .andRespond(withSuccess(
+                        "{\"models\": [{\"name\": \"another:model\", \"digest\": \"" + A_DIGEST + "\"}]}",
+                        MediaType.APPLICATION_JSON));
+        AtomicInteger callsOfTheUnlisted = new AtomicInteger();
+        OllamaRelevanceLabeller unlisted = new OllamaRelevanceLabeller(
+                saying("relevant", callsOfTheUnlisted), "a-writing-model:8b", A_LOCAL_URL,
+                new OllamaClient(notListingIt.build()));
 
-            claim(
-                    "for " + model.description() + ", the refusal says why the model is not taken for a local"
-                            + " one: a loopback endpoint does not keep a document here when the local daemon"
-                            + " forwards it to a hosted service, and a model is not assumed local when that"
-                            + " cannot be checked",
-                    () -> assertThat(labeller.refusal()).hasValueSatisfying(reason -> assertThat(reason)
-                            .contains(model.reasonSays())));
-            claim("for " + model.description() + ", no answer was given", () -> assertThat(answer).isEmpty());
-            claim(
-                    "for " + model.description() + ", the chat model was called zero times",
-                    () -> assertThat(calls.get()).isZero());
-        }
+        Optional<Boolean> answerOfTheCloudTagged = cloudTagged.answer(aQuestion());
+        Optional<Boolean> answerOfTheUnlisted = unlisted.answer(aQuestion());
+
+        claim(
+                "the model whose tag ends in cloud is not refused, answers relevant through one call, and its identity"
+                        + " carries the digest Ollama listed",
+                () -> {
+                    assertThat(cloudTagged.refusal()).isEmpty();
+                    assertThat(answerOfTheCloudTagged).contains(true);
+                    assertThat(callsOfTheCloudTagged.get()).isEqualTo(1);
+                    assertThat(cloudTagged.identity()).isEqualTo("ollama:" + A_CLOUD_TAGGED_MODEL + ";digest=" + A_DIGEST);
+                });
+        claim(
+                "the model whose digest Ollama does not list is refused, the reason naming the model and its identity,"
+                        + " gives no answer, and its chat model was called zero times",
+                () -> {
+                    assertThat(unlisted.refusal()).hasValueSatisfying(reason -> assertThat(reason)
+                            .startsWith("the identity of the model a-writing-model:8b could not be read from Ollama"));
+                    assertThat(answerOfTheUnlisted).isEmpty();
+                    assertThat(callsOfTheUnlisted.get()).isZero();
+                });
+        claim(
+                "and Ollama was asked for its list of models alone, once each, and nothing about where a model runs",
+                () -> {
+                    listing.verify();
+                    notListing.verify();
+                });
     }
 
     @Test
@@ -230,64 +267,6 @@ class LocalLabellerTest {
                                 .matches("\\$\\{(vespera\\.label\\.model|spring\\.ai\\.ollama\\.).*")
                                 .doesNotContainIgnoringCase("openai")
                                 .doesNotContainIgnoringCase("api-key")));
-    }
-
-    /** A model at a loopback endpoint, the client that answers for it, and what its refusal must say. */
-    private record NotEstablishedAsLocal(String description, String name, OllamaClient client, List<String> reasonSays) {}
-
-    private static List<NotEstablishedAsLocal> modelsNotEstablishedAsLocal() {
-        RestClient.Builder failing = RestClient.builder().baseUrl(OLLAMA);
-        MockRestServiceServer.bindTo(failing).build()
-                .expect(requestTo(OLLAMA + "/api/show"))
-                .andRespond(withServerError());
-        RestClient.Builder unlisted = RestClient.builder().baseUrl(OLLAMA);
-        MockRestServiceServer unlistedServer = MockRestServiceServer.bindTo(unlisted).build();
-        unlistedServer.expect(requestTo(OLLAMA + "/api/show")).andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
-        unlistedServer.expect(requestTo(OLLAMA + "/api/tags"))
-                .andRespond(withSuccess(
-                        "{\"models\": [{\"name\": \"another:model\", \"digest\": \"" + A_DIGEST + "\"}]}",
-                        MediaType.APPLICATION_JSON));
-        return List.of(
-                new NotEstablishedAsLocal(
-                        "a model whose tag ends in cloud, named with the reason",
-                        "a-large-model:120b-cloud",
-                        unaskedClient(),
-                        List.of("a-large-model:120b-cloud", "is a cloud model")),
-                new NotEstablishedAsLocal(
-                        "a model Ollama reports as remote, whatever its name",
-                        "a-writing-model:8b",
-                        clientShowing("{\"remote_host\": \"https://ollama.com:443\", \"remote_model\": \"a-writing-model:8b\"}"),
-                        List.of("reports the model a-writing-model:8b as remote")),
-                new NotEstablishedAsLocal(
-                        "a model whose remoteness cannot be established, not assumed local",
-                        "a-writing-model:8b",
-                        new OllamaClient(failing.build()),
-                        List.of("could not be established", "is not assumed to be local")),
-                new NotEstablishedAsLocal(
-                        "a model whose weights' digest Ollama does not list",
-                        "a-writing-model:8b",
-                        new OllamaClient(unlisted.build()),
-                        List.of("could not be established")));
-    }
-
-    /** A client whose /api/show answers with {@code body}, once: the labeller asks once and remembers. */
-    private static OllamaClient clientShowing(String body) {
-        RestClient.Builder builder = RestClient.builder().baseUrl(OLLAMA);
-        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo(OLLAMA + "/api/show"))
-                .andExpect(method(HttpMethod.POST))
-                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
-        expectTags(server);
-        return new OllamaClient(builder.build());
-    }
-
-    /** The digest read once the model has been found local, inside the refusal's own check. */
-    private static void expectTags(MockRestServiceServer server) {
-        server.expect(requestTo(OLLAMA + "/api/tags"))
-                .andRespond(withSuccess(
-                        "{\"models\": [{\"name\": \"a-writing-model:8b\", \"digest\": \"" + A_DIGEST
-                                + "\", \"details\": {\"quantization_level\": \"Q4_K_M\"}}]}",
-                        MediaType.APPLICATION_JSON));
     }
 
     /** A client that fails any request made of it: a refusal must come before Ollama is asked anything. */

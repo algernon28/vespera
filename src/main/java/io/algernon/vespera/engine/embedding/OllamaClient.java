@@ -7,8 +7,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
-import tools.jackson.databind.JsonNode;
 
 /**
  * Reads what a serving runtime reports about itself (ADR-091), for the parts of an instrument
@@ -78,30 +78,25 @@ public class OllamaClient {
     }
 
     /**
-     * Whether the runtime forwards {@code modelName} to a service that is not this machine (ADR-197 §6).
-     * It is read through {@link LocalOllamaModel#refusalOf}, the one check the labeller, embedding scoring
-     * and generation all pass (ADR-202), and by nothing else.
-     *
-     * <p>A loopback endpoint alone does not keep a document here: an Ollama cloud model is served by the
-     * local daemon and forwarded to ollama.com. {@code /api/show} names such a model by {@code
-     * remote_host} and {@code remote_model}, which are absent for a model whose weights are local. The
-     * field names are those of {@code ShowResponse} in Ollama's {@code api/types.go} at {@code v0.33.2},
-     * read, not run against the image; the test pins the reading against a stub, and a model whose
-     * answer cannot be read at all is refused by the caller, never assumed local.
+     * Whether Ollama serves a model named {@code modelName} on this machine (ADR-384 §5): {@code /api/show} is posted,
+     * and a 2xx answer is {@code true} and a 404 is {@code false}, a model never pulled. Any other answer, or none,
+     * raises, so that the caller can tell a model Ollama does not serve from a question it could not answer. The
+     * answer's body is not read: whether the model runs on this machine is the operator's to state in the profile
+     * ({@code modelsRunOn}), and Vespera never infers it from the name or from {@code remote_host}.
      */
-    public boolean isRemote(String modelName) {
-        JsonNode shown = restClient
-                .post()
-                .uri("/api/show")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("model", modelName))
-                .retrieve()
-                .body(JsonNode.class);
-        if (shown == null) {
-            throw new IllegalStateException("the runtime answered /api/show for " + modelName + " with nothing");
+    public boolean serves(String modelName) {
+        try {
+            restClient
+                    .post()
+                    .uri("/api/show")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("model", modelName))
+                    .retrieve()
+                    .toBodilessEntity();
+            return true;
+        } catch (HttpClientErrorException.NotFound neverPulled) {
+            return false;
         }
-        return !shown.path("remote_host").asString("").isBlank()
-                || !shown.path("remote_model").asString("").isBlank();
     }
 
     private static String stated(String field, String modelName, String value) {

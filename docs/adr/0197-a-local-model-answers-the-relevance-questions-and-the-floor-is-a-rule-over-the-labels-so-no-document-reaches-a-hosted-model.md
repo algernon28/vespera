@@ -8,6 +8,8 @@
 
 > **Read with [ADR-377](0377-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** The control panel passes `vespera label` no file: its answers are given in the Inclusions tab, by folder (ADR-334 §6). `vespera label <file>`, and §6's refusal of `--auto` with a file, stand on the command line. This record stands whole.
 
+> **Partly amended — see [ADR-384](0384-whether-the-models-run-locally-or-in-the-cloud-is-the-profiles-to-say-local-by-default-and-cloud-refused-at-the-start.md).** Of §6: the labeller refuses an endpoint not this machine, its first case, and a model whose digest `/api/tags` does not give; its second and third cases, a tag ending in `cloud` and a model Ollama reports as remote or whose `/api/show` answer cannot be read, go. `vespera label --auto` refuses at its start a profile whose `modelsRunOn` is `cloud`, or any value but `local`, before the sidecars' start and before the labeller is asked anything. The rest stands.
+
 - **Date**: 2026-10-05
 - **Status**: accepted
 - **Amends**: [ADR-088](0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md) in two sentences. A label is "a person's answer", and becomes: a person's answer, or a local model's answer that says it is one (§3). "Nothing writes the threshold into the profile" becomes: nothing does, except the rule in §4, run on request, over a key that is unset or that the rule itself wrote last (§4).

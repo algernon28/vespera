@@ -39,6 +39,11 @@
     "short": "The AI model that writes the short introduction on each page; it does not change which documents are kept.",
     "tooltip": "Write the model's name the way Ollama, the program that serves AI models on this computer, knows it (for example qwen3:8b). Left empty, Vespera uses the model it ships with, which the row's details, behind ▸, name. If the model is not installed, Vespera downloads it once, when it starts writing; the download is several gigabytes, and if it fails the writing stops. Vespera does not use a model that sends text off this computer, such as one whose name ends in 'cloud'. No report helps choose it. Your approval and your saved answers are kept."
   },
+  "modelsRunOn": {
+    "title": "Where the models run",
+    "short": "The AI models that read your documents run on this machine; running them in the cloud is not supported yet.",
+    "tooltip": "Vespera sends your documents' text only to AI models that run on this machine. Running them in the cloud is not supported yet, so this value cannot be changed here; profile.yaml shows it as a comment."
+  },
   "generationContextWindow": {
     "title": "Writing model's reading size",
     "short": "How much of each group's text the writing model reads before writing that group's page.",

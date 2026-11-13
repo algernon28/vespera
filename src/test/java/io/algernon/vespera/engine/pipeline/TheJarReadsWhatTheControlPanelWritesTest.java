@@ -95,6 +95,44 @@ class TheJarReadsWhatTheControlPanelWritesTest {
                         .isEqualTo(everyKeyAnswered));
     }
 
+    /** The key ADR-384 adds, by the name profile.yaml spells, which the jar writes as a comment while it is unset. */
+    private static final String MODELS_RUN_ON = "modelsRunOn";
+
+    /** The three lines the jar writes in its place while it is unset (ADR-384 §6). */
+    private static final String THE_COMMENTED_KEY = "# Where the models run: local, on this machine. Cloud is not"
+            + " supported yet.\n# modelsRunOn:\n#   value: local\n";
+
+    @Test
+    @Story("The jar reads what the control panel writes")
+    @DisplayName("Where the models run, which the jar writes as a comment while it is unset, is read as unset by the control panel and kept line for line by its saves")
+    @Link(name = "ADR-384", url = Adr.WHETHER_THE_MODELS_RUN_LOCALLY_OR_IN_THE_CLOUD_IS_THE_PROFILES_TO_SAY, type = "adr")
+    void theCommentedKeyTheJarWritesIsKeptByTheControlPanel(@TempDir Path workingDirectory) throws IOException {
+        ProfileStore store = new ProfileStore(workingDirectory);
+        store.save(store.load());
+        String asTheJarWroteIt = Files.readString(store.file(), UTF_8);
+
+        claim("the jar wrote where the models run as its three lines of comment",
+                () -> assertThat(asTheJarWroteIt).contains(THE_COMMENTED_KEY));
+        claim("the control panel reads the file, and finds no value of where the models run in it",
+                () -> assertThat(ProfileEdit.read(asTheJarWroteIt).keySet())
+                        .noneMatch(key -> key.key().equals(MODELS_RUN_ON)));
+
+        String rewritten = ProfileEdit.rewrite(
+                Optional.of(asTheJarWroteIt), ProfileKey.GENERATION_MODEL, "a-writing-model:8b", "measured");
+        String withoutTheModel = ProfileEdit.without(rewritten, ProfileKey.GENERATION_MODEL);
+        claim("a value saved beside the comment, and the block before it taken out, each keep its three lines as the jar"
+                        + " wrote them",
+                () -> assertThat(List.of(rewritten, withoutTheModel)).allSatisfy(text -> assertThat(text)
+                        .contains(THE_COMMENTED_KEY)));
+        Files.writeString(store.file(), rewritten, UTF_8);
+        Profile reloaded = store.load();
+        claim("and the jar loads the file the control panel wrote, where the models run unset and the value saved",
+                () -> {
+                    assertThat(reloaded.modelsRunOn().isSet()).isFalse();
+                    assertThat(reloaded.generationModel().value()).isEqualTo("a-writing-model:8b");
+                });
+    }
+
     @Test
     @Story("The jar reads what the control panel writes")
     @DisplayName("The jar and the control panel exclude each other from a working directory, each naming the other's holder line")

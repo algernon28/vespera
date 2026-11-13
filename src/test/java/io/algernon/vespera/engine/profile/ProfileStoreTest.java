@@ -54,6 +54,7 @@ class ProfileStoreTest {
     @Link(name = "ADR-282", url = Adr.FEWER_WORDS_THAN_THE_WORD_FLOOR_IS_DEGENERATE_OUTPUT, type = "adr")
     @Link(name = "ADR-287", url = Adr.LOGS_AND_CONFIGURATION_FILES_ARE_TOLD_BY_THEIR_BYTES, type = "adr")
     @Link(name = "ADR-303", url = Adr.A_CLUSTERS_PAGE_PAST_THE_CEILING_IS_SPLIT_INTO_PAGES, type = "adr")
+    @Link(name = "ADR-384", url = Adr.WHETHER_THE_MODELS_RUN_LOCALLY_OR_IN_THE_CLOUD_IS_THE_PROFILES_TO_SAY, type = "adr")
     void writesACompleteSkeletonForAFreshCorpus(@TempDir Path workingDirectory) throws IOException {
         ProfileStore store = new ProfileStore(workingDirectory);
 
@@ -72,12 +73,30 @@ class ProfileStoreTest {
         claim(
                 "the deliverable's index states every one of them, empty",
                 () -> assertThat(loaded.keysAsWritten().values()).containsOnly(""));
+        List<String> lines = Files.readAllLines(store.file());
         claim(
                 "and the file census writes names every key, in the record's order, so an operator has each one to"
-                        + " fill in",
-                () -> assertThat(topLevelKeys(Files.readAllLines(store.file())))
-                        .containsExactlyElementsOf(ProfileKeys.everyKey()));
+                        + " fill in, but where the models run, which it writes as a comment",
+                () -> assertThat(topLevelKeys(lines)).containsExactlyElementsOf(ProfileKeys.everyKey().stream()
+                        .filter(key -> !key.equals(WHERE_THE_MODELS_RUN))
+                        .toList()));
+        claim(
+                "where the models run stands in its place, right after the writing model, as three lines of comment: what"
+                        + " it is, and the key with its one value supported, which uncommented reads as written",
+                () -> assertThat(lines.subList(lines.indexOf("generationContextWindow:") - 3,
+                                lines.indexOf("generationContextWindow:")))
+                        .containsExactly(THE_COMMENTED_KEY));
     }
+
+    /** The key ADR-384 adds, which the file holds as a comment while it is unset. */
+    private static final String WHERE_THE_MODELS_RUN = "modelsRunOn";
+
+    /** The three lines the file holds in its place while it is unset (ADR-384 §6). */
+    private static final String[] THE_COMMENTED_KEY = {
+        "# Where the models run: local, on this machine. Cloud is not supported yet.",
+        "# modelsRunOn:",
+        "#   value: local"
+    };
 
     /** The keys a {@code profile.yaml} names at its top level, in the order it names them. */
     private static List<String> topLevelKeys(List<String> lines) {
