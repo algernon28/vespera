@@ -1,9 +1,12 @@
 package io.algernon.vespera;
 
 import io.algernon.vespera.engine.pipeline.DisplayPresence;
+import io.algernon.vespera.engine.pipeline.ServeCommand;
 import io.algernon.vespera.ui.ControlPanel;
 import java.io.PrintStream;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -44,6 +47,13 @@ public final class EntryPoint {
     }
 
     public static void main(String[] arguments) {
+        // `vespera serve` is handed on before SpringApplication is built (ADR-333 section 8, ADR-364 section 4): no
+        // context, none of the listeners, no datasource, no lock and no log file, and so outside logback.
+        Optional<List<String>> served = ServeCommand.handedOn(passedOn(arguments));
+        if (served.isPresent()) {
+            System.exit(new ServeCommand(System.out, System.err).call(served.get().toArray(String[]::new)));
+            return;
+        }
         start(arguments, DisplayPresence::ofThisProcess, ControlPanel::open, VesperaApplication::main, System.err);
     }
 

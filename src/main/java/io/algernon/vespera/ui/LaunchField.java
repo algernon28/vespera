@@ -1,6 +1,5 @@
 package io.algernon.vespera.ui;
 
-import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 
 /** A launch value's field: its text, the line saying where it started, and, for a folder, its status (ADR-344 §3, ADR-345 §1). */
@@ -8,8 +7,8 @@ final class LaunchField {
 
     final String property;
     final TextField input = new TextField();
-    final Label startingLine = new Label();
-    final Label status = new Label();
+    final SelectableText.Line startingLine = SelectableText.line("");
+    final SelectableText.Line status = SelectableText.line("");
     final StartingValues.Starting starting;
     private final ControlPanelState state;
     private final boolean createdByTheJar;

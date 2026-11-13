@@ -107,7 +107,7 @@ class ExtractionHealthCheckListener implements StepExecutionListener {
             // step that did not complete records no completion; the next invocation redoes this run's
             // work under the same id (ADR-115, ADR-116).
             // A locked database file is not the sidecar's doing, so the line stops pointing at it (ADR-177).
-            log.error(
+            OperatorLines.error(
                     "Stage 2 (extraction) failed and is not recorded as finished (read={}, written={},"
                             + " skipped={}, filtered={}): {}. {}",
                     stepExecution.getReadCount(),

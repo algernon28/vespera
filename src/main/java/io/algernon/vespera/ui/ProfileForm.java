@@ -10,7 +10,6 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
-import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -25,7 +24,7 @@ final class ProfileForm {
     private final Consumer<String> openReport;
     private final Runnable reload;
     private final VBox profileBody = new VBox();
-    private final Label profileOutcome = new Label();
+    private final SelectableText.Wrapping profileOutcome = SelectableText.wrapping("");
     private final List<ProfileRow> profileRows = new ArrayList<>();
 
     /**
@@ -60,7 +59,6 @@ final class ProfileForm {
             profileOutcome.setText("the form is back to profile.yaml as last saved");
         });
         profileOutcome.setId("profile-outcome");
-        profileOutcome.setWrapText(true);
         ScrollPane scroll = new ScrollPane(profileBody);
         scroll.setFitToWidth(true);
         VBox.setVgrow(scroll, Priority.ALWAYS);
@@ -80,13 +78,13 @@ final class ProfileForm {
         profileRows.clear();
         profileBody.getChildren().clear();
         if (folders.workingDirectory().isEmpty()) {
-            profileBody.getChildren().add(new Label("Name the working directory: profile.yaml lies in it."));
+            profileBody.getChildren().add(SelectableText.line("Name the working directory: profile.yaml lies in it."));
         }
         if (notInForm.isPresent()) {
             profileBody.getChildren().add(formProblem(text, notInForm.get()));
         }
         if (!problem.isEmpty()) {
-            profileBody.getChildren().add(new Label(problem));
+            profileBody.getChildren().add(SelectableText.wrapping(problem));
         }
         for (ProfileKey key : ProfileKey.values()) {
             Optional<EffectiveValues.Value> beneath = key.hasAValueBeneath()
@@ -107,13 +105,13 @@ final class ProfileForm {
         VBox box = new VBox();
         box.getStyleClass().add("repair");
         box.setId("profile-problem");
-        box.getChildren().add(new Label(ProfileEdit.FILE_NAME + " is not in the form the jar writes it: the first line"
+        box.getChildren().add(SelectableText.wrapping(ProfileEdit.FILE_NAME + " is not in the form the jar writes it: the first line"
                 + " that is not is line " + analysis.firstLine() + "."
                 + (analysis.repairable() ? " The changes below put it in form and lose no value or provenance."
                         : " The repair cannot put it right; it is left to you.")));
         if (analysis.repairable()) {
             analysis.changes().forEach(change -> box.getChildren().add(
-                    new Label("line " + change.line() + ": " + change.words())));
+                    SelectableText.line("line " + change.line() + ": " + change.words())));
             Button repair = new Button("Repair");
             repair.setId("profile-repair");
             String digest = ProfileEdit.digestOf(text);

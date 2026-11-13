@@ -24,6 +24,7 @@ import java.util.Optional;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Label;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.control.Tab;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -267,7 +268,7 @@ class TheLiveReportTest {
         Tab tab = HeadlessToolkit.tabWithId(root, "live-report").orElse(null);
         List<String> ids = tab == null ? List.of() : tab.getTabPane().getTabs().stream().map(Tab::getId).toList();
         return new Seen(ids, tab != null && tab.isClosable(), !ids.isEmpty() && ids.getFirst().equals("live-report"),
-                textOf(root, "report-status"), WindowForTests.node(root, "report-stale", Label.class).isVisible(),
+                textOf(root, "report-status"), WindowForTests.node(root, "report-stale", TextInputControl.class).isVisible(),
                 textsUnder(root, "report-gates"), textsUnder(root, "report-faults"), textOf(root, "report-closing"));
     }
 
@@ -278,16 +279,16 @@ class TheLiveReportTest {
     }
 
     private static String textOf(Parent root, String id) {
-        return WindowForTests.node(root, id, Label.class).getText();
+        return WindowForTests.node(root, id, TextInputControl.class).getText();
     }
 
     private static String textsUnder(Parent root, String id) {
         Node under = WindowForTests.node(root, id, Node.class);
-        return String.join("\n", HeadlessToolkit.everyNodeUnder(under).stream().filter(Label.class::isInstance)
-                .map(label -> ((Label) label).getText()).toList());
+        return String.join("\n", HeadlessToolkit.everyNodeUnder(under).stream().filter(node -> node instanceof Label || node instanceof TextInputControl)
+                .map(node -> node instanceof Label label ? label.getText() : ((TextInputControl) node).getText()).toList());
     }
 
     private static String rowState(Parent root, String step) {
-        return WindowForTests.every(root, "step-" + step, Label.class).get(2).getText();
+        return WindowForTests.every(root, "step-" + step, TextInputControl.class).get(2).getText();
     }
 }

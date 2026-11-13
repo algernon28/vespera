@@ -34,7 +34,7 @@ import org.springframework.batch.core.step.StepExecution;
 @Link(name = "ADR-289", url = Adr.A_FAILING_STEP_ENDS_ON_ITS_OWN_CLOSING_LINE, type = "adr")
 class StepFailureClosingLineTest {
 
-    private final Logger logger = (Logger) LoggerFactory.getLogger(StepFailureClosingLine.class);
+    private final Logger logger = (Logger) LoggerFactory.getLogger(OperatorLines.LOGGER_NAME);
     private ListAppender<ILoggingEvent> logged;
 
     @BeforeEach

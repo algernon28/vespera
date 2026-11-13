@@ -119,6 +119,10 @@ vespera:
       per-band: 12
 
 spring:
+  # Spring's banner is logged, at INFO on the application's own logger, and not printed outside logback, so that it
+  # stands in the stream, in the invocation's output file and in vespera.log alike (ADR-364 section 5).
+  main:
+    banner-mode: log
   application:
     name: vespera
   datasource:

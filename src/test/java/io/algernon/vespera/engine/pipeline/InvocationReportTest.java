@@ -112,7 +112,17 @@ class InvocationReportTest {
     @Story("Each invocation keeps a copy of its own")
     @DisplayName("Two invocations whose ids fall in one second take the ids of that second and that second with -2, and each keeps its copy")
     void aSecondInvocationInTheSameSecondTakesASuffix() throws IOException {
-        InvocationReport report = aReport(workingDirectory);
+        List<String> begun = new java.util.ArrayList<>();
+        List<Boolean> copyUnwrittenWhenBegun = new java.util.ArrayList<>();
+        InvocationReport report = SixJobsForTests.aReport(workingDirectory, invocation -> {
+            begun.add(invocation);
+            Path copy = workingDirectory.resolve("logs").resolve("report-" + invocation + ".json");
+            try {
+                copyUnwrittenWhenBegun.add(!Files.exists(copy) || Files.size(copy) == 0);
+            } catch (IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+        });
 
         report.begins("label");
         report.labelStarts();
@@ -126,6 +136,12 @@ class InvocationReportTest {
                 () -> {
                     assertThat(second.get("invocation").get("id").asString()).isEqualTo("20261106T080140Z-2");
                     assertThat(copies).containsExactly("report-20261106T080140Z-2.json", "report-20261106T080140Z.json");
+                });
+        claim("each invocation's output is begun once, with the id its report names, before that report's first write:"
+                        + " the copy named by the id still empty when the output is begun (ADR-364 section 3)",
+                () -> {
+                    assertThat(begun).containsExactly("20261106T080140Z", "20261106T080140Z-2");
+                    assertThat(copyUnwrittenWhenBegun).containsExactly(true, true);
                 });
         claim("a copy is not rewritten by a later invocation: the first's, begun and written once, is the first's alone",
                 () -> assertThat(Files.readString(workingDirectory.resolve("logs").resolve("report-20261106T080140Z.json")))

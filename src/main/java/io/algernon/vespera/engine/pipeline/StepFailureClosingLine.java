@@ -1,7 +1,5 @@
 package io.algernon.vespera.engine.pipeline;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.listener.StepExecutionListener;
 import org.springframework.batch.core.step.StepExecution;
@@ -14,19 +12,19 @@ import org.springframework.batch.core.step.StepExecution;
  *
  * <p>One listener for every step {@link TaskletSteps} builds, which is every stage but extraction, seed
  * extraction and stage 4a: those three keep the line of their own that carries their counts. A step that
- * ended FAILED without an exception wrote its own line from inside the tasklet (embedding scoring's refusal,
- * generation's stop), and so did stage 1's archive that went away; this says nothing after either.
+ * ended FAILED without an exception has its tasklet record its own line (embedding scoring's refusal,
+ * generation's stop, and stage 1's archive that went away), which {@link RecordedClosingLines} logs on the operator
+ * logger just before this listener runs (ADR-364 §4); this says nothing after either. The line is logged on the
+ * operator logger, as its words alone.
  */
 final class StepFailureClosingLine implements StepExecutionListener {
-
-    private static final Logger LOG = LoggerFactory.getLogger(StepFailureClosingLine.class);
 
     @Override
     public ExitStatus afterStep(StepExecution stepExecution) {
         if (!ExitStatus.COMPLETED.getExitCode().equals(stepExecution.getExitStatus().getExitCode())
                 && !stepExecution.getFailureExceptions().isEmpty()
                 && !StepFailure.archiveGone(stepExecution)) {
-            LOG.error(
+            OperatorLines.error(
                     "Step {} failed and is not recorded as finished: {}. Fix what that names and run the same"
                             + " command again.",
                     stepExecution.getStepName(),

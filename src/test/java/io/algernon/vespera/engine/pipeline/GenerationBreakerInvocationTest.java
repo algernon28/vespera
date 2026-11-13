@@ -210,11 +210,17 @@ class GenerationBreakerInvocationTest {
         logged.start();
         applicationLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(APPLICATION_LOGGER);
         applicationLogger.addAppender(logged);
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).addAppender(logged);
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(
+                "org.springframework.batch.core.step.AbstractStep")).addAppender(logged);
     }
 
     @AfterEach
     void releaseOperatorLinesAndForgetWhatWasScripted() {
         applicationLogger.detachAppender(logged);
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(logged);
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(
+                "org.springframework.batch.core.step.AbstractStep")).detachAppender(logged);
         logged.stop();
         GenerationScriptedBeans.forgetScriptedAnswers();
     }
@@ -263,6 +269,34 @@ class GenerationBreakerInvocationTest {
         claim(
                 "and nothing at all was written over the groups",
                 () -> assertThat(writingKept(root)).hasSize(NO_WRITING_AT_ALL));
+        claim(
+                "and the closing line is logged on the operator logger at ERROR once the step has ended, so it stands after"
+                        + " Spring Batch's own line for the step and is the last line that does not start Report: --"
+                        + " the tasklet records it and the step's listener logs it (ADR-364 section 4)",
+                () -> {
+                    List<ILoggingEvent> everything = logged.list;
+                    int executed = -1;
+                    for (int at = 0; at < everything.size(); at++) {
+                        if (everything.get(at).getLoggerName().endsWith("AbstractStep")
+                                && everything.get(at).getFormattedMessage().contains("executed in")
+                                && everything.get(at).getFormattedMessage().contains("generation")) {
+                            executed = at;
+                        }
+                    }
+                    ILoggingEvent said = everything.stream()
+                            .filter(event -> event.getFormattedMessage().contains("the generation step stopped under run"))
+                            .findFirst()
+                            .orElseThrow();
+                    ILoggingEvent lastLine = everything.stream()
+                            .filter(event -> !event.getFormattedMessage().startsWith("Report: "))
+                            .reduce((first, second) -> second)
+                            .orElseThrow();
+                    assertThat(executed).as("Spring Batch's own line for the step").isNotNegative();
+                    assertThat(said.getLoggerName()).isEqualTo(OperatorLines.LOGGER_NAME);
+                    assertThat(said.getLevel()).isEqualTo(ch.qos.logback.classic.Level.ERROR);
+                    assertThat(everything.indexOf(said)).isGreaterThan(executed);
+                    assertThat(lastLine).isSameAs(said);
+                });
     }
 
     @Test

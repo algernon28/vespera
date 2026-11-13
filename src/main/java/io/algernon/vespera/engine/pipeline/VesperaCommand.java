@@ -12,6 +12,7 @@ import io.algernon.vespera.engine.profile.Profile;
 import io.algernon.vespera.engine.profile.ProfileStore;
 import io.algernon.vespera.engine.profile.TextValue;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -95,7 +96,9 @@ public class VesperaCommand implements Callable<Integer> {
      */
     @Override
     public Integer call() {
-        spec.commandLine().usage(System.out);
+        PrintWriter usage = OperatorLines.out();
+        spec.commandLine().usage(usage);
+        usage.flush();
         return CommandLine.ExitCode.USAGE;
     }
 
@@ -118,7 +121,7 @@ public class VesperaCommand implements Callable<Integer> {
         run.forgetPreviousInvocation();
         label.forgetPreviousInvocation();
         publish.forgetPreviousInvocation();
-        return new CommandLine(this, new CommandLine.IFactory() {
+        CommandLine commandLine = new CommandLine(this, new CommandLine.IFactory() {
             @Override
             public <K> K create(Class<K> type) throws Exception {
                 if (type.isInstance(run)) {
@@ -133,6 +136,10 @@ public class VesperaCommand implements Callable<Integer> {
                 return CommandLine.defaultFactory().create(type);
             }
         });
+        // Picocli's own refusals and usage are logged through the operator logger (ADR-364 section 4), a line at a time.
+        commandLine.setOut(OperatorLines.out());
+        commandLine.setErr(OperatorLines.err());
+        return commandLine;
     }
 
     /**
@@ -155,7 +162,7 @@ public class VesperaCommand implements Callable<Integer> {
 
         @Override
         public Integer call() {
-            System.err.println("vespera serve is started by the jar's main before Spring, and is not run through it.");
+            OperatorLines.warn("vespera serve is started by the jar's main before Spring, and is not run through it.");
             return CommandLine.ExitCode.SOFTWARE;
         }
     }
@@ -295,7 +302,7 @@ public class VesperaCommand implements Callable<Integer> {
 
         /** A refusal after the working-directory lock: its line is printed whole, and the report says it, once. */
         private Integer refuse(String line, int exitCode) {
-            System.err.println(line);
+            OperatorLines.warn(line);
             if (report != null) {
                 report.refused(line, exitCode);
             }
@@ -376,7 +383,7 @@ public class VesperaCommand implements Callable<Integer> {
             if (effectiveValues != null) {
                 effectiveValues.write();
             }
-            log.info("Report: {}", ReportHtml.pathIn(workingDirectoryInUse));
+            OperatorLines.info("Report: " + ReportHtml.pathIn(workingDirectoryInUse));
             log.info(
                     "Walking {}, named {}",
                     corpusRoot,
@@ -404,7 +411,7 @@ public class VesperaCommand implements Callable<Integer> {
                 return CommandLine.ExitCode.SOFTWARE;
             }
             String closingLine = nextAction.line(corpusRoot, new InvocationRuns(execution.getExecutionContext()));
-            log.info("{}", closingLine);
+            OperatorLines.info(closingLine);
             if (report != null) {
                 report.runEnds(CommandLine.ExitCode.OK, closingLine, nextAction.lastWritten());
             }
@@ -416,7 +423,7 @@ public class VesperaCommand implements Callable<Integer> {
         private void logTheReportLine() {
             String line = report == null ? null : report.reportLine();
             if (line != null) {
-                log.info("{}", line);
+                OperatorLines.info(line);
             }
         }
 
@@ -594,7 +601,7 @@ public class VesperaCommand implements Callable<Integer> {
 
         /** Prints a line of the jar's own on standard error, whole, and keeps it for the report as the refusal it is. */
         private Integer refuse(String line, int exitCode) {
-            System.err.println(line);
+            OperatorLines.warn(line);
             if (report != null) {
                 report.said(line);
             }
@@ -623,7 +630,7 @@ public class VesperaCommand implements Callable<Integer> {
             if (effectiveValues != null) {
                 effectiveValues.write();
             }
-            log.info("Report: {}", ReportHtml.pathIn(workingDirectoryInUse));
+            OperatorLines.info("Report: " + ReportHtml.pathIn(workingDirectoryInUse));
             if (report != null) {
                 report.labelStarts();
             }
@@ -655,7 +662,7 @@ public class VesperaCommand implements Callable<Integer> {
         private void logTheReportLine() {
             String line = report == null ? null : report.reportLine();
             if (line != null) {
-                log.info("{}", line);
+                OperatorLines.info(line);
             }
         }
 
@@ -689,9 +696,9 @@ public class VesperaCommand implements Callable<Integer> {
                                 ? CommandLine.ExitCode.USAGE
                                 : CommandLine.ExitCode.SOFTWARE);
             }
-            System.out.println(outcome.message());
+            OperatorLines.info(outcome.message());
             closingLine = nextAction.line();
-            System.out.println(closingLine);
+            OperatorLines.info(closingLine);
             return CommandLine.ExitCode.OK;
         }
 
@@ -708,9 +715,9 @@ public class VesperaCommand implements Callable<Integer> {
                 return refuse("vespera label --auto recorded nothing: " + outcome.message(),
                         CommandLine.ExitCode.SOFTWARE);
             }
-            System.out.println(outcome.message());
+            OperatorLines.info(outcome.message());
             closingLine = nextAction.line();
-            System.out.println(closingLine);
+            OperatorLines.info(closingLine);
             return CommandLine.ExitCode.OK;
         }
     }
@@ -793,7 +800,7 @@ public class VesperaCommand implements Callable<Integer> {
 
         /** A refusal after the working-directory lock: its line is printed whole, and the report says it, once. */
         private Integer refuse(String line, int exitCode) {
-            System.err.println(line);
+            OperatorLines.warn(line);
             if (report != null) {
                 report.refused(line, exitCode);
             }
@@ -823,7 +830,7 @@ public class VesperaCommand implements Callable<Integer> {
                     chosen.add(named.get());
                 }
             }
-            log.info("Report: {}", ReportHtml.pathIn(workingDirectoryInUse));
+            OperatorLines.info("Report: " + ReportHtml.pathIn(workingDirectoryInUse));
             if (report != null) {
                 report.publishStarts();
             }
@@ -850,13 +857,13 @@ public class VesperaCommand implements Callable<Integer> {
         private void logTheReportLine() {
             String line = report == null ? null : report.reportLine();
             if (line != null) {
-                log.info("{}", line);
+                OperatorLines.info(line);
             }
         }
 
         /** A destination's stop: its line on standard error, whole, kept for the report as the refusal it is. */
         private boolean stopped(Plugin plugin, String line) {
-            System.err.println(line);
+            OperatorLines.warn(line);
             if (report != null) {
                 report.said(line);
                 report.destinationEnds(plugin.name(), "stopped", line);
@@ -889,7 +896,7 @@ public class VesperaCommand implements Callable<Integer> {
             }
             Plugin.Delivery outcome;
             try {
-                outcome = plugin.deliver(rendering, generation.get(), workingDirectoryInUse, System.out::println);
+                outcome = plugin.deliver(rendering, generation.get(), workingDirectoryInUse, OperatorLines::info);
             } catch (RuntimeException thrown) {
                 return stopped(plugin, "vespera publish stopped " + plugin.name() + ": it threw "
                         + thrown.getClass().getSimpleName() + ", whose message is not written. Publish again once"
@@ -898,7 +905,7 @@ public class VesperaCommand implements Callable<Integer> {
             if (!outcome.delivered()) {
                 return stopped(plugin, outcome.closingLine());
             }
-            System.out.println(outcome.closingLine());
+            OperatorLines.info(outcome.closingLine());
             if (report != null) {
                 report.destinationEnds(plugin.name(), "delivered", outcome.closingLine());
             }

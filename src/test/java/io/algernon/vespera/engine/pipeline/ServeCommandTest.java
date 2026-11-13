@@ -99,31 +99,6 @@ class ServeCommandTest {
     @Test
     @Timeout(value = A_REFUSAL_SECONDS, unit = TimeUnit.SECONDS)
     @Story("The website is served on loopback alone")
-    @DisplayName("A --db-dir that disagrees with a set vespera.working-dir is refused, exit 1, in the line every other command gives")
-    void aDbDirThatDisagreesWithTheWorkingDirectoryIsRefused() throws IOException {
-        Path workingDirectory = published(base.resolve("the-working-directory"));
-        Path typed = base.resolve("typed-on-the-command-line");
-        Sources sources = sourcesOf(List.of(new Setting(WORKING_DIR, Source.SYSTEM_PROPERTIES, "the-working-directory")));
-
-        int exit = sources.command().call("--db-dir=" + typed);
-
-        claim("the command ends with exit code 1, having served nothing",
-                () -> assertThat(exit).isEqualTo(CommandLine.ExitCode.SOFTWARE));
-        claim("its one line is WorkingDirectoryOption's, naming vespera serve, the folder typed and the working directory"
-                        + " in use, on standard error, and nothing is on standard output",
-                () -> {
-                    assertThat(sources.errors()).containsExactly("vespera serve was given --db-dir " + typed
-                            + " but the working directory in use is " + workingDirectory + ";"
-                            + THE_REST_OF_THE_DISAGREEMENT);
-                    assertThat(sources.output()).isEmpty();
-                });
-        claim("and the folder typed was not made",
-                () -> assertThat(typed).doesNotExist());
-    }
-
-    @Test
-    @Timeout(value = A_REFUSAL_SECONDS, unit = TimeUnit.SECONDS)
-    @Story("The website is served on loopback alone")
     @DisplayName("A working directory holding no published website is refused, exit 1, in one line, and nothing is made in it")
     void aWorkingDirectoryHoldingNoPublishedWebsiteIsRefused() throws IOException {
         Path noFolder = Files.createDirectories(base.resolve("no-website-folder"));

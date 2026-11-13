@@ -18,10 +18,10 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
 /**
- * {@code vespera serve}, started with no Spring context (ADR-333 §8). {@code VesperaApplication.main} reads its first
- * argument before {@code SpringApplication} is built: where it is {@value #NAME}, {@link #handedOn} gives the arguments
- * after it and {@code main} exits with the code {@link #call} returns. So none of the four listeners {@code main} adds
- * runs, no datasource is made, no SQL is run, no pool is opened and no log file is set up: it writes to the console
+ * {@code vespera serve}, started with no Spring context (ADR-333 §8, ADR-364 §4). {@code EntryPoint.main} reads its first
+ * argument before {@code VesperaApplication.main} and {@code SpringApplication} are reached: where it is {@value #NAME},
+ * {@link #handedOn} gives the arguments after it and {@code main} exits with the code {@link #call} returns. So none of
+ * the four listeners {@code VesperaApplication.main} adds runs, no datasource is made, no SQL is run, no pool is opened and no log file is set up: it writes to the console
  * alone, takes neither the working-directory lock nor the corpus-root lock, reads no profile and starts no sidecar, so a
  * publish can refresh the website while it serves. It builds the {@code website} module's server, so the root package
  * names no class of that module.
@@ -62,9 +62,13 @@ public final class ServeCommand {
     private final PrintStream out;
     private final PrintStream err;
 
-    /** As the process has it: its system properties, its environment, and the console. */
-    public ServeCommand() {
-        this(System.getProperties(), System.getenv(), System.out, System.err);
+    /**
+     * As the process has it, its system properties and its environment, writing to the two streams it is given:
+     * {@code vespera serve} starts before Spring and so stays outside logback, and {@code EntryPoint} hands it the
+     * console (ADR-364 §4).
+     */
+    public ServeCommand(PrintStream out, PrintStream err) {
+        this(System.getProperties(), System.getenv(), out, err);
     }
 
     ServeCommand(Properties systemProperties, Map<String, String> environment, PrintStream out, PrintStream err) {

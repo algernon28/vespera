@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Test;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("749")
-@Link(name = "ADR-364", url = Adr.EVERY_TEXT_OF_THE_WINDOW_IS_COPYABLE, type = "adr")
+@Link(name = "ADR-364", url = Adr.THE_OUTPUT_PANEL_IS_COPYABLE_TEXT_AND_EVERY_LINE_GOES_THROUGH_LOGBACK, type = "adr")
 class ATableOfANativeViewCopiesItsRowsTest {
 
     private static final String THE_REPORT = "format-mix";

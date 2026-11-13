@@ -25,6 +25,7 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Labeled;
 import javafx.scene.control.ProgressBar;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.control.TitledPane;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.effect.Effect;
@@ -867,6 +868,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
         for (StopCosts.StopCost cost : StopCosts.ROWS) {
             stepPercents.put(cost.step(), textOf(root, "step-percent-" + cost.step()));
             stepWords.put(cost.step(), stateWordsNode(root, cost.step()) instanceof Labeled words ? words.getText()
+                    : stateWordsNode(root, cost.step()) instanceof TextInputControl text ? text.getText()
                     : "(no words after the bar)");
         }
         Map<String, String> legPercents = new LinkedHashMap<>();

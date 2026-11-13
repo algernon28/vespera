@@ -23,7 +23,7 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.chart.BarChart;
 import javafx.scene.control.Hyperlink;
-import javafx.scene.control.Label;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
@@ -172,11 +172,11 @@ class TheAnalysisReportsOpenNativelyTest {
     }
 
     private static String textOf(Parent root, String id) {
-        return WindowForTests.node(root, id, Label.class).getText();
+        return WindowForTests.node(root, id, TextInputControl.class).getText();
     }
 
     private static String outcome(Parent root) {
-        return String.valueOf(WindowForTests.node(root, "outcome", Label.class).getText());
+        return String.valueOf(WindowForTests.node(root, "outcome", TextInputControl.class).getText());
     }
 
     private static void writeJson(Path workingDirectory, String name, String title, String writtenAt, String files)

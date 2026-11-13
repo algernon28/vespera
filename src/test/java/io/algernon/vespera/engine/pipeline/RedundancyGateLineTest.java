@@ -54,11 +54,13 @@ class RedundancyGateLineTest {
         logged.start();
         gateLogger = (Logger) LoggerFactory.getLogger(RedundancyJobConfiguration.class);
         gateLogger.addAppender(logged);
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).addAppender(logged);
     }
 
     @AfterEach
     void releaseTheGateLine() {
         gateLogger.detachAppender(logged);
+        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(logged);
         logged.stop();
     }
 

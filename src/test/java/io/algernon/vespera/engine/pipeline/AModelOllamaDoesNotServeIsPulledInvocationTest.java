@@ -106,6 +106,10 @@ class AModelOllamaDoesNotServeIsPulledInvocationTest {
         OLLAMA.close();
     }
 
+    /** A line in the console's pattern, {@code HH:mm:ss.SSS LEVEL ...}, which a closing line is no longer (ADR-364 section 4). */
+    private static final java.util.regex.Pattern IN_THE_CONSOLES_PATTERN =
+            java.util.regex.Pattern.compile("^\\d{2}:\\d{2}:\\d{2}\\.\\d{3} .*");
+
     @Test
     @Story("A pull that cannot be made stops the step in one line")
     @DisplayName("A pull Ollama cannot make stops scoring in one line quoting Ollama, with no chunk sent and no run minted")
@@ -116,9 +120,11 @@ class AModelOllamaDoesNotServeIsPulledInvocationTest {
         OLLAMA.pulls(AN_EMBEDDING_MODEL_NOT_SERVED, new StubOllama.Streamed(
                 StubOllama.lines("{\"status\":\"pulling manifest\"}", "{\"error\":\"" + NO_SUCH_MODEL + "\"}"), false));
         int before = output.getAll().length();
+        int beforeErr = output.getErr().length();
 
         cli.run("run", root.toString());
         String said = output.getAll().substring(before);
+        String saidOnError = output.getErr().substring(beforeErr);
 
         claim("the invocation ends non-zero, because it was stopped", () -> assertThat(cli.getExitCode())
                 .isNotZero());
@@ -130,7 +136,8 @@ class AModelOllamaDoesNotServeIsPulledInvocationTest {
                             .filter(line -> line.contains(AN_EMBEDDING_MODEL_NOT_SERVED) && line.contains(NO_SUCH_MODEL))
                             .toList();
                     assertThat(lines).singleElement().satisfies(line -> assertThat(line)
-                            .matches("^\\S+ ERROR .*")
+                            .doesNotMatch(IN_THE_CONSOLES_PATTERN)
+                            .isIn(saidOnError.lines().toList())
                             .contains(THE_SCORING_STEP)
                             .contains("Ollama could not pull " + AN_EMBEDDING_MODEL_NOT_SERVED + " (" + NO_SUCH_MODEL
                                     + ")"));
