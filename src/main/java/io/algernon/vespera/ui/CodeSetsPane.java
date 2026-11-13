@@ -13,13 +13,16 @@ import java.util.function.Supplier;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 /**
  * The sidebar's Code sets section: the code sets the operator lists, a folder under the corpus root with a name or one
- * outside it, and their Save into the working directory (ADR-344 §1).
+ * outside it, and their Save into the working directory (ADR-344 §1). It opens with {@code codeSetFolders}' title, whose
+ * tooltip holds the provenance the file states, and its Save writes {@code codeSetFolders} by ADR-377 §2, refused
+ * where the file changed the value since the section was loaded (ADR-377 §8, ADR-330 §5).
  */
 final class CodeSetsPane {
 
@@ -34,8 +37,10 @@ final class CodeSetsPane {
     private final Runnable saved;
     private final VBox codeSets = new VBox();
     private final List<CodeSet> codeSetEntries = new ArrayList<>();
-    private final TextField codeSetProvenance = new TextField();
+    private final SelectableText.Line codeSetTitle = SelectableText.line(ProfileKey.CODE_SET_FOLDERS.title());
     private final SelectableText.Wrapping codeSetOutcome = SelectableText.wrapping("");
+    /** What the file stated for {@code codeSetFolders} as the section was loaded, which a Save is checked against. */
+    private Optional<ProfileEdit.Stated> loaded = Optional.empty();
 
     /**
      * {@code otherFolders} are the folders of the window a code set outside the corpus root must stay apart from, as
@@ -72,15 +77,15 @@ final class CodeSetsPane {
                 name.clear();
             }
         });
-        codeSetProvenance.setId("code-set-provenance");
-        codeSetProvenance.setPromptText(ProfileEdit.FILLED_IN_PROVENANCE);
+        codeSetTitle.setId("code-set-title");
+        codeSetTitle.getStyleClass().add("key-name");
+        codeSetTitle.setTooltip(new Tooltip(ProfileKey.CODE_SET_FOLDERS.tooltip()));
         Button save = new Button("Save");
         save.setId("code-sets-save");
         save.setOnAction(event -> saveCodeSets());
         codeSetOutcome.setId("code-set-outcome");
         HBox.setHgrow(folder, Priority.ALWAYS);
-        VBox pane = new VBox(codeSets, row(folder, browse, add), name,
-                row(SelectableText.line("Note saved with the folders outside"), codeSetProvenance), save, codeSetOutcome);
+        VBox pane = new VBox(codeSetTitle, codeSets, row(folder, browse, add), name, save, codeSetOutcome);
         pane.getStyleClass().add("section");
         return pane;
     }
@@ -99,7 +104,8 @@ final class CodeSetsPane {
         if (codeFolders != null && codeFolders.value() != null) {
             CodeSetFolderChecks.statedIn(codeFolders.value()).forEach(each -> codeSetEntries.add(new CodeSet(each, "", true)));
         }
-        codeSetProvenance.setText(ProfileEdit.provenanceShown(Optional.ofNullable(codeFolders)));
+        loaded = Optional.ofNullable(codeFolders);
+        codeSetTitle.getTooltip().setText(ProfileRow.tooltipOf(ProfileKey.CODE_SET_FOLDERS, loaded));
         draw();
     }
 
@@ -178,11 +184,13 @@ final class CodeSetsPane {
             codeSetOutcome.setText(String.valueOf(unreadable.getMessage()));
             return;
         }
+        // compared with what the section was loaded from, and refused where the file moved since (ADR-377 section 8)
         Optional<ProfileEdit.Stated> inFile = Optional.ofNullable(stated.get(ProfileKey.CODE_SET_FOLDERS));
-        Optional<String> provenance = ProfileEdit.provenanceToSave(ProfileKey.CODE_SET_FOLDERS, outside,
-                codeSetProvenance.getText(), inFile);
+        Optional<String> provenance = ProfileEdit.provenanceToSave(ProfileKey.CODE_SET_FOLDERS, outside, loaded);
+        String drawn = ProfileEdit.drawnOf(ProfileKey.CODE_SET_FOLDERS, loaded.map(ProfileEdit.Stated::value).orElse(null),
+                loaded.map(ProfileEdit.Stated::provenance).orElse(null));
         Optional<String> refusal = provenance.flatMap(words -> ProfileEdit.refusalOfSave(ProfileKey.CODE_SET_FOLDERS, outside,
-                words, inFile, Optional.empty()));
+                words, inFile, Optional.of(drawn)));
         if (refusal.isPresent()) {
             codeSetOutcome.setText(refusal.get());
             return;

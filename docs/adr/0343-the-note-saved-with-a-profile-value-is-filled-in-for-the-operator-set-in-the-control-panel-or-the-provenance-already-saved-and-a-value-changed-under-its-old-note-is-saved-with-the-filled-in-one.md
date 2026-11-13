@@ -111,7 +111,7 @@ No run id moves: the profile's provenance enters no run's identity, and no file 
 
 | Method | What it holds |
 | --- | --- |
-| `ui.TheProvenanceSavedWithAValueTest.theProvenanceShownIsTheOneTheFileStatesOrTheFilledInOne` | a provenance stated, none, `null` and blank: the stated one, else `set in the control panel` (§1) |
+| `ui.TheProvenanceSavedWithAValueTest.theProvenanceShownIsTheOneTheFileStatesOrTheFilledInOne` (removed: no provenance is shown beside a value, and `provenanceStated` replaces `provenanceShown`, ADR-377) | a provenance stated, none, `null` and blank: the stated one, else `set in the control panel` (§1) |
 | `ui.TheProvenanceSavedWithAValueTest.eachValueIsWrittenAsTheTableSays` | §2's table, row by row, a key the file states nothing for among them, left alone and not written (§2) |
 | `controlpanel.TheNoteSavedWithAValueTest.aValueChangedUnderTheProvenanceTheFileStatesIsNotRefused` | `refusalOfSave` lets a value changed under the stated provenance through (§3) |
 | `ui.TheProvenanceSavedWithAValueTest.aFloorTheLocalModelSetChangedUnderItsProvenanceBecomesTheOperators` | the floor changed under the rule's words is saved with the filled-in note, which `refusalOf` accepts for the floor (§4) |

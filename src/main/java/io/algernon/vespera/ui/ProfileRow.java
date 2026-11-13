@@ -5,9 +5,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -15,20 +17,25 @@ import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.Control;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 /**
- * One value of the profile in the window (ADR-344 §1, ADR-343): its descriptive name, its key beneath it in small type,
- * a plain description and which steps a change makes again; a control that constrains the value by its kind; the
- * reports that inform it; and the provenance saved with it, filled in. The row holds what the file stated as it was loaded, and
- * a save compares the form with it by {@link ProfileEdit#provenanceToSave} and writes by {@link ProfileEdit#rewrite}, never a
- * key left as it was shown.
+ * One value of the profile in the window (ADR-377 §3): one line of a toggle, the key's title over the key in brackets,
+ * and a control that constrains the value by its kind; behind the toggle the short description, the value in use, what
+ * a change redoes and the reports that inform it. The title's tooltip holds the key's explanation and the provenance the
+ * file states (§1); no field holds a provenance. The row holds what the file stated as it was loaded, and a save
+ * compares the form with it by {@link ProfileEdit#provenanceToSave} and writes by {@link ProfileEdit#rewrite}, never a
+ * key left as the file states it (§2).
  */
 final class ProfileRow {
 
@@ -36,15 +43,118 @@ final class ProfileRow {
     record Saved(String line, boolean written) {
     }
 
+    /**
+     * The keys whose rows are open in one list of rows (ADR-377 §3): a row drawn or loaded again is open where its key
+     * is among them. In a list whose rows start open, a key met for the first time is put among them.
+     */
+    static final class OpenKeys {
+
+        private final boolean openAtFirst;
+        private final Set<ProfileKey> open = EnumSet.noneOf(ProfileKey.class);
+        private final Set<ProfileKey> met = EnumSet.noneOf(ProfileKey.class);
+
+        OpenKeys(boolean openAtFirst) {
+            this.openAtFirst = openAtFirst;
+        }
+
+        boolean isOpen(ProfileKey key) {
+            if (met.add(key) && openAtFirst) {
+                open.add(key);
+            }
+            return open.contains(key);
+        }
+
+        void set(ProfileKey key, boolean opened) {
+            met.add(key);
+            if (opened) {
+                open.add(key);
+            } else {
+                open.remove(key);
+            }
+        }
+
+        /** Forgets every key, as the working directory changes. */
+        void forget() {
+            open.clear();
+            met.clear();
+        }
+    }
+
+    /**
+     * The column the titles of one list of rows take (ADR-377 §3): as wide as the widest title and key among them, and
+     * at most {@link #MOST_OF_A_ROW} of a row's width, so that every control of the list starts at one edge.
+     */
+    static final class TitleColumn {
+
+        private static final double MOST_OF_A_ROW = 0.45;
+
+        private final List<Titles> members = new ArrayList<>();
+
+        /** Forgets the rows, as the list is drawn again. */
+        void clear() {
+            members.clear();
+        }
+
+        private void add(Titles titles) {
+            members.forEach(Region::requestLayout);
+            members.add(titles);
+        }
+
+        private double width(Region row) {
+            double widest = members.stream().mapToDouble(Titles::natural).max().orElse(0);
+            return row.getWidth() > 0 ? Math.min(widest, row.getWidth() * MOST_OF_A_ROW) : widest;
+        }
+    }
+
+    /** A row's title over its key, as wide as its list's column. */
+    private static final class Titles extends VBox {
+
+        private final TitleColumn column;
+        private final Region row;
+
+        Titles(TitleColumn column, Region row, Node... children) {
+            super(children);
+            this.column = column;
+            this.row = row;
+            row.widthProperty().addListener((observed, was, now) -> requestLayout());
+            column.add(this);
+        }
+
+        private double natural() {
+            return super.computePrefWidth(-1);
+        }
+
+        @Override
+        protected double computePrefWidth(double height) {
+            return column.width(row);
+        }
+
+        @Override
+        protected double computeMinWidth(double height) {
+            return computePrefWidth(height);
+        }
+
+        @Override
+        protected double computeMaxWidth(double height) {
+            return computePrefWidth(height);
+        }
+    }
+
+    /** The toggle's tooltip while its row is closed, and while it is open. */
+    private static final String SHOW = "Show what this does, what a change redoes and its reports";
+    private static final String HIDE = "Hide them";
+
     private static final double WHOLE_STEP = 1;
     private static final double SHARE_STEP = 0.05;
     private static final double MOST = 1e15;
 
     private final ProfileKey key;
     private final String idPrefix;
+    private final OpenKeys openKeys;
     private final VBox node = new VBox();
-    private final TextField provenance = new TextField();
-    private final SelectableText.Wrapping inUse = SelectableText.wrapping("");
+    private final ToggleButton more = new ToggleButton();
+    private final SelectableText.Line title;
+    private final VBox details = new VBox();
     private final HBox links = new HBox();
     private Consumer<String> opensReport;
     private Supplier<String> value = () -> "";
@@ -58,60 +168,95 @@ final class ProfileRow {
      * @param beneath what lies beneath the profile for this key, where the jar says so (ADR-330 §1)
      * @param dialogs how a folder is asked for
      * @param opensSection what a key edited in a section of the sidebar links to, or null where it is edited here
+     * @param openKeys the keys whose rows are open in the row's list
+     * @param column the column the titles of the row's list take
      */
     ProfileRow(ProfileKey key, String idPrefix, List<String> models, Optional<EffectiveValues.Value> beneath,
             Dialogs dialogs, Consumer<ProfileKey> opensSection, Consumer<String> opensReport,
-            Map<String, Boolean> reportsWritten) {
+            Map<String, Boolean> reportsWritten, OpenKeys openKeys, TitleColumn column) {
         this.key = key;
         this.idPrefix = idPrefix;
+        this.openKeys = openKeys;
+        String id = idPrefix + key.key();
         node.getStyleClass().add("profile-row");
         node.setId(idPrefix + "row-" + key.key());
-        SelectableText.Line title = SelectableText.line(key.title());
+        more.setId(id + ".more");
+        more.getStyleClass().add("more");
+        more.selectedProperty().addListener((observed, was, now) -> {
+            showOpen(now);
+            openKeys.set(key, now);
+        });
+        title = SelectableText.line(key.title());
+        title.setId(id + ".title");
         title.getStyleClass().add("key-name");
-        SelectableText.Line small = SelectableText.line(key.key());
+        title.setTooltip(new Tooltip(key.tooltip()));
+        SelectableText.Line small = SelectableText.line("(" + key.key() + ")");
+        small.setId(id + ".key");
         small.getStyleClass().add("small");
-        SelectableText.Wrapping about = SelectableText.wrapping(key.shortDescription());
-        about.getStyleClass().add("dim");
-        node.getChildren().addAll(title, small, about);
+        Titles titles = new Titles(column, node, title, small);
+        Node control;
         if (key == ProfileKey.CODE_SET_FOLDERS
                 || ((key == ProfileKey.SEED_FOLDER || key == ProfileKey.FOLDERS_NOT_WALKED) && opensSection != null)) {
             SelectableText.Line shown = SelectableText.line("");
-            shown.setId(idPrefix + key.key());
+            shown.setId(id);
             Hyperlink opens = new Hyperlink(key == ProfileKey.FOLDERS_NOT_WALKED ? "Edit it in the Inclusions tab"
                     : "Edit it in its section");
             opens.setOnAction(event -> opensSection.accept(key));
             value = shown::getText;
             setValue = shown::setText;
-            node.getChildren().addAll(spaced(shown, opens));
+            control = spaced(shown, opens);
         } else {
-            node.getChildren().add(controlFor(models, dialogs));
+            control = controlFor(models, dialogs);
         }
-        beneath.ifPresent(said -> inUse.setText(inUseOf(said)));
-        inUse.getStyleClass().add("small");
-        node.getChildren().add(inUse);
+        HBox.setHgrow(control, Priority.ALWAYS);
+        if (control instanceof Control growing) {
+            growing.setMaxWidth(Double.MAX_VALUE);
+        }
+        node.getChildren().add(spaced(more, titles, control));
+
+        details.setId(id + ".details");
+        details.getStyleClass().add("details");
+        SelectableText.Wrapping about = SelectableText.wrapping(key.shortDescription());
+        about.setId(id + ".short");
+        about.getStyleClass().add("dim");
+        details.getChildren().add(about);
+        beneath.ifPresent(said -> {
+            SelectableText.Line inUse = SelectableText.line(inUseOf(said));
+            inUse.setId(id + ".in-use");
+            inUse.getStyleClass().add("small");
+            details.getChildren().add(inUse);
+        });
         SelectableText.Wrapping cost = SelectableText.wrapping(costOf(key));
+        cost.setId(id + ".cost");
         cost.getStyleClass().add("small");
-        node.getChildren().add(cost);
+        details.getChildren().add(cost);
         for (String warning : warningsOf(key)) {
             SelectableText.Wrapping line = SelectableText.wrapping(warning);
+            line.setId(id + "." + warningIdOf(warning));
             line.getStyleClass().add("small");
-            node.getChildren().add(line);
+            details.getChildren().add(line);
         }
         this.opensReport = opensReport;
         if (!Reports.OF_A_KEY.getOrDefault(key.key(), List.of()).isEmpty()) {
+            links.setId(id + ".reports");
             links.getStyleClass().addAll("spaced-row", "reports-of-a-key");
-            node.getChildren().add(links);
+            details.getChildren().add(links);
             showReports(reportsWritten);
         }
-        SelectableText.Line provenanceLabel = SelectableText.line("Note saved with it");
-        provenance.setId(idPrefix + key.key() + ".provenance");
-        provenance.setPromptText(ProfileEdit.FILLED_IN_PROVENANCE);
-        HBox.setHgrow(provenance, Priority.ALWAYS);
-        SelectableText.Wrapping hint = SelectableText.wrapping("Saved beside the value in profile.yaml so that whoever reads it later knows"
-                + " where the value came from. You may write how you chose the value instead.");
-        hint.getStyleClass().add("small");
-        HBox provenanceLine = spaced(provenanceLabel, provenance);
-        node.getChildren().addAll(provenanceLine, hint);
+        node.getChildren().add(details);
+        showOpen(false);
+    }
+
+    /** The last part of a warning's id, by the words it opens with (ADR-377 §3). */
+    private static String warningIdOf(String warning) {
+        return warning.startsWith("Approval:") ? "approval" : warning.startsWith("Answers:") ? "answers" : "new-sample";
+    }
+
+    private void showOpen(boolean open) {
+        more.setText(open ? "▾" : "▸");
+        more.setTooltip(new Tooltip(open ? HIDE : SHOW));
+        details.setVisible(open);
+        details.setManaged(open);
     }
 
     /** Draws the key's reports, each a link where the working directory holds it and grey where it does not (ADR-344 §6). */
@@ -155,11 +300,25 @@ final class ProfileRow {
         return value.get();
     }
 
-    /** Fills the control and the provenance from what the file states for the key now. */
+    /**
+     * Fills the control from what the file states for the key now, puts the provenance it states in the title's
+     * tooltip, and opens or closes the row as its list holds its key.
+     */
     void load(Optional<ProfileEdit.Stated> inFile) {
         loaded = inFile;
         setValue.accept(inFile.map(ProfileEdit.Stated::value).orElse(""));
-        provenance.setText(ProfileEdit.provenanceShown(inFile));
+        title.getTooltip().setText(tooltipOf(key, inFile));
+        more.setSelected(openKeys.isOpen(key));
+        showOpen(more.isSelected());
+    }
+
+    /**
+     * A key's tooltip text, then, where the file states a provenance that is not blank, an empty line and where the
+     * value came from (ADR-377 §1).
+     */
+    static String tooltipOf(ProfileKey key, Optional<ProfileEdit.Stated> inFile) {
+        return key.tooltip() + ProfileEdit.provenanceStated(inFile)
+                .map(stated -> "\n\nWhere this value came from: " + stated).orElse("");
     }
 
     /** Puts the form back to the file as last loaded. */
@@ -167,9 +326,9 @@ final class ProfileRow {
         load(loaded);
     }
 
-    /** The provenance to write for this row by ADR-343 §2's table; empty where the key is not written. */
+    /** The provenance to write for this row by ADR-377 §2's table; empty where the key is not written. */
     Optional<String> provenanceToSave() {
-        return ProfileEdit.provenanceToSave(key, value(), provenance.getText(), loaded);
+        return ProfileEdit.provenanceToSave(key, value(), loaded);
     }
 
     /** The digest of what the form was loaded from, which a save checks the file against (ADR-330 §5). */
@@ -188,7 +347,7 @@ final class ProfileRow {
     }
 
     /**
-     * Saves every row ADR-343 §2 says to write, under ADR-295's lock and the checks of ADR-330 §5: all refused before any
+     * Saves every row ADR-377 §2 says to write, under ADR-295's lock and the checks of ADR-330 §5: all refused before any
      * is written, the first refusal said.
      */
     static Saved save(ControlPanelState state, Optional<Path> folder, List<ProfileRow> rows) {

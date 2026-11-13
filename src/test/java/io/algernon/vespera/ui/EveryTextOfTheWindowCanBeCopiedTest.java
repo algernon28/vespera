@@ -38,6 +38,7 @@ import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.control.TitledPane;
+import javafx.scene.control.ToggleButton;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.ContextMenuEvent;
@@ -119,7 +120,16 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                     root -> HeadlessToolkit.nodeWithId(root, "wanted-row-boilerplateDocumentFrequencyFloor").isPresent(),
                     Boolean::booleanValue);
             assumeThat(drawn).as("the wanted value's row is drawn once the invocation has ended").isTrue();
-            reached = window.read(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl);
+            // every profile row opened, so that the walk reaches the texts behind each toggle
+            reached = window.read(root -> {
+                HeadlessToolkit.everyNodeUnder(root).stream().filter(ToggleButton.class::isInstance)
+                        .map(ToggleButton.class::cast)
+                        .filter(toggle -> toggle.getStyleClass().contains("more") && !toggle.isSelected())
+                        .forEach(ToggleButton::fire);
+                root.applyCss();
+                root.layout();
+                return outsideAControl(root);
+            });
         }
         try (WindowForTests window = WindowForTests.shown(otherState)) {
             reachedWhenNotInForm = window.read(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl);
@@ -441,9 +451,11 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         try (WindowForTests window = WindowForTests.shown(state)) {
             double[] seen = new double[4];
             int[] heard = new int[2];
+            String row = "profile-" + ProfileKey.GENERATION_MODEL.key();
+            window.act(root -> WindowForTests.node(root, row + ".more", ToggleButton.class).fire());
             window.act(root -> {
-                SelectableText.Wrapping description = WindowForTests.every(root,
-                        "profile-row-" + ProfileKey.GENERATION_MODEL.key(), SelectableText.Wrapping.class).getFirst();
+                SelectableText.Wrapping description = WindowForTests.node(root, row + ".short",
+                        SelectableText.Wrapping.class);
                 ScrollPane tab = tabScroll(root);
                 seen[0] = tab.getVvalue();
                 seen[2] = description.getScrollTop();

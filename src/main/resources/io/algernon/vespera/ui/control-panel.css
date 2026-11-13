@@ -203,7 +203,31 @@
 
 .profile-row {
     -fx-border-color: transparent transparent -vespera-rule transparent;
-    -fx-padding: 6px 0 10px 0;
+    -fx-padding: 4px 0 4px 0;
+    -fx-spacing: 4px;
+}
+
+/* A profile row's toggle (ADR-377 section 3): a small flat button before its title. */
+.more,
+.more:selected,
+.more:hover,
+.more:armed {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-text-fill: -vespera-dim;
+    -fx-padding: 0 4px 0 4px;
+}
+
+.more:focused {
+    -fx-background-color: -vespera-accent, -vespera-surface;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 3px;
+}
+
+/* What a profile row's toggle opens, set in under its title. */
+.details {
+    -fx-spacing: 2px;
+    -fx-padding: 0 0 4px 24px;
 }
 
 .spaced-row,
@@ -340,6 +364,12 @@
 .output .list-cell {
     -fx-font-family: monospace;
     -fx-font-size: 11px;
+}
+
+/* A tooltip wraps at this width: a title's holds a key's whole explanation (ADR-377 section 1). */
+.tooltip {
+    -fx-wrap-text: true;
+    -fx-max-width: 480px;
 }
 
 .sidebar {

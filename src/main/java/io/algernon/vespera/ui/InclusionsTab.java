@@ -114,7 +114,7 @@ final class InclusionsTab {
             return;
         }
         String value = String.join(java.io.File.pathSeparator, pieces);
-        Optional<String> provenance = ProfileEdit.provenanceToSave(key, value, ProfileEdit.provenanceShown(inFile), inFile);
+        Optional<String> provenance = ProfileEdit.provenanceToSave(key, value, inFile);
         if (provenance.isEmpty()) {
             inclusionsOutcome.setText("nothing was written: the folders not walked are as " + ProfileEdit.FILE_NAME
                     + " states them");

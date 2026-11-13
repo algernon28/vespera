@@ -251,7 +251,7 @@ public final class ProfileEdit {
     /**
      * §5's second step for one value, before anything is written: the line refusing it where the file moved since the
      * form was drawn, or by §4's checks; empty where it may be written. A value changed under the provenance the file
-     * states is no refusal: the form sends the filled-in provenance then (ADR-343 §3).
+     * states is no refusal: the window sends the filled-in provenance then (ADR-343 §3, ADR-377 §2).
      *
      * @param inFile what the file states for the key now, empty where it states none
      * @param drawn what the form carried as {@code drawn}, empty where it carried none
@@ -265,34 +265,25 @@ public final class ProfileEdit {
         return refusalOf(key, value, provenance);
     }
 
-    /** The words a provenance is filled in with where the file states no provenance, and saved with where ADR-343 §2 says. */
+    /** The words a value changed in the window is saved with (ADR-343 §1, ADR-377 §2). */
     public static final String FILLED_IN_PROVENANCE = "set in the control panel";
 
-    /** The provenance a form shows beside a key: the provenance the file states, where not blank, else {@link #FILLED_IN_PROVENANCE} (ADR-343 §1). */
-    public static String provenanceShown(Optional<Stated> inFile) {
-        return inFile.map(Stated::provenance).filter(stated -> !stated.isBlank()).orElse(FILLED_IN_PROVENANCE);
+    /** The provenance the file states for a key, where it is not blank; empty otherwise (ADR-377 §1, §11). */
+    public static Optional<String> provenanceStated(Optional<Stated> inFile) {
+        return inFile.map(Stated::provenance).filter(stated -> !stated.isBlank());
     }
 
     /**
-     * The provenance a save writes for the key by the table of ADR-343 §2; empty where the key is not written (the
-     * first row: the value as the file states it and the provenance left as shown).
+     * The provenance a save writes for the key by the table of ADR-377 §2: empty where the value is as the file states
+     * it, so the key is not written, and {@link #FILLED_IN_PROVENANCE} where it changed, a value emptied among them.
      *
      * @param value what the form holds for the value
-     * @param provenance what the form holds for the provenance
      * @param inFile what the file states for the key, empty where it states none
      */
-    public static Optional<String> provenanceToSave(ProfileKey key, String value, String provenance, Optional<Stated> inFile) {
-        Stated now = inFile.orElse(new Stated(null, null));
-        boolean valueChanged = !normalized(key, value).equals(normalized(key, now.value()));
-        String typed = withoutBreaks(provenance == null ? "" : provenance).strip();
-        boolean left = typed.equals(withoutBreaks(provenanceShown(inFile)).strip());
-        if (!valueChanged && left) {
-            return Optional.empty();
-        }
-        if (typed.isEmpty() || (valueChanged && left)) {
-            return Optional.of(FILLED_IN_PROVENANCE);
-        }
-        return Optional.of(provenance.strip());
+    public static Optional<String> provenanceToSave(ProfileKey key, String value, Optional<Stated> inFile) {
+        String stated = inFile.map(Stated::value).orElse(null);
+        return normalized(key, value).equals(normalized(key, stated)) ? Optional.empty()
+                : Optional.of(FILLED_IN_PROVENANCE);
     }
 
     /** Throws {@link NotInFormException} naming the first line, from 1, where {@code text} leaves the form of §3. */

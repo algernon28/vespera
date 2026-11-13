@@ -86,6 +86,10 @@ final class Cockpit {
     private final InclusionsTab inclusions;
     private final ProfileForm profile;
     private final WantedValues wanted;
+    /** The keys whose rows are open on the Profile tab, in Seed folder and in what the next invocation wants (ADR-377 §3). */
+    private final ProfileRow.OpenKeys profileOpen = new ProfileRow.OpenKeys(false);
+    private final ProfileRow.OpenKeys seedOpen = new ProfileRow.OpenKeys(false);
+    private final ProfileRow.OpenKeys wantedOpen = new ProfileRow.OpenKeys(true);
     private ProfileRow seedRow;
     private boolean seedStated;
 
@@ -115,9 +119,10 @@ final class Cockpit {
         this.preflight = new PreflightPane(state, folders, property -> fields.get(property).text());
         this.codeSets = new CodeSetsPane(state, dialogs, folders, this::foldersToKeepApart, this::loadFiles);
         this.inclusions = new InclusionsTab(state, dialogs, folders, this::loadFiles);
-        this.profile = new ProfileForm(state, dialogs, folders, this::pointTo, this::openReport, this::loadFiles);
+        this.profile = new ProfileForm(state, dialogs, folders, this::pointTo, this::openReport, this::loadFiles,
+                profileOpen);
         this.wanted = new WantedValues(state, dialogs, folders, this::say, this::openReport, this::loadFiles,
-                this::showBadges);
+                this::showBadges, wantedOpen);
         root.getStyleClass().add("cockpit");
         if (state.darkChosen()) {
             root.getStyleClass().add("dark");
@@ -381,6 +386,8 @@ final class Cockpit {
         working.input.textProperty().addListener((observed, was, now) -> {
             where();
             reports.closeTabs();
+            // the rows drawn for another working directory start as they first do (ADR-377 section 3)
+            List.of(profileOpen, seedOpen, wantedOpen).forEach(ProfileRow.OpenKeys::forget);
             loadFiles();
         });
         VBox pane = new VBox(fieldBox(corpus, "Corpus root", true), fieldBox(working, "Working directory", true),
@@ -445,7 +452,7 @@ final class Cockpit {
 
     private Node seedPane() {
         seedRow = new ProfileRow(ProfileKey.SEED_FOLDER, "seed-", List.of(), Optional.empty(), dialogs, null,
-                this::openReport, folders.writtenReports());
+                this::openReport, folders.writtenReports(), seedOpen, new ProfileRow.TitleColumn());
         Button save = new Button("Save");
         save.setId("seed-folder-save");
         seedOutcome.setId("seed-folder-outcome");
@@ -528,6 +535,7 @@ final class Cockpit {
         profile.draw(stated, problem, notInForm, text, written);
         seedRow.load(Optional.ofNullable(stated.get(ProfileKey.SEED_FOLDER)));
         seedRow.showReports(written);
+        wanted.load(stated);
         wanted.showReports(written);
         seedStated = !seedRow.value().isBlank();
         if (seedRow.value().isBlank() && !state.values().lastSeedFolder().isEmpty()) {
