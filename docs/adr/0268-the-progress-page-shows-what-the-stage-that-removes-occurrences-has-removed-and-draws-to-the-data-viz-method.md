@@ -8,7 +8,7 @@
 
 > **Partly amended — see [ADR-371](0371-a-size-of-memory-is-written-in-powers-of-1024-and-only-a-count-axis-of-the-cockpit-is-shortened-to-k-m-b-and-t.md).** Of §6: a size, and the unit of a size's value axis, are counted in powers of 1,024, not 1,000: 2,050 bytes are `2.00 KB`, and a value that rounds to 1,024.00 of a unit is written in the next. A count stays in powers of 1,000. The rest of this record stands.
 
-> **Partly amended — see [ADR-373](0373-every-html-page-vespera-writes-is-drawn-dark-whatever-the-systems-setting-and-the-control-panels-theme.md).** Of §9: the palette is one set, dark, under `:root` with `color-scheme: dark`, and none under `@media (prefers-color-scheme: dark)`: the page `#1a1922`, the surface `#25232f`, the text `#ecebf3`, the muted text `#aeaac2`, the grid `#34323f` and the axis `#3b3949`; the series, state and running colours keep their dark values here, each at 3 : 1 or more against the page and the surface. The Light column and every "in both schemes" no longer hold. The rest of this record stands.
+> **Partly amended — see [ADR-380](0380-every-html-page-vespera-writes-is-drawn-dark-whatever-the-systems-setting-and-the-control-panels-theme.md).** Of §9: the palette is one set, dark, under `:root` with `color-scheme: dark`, and none under `@media (prefers-color-scheme: dark)`: the page `#1a1922`, the surface `#25232f`, the text `#ecebf3`, the muted text `#aeaac2`, the grid `#34323f` and the axis `#3b3949`; the series, state and running colours keep their dark values here, each at 3 : 1 or more against the page and the surface. The Light column and every "in both schemes" no longer hold. The rest of this record stands.
 
 - **Date**: 2026-10-16
 - **Status**: accepted on 2026-10-16.

@@ -28,7 +28,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * Every HTML page Vespera writes is drawn dark, whatever the system's setting and the control panel's theme (ADR-373):
+ * Every HTML page Vespera writes is drawn dark, whatever the system's setting and the control panel's theme (ADR-380):
  * for each of the four kinds of page, the stylesheet it carries or links names no rule of the reader's colour scheme,
  * has one {@code :root} declaring {@code color-scheme: dark} (§1) and every colour as a property of it, exactly the
  * ones §3 names for that page (§2), and each text colour is lighter than each background and stands at WCAG AA against
@@ -40,12 +40,12 @@ import org.junit.jupiter.params.provider.MethodSource;
  * writers are package-private to their modules, so they are called by reflection, as the jar calls them.
  *
  * <p>What it cannot see: the pixels a browser draws, a text a rule places on a background §3 does not pair it with,
- * and whether a rule draws through a property at all where it declares no colour (ADR-373, Known limits).
+ * and whether a rule draws through a property at all where it declares no colour (ADR-380, Known limits).
  */
 @Epic("Operation")
 @Feature("The pages Vespera writes")
 @Issue("794")
-@Link(name = "ADR-373", url = Adr.EVERY_HTML_PAGE_VESPERA_WRITES_IS_DRAWN_DARK, type = "adr")
+@Link(name = "ADR-380", url = Adr.EVERY_HTML_PAGE_VESPERA_WRITES_IS_DRAWN_DARK, type = "adr")
 class EveryHtmlPageVesperaWritesIsDrawnDarkTest {
 
     /** WCAG AA's least contrast for text of a normal size. */
@@ -76,7 +76,7 @@ class EveryHtmlPageVesperaWritesIsDrawnDarkTest {
     private static final Pattern A_PROPERTY_DRAWN = Pattern.compile("^var\\(--([a-z0-9-]+)\\)$");
 
     /**
-     * One kind of page: what it is called in the report, how its stylesheet is read, and the properties ADR-373 §3
+     * One kind of page: what it is called in the report, how its stylesheet is read, and the properties ADR-380 §3
      * names for it, as text, background, mark and not measured.
      */
     private record Page(

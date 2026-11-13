@@ -65,12 +65,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The control panel's light and dark themes (ADR-372): the switch at the header's right, between the words Light and
+ * The control panel's light and dark themes (ADR-379): the switch at the header's right, between the words Light and
  * Dark under the word Theme, light on a first start (§1); the choice kept in a {@code theme} file beside the launch
  * values, only where their folder exists and is the user's own, and read back by the next window (§2); the
  * stylesheet's colour tokens, defined once and redefined for the dark theme, each text token at WCAG AA against the
  * backgrounds of its theme (§3); and a dialog over the window taking its stylesheet and, over a dark window, the dark
- * tokens (§4). And every view inside the window following the theme (ADR-374): every colour a token of the
+ * tokens (§4). And every view inside the window following the theme (ADR-381): every colour a token of the
  * stylesheet's two theme rules, none set by a class, each at its contrast in both themes (§2, §4, §5), and each view's
  * colours, a tooltip's and a context menu's showing over the window among them, moving with the switch at once (§1, §3,
  * §6).
@@ -81,7 +81,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("794")
-@Link(name = "ADR-372", url = Adr.THE_CONTROL_PANELS_WINDOW_HAS_A_LIGHT_AND_A_DARK_THEME, type = "adr")
+@Link(name = "ADR-379", url = Adr.THE_CONTROL_PANELS_WINDOW_HAS_A_LIGHT_AND_A_DARK_THEME, type = "adr")
 class TheControlPanelsThemeTest {
 
     private static final String USER = System.getProperty("user.name");
@@ -151,7 +151,7 @@ class TheControlPanelsThemeTest {
     private static final Pattern NO_COLOUR = Pattern.compile("-?[0-9.]+(?:px|em|%)?|dropshadow|innershadow|gaussian"
             + "|one-pass-box|two-pass-box|three-pass-box|linear-gradient|to|left|right|top|bottom");
 
-    /** What a class of the control panel would write to set a colour of its own (ADR-374 §2). */
+    /** What a class of the control panel would write to set a colour of its own (ADR-381 §2). */
     private static final Map<String, Pattern> A_COLOUR_IN_CODE = Map.of(
             "names javafx.scene.paint or javafx.scene.effect", Pattern.compile("javafx\\.scene\\.(?:paint|effect)\\b"),
             "calls setStyle", Pattern.compile("\\bsetStyle\\s*\\("),
@@ -178,11 +178,11 @@ class TheControlPanelsThemeTest {
 
     private static final String A_STEP = "extraction";
 
-    /** The chart of a stage of six lines, stage 1's, which the window test reads (ADR-375 §1, §2). */
+    /** The chart of a stage of six lines, stage 1's, which the window test reads (ADR-382 §1, §2). */
     private static final String A_CHART = "stage-chart-1";
 
     /**
-     * Stage 1's chart as the working directory keeps it (ADR-375 §4), not finished: its counts and its five kinds, two
+     * Stage 1's chart as the working directory keeps it (ADR-382 §4), not finished: its counts and its five kinds, two
      * samples each, so that it draws six lines, each in a series colour of its own.
      */
     private static final String STAGE_1_CHART = "{\"format\":1,\"stage\":\"1\",\"key\":{\"byte-level-reduction\":"
@@ -196,7 +196,7 @@ class TheControlPanelsThemeTest {
     private static final String TOOLTIP_KEY = "javafx.scene.control.Tooltip";
 
     /**
-     * Each colour the window test reads, by what it is, and the token it is drawn in (ADR-374 §3, §6); the six lines
+     * Each colour the window test reads, by what it is, and the token it is drawn in (ADR-381 §3, §6); the six lines
      * of a chart and the two series of an analysis report's bar chart are added in order after these.
      */
     private static final Map<String, String> DRAWN_IN = drawnIn();
@@ -390,8 +390,8 @@ class TheControlPanelsThemeTest {
     }
 
     @Test
-    @Link(name = "ADR-374", url = Adr.EVERY_VIEW_OF_THE_CONTROL_PANELS_WINDOW_FOLLOWS_ITS_THEME, type = "adr")
-    @Link(name = "ADR-375", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
+    @Link(name = "ADR-381", url = Adr.EVERY_VIEW_OF_THE_CONTROL_PANELS_WINDOW_FOLLOWS_ITS_THEME, type = "adr")
+    @Link(name = "ADR-382", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
     @Story("Every view of the window follows its theme")
     @DisplayName("Every colour of the window is one of its stylesheet's two themes' colours, and each reads at its contrast in both themes")
     void everyColourOfTheWindowIsAThemeTokenAndStandsAtItsContrastInBothThemes() throws IOException {
@@ -449,8 +449,8 @@ class TheControlPanelsThemeTest {
     }
 
     @Test
-    @Link(name = "ADR-374", url = Adr.EVERY_VIEW_OF_THE_CONTROL_PANELS_WINDOW_FOLLOWS_ITS_THEME, type = "adr")
-    @Link(name = "ADR-375", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
+    @Link(name = "ADR-381", url = Adr.EVERY_VIEW_OF_THE_CONTROL_PANELS_WINDOW_FOLLOWS_ITS_THEME, type = "adr")
+    @Link(name = "ADR-382", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
     @Story("Every view of the window follows its theme")
     @DisplayName("The charts, the steps' bars, a report's own view, and a tooltip and a context menu showing over the window take the theme as the switch flips, nothing reopened")
     void everyViewOfTheWindowAndAPopupShowingOverItTakeTheThemeAsTheSwitchFlips(@TempDir Path folder)
@@ -641,7 +641,7 @@ class TheControlPanelsThemeTest {
 
     /**
      * Hands the window a reading of the steps at extraction running 375 of 1,000, its chart of stage 1 drawing the six
-     * lines of the file {@link #STAGE_1_CHART} the working directory keeps (ADR-375 §4), opens an
+     * lines of the file {@link #STAGE_1_CHART} the working directory keeps (ADR-382 §4), opens an
      * analysis report's native view in a tab, scrolled as the window opens one, selects a row of its table and focuses the table,
      * and shows a sample's tooltip and the table's context menu over the window, its item under the keys.
      */

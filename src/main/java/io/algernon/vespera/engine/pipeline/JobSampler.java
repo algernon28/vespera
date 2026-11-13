@@ -55,7 +55,7 @@ import tools.jackson.databind.json.JsonMapper;
  * has succeeded; it never fails the invocation (ADR-265 section 4).
  *
  * <p>It also builds and writes each stage's chart, {@code chart-stage-<stage>.json} beside the report, from the same
- * readings (ADR-375 section 4 to 7), under {@link StageCharts}.
+ * readings (ADR-382 section 4 to 7), under {@link StageCharts}.
  *
  * <p>It holds no rule: it decides no verdict, cache key, cluster or text of the deliverable.
  */
@@ -149,7 +149,7 @@ final class JobSampler implements JobExecutionListener {
     /** The verdicts recorded in this process by kind, read at each write without a lock any writer waits on. */
     private final Supplier<Map<String, Long>> recorded;
 
-    /** The verdicts this process has discarded by kind, read as {@link #recorded} is (ADR-375 section 5). */
+    /** The verdicts this process has discarded by kind, read as {@link #recorded} is (ADR-382 section 5). */
     private final Supplier<Map<String, Long>> discarded;
 
     /** Guarded by {@link #writing}: {@link #discarded} when the invocation began. */
@@ -729,17 +729,17 @@ final class JobSampler implements JobExecutionListener {
         return bytes;
     }
 
-    // ---- the stages' charts (ADR-375)
+    // ---- the stages' charts (ADR-382)
 
-    /** The census's own line, whose walk and count of entries the sampler admits beside the counters' lines (ADR-375 section 5). */
+    /** The census's own line, whose walk and count of entries the sampler admits beside the counters' lines (ADR-382 section 5). */
     private static final Pattern CENSUS_LINE = Pattern.compile(
             "Stage 0 \\(census\\): ([0-9,]+) entries walked so far, [0-9,]+ directories entered, under walk ([0-9]+)");
 
-    /** The file format of a stage's chart, raised by a change that breaks a reader (ADR-375 section 4). */
+    /** The file format of a stage's chart, raised by a change that breaks a reader (ADR-382 section 4). */
     private static final long CHART_FORMAT = 1;
 
     /**
-     * The name the census's key bears in a chart's file, the identity it is kept under (ADR-375 section 4); taken from
+     * The name the census's key bears in a chart's file, the identity it is kept under (ADR-382 section 4); taken from
      * the identity's type, as a text of this class that is the whole of a table's name is read as naming that table
      * ({@code EachTableIsNamedOnlyByItsOwnerTest}).
      */
@@ -748,7 +748,7 @@ final class JobSampler implements JobExecutionListener {
     private static final JsonMapper CHART_JSON = JsonMapper.builder().build();
 
     /**
-     * A stage as its chart sees it (ADR-375 section 2, 4): its number, its steps in job order, the run stages it works
+     * A stage as its chart sees it (ADR-382 section 2, 4): its number, its steps in job order, the run stages it works
      * under, whose runs key its chart, and the kinds of verdict it records, in {@code VerdictKind}'s order.
      */
     private record StageOfChart(String number, List<String> steps, List<String> runStages, List<String> kinds) {}
@@ -806,7 +806,7 @@ final class JobSampler implements JobExecutionListener {
     private boolean chartsWarned;
 
     /**
-     * Takes, at one reading, the samples of the stages' charts and writes the files that changed (ADR-375 section 4 to
+     * Takes, at one reading, the samples of the stages' charts and writes the files that changed (ADR-382 section 4 to
      * 7): a chart not frozen takes a sample at a reading at which a step of its stage runs, at the one at which it
      * freezes and at the last where a step of its stage ran; a frozen chart is never written again under its key; a
      * new key starts the chart afresh and empties the files of the stages after it. A file that cannot be written is
@@ -875,7 +875,7 @@ final class JobSampler implements JobExecutionListener {
         }
         writeTheChart(stage, chart);
         if (fresh) {
-            // a later stage's run names the run before it upstream, so it is new too: its file is emptied (ADR-375 section 7)
+            // a later stage's run names the run before it upstream, so it is new too: its file is emptied (ADR-382 section 7)
             for (StageOfChart later : CHART_STAGES.subList(at + 1, CHART_STAGES.size())) {
                 KeptChart emptied = keptChart(later);
                 if (emptied.key.isEmpty() && emptied.finishedAt == null && emptied.points.isEmpty()) {
@@ -919,7 +919,7 @@ final class JobSampler implements JobExecutionListener {
         return key;
     }
 
-    /** One sample of a chart (ADR-375 section 5): the count done, each kind's count standing, and the chart's own second. */
+    /** One sample of a chart (ADR-382 section 5): the count done, each kind's count standing, and the chart's own second. */
     private void takeASample(
             StageOfChart stage, KeptChart chart, InvocationRuns runs, Instant now, Map<String, Long> nowRecorded,
             Map<String, Long> nowDiscarded) {
@@ -1042,7 +1042,7 @@ final class JobSampler implements JobExecutionListener {
         }
     }
 
-    /** Writes the stage's file whole, to a temporary file moved over it as the report is (ADR-375 section 4). */
+    /** Writes the stage's file whole, to a temporary file moved over it as the report is (ADR-382 section 4). */
     private void writeTheChart(StageOfChart stage, KeptChart chart) throws IOException {
         List<Object> lines = new ArrayList<>();
         if (!chart.key.isEmpty()) {
@@ -1097,7 +1097,7 @@ final class JobSampler implements JobExecutionListener {
             JobExecution job = jobExecution;
             Matcher census = message == null ? null : CENSUS_LINE.matcher(message);
             if (census != null && census.matches()) {
-                // the census's own line, of the corpus root's walk or the seed folder's, by the walk it names (ADR-375 section 5)
+                // the census's own line, of the corpus root's walk or the seed folder's, by the walk it names (ADR-382 section 5)
                 long walk = Long.parseLong(census.group(2));
                 entriesWalked.put(walk, Long.parseLong(census.group(1).replace(",", "")));
                 firstWalkNamed.compareAndSet(null, walk);

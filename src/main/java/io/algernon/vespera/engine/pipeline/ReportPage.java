@@ -37,7 +37,7 @@ final class ReportPage {
      * The stylesheet every report page shares. One copy, so the look of the reports changes in one
      * place rather than six; the union of what the six pages used, so none lost a rule it relied on.
      *
-     * <p>Contract (ADR-373): drawn dark and only dark, whatever the system's setting or the control panel's
+     * <p>Contract (ADR-380): drawn dark and only dark, whatever the system's setting or the control panel's
      * theme. One {@code :root} rule declares {@code color-scheme: dark} and every colour; no other rule writes one,
      * each draws through {@code var(--...)}.
      */

@@ -8,7 +8,7 @@
 
 > **Partly amended — see [ADR-364](0364-the-output-panel-is-copyable-text-of-the-whole-output-from-a-file-of-its-own-and-every-text-of-the-window-is-copyable.md).** Of §2: `EntryPoint.main` has a fourth branch: where the first argument it would pass on to `VesperaApplication.main` is `serve`, it hands that argument's followers to `ServeCommand` itself, with `System.out` and `System.err`, and exits with its code; `EntryPoint` is the one class of the jar that names either stream. The other branches stand. The rest of this record stands.
 
-> **Partly amended — see [ADR-372](0372-the-control-panels-window-has-a-light-and-a-dark-theme-switched-in-its-header-and-kept-beside-the-launch-values.md).** Of §3: the one stylesheet holds each colour token twice, the light set under `.root` and the dark under `.root.dark` and `.dark-dialog`, chosen by the style class `dark` on the window's root or `dark-dialog` on a dialog's pane, and a dialog's pane is given the window's stylesheet; no class sets a style of its own still. The rest of this record stands.
+> **Partly amended — see [ADR-379](0379-the-control-panels-window-has-a-light-and-a-dark-theme-switched-in-its-header-and-kept-beside-the-launch-values.md).** Of §3: the one stylesheet holds each colour token twice, the light set under `.root` and the dark under `.root.dark` and `.dark-dialog`, chosen by the style class `dark` on the window's root or `dark-dialog` on a dialog's pane, and a dialog's pane is given the window's stylesheet; no class sets a style of its own still. The rest of this record stands.
 
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.

@@ -60,7 +60,7 @@ class InvocationRuns {
     /** Where the count of clusters standing without writing is handed to the account (ADR-319 §5.2). */
     private static final String CLUSTERS_STANDING = "vespera.generation.clusters-standing-without-writing";
 
-    /** Where the corpus root's walk is handed to the job; outside {@link #KEY_PREFIX}, which {@link #all} reads as runs (ADR-375 §7). */
+    /** Where the corpus root's walk is handed to the job; outside {@link #KEY_PREFIX}, which {@link #all} reads as runs (ADR-382 §7). */
     private static final String CORPUS_WALK = "vespera.invocation-walk.corpus";
 
     private final ExecutionContext executionContext;
@@ -76,7 +76,7 @@ class InvocationRuns {
 
     /**
      * Records {@code walkId} as the walk of the corpus root that the census walked or continued, which the job keeps
-     * stage 0's chart under (ADR-375 §7). Written by the census once the corpus root's walk is done.
+     * stage 0's chart under (ADR-382 §7). Written by the census once the corpus root's walk is done.
      */
     void recordCorpusWalk(WalkId walkId) {
         executionContext.putLong(CORPUS_WALK, walkId.value());

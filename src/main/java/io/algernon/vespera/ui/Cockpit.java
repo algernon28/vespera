@@ -41,7 +41,7 @@ import javafx.util.Duration;
 
 /**
  * The control panel's window as one cockpit (ADR-344 §1): Run and Stop, the job's steps as a bar each beside the
- * child's output, a chart for each stage in two rows (ADR-375), the Profile and Inclusions tabs and a sidebar of seven
+ * child's output, a chart for each stage in two rows (ADR-382), the Profile and Inclusions tabs and a sidebar of seven
  * sections in their order. Every part is found by its id. The cockpit reads and writes only through the {@link ControlPanelState}
  * it is given, and reads the sources its fields start from from that state (ADR-344 §3), so a cockpit a test draws
  * starts from what the test gives it. Every colour, size and space is the stylesheet's; no node here sets a style.
@@ -547,7 +547,7 @@ final class Cockpit {
     /**
      * Reads the eight files the jar keeps the stages' charts in, at the top of the working directory, and draws each
      * chart from its file: as the window opens, whenever another working directory is named and at each reading of
-     * the report (ADR-375 §4). A file not there, not readable, not that JSON or of another format leaves its chart
+     * the report (ADR-382 §4). A file not there, not readable, not that JSON or of another format leaves its chart
      * empty under its title, and nothing is said.
      */
     private void readStageCharts() {
@@ -571,7 +571,7 @@ final class Cockpit {
 
     /**
      * Writes the sum of the database file and its write-ahead log in the working directory, each read by a file system
-     * call and never opened, as {@code AnalysisReportView.bytes} writes a size (ADR-375 §3); {@code none yet} where
+     * call and never opened, as {@code AnalysisReportView.bytes} writes a size (ADR-382 §3); {@code none yet} where
      * neither is there.
      */
     private void showDatabaseSize() {

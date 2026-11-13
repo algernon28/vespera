@@ -1,4 +1,4 @@
-/* The website's theme (ADR-333 section 3, ADR-373): ours, shipped inside the website, with no font, image or sheet
+/* The website's theme (ADR-333 section 3, ADR-380): ours, shipped inside the website, with no font, image or sheet
    fetched from anywhere. Dark alone, whatever the reader's preferred colour scheme; a narrow window takes one
    column. */
 :root {

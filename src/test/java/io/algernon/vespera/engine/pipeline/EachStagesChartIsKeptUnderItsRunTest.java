@@ -39,7 +39,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The chart of each stage is kept by the job in a file of its own beside the report, under the run its stage works
- * under (ADR-375 §4 to §7): continued by a later invocation under that run, frozen once its stage has finished and
+ * under (ADR-382 §4 to §7): continued by a later invocation under that run, frozen once its stage has finished and
  * never written again under it, and started afresh by a new run, the charts of the stages after it emptied with it.
  *
  * <p>The job's listener is driven as Spring Batch drives it, with executions built by hand on a fixed clock, as the
@@ -51,7 +51,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("794")
-@Link(name = "ADR-375", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
+@Link(name = "ADR-382", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
 class EachStagesChartIsKeptUnderItsRunTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();

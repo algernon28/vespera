@@ -2,7 +2,7 @@
 
 > **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Its refusal of a template file no longer holds of `report.html`, which `ReportHtml` draws from `report.json` through a Mustache template, the jar's or the one `vespera.report.template` names. `ReportPage` stays the one module of the eleven analysis reports of `pipeline`; the twelfth, `cluster-page-sizes.html`, is drawn by `ClusterPageSizes` of `deliverable` through that module's `Html`, as it is. The rest of this record stands.
 
-> **Partly amended — see [ADR-373](0373-every-html-page-vespera-writes-is-drawn-dark-whatever-the-systems-setting-and-the-control-panels-theme.md).** Of its one stylesheet: `ReportPage`'s shared rules declare `color-scheme: dark` and every colour as a property of one `:root` rule, the ground `#1a1922`, the surface `#25232f`, the text `#ecebf3`, the dim text `#aeaac2`, the rule `#3b3949` and the accent `#b0a6ff`, and every other rule draws through them; no rule follows the reader's colour scheme. The rest of this record stands.
+> **Partly amended — see [ADR-380](0380-every-html-page-vespera-writes-is-drawn-dark-whatever-the-systems-setting-and-the-control-panels-theme.md).** Of its one stylesheet: `ReportPage`'s shared rules declare `color-scheme: dark` and every colour as a property of one `:root` rule, the ground `#1a1922`, the surface `#25232f`, the text `#ecebf3`, the dim text `#aeaac2`, the rule `#3b3949` and the accent `#b0a6ff`, and every other rule draws through them; no rule follows the reader's colour scheme. The rest of this record stands.
 
 - **Date**: 2026-09-19
 - **Status**: accepted

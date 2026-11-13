@@ -25,8 +25,8 @@ import javafx.util.StringConverter;
 
 /**
  * The cockpit's eight charts, one for each stage, in two rows inside a pane that scrolls sideways where the window is
- * narrower than their least width (ADR-375 §1, §8), each drawn from the file the jar keeps for its stage (ADR-375 §4),
- * with the legend and the values of ADR-365; a chart whose stage has finished is drawn frozen (ADR-375 §6). The window
+ * narrower than their least width (ADR-382 §1, §8), each drawn from the file the jar keeps for its stage (ADR-382 §4),
+ * with the legend and the values of ADR-365; a chart whose stage has finished is drawn frozen (ADR-382 §6). The window
  * draws what a file holds and decides none of it.
  */
 final class ProgressCharts extends ScrollPane {
@@ -45,10 +45,10 @@ final class ProgressCharts extends ScrollPane {
             "6a", "6a \u00b7 Arrangement",
             "6b", "6b \u00b7 Generation");
 
-    /** The stages that judge, whose chart draws their verdicts by kind beside their counts (ADR-375 §2). */
+    /** The stages that judge, whose chart draws their verdicts by kind beside their counts (ADR-382 §2). */
     private static final List<String> JUDGING = List.of("1", "2", "4", "5");
 
-    /** The finished-at time of a frozen chart's title, in the machine's zone on the 24-hour clock (ADR-375 §6). */
+    /** The finished-at time of a frozen chart's title, in the machine's zone on the 24-hour clock (ADR-382 §6). */
     private static final DateTimeFormatter HOURS_AND_MINUTES =
             DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT).withZone(ZoneId.systemDefault());
 
@@ -72,7 +72,7 @@ final class ProgressCharts extends ScrollPane {
         setId("stage-charts");
         getStyleClass().add("stage-charts");
         // the rows keep their four charts each and are fitted to the pane's width, scrolling sideways below their
-        // least width, which the charts' own least width gives them (ADR-375 §8)
+        // least width, which the charts' own least width gives them (ADR-382 §8)
         setFitToWidth(true);
         setHbarPolicy(ScrollBarPolicy.AS_NEEDED);
         setVbarPolicy(ScrollBarPolicy.NEVER);
@@ -112,7 +112,7 @@ final class ProgressCharts extends ScrollPane {
         return chart;
     }
 
-    /** The title of a stage's value axis: its counts, and its verdicts too where it judges (ADR-375 §2). */
+    /** The title of a stage's value axis: its counts, and its verdicts too where it judges (ADR-382 §2). */
     private static String axisOf(String stage) {
         return JUDGING.contains(stage) ? "Done and verdicts (count)" : "Done (count)";
     }
@@ -193,8 +193,8 @@ final class ProgressCharts extends ScrollPane {
 
     /**
      * Draws each stage's chart from the file the working directory keeps for it, or empties it, under its title, where
-     * {@code kept} holds none (ADR-375 §4). A chart whose file gives the instant its stage finished is drawn frozen, its
-     * title ending with that time and no sample marked as the latest (ADR-375 §6).
+     * {@code kept} holds none (ADR-382 §4). A chart whose file gives the instant its stage finished is drawn frozen, its
+     * title ending with that time and no sample marked as the latest (ADR-382 §6).
      */
     void show(Map<String, StageChartFile.Chart> kept) {
         for (Map.Entry<String, LineChart<Number, Number>> entry : charts.entrySet()) {

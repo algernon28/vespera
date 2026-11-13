@@ -223,7 +223,7 @@
 }
 
 /*
- * A stage's chart (ADR-375 section 1, 8): 340 px high and at least 250 px wide, so that its title stands on two lines, a
+ * A stage's chart (ADR-382 section 1, 8): 340 px high and at least 250 px wide, so that its title stands on two lines, a
  * legend of six names in three rows and its plot 150 px high; below four of them the rows scroll sideways.
  */
 .progress-chart {
@@ -242,7 +242,7 @@
     -fx-padding: 0;
 }
 
-/* a chart whose stage has finished: its lines and its legend's swatches dimmed, each line thinner (ADR-375 section 6) */
+/* a chart whose stage has finished: its lines and its legend's swatches dimmed, each line thinner (ADR-382 section 6) */
 .progress-chart.frozen .chart-series-line {
     -fx-opacity: 0.85;
     -fx-stroke-width: 1.5px;

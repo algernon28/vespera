@@ -36,7 +36,7 @@ import org.springframework.stereotype.Component;
  * set.
  *
  * <p>Census writes no verdicts, so it mints no run (ADR-048); it hands the job the corpus root's walk, beside the
- * runs the job holds (ADR-375 section 7).
+ * runs the job holds (ADR-382 section 7).
  */
 @Component
 @StepScope
@@ -69,7 +69,7 @@ public class CensusTasklet implements Tasklet {
         // (ADR-064). A corpus root that cannot be walked is still worth knowing the seed set for, and
         // the invocation fails afterwards either way.
         Walked corpus = walkOrCapture(root, codeSetFoldersOf(profile), foldersNotWalkedOf(profile), "the corpus");
-        // the corpus root's walk is handed to the job, which keeps stage 0's chart under it (ADR-375 section 7), before the
+        // the corpus root's walk is handed to the job, which keeps stage 0's chart under it (ADR-382 section 7), before the
         // seed folder's is begun, so that the census's lines name the corpus root's alone until then
         if (corpus.walkId() != null && chunkContext != null) {
             new InvocationRuns(chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext())

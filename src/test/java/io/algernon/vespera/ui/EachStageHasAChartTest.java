@@ -38,18 +38,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * One chart for each stage (ADR-375): eight charts in two rows, stages 0 to 3 above 4 to 6b, that scroll sideways below
+ * One chart for each stage (ADR-382): eight charts in two rows, stages 0 to 3 above 4 to 6b, that scroll sideways below
  * their least width; the database's size a line of the header; and each stage's chart drawn from the file the jar
  * keeps for it in the working directory, frozen where its stage has finished, so that a window opened again draws it
  * as it was.
  *
  * <p>Each window is drawn over a working directory the test fills, as a first start's state names it, on the Headless
- * platform (ADR-342 §6); its parts are found by the ids ADR-375 §1 and §3 give them.
+ * platform (ADR-342 §6); its parts are found by the ids ADR-382 §1 and §3 give them.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("794")
-@Link(name = "ADR-375", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
+@Link(name = "ADR-382", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
 class EachStageHasAChartTest {
 
     /** The stages, in the order their charts stand: the first four in the top row, the last four in the bottom one. */
@@ -337,7 +337,7 @@ class EachStageHasAChartTest {
     // ---- the files
 
     /**
-     * A stage's file as the jar keeps it beside the report (ADR-375 §4): its stage, its key, the instant it finished,
+     * A stage's file as the jar keeps it beside the report (ADR-382 §4): its stage, its key, the instant it finished,
      * or null, and its lines.
      */
     private static String aStagesFile(String stage, String runStage, Instant finishedAt, List<Line> lines) {

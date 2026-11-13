@@ -15,7 +15,7 @@ import javafx.stage.Window;
  *
  * <p>Whenever it moves the root between the themes, every view of the window follows at once, nothing reopened, and so does
  * every popup window showing whose owner is the window, or a popup of it (a tooltip, a context menu): each takes its style
- * afresh, through a style class added to its root and removed again, never a style and never a colour (ADR-374 §1).
+ * afresh, through a style class added to its root and removed again, never a style and never a colour (ADR-381 §1).
  */
 final class ThemeSwitch {
 
@@ -56,7 +56,7 @@ final class ThemeSwitch {
         return themeBox;
     }
 
-    /** Each popup window showing over {@code root}'s window takes its style afresh, from the root as it now is (ADR-374 §1); the root's own style is applied first, since a popup reads its tokens from it. */
+    /** Each popup window showing over {@code root}'s window takes its style afresh, from the root as it now is (ADR-381 §1); the root's own style is applied first, since a popup reads its tokens from it. */
     private static void restylePopups(BorderPane root) {
         Window owner = root.getScene() == null ? null : root.getScene().getWindow();
         if (owner == null) {

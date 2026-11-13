@@ -8,7 +8,7 @@
 
 > **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** `report.html` is drawn through a Mustache template from `report.json`, so §4's SVG written in Java with no template engine no longer holds of it; the tiles, timeline and charts of §1 and §2 are drawn there from the jar's numbers; §3's two pages go, each chart's values and the steps being tables beneath their drawings (§7); §5's script goes, the window marking a report stale; and §6's label page is the report's. The rest of this record stands.
 
-> **Partly amended — see [ADR-373](0373-every-html-page-vespera-writes-is-drawn-dark-whatever-the-systems-setting-and-the-control-panels-theme.md).** Of §4: the stylesheet holds one set of colours, dark, under `:root` with `color-scheme: dark`, and none under `@media (prefers-color-scheme: dark)`; `report.html` follows no scheme of the browser's. The rest of this record stands.
+> **Partly amended — see [ADR-380](0380-every-html-page-vespera-writes-is-drawn-dark-whatever-the-systems-setting-and-the-control-panels-theme.md).** Of §4: the stylesheet holds one set of colours, dark, under `:root` with `color-scheme: dark`, and none under `@media (prefers-color-scheme: dark)`; `report.html` follows no scheme of the browser's. The rest of this record stands.
 
 - **Date**: 2026-10-16
 - **Status**: accepted on 2026-10-16.

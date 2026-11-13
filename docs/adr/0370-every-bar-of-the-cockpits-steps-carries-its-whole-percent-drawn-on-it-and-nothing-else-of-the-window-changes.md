@@ -1,6 +1,6 @@
 # ADR-370 — Every bar of the cockpit's steps carries its whole percent drawn on it, and nothing else of the window changes
 
-> **Partly amended — see [ADR-374](0374-every-view-inside-the-control-panels-window-follows-its-light-and-dark-switch-at-once-its-popups-included.md).** Of §4 and What this does not decide: a bar's fill is `-vespera-accent` and its track's inside `-vespera-surface`, the colour of the percent's halo, so that the percent stands on its halo against the fill and on the track's own colour against the rest, in both themes. The rest of this record stands.
+> **Partly amended — see [ADR-381](0381-every-view-inside-the-control-panels-window-follows-its-light-and-dark-switch-at-once-its-popups-included.md).** Of §4 and What this does not decide: a bar's fill is `-vespera-accent` and its track's inside `-vespera-surface`, the colour of the percent's halo, so that the percent stands on its halo against the fill and on the track's own colour against the rest, in both themes. The rest of this record stands.
 
 - **Date**: 2026-11-10
 - **Status**: accepted on 2026-11-10.

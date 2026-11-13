@@ -14,7 +14,7 @@ public final class Html {
 
     /**
      * {@code ReportPage}'s shared rules (font, margins, table and cell borders), and a picture held to its page.
-     * Contract (ADR-373): drawn dark and only dark, whatever the system's setting or the control panel's theme; one
+     * Contract (ADR-380): drawn dark and only dark, whatever the system's setting or the control panel's theme; one
      * {@code :root} rule declares {@code color-scheme: dark} and every colour, and no other rule writes one.
      */
     private static final String STYLES = ":root { color-scheme: dark; --ground: #1a1922; --surface: #25232f; --ink: #ecebf3; --dim: #aeaac2; --rule: #3b3949; --accent: #b0a6ff; }\n"
@@ -41,7 +41,7 @@ public final class Html {
 
     /**
      * Everything of a page before its body: the document type, the language the page names (ADR-321 §4), the character
-     * set, the title and the stylesheet, which draws the page dark alone (ADR-373).
+     * set, the title and the stylesheet, which draws the page dark alone (ADR-380).
      */
     static String head(String title, DeliverableLanguage language) {
         return "<!DOCTYPE html>\n<html lang=\"" + language.code() + "\">\n<head>\n<meta charset=\"UTF-8\">\n<title>" + escape(title)

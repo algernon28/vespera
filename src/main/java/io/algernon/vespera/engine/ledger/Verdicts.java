@@ -84,7 +84,7 @@ public class Verdicts {
 
     private final Map<VerdictKind, AtomicLong> recorded = new EnumMap<>(VerdictKind.class);
 
-    /** The verdicts this process has deleted, by kind, each discard counting the rows it deletes (ADR-375 §5). */
+    /** The verdicts this process has deleted, by kind, each discard counting the rows it deletes (ADR-382 §5). */
     private final Map<VerdictKind, AtomicLong> discarded = new EnumMap<>(VerdictKind.class);
 
     private final ThreadLocal<Boolean> countingAtInsert = new ThreadLocal<>();
@@ -108,7 +108,7 @@ public class Verdicts {
         if (kinds.length == 0) {
             return;
         }
-        // one delete for each kind, so that the rows each deletes are counted under it (ADR-375 §5)
+        // one delete for each kind, so that the rows each deletes are counted under it (ADR-382 §5)
         for (VerdictKind kind : kinds) {
             discarded.get(kind).addAndGet(
                     jdbcTemplate.update("DELETE FROM verdict WHERE run_id = ? AND kind = ?", runId.value(), kind.name()));
@@ -237,7 +237,7 @@ public class Verdicts {
 
     /**
      * How many verdicts of each blocking kind this process has deleted, by the kind's name and in the order of
-     * {@link #recorded}, held in memory as {@code recorded} is so that a reading makes no query (ADR-375 §5): each
+     * {@link #recorded}, held in memory as {@code recorded} is so that a reading makes no query (ADR-382 §5): each
      * discard counts the rows it deletes, so that a step that discards its run's verdicts and records them again is
      * counted once.
      */
