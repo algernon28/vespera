@@ -171,7 +171,7 @@ class ChildCommandTest {
     }
 
     /**
-     * In the window, the Profile tab is the one source of a publish's four plain values, and the token typed the one
+     * In the window, the Profile window is the one source of a publish's four plain values, and the token typed the one
      * token (ADR-359 §3): a publish's child inherits no variable whose name, in any case, begins with {@code
      * VESPERA_CONFLUENCE_}, as it inherits none of the eight naming the working directory (ADR-340 §6).
      */

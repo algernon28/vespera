@@ -67,7 +67,7 @@ class TheAnalysisReportsOpenNativelyTest {
     private static final String FILES_COUNTED = "51732300";
 
     /** The tabs the window opens with, before any report is opened. */
-    private static final List<String> THE_FORM_TABS = List.of("live-report", "profile", "inclusions");
+    private static final List<String> THE_FORM_TABS = List.of("live-report", "inclusions");
 
     private static final String THE_TAB = "analysis-report-" + THE_REPORT;
 
@@ -101,8 +101,8 @@ class TheAnalysisReportsOpenNativelyTest {
             handed = List.copyOf(window.dialogs.handed);
         }
 
-        claim("the report's tab is the fourth, after the three the window opens with, by the new id",
-                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", THE_TAB));
+        claim("the report's tab is the third, after the two the window opens with, by the new id",
+                () -> assertThat(tabs).containsExactly("live-report", "inclusions", THE_TAB));
         claim("it is selected",
                 () -> assertThat(opened).hasValueSatisfying(each -> {
                     assertThat(each.selected()).isTrue();

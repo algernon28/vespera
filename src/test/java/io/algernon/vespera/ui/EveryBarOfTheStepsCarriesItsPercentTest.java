@@ -380,6 +380,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
     @DisplayName("Every text of the window, and every line, swatch and marker of its charts, stands at WCAG AA in the light and the dark theme")
     @Link(name = "ADR-374", url = Adr.EVERY_TEXT_LINE_AND_MARKER_OF_THE_WINDOW_STANDS_AT_AA_IN_BOTH_THEMES, type = "adr")
     @Link(name = "ADR-382", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
+    @Link(name = "ADR-388", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
     void everyTextOfTheWindowAndEveryMarkOfItsChartsStandsAtAaInBothThemes(@TempDir Path folder) throws Exception {
         Map<String, String> faults = new LinkedHashMap<>();
         int[] measured = new int[3];
@@ -402,6 +403,10 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                         keptOncePerPair(faults, window.read(root -> faultsIn(root,
                                 theme + ", " + drawing + ", " + tab + " tab", measured)));
                     }
+                    // the profile's form is a window of its own, which follows the switch (ADR-388 §7)
+                    window.openProfile();
+                    keptOncePerPair(faults, window.readProfile(root -> faultsIn(root,
+                            theme + ", " + drawing + ", the profile window", measured)));
                 }
             }
         }
@@ -411,9 +416,9 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                 () -> assertThat(measured).as("texts measured, chart marks measured, dimmed chart marks measured")
                         .doesNotContain(0));
         claim("in the light theme and in the dark, with each section of the sidebar open in turn and each tab selected in"
-                        + " turn, the chart of stage 0 drawing one line, of stage 1 six and of stage 2 three, stage 1"
-                        + " running and then finished, every text shown, not disabled and not drawn transparent stands at"
-                        + " 4.5 : 1 or more against what is drawn behind it,"
+                        + " turn and the profile window open, the chart of stage 0 drawing one line, of stage 1 six and"
+                        + " of stage 2 three, stage 1 running and then finished, every text shown, not disabled and not"
+                        + " drawn transparent stands at 4.5 : 1 or more against what is drawn behind it,"
                         + " and every line, legend swatch and marked sample of the charts, a finished stage's dimmed"
                         + " ones as dimmed as they are drawn, at 3 : 1 or more against the chart's plot or its legend,"
                         + " WCAG AA",
@@ -514,7 +519,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                 .filter(id -> id != null).toList();
     }
 
-    /** Selects the tab {@code id} of the pane the Profile tab stands in. */
+    /** Selects the tab {@code id} of the pane the Inclusions tab stands in. */
     private static void select(Parent root, String id) {
         javafx.scene.control.Tab tab = HeadlessToolkit.tabWithId(root, id).orElseThrow();
         tab.getTabPane().getSelectionModel().select(tab);

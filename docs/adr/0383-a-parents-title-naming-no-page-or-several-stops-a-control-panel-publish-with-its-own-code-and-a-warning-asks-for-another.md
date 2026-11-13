@@ -1,5 +1,7 @@
 # ADR-383 — A parent's title naming no page or several stops a control panel publish with its own code, and a warning asks for another
 
+> **Partly amended — see [ADR-388](0388-the-profile-is-edited-in-a-window-of-its-own-opened-from-the-first-section-of-the-sidebar.md).** Of §1: the two lines name the control panel's Profile window, not its Profile tab. Of §3: the two sentences say the title is saved as `confluenceFolderTitle` in the Profile window. Of §5: the line says to name the parent in the Profile window. The rest of this record stands.
+
 - **Date**: 2026-11-12
 - **Status**: accepted on 2026-11-12.
 - **Decided**: by the operator, on 2026-11-12: that where a publish the control panel started stops because the parent's title names no page or folder of the space, or several, the window opens a warning asking for a different title. Under the operator's delegation of the same date, Claude decided the rest, choosing in each the simplest design consistent with ADR-359 and ADR-372: how the window knows the stop, by an exit code of its own and not by the words of a line, and the child's line, naming the profile's keys and the Profile tab (§1); the warning's words and its field (§3); what a title entered does, the token asked for again (§4); what Cancel does (§5); and where each part lives (§6).

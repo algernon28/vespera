@@ -7,12 +7,15 @@ import java.nio.file.Path;
 /**
  * Jars whose main class prints a line and then a report line, and either ends with exit code 1 ({@link #refusing()},
  * an invocation refused before it wrote a report) or sleeps until it is killed ({@link #printing()}, one that Stop
- * ends). Each is written once for the test JVM, as {@link SleepingJar} is and for the same reason.
+ * ends); and one whose main class prints a publish's refusal naming the control panel's Profile window and ends with
+ * exit code 1 ({@link #refusedPublish()}). Each is written once for the test JVM, as {@link SleepingJar} is and for
+ * the same reason.
  */
 final class PrintingJars {
 
     private static Path refusing;
     private static Path printing;
+    private static Path refusedPublish;
 
     private PrintingJars() {
     }
@@ -23,6 +26,10 @@ final class PrintingJars {
 
     static ChildRuntime printing() throws IOException {
         return new ChildRuntime(theJava(), printingJar());
+    }
+
+    static ChildRuntime refusedPublish() throws IOException {
+        return new ChildRuntime(theJava(), refusedPublishJar());
     }
 
     private static Path theJava() {
@@ -42,6 +49,13 @@ final class PrintingJars {
             printing = written("printing.jar", APrintingChildForTests.class);
         }
         return printing;
+    }
+
+    private static synchronized Path refusedPublishJar() throws IOException {
+        if (refusedPublish == null) {
+            refusedPublish = written("refused-publish.jar", ARefusedPublishChildForTests.class);
+        }
+        return refusedPublish;
     }
 
     private static Path written(String name, Class<?> main) throws IOException {

@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-383](0383-a-parents-title-naming-no-page-or-several-stops-a-control-panel-publish-with-its-own-code-and-a-warning-asks-for-another.md).** Of *What this does not decide*: started by the control panel, a parent's title naming no page or folder, or several, stops the publish naming `confluenceFolderTitle`, `confluenceFolderId` and the Profile tab, exit 3 or 4, and the window warns, asking for a different title, which it saves and publishes to. The rest stands.
 
+> **Partly amended — see [ADR-388](0388-the-profile-is-edited-in-a-window-of-its-own-opened-from-the-first-section-of-the-sidebar.md).** Of §1: the two lines end *"in the control panel's Profile window, and publish again."*, not its Profile tab. The rest of this record stands.
+
 - **Date**: 2026-11-11
 - **Status**: accepted on 2026-11-11.
 - **Decided**: by the operator, in [#797](https://github.com/algernon28/vespera/issues/797): that where `VESPERA_STARTED_BY=control-panel`, the refusal of a parent named both by its id and by its title, and the refusal of an address that is not the `https` address of a Confluence Cloud site, name the profile's keys and the control panel's Profile tab, as the refusal of a missing value does, and name no `VESPERA_CONFLUENCE_*` variable; and that a publish typed on the command line keeps both lines as they are. The words of the two lines, which #797 gives as its examples, are taken as they stand under delegation.

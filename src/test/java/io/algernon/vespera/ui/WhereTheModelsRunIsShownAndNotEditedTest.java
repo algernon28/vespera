@@ -22,20 +22,20 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Where the models run is shown on the Profile tab and cannot be changed there (ADR-384 §7): its row's control shows
+ * Where the models run is shown in the Profile window and cannot be changed there (ADR-384 §7, ADR-388 §2): its row's control shows
  * the value, {@code local} where {@code profile.yaml} states none, and is disabled; the pane holding it, which is not,
- * carries the tooltip, since JavaFX shows none over a disabled control; and a Save of the tab writes nothing of it, so a
+ * carries the tooltip, since JavaFX shows none over a disabled control; and a Save of the form writes nothing of it, so a
  * file holding the key as the jar comments it out is left byte for byte as it was.
  *
  * <p>The file is written as the jar writes it while the key is unset: the key commented out in its place, beside one
- * value of another key. The ids are the row's as the Profile tab gives them, {@code profile-} before the key.
+ * value of another key. The ids are the row's as the Profile window gives them, {@code profile-} before the key.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Link(name = "ADR-384", url = Adr.WHETHER_THE_MODELS_RUN_LOCALLY_OR_IN_THE_CLOUD_IS_THE_PROFILES_TO_SAY, type = "adr")
 class WhereTheModelsRunIsShownAndNotEditedTest {
 
-    /** The row's control, by the id the Profile tab gives it. */
+    /** The row's control, by the id the Profile window gives it. */
     private static final String THE_CONTROL = "profile-modelsRunOn";
 
     /** The pane holding the control, which carries its tooltip. */
@@ -60,7 +60,7 @@ class WhereTheModelsRunIsShownAndNotEditedTest {
 
     @Test
     @Story("Where the models run is the operator's to say")
-    @DisplayName("Where the models run shows local, greyed out with a tooltip saying cloud is not supported yet, and a Save of the Profile tab leaves the file as it was")
+    @DisplayName("Where the models run shows local, greyed out with a tooltip saying cloud is not supported yet, and a Save of the profile window leaves the file as it was")
     void theRowShowsItsValueGreyedOutAndASaveWritesNothingOfIt(@TempDir Path folder) throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
         Path corpus = Files.createDirectories(folder.resolve("corpus"));
@@ -74,19 +74,20 @@ class WhereTheModelsRunIsShownAndNotEditedTest {
         Shown shown;
         String outcome;
         try (WindowForTests window = WindowForTests.shown(state)) {
-            shown = window.awaiting(root -> HeadlessToolkit.nodeWithId(root, THE_CONTROL).map(control -> {
+            window.openProfile();
+            shown = window.readProfile(root -> HeadlessToolkit.nodeWithId(root, THE_CONTROL).map(control -> {
                 Node holder = WindowForTests.node(root, ITS_HOLDER, Node.class);
                 Object value = control instanceof ComboBox<?> box ? box.getValue() : null;
                 Optional<String> tooltip = holder.getProperties().get(TOOLTIP_KEY) instanceof Tooltip said
                         ? Optional.ofNullable(said.getText())
                         : Optional.empty();
                 return new Shown(control.isDisabled(), value, holder.isDisabled(), tooltip);
-            }).orElse(null), drawn -> drawn != null);
-            window.act(root -> WindowForTests.node(root, "profile-save", Button.class).fire());
-            outcome = window.read(root -> WindowForTests.node(root, "profile-outcome", TextInputControl.class).getText());
+            }).orElse(null));
+            window.actOnProfile(root -> WindowForTests.node(root, "profile-save", Button.class).fire());
+            outcome = window.readProfile(root -> WindowForTests.node(root, "profile-outcome", TextInputControl.class).getText());
         }
 
-        claim("the Profile tab draws the row's control", () -> assertThat(shown).isNotNull());
+        claim("the Profile window draws the row's control", () -> assertThat(shown).isNotNull());
         claim("the control shows " + LOCAL + ", the value in use where the file states none, and cannot be changed",
                 () -> {
                     assertThat(shown.value()).isEqualTo(LOCAL);
@@ -98,7 +99,7 @@ class WhereTheModelsRunIsShownAndNotEditedTest {
                     assertThat(shown.holderDisabled()).isFalse();
                     assertThat(shown.tooltip()).contains(NOT_SUPPORTED_YET);
                 });
-        claim("a Save of the tab said something, so it ran", () -> assertThat(outcome).isNotBlank());
+        claim("a Save of the form said something, so it ran", () -> assertThat(outcome).isNotBlank());
         claim("and the file is byte for byte as it was, the key still commented out",
                 () -> assertThat(Files.readAllBytes(profile)).isEqualTo(asWritten));
     }

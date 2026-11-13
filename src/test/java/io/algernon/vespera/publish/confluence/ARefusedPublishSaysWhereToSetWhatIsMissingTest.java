@@ -25,10 +25,10 @@ import org.springframework.http.client.ClientHttpRequestFactory;
  * What a publish missing a value says, and what it writes (ADR-359 §4). Typed on the command line it says what it said
  * before, naming each variable missing and pointing at the templates it writes into the working directory, a value the
  * profile names not being missing (ADR-308 §3, ADR-318 §3). Started by the control panel, which tells its child so by
- * {@code VESPERA_STARTED_BY=control-panel}, it writes no template, and names each value missing by its key on the
- * control panel's Profile tab. Its two other refusals of what it read, a parent named twice and an address that is not
- * a Cloud site's, name the profile's keys and the Profile tab there too, and on the command line say what they said
- * before (ADR-372); those two are read through {@link ConfluenceSite#of}, the line it refuses with.
+ * {@code VESPERA_STARTED_BY=control-panel}, it writes no template, and names each value missing by its key and the
+ * control panel's Profile window. Its two other refusals of what it read, a parent named twice and an address that is
+ * not a Cloud site's, name the profile's keys and the Profile window there too, and on the command line say what they
+ * said before (ADR-372, ADR-388 §6); those two are read through {@link ConfluenceSite#of}, the line it refuses with.
  *
  * <p>Each publish is refused before it reads the rendering or sends anything, so none is drawn, and the request
  * factory and the pause fail a test that reaches them. Untagged: nothing is sent (ADR-320 §6).
@@ -39,6 +39,7 @@ import org.springframework.http.client.ClientHttpRequestFactory;
 @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
 @Link(name = "ADR-318", url = Adr.THE_PUBLISH_READS_THE_EMAIL_AND_THE_FOLDER_BY_THEIR_NEW_NAMES, type = "adr")
 @Link(name = "ADR-372", url = Adr.THE_CONTROL_PANELS_PUBLISH_NAMES_THE_PROFILE_KEYS_FOR_A_PARENT_NAMED_TWICE_OR_A_WRONG_ADDRESS, type = "adr")
+@Link(name = "ADR-388", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
 class ARefusedPublishSaysWhereToSetWhatIsMissingTest {
 
     /** The variable by which the control panel tells the child it started it, and its one value (ADR-359 §3). */
@@ -64,15 +65,19 @@ class ARefusedPublishSaysWhereToSetWhatIsMissingTest {
 
     private static final String FOLDER_TITLE = "Hand-overs";
 
-    /** The refusal of a parent named twice, started by the control panel (ADR-372 §1). */
+    /** The refusal of two keys missing, the space's and the email's, started by the control panel (ADR-388 §6). */
+    private static final String PANEL_SPACE_AND_EMAIL_MISSING = "vespera publish sent nothing: confluenceSpaceKey,"
+            + " confluenceEmail are not set. Set each key in the control panel's Profile window, and publish again.";
+
+    /** The refusal of a parent named twice, started by the control panel (ADR-372 §1, ADR-388 §6). */
     private static final String PANEL_PARENT_NAMED_TWICE = "vespera publish sent nothing: the parent is named both by"
-            + " confluenceFolderId and by confluenceFolderTitle. Clear one in the control panel's Profile tab, and"
+            + " confluenceFolderId and by confluenceFolderTitle. Clear one in the control panel's Profile window, and"
             + " publish again.";
 
-    /** The refusal of an address that is not a Cloud site's, started by the control panel (ADR-372 §1). */
+    /** The refusal of an address that is not a Cloud site's, started by the control panel (ADR-372 §1, ADR-388 §6). */
     private static final String PANEL_NOT_A_SITE = "vespera publish sent nothing: confluenceBaseUrl is not the https"
             + " address of a Confluence Cloud site, https://<site> or https://<site>/wiki, with no user, query or other"
-            + " path. Correct it in the control panel's Profile tab, and publish again.";
+            + " path. Correct it in the control panel's Profile window, and publish again.";
 
     /** The refusal of a parent named twice, typed on the command line, as ADR-318 §3 has it (ADR-372 §2). */
     private static final String SHELL_PARENT_NAMED_TWICE = "vespera publish sent nothing: the parent is named both by"
@@ -85,8 +90,8 @@ class ARefusedPublishSaysWhereToSetWhatIsMissingTest {
 
     @Test
     @Story("A publish missing a value says where to set it")
-    @DisplayName("Started by the control panel, a publish missing values names their keys on the Profile tab, names no variable and no template, and writes nothing in the working directory")
-    void fromTheControlPanelTheRefusalNamesTheProfileTabsKeysAndWritesNoTemplate(@TempDir Path folder)
+    @DisplayName("Started by the control panel, a publish missing values names their keys and the profile window, names no variable and no template, and writes nothing in the working directory")
+    void fromTheControlPanelTheRefusalNamesTheProfileWindowsKeysAndWritesNoTemplate(@TempDir Path folder)
             throws IOException {
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
         ConfluenceValues siteAndFolder = new ConfluenceValues(SITE, null, null, "Hand-overs", null);
@@ -102,13 +107,9 @@ class ARefusedPublishSaysWhereToSetWhatIsMissingTest {
 
         claim("both publishes are refused",
                 () -> assertThat(List.of(noSpaceNoEmail.published(), noToken.published())).containsExactly(false, false));
-        claim("the first names the space key and the email by their keys on the Profile tab, and no value the profile"
-                        + " named",
-                () -> {
-                    assertThat(noSpaceNoEmail.closingLine()).contains("confluenceSpaceKey", "confluenceEmail",
-                            "Profile tab");
-                    assertThat(noSpaceNoEmail.closingLine()).doesNotContain("confluenceBaseUrl", "confluenceFolder");
-                });
+        claim("the first names the space key and the email by their keys, and no value the profile named, and says to"
+                        + " set each in the control panel's Profile window",
+                () -> assertThat(noSpaceNoEmail.closingLine()).isEqualTo(PANEL_SPACE_AND_EMAIL_MISSING));
         claim("the second says the API token Publish asks for is missing",
                 () -> assertThat(noToken.closingLine()).contains("API token"));
         claim("neither names a variable of the shell or a template",
@@ -124,7 +125,7 @@ class ARefusedPublishSaysWhereToSetWhatIsMissingTest {
 
     @Test
     @Story("A publish missing a value says where to set it")
-    @DisplayName("Started by the control panel, a parent named by both its id and its title, and an address that is not https, are each refused naming the profile's keys and the Profile tab, and no variable of the shell")
+    @DisplayName("Started by the control panel, a parent named by both its id and its title, and an address that is not https, are each refused naming the profile's keys and the profile window, and no variable of the shell")
     void fromTheControlPanelAParentNamedTwiceAndAnAddressNotASitesNameTheProfilesKeys() {
         Map<String, String> fromThePanel = Map.of(ConfluenceSite.TOKEN_VARIABLE, TOKEN, STARTED_BY_VARIABLE,
                 THE_CONTROL_PANEL);
@@ -135,9 +136,9 @@ class ARefusedPublishSaysWhereToSetWhatIsMissingTest {
         ConfluenceSite.Read wrongAddress = ConfluenceSite.of(fromThePanel::get, "", "", "", "", notASite);
 
         claim("a profile naming the parent by both its folder id and its folder title is refused naming both keys and"
-                        + " the Profile tab, and no variable of the shell",
+                        + " the Profile window, and no variable of the shell",
                 () -> assertThat(twice).isEqualTo(new ConfluenceSite.Read.Refused(PANEL_PARENT_NAMED_TWICE)));
-        claim("a profile naming an http address is refused naming the address's key and the Profile tab, and no"
+        claim("a profile naming an http address is refused naming the address's key and the Profile window, and no"
                         + " variable of the shell",
                 () -> assertThat(wrongAddress).isEqualTo(new ConfluenceSite.Read.Refused(PANEL_NOT_A_SITE)));
     }

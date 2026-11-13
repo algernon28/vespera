@@ -95,8 +95,8 @@ class TheLiveReportTest {
             seen = window.awaiting(TheLiveReportTest::seenOf, each -> !each.closing().isEmpty());
         }
 
-        claim("the Report tab, live-report, is the first of the tabs, ahead of Profile and Inclusions",
-                () -> assertThat(seen.tabs()).containsExactly("live-report", "profile", "inclusions"));
+        claim("the Report tab, live-report, is the first of the tabs, ahead of Inclusions",
+                () -> assertThat(seen.tabs()).containsExactly("live-report", "inclusions"));
         claim("and it cannot be closed", () -> assertThat(seen.closable()).isFalse());
         claim("the gate shows the step stopped at it, the profile key whose absence shut it and the report that key is"
                         + " read off",

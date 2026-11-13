@@ -2785,6 +2785,17 @@ public final class Adr {
     public static final String A_STEP_STILL_RUNNING_IN_THE_REPORT_OF_A_CHILD_THAT_ENDED_IS_DRAWN_STOPPED_OR_FAILED =
             FILE + "0387-a-step-still-running-in-the-report-of-a-child-that-ended-is-drawn-stopped-or-failed.md";
 
+    /**
+     * ADR-388 -- the profile is edited in a window of its own: Profile is the sidebar's first section, of eight, holding
+     * Open profile, which opens the one Profile window, with no owner and no modality, or brings it to the front; its
+     * size and place kept by the cockpit and written nowhere; closing it, or the cockpit, with an edit unsaved asks Save,
+     * Discard or Cancel; the badge on the section and the window's title; the refusals naming the Profile window, a
+     * button beside the outcome opening it; the tabs pane the Report tab and Inclusions (amends ADR-344 §1, ADR-359 §4,
+     * ADR-372 §1 and ADR-383 §1, §3 and §5).
+     */
+    public static final String THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN = FILE
+            + "0388-the-profile-is-edited-in-a-window-of-its-own-opened-from-the-first-section-of-the-sidebar.md";
+
     private Adr() {
     }
 }

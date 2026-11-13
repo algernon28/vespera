@@ -42,6 +42,25 @@ final class AnsweringDialogs implements Dialogs {
     /** What the next such warning is answered: what is typed, or empty where it is cancelled. */
     volatile Optional<String> entered = Optional.empty();
 
+    /** A choice the window asked for (ADR-388 §4): its title, its sentence and its answers' words, in order. */
+    record Chose(String title, String sentence, List<String> answers) {
+    }
+
+    /** Every choice asked for, in order. */
+    final List<Chose> choices = new CopyOnWriteArrayList<>();
+
+    /** What the next choice is answered: the words of one of its answers, or empty where the dialog is closed with none. */
+    volatile Optional<String> chosen = Optional.empty();
+
+    /**
+     * Answers {@code Dialogs.choose} (ADR-388 §4): keeps the choice asked for and gives {@link #chosen}. Written before
+     * the interface declares it, so it carries no {@code @Override} yet.
+     */
+    public Optional<String> choose(String title, String sentence, List<String> answers) {
+        choices.add(new Chose(title, sentence, List.copyOf(answers)));
+        return chosen;
+    }
+
     @Override
     public Optional<String> masked(String title, String sentence) {
         maskedAsked.add(sentence);

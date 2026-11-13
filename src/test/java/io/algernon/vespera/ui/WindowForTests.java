@@ -14,21 +14,27 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import javafx.scene.Node;
+import javafx.event.Event;
 import javafx.scene.Parent;
+import javafx.scene.control.Accordion;
+import javafx.scene.control.Button;
 import javafx.scene.control.CheckBoxTreeItem;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TreeItem;
+import javafx.scene.control.TitledPane;
 import javafx.scene.control.TreeView;
 import javafx.stage.Stage;
+import javafx.stage.Window;
+import javafx.stage.WindowEvent;
 import org.assertj.core.api.Assumptions;
 
 /**
  * The control panel's window shown on a stage of the Headless platform (ADR-342 §6), as {@code ControlPanelWindow}
  * shows it when it starts, with dialogs a test answers: what the window tests that act on it, wait for its clock and read
- * it again share. Every read and every act runs on the toolkit's thread. Closing it stops the child its state started
- * and closes the stage.
+ * it again share, and the Profile window it opens (ADR-388). Every read and every act runs on the toolkit's thread.
+ * Closing it stops the child its state started and closes the stage, and every Profile window showing.
  */
 final class WindowForTests implements AutoCloseable {
 
@@ -196,11 +202,79 @@ final class WindowForTests implements AutoCloseable {
         return Optional.of(new ReportTab(tab.get().isSelected()));
     }
 
-    /** The ids of the tabs of the pane the Profile tab stands in, in their order. */
+    /** The ids of the tabs of the pane the Inclusions tab stands in, in their order. */
     static List<String> tabIds(Parent root) {
-        Tab profile = HeadlessToolkit.tabWithId(root, "profile")
-                .orElseThrow(() -> new AssertionError("the window holds no Profile tab"));
-        return profile.getTabPane().getTabs().stream().map(Tab::getId).toList();
+        Tab inclusions = HeadlessToolkit.tabWithId(root, "inclusions")
+                .orElseThrow(() -> new AssertionError("the window holds no Inclusions tab"));
+        return inclusions.getTabPane().getTabs().stream().map(Tab::getId).toList();
+    }
+
+    // ---- the Profile window (ADR-388)
+
+    /** Opens the Profile window as the operator does: the sidebar's Profile section opened and Open profile pressed. */
+    void openProfile() throws Exception {
+        act(root -> {
+            section(root, "profile").setExpanded(true);
+            node(root, "open-profile", Button.class).fire();
+        });
+    }
+
+    /** The sidebar's section whose id is {@code id}; the test fails where the sidebar holds none. */
+    static TitledPane section(Parent root, String id) {
+        return node(root, "sidebar", Accordion.class).getPanes().stream().filter(pane -> id.equals(pane.getId()))
+                .findFirst().orElseThrow(() -> new AssertionError("the sidebar holds no section whose id is " + id));
+    }
+
+    /** Every Profile window showing, in the toolkit's order: each stage but this window's own whose root holds the form. */
+    List<Stage> profileWindows() throws Exception {
+        return HeadlessToolkit.onTheToolkit(() -> profileWindowsBeside(stage));
+    }
+
+    private static List<Stage> profileWindowsBeside(Stage cockpit) {
+        return Window.getWindows().stream().filter(Stage.class::isInstance).map(Stage.class::cast)
+                .filter(each -> each != cockpit && each.isShowing() && each.getScene() != null
+                        && each.getScene().getRoot() != null
+                        && HeadlessToolkit.nodeWithId(each.getScene().getRoot(), "profile-form").isPresent())
+                .toList();
+    }
+
+    /** The one Profile window showing; the test fails where there is none, or more than one. */
+    Stage profileWindow() throws Exception {
+        List<Stage> showing = profileWindows();
+        if (showing.size() != 1) {
+            throw new AssertionError("the control panel shows " + showing.size() + " Profile windows, not one");
+        }
+        return showing.getFirst();
+    }
+
+    /** What {@code reading} reads of the Profile window's root, laid out, on the toolkit's thread. */
+    <T> T readProfile(Function<Parent, T> reading) throws Exception {
+        Stage profile = profileWindow();
+        return HeadlessToolkit.onTheToolkit(() -> {
+            Parent root = profile.getScene().getRoot();
+            root.applyCss();
+            root.layout();
+            return reading.apply(root);
+        });
+    }
+
+    /** Does {@code acting} to the Profile window's root on the toolkit's thread. */
+    void actOnProfile(Consumer<Parent> acting) throws Exception {
+        readProfile(root -> {
+            acting.accept(root);
+            return null;
+        });
+    }
+
+    /**
+     * Asks {@code window} to close as the system's close button does: a close request, which a handler may consume to
+     * keep it open, and which closes it where none does. Answers whether it is still showing.
+     */
+    static boolean closeAsTheOperatorDoes(Stage window) throws Exception {
+        return HeadlessToolkit.onTheToolkit(() -> {
+            Event.fireEvent(window, new WindowEvent(window, WindowEvent.WINDOW_CLOSE_REQUEST));
+            return window.isShowing();
+        });
     }
 
     /** Presses the link to {@code report} under the node whose id is {@code id}; the test fails where there is none. */
@@ -216,6 +290,7 @@ final class WindowForTests implements AutoCloseable {
             state.stop();
         } finally {
             HeadlessToolkit.onTheToolkit(() -> {
+                profileWindowsBeside(stage).forEach(Stage::close);
                 stage.close();
                 return null;
             });

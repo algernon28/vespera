@@ -75,17 +75,17 @@ class PublishToConfluenceAsksForTheTokenTest {
     private static final String WARNING_OF_NO_PAGE = "No page or folder of the space " + SPACE + " is titled "
             + ATitleCheckingChildForTests.TITLE_OF_NO_PAGE + ", so the publish to Confluence sent nothing. Enter a"
             + " different title for the parent the pages are published under: it is saved as confluenceFolderTitle in"
-            + " the Profile tab, and the publish starts again.";
+            + " the Profile window, and the publish starts again.";
 
     private static final String WARNING_OF_SEVERAL = "Several pages or folders of the space " + SPACE + " are titled "
             + ATitleCheckingChildForTests.TITLE_OF_SEVERAL + ", so the publish to Confluence sent nothing. Enter a"
             + " different title for the parent the pages are published under: it is saved as confluenceFolderTitle in"
-            + " the Profile tab, and the publish starts again.";
+            + " the Profile window, and the publish starts again.";
 
-    /** The window's outcome line where the warning is cancelled, or answered with blanks (ADR-383 §5). */
+    /** The window's outcome line where the warning is cancelled, or answered with blanks (ADR-383 §5, ADR-388 §6). */
     private static final String LEFT_AS_IT_WAS = "the publish to Confluence sent nothing: confluenceFolderTitle is left"
             + " as profile.yaml states it; name the parent by confluenceFolderTitle or confluenceFolderId in the Profile"
-            + " tab, and publish again";
+            + " window, and publish again";
 
     @Test
     @Story("The control panel passes the API token to its child alone")
@@ -136,6 +136,7 @@ class PublishToConfluenceAsksForTheTokenTest {
     @Test
     @Story("A parent's title naming no page or several asks for another")
     @Link(name = "ADR-383", url = Adr.A_PARENT_TITLE_NAMING_NO_PAGE_OR_SEVERAL_ASKS_FOR_ANOTHER_IN_A_WARNING, type = "adr")
+    @Link(name = "ADR-388", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
     @DisplayName("A publish whose parent's title names no page of the space opens one warning naming the space and the title; the title entered is saved in profile.yaml as set in the control panel, and the publish starts again, asking for the token again")
     void aTitleNamingNoPageAsksForAnotherSavesItAndPublishesAgain(@TempDir Path folder) throws Exception {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
@@ -180,6 +181,7 @@ class PublishToConfluenceAsksForTheTokenTest {
     @Test
     @Story("A parent's title naming no page or several asks for another")
     @Link(name = "ADR-383", url = Adr.A_PARENT_TITLE_NAMING_NO_PAGE_OR_SEVERAL_ASKS_FOR_ANOTHER_IN_A_WARNING, type = "adr")
+    @Link(name = "ADR-388", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
     @DisplayName("A publish whose parent's title names several pages warns so; the warning cancelled, or answered with blanks, saves nothing, starts nothing and says the title is left as it was")
     void aTitleNamingSeveralAsksTooAndCancelOrBlanksSaveAndStartNothing(@TempDir Path folder) throws Exception {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
@@ -270,7 +272,7 @@ class PublishToConfluenceAsksForTheTokenTest {
 
     /**
      * The working directory's {@code profile.yaml}, naming the space {@link #SPACE} and the parent by {@code title},
-     * each with {@link #THE_TESTS_PROVENANCE}, as the Profile tab writes a value.
+     * each with {@link #THE_TESTS_PROVENANCE}, as the Profile window writes a value.
      */
     private static Path aProfileTitling(Path workingDirectory, String title) throws IOException {
         String text = ProfileEdit.rewrite(Optional.empty(), ProfileKey.CONFLUENCE_SPACE_KEY, SPACE, THE_TESTS_PROVENANCE);

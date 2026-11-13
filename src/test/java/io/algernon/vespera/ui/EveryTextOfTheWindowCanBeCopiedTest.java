@@ -58,7 +58,8 @@ import org.junit.jupiter.api.io.TempDir;
  * the label it replaces was (ADR-364 §8). The window is shown as the control panel shows it, on the Headless platform,
  * and the tests read it as the record says a test does: from the root, through every parent that is neither a control
  * nor a chart, and, of the controls, through a scroll pane's content, a split pane's items, each tab's content, an
- * accordion's panes and a titled pane's content, never its header. The context menu's items are found by their English
+ * accordion's panes and a titled pane's content, never its header; and the Profile window, a window of its own, from
+ * its root the same way (ADR-388 §7). The context menu's items are found by their English
  * names, which JavaFX gives them in the tests' locale, pinned to {@code en_US} on every machine (ADR-386).
  */
 @Epic("Operation")
@@ -66,6 +67,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Issue("777")
 @Link(name = "ADR-364", url = Adr.THE_OUTPUT_PANEL_IS_COPYABLE_TEXT_AND_EVERY_LINE_GOES_THROUGH_LOGBACK, type = "adr")
 @Link(name = "ADR-386", url = Adr.THE_TESTS_RUN_IN_ONE_LOCALE_ON_EVERY_MACHINE, type = "adr")
+@Link(name = "ADR-388", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
 class EveryTextOfTheWindowCanBeCopiedTest {
 
     /** How far apart two sizes or places may be and still be the same: a pixel. */
@@ -123,10 +125,15 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                     root -> HeadlessToolkit.nodeWithId(root, "wanted-row-boilerplateDocumentFrequencyFloor").isPresent(),
                     Boolean::booleanValue);
             assumeThat(drawn).as("the wanted value's row is drawn once the invocation has ended").isTrue();
-            reached = window.read(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl);
+            reached = new ArrayList<>(window.read(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl));
+            // the profile's form lies in a window of its own, walked from its root as the window is (ADR-388 §7)
+            window.openProfile();
+            reached.addAll(window.readProfile(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl));
         }
         try (WindowForTests window = WindowForTests.shown(otherState)) {
-            reachedWhenNotInForm = window.read(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl);
+            reachedWhenNotInForm = new ArrayList<>(window.read(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl));
+            window.openProfile();
+            reachedWhenNotInForm.addAll(window.readProfile(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl));
         }
         List<Node> every = new ArrayList<>(reached);
         every.addAll(reachedWhenNotInForm);
@@ -166,7 +173,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         aSelectableTextIsLaidOutAsTheLabelItReplaces(Files.createDirectories(folder.resolve("aSelectableTextIsLaidOutAsTheLabelItReplaces")));
         whereSpaceIsTightASelectableTextShrinksAsTheLabelWould(Files.createDirectories(folder.resolve("whereSpaceIsTightASelectableTextShrinksAsTheLabelWould")));
         aSelectableTextIsALineOrAWrappingAndCarriesTheLabelsId(Files.createDirectories(folder.resolve("aSelectableTextIsALineOrAWrappingAndCarriesTheLabelsId")));
-        aWheelOverASelectableTextScrollsTheTabItLiesIn(Files.createDirectories(folder.resolve("aWheelOverASelectableTextScrollsTheTabItLiesIn")));
+        aWheelOverASelectableTextScrollsTheFormItLiesIn(Files.createDirectories(folder.resolve("aWheelOverASelectableTextScrollsTheFormItLiesIn")));
     }
 
     private void aSelectableTextIsSelectedAndNotEdited(Path folder) throws Exception {
@@ -230,7 +237,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         Map<String, Class<?>> legTexts = new LinkedHashMap<>();
         Map<String, Boolean> legTextsInTheHeader = new LinkedHashMap<>();
         try (WindowForTests window = WindowForTests.shown(WindowForTests.aState(folder, SleepingJar.runtime()))) {
-            tabTitles = window.read(root -> HeadlessToolkit.tabWithId(root, "profile").orElseThrow().getTabPane()
+            tabTitles = window.read(root -> HeadlessToolkit.tabWithId(root, "inclusions").orElseThrow().getTabPane()
                     .getTabs().stream().map(Tab::getText).toList());
             buttons = window.read(root -> List.of(WindowForTests.node(root, "run", Node.class).getClass(),
                     WindowForTests.node(root, "stop", Node.class).getClass(),
@@ -251,12 +258,12 @@ class EveryTextOfTheWindowCanBeCopiedTest {
             });
         }
 
-        claim("the tabs' titles are those of the Report, Profile and Inclusions tabs",
-                () -> assertThat(tabTitles).containsExactly("Report", "Profile", "Inclusions"));
+        claim("the tabs' titles are those of the Report and Inclusions tabs",
+                () -> assertThat(tabTitles).containsExactly("Report", "Inclusions"));
         claim("Run, Stop and Record my answers are buttons", () -> assertThat(buttons).containsOnly(Button.class));
         claim("the sidebar's section titles are the titled panes' own",
-                () -> assertThat(sections).containsExactly("Preflight", "Folders", "Services", "Seed folder",
-                        "Code sets", "Command options", "Reports"));
+                () -> assertThat(sections).containsExactly("Profile", "Preflight", "Folders", "Services",
+                        "Seed folder", "Code sets", "Command options", "Reports"));
         claim("each leg's name and state are labels, and lie in the header of the leg's titled pane",
                 () -> {
                     assertThat(legTexts).hasSize(2 * Legs.ALL.size());
@@ -433,13 +440,13 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                 });
     }
 
-    private void aWheelOverASelectableTextScrollsTheTabItLiesIn(Path folder) throws Exception {
+    private void aWheelOverASelectableTextScrollsTheFormItLiesIn(Path folder) throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
         ControlPanelState state = WindowForTests.aState(folder, SleepingJar.runtime());
         state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(), working.toString(),
                 "", "", "", "", "", ""));
-        double tabBefore;
-        double tabAfter;
+        double formBefore;
+        double formAfter;
         double textBefore;
         double textAfter;
         int heardByTheText;
@@ -447,11 +454,12 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         try (WindowForTests window = WindowForTests.shown(state)) {
             double[] seen = new double[4];
             int[] heard = new int[2];
-            window.act(root -> {
+            window.openProfile();
+            window.actOnProfile(root -> {
                 SelectableText.Wrapping description = WindowForTests.every(root,
                         "profile-row-" + ProfileKey.GENERATION_MODEL.key(), SelectableText.Wrapping.class).getFirst();
-                ScrollPane tab = tabScroll(root);
-                seen[0] = tab.getVvalue();
+                ScrollPane form = formScroll(root);
+                seen[0] = form.getVvalue();
                 seen[2] = description.getScrollTop();
                 description.addEventHandler(ScrollEvent.SCROLL, each -> heard[0]++);
                 description.getParent().addEventFilter(ScrollEvent.SCROLL, each -> {
@@ -463,19 +471,19 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                         false, 0, -40, 0, -40, ScrollEvent.HorizontalTextScrollUnits.NONE, 0,
                         ScrollEvent.VerticalTextScrollUnits.NONE, 0, 0, new PickResult(description, 5, 5));
                 Event.fireEvent(description, wheel);
-                seen[1] = tabScroll(root).getVvalue();
+                seen[1] = formScroll(root).getVvalue();
                 seen[3] = description.getScrollTop();
             });
-            tabBefore = seen[0];
-            tabAfter = seen[1];
+            formBefore = seen[0];
+            formAfter = seen[1];
             textBefore = seen[2];
             textAfter = seen[3];
             heardByTheText = heard[0];
             handedToTheParent = heard[1];
         }
 
-        claim("a wheel turned downward over a profile row's description moves the Profile tab's scroll pane down",
-                () -> assertThat(tabAfter).isGreaterThan(tabBefore));
+        claim("a wheel turned downward over a profile row's description moves the Profile window's scroll pane down",
+                () -> assertThat(formAfter).isGreaterThan(formBefore));
         claim("and the description's own scroll does not move",
                 () -> assertThat(textAfter).isEqualTo(textBefore));
         claim("and the description consumes the wheel's turn before its own handlers hear it, and hands the parent a copy"
@@ -486,11 +494,10 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                 });
     }
 
-    /** The scroll pane the Profile tab's rows lie in. */
-    private static ScrollPane tabScroll(Parent root) {
-        Node content = HeadlessToolkit.tabWithId(root, "profile").orElseThrow().getContent();
-        return (ScrollPane) HeadlessToolkit.everyNodeUnder(content).stream().filter(ScrollPane.class::isInstance)
-                .findFirst().orElseThrow(() -> new AssertionError("the Profile tab holds no scroll pane"));
+    /** The scroll pane the Profile window's rows lie in, {@code root} being the window's root. */
+    private static ScrollPane formScroll(Parent root) {
+        return (ScrollPane) HeadlessToolkit.everyNodeUnder(root).stream().filter(ScrollPane.class::isInstance)
+                .findFirst().orElseThrow(() -> new AssertionError("the Profile window holds no scroll pane"));
     }
 
     // ---- what the walk reaches
