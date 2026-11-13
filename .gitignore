@@ -118,3 +118,19 @@ ajcore.*.txt
 # the configurations themselves carry no path. docker compose also reads a .env at the project root,
 # for interpolation only, and compose.yaml interpolates nothing, so these names change nothing there.
 /.env
+/articles/linkedin-vespera/sorgenti-illustrazioni/01-copertina.html
+/articles/linkedin-vespera/illustrazioni/01-copertina.png
+/articles/linkedin-vespera/sorgenti-illustrazioni/02-architettura.html
+/articles/linkedin-vespera/illustrazioni/02-architettura.png
+/articles/linkedin-vespera/sorgenti-illustrazioni/03-cascata.html
+/articles/linkedin-vespera/illustrazioni/03-cascata.png
+/articles/linkedin-vespera/sorgenti-illustrazioni/04-registro-verdetti.html
+/articles/linkedin-vespera/illustrazioni/04-registro-verdetti.png
+/articles/linkedin-vespera/sorgenti-illustrazioni/05-rilevanza.html
+/articles/linkedin-vespera/illustrazioni/05-rilevanza.png
+/articles/linkedin-vespera/sorgenti-illustrazioni/06-generazione.html
+/articles/linkedin-vespera/illustrazioni/06-generazione.png
+/articles/linkedin-vespera/articolo.md
+/articles/linkedin-vespera/sorgenti-illustrazioni/base.css
+/articles/linkedin-vespera/README.md
+/articles/linkedin-vespera/sorgenti-illustrazioni/render.mjs
