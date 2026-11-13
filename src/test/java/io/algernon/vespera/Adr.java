@@ -2753,6 +2753,11 @@ public final class Adr {
     public static final String A_PARENT_TITLE_NAMING_NO_PAGE_OR_SEVERAL_ASKS_FOR_ANOTHER_IN_A_WARNING =
             FILE + "0383-a-parents-title-naming-no-page-or-several-stops-a-control-panel-publish-with-its-own-code-and-a-warning-asks-for-another.md";
 
+    /**
+    /** ADR-385: work a test posts to the toolkit's thread is bounded on that thread's processor time, not on the wall. */
+    public static final String WORK_ON_THE_TOOLKITS_THREAD_IS_BOUNDED_ON_ITS_PROCESSOR_TIME =
+            FILE + "0385-work-a-test-posts-to-the-toolkits-thread-is-bounded-on-that-threads-processor-time-and-not-on-the-wall.md";
+
     private Adr() {
     }
 }
