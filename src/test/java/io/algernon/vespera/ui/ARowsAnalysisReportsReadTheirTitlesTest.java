@@ -41,16 +41,16 @@ import org.junit.jupiter.api.io.TempDir;
 @Issue("806")
 @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
-class ARowsReportsReadTheirTitlesTest {
+class ARowsAnalysisReportsReadTheirTitlesTest {
 
     /** A key whose row links three reports. */
-    private static final ProfileKey THREE_REPORTS = ProfileKey.RELEVANCE_SCORE_FLOOR;
+    private static final ProfileKey THREE_ANALYSIS_REPORTS = ProfileKey.RELEVANCE_SCORE_FLOOR;
 
-    /** A key whose row links one report, {@link #ITS_REPORT}. */
-    private static final ProfileKey ONE_REPORT = ProfileKey.BOILERPLATE_DOCUMENT_FREQUENCY_FLOOR;
+    /** A key whose row links one report, {@link #ITS_ANALYSIS_REPORT}. */
+    private static final ProfileKey ONE_ANALYSIS_REPORT = ProfileKey.BOILERPLATE_DOCUMENT_FREQUENCY_FLOOR;
 
-    /** The report {@link #ONE_REPORT}'s row links. */
-    private static final String ITS_REPORT = "document-frequency";
+    /** The report {@link #ONE_ANALYSIS_REPORT}'s row links. */
+    private static final String ITS_ANALYSIS_REPORT = "document-frequency";
 
     /** The Profile tab's prefix of every id of its rows. */
     private static final String PROFILE = "profile-";
@@ -75,8 +75,8 @@ class ARowsReportsReadTheirTitlesTest {
     @Test
     @Story("A row's reports read their titles")
     @DisplayName("Each report a row links reads the report's title, in the order the row lists them, and no text of the row ends .html")
-    void eachLinkReadsItsReportsTitle(@TempDir Path folder) throws Exception {
-        String prefix = PROFILE + THREE_REPORTS.key();
+    void eachLinkReadsItsAnalysisReportsTitle(@TempDir Path folder) throws Exception {
+        String prefix = PROFILE + THREE_ANALYSIS_REPORTS.key();
         List<String> reports = List.of("relevance-labelling", "cluster-sizes", "seed-corpus-comparison");
         Path working = Files.createDirectories(folder.resolve("working"));
         for (String report : reports) {
@@ -94,7 +94,7 @@ class ARowsReportsReadTheirTitlesTest {
                     }
                 }
                 for (Node each : HeadlessToolkit.everyNodeUnder(
-                        WindowForTests.node(root, PROFILE + "row-" + THREE_REPORTS.key(), Node.class))) {
+                        WindowForTests.node(root, PROFILE + "row-" + THREE_ANALYSIS_REPORTS.key(), Node.class))) {
                     textOf(each).ifPresent(texts::add);
                 }
             });
@@ -107,7 +107,7 @@ class ARowsReportsReadTheirTitlesTest {
                         Map.entry(prefix + ".report-seed-corpus-comparison",
                                 "Your documents compared with your seed documents")));
         claim("that order is the one the row lists the key's reports in",
-                () -> assertThat(Reports.OF_A_KEY.get(THREE_REPORTS.key())).containsExactlyElementsOf(reports));
+                () -> assertThat(Reports.OF_A_KEY.get(THREE_ANALYSIS_REPORTS.key())).containsExactlyElementsOf(reports));
         claim("no text of the row ends .html",
                 () -> assertThat(texts).isNotEmpty().noneMatch(text -> text.strip().endsWith(".html")));
     }
@@ -115,19 +115,19 @@ class ARowsReportsReadTheirTitlesTest {
     @Test
     @Story("A row's reports read their titles")
     @DisplayName("A row's link opens its report's native view in the window, and hands nothing to the system")
-    void aLinkOpensItsReportsNativeView(@TempDir Path folder) throws Exception {
+    void aLinkOpensItsAnalysisReportsNativeView(@TempDir Path folder) throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
-        writeJson(working, ITS_REPORT);
+        writeJson(working, ITS_ANALYSIS_REPORT);
         Optional<WindowForTests.ReportTab> opened;
         String title;
         List<String> viewers = new ArrayList<>();
         List<URI> handed;
         try (WindowForTests window = windowOver(folder, working)) {
-            window.act(root -> WindowForTests.pressRowReportLink(root, PROFILE, ONE_REPORT, ITS_REPORT));
-            opened = window.read(root -> WindowForTests.reportTab(root, ITS_REPORT));
-            title = window.read(root -> HeadlessToolkit.tabWithId(root, "analysis-report-" + ITS_REPORT)
+            window.act(root -> WindowForTests.pressRowAnalysisReportLink(root, PROFILE, ONE_ANALYSIS_REPORT, ITS_ANALYSIS_REPORT));
+            opened = window.read(root -> WindowForTests.reportTab(root, ITS_ANALYSIS_REPORT));
+            title = window.read(root -> HeadlessToolkit.tabWithId(root, "analysis-report-" + ITS_ANALYSIS_REPORT)
                     .map(Tab::getText).orElse(null));
-            window.act(root -> HeadlessToolkit.tabWithId(root, "analysis-report-" + ITS_REPORT)
+            window.act(root -> HeadlessToolkit.tabWithId(root, "analysis-report-" + ITS_ANALYSIS_REPORT)
                     .map(Tab::getContent)
                     .ifPresent(content -> HeadlessToolkit.everyNodeUnder(content).stream()
                             .map(node -> node.getClass().getName())
@@ -136,7 +136,7 @@ class ARowsReportsReadTheirTitlesTest {
             handed = List.copyOf(window.dialogs.handed);
         }
 
-        claim("the report's tab, analysis-report-" + ITS_REPORT + ", is open and selected",
+        claim("the report's tab, analysis-report-" + ITS_ANALYSIS_REPORT + ", is open and selected",
                 () -> assertThat(opened).hasValueSatisfying(tab -> assertThat(tab.selected()).isTrue()));
         claim("it is titled by the report's title", () -> assertThat(title).isEqualTo("Repeated text across documents"));
         claim("it holds no web viewer", () -> assertThat(viewers).isEmpty());
@@ -146,15 +146,15 @@ class ARowsReportsReadTheirTitlesTest {
     @Test
     @Story("A row's reports read their titles")
     @DisplayName("A report not written yet is its title in grey, saying so, and no link")
-    void aReportNotWrittenIsItsTitleGrey(@TempDir Path folder) throws Exception {
-        String prefix = PROFILE + ONE_REPORT.key();
+    void anAnalysisReportNotWrittenIsItsTitleGrey(@TempDir Path folder) throws Exception {
+        String prefix = PROFILE + ONE_ANALYSIS_REPORT.key();
         Path working = Files.createDirectories(folder.resolve("working"));
         Node[] shown = new Node[1];
         List<Hyperlink> links = new ArrayList<>();
         try (WindowForTests window = windowOver(folder, working)) {
             window.act(root -> {
-                shown[0] = WindowForTests.node(root, prefix + ".report-" + ITS_REPORT, Node.class);
-                links.addAll(WindowForTests.every(root, PROFILE + "row-" + ONE_REPORT.key(), Hyperlink.class).stream()
+                shown[0] = WindowForTests.node(root, prefix + ".report-" + ITS_ANALYSIS_REPORT, Node.class);
+                links.addAll(WindowForTests.every(root, PROFILE + "row-" + ONE_ANALYSIS_REPORT.key(), Hyperlink.class).stream()
                         .filter(link -> link.getId() != null && link.getId().contains(".report-")).toList());
             });
         }
