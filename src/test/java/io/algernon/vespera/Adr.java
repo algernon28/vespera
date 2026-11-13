@@ -2769,6 +2769,14 @@ public final class Adr {
             FILE + "0385-work-a-test-posts-to-the-toolkits-thread-is-bounded-on-that-threads-processor-time-and-not-on-the-wall.md";
 
     /**
+     * ADR-386 -- surefire and failsafe start the tests' Java with {@code -Duser.language=en -Duser.country=US}, so every
+     * test runs in one locale on every machine, and a text JavaFX or the JDK localizes reads as a test expects whatever
+     * the machine's own locale; the shipped jar keeps the machine's (keeps ADR-357).
+     */
+    public static final String THE_TESTS_RUN_IN_ONE_LOCALE_ON_EVERY_MACHINE =
+            FILE + "0386-the-tests-java-runs-in-english-as-used-in-the-united-states-on-every-machine.md";
+
+    /**
      * ADR-387 -- a step still running in the report of a child that has ended is drawn stopped or failed: once the
      * window's own child has ended and its last report did not, each step that report says is {@code running} reads
      * {@code stopped} after Stop and {@code failed} otherwise, its bar no longer moving and its own Stop gone, and a leg

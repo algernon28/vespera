@@ -323,8 +323,10 @@
                       collected), and once all 256 carriers are held no virtual thread runs: ModelPullTest's pulls are
                       never sent or read. Selector managers on platform threads hold no carrier (ADR-357; "never" is
                       the one value that turns virtual threads off here: one the JDK does not know is read as its default).
+                      The tests' Java runs in English as used in the United States whatever the machine's locale, so a
+                      text JavaFX or the JDK localizes reads the same on every machine (ADR-386).
                     -->
-                    <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar" -Djdk.internal.httpclient.tcp.selector.useVirtualThreads=never --enable-native-access=ALL-UNNAMED</argLine>
+                    <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar" -Djdk.internal.httpclient.tcp.selector.useVirtualThreads=never -Duser.language=en -Duser.country=US --enable-native-access=ALL-UNNAMED</argLine>
                     <excludes>
                         <exclude>**/*IT.java</exclude>
                     </excludes>
@@ -348,7 +350,8 @@
                     </dependency>
                 </dependencies>
                 <configuration>
-                    <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar" --enable-native-access=ALL-UNNAMED</argLine>
+                    <!-- In English as used in the United States, as surefire's (ADR-386). -->
+                    <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar" -Duser.language=en -Duser.country=US --enable-native-access=ALL-UNNAMED</argLine>
                 </configuration>
                 <executions>
                     <execution>

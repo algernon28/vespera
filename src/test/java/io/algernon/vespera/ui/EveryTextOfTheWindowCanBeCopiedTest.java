@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -57,12 +58,14 @@ import org.junit.jupiter.api.io.TempDir;
  * the label it replaces was (ADR-364 §8). The window is shown as the control panel shows it, on the Headless platform,
  * and the tests read it as the record says a test does: from the root, through every parent that is neither a control
  * nor a chart, and, of the controls, through a scroll pane's content, a split pane's items, each tab's content, an
- * accordion's panes and a titled pane's content, never its header.
+ * accordion's panes and a titled pane's content, never its header. The context menu's items are found by their English
+ * names, which JavaFX gives them in the tests' locale, pinned to {@code en_US} on every machine (ADR-386).
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("777")
 @Link(name = "ADR-364", url = Adr.THE_OUTPUT_PANEL_IS_COPYABLE_TEXT_AND_EVERY_LINE_GOES_THROUGH_LOGBACK, type = "adr")
+@Link(name = "ADR-386", url = Adr.THE_TESTS_RUN_IN_ONE_LOCALE_ON_EVERY_MACHINE, type = "adr")
 class EveryTextOfTheWindowCanBeCopiedTest {
 
     /** How far apart two sizes or places may be and still be the same: a pixel. */
@@ -210,6 +213,8 @@ class EveryTextOfTheWindowCanBeCopiedTest {
 
         claim("a part of the outcome selected reads as that part",
                 () -> assertThat(selected).isEqualTo("folders"));
+        claim("the tests run in English as used in the United States, the language the context menu's items are named in",
+                () -> assertThat(Locale.getDefault()).isEqualTo(Locale.US));
         claim("Copy and Select All are enabled in the context menu the outcome carries",
                 () -> assertThat(enabled).contains("Copy", "Select All"));
         claim("a character typed over the selected text changes nothing",
