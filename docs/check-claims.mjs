@@ -35,8 +35,8 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
-import { adrCollisionClaim, adrOrderClaim, agentsMdSize, readsTrackerState, reconcileRetired, retiredNames, sharedNumbers, slugClaim, suiteSizeClaim, unreadPullRequests } from "./check-claims-lib.mjs";
+import { adrCollisionClaim, adrOrderClaim, agentsMdSize, readsTrackerState, reconcileRetired, retiredNames, sharedNumbers, slugClaim, suiteSizeClaim } from "./check-claims-lib.mjs";
+import { branchName as currentBranch, fetchOrigin, readBranches, readPullRequests, run as runCommand } from "./adr-numbers-read.mjs";
 
 const AGENTS = "AGENTS.md";
 const README = "README.md";
@@ -959,24 +959,21 @@ function markerPattern(source, whole = false) {
 
 {
   const NAME = "the numbers of the records this branch adds";
-  const LIMIT = 100;
-  const REPO = "algernon28/vespera";
   const run = (cmd, args) => {
-    const r = spawnSync(cmd, args, { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
-    return { ok: r.status === 0 && !r.error, out: r.stdout ?? "", err: (r.error?.message || r.stderr || "").trim().split(/\r?\n/)[0] };
+    const r = runCommand(cmd, args);
+    return { ...r, err: r.err.split(/\r?\n/)[0] };
   };
   const reasons = [];
+  const branchName = currentBranch();
 
-  let branchName = run("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
-  branchName = branchName.ok && branchName.out.trim() !== "HEAD" ? branchName.out.trim() : process.env.GITHUB_HEAD_REF || null;
-
-  // Under --with-network the ref is fetched first; a failed fetch leaves origin/main unread, though the ref stands.
+  // Under --with-network origin's branches are fetched first; a failed fetch leaves origin/main and the branches of
+  // origin unread, though their refs stand (ADR-389 §1).
   let fetchFailed = false;
   if (withNetwork) {
-    const fetched = run("git", ["fetch", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main"]);
+    const fetched = fetchOrigin();
     if (!fetched.ok) {
       fetchFailed = true;
-      reasons.push(`the fetch of origin/main failed: ${fetched.err}`);
+      reasons.push(`the fetch of origin/main and the branches of origin failed: ${fetched.err.split(/\r?\n/)[0]}`);
     }
   }
   const tree = run("git", ["ls-tree", "-r", "-z", "--name-only", "origin/main", "--", ADR_DIR]);
@@ -992,35 +989,23 @@ function markerPattern(source, whole = false) {
     else reasons.push(`the files this branch adds could not be listed: ${diff.err}`);
   }
 
+  // The open pull requests and the branches of origin are read only under --with-network, the branches only once they
+  // were fetched: a ref not fetched may be one origin dropped, or lack a record pushed since.
   let prs = null;
-  if (!withNetwork) reasons.push("the open pull requests are read only with --with-network");
+  let branches = null;
+  if (!withNetwork) reasons.push("the open pull requests and the branches of origin are read only with --with-network");
   else {
-    const list = run("gh", ["pr", "list", "--repo", REPO, "--state", "open", "--limit", String(LIMIT), "--json", "number,headRefName,changedFiles,files"]);
-    try {
-      if (!list.ok) reasons.push(`gh: ${list.err}`);
-      else prs = JSON.parse(list.out);
-    } catch (e) {
-      reasons.push(`gh answered something unreadable: ${e.message}`);
-    }
-    if (prs) {
-      for (const n of unreadPullRequests({ prs, limit: Infinity, branchName }).incomplete) {
-        const pr = prs.find((p) => p.number === n);
-        const paged = run("gh", ["api", `repos/${REPO}/pulls/${n}/files`, "--paginate", "--jq", ".[] | {filename, status}"]);
-        if (!paged.ok) continue;
-        try {
-          pr.files = paged.out.split(/\r?\n/).filter(Boolean).map((l) => {
-            const f = JSON.parse(l);
-            const status = f.status === "removed" ? "DELETED" : String(f.status ?? "").toUpperCase();
-            return { path: f.filename, changeType: status || undefined };
-          });
-        } catch {
-          // stays cut short
-        }
-      }
+    const pulls = readPullRequests();
+    if (pulls.prs === null) reasons.push(`gh: ${pulls.err}`);
+    prs = pulls.prs;
+    if (!fetchFailed) {
+      const read = readBranches();
+      if (read.branches === null) reasons.push(`the branches of origin: ${read.err.split(/\r?\n/)[0]}`);
+      branches = read.branches;
     }
   }
 
-  const { state, detail } = adrCollisionClaim({ added, main, prs, branchName, limit: LIMIT });
+  const { state, detail } = adrCollisionClaim({ added, main, prs, branches, branchName });
   const why = state === "NOT CHECKED" && reasons.length ? ` (${reasons.join("; ")})` : "";
   results.push({ state, name: NAME, detail: detail + why });
 }

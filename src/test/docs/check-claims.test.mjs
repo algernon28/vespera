@@ -1,15 +1,17 @@
 // docs/check-claims-lib.mjs holds what the claims check and docs/next-adr-number.mjs compute without reading a file or
-// asking the network (ADR-346, ADR-350): AGENTS.md's size as git stores it, and a decision record's number, read,
-// shared, taken and chosen, the open pull requests read in full or cut short, and the claim of the numbers this branch
-// adds, which never passes where it did not read, and the exit of docs/next-adr-number.mjs; whether the claim of the
-// current wayfinder map reads the tracker on an event (readsTrackerState); and the length of a record's slug
-// (overlongSlugs, slugClaim). One test asks git whether it stores AGENTS.md as text and whether HEAD's blob of it
-// holds a CR. Eight run the scripts themselves and read their lines. Four read one run of docs/check-claims.mjs
+// asking the network (ADR-346, ADR-350, ADR-389): AGENTS.md's size as git stores it, and a decision record's number,
+// read, shared, taken and chosen, held by an open pull request or a branch of origin, the open pull requests as REST
+// gives them, read in full or cut short, and the claim of the numbers this branch adds, which reads the set
+// next-adr-number reads and never passes where it did not read, and the exit of docs/next-adr-number.mjs; whether the
+// claim of the current wayfinder map reads the tracker on an event (readsTrackerState); and the length of a record's
+// slug (overlongSlugs, slugClaim). One test asks git whether it stores AGENTS.md as text and whether HEAD's blob of it
+// holds a CR. Nine run the scripts themselves and read their lines. Four read one run of docs/check-claims.mjs
 // without --with-network (see claims()): AGENTS.md's size, the shared numbers, the numbers this branch adds NOT
 // CHECKED, and the slug claim PASS, naming how many records from ADR-350 on it read. Four run a script in an
-// environment that asks no network, where the fetch of origin/main fails (see offline()): docs/check-claims.mjs
+// environment that asks no network, where the fetch of origin's branches fails (see offline()): docs/check-claims.mjs
 // --with-network for the numbers this branch adds NOT CHECKED, for the map NOT CHECKED on a pull request, and for the
-// map reading the tracker on a push and with no event; and docs/next-adr-number.mjs for its exit. The order of the
+// map reading the tracker on a push and with no event; and docs/next-adr-number.mjs for its exit. One runs
+// docs/next-adr-number.mjs in a clone of an origin on disk, a branch with no pull request holding the next number. The order of the
 // rows of docs/adr/README.md and of the constants of Adr.java (ADR-363 §2) is held on fixtures by adrOrderClaim, and on
 // this tree by the claim's line, against the rows and constants the test counts itself. The suite's size against its
 // reference of 700 methods annotated as tests (suiteSizeClaim, ADR-369), and the reading of docs/retired-tests.txt against the names the
@@ -30,12 +32,13 @@ const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 // Imported in each test, so that each one reports its own failure while the module is missing.
 const lib = () => import(new URL("../../../docs/check-claims-lib.mjs", import.meta.url).href);
 
-// A pull request as `gh pr list --json number,headRefName,changedFiles,files` gives it, read in full unless changedFiles
-// is given above the files' count.
+// A pull request as restPullRequest gives it, read in full unless changedFiles is given above the files' count.
 const PR = (number, headRefName, ...files) => {
   const listed = files.map((f) => (typeof f === "string" ? { path: f, changeType: "ADDED" } : f));
   return { number, headRefName, changedFiles: listed.length, files: listed };
 };
+// A branch of origin with no pull request, cut from origin/main (MAIN, below): its tree holds main's records and its own.
+const BRANCH = (name, ...own) => ({ name, tree: [...MAIN, ...own] });
 // A pull request gh cut short: 100 files listed of the 175 it changes, as #676 was.
 const CUT = (number, headRefName) => ({
   number,
@@ -181,6 +184,31 @@ test("the next number passes over what this branch and every open pull request h
   assert.equal(nextAdrNumber({ main: MAIN, branchTree: MAIN, prs: [PR(704, "x", "docs/adr/0344-x.md")] }), 342);
 });
 
+test("a number a branch of origin holds with no pull request is taken, and next-adr-number passes over it (ADR-389 §1)", async () => {
+  const { nextAdrNumber } = await lib();
+  // The case of #766: origin/claude/run-report-record held 0362 before its pull request opened.
+  const held = BRANCH("claude/run-report-record", "docs/adr/0342-run-report.md");
+  assert.equal(nextAdrNumber({ main: MAIN, branchTree: MAIN, prs: [], branches: [held] }), 343);
+  // A branch outside claude/ holds its number as well.
+  assert.equal(nextAdrNumber({ main: MAIN, branchTree: MAIN, prs: [], branches: [BRANCH("wip/draft", "docs/adr/0342-draft.md")] }), 343);
+  // A branch holding only origin/main's records takes nothing.
+  assert.equal(nextAdrNumber({ main: MAIN, branchTree: MAIN, prs: [], branches: [BRANCH("claude/nothing-yet")] }), 342);
+});
+
+test("every number next-adr-number passes over, the claim of the numbers this branch adds fails a record taking it, and the number it prints passes", async () => {
+  const { nextAdrNumber, adrCollisionClaim } = await lib();
+  // 342 on an open pull request, 343 on a branch of origin with no pull request, 344 on both: the one set both read.
+  const prs = [PR(704, "theirs", "docs/adr/0342-pr.md", "docs/adr/0344-pr.md")];
+  const branches = [BRANCH("claude/held", "docs/adr/0343-held.md", "docs/adr/0344-held.md")];
+  const next = nextAdrNumber({ main: MAIN, branchTree: MAIN, prs, branches });
+  assert.equal(next, 345);
+  for (const n of [342, 343, 344]) {
+    const claim = adrCollisionClaim({ added: [`docs/adr/0${n}-mine.md`], main: MAIN, prs, branches, branchName: "mine" });
+    assert.equal(claim.state, "FAIL", `${n}: ${claim.detail}`);
+  }
+  assert.equal(adrCollisionClaim({ added: [`docs/adr/0${next}-mine.md`], main: MAIN, prs, branches, branchName: "mine" }).state, "PASS");
+});
+
 /* ---------- a number this branch takes that another holds ---------- */
 
 test("a record this branch adds collides with one origin/main holds under another name", async () => {
@@ -249,18 +277,48 @@ test("a pull request file with no changeType, or with one GitHub may add later, 
   ]);
 });
 
-test("collisions are listed by number, origin/main's before the pull requests', and the pull requests' by number", async () => {
+test("a record this branch adds collides with one a branch of origin with no pull request holds under another name", async () => {
+  const { adrCollisions } = await lib();
+  const found = adrCollisions({
+    added: ["docs/adr/0342-mine.md"],
+    main: MAIN,
+    prs: [],
+    branches: [BRANCH("claude/run-report-record", "docs/adr/0342-run-report.md")],
+    branchName: "mine",
+  });
+  assert.deepEqual(found, [
+    { number: 342, added: "docs/adr/0342-mine.md", other: "docs/adr/0342-run-report.md", where: "origin/claude/run-report-record" },
+  ]);
+});
+
+test("this branch's own branch on origin, and a branch holding a record of the same name, collide with nothing", async () => {
+  const { adrCollisions } = await lib();
+  const found = adrCollisions({
+    added: ["docs/adr/0342-mine.md"],
+    main: MAIN,
+    prs: [],
+    branches: [BRANCH("mine", "docs/adr/0342-renamed-since-it-was-pushed.md"), BRANCH("same", "docs/adr/0342-mine.md")],
+    branchName: "mine",
+  });
+  assert.deepEqual(found, []);
+});
+
+test("collisions are listed by number, origin/main's, then the pull requests' by number, then the branches' by name", async () => {
   const { adrCollisions } = await lib();
   const found = adrCollisions({
     added: ["docs/adr/0343-b.md", "docs/adr/0342-a.md"],
     main: [...MAIN, "docs/adr/0342-m.md"],
     prs: [PR(706, "r", "docs/adr/0343-r.md"), PR(705, "p", "docs/adr/0342-p.md"), PR(704, "q", "docs/adr/0342-q.md")],
+    // z-old holds origin/main's 0342-m.md at main's own path: that is origin/main's record, named once, on origin/main.
+    branches: [BRANCH("z-old", "docs/adr/0342-m.md"), BRANCH("wip/y", "docs/adr/0342-y.md"), BRANCH("claude/x", "docs/adr/0342-x.md")],
     branchName: null,
   });
   assert.deepEqual(found.map((c) => `${c.number} ${c.where} ${c.other}`), [
     "342 origin/main docs/adr/0342-m.md",
     "342 #704 docs/adr/0342-q.md",
     "342 #705 docs/adr/0342-p.md",
+    "342 origin/claude/x docs/adr/0342-x.md",
+    "342 origin/wip/y docs/adr/0342-y.md",
     "343 #706 docs/adr/0343-r.md",
   ]);
 });
@@ -271,43 +329,92 @@ test("a pull request whose files are fewer than its changedFiles, or that gives 
   const { unreadPullRequests } = await lib();
   const noCount = { number: 702, headRefName: "no-count", files: [{ path: "a.md", changeType: "ADDED" }] };
   const prs = [CUT(705, "cut"), PR(704, "whole", "docs/adr/0342-x.md"), noCount, CUT(703, "mine")];
-  assert.deepEqual(unreadPullRequests({ prs, limit: 100, branchName: "mine" }), { full: false, incomplete: [702, 705] });
+  assert.deepEqual(unreadPullRequests({ prs, branchName: "mine" }), { incomplete: [702, 705] });
 });
 
-test("a list of open pull requests as long as its --limit may have left some out", async () => {
-  const { unreadPullRequests } = await lib();
-  const prs = [PR(704, "a", "x.md"), PR(705, "b", "y.md")];
-  assert.deepEqual(unreadPullRequests({ prs, limit: 2, branchName: "mine" }), { full: true, incomplete: [] });
-  assert.deepEqual(unreadPullRequests({ prs, limit: 3, branchName: "mine" }), { full: false, incomplete: [] });
+test("a pull request read through REST takes each file's status upper-cased as its changeType, removed as DELETED, and is read in full", async () => {
+  const { restPullRequest, unreadPullRequests } = await lib();
+  const pr = restPullRequest({
+    number: 704,
+    headRefName: "theirs",
+    files: [
+      { filename: "docs/adr/0342-a.md", status: "added" },
+      { filename: "docs/adr/0343-b.md", status: "renamed" },
+      { filename: "docs/adr/0300-c.md", status: "removed" },
+      { filename: "docs/adr/0301-d.md", status: "modified" },
+    ],
+  });
+  assert.deepEqual(pr, {
+    number: 704,
+    headRefName: "theirs",
+    changedFiles: 4,
+    files: [
+      { path: "docs/adr/0342-a.md", changeType: "ADDED" },
+      { path: "docs/adr/0343-b.md", changeType: "RENAMED" },
+      { path: "docs/adr/0300-c.md", changeType: "DELETED" },
+      { path: "docs/adr/0301-d.md", changeType: "MODIFIED" },
+    ],
+  });
+  assert.deepEqual(unreadPullRequests({ prs: [pr], branchName: "mine" }), { incomplete: [] });
 });
 
-test("next-adr-number exits 0 only where origin/main was fetched and every open pull request read in full", async () => {
+test("a pull request whose files REST listed to its cap of 3,000, or whose files were not read, is cut short", async () => {
+  const { restPullRequest, unreadPullRequests, REST_FILES_CAP } = await lib();
+  assert.equal(REST_FILES_CAP, 3000);
+  const files = (n) => Array.from({ length: n }, (_, i) => ({ filename: `src/main/java/F${i}.java`, status: "modified" }));
+  const prs = [
+    restPullRequest({ number: 703, headRefName: "under", files: files(2999) }),
+    restPullRequest({ number: 704, headRefName: "at-the-cap", files: files(3000) }),
+    restPullRequest({ number: 705, headRefName: "not-paged", files: null }),
+  ];
+  assert.deepEqual(unreadPullRequests({ prs, branchName: "mine" }), { incomplete: [704, 705] });
+});
+
+test("next-adr-number exits 0 only where origin's branches were fetched and every open pull request and branch of origin read in full", async () => {
   const { nextAdrNumberExit } = await lib();
   const prs = [PR(704, "theirs", "docs/adr/0343-theirs.md")];
-  assert.equal(nextAdrNumberExit({ fetched: true, prs, limit: 100, branchName: "mine" }), 0);
+  const branches = [BRANCH("claude/held", "docs/adr/0344-held.md")];
+  assert.equal(nextAdrNumberExit({ fetched: true, prs, branches, branchName: "mine" }), 0);
   // This branch's own pull request, cut short, is not read against it.
-  assert.equal(nextAdrNumberExit({ fetched: true, prs: [...prs, CUT(703, "mine")], limit: 100, branchName: "mine" }), 0);
-  // A failed fetch is a cause of its own: the ref as it stands may lack a record merged since.
-  assert.equal(nextAdrNumberExit({ fetched: false, prs, limit: 100, branchName: "mine" }), 2);
-  assert.equal(nextAdrNumberExit({ fetched: true, prs: null, limit: 100, branchName: "mine" }), 2);
-  assert.equal(nextAdrNumberExit({ fetched: true, prs, limit: 1, branchName: "mine" }), 2);
-  assert.equal(nextAdrNumberExit({ fetched: true, prs: [...prs, CUT(705, "cut")], limit: 100, branchName: "mine" }), 2);
+  assert.equal(nextAdrNumberExit({ fetched: true, prs: [...prs, CUT(703, "mine")], branches, branchName: "mine" }), 0);
+  // A failed fetch is a cause of its own: the refs as they stand may lack a record merged or pushed since.
+  assert.equal(nextAdrNumberExit({ fetched: false, prs, branches, branchName: "mine" }), 2);
+  assert.equal(nextAdrNumberExit({ fetched: true, prs: null, branches, branchName: "mine" }), 2);
+  assert.equal(nextAdrNumberExit({ fetched: true, prs, branches: null, branchName: "mine" }), 2);
+  assert.equal(nextAdrNumberExit({ fetched: true, prs: [...prs, CUT(705, "cut")], branches, branchName: "mine" }), 2);
 });
 
 /* ---------- the claim of the numbers this branch adds ---------- */
 
-// Every part read in full: the branch adds 0342-mine.md, origin/main holds MAIN, and #704 adds 0343-theirs.md.
+// Every part read in full: the branch adds 0342-mine.md, origin/main holds MAIN, #704 adds 0343-theirs.md, and
+// origin/claude/held, with no pull request, holds 0344-held.md.
 const READ = () => ({
   added: ["docs/adr/0342-mine.md"],
   main: MAIN,
   prs: [PR(704, "theirs", "docs/adr/0343-theirs.md")],
+  branches: [BRANCH("claude/held", "docs/adr/0344-held.md")],
   branchName: "mine",
-  limit: 100,
 });
 
-test("the claim passes where origin/main, the branch's added files and every open pull request were read in full and nothing collides", async () => {
+test("the claim passes where origin/main, the branch's added files, every open pull request and every branch of origin were read in full and nothing collides", async () => {
   const { adrCollisionClaim } = await lib();
-  assert.equal(adrCollisionClaim(READ()).state, "PASS");
+  assert.deepEqual(adrCollisionClaim(READ()), {
+    state: "PASS",
+    detail: "1 file(s) added over origin/main, read against origin/main, 1 open pull request(s) and 1 other branch(es) of origin, and none takes a number another holds",
+  });
+});
+
+test("a collision with a branch of origin with no pull request fails the claim, naming the number, both files and the branch", async () => {
+  const { adrCollisionClaim } = await lib();
+  assert.deepEqual(adrCollisionClaim({ ...READ(), branches: [BRANCH("claude/held", "docs/adr/0342-held.md")] }), {
+    state: "FAIL",
+    detail: "342 is taken by docs/adr/0342-mine.md here and by docs/adr/0342-held.md on origin/claude/held",
+  });
+});
+
+test("where the branches of origin were not read, without --with-network or their fetch failing, the claim is not checked", async () => {
+  const { adrCollisionClaim } = await lib();
+  assert.deepEqual(adrCollisionClaim({ ...READ(), branches: null }), { state: "NOT CHECKED", detail: "the branches of origin were not read" });
 });
 
 test("a collision fails the claim, naming the number, both files and where the other is held", async () => {
@@ -321,7 +428,7 @@ test("a collision found in what was read fails the claim, though another part wa
   const { adrCollisionClaim } = await lib();
   const onMain = { ...READ(), main: [...MAIN, "docs/adr/0342-theirs.md"], prs: null };
   assert.equal(adrCollisionClaim(onMain).state, "FAIL");
-  const inACutList = { ...READ(), prs: [PR(704, "theirs", "docs/adr/0342-theirs.md"), CUT(705, "cut")], limit: 2 };
+  const inACutList = { ...READ(), prs: [PR(704, "theirs", "docs/adr/0342-theirs.md"), CUT(705, "cut")], branches: null };
   assert.equal(adrCollisionClaim(inACutList).state, "FAIL");
 });
 
@@ -344,14 +451,6 @@ test("where the merge base of origin/main and HEAD cannot be resolved, as in a s
   const { state, detail } = adrCollisionClaim({ ...READ(), added: null });
   assert.equal(state, "NOT CHECKED");
   assert.match(detail, /merge base/);
-});
-
-test("where the list of open pull requests fills its --limit, the claim is not checked and names the limit", async () => {
-  const { adrCollisionClaim } = await lib();
-  const { state, detail } = adrCollisionClaim({ ...READ(), prs: [PR(704, "a", "x.md"), PR(705, "b", "y.md")], limit: 2 });
-  assert.equal(state, "NOT CHECKED");
-  assert.match(detail, /limit/);
-  assert.match(detail, /\b2\b/);
 });
 
 test("where gh cut an open pull request's files short, the claim is not checked and names the pull request", async () => {
@@ -565,6 +664,46 @@ test("where the fetch of origin/main fails, next-adr-number still prints a numbe
   assert.match(run.stderr, /origin\/main/);
   assert.match(run.stderr, /fetch/);
   assert.equal(run.status, 2, `stderr: ${run.stderr}`);
+});
+
+test("next-adr-number fetches a branch pushed to origin after the clone, with no pull request, and prints the number after the one it holds (ADR-389 §1)", () => {
+  // An origin on disk, its main holding ADR-001, and a clone of it; then claude/held, holding 0002-held.md, is pushed
+  // to origin from elsewhere, so that only the script's own fetch of every branch brings it into the clone. gh is signed
+  // out, so no pull request is read: the number comes from the branch alone, and the exit is 2.
+  const dir = mkdtempSync(join(tmpdir(), "vespera-held-branch-"));
+  try {
+    const git = (cwd, ...args) => {
+      const r = spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8" });
+      assert.equal(r.status, 0, `git ${args.join(" ")} failed: ${r.stderr}`);
+    };
+    const record = (cwd, name) => {
+      mkdirSync(join(cwd, "docs/adr"), { recursive: true });
+      writeFileSync(join(cwd, "docs/adr", name), "# a record\n");
+    };
+    git(dir, "init", "-q", "--bare", "origin.git");
+    git(dir, "init", "-q", "seed");
+    const seed = join(dir, "seed");
+    record(seed, "0001-a.md");
+    git(seed, "add", "docs");
+    git(seed, "commit", "-q", "-m", "ADR-001");
+    git(seed, "push", "-q", join(dir, "origin.git"), "HEAD:refs/heads/main");
+    git(dir, "clone", "-q", join(dir, "origin.git"), "clone");
+    git(seed, "checkout", "-q", "-b", "claude/held");
+    record(seed, "0002-held.md");
+    git(seed, "add", "docs");
+    git(seed, "commit", "-q", "-m", "ADR-002, held with no pull request");
+    git(seed, "push", "-q", join(dir, "origin.git"), "claude/held");
+
+    const env = offline();
+    delete env.GIT_ALLOW_PROTOCOL; // origin is a folder on disk, which the fetch must reach
+    const run = spawnSync(process.execPath, [NO_FETCH, join(ROOT, "docs/next-adr-number.mjs")], { cwd: join(dir, "clone"), encoding: "utf8", env });
+    assert.equal(run.stdout.trim(), "3", `stdout: ${run.stdout}\nstderr: ${run.stderr}`);
+    assert.match(run.stderr, /the open pull requests/);
+    assert.doesNotMatch(run.stderr, /fetch failed|branches of origin/, "origin's branches were fetched and read");
+    assert.equal(run.status, 2, `stderr: ${run.stderr}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 /* ---------- the order of the decision records in the index and in Adr.java (ADR-363 §2) ---------- */

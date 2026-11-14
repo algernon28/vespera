@@ -1,5 +1,5 @@
 // What docs/check-claims.mjs and docs/next-adr-number.mjs compute without reading a file or asking the network
-// (ADR-346 §4). The scripts call git and gh themselves and pass what they read.
+// (ADR-346 §4). The scripts read git and GitHub through docs/adr-numbers-read.mjs (ADR-389 §3) and pass what they read.
 
 const CEILING = 30000;
 const ADR_PATH = /^docs\/adr\/(\d{4})-[^/]+\.md$/;
@@ -36,22 +36,51 @@ function addedBy(pr) {
   return (pr.files ?? []).filter((f) => !NOT_ADDED.has(f.changeType)).map((f) => f.path).filter((p) => adrNumber(p) !== null);
 }
 
-/** The lowest number above origin/main's highest that the branch's tree and no open pull request holds. */
-export function nextAdrNumber({ main, branchTree, prs }) {
+/** The paths of records a branch of origin holds that origin/main holds at no such path (ADR-389 §1). */
+function heldBy(branch, main) {
+  const onMain = new Set(main ?? []);
+  return (branch.tree ?? []).filter((p) => adrNumber(p) !== null && !onMain.has(p));
+}
+
+/**
+ * The lowest number above origin/main's highest that the branch's tree, no open pull request and no branch of origin
+ * holds (ADR-346 §2, ADR-389 §1).
+ */
+export function nextAdrNumber({ main, branchTree, prs, branches }) {
   const highest = Math.max(0, ...main.map(adrNumber).filter((n) => n !== null));
   const taken = new Set([
     ...branchTree.map(adrNumber),
     ...(prs ?? []).flatMap((pr) => addedBy(pr).map(adrNumber)),
+    ...(branches ?? []).flatMap((b) => heldBy(b, main).map(adrNumber)),
   ]);
   let n = highest + 1;
   while (taken.has(n)) n++;
   return n;
 }
 
+/** GitHub's REST API lists at most this many files of a pull request. */
+export const REST_FILES_CAP = 3000;
+
+/**
+ * A pull request as the functions here read it, from what GitHub's REST API gives (ADR-389 §2): its number, its head's
+ * name, and its files as `{ filename, status }`, or null where they were not read. Each status upper-cased is the
+ * changeType, `removed` being DELETED. Files not read, or as many as REST_FILES_CAP, give no changedFiles, so that the
+ * pull request is cut short.
+ */
+export function restPullRequest({ number, headRefName, files }) {
+  if (!Array.isArray(files)) return { number, headRefName };
+  const read = files.map((f) => ({
+    path: f.filename,
+    changeType: f.status === "removed" ? "DELETED" : String(f.status ?? "").toUpperCase() || undefined,
+  }));
+  return read.length < REST_FILES_CAP ? { number, headRefName, changedFiles: read.length, files: read } : { number, headRefName, files: read };
+}
+
 /** { number, added, other, where } for each record this branch adds that another holds under a different file name. */
-export function adrCollisions({ added, main, prs, branchName }) {
+export function adrCollisions({ added, main, prs, branches, branchName }) {
   const found = [];
   const others = (prs ?? []).filter((pr) => branchName == null || pr.headRefName !== branchName);
+  const otherBranches = (branches ?? []).filter((b) => branchName == null || b.name !== branchName);
   for (const path of added ?? []) {
     const number = adrNumber(path);
     if (number === null) continue;
@@ -63,27 +92,35 @@ export function adrCollisions({ added, main, prs, branchName }) {
         if (adrNumber(other) === number && other !== path) found.push({ number, added: path, other, where: `#${pr.number}`, rank: 1, order: pr.number });
       }
     }
+    for (const b of otherBranches) {
+      for (const other of heldBy(b, main)) {
+        if (adrNumber(other) === number && other !== path) found.push({ number, added: path, other, where: `origin/${b.name}`, rank: 2, order: b.name });
+      }
+    }
   }
+  const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
   return found
-    .sort((a, b) => a.number - b.number || a.rank - b.rank || a.order - b.order || (a.added < b.added ? -1 : a.added > b.added ? 1 : 0) || (a.other < b.other ? -1 : a.other > b.other ? 1 : 0))
+    .sort((a, b) => a.number - b.number || a.rank - b.rank || cmp(a.order, b.order) || cmp(a.added, b.added) || cmp(a.other, b.other))
     .map(({ number, added: a, other, where }) => ({ number, added: a, other, where }));
 }
 
-/** { full, incomplete }: whether the list holds at least `limit` pull requests, and the numbers of those cut short. */
-export function unreadPullRequests({ prs, limit, branchName }) {
+/** { incomplete }: the numbers, in order, of the pull requests other than this branch's that are cut short. */
+export function unreadPullRequests({ prs, branchName }) {
   const incomplete = prs
     .filter((pr) => branchName == null || pr.headRefName !== branchName)
     .filter((pr) => !Number.isInteger(pr.changedFiles) || (pr.files ?? []).length < pr.changedFiles)
     .map((pr) => pr.number)
     .sort((a, b) => a - b);
-  return { full: prs.length >= limit, incomplete };
+  return { incomplete };
 }
 
-/** docs/next-adr-number.mjs's exit where origin/main resolved: 0 only when every part was read in full. */
-export function nextAdrNumberExit({ fetched, prs, limit, branchName }) {
-  if (!fetched || prs === null || prs === undefined) return 2;
-  const { full, incomplete } = unreadPullRequests({ prs, limit, branchName });
-  return full || incomplete.length ? 2 : 0;
+/**
+ * docs/next-adr-number.mjs's exit where origin/main resolved: 0 only when origin's branches were fetched, and the open
+ * pull requests and the branches of origin were read in full.
+ */
+export function nextAdrNumberExit({ fetched, prs, branches, branchName }) {
+  if (!fetched || prs === null || prs === undefined || branches === null || branches === undefined) return 2;
+  return unreadPullRequests({ prs, branchName }).incomplete.length ? 2 : 0;
 }
 
 /**
@@ -131,8 +168,8 @@ export function slugClaim(paths) {
 }
 
 /** { state, detail } of the claim of the numbers this branch adds; it never passes where it did not read. */
-export function adrCollisionClaim({ added, main, prs, branchName, limit }) {
-  const collisions = adrCollisions({ added, main, prs, branchName });
+export function adrCollisionClaim({ added, main, prs, branches, branchName }) {
+  const collisions = adrCollisions({ added, main, prs, branches, branchName });
   if (collisions.length) {
     return {
       state: "FAIL",
@@ -141,17 +178,15 @@ export function adrCollisionClaim({ added, main, prs, branchName, limit }) {
   }
   const unread = [];
   if (prs === null || prs === undefined) unread.push("the open pull requests were not read");
-  else {
-    const { full, incomplete } = unreadPullRequests({ prs, limit, branchName });
-    if (full) unread.push(`the list of open pull requests fills its limit of ${limit}, so some may be left out`);
-    for (const n of incomplete) unread.push(`the files of #${n} were cut short`);
-  }
+  else for (const n of unreadPullRequests({ prs, branchName }).incomplete) unread.push(`the files of #${n} were cut short`);
+  if (branches === null || branches === undefined) unread.push("the branches of origin were not read");
   if (main === null || main === undefined) unread.push("origin/main was not read");
   if (added === null || added === undefined) unread.push("the merge base of origin/main and HEAD could not be resolved");
   if (unread.length) return { state: "NOT CHECKED", detail: unread.join("; ") };
+  const others = branches.filter((b) => branchName == null || b.name !== branchName).length;
   return {
     state: "PASS",
-    detail: `${added.length} file(s) added over origin/main, read against origin/main and ${prs.length} open pull request(s), and none takes a number another holds`,
+    detail: `${added.length} file(s) added over origin/main, read against origin/main, ${prs.length} open pull request(s) and ${others} other branch(es) of origin, and none takes a number another holds`,
   };
 }
 
