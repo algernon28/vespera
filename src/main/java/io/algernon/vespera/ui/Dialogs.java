@@ -156,7 +156,8 @@ interface Dialogs {
                 // button really pressed is an answer (ADR-389 section 4)
                 String[] pressed = new String[1];
                 boolean[] escaping = new boolean[1];
-                ask.getDialogPane().addEventFilter(KeyEvent.ANY, key -> {
+                // on the scene, so that a key with no focus owner, which targets the scene, is seen too
+                ask.getDialogPane().getScene().addEventFilter(KeyEvent.ANY, key -> {
                     if (key.getCode() == KeyCode.ESCAPE) {
                         escaping[0] = key.getEventType() == KeyEvent.KEY_PRESSED;
                     }

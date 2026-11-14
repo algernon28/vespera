@@ -91,7 +91,7 @@ final class Cockpit {
     private final Button openProfile = new Button("Open profile");
     private final Button outcomeOpenProfile = new Button("Open profile");
     private final WantedValues wanted;
-    /** The keys whose rows are open on the Profile tab, in Seed folder and in what the next invocation wants (ADR-377 §3). */
+    /** The keys whose rows are open in the Profile window, in Seed folder and in what the next invocation wants (ADR-377 §3). */
     private final ProfileRow.OpenKeys profileOpen = new ProfileRow.OpenKeys(false);
     private final ProfileRow.OpenKeys seedOpen = new ProfileRow.OpenKeys(false);
     private final ProfileRow.OpenKeys wantedOpen = new ProfileRow.OpenKeys(true);
@@ -649,7 +649,7 @@ final class Cockpit {
         if (profileWindow == null || asked || !profile.unsaved()) {
             return;
         }
-        if (sameFolder(profile.loadedFrom(), folderOf(fields.get("vespera.working-dir")))) {
+        if (sameFolder(profile.loadedFrom(), workingDirectory())) {
             // the same folder named another way is no change of folder: the loading asks its own three answers
             return;
         }

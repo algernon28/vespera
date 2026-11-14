@@ -803,6 +803,41 @@ class TheProfileWindowTest {
 
     @Test
     @Story("An edit of the profile is not lost by loading the files again")
+    @DisplayName("Emptying the working directory field where the folder an empty field stands for is the one the form was loaded from, with an edit unsaved in the profile window, asks Save, Discard or Cancel as any loading of the files does, and Cancel writes nothing and keeps the edit")
+    void emptyingTheFieldWhereItStandsForTheSameFolderAsksSaveDiscardOrCancelAsAnyLoad(@TempDir Path folder)
+            throws Exception {
+        Path working = Files.createDirectories(folder.resolve("working"));
+        Path workingFile = aProfileNamingTheSpace(working);
+        byte[] asWritten = Files.readAllBytes(workingFile);
+        ControlPanelState state = aStateOver(folder, working);
+        state.useWorkingDirectoryDefault(WorkingDirectoryDefault.of(folder,
+                Map.of("vespera.working-dir", working.toString()), Map.of()));
+
+        List<AnsweringDialogs.Chose> asked;
+        byte[] theFile;
+        String form;
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            window.openProfile();
+            typed(window, FIRST_EDIT);
+            window.dialogs.chosen = Optional.of(CANCEL);
+            workingDirectorySpelled(window, "");
+            asked = List.copyOf(window.dialogs.choices);
+            theFile = Files.readAllBytes(workingFile);
+            form = window.readProfile(TheProfileWindowTest::theFieldsText);
+        }
+
+        claim("an empty field stands for the folder the form was loaded from, so it is asked about as any loading of the"
+                        + " files is: once, titled The profile, saying the profile has changes not saved in profile.yaml,"
+                        + " with Save, Discard and Cancel in that order, and never with Save and Discard alone",
+                () -> assertThat(asked).containsExactly(THE_CHOICE));
+        claim("Cancel writes nothing: the profile is as the test wrote it",
+                () -> assertThat(theFile).isEqualTo(asWritten));
+        claim("and keeps the edit in the form",
+                () -> assertThat(form).isEqualTo(FIRST_EDIT));
+    }
+
+    @Test
+    @Story("An edit of the profile is not lost by loading the files again")
     @DisplayName("On Windows, naming the working directory with its name in capitals, with an edit unsaved in the profile window, asks Save, Discard or Cancel as any loading of the files does, the file system ignoring case, and Cancel writes nothing and keeps the edit")
     void onWindowsTheWorkingDirectoryNamedInOtherCaseAsksSaveDiscardOrCancelAsAnyLoad(@TempDir Path folder)
             throws Exception {
