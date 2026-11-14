@@ -83,18 +83,18 @@ class ShippedConfigurationTest {
     }
 
     /**
-     * ADR-377 §4: the comparing model's tooltip on the Profile tab names the model the jar ships, so that a changed
-     * default fails here until the text the operator reads is changed with it.
+     * ADR-377 §4: the comparing model's tooltip names the model Vespera comes with, which is the shipped file's, so a
+     * changed default that leaves the tooltip behind fails here.
      */
     @Test
     @Story("The embedding model ships with a default")
-    @DisplayName("The comparing model's tooltip in the control panel names the model the application ships")
+    @DisplayName("The comparing model's tooltip names the model Vespera comes with")
     @Issue("802")
     @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
     void theComparingModelsTooltipNamesTheShippedModel() throws IOException {
         Object shipped = shippedProperties().get(EMBEDDING_MODEL);
 
-        claim("the comparing model's tooltip holds the name of the model the shipped configuration names",
+        claim("the comparing model's tooltip holds the name of the embedding model the shipped file names",
                 () -> assertThat(ProfileKey.EMBEDDING_MODEL.tooltip()).contains(String.valueOf(shipped)));
     }
 

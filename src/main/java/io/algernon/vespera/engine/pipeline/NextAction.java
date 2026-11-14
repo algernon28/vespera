@@ -352,8 +352,8 @@ class NextAction {
 
     /**
      * What the line says of code, to follow the count of documents not copied (ADR-296 §6): the files of code not
-     * copied where the tree has a code set, even at none. Nothing where this invocation drew no tree or the tree has no
-     * code set.
+     * copied where the tree has a code set, even at none. Nothing where this invocation drew no tree, or the tree has no
+     * code set; no clause of names, a set being named by its folder alone (ADR-377 §9).
      */
     private static String ofCode(DeliverableSummary deliverable) {
         if (deliverable.documentsNotCopied().isEmpty() || deliverable.codeFilesNotCopied().isEmpty()) {

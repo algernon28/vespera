@@ -26,22 +26,28 @@ final class ProfileForm {
     private final VBox profileBody = new VBox();
     private final SelectableText.Wrapping profileOutcome = SelectableText.wrapping("");
     private final List<ProfileRow> profileRows = new ArrayList<>();
+    private final ProfileRow.OpenKeys open;
+    private final ProfileRow.TitleColumn titles = new ProfileRow.TitleColumn();
 
     /**
      * {@code pointTo} takes the operator to where a key not edited in the form is edited, {@code openReport} opens a
-     * report, and {@code reload} runs after the form has written the file.
+     * report, {@code reload} runs after the form has written the file, and {@code open} holds the keys whose rows are
+     * open.
      */
     ProfileForm(ControlPanelState state, Dialogs dialogs, WorkingFolders folders, Consumer<ProfileKey> pointTo,
-            Consumer<String> openReport, Runnable reload) {
+            Consumer<String> openReport, Runnable reload, ProfileRow.OpenKeys open) {
         this.state = state;
         this.dialogs = dialogs;
         this.folders = folders;
         this.pointTo = pointTo;
         this.openReport = openReport;
         this.reload = reload;
+        this.open = open;
     }
 
     private Node content;
+    private boolean saving;
+    private Optional<Path> loadedFrom = Optional.empty();
 
     /** The form's one node, drawn once: the Profile window's scene holds it while the window is open. */
     Node content() {
@@ -51,9 +57,9 @@ final class ProfileForm {
         return content;
     }
 
-    /** Whether a Save would write a key: some row's value or note differs from what the file stated as it was loaded (ADR-388 §4). */
+    /** Whether a Save would write a key: some row's value differs from what the file stated as it was loaded (ADR-389 §4). */
     boolean unsaved() {
-        return profileRows.stream().anyMatch(row -> row.provenanceToSave().isPresent());
+        return !saving && profileRows.stream().anyMatch(row -> row.provenanceToSave().isPresent());
     }
 
     /** What the form's Save does: saves, says the line in the form's outcome, and loads the files again where it wrote. */
@@ -61,9 +67,23 @@ final class ProfileForm {
         ProfileRow.Saved saved = ProfileRow.save(state, folders.workingDirectory(), profileRows);
         profileOutcome.setText(saved.line());
         if (saved.written()) {
-            reload.run();
+            // the rows still hold the edit just written until the load draws them again: it is not asked about
+            saving = true;
+            try {
+                reload.run();
+            } finally {
+                saving = false;
+            }
         }
         return saved;
+    }
+
+    /**
+     * Saves into the working directory the form was last loaded from, not the one now named, and loads nothing again
+     * (ADR-389 §4: the working directory changed under an edit unsaved).
+     */
+    ProfileRow.Saved saveWhereLoaded() {
+        return ProfileRow.save(state, loadedFrom, profileRows);
     }
 
     /** What the form's Reset does: the rows back to the file as last loaded. */
@@ -97,7 +117,9 @@ final class ProfileForm {
             String text, Map<String, Boolean> written) {
         Optional<EffectiveValues> effective = state.effectiveValues(folders.workingDirectory());
         List<String> models = state.lastChecks().ollama().models();
+        loadedFrom = folders.workingDirectory();
         profileRows.clear();
+        titles.clear();
         profileBody.getChildren().clear();
         if (folders.workingDirectory().isEmpty()) {
             profileBody.getChildren().add(SelectableText.line("Name the working directory: profile.yaml lies in it."));
@@ -111,7 +133,8 @@ final class ProfileForm {
         for (ProfileKey key : ProfileKey.values()) {
             Optional<EffectiveValues.Value> beneath = key.hasAValueBeneath()
                     ? effective.flatMap(said -> said.named(key.key())) : Optional.empty();
-            ProfileRow row = new ProfileRow(key, "profile-", models, beneath, dialogs, pointTo, openReport, written);
+            ProfileRow row = new ProfileRow(key, "profile-", models, beneath, dialogs, pointTo, openReport, written,
+                    open, titles);
             row.load(Optional.ofNullable(stated.get(key)));
             profileRows.add(row);
             profileBody.getChildren().add(row.node());

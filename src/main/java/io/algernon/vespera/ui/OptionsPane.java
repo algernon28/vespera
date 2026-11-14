@@ -15,9 +15,8 @@ import javafx.scene.control.Spinner;
 import javafx.scene.layout.VBox;
 
 /**
- * The sidebar's Command options section: a control for each option the child's command line can take, the way back to
- * their defaults and the command line each kind of start would run (ADR-344 §4); no label file, Record my answers
- * recording the working directory's (ADR-377 §10).
+ * The sidebar's Command options section: the label file, a control for each option the child's command line can take, the
+ * way back to their defaults and the command line each kind of start would run (ADR-344 §4).
  */
 final class OptionsPane {
 

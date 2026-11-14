@@ -82,7 +82,7 @@ final class InclusionsTab {
     /**
      * Writes the profile's {@code foldersNotWalked} and nothing else (ADR-345 §2): the highest unticked folder of each
      * branch, the pieces already listed first; a value as the file states it is not written, a changed one is written
-     * with the note filled in, and with no folder unticked and none kept the key is taken out.
+     * with the provenance filled in, and with no folder unticked and none kept the key is taken out.
      */
     private void saveInclusions() {
         Optional<Path> folder = folders.workingDirectory();
@@ -114,7 +114,7 @@ final class InclusionsTab {
             return;
         }
         String value = String.join(java.io.File.pathSeparator, pieces);
-        Optional<String> provenance = ProfileEdit.provenanceToSave(key, value, ProfileEdit.provenanceShown(inFile), inFile);
+        Optional<String> provenance = ProfileEdit.provenanceToSave(key, value, inFile);
         if (provenance.isEmpty()) {
             inclusionsOutcome.setText("nothing was written: the folders not walked are as " + ProfileEdit.FILE_NAME
                     + " states them");

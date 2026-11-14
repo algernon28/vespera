@@ -2786,7 +2786,17 @@ public final class Adr {
             FILE + "0387-a-step-still-running-in-the-report-of-a-child-that-ended-is-drawn-stopped-or-failed.md";
 
     /**
-     * ADR-388 -- the profile is edited in a window of its own: Profile is the sidebar's first section, of eight, holding
+     * ADR-388 -- {@code modelsRunOn}'s row is titled <i>Where the AI models work</i>, its short description and tooltip
+     * worded under ADR-377 §4's rules, saying no <i>run</i>; a change of it redoes no work and takes effect the next time
+     * Vespera is started, a cost line of its own; the writing model's tooltip says nothing checks where a model works;
+     * and {@code confluenceBaseUrl}'s tooltip shows {@code https://wiki.example.com} where ADR-377 §4 gives a Cloud
+     * site's domain, which ADR-308 keeps out of shipped files (amends ADR-384 §7 and ADR-377 §4).
+     */
+    public static final String WHERE_THE_MODELS_RUN_IS_WORDED_UNDER_A_PROFILE_ROWS_RULES = FILE
+            + "0388-where-the-models-run-is-worded-under-a-profile-rows-rules-and-a-change-of-it-takes-effect-the-next-time-vespera-starts.md";
+
+    /**
+     * ADR-389 -- the profile is edited in a window of its own: Profile is the sidebar's first section, of eight, holding
      * Open profile, which opens the one Profile window, with no owner and no modality, or brings it to the front; its
      * size and place kept by the cockpit and written nowhere; closing it, or the cockpit, with an edit unsaved asks Save,
      * Discard or Cancel; the badge on the section and the window's title; the refusals naming the Profile window, a
@@ -2794,7 +2804,7 @@ public final class Adr {
      * ADR-372 §1 and ADR-383 §1, §3 and §5).
      */
     public static final String THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN = FILE
-            + "0388-the-profile-is-edited-in-a-window-of-its-own-opened-from-the-first-section-of-the-sidebar.md";
+            + "0389-the-profile-is-edited-in-a-window-of-its-own-opened-from-the-first-section-of-the-sidebar.md";
 
     private Adr() {
     }

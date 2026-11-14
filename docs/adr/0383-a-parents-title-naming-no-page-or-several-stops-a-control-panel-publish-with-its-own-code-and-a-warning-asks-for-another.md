@@ -1,6 +1,6 @@
 # ADR-383 — A parent's title naming no page or several stops a control panel publish with its own code, and a warning asks for another
 
-> **Partly amended — see [ADR-388](0388-the-profile-is-edited-in-a-window-of-its-own-opened-from-the-first-section-of-the-sidebar.md).** Of §1: the two lines name the control panel's Profile window, not its Profile tab. Of §3: the two sentences say the title is saved as `confluenceFolderTitle` in the Profile window. Of §5: the line says to name the parent in the Profile window. The rest of this record stands.
+> **Partly amended — see [ADR-389](0389-the-profile-is-edited-in-a-window-of-its-own-opened-from-the-first-section-of-the-sidebar.md).** Of §1: the two lines name the control panel's Profile window, not its Profile tab. Of §3: the two sentences say the title is saved as `confluenceFolderTitle` in the Profile window. Of §5: the line says to name the parent in the Profile window. The rest of this record stands.
 
 - **Date**: 2026-11-12
 - **Status**: accepted on 2026-11-12.

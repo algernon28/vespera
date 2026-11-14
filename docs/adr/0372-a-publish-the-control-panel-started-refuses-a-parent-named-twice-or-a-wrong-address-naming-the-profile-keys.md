@@ -2,7 +2,7 @@
 
 > **Partly amended — see [ADR-383](0383-a-parents-title-naming-no-page-or-several-stops-a-control-panel-publish-with-its-own-code-and-a-warning-asks-for-another.md).** Of *What this does not decide*: started by the control panel, a parent's title naming no page or folder, or several, stops the publish naming `confluenceFolderTitle`, `confluenceFolderId` and the Profile tab, exit 3 or 4, and the window warns, asking for a different title, which it saves and publishes to. The rest stands.
 
-> **Partly amended — see [ADR-388](0388-the-profile-is-edited-in-a-window-of-its-own-opened-from-the-first-section-of-the-sidebar.md).** Of §1: the two lines end *"in the control panel's Profile window, and publish again."*, not its Profile tab. The rest of this record stands.
+> **Partly amended — see [ADR-389](0389-the-profile-is-edited-in-a-window-of-its-own-opened-from-the-first-section-of-the-sidebar.md).** Of §1: the two lines end *"in the control panel's Profile window, and publish again."*, not its Profile tab. The rest of this record stands.
 
 - **Date**: 2026-11-11
 - **Status**: accepted on 2026-11-11.

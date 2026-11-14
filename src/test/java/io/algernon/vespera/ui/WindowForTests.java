@@ -33,7 +33,7 @@ import org.assertj.core.api.Assumptions;
 /**
  * The control panel's window shown on a stage of the Headless platform (ADR-342 §6), as {@code ControlPanelWindow}
  * shows it when it starts, with dialogs a test answers: what the window tests that act on it, wait for its clock and read
- * it again share, and the Profile window it opens (ADR-388). Every read and every act runs on the toolkit's thread.
+ * it again share, and the Profile window it opens (ADR-389). Every read and every act runs on the toolkit's thread.
  * Closing it stops the child its state started and closes the stage, and every Profile window showing.
  */
 final class WindowForTests implements AutoCloseable {
@@ -209,7 +209,7 @@ final class WindowForTests implements AutoCloseable {
         return inclusions.getTabPane().getTabs().stream().map(Tab::getId).toList();
     }
 
-    // ---- the Profile window (ADR-388)
+    // ---- the Profile window (ADR-389)
 
     /** Opens the Profile window as the operator does: the sidebar's Profile section opened and Open profile pressed. */
     void openProfile() throws Exception {
@@ -282,6 +282,14 @@ final class WindowForTests implements AutoCloseable {
         every(root, id, Hyperlink.class).stream().filter(link -> report.equals(link.getText())).findFirst()
                 .orElseThrow(() -> new AssertionError("the window holds no link to " + report + " under " + id))
                 .fire();
+    }
+
+    /**
+     * Presses the link of {@code key}'s row, in the list whose ids start {@code prefix}, to the report {@code name}, by
+     * its id {@code <prefix><key>.report-<name>} and not by its text (ADR-377 §5); the test fails where it is no link.
+     */
+    static void pressRowAnalysisReportLink(Parent root, String prefix, ProfileKey key, String name) {
+        node(root, prefix + key.key() + ".report-" + name, Hyperlink.class).fire();
     }
 
     @Override

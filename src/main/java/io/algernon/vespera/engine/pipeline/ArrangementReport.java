@@ -61,7 +61,8 @@ final class ArrangementReport {
         }
     }
 
-    private static final String TITLE = "How the documents are arranged";
+    /** The page's title and first heading, and its JSON's {@code title} (ADR-377 §5). */
+    private static final String TITLE = "Grouping to approve";
 
     /**
      * Everything of the page before its first partition: what is being asked, and the name to approve. The
@@ -69,7 +70,7 @@ final class ArrangementReport {
      */
     static void open(Appendable page, String approvalName, String corpusRoot) throws IOException {
         page.append(ReportPage.head(TITLE))
-                .append(ReportPage.heading(1, "How the documents are arranged"))
+                .append(ReportPage.heading(1, TITLE))
                 .append(ReportPage.paragraph("Every document that survived is here, under the exemplar"
                         + " it was matched to and in the group it formed with the documents nearest it."
                         + " Nothing has been removed, merged or renamed to produce this page, and"

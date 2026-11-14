@@ -12,15 +12,18 @@ import java.util.function.Supplier;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 /**
- * The sidebar's Code sets section (ADR-344 §1, ADR-377 §8): the folders of code the profile's {@code codeSetFolders}
- * states, outside the corpus root, and nothing else, and their Save into {@code profile.yaml}. A set is named by its
- * folder, so the section offers no name; a folder under the corpus root is refused as one inside it, stage 1 finding
- * the sets there by their build files (ADR-284 §2).
+ * The sidebar's Code sets section: the folders of code outside the corpus root that {@code codeSetFolders} states, and
+ * their Save into the working directory (ADR-344 §1, as ADR-377 §8 amends it). It opens with {@code codeSetFolders}'
+ * title, whose tooltip holds the provenance the file states; it lists those folders alone, a folder under the corpus
+ * root being refused, since stage 1 finds the sets under it by their build files and nothing names them (ADR-377 §8,
+ * §9); and its Save writes {@code codeSetFolders} by ADR-377 §2 and nothing else, refused where the file changed the
+ * value since the section was loaded (ADR-330 §5).
  */
 final class CodeSetsPane {
 
@@ -30,13 +33,16 @@ final class CodeSetsPane {
     private final Supplier<List<CodeSetFolderChecks.Apart>> otherFolders;
     private final Runnable saved;
     private final VBox codeSets = new VBox();
-    private final List<String> outside = new ArrayList<>();
-    private final TextField codeSetProvenance = new TextField();
+    /** The folders outside the corpus root, as listed now, in order. */
+    private final List<String> outsideFolders = new ArrayList<>();
+    private final SelectableText.Line codeSetTitle = SelectableText.line(ProfileKey.CODE_SET_FOLDERS.title());
     private final SelectableText.Wrapping codeSetOutcome = SelectableText.wrapping("");
+    /** What the file stated for {@code codeSetFolders} as the section was loaded, which a Save is checked against. */
+    private Optional<ProfileEdit.Stated> loaded = Optional.empty();
 
     /**
-     * {@code otherFolders} are the folders of the window a folder of code must stay apart from, as they stand now, the
-     * corpus root among them; {@code saved} runs after a Save has written.
+     * {@code otherFolders} are the folders of the window a code set outside the corpus root must stay apart from, the
+     * corpus root among them, as they stand now; {@code saved} runs after a Save has written.
      */
     CodeSetsPane(ControlPanelState state, Dialogs dialogs, WorkingFolders folders,
             Supplier<List<CodeSetFolderChecks.Apart>> otherFolders, Runnable saved) {
@@ -59,100 +65,102 @@ final class CodeSetsPane {
         Button add = new Button("+");
         add.setId("code-set-add");
         add.setOnAction(event -> {
-            Optional<String> refusal = addCodeSet(folder.getText().strip());
+            Optional<String> refusal = addFolder(folder.getText().strip());
             codeSetOutcome.setText(refusal.orElse(""));
             if (refusal.isEmpty()) {
                 folder.clear();
             }
         });
-        codeSetProvenance.setId("code-set-provenance");
-        codeSetProvenance.setPromptText(ProfileEdit.FILLED_IN_PROVENANCE);
+        codeSetTitle.setId("code-set-title");
+        codeSetTitle.getStyleClass().add("key-name");
+        codeSetTitle.setTooltip(new Tooltip(ProfileKey.CODE_SET_FOLDERS.tooltip()));
         Button save = new Button("Save");
         save.setId("code-sets-save");
         save.setOnAction(event -> saveCodeSets());
         codeSetOutcome.setId("code-set-outcome");
         HBox.setHgrow(folder, Priority.ALWAYS);
-        VBox pane = new VBox(codeSets, row(folder, browse, add),
-                row(SelectableText.line("Note saved with the folders outside"), codeSetProvenance), save, codeSetOutcome);
+        VBox pane = new VBox(codeSetTitle, codeSets, row(folder, browse, add), save, codeSetOutcome);
         pane.getStyleClass().add("section");
         return pane;
     }
 
-    /** Lists the folders of code the profile states, in its order. */
+    /** Lists the folders outside the corpus root the working directory's profile states for {@code codeSetFolders}. */
     void load(Map<ProfileKey, ProfileEdit.Stated> stated) {
-        outside.clear();
+        outsideFolders.clear();
         ProfileEdit.Stated codeFolders = stated.get(ProfileKey.CODE_SET_FOLDERS);
         if (codeFolders != null && codeFolders.value() != null) {
-            outside.addAll(CodeSetFolderChecks.statedIn(codeFolders.value()));
+            outsideFolders.addAll(CodeSetFolderChecks.statedIn(codeFolders.value()));
         }
-        codeSetProvenance.setText(ProfileEdit.provenanceShown(Optional.ofNullable(codeFolders)));
+        loaded = Optional.ofNullable(codeFolders);
+        codeSetTitle.getTooltip().setText(ProfileRow.tooltipOf(ProfileKey.CODE_SET_FOLDERS, loaded));
         draw();
     }
 
     /**
-     * Adds {@code typed} to the list, or says why not: it must be the whole path of a folder that is there, apart from
-     * the corpus root and the window's other folders and from every folder listed (ADR-334 §5.2).
+     * Adds {@code typed} where {@link CodeSetFolderChecks#refusal} refuses it nothing: a folder under the corpus root is
+     * refused as inside it, as every folder the window keeps apart is (ADR-377 §8).
      */
-    private Optional<String> addCodeSet(String typed) {
+    private Optional<String> addFolder(String typed) {
         if (typed.isEmpty()) {
             return Optional.of("choose a folder first");
         }
         List<CodeSetFolderChecks.Apart> apart = new ArrayList<>(otherFolders.get());
-        for (String each : outside) {
+        for (String each : outsideFolders) {
             apart.add(new CodeSetFolderChecks.Apart("folder already stated", each));
         }
         Optional<String> refusal = CodeSetFolderChecks.refusal(typed, apart);
         if (refusal.isPresent()) {
             return refusal;
         }
-        outside.add(typed);
+        outsideFolders.add(typed);
         draw();
         return Optional.empty();
     }
 
     private void draw() {
         codeSets.getChildren().clear();
-        for (String each : new ArrayList<>(outside)) {
+        for (String each : new ArrayList<>(outsideFolders)) {
             Button remove = new Button("Remove");
             remove.setOnAction(event -> {
-                outside.remove(each);
+                outsideFolders.remove(each);
                 draw();
             });
             codeSets.getChildren().add(row(SelectableText.line(each), remove));
         }
     }
 
-    /** Writes {@code codeSetFolders} and nothing else, with a profile row's checks and words (ADR-377 §8). */
+    /** Writes {@code codeSetFolders} by ADR-377 §2, in {@code ProfileRow.save}'s words, and nothing else (ADR-377 §8). */
     private void saveCodeSets() {
         Optional<Path> folder = folders.workingDirectory();
         if (folder.isEmpty()) {
-            codeSetOutcome.setText("name the working directory first: profile.yaml lies in it");
+            codeSetOutcome.setText("name the working directory first");
             return;
         }
-        String value = String.join(java.io.File.pathSeparator, outside);
+        String outside = String.join(java.io.File.pathSeparator, outsideFolders);
         Map<ProfileKey, ProfileEdit.Stated> stated;
         try {
             stated = ProfileRow.statedIn(folder.get());
         } catch (IOException | IllegalArgumentException unreadable) {
-            codeSetOutcome.setText(unreadable.getMessage() == null ? ProfileEdit.FILE_NAME + " cannot be read"
-                    : unreadable.getMessage());
+            codeSetOutcome.setText(String.valueOf(unreadable.getMessage()));
             return;
         }
+        // compared with what the section was loaded from, and refused where the file moved since (ADR-377 section 8)
         Optional<ProfileEdit.Stated> inFile = Optional.ofNullable(stated.get(ProfileKey.CODE_SET_FOLDERS));
-        Optional<String> provenance = ProfileEdit.provenanceToSave(ProfileKey.CODE_SET_FOLDERS, value,
-                codeSetProvenance.getText(), inFile);
+        Optional<String> provenance = ProfileEdit.provenanceToSave(ProfileKey.CODE_SET_FOLDERS, outside, loaded);
         if (provenance.isEmpty()) {
             codeSetOutcome.setText("nothing was written: every value is as profile.yaml states it");
             return;
         }
-        Optional<String> refusal = ProfileEdit.refusalOfSave(ProfileKey.CODE_SET_FOLDERS, value, provenance.get(),
-                inFile, Optional.empty());
+        String drawn = ProfileEdit.drawnOf(ProfileKey.CODE_SET_FOLDERS, loaded.map(ProfileEdit.Stated::value).orElse(null),
+                loaded.map(ProfileEdit.Stated::provenance).orElse(null));
+        Optional<String> refusal = ProfileEdit.refusalOfSave(ProfileKey.CODE_SET_FOLDERS, outside, provenance.get(),
+                inFile, Optional.of(drawn));
         if (refusal.isPresent()) {
             codeSetOutcome.setText(refusal.get());
             return;
         }
         Optional<String> failed = state.write(folder.get(), ProfileEdit.FILE_NAME,
-                current -> ProfileEdit.rewrite(current, ProfileKey.CODE_SET_FOLDERS, value, provenance.get()));
+                current -> ProfileEdit.rewrite(current, ProfileKey.CODE_SET_FOLDERS, outside, provenance.get()));
         if (failed.isPresent()) {
             codeSetOutcome.setText(failed.get());
             return;

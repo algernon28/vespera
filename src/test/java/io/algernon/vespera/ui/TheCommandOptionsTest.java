@@ -16,49 +16,45 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The window's Command options offer no label file (ADR-377 §10): Record my answers starts {@code vespera label} with the
- * working directory and the presets passed, and nothing else, so that the answers it records are the working
- * directory's label file's, which the Inclusions tab answers by folder. The command line keeps {@code vespera label
- * <file>}, which the window never passes.
- *
- * <p>The command is the one the window starts, {@code ControlPanelState.commandOf} for Record my answers, given a plan
- * of the two launch values and one preset; its arguments are read after {@code -jar} and the jar.
+ * What Command options passes to the commands the window starts (ADR-344 §4, as ADR-377 §10 leaves it): the five presets
+ * and nothing else, so Record my answers names no label file, and {@code vespera label} reads the working directory's,
+ * which the Inclusions tab answers by folder (ADR-334 §6).
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("808")
 @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
+@Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 class TheCommandOptionsTest {
 
-    /** Relative on purpose, so that each is made absolute. */
-    private static final Path JAR = Path.of("vespera.jar");
+    /** The one preset Record my answers is passed, of the five: how often the report is rewritten. */
+    private static final String A_PRESET = "vespera.progress-interval";
 
-    private static final Path WORKING_DIRECTORY = Path.of("work");
+    private static final String ITS_VALUE = "PT5S";
 
-    /** The launch values naming the corpus root and the working directory, and nothing else. */
-    private static final LaunchValues THE_TWO = new LaunchValues("corpus", WORKING_DIRECTORY.toString(), "", "", "",
-            "", "", "");
-
-    /** The one preset passed, one Record my answers takes. */
-    private static final Map<String, String> A_PRESET = Map.of("vespera.progress-interval", "9s");
+    /** The method that passed a label file to Record my answers, which ADR-377 §10 removes. */
+    private static final String THE_LABEL_FILES_METHOD = "withLabelFile";
 
     @Test
-    @Story("Record my answers records the working directory's label file")
-    @DisplayName("Record my answers is started with the working directory and the options passed, and is given no label file")
-    void recordMyAnswersIsGivenNoLabelFile() {
-        ChildRuntime runtime = new ChildRuntime(Path.of("java"), JAR);
-        List<String> command = ControlPanelState.commandOf(runtime, ControlPanelState.Start.LABEL,
-                new ControlPanelState.Plan(THE_TWO, THE_TWO, A_PRESET)).command();
-        List<String> arguments = command.subList(command.indexOf(JAR.toAbsolutePath().toString()) + 1, command.size());
+    @Story("Every option of the jar's commands is set from the control panel or said not to be")
+    @DisplayName("Record my answers is started with the working directory and the presets passed, and no label file")
+    void recordMyAnswersIsGivenNoLabelFile(@TempDir Path workingDirectory) {
+        LaunchValues values = new LaunchValues("", workingDirectory.toString(), "", "", "", "", "", "");
+        ControlPanelState.Plan plan = new ControlPanelState.Plan(values, values, Map.of(A_PRESET, ITS_VALUE));
+        ChildCommand command = ControlPanelState.commandOf(
+                new ChildRuntime(workingDirectory.resolve("java"), workingDirectory.resolve("vespera.jar")),
+                ControlPanelState.Start.LABEL, plan);
+        List<String> line = command.command();
 
-        claim("Record my answers' arguments are label, --db-dir naming the working directory and the one preset"
-                        + " passed, in that order, and no other",
-                () -> assertThat(arguments).containsExactly("label",
-                        "--db-dir=" + WORKING_DIRECTORY.toAbsolutePath(), "--vespera.progress-interval=9s"));
-        claim("the command the window builds declares no way to be given a label file",
+        claim("the arguments after the jar are label, --db-dir naming the working directory, and the one preset passed,"
+                        + " and no other, so no label file is among them",
+                () -> assertThat(line.subList(line.indexOf("-jar") + 2, line.size())).containsExactly(
+                        "label", "--db-dir=" + workingDirectory.toAbsolutePath(), "--" + A_PRESET + "=" + ITS_VALUE));
+        claim("and the command declares no way of being given one",
                 () -> assertThat(Arrays.stream(ChildCommand.class.getDeclaredMethods()).map(Method::getName))
-                        .doesNotContain("withLabelFile"));
+                        .doesNotContain(THE_LABEL_FILES_METHOD));
     }
 }

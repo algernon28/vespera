@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import javafx.scene.Node;
@@ -30,11 +31,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The profile edited in a window of its own (ADR-388): Profile is the sidebar's first section, holding Open profile,
+ * The profile edited in a window of its own (ADR-389): Profile is the sidebar's first section, holding Open profile,
  * which opens the one Profile window, a stage apart from the cockpit's, or brings it to the front; its size and place
- * are kept by the cockpit and written nowhere; closing it, or the cockpit, with an edit unsaved asks Save, Discard or
- * Cancel; the section and the window's title carry the badge; a line naming the Profile window offers a button opening
- * it; and the window follows the cockpit's theme.
+ * are kept by the cockpit and written nowhere, and at its first size every row's title is shown whole; closing it, or
+ * the cockpit, or the cockpit loading the working directory's files again, with an edit unsaved asks Save, Discard or
+ * Cancel, and naming another working directory asks Save or Discard alone, a Save or no answer writing into the old one
+ * and a Save refused dropping the edit, said in the outcome, the new one loaded after each; the section
+ * and the window's title carry the badge; a line naming the Profile window offers a button opening it; and the window
+ * follows the cockpit's theme.
  *
  * <p>Each test shows the cockpit as the control panel shows it, on the Headless platform (ADR-342 §6), with dialogs the
  * test answers, and finds the Profile window among the toolkit's windows by the form its root holds. A window is closed
@@ -43,7 +47,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("799")
-@Link(name = "ADR-388", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
+@Link(name = "ADR-389", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
 class TheProfileWindowTest {
 
     /** The sidebar's sections, in their order: the profile's first, then the seven the cockpit had. */
@@ -95,10 +99,35 @@ class TheProfileWindowTest {
     private static final String CHANGED_SINCE_LOADED = ProfileKey.CONFLUENCE_SPACE_KEY.key() + " is not saved:"
             + " profile.yaml has changed this value since the page was drawn; look at it and save again";
 
+    /** The folder's title's row, which another program changes while the form holds an edit, by its control's id. */
+    private static final String THE_TITLE_FIELD = "profile-" + ProfileKey.CONFLUENCE_FOLDER_TITLE.key();
+
+    /** The folder's titles the other program writes, one before each load whose form the test reads. */
+    private static final String TITLE_BEFORE_CANCEL = "Written before Cancel";
+
+    private static final String TITLE_BEFORE_REFUSED_SAVE = "Written before the refused Save";
+
+    private static final String TITLE_WITH_NO_EDIT = "Written with no edit";
+
+    /** Seed folder's row in the control panel's window, by its control's id. */
+    private static final String THE_SEED_ROWS_FIELD = "seed-" + ProfileKey.SEED_FOLDER.key();
+
+    /** The question asked where the working directory changes with an edit unsaved: the same words, two answers. */
+    private static final AnsweringDialogs.Chose SAVE_OR_DISCARD = new AnsweringDialogs.Chose(THE_QUESTIONS_TITLE,
+            THE_QUESTION, List.of(SAVE, DISCARD));
+
+    /** The space's keys the profiles of the second and the third working directory state. */
+    private static final String OTHER_SPACE = "OT";
+
+    private static final String THIRD_SPACE = "TH";
+
+    /** A width the test makes the Profile window, at which some title is cut, so that its reading is seen to find one. */
+    private static final double NARROW = 500;
+
     /** Where the test moves the Profile window to, and how large it makes it: inside the Headless platform's screen. */
     private static final Placed MOVED_TO = new Placed(40, 30, 700, 500);
 
-    /** The window's own line after a parent's title warning is cancelled, naming the Profile window (ADR-388 §6). */
+    /** The window's own line after a parent's title warning is cancelled, naming the Profile window (ADR-389 §6). */
     private static final String LEFT_AS_IT_WAS = "the publish to Confluence sent nothing: confluenceFolderTitle is left"
             + " as profile.yaml states it; name the parent by confluenceFolderTitle or confluenceFolderId in the Profile"
             + " window, and publish again";
@@ -226,6 +255,35 @@ class TheProfileWindowTest {
         claim("and a control panel started again, over the same launch values file, does not open it there and so"
                         + " large: neither was written anywhere",
                 () -> assertThat(inTheNextControlPanel).isNotEqualTo(MOVED_TO));
+    }
+
+    @Test
+    @Story("The profile is edited in a window of its own")
+    @DisplayName("At the size the profile window first opens at, every row's title is shown whole, none cut with an ellipsis")
+    void atItsFirstSizeEveryRowsTitleIsShownWhole(@TempDir Path folder) throws Exception {
+        List<String> titled;
+        List<String> cutAtFirst;
+        List<String> cutNarrow;
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder))) {
+            window.openProfile();
+            Stage profile = window.profileWindow();
+            titled = window.readProfile(TheProfileWindowTest::keysWithATitle);
+            cutAtFirst = window.readProfile(TheProfileWindowTest::titlesCut);
+            HeadlessToolkit.onTheToolkit(() -> {
+                profile.setWidth(NARROW);
+                return null;
+            });
+            window.readProfile(TheProfileWindowTest::titlesCut);
+            cutNarrow = window.readProfile(TheProfileWindowTest::titlesCut);
+        }
+
+        claim("every key of the profile has a row titled in the profile window, so that a reading of the titles cannot"
+                        + " pass over none",
+                () -> assertThat(titled).containsExactlyElementsOf(everyKey()));
+        claim("made 500 pixels wide, some title shows the ellipsis of a cut line, so that the reading sees a title cut",
+                () -> assertThat(cutNarrow).isNotEmpty());
+        claim("at the size the window first opens at, no row's title shows the ellipsis: each is shown whole",
+                () -> assertThat(cutAtFirst).isEmpty());
     }
 
     @Test
@@ -418,6 +476,275 @@ class TheProfileWindowTest {
     }
 
     @Test
+    @Story("An edit of the profile is not lost by loading the files again")
+    @DisplayName("Loading the working directory's files again with an edit unsaved in the profile window asks Save, Discard or Cancel first: Cancel keeps the edit and loads all but the form, Save writes and then loads, a Save refused keeps the edit as Cancel does, Discard loads, and with no edit it loads asking nothing")
+    void loadingTheFilesAgainWithAnEditUnsavedAsksSaveDiscardOrCancelFirst(@TempDir Path folder) throws Exception {
+        Path working = Files.createDirectories(folder.resolve("working"));
+        Path profileFile = aProfileNamingTheSpace(working);
+        String seedFolder = Files.createDirectories(folder.resolve("seed")).toString();
+
+        List<String> formAfterCancel;
+        String seedRowAfterCancel;
+        ProfileEdit.Stated statedAfterCancel;
+        int askedOnCancel;
+        ProfileEdit.Stated statedAfterSave;
+        List<String> formAfterSave;
+        List<String> formAfterRefusedSave;
+        String outcomeOfRefusedSave;
+        ProfileEdit.Stated statedAfterRefusedSave;
+        byte[] fileBeforeDiscard;
+        byte[] fileAfterDiscard;
+        List<String> formAfterDiscard;
+        int askedWithEdits;
+        List<String> formWithNoEdit;
+        int askedInAll;
+        List<AnsweringDialogs.Chose> choices;
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, working))) {
+            window.openProfile();
+
+            typed(window, FIRST_EDIT);
+            writtenMeanwhile(profileFile, ProfileKey.CONFLUENCE_FOLDER_TITLE, TITLE_BEFORE_CANCEL);
+            writtenMeanwhile(profileFile, ProfileKey.SEED_FOLDER, seedFolder);
+            window.dialogs.chosen = Optional.of(CANCEL);
+            loadTheFilesAgain(window);
+            formAfterCancel = window.readProfile(TheProfileWindowTest::spaceAndTitle);
+            seedRowAfterCancel = window.read(root -> WindowForTests.node(root, THE_SEED_ROWS_FIELD,
+                    TextInputControl.class).getText());
+            statedAfterCancel = spaceIn(profileFile);
+            askedOnCancel = window.dialogs.choices.size();
+
+            window.dialogs.chosen = Optional.of(SAVE);
+            loadTheFilesAgain(window);
+            statedAfterSave = spaceIn(profileFile);
+            formAfterSave = window.readProfile(TheProfileWindowTest::spaceAndTitle);
+
+            typed(window, SECOND_EDIT);
+            writtenMeanwhile(profileFile, ProfileKey.CONFLUENCE_SPACE_KEY, WRITTEN_MEANWHILE);
+            writtenMeanwhile(profileFile, ProfileKey.CONFLUENCE_FOLDER_TITLE, TITLE_BEFORE_REFUSED_SAVE);
+            window.dialogs.chosen = Optional.of(SAVE);
+            loadTheFilesAgain(window);
+            formAfterRefusedSave = window.readProfile(TheProfileWindowTest::spaceAndTitle);
+            outcomeOfRefusedSave = window.readProfile(root -> WindowForTests.node(root, "profile-outcome",
+                    TextInputControl.class).getText());
+            statedAfterRefusedSave = spaceIn(profileFile);
+
+            fileBeforeDiscard = Files.readAllBytes(profileFile);
+            window.dialogs.chosen = Optional.of(DISCARD);
+            loadTheFilesAgain(window);
+            fileAfterDiscard = Files.readAllBytes(profileFile);
+            formAfterDiscard = window.readProfile(TheProfileWindowTest::spaceAndTitle);
+            askedWithEdits = window.dialogs.choices.size();
+
+            writtenMeanwhile(profileFile, ProfileKey.CONFLUENCE_FOLDER_TITLE, TITLE_WITH_NO_EDIT);
+            loadTheFilesAgain(window);
+            formWithNoEdit = window.readProfile(TheProfileWindowTest::spaceAndTitle);
+            askedInAll = window.dialogs.choices.size();
+            choices = List.copyOf(window.dialogs.choices);
+        }
+
+        claim("Cancel, asked once, keeps the edit and the form as it was loaded, the folder's title the other program"
+                        + " wrote not shown, and writes nothing",
+                () -> {
+                    assertThat(askedOnCancel).isEqualTo(1);
+                    assertThat(formAfterCancel).containsExactly(FIRST_EDIT, "");
+                    assertThat(statedAfterCancel).isEqualTo(new ProfileEdit.Stated(SPACE, THE_TESTS_PROVENANCE));
+                });
+        claim("and loads the files for all but the form: Seed folder's row in the control panel's window shows the seed"
+                        + " folder the file now states",
+                () -> assertThat(seedRowAfterCancel).isEqualTo(seedFolder));
+        claim("Save writes the edit, as set in the control panel, and then loads the files, the form showing the"
+                        + " folder's title the other program wrote",
+                () -> {
+                    assertThat(statedAfterSave).isEqualTo(new ProfileEdit.Stated(FIRST_EDIT, SET_IN_THE_CONTROL_PANEL));
+                    assertThat(formAfterSave).containsExactly(FIRST_EDIT, TITLE_BEFORE_CANCEL);
+                });
+        claim("a Save refused, the file having changed the value since the form was loaded, keeps the edit and the form"
+                        + " as Cancel does, with the refusal, the file as it was changed",
+                () -> {
+                    assertThat(formAfterRefusedSave).containsExactly(SECOND_EDIT, TITLE_BEFORE_CANCEL);
+                    assertThat(outcomeOfRefusedSave).isEqualTo(CHANGED_SINCE_LOADED);
+                    assertThat(statedAfterRefusedSave).isEqualTo(
+                            new ProfileEdit.Stated(WRITTEN_MEANWHILE, THE_TESTS_PROVENANCE));
+                });
+        claim("Discard writes nothing and loads the files, the form showing the file's values, not the edit",
+                () -> {
+                    assertThat(fileAfterDiscard).isEqualTo(fileBeforeDiscard);
+                    assertThat(formAfterDiscard).containsExactly(WRITTEN_MEANWHILE, TITLE_BEFORE_REFUSED_SAVE);
+                });
+        claim("each of the four loads with an edit unsaved asked once, titled The profile, saying the profile has"
+                        + " changes not saved in profile.yaml, with Save, Discard and Cancel in that order",
+                () -> {
+                    assertThat(askedWithEdits).isEqualTo(4);
+                    assertThat(choices).allSatisfy(choice -> assertThat(choice).isEqualTo(THE_CHOICE));
+                });
+        claim("and with no edit the files are loaded asking nothing, the form showing the file's values",
+                () -> {
+                    assertThat(askedInAll).isEqualTo(askedWithEdits);
+                    assertThat(formWithNoEdit).containsExactly(WRITTEN_MEANWHILE, TITLE_WITH_NO_EDIT);
+                });
+    }
+
+    @Test
+    @Story("An edit of the profile is not lost by loading the files again")
+    @DisplayName("Naming another working directory with an edit unsaved in the profile window asks Save or Discard, with no Cancel: Save writes the edit into the old working directory's profile, Discard writes nothing, the new one's profile is shown after either, and with no edit nothing is asked")
+    void changingTheWorkingDirectoryWithAnEditUnsavedAsksSaveOrDiscardAndLoadsTheNewOne(@TempDir Path folder)
+            throws Exception {
+        Path working = Files.createDirectories(folder.resolve("working"));
+        Path workingFile = aProfileNamingTheSpace(working);
+        Path other = Files.createDirectories(folder.resolve("other"));
+        Path otherFile = aProfileNaming(other, OTHER_SPACE);
+        Path third = Files.createDirectories(folder.resolve("third"));
+        Path thirdFile = aProfileNaming(third, THIRD_SPACE);
+        byte[] otherAsWritten = Files.readAllBytes(otherFile);
+        byte[] thirdAsWritten = Files.readAllBytes(thirdFile);
+
+        int askedOnSave;
+        ProfileEdit.Stated statedInTheOldAfterSave;
+        byte[] newAfterSave;
+        String formAfterSave;
+        byte[] oldAfterDiscard;
+        byte[] newAfterDiscard;
+        String formAfterDiscard;
+        List<AnsweringDialogs.Chose> askedWithEdits;
+        String formWithNoEdit;
+        int askedInAll;
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, working))) {
+            window.openProfile();
+
+            typed(window, FIRST_EDIT);
+            window.dialogs.chosen = Optional.of(SAVE);
+            workingDirectoryNamed(window, other);
+            askedOnSave = window.dialogs.choices.size();
+            statedInTheOldAfterSave = spaceIn(workingFile);
+            newAfterSave = Files.readAllBytes(otherFile);
+            formAfterSave = window.readProfile(TheProfileWindowTest::theFieldsText);
+
+            typed(window, SECOND_EDIT);
+            window.dialogs.chosen = Optional.of(DISCARD);
+            workingDirectoryNamed(window, third);
+            oldAfterDiscard = Files.readAllBytes(otherFile);
+            newAfterDiscard = Files.readAllBytes(thirdFile);
+            formAfterDiscard = window.readProfile(TheProfileWindowTest::theFieldsText);
+            askedWithEdits = List.copyOf(window.dialogs.choices);
+
+            workingDirectoryNamed(window, working);
+            formWithNoEdit = window.readProfile(TheProfileWindowTest::theFieldsText);
+            askedInAll = window.dialogs.choices.size();
+        }
+
+        claim("Save, asked once, writes the edit, as set in the control panel, into the profile of the working directory"
+                        + " the form was loaded from, and nothing into the new one's",
+                () -> {
+                    assertThat(askedOnSave).isEqualTo(1);
+                    assertThat(statedInTheOldAfterSave).isEqualTo(
+                            new ProfileEdit.Stated(FIRST_EDIT, SET_IN_THE_CONTROL_PANEL));
+                    assertThat(newAfterSave).isEqualTo(otherAsWritten);
+                });
+        claim("and the form then shows the new working directory's profile",
+                () -> assertThat(formAfterSave).isEqualTo(OTHER_SPACE));
+        claim("Discard writes nothing, into the old working directory's profile or the new one's, and the form then shows"
+                        + " the new one's",
+                () -> {
+                    assertThat(oldAfterDiscard).isEqualTo(otherAsWritten);
+                    assertThat(newAfterDiscard).isEqualTo(thirdAsWritten);
+                    assertThat(formAfterDiscard).isEqualTo(THIRD_SPACE);
+                });
+        claim("each of the two changes with an edit unsaved asked once, titled The profile, saying the profile has"
+                        + " changes not saved in profile.yaml, with Save and Discard alone, in that order",
+                () -> assertThat(askedWithEdits).containsExactly(SAVE_OR_DISCARD, SAVE_OR_DISCARD));
+        claim("and with no edit, the first working directory named again, nothing is asked and the form shows the value"
+                        + " Save wrote there",
+                () -> {
+                    assertThat(askedInAll).isEqualTo(askedWithEdits.size());
+                    assertThat(formWithNoEdit).isEqualTo(FIRST_EDIT);
+                });
+    }
+
+    @Test
+    @Story("An edit of the profile is not lost by loading the files again")
+    @DisplayName("Naming another working directory with an edit unsaved in the profile window and closing the question with no answer saves the edit into the old working directory's profile, and the new one's profile is shown")
+    void changingTheWorkingDirectoryWithTheQuestionClosedWithNoAnswerSavesTheEdit(@TempDir Path folder)
+            throws Exception {
+        Path working = Files.createDirectories(folder.resolve("working"));
+        Path workingFile = aProfileNamingTheSpace(working);
+        Path other = Files.createDirectories(folder.resolve("other"));
+        Path otherFile = aProfileNaming(other, OTHER_SPACE);
+        byte[] otherAsWritten = Files.readAllBytes(otherFile);
+
+        List<AnsweringDialogs.Chose> asked;
+        ProfileEdit.Stated statedInTheOld;
+        byte[] theNew;
+        String form;
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, working))) {
+            window.openProfile();
+            typed(window, FIRST_EDIT);
+            window.dialogs.chosen = Optional.empty();
+            workingDirectoryNamed(window, other);
+            asked = List.copyOf(window.dialogs.choices);
+            statedInTheOld = spaceIn(workingFile);
+            theNew = Files.readAllBytes(otherFile);
+            form = window.readProfile(TheProfileWindowTest::theFieldsText);
+        }
+
+        claim("the change was asked once, titled The profile, saying the profile has changes not saved in profile.yaml,"
+                        + " with Save and Discard alone, in that order",
+                () -> assertThat(asked).containsExactly(SAVE_OR_DISCARD));
+        claim("closed with no answer, it saves as Save does: the edit, as set in the control panel, is written into the"
+                        + " profile of the working directory the form was loaded from, and nothing into the new one's",
+                () -> {
+                    assertThat(statedInTheOld).isEqualTo(new ProfileEdit.Stated(FIRST_EDIT, SET_IN_THE_CONTROL_PANEL));
+                    assertThat(theNew).isEqualTo(otherAsWritten);
+                });
+        claim("and the form then shows the new working directory's profile",
+                () -> assertThat(form).isEqualTo(OTHER_SPACE));
+    }
+
+    @Test
+    @Story("An edit of the profile is not lost by loading the files again")
+    @DisplayName("Naming another working directory with an edit unsaved in the profile window, a Save refused because the old profile changed meanwhile drops the edit, the new one's profile is shown, and the control panel's outcome says the refusal whole")
+    void aSaveRefusedAtAChangeOfTheWorkingDirectoryDropsTheEditAndSaysTheRefusalInTheOutcome(@TempDir Path folder)
+            throws Exception {
+        Path working = Files.createDirectories(folder.resolve("working"));
+        Path workingFile = aProfileNamingTheSpace(working);
+        Path other = Files.createDirectories(folder.resolve("other"));
+        Path otherFile = aProfileNaming(other, OTHER_SPACE);
+        byte[] otherAsWritten = Files.readAllBytes(otherFile);
+
+        List<AnsweringDialogs.Chose> asked;
+        ProfileEdit.Stated statedInTheOld;
+        byte[] theNew;
+        String form;
+        String outcome;
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, working))) {
+            window.openProfile();
+            typed(window, FIRST_EDIT);
+            writtenMeanwhile(workingFile, ProfileKey.CONFLUENCE_SPACE_KEY, WRITTEN_MEANWHILE);
+            window.dialogs.chosen = Optional.of(SAVE);
+            workingDirectoryNamed(window, other);
+            asked = List.copyOf(window.dialogs.choices);
+            statedInTheOld = spaceIn(workingFile);
+            theNew = Files.readAllBytes(otherFile);
+            form = window.readProfile(TheProfileWindowTest::theFieldsText);
+            outcome = window.read(root -> WindowForTests.node(root, "outcome", TextInputControl.class).getText());
+        }
+
+        claim("the change was asked once, titled The profile, saying the profile has changes not saved in profile.yaml,"
+                        + " with Save and Discard alone, in that order",
+                () -> assertThat(asked).containsExactly(SAVE_OR_DISCARD));
+        claim("the Save, refused because the old profile changed the value since the form was loaded, writes nothing:"
+                        + " the old profile is as the other program left it and the new one as the test wrote it",
+                () -> {
+                    assertThat(statedInTheOld).isEqualTo(new ProfileEdit.Stated(WRITTEN_MEANWHILE, THE_TESTS_PROVENANCE));
+                    assertThat(theNew).isEqualTo(otherAsWritten);
+                });
+        claim("the edit is dropped and the working directory changed all the same: the form shows the new working"
+                        + " directory's profile",
+                () -> assertThat(form).isEqualTo(OTHER_SPACE));
+        claim("and the control panel's outcome holds the refusal, whole",
+                () -> assertThat(outcome).isEqualTo(CHANGED_SINCE_LOADED));
+    }
+
+    @Test
     @Story("The profile is edited in a window of its own")
     @DisplayName("Once the next invocation wants a value, the Profile section and the open profile window's title both say it needs a value")
     void theSectionAndTheWindowsTitleCarryTheBadge(@TempDir Path folder) throws Exception {
@@ -552,8 +879,41 @@ class TheProfileWindowTest {
 
     /** The working directory's {@code profile.yaml}, naming the space {@link #SPACE} with {@link #THE_TESTS_PROVENANCE}. */
     private static Path aProfileNamingTheSpace(Path working) throws IOException {
+        return aProfileNaming(working, SPACE);
+    }
+
+    /** {@code working}'s {@code profile.yaml}, naming the space {@code space} with {@link #THE_TESTS_PROVENANCE}. */
+    private static Path aProfileNaming(Path working, String space) throws IOException {
         return Files.writeString(working.resolve(ProfileEdit.FILE_NAME), ProfileEdit.rewrite(Optional.empty(),
-                ProfileKey.CONFLUENCE_SPACE_KEY, SPACE, THE_TESTS_PROVENANCE), StandardCharsets.UTF_8);
+                ProfileKey.CONFLUENCE_SPACE_KEY, space, THE_TESTS_PROVENANCE), StandardCharsets.UTF_8);
+    }
+
+    /** Names {@code working} in the control panel's working directory field, as the operator does. */
+    private static void workingDirectoryNamed(WindowForTests window, Path working) throws Exception {
+        window.act(root -> WindowForTests.node(root, "vespera.working-dir", TextInputControl.class)
+                .setText(working.toString()));
+    }
+
+    /** Every key of the profile, in its order. */
+    private static List<String> everyKey() {
+        return Arrays.stream(ProfileKey.values()).map(ProfileKey::key).toList();
+    }
+
+    /** The keys whose row in the Profile window shows a title, in the profile's order. */
+    private static List<String> keysWithATitle(Parent root) {
+        return everyKey().stream()
+                .filter(key -> HeadlessToolkit.nodeWithId(root, "profile-" + key + ".title")
+                        .filter(SelectableText.Line.class::isInstance).isPresent())
+                .toList();
+    }
+
+    /** The keys whose row's title in the Profile window shows the ellipsis of a cut line, in the profile's order. */
+    private static List<String> titlesCut(Parent root) {
+        return everyKey().stream()
+                .filter(key -> HeadlessToolkit.nodeWithId(root, "profile-" + key + ".title")
+                        .filter(SelectableText.Line.class::isInstance).map(SelectableText.Line.class::cast)
+                        .map(title -> title.ellipsis().isVisible()).orElse(false))
+                .toList();
     }
 
     /** What {@code profile.yaml} states for the space's key. */
@@ -565,6 +925,28 @@ class TheProfileWindowTest {
     /** Types {@code value} in the space's field of the Profile window, as the operator does, leaving it unsaved. */
     private static void typed(WindowForTests window, String value) throws Exception {
         window.actOnProfile(root -> WindowForTests.node(root, THE_FIELD, TextInputControl.class).setText(value));
+    }
+
+    /** Writes {@code value} for {@code key} into {@code profileFile}, as another program does, with the test's provenance. */
+    private static void writtenMeanwhile(Path profileFile, ProfileKey key, String value) throws IOException {
+        Files.writeString(profileFile, ProfileEdit.rewrite(Optional.of(Files.readString(profileFile,
+                StandardCharsets.UTF_8)), key, value, THE_TESTS_PROVENANCE), StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Has the control panel load the working directory's files again, as Seed folder's Save does after it saves, which
+     * here writes nothing, the row being as the file stated it when it was loaded.
+     */
+    private static void loadTheFilesAgain(WindowForTests window) throws Exception {
+        window.act(root -> {
+            WindowForTests.section(root, "seed-folder").setExpanded(true);
+            WindowForTests.node(root, "seed-folder-save", Button.class).fire();
+        });
+    }
+
+    /** What the Profile window's form shows for the space's key and the folder's title, in that order. */
+    private static List<String> spaceAndTitle(Parent root) {
+        return List.of(theFieldsText(root), WindowForTests.node(root, THE_TITLE_FIELD, TextInputControl.class).getText());
     }
 
     private static String theFieldsText(Parent root) {

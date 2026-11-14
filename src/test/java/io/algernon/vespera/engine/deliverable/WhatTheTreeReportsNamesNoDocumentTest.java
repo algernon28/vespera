@@ -27,10 +27,8 @@ import org.junit.jupiter.api.Test;
  * <p><b>One method takes two words, each of ours</b> (ADR-333 §11, amending ADR-274 §8): the one telling of a
  * plugin whose drawing failed, which takes the plugin's name and the type of what it threw, and never the exception's
  * message. Neither word is a document's: a plugin's name is lowercase letters a to z, and a type is a class's name.
- *
- * <p><b>And one takes two names of the tree's own {@code code/}</b> (ADR-377 §9, amending ADR-274 §8): the one telling
- * of a code set whose folder there changed, each a set's folder's last element made safe, which names a set of code and
- * no document, file or path of the archive.
+ * And one more since ADR-377 §9, amending ADR-274 §8 again: the one telling of a code set whose folder in {@code code/}
+ * changed, which takes two folders of the tree's {@code code/}, the tree's own names, and no path of the archive.
  */
 @Epic("The deliverable")
 @Feature("The tree the operator is handed")
@@ -43,19 +41,19 @@ class WhatTheTreeReportsNamesNoDocumentTest {
     /** The one method that takes words: a plugin's name and the type of what its drawing threw (ADR-333 §11). */
     private static final String A_PLUGINS_DRAWING_FAILED = "pluginDrawingFailed";
 
-    /** The one method that takes two folders of the tree's code/: a set's earlier folder and its folder now (ADR-377 §9). */
+    /** The other: a code set's two folders of the tree's {@code code/}, earlier and now (ADR-377 §9). */
     private static final String A_SETS_FOLDER_CHANGED = "codeSetFolderChanged";
 
-    /** The two methods that take words, each two strings. */
-    private static final List<String> TAKING_WORDS = List.of(A_PLUGINS_DRAWING_FAILED, A_SETS_FOLDER_CHANGED);
+    /** The methods that take two words, each of ours. */
+    private static final List<String> TAKING_TWO_WORDS = List.of(A_PLUGINS_DRAWING_FAILED, A_SETS_FOLDER_CHANGED);
 
     @Test
     @Story("Nothing outside the tree names a document")
-    @DisplayName("Everything the tree's writer reports is a number or a kind, a plugin's name and an exception's type, or two folders of the tree's code, so nothing it reports can name a document")
+    @DisplayName("Everything the tree's writer reports is a number or a kind, or a plugin's name and an exception's type, so nothing it reports can name a document")
     void everyProgressMethodTakesOnlyNumbersAndKinds() {
         List<String> carryingMore = Arrays.stream(DeliverableProgress.class.getDeclaredMethods())
                 .filter(method -> !method.isSynthetic())
-                .filter(method -> !TAKING_WORDS.contains(method.getName()))
+                .filter(method -> !TAKING_TWO_WORDS.contains(method.getName()))
                 .filter(method -> Arrays.stream(method.getParameterTypes())
                         .anyMatch(type -> !type.isPrimitive() && !type.isEnum()))
                 .map(Method::toString)
@@ -71,10 +69,11 @@ class WhatTheTreeReportsNamesNoDocumentTest {
                         + " text out of the tree",
                 () -> assertThat(carryingMore).isEmpty());
         claim(
-                "and those two each take two strings and nothing else: no exception, whose message could name a"
+                "and those two each take two strings, the plugin's name and the exception's type, or the set's earlier"
+                        + " folder and its folder now, and nothing else: no exception, whose message could name a"
                         + " document, and no path",
                 () -> assertThat(Arrays.stream(DeliverableProgress.class.getDeclaredMethods())
-                                .filter(method -> TAKING_WORDS.contains(method.getName()))
+                                .filter(method -> TAKING_TWO_WORDS.contains(method.getName()))
                                 .map(method -> List.of(method.getParameterTypes()))
                                 .toList())
                         .containsExactly(List.of(String.class, String.class), List.of(String.class, String.class)));

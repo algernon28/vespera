@@ -379,7 +379,8 @@ public final class Deliverable {
                         writeIndexAndClusterPages(
                                 tree, provenance, partitions, source, entryPictures, copies, written, filesLeft, moves,
                                 progress, ceiling, sizes, drawings,
-                                index -> listingPart[0] = codeCopies.draw(code, index, written, source.language()));
+                                index -> listingPart[0] =
+                                        codeCopies.draw(code, index, written, source.language()));
                 progress.copiesAtALongPath(copies.copiesAtALongPath() + codeCopies.copiesAtALongPath());
                 Path manifestPart = writeManifest(tree, source, copies, progress);
                 // Both are whole before either is moved, so a write that fails before the first move leaves the pair
@@ -389,8 +390,8 @@ public final class Deliverable {
                 moves.intoPlace(manifestPart, tree.resolve(MANIFEST_FILE_NAME));
                 if (listingPart[0] != null) {
                     moves.intoPlace(listingPart[0], tree.resolve(CODE_LISTING_FILE_NAME));
-                    // Told once the listing is in place, so that a drawing failing before it tells nothing the next
-                    // drawing would tell again (ADR-377 §9).
+                    // Told once the listing is in place, so a drawing that fails before tells nothing and the next
+                    // reads the same earlier listing again (ADR-377 §9).
                     codeCopies.foldersChanged()
                             .forEach(change -> progress.codeSetFolderChanged(change.earlier(), change.now()));
                 }

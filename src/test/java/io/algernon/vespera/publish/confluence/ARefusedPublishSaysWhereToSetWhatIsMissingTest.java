@@ -28,7 +28,7 @@ import org.springframework.http.client.ClientHttpRequestFactory;
  * {@code VESPERA_STARTED_BY=control-panel}, it writes no template, and names each value missing by its key and the
  * control panel's Profile window. Its two other refusals of what it read, a parent named twice and an address that is
  * not a Cloud site's, name the profile's keys and the Profile window there too, and on the command line say what they
- * said before (ADR-372, ADR-388 §6); those two are read through {@link ConfluenceSite#of}, the line it refuses with.
+ * said before (ADR-372, ADR-389 §6); those two are read through {@link ConfluenceSite#of}, the line it refuses with.
  *
  * <p>Each publish is refused before it reads the rendering or sends anything, so none is drawn, and the request
  * factory and the pause fail a test that reaches them. Untagged: nothing is sent (ADR-320 §6).
@@ -39,7 +39,7 @@ import org.springframework.http.client.ClientHttpRequestFactory;
 @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
 @Link(name = "ADR-318", url = Adr.THE_PUBLISH_READS_THE_EMAIL_AND_THE_FOLDER_BY_THEIR_NEW_NAMES, type = "adr")
 @Link(name = "ADR-372", url = Adr.THE_CONTROL_PANELS_PUBLISH_NAMES_THE_PROFILE_KEYS_FOR_A_PARENT_NAMED_TWICE_OR_A_WRONG_ADDRESS, type = "adr")
-@Link(name = "ADR-388", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
+@Link(name = "ADR-389", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
 class ARefusedPublishSaysWhereToSetWhatIsMissingTest {
 
     /** The variable by which the control panel tells the child it started it, and its one value (ADR-359 §3). */
@@ -65,16 +65,16 @@ class ARefusedPublishSaysWhereToSetWhatIsMissingTest {
 
     private static final String FOLDER_TITLE = "Hand-overs";
 
-    /** The refusal of two keys missing, the space's and the email's, started by the control panel (ADR-388 §6). */
+    /** The refusal of two keys missing, the space's and the email's, started by the control panel (ADR-389 §6). */
     private static final String PANEL_SPACE_AND_EMAIL_MISSING = "vespera publish sent nothing: confluenceSpaceKey,"
             + " confluenceEmail are not set. Set each key in the control panel's Profile window, and publish again.";
 
-    /** The refusal of a parent named twice, started by the control panel (ADR-372 §1, ADR-388 §6). */
+    /** The refusal of a parent named twice, started by the control panel (ADR-372 §1, ADR-389 §6). */
     private static final String PANEL_PARENT_NAMED_TWICE = "vespera publish sent nothing: the parent is named both by"
             + " confluenceFolderId and by confluenceFolderTitle. Clear one in the control panel's Profile window, and"
             + " publish again.";
 
-    /** The refusal of an address that is not a Cloud site's, started by the control panel (ADR-372 §1, ADR-388 §6). */
+    /** The refusal of an address that is not a Cloud site's, started by the control panel (ADR-372 §1, ADR-389 §6). */
     private static final String PANEL_NOT_A_SITE = "vespera publish sent nothing: confluenceBaseUrl is not the https"
             + " address of a Confluence Cloud site, https://<site> or https://<site>/wiki, with no user, query or other"
             + " path. Correct it in the control panel's Profile window, and publish again.";

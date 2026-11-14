@@ -380,7 +380,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
     @DisplayName("Every text of the window, and every line, swatch and marker of its charts, stands at WCAG AA in the light and the dark theme")
     @Link(name = "ADR-374", url = Adr.EVERY_TEXT_LINE_AND_MARKER_OF_THE_WINDOW_STANDS_AT_AA_IN_BOTH_THEMES, type = "adr")
     @Link(name = "ADR-382", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
-    @Link(name = "ADR-388", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
+    @Link(name = "ADR-389", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
     void everyTextOfTheWindowAndEveryMarkOfItsChartsStandsAtAaInBothThemes(@TempDir Path folder) throws Exception {
         Map<String, String> faults = new LinkedHashMap<>();
         int[] measured = new int[3];
@@ -403,7 +403,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                         keptOncePerPair(faults, window.read(root -> faultsIn(root,
                                 theme + ", " + drawing + ", " + tab + " tab", measured)));
                     }
-                    // the profile's form is a window of its own, which follows the switch (ADR-388 §7)
+                    // the profile's form is a window of its own, which follows the switch (ADR-389 §7)
                     window.openProfile();
                     keptOncePerPair(faults, window.readProfile(root -> faultsIn(root,
                             theme + ", " + drawing + ", the profile window", measured)));

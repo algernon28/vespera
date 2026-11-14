@@ -39,6 +39,7 @@ import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.control.TitledPane;
+import javafx.scene.control.ToggleButton;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.ContextMenuEvent;
@@ -59,7 +60,7 @@ import org.junit.jupiter.api.io.TempDir;
  * and the tests read it as the record says a test does: from the root, through every parent that is neither a control
  * nor a chart, and, of the controls, through a scroll pane's content, a split pane's items, each tab's content, an
  * accordion's panes and a titled pane's content, never its header; and the Profile window, a window of its own, from
- * its root the same way (ADR-388 §7). The context menu's items are found by their English
+ * its root the same way (ADR-389 §7). The context menu's items are found by their English
  * names, which JavaFX gives them in the tests' locale, pinned to {@code en_US} on every machine (ADR-386).
  */
 @Epic("Operation")
@@ -67,7 +68,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Issue("777")
 @Link(name = "ADR-364", url = Adr.THE_OUTPUT_PANEL_IS_COPYABLE_TEXT_AND_EVERY_LINE_GOES_THROUGH_LOGBACK, type = "adr")
 @Link(name = "ADR-386", url = Adr.THE_TESTS_RUN_IN_ONE_LOCALE_ON_EVERY_MACHINE, type = "adr")
-@Link(name = "ADR-388", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
+@Link(name = "ADR-389", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
 class EveryTextOfTheWindowCanBeCopiedTest {
 
     /** How far apart two sizes or places may be and still be the same: a pixel. */
@@ -124,9 +125,18 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                     Boolean::booleanValue);
             assumeThat(drawn).as("the wanted value's row is drawn once the invocation has ended").isTrue();
             reached = new ArrayList<>(window.read(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl));
-            // the profile's form lies in a window of its own, walked from its root as the window is (ADR-388 §7)
+            // the profile's form lies in a window of its own, walked from its root as the window is (ADR-389 §7),
+            // every profile row opened, so that the walk reaches the texts behind each toggle
             window.openProfile();
-            reached.addAll(window.readProfile(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl));
+            reached.addAll(window.readProfile(root -> {
+                HeadlessToolkit.everyNodeUnder(root).stream().filter(ToggleButton.class::isInstance)
+                        .map(ToggleButton.class::cast)
+                        .filter(toggle -> toggle.getStyleClass().contains("more") && !toggle.isSelected())
+                        .forEach(ToggleButton::fire);
+                root.applyCss();
+                root.layout();
+                return outsideAControl(root);
+            }));
         }
         try (WindowForTests window = WindowForTests.shown(otherState)) {
             reachedWhenNotInForm = new ArrayList<>(window.read(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl));
@@ -337,6 +347,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         Map<String, Double> startOfTheText = new LinkedHashMap<>();
         int[] caretAndSelection = new int[3];
         int[] caretAfterTheChange = new int[3];
+        boolean[] ellipsisShown = new boolean[1];
         try (WindowForTests window = WindowForTests.shown(WindowForTests.aState(folder, SleepingJar.runtime()))) {
             window.act(root -> {
                 window.stage.setWidth(TIGHT_WIDTH);
@@ -345,6 +356,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
             });
             window.act(root -> {
                 TextInputControl where = WindowForTests.node(root, "where", TextInputControl.class);
+                ellipsisShown[0] = ((SelectableText.Line) where).ellipsis().isVisible();
                 for (String id : beside) {
                     asText.put(id, placed(WindowForTests.node(root, id, Node.class)));
                 }
@@ -389,6 +401,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
 
         claim("the path in where is wider than the window of 700 leaves it, so that where is shrunk",
                 () -> assertThat(whereWidth).isLessThan(textWidth));
+        claim("and where, shrunk, shows its ellipsis over its end", () -> assertThat(ellipsisShown[0]).isTrue());
         claim("where is as wide as a label of the same text and style laid out there, within a pixel",
                 () -> assertThat(asText.get("where").width()).isCloseTo(asLabel.get("where").width(),
                         offset(ONE_PIXEL)));
@@ -452,10 +465,12 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         try (WindowForTests window = WindowForTests.shown(state)) {
             double[] seen = new double[4];
             int[] heard = new int[2];
+            String row = "profile-" + ProfileKey.GENERATION_MODEL.key();
             window.openProfile();
+            window.actOnProfile(root -> WindowForTests.node(root, row + ".more", ToggleButton.class).fire());
             window.actOnProfile(root -> {
-                SelectableText.Wrapping description = WindowForTests.every(root,
-                        "profile-row-" + ProfileKey.GENERATION_MODEL.key(), SelectableText.Wrapping.class).getFirst();
+                SelectableText.Wrapping description = WindowForTests.node(root, row + ".short",
+                        SelectableText.Wrapping.class);
                 ScrollPane form = formScroll(root);
                 seen[0] = form.getVvalue();
                 seen[2] = description.getScrollTop();

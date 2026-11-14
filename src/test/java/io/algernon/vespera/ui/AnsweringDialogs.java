@@ -42,7 +42,7 @@ final class AnsweringDialogs implements Dialogs {
     /** What the next such warning is answered: what is typed, or empty where it is cancelled. */
     volatile Optional<String> entered = Optional.empty();
 
-    /** A choice the window asked for (ADR-388 §4): its title, its sentence and its answers' words, in order. */
+    /** A choice the window asked for (ADR-389 §4): its title, its sentence and its answers' words, in order. */
     record Chose(String title, String sentence, List<String> answers) {
     }
 
@@ -53,7 +53,7 @@ final class AnsweringDialogs implements Dialogs {
     volatile Optional<String> chosen = Optional.empty();
 
     /**
-     * Answers {@code Dialogs.choose} (ADR-388 §4): keeps the choice asked for and gives {@link #chosen}.
+     * Answers {@code Dialogs.choose} (ADR-389 §4): keeps the choice asked for and gives {@link #chosen}.
      */
     @Override
     public Optional<String> choose(String title, String sentence, List<String> answers) {

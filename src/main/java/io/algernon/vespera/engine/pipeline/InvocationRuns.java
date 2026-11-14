@@ -49,7 +49,7 @@ class InvocationRuns {
     private static final String FOLDERS_LEFT_BEHIND = "vespera.deliverable.folders-left-behind";
     private static final String FILES_LEFT_BEHIND = "vespera.deliverable.files-left-behind";
 
-    /** Where what the tree's code sets came to is handed to the closing line (ADR-296 §6). */
+    /** Where what the tree's code sets came to is handed to the closing line (ADR-296 §6, ADR-377 §9). */
     private static final String CODE_FILES_NOT_COPIED = "vespera.deliverable.code-files-not-copied";
 
     /** Where the plugins whose drawing failed are handed to the closing line, one {@code name:type} to a line (ADR-333 §11). */

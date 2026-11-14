@@ -2,7 +2,7 @@
 
 > **Partly amended — see [ADR-372](0372-a-publish-the-control-panel-started-refuses-a-parent-named-twice-or-a-wrong-address-naming-the-profile-keys.md).** Of §4: started by the control panel, a parent named twice is refused naming `confluenceFolderId` and `confluenceFolderTitle`, and an address that is not a Cloud site's naming `confluenceBaseUrl`, each line saying to put it right in the control panel's Profile tab and publish again, and naming no `VESPERA_CONFLUENCE_*` variable. On the command line both lines are unchanged. The rest stands.
 
-> **Partly amended — see [ADR-388](0388-the-profile-is-edited-in-a-window-of-its-own-opened-from-the-first-section-of-the-sidebar.md).** Of §4: started by the control panel, a refusal for a missing value says to set it in the control panel's Profile window, not its Profile tab. The rest of this record stands.
+> **Partly amended — see [ADR-389](0389-the-profile-is-edited-in-a-window-of-its-own-opened-from-the-first-section-of-the-sidebar.md).** Of §4: started by the control panel, a refusal for a missing value says to set it in the control panel's Profile window, not its Profile tab. The rest of this record stands.
 
 - **Date**: 2026-11-06
 - **Status**: accepted on 2026-11-06.

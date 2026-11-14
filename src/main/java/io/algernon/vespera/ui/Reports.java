@@ -1,10 +1,7 @@
 package io.algernon.vespera.ui;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.SequencedMap;
 
 /**
  * The reports the jar writes in the working directory, and the ones each profile key is read off (ADR-344 §6, which
@@ -23,11 +20,8 @@ public final class Reports {
             "seed-corpus-comparison", "translations", "cluster-sizes", "relevance-labelling",
             "arrangement", "cluster-page-sizes");
 
-    /**
-     * Each analysis report's title, by name, in the order of {@link #ALL} (ADR-377 §5): what a row's tooltip names a
-     * report by, under the record's word rule.
-     */
-    public static final SequencedMap<String, String> TITLES = titles(
+    /** Each analysis report's title by its name, in {@link #ALL}'s order (ADR-377 §5). */
+    public static final Map<String, String> TITLES = titles(
             "format-mix", "What the files turned out to be",
             "extraction-failures", "Files whose text could not be read",
             "extraction-survivors", "Files whose text was read and kept",
@@ -74,13 +68,12 @@ public final class Reports {
         return ALL.stream().filter(name -> pageOf(name).equals(file)).findFirst();
     }
 
-    /** The map of names and titles given in pairs, in their order, which no one can change. */
-    private static SequencedMap<String, String> titles(String... pairs) {
-        LinkedHashMap<String, String> titles = new LinkedHashMap<>();
-        for (int i = 0; i < pairs.length; i += 2) {
-            titles.put(pairs[i], pairs[i + 1]);
+    private static Map<String, String> titles(String... namesAndTitles) {
+        java.util.LinkedHashMap<String, String> titles = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < namesAndTitles.length; i += 2) {
+            titles.put(namesAndTitles[i], namesAndTitles[i + 1]);
         }
-        return Collections.unmodifiableSequencedMap(titles);
+        return java.util.Collections.unmodifiableMap(titles);
     }
 
     private Reports() {

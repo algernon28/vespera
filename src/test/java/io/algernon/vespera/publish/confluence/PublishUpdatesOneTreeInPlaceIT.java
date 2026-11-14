@@ -176,7 +176,7 @@ class PublishUpdatesOneTreeInPlaceIT {
             + StubConfluence.SPACE_KEY + " is titled " + StubConfluence.PARENT_TITLE + ", and the parent must be exactly"
             + " one; name it by VESPERA_CONFLUENCE_FOLDER_ID." + NOTHING_SENT;
 
-    /** The same two, the control panel having started the publish (ADR-383 §1, as ADR-388 §6 words them). */
+    /** The same two, the control panel having started the publish (ADR-383 §1, as ADR-389 §6 words them). */
     private static final String FROM_THE_CONTROL_PANEL_NO_PAGE = "vespera publish stopped: no page or folder of the"
             + " space " + StubConfluence.SPACE_KEY + " is titled " + TITLE_OF_NO_PAGE + ", and the parent must be"
             + " exactly one; set another title in confluenceFolderTitle, or the parent's id in confluenceFolderId, in"
@@ -926,7 +926,7 @@ class PublishUpdatesOneTreeInPlaceIT {
     @Test
     @Story("A parent's title naming no page or several asks for another")
     @Link(name = "ADR-383", url = Adr.A_PARENT_TITLE_NAMING_NO_PAGE_OR_SEVERAL_ASKS_FOR_ANOTHER_IN_A_WARNING, type = "adr")
-    @Link(name = "ADR-388", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
+    @Link(name = "ADR-389", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
     @DisplayName("Started by the control panel, a parent's title the profile names that no page holds, or two, stops the publish before any write with an exit code of its own each, naming the profile's keys and the profile window")
     void fromTheControlPanelATitleNamingNoPageOrTwoStopsWithItsOwnCodeNamingTheProfilesKeys() throws IOException {
         Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));

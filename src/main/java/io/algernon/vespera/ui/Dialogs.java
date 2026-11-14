@@ -54,7 +54,7 @@ interface Dialogs {
     boolean confirm(String sentence, String yes, String no);
 
     /**
-     * Asks {@code sentence} under {@code title} with one button for each of {@code answers}, in their order (ADR-388 §4):
+     * Asks {@code sentence} under {@code title} with one button for each of {@code answers}, in their order (ADR-389 §4):
      * the words of the answer pressed, empty where the dialog is closed with none.
      */
     Optional<String> choose(String title, String sentence, List<String> answers);

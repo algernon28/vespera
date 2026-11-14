@@ -20,13 +20,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * A code set is named by its folder, and the file of names the control panel once wrote is read, written and named by
- * no class of the jar or of the control panel (ADR-377 §9): a {@code code-set-names.yaml} left in a working directory
- * stays the operator's and changes nothing.
- *
- * <p>Every source under {@code src/main/java/io/algernon} is read whole, comments among it, so that neither a constant
- * nor a javadoc points a reader at the file as if it were read; and the scan must read {@code CodeSetFolderNames},
- * which names each set's folder, so that a scan of nothing cannot pass.
+ * A code set is named by its folder alone (ADR-377 §9): no class of the jar or the control panel reads, writes or names
+ * {@code code-set-names.yaml}, so a file of that name left in a working directory changes nothing. Read from the
+ * sources, which name a file by its name where they read or write it.
  */
 @Epic("The deliverable")
 @Feature("Code in the deliverable")
@@ -34,33 +30,33 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
 class NoShippedClassNamesTheCodeSetNamesFileTest {
 
-    /** The shipped sources, the jar's and the control panel's. */
+    /** Every shipped source lies beneath this folder: the jar's engine and plugins, and the control panel. */
     private static final Path SOURCES = Path.of("src/main/java/io/algernon");
 
-    /** The file's name, without its ending, as any spelling of it would hold it. */
+    /** The file's name, as a source would spell it, without its extension. */
     private static final String THE_FILE = "code-set-names";
 
-    /** The class the scan must read. */
-    private static final String MUST_READ = "CodeSetFolderNames.java";
+    /** The class that names the sets' folders in the tree, which the scan must read so that a scan of nothing fails. */
+    private static final String THE_NAMING_CLASS = "CodeSetFolderNames.java";
 
     @Test
     @Story("A code set is named by its folder")
-    @DisplayName("No class of the application or its control panel names the file of code set names")
+    @DisplayName("No class of the jar or the control panel names the file of code-set names")
     void noClassOfTheJarOrTheControlPanelNamesIt() throws IOException {
         List<String> read = new ArrayList<>();
         List<String> naming = new ArrayList<>();
-        try (Stream<Path> files = Files.walk(SOURCES)) {
-            for (Path file : files.filter(path -> path.toString().endsWith(".java")).sorted().toList()) {
-                read.add(file.getFileName().toString());
-                if (Files.readString(file, StandardCharsets.UTF_8).contains(THE_FILE)) {
-                    naming.add(SOURCES.relativize(file).toString());
+        try (Stream<Path> sources = Files.walk(SOURCES)) {
+            for (Path source : sources.filter(path -> path.toString().endsWith(".java")).toList()) {
+                read.add(source.getFileName().toString());
+                if (Files.readString(source, StandardCharsets.UTF_8).contains(THE_FILE)) {
+                    naming.add(SOURCES.relativize(source).toString());
                 }
             }
         }
 
-        claim("the scan read the class that names each code set's folder, so that it cannot pass by reading nothing",
-                () -> assertThat(read).contains(MUST_READ));
-        claim("no shipped source names the file of code set names",
+        claim("the scan read the shipped sources, the class that names the sets' folders in the tree among them",
+                () -> assertThat(read).contains(THE_NAMING_CLASS));
+        claim("and no source holds " + THE_FILE,
                 () -> assertThat(naming).isEmpty());
     }
 }

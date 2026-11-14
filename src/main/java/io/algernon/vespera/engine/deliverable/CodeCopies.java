@@ -3,10 +3,10 @@ package io.algernon.vespera.engine.deliverable;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.ReplacingMove;
 import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.Reader;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -17,7 +17,7 @@ import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,9 +33,10 @@ import java.util.function.LongSupplier;
  * taken as copied without reading it or the original (§2.4). The original is opened for reading alone (§2.6), after its
  * size and time are read and found as recorded, and its size and time are read again when the stream ends.
  *
- * <p><b>What is held is a drawn name for each set, the earlier listing's folder for each set it names, and one set's members
- * and kept paths while that set is copied</b>
- * (ADR-296 §3.4, ADR-220). This class writes no line; it reports numbers through {@link DeliverableProgress}.
+ * <p><b>What is held is a drawn name for each set, and one set's members and kept paths while that set is copied</b>
+ * (ADR-296 §3.4, ADR-220), and, from the earlier listing, one folder in {@code code/} for each set it holds (ADR-377
+ * §9). This class writes no line; it reports numbers through {@link DeliverableProgress}, and hands the sets whose
+ * folder in {@code code/} changed to {@link Deliverable}, which tells them once the listing is in place.
  */
 final class CodeCopies {
 
@@ -49,14 +50,15 @@ final class CodeCopies {
     private static final String HEADER =
             "occurrence_id,path,code_set,role,generator,size_bytes,last_modified,copy,copy_outcome";
 
-    private static final int BUFFER_BYTES = 1 << 16;
-
-    /** The listing's columns by name, in {@link #HEADER}'s order, and where the set's folder and the copy stand. */
+    /** The header's columns, by which an earlier listing's columns are found. */
     private static final List<String> COLUMNS = List.of(HEADER.split(","));
 
+    /** Where {@link #HEADER} names the set's folder in the archive, and the member's copy, counting from 0. */
     private static final int SET_COLUMN = 2;
 
     private static final int COPY_COLUMN = 7;
+
+    private static final int BUFFER_BYTES = 1 << 16;
 
     private final Path tree;
     private final String corpusRoot;
@@ -64,6 +66,7 @@ final class CodeCopies {
     private final LongSupplier usableSpace;
     private final DeliverableProgress progress;
     private long atALongPath;
+    private List<FolderChange> foldersChanged = List.of();
 
     CodeCopies(
             Path tree,
@@ -84,43 +87,33 @@ final class CodeCopies {
     }
 
     /**
-     * The sets whose folder in {@code code/} this drawing changed from the one the tree's earlier listing gives them, in
-     * the order the sets are drawn: each its earlier folder and its folder now, two names of {@code code/} (ADR-377 §9).
-     * The caller tells them once the listing this drawing wrote is in place.
+     * The sets of this drawing whose folder in {@code code/} is not the one the tree's earlier {@code code.csv} gave
+     * them, each as its earlier folder and its folder now, in the order the sets are drawn (ADR-377 §9); none before
+     * {@link #draw} or where it found no change. The caller tells them once the listing is in place.
      */
-    List<FolderChanged> foldersChanged() {
-        return List.copyOf(changed);
+    List<FolderChange> foldersChanged() {
+        return foldersChanged;
     }
 
-    /** A set's folder in {@code code/} as the earlier listing gives it, and as this drawing names it. */
-    record FolderChanged(String earlier, String now) {}
-
-    private final List<FolderChanged> changed = new ArrayList<>();
+    /** A set's folder in {@code code/} as the earlier listing gave it, and as this drawing gives it. */
+    record FolderChange(String earlier, String now) {}
 
     /**
      * Copies every member of every set, writes {@code code.csv} beside its target and the index's section of code as
      * each set ends, and returns where {@code code.csv} is; none where the run has no code set, which writes nothing.
-     * Before it writes its own listing it reads the one the tree holds, where there is one, for {@link
-     * #foldersChanged()}.
+     * Before it writes the listing it reads the one the tree holds from the drawing before, where there is one, for
+     * {@link #foldersChanged}.
      *
      * @param written the folders of the tree this drawing wrote, to which {@code code} and each set's folder are added
      */
     Path draw(ListedCodeSets code, Appendable index, Set<String> written, DeliverableLanguage language)
             throws IOException {
         List<ListedCodeSet> sets = code.sets();
-        changed.clear();
         if (sets.isEmpty()) {
             return null;
         }
         Map<String, String> folders = CodeSetFolderNames.of(sets);
-        Map<String, String> earlier = EarlierListing.foldersIn(tree.resolve(LISTING_FILE_NAME));
-        for (ListedCodeSet set : sets) {
-            String was = earlier.get(ManifestCsv.shownAsText(set.folder()));
-            String now = folders.get(set.folder());
-            if (was != null && CopyNames.keysOf(was).stream().noneMatch(CopyNames.keysOf(now)::contains)) {
-                changed.add(new FolderChanged(was, now));
-            }
-        }
+        foldersChanged = changesFrom(earlierFolders(tree.resolve(LISTING_FILE_NAME)), sets, folders);
 
         long files = 0;
         long bytes = 0;
@@ -278,115 +271,108 @@ final class CodeCopies {
     }
 
     /**
-     * The listing of code an earlier drawing left at the tree's root, read for where it put each set (ADR-377 §9): for
-     * each cell of its {@code code_set} column, as the listing spells it, the folder in {@code code/} of the first
-     * {@code copy} cell of its rows that is not empty. It keys nothing and decides no name. A listing that is not there,
-     * that cannot be read, that ends inside a quoted cell, or whose header names neither column, gives nothing. What is
-     * held is one entry for each set the listing names, read a character at a time.
+     * The changes of folder in {@code code/}: each set of {@code sets}, in their order, whose earlier folder shares no
+     * key of ADR-280 §1.4 with the one {@code folders} gives it. A change of case alone shares a key and is no change.
      */
-    private static final class EarlierListing {
-
-        /** What a listing that gives nothing reads as. */
-        private static final Map<String, String> NOTHING = Map.of();
-
-        private final Reader in;
-        private boolean ended;
-
-        private EarlierListing(Reader in) {
-            this.in = in;
-        }
-
-        static Map<String, String> foldersIn(Path listing) {
-            if (!Files.isRegularFile(listing)) {
-                return NOTHING;
+    private static List<FolderChange> changesFrom(
+            Map<String, String> earlier, List<ListedCodeSet> sets, Map<String, String> folders) {
+        List<FolderChange> changes = new ArrayList<>();
+        for (ListedCodeSet set : sets) {
+            String was = earlier.get(ManifestCsv.shownAsText(set.folder()));
+            String now = folders.get(set.folder());
+            if (was != null && CopyNames.keysOf(was).stream().noneMatch(CopyNames.keysOf(now)::contains)) {
+                changes.add(new FolderChange(was, now));
             }
-            try (Reader in = Files.newBufferedReader(listing, StandardCharsets.UTF_8)) {
-                EarlierListing reading = new EarlierListing(in);
-                List<String> header = reading.record();
-                int set = header == null ? -1 : header.indexOf(COLUMNS.get(SET_COLUMN));
-                int copy = header == null ? -1 : header.indexOf(COLUMNS.get(COPY_COLUMN));
-                if (set < 0 || copy < 0) {
-                    return NOTHING;
+        }
+        return List.copyOf(changes);
+    }
+
+    /**
+     * The earlier listing's folder in {@code code/} for each set folder of its {@code code_set} column, as it spells
+     * the cell: the folder of the first {@code copy} cell of that set's rows that is not empty (ADR-377 §9). None where
+     * there is no listing, or it cannot be read, a quoted cell cut short among the ways, or its header names neither
+     * column. One string pair a set is held, and no row; the rows decide no name and key nothing.
+     */
+    private static Map<String, String> earlierFolders(Path listing) {
+        if (!Files.isRegularFile(listing)) {
+            return Map.of();
+        }
+        Map<String, String> folders = new HashMap<>();
+        try (BufferedReader in = Files.newBufferedReader(listing, StandardCharsets.UTF_8)) {
+            List<String> header = recordOf(in);
+            if (header == null) {
+                return Map.of();
+            }
+            int setColumn = header.indexOf(COLUMNS.get(SET_COLUMN));
+            int copyColumn = header.indexOf(COLUMNS.get(COPY_COLUMN));
+            if (setColumn < 0 || copyColumn < 0) {
+                return Map.of();
+            }
+            for (List<String> row = recordOf(in); row != null; row = recordOf(in)) {
+                if (row.size() <= Math.max(setColumn, copyColumn) || folders.containsKey(row.get(setColumn))) {
+                    continue;
                 }
-                Map<String, String> folders = new LinkedHashMap<>();
-                for (List<String> row = reading.record(); row != null; row = reading.record()) {
-                    if (row.size() <= Math.max(set, copy) || folders.containsKey(row.get(set))) {
-                        continue;
-                    }
-                    String folder = folderOf(row.get(copy));
-                    if (folder != null) {
-                        folders.put(row.get(set), folder);
-                    }
+                String copy = row.get(copyColumn);
+                String prefix = DIRECTORY_NAME + "/";
+                int end = copy.indexOf('/', prefix.length());
+                if (copy.startsWith(prefix) && end > prefix.length()) {
+                    folders.put(row.get(setColumn), copy.substring(prefix.length(), end));
                 }
-                return folders;
-            } catch (IOException | RuntimeException unreadable) {
-                // A listing that cannot be read is told nothing, and the drawing goes on (ADR-377 §9).
-                return NOTHING;
             }
+            return folders;
+        } catch (IOException | RuntimeException unreadable) {
+            // A listing that cannot be read tells nothing, and the drawing goes on (ADR-377 §9).
+            return Map.of();
         }
+    }
 
-        /** The folder in {@code code/} a copy's cell names, none where it is empty or names none. */
-        private static String folderOf(String copy) {
-            String prefix = DIRECTORY_NAME + "/";
-            if (!copy.startsWith(prefix)) {
-                return null;
-            }
-            int end = copy.indexOf('/', prefix.length());
-            return end <= prefix.length() ? null : copy.substring(prefix.length(), end);
-        }
-
-        /**
-         * The next record's cells, RFC 4180's way, none at the end of the file.
-         *
-         * @throws IOException where the file ends inside a quoted cell
-         */
-        private List<String> record() throws IOException {
-            if (ended) {
-                return null;
-            }
-            List<String> cells = new ArrayList<>();
-            StringBuilder cell = new StringBuilder();
-            boolean quoted = false;
-            boolean any = false;
-            for (int c = in.read(); ; c = in.read()) {
+    /**
+     * The next record of an RFC 4180 listing as {@link ManifestCsv#quoted} writes it, its cells unquoted; {@code null}
+     * at the end of the text. A blank line is no record.
+     *
+     * @throws IOException where a quoted cell is not closed before the text ends
+     */
+    private static List<String> recordOf(BufferedReader in) throws IOException {
+        List<String> cells = new ArrayList<>();
+        StringBuilder cell = new StringBuilder();
+        boolean quoted = false;
+        boolean any = false;
+        for (int c = in.read(); ; c = in.read()) {
+            if (quoted) {
                 if (c < 0) {
-                    ended = true;
-                    if (quoted) {
-                        throw new IOException("the listing ends inside a quoted cell");
-                    }
-                    if (!any) {
-                        return null;
-                    }
-                    cells.add(cell.toString());
-                    return cells;
+                    throw new IOException("a quoted cell is not closed");
                 }
-                any = true;
-                if (quoted) {
-                    if (c == '"') {
-                        in.mark(1);
-                        int next = in.read();
-                        if (next == '"') {
-                            cell.append('"');
-                        } else {
-                            quoted = false;
-                            if (next >= 0) {
-                                in.reset();
-                            }
-                        }
+                if (c == '"') {
+                    in.mark(1);
+                    if (in.read() == '"') {
+                        cell.append('"');
                     } else {
-                        cell.append((char) c);
+                        in.reset();
+                        quoted = false;
                     }
-                } else if (c == '"') {
-                    quoted = true;
-                } else if (c == ',') {
-                    cells.add(cell.toString());
-                    cell.setLength(0);
-                } else if (c == '\n') {
-                    cells.add(cell.toString());
-                    return cells;
-                } else if (c != '\r') {
+                } else {
                     cell.append((char) c);
                 }
+                continue;
+            }
+            if (c < 0 || c == '\n') {
+                if (!any && cells.isEmpty() && cell.isEmpty()) {
+                    if (c < 0) {
+                        return null;
+                    }
+                    continue;
+                }
+                cells.add(cell.toString());
+                return cells;
+            }
+            any = true;
+            if (c == '"') {
+                quoted = true;
+            } else if (c == ',') {
+                cells.add(cell.toString());
+                cell.setLength(0);
+            } else if (c != '\r') {
+                cell.append((char) c);
             }
         }
     }

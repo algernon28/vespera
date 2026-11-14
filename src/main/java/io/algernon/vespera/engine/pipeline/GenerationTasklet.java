@@ -767,8 +767,9 @@ class GenerationTasklet implements Tasklet {
 
             @Override
             public void codeSetFolderChanged(String earlier, String now) {
-                // Two folders of the tree's own code/, which name a set of code and no path of the archive (ADR-377 §9).
-                LOG.info("A code set's folder in code/ is now {}, no longer {}, which is left as it is.", now, earlier);
+                // Two folders of the tree's code/, the tree's own names and no path of the archive (ADR-377 §9).
+                LOG.info(
+                        "A code set's folder in code/ is now {}, no longer {}, which is left as it is.", now, earlier);
             }
 
             @Override

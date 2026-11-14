@@ -64,6 +64,9 @@ final class RelevanceLabellingReport {
     /** The format of the page's JSON, raised by a change that removes, renames or retypes a field. */
     static final int FORMAT = 1;
 
+    /** The page's title and first heading, and its JSON's {@code title} (ADR-377 §5). */
+    private static final String TITLE = "Choosing the relevance cut-off";
+
     private static AnalysisReportJson.Section prose(String id, String title, List<String> text) {
         return section(id, title, text, null, List.of(), List.of());
     }
@@ -135,7 +138,7 @@ final class RelevanceLabellingReport {
                         + " from this page anyway.")));
         sections.addAll(answerSections(spread));
         sections.add(documentsSection(distribution, previews));
-        return new AnalysisReportJson.Document(FORMAT, NAME, "Choosing the relevance cut", writtenAt, headline, sections);
+        return new AnalysisReportJson.Document(FORMAT, NAME, TITLE, writtenAt, headline, sections);
     }
 
     private static AnalysisReportJson.Section spreadSection(RelevanceDistribution.Distribution distribution) {
@@ -255,7 +258,7 @@ final class RelevanceLabellingReport {
             LabelledSpread.Spread spread,
             IgnoredFloor ignoredFloor) {
         StringBuilder body = new StringBuilder();
-        body.append(ReportPage.heading(1, "Choosing the relevance cut"))
+        body.append(ReportPage.heading(1, TITLE))
                 .append(ReportPage.paragraph(distribution.scoredDocumentCount()
                         + " document(s) were scored, between " + format(distribution.lowestScore())
                         + " and " + format(distribution.highestScore())
@@ -345,7 +348,7 @@ final class RelevanceLabellingReport {
                     sampleRows.toString()));
         }
 
-        return ReportPage.render("Choosing the relevance cut", body.toString());
+        return ReportPage.render(TITLE, body.toString());
     }
 
     /**

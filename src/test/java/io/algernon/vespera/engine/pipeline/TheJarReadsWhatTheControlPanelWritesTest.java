@@ -41,12 +41,12 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The control panel writes {@code profile.yaml} and the answers of {@code relevance-labels.yaml} with rules of its own
- * in {@code java.base}, linking no class of the jar (ADR-285 §3), three formats with its folders not relevant, which
- * the jar does not read; this is the contract, on a test class path that sees both, that holds those rules to the
- * jar's (ADR-295, as ADR-377 §9 amends it): its table of keys to {@code Profile} and {@code StageModules} (§5), every
- * value it saves to an answered reading by the jar, and every sample it refuses to one the jar cannot act on (§3, §4),
- * a profile the jar wrote to its reading and rewrite (§3), the label file to {@code LabelFileReader} (§6), and its lock
- * to the jar's {@link WorkingDirectoryLock} in another process (§1).
+ * in {@code java.base}, linking no class of the jar (ADR-285 §3), and takes the working directory's lock; three formats
+ * in all, {@code code-set-names.yaml} being read and written by neither side since ADR-377 §9. This is the contract, on
+ * a test class path that sees both, that holds those rules to the jar's (ADR-295): its table of keys to {@code Profile}
+ * and {@code StageModules} (§5), every value it saves to an answered reading by the jar, and every sample it refuses to
+ * one the jar cannot act on (§3, §4), a profile the jar wrote to its reading and rewrite (§3), the label file to
+ * {@code LabelFileReader} (§6), and its lock to the jar's {@link WorkingDirectoryLock} in another process (§1).
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -236,7 +236,6 @@ class TheJarReadsWhatTheControlPanelWritesTest {
     private static RelevanceDistribution.Sampled sampled(long occurrence, double score, int band) {
         return new RelevanceDistribution.Sampled(new OccurrenceId(occurrence), score, new OccurrenceId(99), band);
     }
-
 
     /** What a second JVM taking the working directory as an invocation does printed: held, or refused and why. */
     private static String tryInASecondProcess(Path workingDirectory) {

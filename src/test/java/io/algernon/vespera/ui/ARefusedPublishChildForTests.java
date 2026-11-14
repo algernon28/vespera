@@ -2,7 +2,7 @@ package io.algernon.vespera.ui;
 
 /**
  * The main class of {@link PrintingJars#refusedPublish()}: it prints, whole, the line a publish the control panel
- * started is refused with where the profile names the parent both by its id and by its title (ADR-372 §1, as ADR-388
+ * started is refused with where the profile names the parent both by its id and by its title (ADR-372 §1, as ADR-389
  * §6 words it), and exits with code 1, as the jar exits a refused publish, having written no report.
  */
 public final class ARefusedPublishChildForTests {

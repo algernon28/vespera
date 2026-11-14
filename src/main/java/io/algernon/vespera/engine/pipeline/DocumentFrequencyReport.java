@@ -19,6 +19,9 @@ final class DocumentFrequencyReport {
     /** The name of the page, and of its JSON, without the ending (ADR-362 section 9). */
     static final String NAME = "document-frequency";
 
+    /** The page's title and first heading, and its JSON's {@code title} (ADR-377 §5). */
+    private static final String TITLE = "Repeated text across documents";
+
     /**
      * The same shares as {@link #render} draws, as the JSON written beside the page: the number of documents measured
      * and one row for each line, from the same values (ADR-362 section 9).
@@ -32,7 +35,7 @@ final class DocumentFrequencyReport {
         return new AnalysisReportJson.Document(
                 1,
                 NAME,
-                "Document frequency of passages",
+                TITLE,
                 writtenAt,
                 List.of(new AnalysisReportJson.Figure(
                         "documentsMeasured", "Documents measured", shares.shingledDocumentCount(), "count")),
@@ -60,7 +63,7 @@ final class DocumentFrequencyReport {
                     ReportPage.numberCell(shares.shingledDocumentCount())));
         }
 
-        String body = ReportPage.heading(1, "Document frequency of passages")
+        String body = ReportPage.heading(1, TITLE)
                 + ReportPage.paragraph("Content census run <code>" + ReportPage.escape(contentCensusRunId.value())
                         + "</code>. Documents measured (N): " + shares.shingledDocumentCount() + ". Each row is a "
                         + "share of the documents, rounded down to the hundredth, with the number of passages "
@@ -77,6 +80,6 @@ final class DocumentFrequencyReport {
                         + "by N, written in full or cut off after at least as many decimal places as N has "
                         + "digits. Never round it up: 2 / 3 rounded up to 0.67 leaves out the passages found in "
                         + "2 of 3 documents. Say in its <code>provenance</code> how you arrived at it.");
-        return ReportPage.render("Document frequency of passages", body);
+        return ReportPage.render(TITLE, body);
     }
 }

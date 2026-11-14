@@ -7,7 +7,7 @@ import javafx.scene.layout.BorderPane;
 import javafx.stage.Stage;
 
 /**
- * The one Profile window of a cockpit (ADR-388 §2): a stage of its own, with no owner and no modality, whose scene's root
+ * The one Profile window of a cockpit (ADR-389 §2): a stage of its own, with no owner and no modality, whose scene's root
  * holds the cockpit's profile form. It opens or brings to the front the one stage, keeps its size and place for the
  * cockpit's next opening of it and nowhere else (§3), asks Save, Discard or Cancel when it is closed with an edit unsaved
  * (§4), carries the badge as its title (§5) and follows the cockpit's stylesheet and {@code dark} style class (§7).
@@ -21,8 +21,11 @@ final class ProfileWindow {
     private static final String DISCARD = "Discard";
     private static final String CANCEL = "Cancel";
 
-    /** Its first size, at which the whole form is readable. */
-    private static final double FIRST_WIDTH = 780;
+    /**
+     * Its first size, at which the whole form is readable: wide enough that the titles' column, at most 45% of a row
+     * (ADR-377 section 3), shows every row's title whole.
+     */
+    private static final double FIRST_WIDTH = 980;
     private static final double FIRST_HEIGHT = 760;
 
     private record Placed(double x, double y, double width, double height) {
@@ -99,7 +102,7 @@ final class ProfileWindow {
     }
 
     /**
-     * Whether the window may close now, asked through {@code asking} (ADR-388 §4): at once with no edit unsaved; with
+     * Whether the window may close now, asked through {@code asking} (ADR-389 §4): at once with no edit unsaved; with
      * one, after Save that writes or Discard, and not after Cancel, no answer, or a Save refused.
      */
     boolean mayClose(Dialogs asking) {

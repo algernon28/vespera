@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Where the models run is shown in the Profile window and cannot be changed there (ADR-384 §7, ADR-388 §2): its row's control shows
+ * Where the models run is shown in the Profile window and cannot be changed there (ADR-384 §7, ADR-389 §2): its row's control shows
  * the value, {@code local} where {@code profile.yaml} states none, and is disabled; the pane holding it, which is not,
  * carries the tooltip, since JavaFX shows none over a disabled control; and a Save of the form writes nothing of it, so a
  * file holding the key as the jar comments it out is left byte for byte as it was.

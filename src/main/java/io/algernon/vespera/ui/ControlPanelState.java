@@ -415,8 +415,7 @@ final class ControlPanelState {
     /**
      * What the window starts an invocation with (ADR-344 §3, §4, ADR-345 §4): the values passed to the child, the values
      * kept in the launch values file as it starts, the presets passed as options of the command line, and the
-     * destinations ticked, which only a publish passes. It names no label file: Record my answers records the working
-     * directory's (ADR-377 §10).
+     * destinations ticked, which only a publish passes. No label file is among them (ADR-377 §10).
      */
     record Plan(LaunchValues toPass, LaunchValues toKeep, Map<String, String> presets, List<String> destinations) {
 
@@ -446,7 +445,7 @@ final class ControlPanelState {
         return runtime;
     }
 
-    /** As {@link #start(Start, List)}, with the values and presets of {@code plan}. */
+    /** As {@link #start(Start, List)}, with the values, presets and label file of {@code plan}. */
     synchronized Optional<String> start(Start kind, Plan plan, List<String> stored) {
         return start(kind, plan, Optional.empty(), stored);
     }

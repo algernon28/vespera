@@ -11,10 +11,11 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -26,17 +27,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The texts of the Profile tab's rows (ADR-377 §4, §5): each key's title, short description and tooltip are data in
- * {@code profile-texts.json}, and every text a row shows, the cost line, its warnings and the line of the value in use
- * among them, is held to the record's rules: the work named in plain words and never by a stage, no time stated, a row
- * and a report named by their titles, and no text saying a failed file is read again unless it says only crashes and
- * time-outs are.
- *
- * <p>The words checked are the record's list, a stage's name as the jar spells it among them. Before a text is checked,
- * each key's name as {@code profile.yaml} spells it, each file name ending {@code .html}, {@code .yaml} or {@code .csv}
- * and each word holding a {@code /}, which is a path or a model's name, are taken out. The verb <i>run</i> of {@code
- * modelsRunOn}'s three texts, which ADR-384 §7 words, is the one exception to the word <i>run</i>: the record's rule
- * rewords <i>run</i> as a noun, the operator's start of Vespera.
+ * Each profile key's title, short description and tooltip are data in {@code profile-texts.json}, held to the rules of
+ * ADR-377 §4: one entry for each key in {@code ProfileKey}'s order, a short description of one sentence, a tooltip that
+ * does not name its own key and names a row or a report only by its title, and no text, the cost lines, warnings and
+ * lines of the value in use among them, that names the work by a stage or a word of this project's own, states a
+ * time, or says that every file whose reading failed is read again (ADR-183).
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -44,213 +39,214 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
 class TheProfileTextsTest {
 
-    /** The data file, where the class path holds it beside {@code ProfileKey}. */
-    private static final String THE_FILE = "/io/algernon/vespera/ui/profile-texts.json";
+    /** Where the texts lie on the class path, beside {@code ProfileKey}. */
+    private static final String THE_TEXTS = "/io/algernon/vespera/ui/profile-texts.json";
 
     /** The three texts each key's entry holds. */
-    private static final List<String> THE_THREE = List.of("title", "short", "tooltip");
+    private static final List<String> THE_THREE_TEXTS = List.of("title", "short", "tooltip");
 
-    /** The words no text says, beside the stages' names. */
-    private static final List<String> NEVER_SAID = List.of("invocation", "run", "runs", "cluster", "embedding",
+    /** The title of the seed folder's row, which ADR-377 §4's table fixes. */
+    private static final String THE_SEED_FOLDERS_TITLE = "Seed folder";
+
+    /** The sources a value in use may be given, the five §4 names and two it does not. */
+    private static final List<String> SOURCES =
+            List.of("shipped", "local-file", "command-line", "environment", "code", "unknown", "nowhere");
+
+    /** The words no text says, a stage's name aside, as whole words in any case. */
+    private static final List<String> WORDS_NO_TEXT_SAYS = List.of("invocation", "run", "runs", "cluster", "embedding",
             "arrangement", "deliverable", "converter", "step", "makes again");
 
-    /** The two words of {@code modelsRunOn}'s texts that are the verb of where the models run (ADR-384 §7). */
-    private static final Set<String> THE_VERB = Set.of("run", "runs");
+    /** The keys whose tooltips name no report, because their rows link none. */
+    private static final List<ProfileKey> ROWS_THAT_LINK_NO_REPORT =
+            List.of(ProfileKey.GENERATION_CONTEXT_WINDOW, ProfileKey.GENERATION_MODEL, ProfileKey.EMBEDDING_MODEL);
 
-    /** The sources {@code effective-values.properties} names, and one it never names, for the line of the value in use. */
-    private static final List<String> SOURCES = List.of("shipped", "local-file", "command-line", "environment",
-            "code", "unknown");
-
-    /** A text a tooltip names in double quotes, then the word after it. */
-    private static final Pattern QUOTED = Pattern.compile("\"([^\"]+)\" (\\w+)");
-
-    /** A time taken: a number, then a unit of time, as a whole word. */
+    /** A number followed by a unit of time, as a whole word. */
     private static final Pattern A_TIME = Pattern.compile(
-            "\\d+(?:[.,]\\d+)?\\s*(?:ms|s|sec|seconds?|min|minutes?|h|hours?)\\b|~\\s*\\d", Pattern.CASE_INSENSITIVE);
+            "\\d+(?:[.,]\\d+)?\\s*(?:ms|s|sec|seconds?|min|minutes?|h|hours?)\\b", Pattern.CASE_INSENSITIVE);
 
-    /** The words of a text that speaks of trying a file again. */
-    private static final List<String> TRYING_AGAIN = List.of("retry", "retried", "tried again", "try again",
-            "read again the files");
+    /** A clock time, which is no time taken, taken out before {@link #A_TIME} is looked for. */
+    private static final Pattern A_CLOCK_TIME = Pattern.compile("\\d{1,2}:\\d{2}(?::\\d{2})?");
 
-    /** The keys whose tooltips name no report, so that the check of a tooltip naming one is not passed by none. */
-    private static final List<ProfileKey> NAMING_NO_REPORT = List.of(ProfileKey.GENERATION_CONTEXT_WINDOW,
-            ProfileKey.GENERATION_MODEL, ProfileKey.EMBEDDING_MODEL);
+    /** An estimate: a tilde before a number. */
+    private static final Pattern AN_ESTIMATE = Pattern.compile("~\\s*\\d");
+
+    /** What a text says of trying a file again. */
+    private static final Pattern TRYING_AGAIN =
+            Pattern.compile("retry|retried|tried again|try again|read again the files", Pattern.CASE_INSENSITIVE);
+
+    /** What such a text must also say: that only the reader's crashes and time-outs are tried again. */
+    private static final Pattern A_TIME_OUT = Pattern.compile("took too long|time-out|timeout", Pattern.CASE_INSENSITIVE);
+
+    /** A double-quoted text followed by a word, as a tooltip names a row or a report. */
+    private static final Pattern QUOTED_THEN = Pattern.compile("\"([^\"]+)\"\\s+(row|report)\\b");
 
     @Test
-    @Story("A setting's texts are kept in one file")
-    @DisplayName("Every setting has a title, a short description and a tooltip, and the file lists no other")
-    @SuppressWarnings("unchecked")
-    void everyKeyHasATitleAShortDescriptionAndATooltipAndNoOtherKeyIsListed() throws IOException {
-        Map<String, Object> file;
-        try (InputStream in = ProfileKey.class.getResourceAsStream(THE_FILE)) {
-            claim("the class path holds the file beside the class of the settings",
-                    () -> assertThat(in).isNotNull());
-            file = (Map<String, Object>) JsonReader.read(new String(in.readAllBytes(), StandardCharsets.UTF_8));
-        }
-        List<String> keys = Arrays.stream(ProfileKey.values()).map(ProfileKey::key).toList();
+    @Story("Each value's row explains it in plain words")
+    @DisplayName("Every key has a title, a one-sentence description and a tooltip, in the order of the keys, and no other key is listed")
+    void everyKeyHasATitleAShortDescriptionAndATooltipAndNoOtherKeyIsListed() {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> texts = (Map<String, Object>) JsonReader.read(theFile());
 
-        claim("the file's names are the settings' keys, each once, in the order of the settings",
-                () -> assertThat(List.copyOf(file.keySet())).containsExactlyElementsOf(keys));
-        for (String key : keys) {
-            Map<String, Object> entry = (Map<String, Object>) file.get(key);
-            claim(key + "'s entry holds a title, a short description and a tooltip, each text, none blank, and nothing"
-                            + " else",
-                    () -> assertThat(entry).containsOnlyKeys(THE_THREE).allSatisfy((name, text) -> assertThat(text)
-                            .isInstanceOfSatisfying(String.class, words -> assertThat(words).isNotBlank())));
-            String title = (String) entry.get("title");
-            String shortDescription = (String) entry.get("short");
-            claim(key + "'s title and short description are each on one line",
-                    () -> assertThat(List.of(title, shortDescription)).noneMatch(text -> text.contains("\n")));
-            claim(key + "'s short description is one sentence, ending in a stop, with no other sentence's end inside",
-                    () -> assertThat(shortDescription).endsWith(".").doesNotContainPattern("[.!?] [A-Z]"));
-        }
-        claim("the seed folder's title, read by the class of the settings, is Seed folder",
-                () -> assertThat(ProfileKey.SEED_FOLDER.title()).isEqualTo("Seed folder"));
+        claim("the file names exactly the keys profile.yaml holds, in the order the keys are listed",
+                () -> assertThat(texts.keySet())
+                        .containsExactlyElementsOf(Arrays.stream(ProfileKey.values()).map(ProfileKey::key).toList()));
+        claim("each entry holds " + THE_THREE_TEXTS + ", none blank, and nothing else",
+                () -> assertThat(texts.values()).allSatisfy(entry -> {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> three = (Map<String, Object>) entry;
+                    assertThat(three).containsOnlyKeys(THE_THREE_TEXTS)
+                            .allSatisfy((name, text) -> assertThat((String) text).isNotBlank());
+                }));
+        claim("each key's title and short description are on one line each",
+                () -> assertThat(ProfileKey.values()).allSatisfy(key -> {
+                    assertThat(key.title()).as("%s's title", key.key()).doesNotContain("\n");
+                    assertThat(key.shortDescription()).as("%s's short description", key.key()).doesNotContain("\n");
+                }));
+        claim("each short description is one sentence ending in a stop: it ends in one, and no stop inside it is"
+                        + " followed by a new sentence's capital",
+                () -> assertThat(ProfileKey.values()).allSatisfy(key -> assertThat(key.shortDescription())
+                        .as("%s's short description", key.key())
+                        .endsWith(".")
+                        .doesNotContainPattern("[.!?]\\s+[A-Z]")));
+        claim("and the seed folder's row is titled \"" + THE_SEED_FOLDERS_TITLE + "\"",
+                () -> assertThat(ProfileKey.SEED_FOLDER.title()).isEqualTo(THE_SEED_FOLDERS_TITLE));
     }
 
     @Test
-    @Story("A setting's texts are kept in one file")
-    @DisplayName("No tooltip names its own setting by the name the profile file spells, which stands beneath the title")
+    @Story("Each value's row explains it in plain words")
+    @DisplayName("No tooltip names its own key, which stands beneath the row's title")
     void aTooltipDoesNotNameItsOwnKey() {
-        for (ProfileKey key : ProfileKey.values()) {
-            claim(key.key() + "'s tooltip does not hold " + key.key(),
-                    () -> assertThat(key.tooltip()).doesNotContain(key.key()));
-        }
+        claim("no key's tooltip holds the key as profile.yaml spells it",
+                () -> assertThat(ProfileKey.values()).allSatisfy(key -> assertThat(key.tooltip())
+                        .as("%s's tooltip", key.key())
+                        .doesNotContain(key.key())));
     }
 
     @Test
-    @Story("A setting's texts say the work in plain words")
-    @DisplayName("No text of a setting's row names a stage, a run, a group by its internal word or a step")
+    @Story("Each value's row explains it in plain words")
+    @DisplayName("No text of a row names a step of the work by its internal name or says invocation, run, cluster or embedding")
     void noTextNamesAStageAnInvocationAClusterOrAnEmbedding() {
-        List<String> forbidden = new ArrayList<>(NEVER_SAID);
-        Arrays.stream(ProfileKey.Run.values()).map(ProfileKey.Run::stageName).forEach(forbidden::add);
-        Map<String, String> texts = new LinkedHashMap<>();
-        for (ProfileKey key : ProfileKey.values()) {
-            texts.putAll(rowTextsOf(key));
-        }
-        SOURCES.forEach(source -> texts.put("the line of a value in use from " + source,
-                ProfileRow.inUseOf(new EffectiveValues.Value("qwen3:8b", source))));
-        Reports.TITLES.forEach((name, title) -> texts.put("the title of the report " + name, title));
+        List<String> words = new ArrayList<>(WORDS_NO_TEXT_SAYS);
+        Arrays.stream(ProfileKey.Run.values()).map(ProfileKey.Run::stageName).forEach(words::add);
+        List<String> texts = new ArrayList<>(everyTextOfARow());
+        texts.addAll(Reports.TITLES.values());
 
-        claim("the texts checked are every setting's title, short description, tooltip, cost line and warnings, the"
-                        + " line of a value in use for each source, and every report's title",
-                () -> assertThat(texts).hasSizeGreaterThan(ProfileKey.values().length * THE_THREE.size()
-                        + SOURCES.size() + Reports.ALL.size()));
-        texts.forEach((what, text) -> {
-            String checked = withoutNames(text).toLowerCase(Locale.ROOT);
-            boolean theVerbIsAllowed = what.startsWith(ProfileKey.MODELS_RUN_ON.key() + "'s ")
-                    && !what.contains("cost line") && !what.contains("warning");
-            List<String> said = forbidden.stream()
-                    .filter(word -> !(theVerbIsAllowed && THE_VERB.contains(word)))
-                    .filter(word -> Pattern.compile("(?<![\\w-])" + Pattern.quote(word) + "(?![\\w-])")
-                            .matcher(checked).find())
-                    .toList();
-            claim(what + " says none of the words that name the work by the program's own terms",
-                    () -> assertThat(said).isEmpty());
-        });
+        claim("every title, short description, tooltip, cost line, warning, line of the value in use and report title,"
+                        + " each key's name, each file name and each word holding a slash taken out, holds none of "
+                        + words + " as a whole word in any case",
+                () -> assertThat(texts.stream().map(TheProfileTextsTest::withoutNames)).allSatisfy(text ->
+                        assertThat(words).noneSatisfy(word -> assertThat(text)
+                                .containsPattern(Pattern.compile("(?<![\\w-])" + Pattern.quote(word) + "(?![\\w-])",
+                                        Pattern.CASE_INSENSITIVE)))));
     }
 
     @Test
-    @Story("A setting's texts name a row and a report by their titles")
-    @DisplayName("A tooltip names another setting and a report by the titles the window shows, and only reports it links")
+    @Story("Each value's row explains it in plain words")
+    @DisplayName("A tooltip names another row and a report only by its title, and only a report its row or a row it names links")
     void aTooltipNamesRowsAndReportsByTheirTitles() {
-        Set<String> titles = Set.copyOf(Arrays.stream(ProfileKey.values()).map(ProfileKey::title).toList());
-        for (ProfileKey key : ProfileKey.values()) {
-            String tooltip = key.tooltip();
-            claim(key.key() + "'s tooltip names no page by its file name",
-                    () -> assertThat(tooltip).doesNotContainPattern("\\S+\\.html\\b"));
-            List<String> rowsNamed = new ArrayList<>();
-            List<String> reportsNamed = new ArrayList<>();
-            Matcher quoted = QUOTED.matcher(tooltip);
-            while (quoted.find()) {
-                if (quoted.group(2).equals("row")) {
-                    rowsNamed.add(quoted.group(1));
-                } else if (quoted.group(2).equals("report")) {
-                    reportsNamed.add(quoted.group(1));
-                }
-            }
-            claim(key.key() + "'s tooltip names each row by a setting's title",
-                    () -> assertThat(titles).containsAll(rowsNamed));
-            List<String> linked = Stream.concat(Stream.of(key), Arrays.stream(ProfileKey.values())
-                            .filter(other -> rowsNamed.contains(other.title())))
-                    .flatMap(row -> Reports.OF_A_KEY.getOrDefault(row.key(), List.of()).stream())
-                    .map(Reports.TITLES::get).toList();
-            claim(key.key() + "'s tooltip names each report by its title, and only a report its own row links or a"
-                            + " row it names links",
-                    () -> assertThat(linked).containsAll(reportsNamed));
-            if (NAMING_NO_REPORT.contains(key)) {
-                claim(key.key() + "'s tooltip names no report, its row linking none",
-                        () -> assertThat(reportsNamed).isEmpty());
-            }
-        }
-        claim("the reports' titles are read from the class that lists them, so that a title is checked against one",
-                () -> assertThat(Reports.TITLES.keySet()).containsExactlyElementsOf(Reports.ALL));
+        Map<String, ProfileKey> byTitle = new java.util.HashMap<>();
+        Arrays.stream(ProfileKey.values()).forEach(key -> byTitle.put(key.title(), key));
+        Map<String, String> reportByTitle = new java.util.HashMap<>();
+        Reports.TITLES.forEach((name, title) -> reportByTitle.put(title, name));
+
+        claim("no tooltip holds a word ending .html",
+                () -> assertThat(ProfileKey.values()).allSatisfy(key -> assertThat(key.tooltip())
+                        .as("%s's tooltip", key.key())
+                        .doesNotContainPattern("\\S\\.html\\b")));
+        claim("each double-quoted text a tooltip follows with \"row\" is a key's title",
+                () -> assertThat(ProfileKey.values()).allSatisfy(key -> assertThat(quotedBefore(key.tooltip(), "row"))
+                        .as("the rows %s's tooltip names", key.key())
+                        .allSatisfy(title -> assertThat(byTitle).containsKey(title))));
+        claim("each double-quoted text a tooltip follows with \"report\" is the title of a report its own row links, or"
+                        + " a row it names links",
+                () -> assertThat(ProfileKey.values()).allSatisfy(key -> {
+                    Set<String> linked = new LinkedHashSet<>(Reports.OF_A_KEY.getOrDefault(key.key(), List.of()));
+                    quotedBefore(key.tooltip(), "row").stream().map(byTitle::get).filter(java.util.Objects::nonNull)
+                            .forEach(row -> linked.addAll(Reports.OF_A_KEY.getOrDefault(row.key(), List.of())));
+                    assertThat(quotedBefore(key.tooltip(), "report"))
+                            .as("the reports %s's tooltip names", key.key())
+                            .allSatisfy(title -> assertThat(linked).contains(reportByTitle.get(title)));
+                }));
+        claim("and the tooltips of " + ROWS_THAT_LINK_NO_REPORT.stream().map(ProfileKey::key).toList()
+                        + ", whose rows link no report, name none, so that the check above cannot pass for a row that"
+                        + " links none",
+                () -> assertThat(ROWS_THAT_LINK_NO_REPORT).allSatisfy(key -> assertThat(
+                                quotedBefore(key.tooltip(), "report"))
+                        .as("the reports %s's tooltip names", key.key())
+                        .isEmpty()));
     }
 
     @Test
-    @Story("A setting's texts state no time")
-    @DisplayName("No text of a setting's row states how long anything takes")
+    @Story("Each value's row explains it in plain words")
+    @DisplayName("No text of a row states how long anything takes")
     void noTextStatesATime() {
-        Map<String, String> texts = new LinkedHashMap<>();
-        for (ProfileKey key : ProfileKey.values()) {
-            texts.putAll(rowTextsOf(key));
-        }
-        SOURCES.forEach(source -> texts.put("the line of a value in use from " + source,
-                ProfileRow.inUseOf(new EffectiveValues.Value("qwen3:8b", source))));
-        claim("a clock time, which takes no time, is not read as one",
-                () -> assertThat(A_TIME.matcher("a time alone (10:15:30)").find()).isFalse());
-        claim("a number with a unit of time is read as one",
-                () -> assertThat(A_TIME.matcher("about 5 minutes").find()).isTrue());
-        texts.forEach((what, text) -> claim(what + " states no time",
-                () -> assertThat(A_TIME.matcher(text).find()).isFalse()));
+        claim("no title, short description, tooltip, cost line, warning or line of the value in use holds a number"
+                        + " followed by a unit of time, or a tilde before a number; a clock time is no time taken",
+                () -> assertThat(everyTextOfARow()).allSatisfy(text -> {
+                    String noClock = A_CLOCK_TIME.matcher(text).replaceAll(" ");
+                    assertThat(noClock).doesNotContainPattern(A_TIME).doesNotContainPattern(AN_ESTIMATE);
+                }));
     }
 
     @Test
-    @Story("A setting's texts say which files a new try reads")
-    @DisplayName("A text that speaks of trying a file again says only crashes and time-outs of the reader are tried again")
+    @Story("Each value's row explains it in plain words")
+    @DisplayName("A text that speaks of trying a file again says only crashes and time-outs are tried again")
     void aTextThatSpeaksOfTryingAFileAgainSaysOnlyCrashesAndTimeOutsAre() {
-        Map<String, String> texts = new LinkedHashMap<>();
-        for (ProfileKey key : ProfileKey.values()) {
-            texts.put(key.key() + "'s title", key.title());
-            texts.put(key.key() + "'s short description", key.shortDescription());
-            texts.put(key.key() + "'s tooltip", key.tooltip());
-            texts.put(key.key() + "'s cost line", ProfileRow.costOf(key));
-        }
-        List<String> speaking = texts.entrySet().stream()
-                .filter(text -> TRYING_AGAIN.stream().anyMatch(text.getValue().toLowerCase(Locale.ROOT)::contains))
-                .map(Map.Entry::getKey).toList();
+        List<String> speakingOfIt = Arrays.stream(ProfileKey.values())
+                .flatMap(key -> Stream.of(key.title(), key.shortDescription(), key.tooltip(), ProfileRow.costOf(key)))
+                .filter(text -> TRYING_AGAIN.matcher(text).find())
+                .toList();
 
-        claim("the try number's short description and tooltip are among the texts that speak of trying again, so that"
-                        + " the check reads some",
-                () -> assertThat(speaking).contains("extractionAttempt's short description", "extractionAttempt's tooltip"));
-        for (String what : speaking) {
-            String text = texts.get(what).toLowerCase(Locale.ROOT);
-            claim(what + " says that the files whose reading crashed or took too long are the ones tried again",
-                    () -> assertThat(text).contains("crash")
-                            .containsAnyOf("took too long", "time-out", "timeout"));
-        }
+        claim("the short description and the tooltip of the try number for unread files are among the texts that"
+                        + " speak of trying a file again, so that a check of nothing cannot pass",
+                () -> assertThat(speakingOfIt).contains(ProfileKey.EXTRACTION_ATTEMPT.shortDescription(),
+                        ProfileKey.EXTRACTION_ATTEMPT.tooltip()));
+        claim("and each of them says that a crash, and a reading that took too long, are what is tried again",
+                () -> assertThat(speakingOfIt).allSatisfy(text -> assertThat(text.toLowerCase(Locale.ROOT))
+                        .contains("crash")
+                        .containsPattern(A_TIME_OUT)));
     }
 
-    /** Every text of a key's row: its title, short description, tooltip, cost line and each warning. */
-    private static Map<String, String> rowTextsOf(ProfileKey key) {
-        Map<String, String> texts = new LinkedHashMap<>();
-        texts.put(key.key() + "'s title", key.title());
-        texts.put(key.key() + "'s short description", key.shortDescription());
-        texts.put(key.key() + "'s tooltip", key.tooltip());
-        texts.put(key.key() + "'s cost line", ProfileRow.costOf(key));
-        List<String> warnings = ProfileRow.warningsOf(key);
-        for (int i = 0; i < warnings.size(); i++) {
-            texts.put(key.key() + "'s warning " + (i + 1), warnings.get(i));
+    /** Every title, short description, tooltip, cost line, warning, and line of the value in use for each source. */
+    private static List<String> everyTextOfARow() {
+        List<String> texts = new ArrayList<>();
+        for (ProfileKey key : ProfileKey.values()) {
+            texts.addAll(List.of(key.title(), key.shortDescription(), key.tooltip(), ProfileRow.costOf(key)));
+            texts.addAll(ProfileRow.warningsOf(key));
         }
+        SOURCES.forEach(source -> texts.add(ProfileRow.inUseOf(new EffectiveValues.Value("qwen3:8b", source))));
         return texts;
     }
 
-    /** A text with each key's name, each file name ending .html, .yaml or .csv and each word holding a / taken out. */
+    /** {@code text} with each key's name, each file name ending .html, .yaml or .csv and each word holding a slash taken out. */
     private static String withoutNames(String text) {
-        String out = text.replaceAll("\\S*/\\S*", " ").replaceAll("\\S+\\.(?:html|yaml|csv)\\b", " ");
+        String without = text;
         for (ProfileKey key : ProfileKey.values()) {
-            out = out.replace(key.key(), " ");
+            without = without.replace(key.key(), " ");
         }
-        return out;
+        return without.replaceAll("\\S+\\.(?:html|yaml|csv)\\b", " ").replaceAll("\\S*/\\S*", " ");
+    }
+
+    /** The double-quoted texts {@code tooltip} follows with {@code word}. */
+    private static List<String> quotedBefore(String tooltip, String word) {
+        List<String> quoted = new ArrayList<>();
+        Matcher matcher = QUOTED_THEN.matcher(tooltip);
+        while (matcher.find()) {
+            if (matcher.group(2).equals(word)) {
+                quoted.add(matcher.group(1));
+            }
+        }
+        return quoted;
+    }
+
+    private static String theFile() {
+        try (InputStream in = TheProfileTextsTest.class.getResourceAsStream(THE_TEXTS)) {
+            if (in == null) {
+                throw new IllegalStateException("the class path holds no " + THE_TEXTS);
+            }
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

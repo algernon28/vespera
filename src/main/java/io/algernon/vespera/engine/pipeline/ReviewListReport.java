@@ -26,7 +26,8 @@ import java.util.function.Consumer;
  */
 final class ReviewListReport {
 
-    private static final String TITLE = "Files stage 2 could not read";
+    /** The page's title and first heading, and its JSON's {@code title} (ADR-377 §5). */
+    private static final String TITLE = "Files whose text could not be read";
 
     /** The name of the report, its page's with {@code .html} for {@code .json}. */
     static final String NAME = "extraction-failures";

@@ -1,5 +1,7 @@
 # ADR-384 — Whether the models run locally or in the cloud is the profile's to say, local by default, and cloud is refused at the start
 
+> **Partly amended — see [ADR-388](0388-where-the-models-run-is-worded-under-a-profile-rows-rules-and-a-change-of-it-takes-effect-the-next-time-vespera-starts.md).** Of §7: the row's title is *Where the AI models work*, and its short description and tooltip are ADR-388 §1's, which say no *run*; its cost line is *Changing it in profile.yaml redoes no work; it takes effect the next time you start Vespera.*, not the line of the keys a Publish reads. Its control, holder, holder's tooltip and Save stand, as does the rest of this record.
+
 - **Date**: 2026-11-13
 - **Status**: accepted on 2026-11-13.
 - **Decided**: by the operator, on 2026-11-12, that "the decision to use a local or a cloud model should only be via configuration by the operator"; that the configuration "only says which one, cloud still refused for now"; and, of that configuration, "Have it greyed out on the UI, and comment it on the yaml" (§1 to §7). By Claude under the operator's delegation: that the configuration is one profile key, `modelsRunOn`, for every model, taking `local` and `cloud`, local where unset, any other value refused (§1); where the start of `vespera run` reads it, and its lines (§2); what it means for `vespera label --auto` and its labeller (§3, §4); what becomes of the step's check and of `ModelPull` (§5); the comment `profile.yaml` holds, its place and its words, and the control panel's reading of a comment (§6); the Profile tab's row, its control, its holder and its texts (§7); where each part lives (§8); and which run ids move (§9).
@@ -129,7 +131,7 @@ The jar reads a file holding the three lines as a profile whose `modelsRunOn` is
 - **Its holder**, `<prefix>modelsRunOn.holder`, the `HBox` it stands in on the row's line, is not disabled and carries the tooltip **Cloud is not supported yet.**, since JavaFX shows no tooltip over a disabled control.
 - **No Save writes it**: the tab's Save passes over the row, whatever the control shows, so that a key the file holds commented out stays so. A load or a Reset draws the control's value from the file again. A value is changed in `profile.yaml` alone.
 
-It is no row of `wanted`, since it is no gate. Its cost line is its own, since the window does not change it: *It cannot be changed here; Vespera checks it each time it starts, and it redoes no work.* ADR-377 §4's table holds it.
+It is no row of `wanted`, since it is no gate. Its cost line is that of a key a change of which redoes no work, which ADR-377 §4 words.
 
 **Its texts.** Its title is *Where the models run*. Its short description: *The AI models that read your documents run on this machine; running them in the cloud is not supported yet.* Its tooltip: *Vespera sends your documents' text only to AI models that run on this machine. Running them in the cloud is not supported yet, so this value cannot be changed here; profile.yaml shows it as a comment.* They stand in `profile-texts.json` once ADR-377 §4 builds it; until then `plainName()` is the title and `about()` the short description.
 

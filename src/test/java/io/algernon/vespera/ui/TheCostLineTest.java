@@ -4,145 +4,146 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.ui.ProfileKey.Run;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * What a row says a change costs, and the value in use (ADR-377 §4): one sentence chosen by the earliest work a change
- * redoes, a warning for each consequence the cost applies, in a fixed order, and the line of the value Vespera uses
- * where the profile names none, its source in plain words.
- *
- * <p>Each expected line is written out as the record words it. {@code modelsRunOn}, which enters no work and is not
- * changed in the window, takes a line of its own (ADR-377 §4, ADR-384 §7).
+ * What a row says a change costs, and the value it uses when left empty (ADR-377 §4): one sentence chosen by the earliest
+ * work a change redoes, a one-line warning only where the cost applies it, and the value in use with where it comes from
+ * in plain words. Each line is written out as §4's tables give it.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("802")
 @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
+@Link(name = "ADR-388", url = Adr.WHERE_THE_MODELS_RUN_IS_WORDED_UNDER_A_PROFILE_ROWS_RULES, type = "adr")
 class TheCostLineTest {
 
-    /** The line of a key whose change redoes no work. */
-    private static final String NO_WORK =
+    /** The cost line of each earliest run, as §4's table gives it. */
+    private static final Map<Run, String> THE_LINE_OF_EACH_RUN = Map.of(
+            Run.BYTE_LEVEL_REDUCTION, "Changing it redoes everything from sorting your files to writing the pages; text"
+                    + " already read out of your files is kept.",
+            Run.EXTRACTION, "Changing it redoes everything after reading the text out of your files; the text already"
+                    + " read is kept.",
+            Run.CONTENT_REDUNDANCY, "Changing it redoes the search for documents that say the same thing, the groups and"
+                    + " the pages; your files are not read again.",
+            Run.SEED_MEASUREMENT, "Changing it redoes everything from reading your seed documents to writing the pages;"
+                    + " your other files are not read again.",
+            Run.EMBEDDING_SCORING, "Changing it redoes the measuring of closeness, the grouping and the writing of the"
+                    + " pages; your files are not read again.",
+            Run.GENERATION, "Changing it redoes only the writing of the pages; everything before it is kept.");
+
+    /** The cost line of the five Confluence keys, which a publish alone reads. */
+    private static final String A_PUBLISHS_LINE =
             "Changing it redoes no work; it takes effect the next time you press Publish.";
 
-    /** The line of where the models run, which the window does not change. */
-    private static final String WHERE_THE_MODELS_RUN =
-            "It cannot be changed here; Vespera checks it each time it starts, and it redoes no work.";
+    /** The cost line of where the AI models work, read at the start of the next invocation alone (ADR-388 §2). */
+    private static final String THE_NEXT_STARTS_LINE =
+            "Changing it in profile.yaml redoes no work; it takes effect the next time you start Vespera.";
 
-    /** The line of the largest group page, which redraws the group pages alone. */
-    private static final String THE_GROUP_PAGES = "Changing it rewrites only the group pages (a split group's pictures"
-            + " are read again); everything else is kept.";
+    /** The cost line of the largest group page, which enters no run but draws the group pages again. */
+    private static final String THE_GROUP_PAGES_LINE = "Changing it rewrites only the group pages (a split group's"
+            + " pictures are read again); everything else is kept.";
 
-    /** The line for each earliest work a change redoes. */
-    private static final Map<ProfileKey.Run, String> BY_EARLIEST = Map.of(
-            ProfileKey.Run.BYTE_LEVEL_REDUCTION, "Changing it redoes everything from sorting your files to writing the"
-                    + " pages; text already read out of your files is kept.",
-            ProfileKey.Run.EXTRACTION, "Changing it redoes everything after reading the text out of your files; the"
-                    + " text already read is kept.",
-            ProfileKey.Run.CONTENT_REDUNDANCY, "Changing it redoes the search for documents that say the same thing,"
-                    + " the groups and the pages; your files are not read again.",
-            ProfileKey.Run.SEED_MEASUREMENT, "Changing it redoes everything from reading your seed documents to writing"
-                    + " the pages; your other files are not read again.",
-            ProfileKey.Run.EMBEDDING_SCORING, "Changing it redoes the measuring of closeness, the grouping and the"
-                    + " writing of the pages; your files are not read again.",
-            ProfileKey.Run.GENERATION, "Changing it redoes only the writing of the pages; everything before it is kept.");
+    /** The runs §4's table gives no line, which no key enters first. */
+    private static final List<Run> RUNS_GIVEN_NO_LINE = List.of(Run.CONTENT_CENSUS, Run.ARRANGEMENT);
 
-    /** The four warnings, in the order a row shows them. */
     private static final String APPROVAL =
             "Approval: a grouping you approved must be approved again in the Approved grouping row.";
+
     private static final String ANSWERS_REFUSED =
             "Answers: press Record my answers first; after the change the old answers file is refused.";
+
     private static final String ANSWERS_LOST =
             "Answers: press Record my answers first, or unsaved answers in relevance-labels.yaml are lost.";
+
     private static final String NEW_SAMPLE =
             "New sample: Vespera picks new documents for you to judge in relevance-labels.yaml.";
 
-    /** The five settings of Confluence a publish reads. */
-    private static final Set<ProfileKey> CONFLUENCE = Set.of(ProfileKey.CONFLUENCE_BASE_URL,
-            ProfileKey.CONFLUENCE_SPACE_KEY, ProfileKey.CONFLUENCE_FOLDER_ID, ProfileKey.CONFLUENCE_FOLDER_TITLE,
-            ProfileKey.CONFLUENCE_EMAIL);
+    /** The value the lines of the value in use are written for. */
+    private static final String A_MODEL = "qwen3:8b";
 
-    /** The value in use the lines are drawn for. */
-    private static final String MODEL = "qwen3:8b";
+    /** The line of the value in use for each source §4 names. */
+    private static final Map<String, String> THE_LINE_OF_EACH_SOURCE = Map.of(
+            "shipped", "Left empty, Vespera uses qwen3:8b (Vespera's settings).",
+            "local-file", "Left empty, Vespera uses qwen3:8b (your local settings file).",
+            "command-line", "Left empty, Vespera uses qwen3:8b (the command that started Vespera).",
+            "environment", "Left empty, Vespera uses qwen3:8b (this computer's environment).",
+            "code", "Left empty, Vespera uses qwen3:8b (Vespera's built-in value).");
+
+    /** The line for a source §4 does not name, with no brackets. */
+    private static final String NO_SOURCE_SAID = "Left empty, Vespera uses qwen3:8b.";
 
     @Test
-    @Story("A setting's row says what a change redoes")
-    @DisplayName("Each setting's cost line is the line of the earliest work a change of it redoes")
+    @Story("Each value's row says what a change costs")
+    @DisplayName("Each value's cost line is the line of the earliest work a change of it redoes")
     void eachKeysCostLineIsTheLineOfItsEarliestRun() {
-        for (ProfileKey key : ProfileKey.values()) {
-            Optional<ProfileKey.Run> earliest = key.earliestRun();
-            String expected = key == ProfileKey.CLUSTER_PAGE_BYTE_CEILING ? THE_GROUP_PAGES
-                    : key == ProfileKey.MODELS_RUN_ON ? WHERE_THE_MODELS_RUN
-                    : earliest.map(BY_EARLIEST::get).orElse(NO_WORK);
-            claim(key.key() + "'s cost line is the line of "
-                            + earliest.map(run -> "the earliest work it redoes, " + run.stageName())
-                                    .orElse("a change that redoes no work"),
-                    () -> assertThat(ProfileRow.costOf(key)).isEqualTo(expected));
-        }
-        claim("the five Confluence settings each take the line of a change that redoes no work",
-                () -> assertThat(CONFLUENCE).allSatisfy(key -> assertThat(ProfileRow.costOf(key)).isEqualTo(NO_WORK)));
-        claim("where the models run takes its own line, since the window does not change it, and says it redoes no work",
-                () -> assertThat(ProfileRow.costOf(ProfileKey.MODELS_RUN_ON)).isEqualTo(WHERE_THE_MODELS_RUN)
-                        .isNotEqualTo(NO_WORK));
-        claim("the largest group page takes its own line, though a change of it enters no work either",
-                () -> assertThat(ProfileKey.CLUSTER_PAGE_BYTE_CEILING.earliestRun()).isEmpty());
-        claim("no setting's earliest work is the content census or the arrangement, which the table gives no line",
-                () -> assertThat(ProfileKey.values()).noneMatch(key -> key.earliestRun()
-                        .filter(run -> run == ProfileKey.Run.CONTENT_CENSUS || run == ProfileKey.Run.ARRANGEMENT)
-                        .isPresent()));
+        claim("no key enters first the content census or the grouping's proposal, which the table gives no line",
+                () -> assertThat(Arrays.stream(ProfileKey.values()).map(ProfileKey::earliestRun).flatMap(Optional::stream))
+                        .doesNotContainAnyElementsOf(RUNS_GIVEN_NO_LINE));
+        claim("each key's cost line is the table's line for its earliest run; the largest group page's and where the AI"
+                        + " models work's each their own; and the five Confluence values', which enter no run, the line"
+                        + " of a publish",
+                () -> assertThat(ProfileKey.values()).allSatisfy(key -> assertThat(ProfileRow.costOf(key))
+                        .as("%s's cost line", key.key())
+                        .isEqualTo(key == ProfileKey.CLUSTER_PAGE_BYTE_CEILING ? THE_GROUP_PAGES_LINE
+                                : key == ProfileKey.MODELS_RUN_ON ? THE_NEXT_STARTS_LINE
+                                : key.earliestRun().map(THE_LINE_OF_EACH_RUN::get).orElse(A_PUBLISHS_LINE))));
     }
 
     @Test
-    @Story("A setting's row says what a change redoes")
-    @DisplayName("A warning stands only where a change of the setting has its consequence, in a fixed order")
+    @Story("Each value's row says what a change costs")
+    @DisplayName("A warning stands under a value only where a change of it brings that cost")
     void aWarningStandsOnlyWhereTheCostAppliesIt() {
-        for (ProfileKey key : ProfileKey.values()) {
-            ProfileKey.Cost cost = key.cost();
-            List<String> expected = new ArrayList<>();
-            if (cost.approvalCloses()) {
-                expected.add(APPROVAL);
-            }
-            if (cost.labelsRefused()) {
-                expected.add(ANSWERS_REFUSED);
-            } else if (cost.sampleDrawnAgain()) {
-                expected.add(ANSWERS_LOST);
-            }
-            if (cost.sampleDrawnAgain()) {
-                expected.add(NEW_SAMPLE);
-            }
-            claim(key.key() + "'s warnings are those its cost applies, in order",
-                    () -> assertThat(ProfileRow.warningsOf(key)).containsExactlyElementsOf(expected));
-        }
-        claim("the seed folder warns of the approval, of the answers refused and of the new sample",
-                () -> assertThat(ProfileRow.warningsOf(ProfileKey.SEED_FOLDER))
-                        .containsExactly(APPROVAL, ANSWERS_REFUSED, NEW_SAMPLE));
-        claim("the writing model warns of nothing",
+        claim("each key's warnings are, in order, the approval's where the grouping is redone, the refused answers' for"
+                        + " the seed folder, the lost answers' where a new sample is drawn otherwise, and the new"
+                        + " sample's where one is drawn, and nothing else",
+                () -> assertThat(ProfileKey.values()).allSatisfy(key -> assertThat(ProfileRow.warningsOf(key))
+                        .as("%s's warnings", key.key())
+                        .containsExactlyElementsOf(warningsOf(key.cost()))));
+        claim("and the writing model, which redoes only the writing, has none",
                 () -> assertThat(ProfileRow.warningsOf(ProfileKey.GENERATION_MODEL)).isEmpty());
     }
 
     @Test
-    @Story("A setting's row says the value in use")
-    @DisplayName("The line of the value in use says where the value comes from in plain words")
+    @Story("Each value's row says what a change costs")
+    @DisplayName("The line of the value in use says in plain words where the value comes from")
     void theLineOfTheValueInUseSaysWhereItComesFromInPlainWords() {
-        Map<String, String> bySource = Map.of(
-                "shipped", "Left empty, Vespera uses qwen3:8b (Vespera's settings).",
-                "local-file", "Left empty, Vespera uses qwen3:8b (your local settings file).",
-                "command-line", "Left empty, Vespera uses qwen3:8b (the command that started Vespera).",
-                "environment", "Left empty, Vespera uses qwen3:8b (this computer's environment).",
-                "code", "Left empty, Vespera uses qwen3:8b (Vespera's built-in value).",
-                "unknown", "Left empty, Vespera uses qwen3:8b.",
-                "nowhere", "Left empty, Vespera uses qwen3:8b.");
-        bySource.forEach((source, line) -> claim("a value from the source " + source + " reads: " + line,
-                () -> assertThat(ProfileRow.inUseOf(new EffectiveValues.Value(MODEL, source))).isEqualTo(line)));
+        claim("for each source, the line reads as the table of sources says",
+                () -> assertThat(THE_LINE_OF_EACH_SOURCE).allSatisfy((source, line) -> assertThat(
+                                ProfileRow.inUseOf(new EffectiveValues.Value(A_MODEL, source)))
+                        .isEqualTo(line)));
+        claim("and a source unknown, or any other, gives the line with no brackets",
+                () -> assertThat(List.of("unknown", "nowhere")).allSatisfy(source -> assertThat(
+                                ProfileRow.inUseOf(new EffectiveValues.Value(A_MODEL, source)))
+                        .isEqualTo(NO_SOURCE_SAID)));
+    }
+
+    /** The warnings §4's second table gives a cost, in its order. */
+    private static List<String> warningsOf(ProfileKey.Cost cost) {
+        List<String> warnings = new ArrayList<>();
+        if (cost.approvalCloses()) {
+            warnings.add(APPROVAL);
+        }
+        if (cost.labelsRefused()) {
+            warnings.add(ANSWERS_REFUSED);
+        } else if (cost.sampleDrawnAgain()) {
+            warnings.add(ANSWERS_LOST);
+        }
+        if (cost.sampleDrawnAgain()) {
+            warnings.add(NEW_SAMPLE);
+        }
+        return warnings;
     }
 }

@@ -7,7 +7,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.engine.corpus.Walk;
+import io.algernon.vespera.engine.ledger.RunId;
 import io.algernon.vespera.engine.profile.ProfileFixture;
 import io.algernon.vespera.engine.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,14 +34,15 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * A code set whose folder in the tree's {@code code/} changed since the listing the tree held is told in one line at
- * INFO, through the whole command (ADR-377 §9): a corpus of two documents and two code sets, {@code alpha} and {@code
- * beta}, each a folder holding a build file and a file of code, is taken to the tree; its listing of code is then
- * rewritten as an earlier drawing that named the two sets otherwise would have left it, and the next invocation draws
- * the tree again.
+ * What a whole campaign over an archive holding code sets tells of ADR-377 §9: a set whose folder in the tree's
+ * {@code code/} is not the one the tree's earlier {@code code.csv} gave it is told in one line at INFO on the generation
+ * step's logger, naming the two folders of {@code code/} and no path of the archive, before the closing line; and a
+ * drawing whose earlier listing already names each set's folder tells nothing.
  *
- * <p>The lines are read on the generation step's logger, in the order they were logged, beside the operator's closing
- * line. One static working directory serves the class, as in {@code TheTreeInHtmlInvocationTest}.
+ * <p>The archive is {@code TheTreeInHtmlInvocationTest}'s two documents and two code sets, each of a build file and one
+ * file listed as code. The test approves the arrangement in a first invocation, which stops at it, draws the tree in a
+ * second, gives both sets other folders in that tree's {@code code.csv}, and claims what the third and fourth say. One
+ * static working directory serves the class, and every claim is scoped to this corpus's own lines and runs.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -56,11 +58,22 @@ class TheCodeSetsInTheTreeInvocationTest {
 
     private static final String THE_READING_WINDOW = "4096";
 
-    /** The two code sets, in the order the sets are drawn, by their folders' names, which are their default names. */
-    private static final List<String> THE_SETS = List.of("alpha", "beta");
+    /** The ending listed as code, so that each set's second file is code by its name. */
+    private static final String CODE_ENDING = ".java";
 
-    /** What an earlier drawing put before each set's name in code/. */
-    private static final String EARLIER = "old-";
+    /** The corpus's two documents, by their paths beneath the root. */
+    private static final String FIRST = "corpus.txt";
+
+    private static final String SECOND = "another-corpus-document.txt";
+
+    /** The two code sets' folders, each its folder's name in {@code code/}. */
+    private static final List<String> THE_SETS = List.of("officina", "bottega");
+
+    /** What the earlier listing gives each set's folder in {@code code/}: its name with this after it. */
+    private static final String EARLIER = "-before";
+
+    /** What the line of a set whose folder changed opens with. */
+    private static final String A_CHANGED_FOLDER = "A code set's folder in code/ is now ";
 
     @TempDir
     static Path workingDirectory;
@@ -83,7 +96,7 @@ class TheCodeSetsInTheTreeInvocationTest {
     private ch.qos.logback.classic.Logger applicationLogger;
 
     @BeforeEach
-    void listen() {
+    void forgetWhatAnEarlierClassScripted() {
         GenerationScriptedBeans.forgetScriptedAnswers();
         logged = new ListAppender<>();
         logged.start();
@@ -93,7 +106,7 @@ class TheCodeSetsInTheTreeInvocationTest {
     }
 
     @AfterEach
-    void stopListening() {
+    void forgetWhatWasScripted() {
         GenerationScriptedBeans.forgetScriptedAnswers();
         applicationLogger.detachAppender(logged);
         ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(logged);
@@ -102,103 +115,111 @@ class TheCodeSetsInTheTreeInvocationTest {
 
     @Test
     @Story("A code set is named by its folder")
-    @DisplayName("Each code set whose folder in code/ changed is told in one line at INFO before the closing line, and the next run tells none")
+    @DisplayName("A code set whose folder in code/ changed since the tree was last drawn is told in one line at INFO, naming the two folders of code/ alone, before the closing line, and the next drawing tells nothing")
     void aSetWhoseFolderInCodeChangedIsOneLineAtInfo(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        anApprovedCorpusWithCode(root, seeds);
+        anApprovedCorpusWithTwoCodeSets(root, seeds);
         cli.run("run", root.toString());
         Path listing = theTreeOf(root).resolve("code.csv");
-        String drawn = Files.readString(listing, StandardCharsets.UTF_8);
-        String earlier = drawn;
+        List<String> drawnOrder = setsInTheOrderOf(Files.readString(listing, StandardCharsets.UTF_8));
+        String earlier = Files.readString(listing, StandardCharsets.UTF_8);
         for (String set : THE_SETS) {
-            earlier = earlier.replace("code/" + set + "/", "code/" + EARLIER + set + "/");
+            earlier = earlier.replace("code/" + set + "/", "code/" + set + EARLIER + "/");
         }
         Files.writeString(listing, earlier, StandardCharsets.UTF_8);
         logged.list.clear();
 
         cli.run("run", root.toString());
-        List<ILoggingEvent> second = List.copyOf(logged.list);
+
+        List<ILoggingEvent> events = List.copyOf(logged.list);
+        List<ILoggingEvent> changed = events.stream()
+                .filter(event -> event.getFormattedMessage().startsWith(A_CHANGED_FOLDER))
+                .toList();
+        List<String> expected = drawnOrder.stream()
+                .map(set -> A_CHANGED_FOLDER + set + ", no longer " + set + EARLIER + ", which is left as it is.")
+                .toList();
+        claim(
+                "the precondition: the drawing before put both sets in code/, each under its folder's name",
+                () -> assertThat(drawnOrder).containsExactlyInAnyOrderElementsOf(THE_SETS));
+        claim(
+                "the invocation reports success",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim(
+                "it tells " + THE_SETS.size() + " lines of a folder changed, one a set, in the order the sets are drawn,"
+                        + " each naming the folder now and the earlier one",
+                () -> assertThat(changed).extracting(ILoggingEvent::getFormattedMessage)
+                        .containsExactlyElementsOf(expected));
+        claim(
+                "each at INFO on the generation step's logger, naming no path of the corpus root or the working"
+                        + " directory",
+                () -> assertThat(changed).allSatisfy(event -> {
+                    assertThat(event.getLevel()).isEqualTo(Level.INFO);
+                    assertThat(event.getLoggerName()).isEqualTo(GenerationTasklet.class.getName());
+                    assertThat(event.getFormattedMessage())
+                            .doesNotContain(root.toString(), workingDirectory.toString());
+                }));
+        claim(
+                "both come before the closing line, the last line the invocation writes",
+                () -> assertThat(changed).allSatisfy(event ->
+                        assertThat(events.indexOf(event)).isLessThan(events.size() - 1)));
+        claim(
+                "and the generation step warns of nothing",
+                () -> assertThat(events).noneMatch(event -> event.getLoggerName().equals(GenerationTasklet.class.getName())
+                        && event.getLevel().isGreaterOrEqual(Level.WARN)));
+
         logged.list.clear();
         cli.run("run", root.toString());
-        List<ILoggingEvent> third = List.copyOf(logged.list);
-
-        List<String> expected = THE_SETS.stream().map(set -> "A code set's folder in code/ is now " + set
-                + ", no longer " + EARLIER + set + ", which is left as it is.").toList();
-        claim("the first drawing listed each set's copies in its folder named as the set's folder is",
-                () -> assertThat(drawn).contains("code/alpha/", "code/beta/"));
-        claim("the invocations report success", () -> assertThat(cli.getExitCode()).isZero());
-        claim("the drawing over the earlier listing logs one line at INFO on the generation step's logger for each set"
-                        + " whose folder changed, in the order the sets are drawn, each naming its two folders of code/",
-                () -> assertThat(changesIn(second)).containsExactlyElementsOf(expected));
-        claim("no such line names a path of the corpus root",
-                () -> assertThat(changesIn(second)).noneMatch(line -> line.contains(root.toString())
-                        || line.contains(root.toString().replace('\\', '/'))));
-        claim("both lines come before the closing line",
-                () -> assertThat(indexOfLast(second, expected.getLast()))
-                        .isLessThan(indexOfClosingLine(second)));
-        claim("and the generation step warns of nothing",
-                () -> assertThat(second).noneMatch(event -> event.getLoggerName().equals(GenerationTasklet.class.getName())
-                        && event.getLevel().isGreaterOrEqual(Level.WARN)));
-        claim("the next invocation, drawing the same tree over the listing the last one left, logs no such line",
-                () -> assertThat(changesIn(third)).isEmpty());
+        List<String> next = new ArrayList<>();
+        logged.list.forEach(event -> next.add(event.getFormattedMessage()));
+        claim(
+                "the next invocation, drawing the same tree over the listing the last one left, tells no such line",
+                () -> assertThat(next).isNotEmpty().noneMatch(line -> line.startsWith(A_CHANGED_FOLDER)));
     }
 
-    /** The generation step's lines that tell a code set's folder changed, in order. */
-    private static List<String> changesIn(List<ILoggingEvent> events) {
-        return events.stream()
-                .filter(event -> event.getLoggerName().equals(GenerationTasklet.class.getName()))
-                .filter(event -> event.getLevel() == Level.INFO)
-                .map(ILoggingEvent::getFormattedMessage)
-                .filter(line -> line.startsWith("A code set's folder in code/"))
+    /** Each set of {@link #THE_SETS} in the order its first copy appears in {@code listing}'s text. */
+    private static List<String> setsInTheOrderOf(String listing) {
+        return THE_SETS.stream()
+                .filter(set -> listing.contains("code/" + set + "/"))
+                .sorted((one, other) -> Integer.compare(
+                        listing.indexOf("code/" + one + "/"), listing.indexOf("code/" + other + "/")))
                 .toList();
     }
 
-    private static int indexOfLast(List<ILoggingEvent> events, String line) {
-        List<String> lines = events.stream().map(ILoggingEvent::getFormattedMessage).toList();
-        return lines.lastIndexOf(line);
-    }
-
-    /** Where the closing line stands: the last operator line that is not the report's (ADR-362 section 7). */
-    private static int indexOfClosingLine(List<ILoggingEvent> events) {
-        for (int at = events.size() - 1; at >= 0; at--) {
-            ILoggingEvent event = events.get(at);
-            if (event.getLoggerName().equals(OperatorLines.LOGGER_NAME)
-                    && !event.getFormattedMessage().startsWith("Report: ")) {
-                return at;
-            }
-        }
-        return -1;
-    }
-
-    /** The tree this corpus's latest generation run drew. */
+    /**
+     * The tree of the latest generation run over {@code root}'s walks, read through {@link RunsOver}, which compares
+     * the root the walk stored, its real path (a runner's temporary folder can be given by its short name).
+     */
     private Path theTreeOf(Path root) {
-        List<String> runs = jdbcTemplate.queryForList(
-                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid",
-                String.class,
-                "generation",
-                Walk.canonicalRoot(root).toString());
-        return workingDirectory.resolve("deliverable").resolve(runs.getLast());
+        return workingDirectory.resolve("deliverable").resolve(new RunsOver(jdbcTemplate, root).latest("generation").value());
     }
 
-    /** A corpus of two documents and two code sets, walked once, with the arrangement it produced approved. */
-    private void anApprovedCorpusWithCode(Path root, Path seeds) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
-        Files.writeString(root.resolve("another-corpus-document.txt"), "a second corpus document");
+    /**
+     * A corpus of two documents and two code sets of two members each, walked once, with the arrangement it produced
+     * approved.
+     */
+    private void anApprovedCorpusWithTwoCodeSets(Path root, Path seeds) throws IOException {
+        Files.writeString(root.resolve(FIRST), "a corpus document");
+        Files.writeString(root.resolve(SECOND), "a second corpus document");
         for (String set : THE_SETS) {
-            Files.createDirectories(root.resolve(set));
-            Files.writeString(root.resolve(set).resolve("pom.xml"), "<project/>\n");
-            Files.writeString(root.resolve(set).resolve("Main.java"), "class Main {}\n");
+            Files.createDirectories(root.resolve(set).resolve("src"));
+            Files.writeString(root.resolve(set).resolve("Makefile"), "all:\n\tjavac src/Attrezzo.java\n");
+            Files.writeString(root.resolve(set).resolve("src/Attrezzo.java"),
+                    "class Attrezzo {\n    String dove() { return \"" + set + "\"; }\n}\n");
         }
         Files.writeString(seeds.resolve("seed.txt"), "a seed document");
         EveryGateOpen.throughStageFive(profileStore, seeds);
         profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .relevanceScoreFloor(A_FLOOR_THAT_REMOVES_NOTHING, "set by this test, so nothing earlier is asked for")
                 .generationContextWindow(THE_READING_WINDOW, "set by this test, so every test here reads alike")
-                .codeNameEndings(".java", "set by this test, so each folder's file is code")
+                .codeNameEndings(CODE_ENDING, "set by this test, so the archive holds code sets")
                 .build());
         cli.run("run", root.toString());
-        String approval = ArrangementGate.shortNameOf(new RunsOver(jdbcTemplate, root).latest("arrangement"));
+        String approval = ArrangementGate.shortNameOf(theLatestArrangement(root));
         profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .arrangementApproved(approval, "read by this test")
                 .build());
+    }
+
+    private RunId theLatestArrangement(Path root) {
+        return new RunsOver(jdbcTemplate, root).latest("arrangement");
     }
 }

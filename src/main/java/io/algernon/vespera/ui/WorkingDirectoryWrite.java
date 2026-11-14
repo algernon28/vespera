@@ -53,7 +53,7 @@ public final class WorkingDirectoryWrite {
 
     /**
      * Two of the three files of a working directory the control panel writes whole, {@link #NOT_RELEVANT_FOLDERS}
-     * the third (ADR-377 §9); a repair's copy is the one other.
+     * the third; a repair's copy is the one other (ADR-377 §9).
      */
     public static final Set<String> FILES = Set.of("profile.yaml", "relevance-labels.yaml");
 

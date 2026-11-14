@@ -6,8 +6,8 @@ package io.algernon.vespera.engine.deliverable;
  * the line; this module writes none and declares no logger.
  *
  * <p><b>Every method takes numbers alone</b> (ADR-274 §8), so nothing it reports can name a path, a file or a
- * document's text; but for {@link #codeSetFolderChanged}, which takes two names of the tree's own {@code code/}, and
- * {@link #pluginDrawingFailed}, which takes two words of ours (ADR-377 §9, ADR-333 §11).
+ * document's text; but for {@link #pluginDrawingFailed}, which takes words of ours, and {@link #codeSetFolderChanged},
+ * which takes two folders of the tree's {@code code/} (ADR-377 §9).
  *
  * <p><b>The contract, for each {@code to...} method:</b> called exactly once each time its loop is reached,
  * with the loop's total, before the loop's first item, zero included; its completion method is called once
@@ -143,11 +143,11 @@ public interface DeliverableProgress {
     default void codeFileNotCopied() {}
 
     /**
-     * Called once for each code set whose folder in the tree's {@code code/} is not the one the tree's earlier listing
-     * of code gave it, case aside, in the order the sets are drawn, once the listing this drawing wrote is in place
-     * (ADR-377 §9). The one method taking names and not numbers: {@code earlier} and {@code now} are two folders of the
-     * tree's own {@code code/}, each a set's folder's last element made safe, or that, {@code ~} and an occurrence id,
-     * which name a set of code and no document, file or path of the archive (ADR-274 §8 as ADR-377 §9 amends it).
+     * Called once for each code set whose folder in {@code code/} is not the one the tree's earlier {@code code.csv}
+     * gave it, a change of case alone being none, in the order the sets are drawn, after the new {@code code.csv} is in
+     * place (ADR-377 §9). Its two names are folders of the tree's {@code code/}, the tree's own names: each a set
+     * folder's last element made safe, or that with {@code ~} and an occurrence id, and never a path of the archive,
+     * a file's name or a document's text.
      */
     default void codeSetFolderChanged(String earlier, String now) {}
 
