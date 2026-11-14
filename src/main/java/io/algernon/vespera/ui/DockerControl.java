@@ -52,13 +52,20 @@ interface DockerControl {
      * @param waitAtMost the bound of every start and stop command
      * @param lockFolder the folder the corpus-root locks lie in, where {@code sidecars.lock} lies too
      */
-    record Settings(String wslDistribution, Duration waitAtMost, Path lockFolder) {
+    record Settings(String wslDistribution, Duration waitAtMost, Path lockFolder, StartingValues.Sources sources) {
     }
 
-    /** The jar's own default addresses, which a blank one in the launch values stands for. */
+    /**
+     * The jar's own default addresses, which a blank one stands for where the environment, {@code .env} and the jar's
+     * {@code application.yaml} name none either (ADR-390 §4, §7).
+     */
     String DEFAULT_DOCLING = "http://localhost:5001";
 
     String DEFAULT_OLLAMA = "http://localhost:11434";
+
+    String DOCLING_PROPERTY = "vespera.docling.base-url";
+
+    String OLLAMA_PROPERTY = "spring.ai.ollama.base-url";
 
     /** The control: {@link DockerEngine}, called in this process. */
     static DockerControl inProcess(Settings settings) {
@@ -66,8 +73,8 @@ interface DockerControl {
         return new DockerControl() {
             @Override
             public Said start(LaunchValues values) {
-                return said(engine.startTheEngine(address(values.doclingBaseUrl(), DEFAULT_DOCLING),
-                        address(values.ollamaBaseUrl(), DEFAULT_OLLAMA)));
+                return said(engine.startTheEngine(address(values.doclingBaseUrl(), DOCLING_PROPERTY, DEFAULT_DOCLING),
+                        address(values.ollamaBaseUrl(), OLLAMA_PROPERTY, DEFAULT_OLLAMA)));
             }
 
             @Override
@@ -78,17 +85,19 @@ interface DockerControl {
 
             @Override
             public Said stopTheSidecars(LaunchValues values) {
-                return said(engine.stopTheSidecars(address(values.doclingBaseUrl(), DEFAULT_DOCLING),
-                        address(values.ollamaBaseUrl(), DEFAULT_OLLAMA)));
+                return said(engine.stopTheSidecars(address(values.doclingBaseUrl(), DOCLING_PROPERTY, DEFAULT_DOCLING),
+                        address(values.ollamaBaseUrl(), OLLAMA_PROPERTY, DEFAULT_OLLAMA)));
             }
 
             private static Said said(Optional<String> refusal) {
                 return new Said(refusal.isEmpty(), refusal.orElse(""));
             }
 
-            private static URI address(String held, String blank) {
+            /** The held address, or where it is blank the one the window's fields and checks start from (ADR-390 §4). */
+            private URI address(String held, String property, String blank) {
+                String named = held == null || held.isBlank() ? StartingValues.of(property, settings.sources()).value() : held;
                 try {
-                    return URI.create(held == null || held.isBlank() ? blank : held.strip());
+                    return URI.create(named == null || named.isBlank() ? blank : named.strip());
                 } catch (IllegalArgumentException unreadable) {
                     return URI.create(blank);
                 }

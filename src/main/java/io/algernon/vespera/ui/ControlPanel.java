@@ -89,7 +89,8 @@ public final class ControlPanel {
                 default -> number;
             };
         }
-        return new DockerControl.Settings(distribution, java.time.Duration.ofSeconds(Math.max(1, seconds)), lockFolder);
+        return new DockerControl.Settings(distribution, java.time.Duration.ofSeconds(Math.max(1, seconds)), lockFolder,
+                sources);
     }
 
     /**
