@@ -1,5 +1,5 @@
 // What docs/check-claims.mjs and docs/next-adr-number.mjs compute without reading a file or asking the network
-// (ADR-346 §4). The scripts read git and GitHub through docs/adr-numbers-read.mjs (ADR-389 §3) and pass what they read.
+// (ADR-346 §4). The scripts read git and GitHub through docs/adr-numbers-read.mjs (ADR-391 §3) and pass what they read.
 
 const CEILING = 30000;
 const ADR_PATH = /^docs\/adr\/(\d{4})-[^/]+\.md$/;
@@ -36,7 +36,7 @@ function addedBy(pr) {
   return (pr.files ?? []).filter((f) => !NOT_ADDED.has(f.changeType)).map((f) => f.path).filter((p) => adrNumber(p) !== null);
 }
 
-/** The paths of records a branch of origin holds that origin/main holds at no such path (ADR-389 §1). */
+/** The paths of records a branch of origin holds that origin/main holds at no such path (ADR-391 §1). */
 function heldBy(branch, main) {
   const onMain = new Set(main ?? []);
   return (branch.tree ?? []).filter((p) => adrNumber(p) !== null && !onMain.has(p));
@@ -44,7 +44,7 @@ function heldBy(branch, main) {
 
 /**
  * The lowest number above origin/main's highest that the branch's tree, no open pull request and no branch of origin
- * holds (ADR-346 §2, ADR-389 §1).
+ * holds (ADR-346 §2, ADR-391 §1).
  */
 export function nextAdrNumber({ main, branchTree, prs, branches }) {
   const highest = Math.max(0, ...main.map(adrNumber).filter((n) => n !== null));
@@ -62,7 +62,7 @@ export function nextAdrNumber({ main, branchTree, prs, branches }) {
 export const REST_FILES_CAP = 3000;
 
 /**
- * A pull request as the functions here read it, from what GitHub's REST API gives (ADR-389 §2): its number, its head's
+ * A pull request as the functions here read it, from what GitHub's REST API gives (ADR-391 §2): its number, its head's
  * name, and its files as `{ filename, status }`, or null where they were not read. Each status upper-cased is the
  * changeType, `removed` being DELETED. Files not read, or as many as REST_FILES_CAP, give no changedFiles, so that the
  * pull request is cut short.

@@ -1,5 +1,5 @@
 // docs/check-claims-lib.mjs holds what the claims check and docs/next-adr-number.mjs compute without reading a file or
-// asking the network (ADR-346, ADR-350, ADR-389): AGENTS.md's size as git stores it, and a decision record's number,
+// asking the network (ADR-346, ADR-350, ADR-391): AGENTS.md's size as git stores it, and a decision record's number,
 // read, shared, taken and chosen, held by an open pull request or a branch of origin, the open pull requests as REST
 // gives them, read in full or cut short, and the claim of the numbers this branch adds, which reads the set
 // next-adr-number reads and never passes where it did not read, and the exit of docs/next-adr-number.mjs; whether the
@@ -184,7 +184,7 @@ test("the next number passes over what this branch and every open pull request h
   assert.equal(nextAdrNumber({ main: MAIN, branchTree: MAIN, prs: [PR(704, "x", "docs/adr/0344-x.md")] }), 342);
 });
 
-test("a number a branch of origin holds with no pull request is taken, and next-adr-number passes over it (ADR-389 §1)", async () => {
+test("a number a branch of origin holds with no pull request is taken, and next-adr-number passes over it (ADR-391 §1)", async () => {
   const { nextAdrNumber } = await lib();
   // The case of #766: origin/claude/run-report-record held 0362 before its pull request opened.
   const held = BRANCH("claude/run-report-record", "docs/adr/0342-run-report.md");
@@ -666,7 +666,7 @@ test("where the fetch of origin/main fails, next-adr-number still prints a numbe
   assert.equal(run.status, 2, `stderr: ${run.stderr}`);
 });
 
-test("next-adr-number fetches a branch pushed to origin after the clone, with no pull request, and prints the number after the one it holds (ADR-389 §1)", () => {
+test("next-adr-number fetches a branch pushed to origin after the clone, with no pull request, and prints the number after the one it holds (ADR-391 §1)", () => {
   // An origin on disk, its main holding ADR-001, and a clone of it; then claude/held, holding 0002-held.md, is pushed
   // to origin from elsewhere, so that only the script's own fetch of every branch brings it into the clone. gh is signed
   // out, so no pull request is read: the number comes from the branch alone, and the exit is 2.

@@ -967,7 +967,7 @@ function markerPattern(source, whole = false) {
   const branchName = currentBranch();
 
   // Under --with-network origin's branches are fetched first; a failed fetch leaves origin/main and the branches of
-  // origin unread, though their refs stand (ADR-389 §1).
+  // origin unread, though their refs stand (ADR-391 §1).
   let fetchFailed = false;
   if (withNetwork) {
     const fetched = fetchOrigin();

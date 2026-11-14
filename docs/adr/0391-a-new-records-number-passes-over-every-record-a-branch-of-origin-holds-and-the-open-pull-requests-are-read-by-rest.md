@@ -1,4 +1,4 @@
-# ADR-389 — A new record's number passes over every record a branch of origin holds, and the open pull requests are read by REST
+# ADR-391 — A new record's number passes over every record a branch of origin holds, and the open pull requests are read by REST
 
 - **Date**: 2026-11-14
 - **Status**: accepted on 2026-11-14.

@@ -1,5 +1,5 @@
 // What docs/check-claims.mjs and docs/next-adr-number.mjs read from git and GitHub for the numbers of the decision
-// records (ADR-346 §2, ADR-389): the fetch of origin's branches, the records each branch of origin holds, and the open
+// records (ADR-346 §2, ADR-391): the fetch of origin's branches, the records each branch of origin holds, and the open
 // pull requests, read through GitHub's REST API. What is computed from what they read is docs/check-claims-lib.mjs's.
 
 import { spawnSync } from "node:child_process";

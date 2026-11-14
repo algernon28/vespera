@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Prints the number a new decision record takes (ADR-346 §2, ADR-389 §1): the lowest number above the highest record
+// Prints the number a new decision record takes (ADR-346 §2, ADR-391 §1): the lowest number above the highest record
 // on origin/main that this branch's tree holds in no record, no open pull request adds, and no branch of origin holds.
 //
 //   node docs/next-adr-number.mjs
