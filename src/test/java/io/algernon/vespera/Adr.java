@@ -2797,10 +2797,12 @@ public final class Adr {
 
     /**
      * ADR-389 -- Vespera uses Docker Engine alone: one start command per system, inside a WSL 2 distribution on Windows
-     * and Colima on macOS, and no Docker Desktop; the control panel starts the engine as its window opens, and its
-     * <i>Shut down Docker</i> button, beside Stop, warns, stops a running child, then runs {@code docker compose -p
-     * vespera stop} and the engine's stop, never {@code down} (amends ADR-323 §4, §5 and §8, ADR-302 §5, ADR-278 §1,
-     * ADR-362 §2, ADR-158 and ADR-179; restores ADR-011's stop half).
+     * and Colima on macOS, and no Docker Desktop; the control panel calls {@code DockerEngine}, the one class of the
+     * jar it names, to start the engine as its window opens, stop the sidecars as it closes, and, on its <i>Shut down
+     * Docker</i> button beside Stop, warn, stop a running child, then run {@code docker compose -p vespera stop} and the
+     * engine's stop, never {@code down}; {@code vespera.sidecars.start} is removed (amends ADR-323 §4, §5, §8 and §9,
+     * ADR-285 §3 as ADR-342 leaves it, ADR-302 §5, ADR-344 §4, ADR-362 §2, ADR-158, ADR-164 and ADR-179; restores
+     * ADR-011's stop half).
      */
     public static final String VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN = FILE
             + "0389-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md";

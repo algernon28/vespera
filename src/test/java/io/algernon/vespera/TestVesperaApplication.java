@@ -11,20 +11,22 @@ import org.springframework.boot.SpringApplication;
  * support is on any classpath (ADR-179 §1), so the containers {@code compose.yaml} declares are never
  * started or stopped from here.
  * <p>
- * Run {@link VesperaApplication} directly when you want the {@code compose.yaml} containers instead.
- * Start them first, with the {@code up} line the README gives, exactly as for the packaged jar: no entry
- * point starts or stops them (ADR-158, ADR-179).
+ * Run {@link VesperaApplication} directly when you want the {@code compose.yaml} containers instead: it
+ * starts them where they are not answering (ADR-323 §1).
  *
  * <p>
- * It sets {@code vespera.sidecars.start} to false, so the starter does not look for the sidecars at
- * {@code compose.yaml}'s addresses and start them beside the containers this entry point brings (ADR-323 §1).
+ * It names both sidecars on a host under {@code .invalid}, which never resolves (RFC 6761), as JVM system
+ * properties, so the starter, which reads them before Testcontainers has published its own, takes them for
+ * another machine's and starts nothing beside the containers this entry point brings; the converter's address
+ * Testcontainers registers, and Ollama's connection detail, come before them once published (ADR-389 §7).
  *
  * @see TestcontainersConfiguration for the containers this adds
  */
 public class TestVesperaApplication {
 
     static void main(String[] args) {
-        System.setProperty("vespera.sidecars.start", "false");
+        System.setProperty("vespera.docling.base-url", "http://sidecars.invalid:5001");
+        System.setProperty("spring.ai.ollama.base-url", "http://sidecars.invalid:11434");
         SpringApplication.from(VesperaApplication::main).with(TestcontainersConfiguration.class).run(args);
     }
 

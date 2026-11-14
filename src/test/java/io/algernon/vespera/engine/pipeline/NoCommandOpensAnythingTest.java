@@ -147,7 +147,6 @@ class NoCommandOpensAnythingTest {
         SidecarStarter sidecarStarter() {
             Path repository = Path.of("").toAbsolutePath();
             SidecarStartSettings settings = new SidecarStartSettings(
-                    true,
                     URI.create("http://localhost:5001"),
                     URI.create("http://localhost:11434"),
                     ComposeFiles.in(repository).cpuImage(),

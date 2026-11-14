@@ -6,7 +6,7 @@
 
 > **Read with [ADR-354](0354-the-docling-images-are-built-where-they-run-from-the-one-containerfile-and-no-workflow-pushes-them-to-a-registry.md)**, which supersedes [ADR-349](0349-the-docling-images-are-built-once-pushed-to-ghcr-as-public-packages-never-over-a-tag-already-there-and-pulled-by-digest.md) whole, so ADR-349's amendment of this record is withdrawn and nothing of it is built. §2's *"Each compose file passes its own image name as `VESPERA_IMAGE`"*, §3's check and its two messages, and §4's revision rule, not extended, stand; the tag is `-r2`, and no image is pushed. ADR-349 changes nothing here; the ADR-214 and ADR-323 notes above stand.
 
-> **Partly amended — see [ADR-389](0389-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** The sidecars are stopped, never removed or recreated, by the control panel's *Shut down Docker* alone, with `docker compose -p vespera stop` before the engine's stop. The rest of this record, as ADR-323 left it, stands.
+> **Partly amended — see [ADR-389](0389-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** The sidecars are stopped, never removed or recreated, as the control panel's window closes and by its *Shut down Docker*, with `docker compose -p vespera stop`. The rest of this record, as ADR-323 left it, stands.
 
 - **Date**: 2026-10-03
 - **Status**: accepted

@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-323](0323-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md).** Vespera starts the sidecars too, when they are not answering, so a container the operator stopped is started again by the next `vespera run` or `vespera label --auto` unless `VESPERA_SIDECARS_START=false`. `restart: unless-stopped` stands on every service.
 
+> **Partly amended — see [ADR-389](0389-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** There is no `VESPERA_SIDECARS_START`: a container the operator stopped is started again by the next `vespera run` or `vespera label --auto` where it is on this machine. The rest of this record stands.
+
 - **Date**: 2026-09-27
 - **Status**: accepted
 - **Extends**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md). The operator still starts the sidecars from `compose.yaml` and stops them when the curation is done. What this record adds is what happens in between: a sidecar that exits on its own is started again by Docker, and one the operator stopped stays stopped.

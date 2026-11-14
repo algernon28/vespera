@@ -49,6 +49,13 @@ class CliExitIT {
     /** The packaged, executable jar the operator actually runs. */
     private static final Path EXECUTABLE_JAR = Path.of("target", "vespera-0.0.1-SNAPSHOT.jar");
 
+    /**
+     * Where each launch names both sidecars: a host under {@code .invalid}, which never resolves (RFC 6761), so the
+     * starter takes them for another machine's and runs no Docker command, and a converter is never reached
+     * (ADR-389 §7, ADR-323 §3 step 2).
+     */
+    private static final String SIDECARS_ON_NO_MACHINE = "http://sidecars.invalid";
+
     /** A temp working directory, so the launched jar writes its database nowhere the repo tracks. */
     @TempDir
     static Path workingDirectory;
@@ -188,7 +195,8 @@ class CliExitIT {
                                                 javaExecutable(),
                                                 "--enable-native-access=ALL-UNNAMED",
                                                 "-Dspring.docker.compose.enabled=false",
-                                                "-Dvespera.sidecars.start=false",
+                                                "-Dvespera.docling.base-url=" + SIDECARS_ON_NO_MACHINE + ":5001",
+                                                "-Dspring.ai.ollama.base-url=" + SIDECARS_ON_NO_MACHINE + ":11434",
                                                 "-Dvespera.sidecars.wait-at-most=1s",
                                                 "-Dvespera.working-dir=" + launchedIn,
                                                 "-jar",
@@ -273,7 +281,8 @@ class CliExitIT {
                                                 javaExecutable(),
                                                 "--enable-native-access=ALL-UNNAMED",
                                                 "-Dspring.docker.compose.enabled=false",
-                                                "-Dvespera.sidecars.start=false",
+                                                "-Dvespera.docling.base-url=" + SIDECARS_ON_NO_MACHINE + ":5001",
+                                                "-Dspring.ai.ollama.base-url=" + SIDECARS_ON_NO_MACHINE + ":11434",
                                                 "-Dvespera.working-dir=" + workingDirectory),
                                         jvmOptions.stream(),
                                         Stream.of("-jar", EXECUTABLE_JAR.toString()),

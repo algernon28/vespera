@@ -19,6 +19,7 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.TextInputControl;
+import javafx.stage.WindowEvent;
 import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,13 +27,13 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The Docker engine from the control panel's window (ADR-389 §5): it is started once as the window opens, a refusal's
- * line shown where the window says what happened; and <i>Shut down Docker</i>, beside Stop, warns first, stops the
- * window's running child before anything else, and then has the jar stop the sidecars and the engine, showing the line
- * it said.
+ * line shown where the window says what happened; <i>Shut down Docker</i>, beside Stop, warns first, stops the window's
+ * running child before anything else, and then stops the sidecars and the engine, showing the line it said; and closing
+ * the window stops the sidecars and not the engine.
  *
- * <p>The window is given a {@link RecordingDockerControl}, so no child of the jar is started for Docker: what the jar's
- * {@code docker} command runs is {@code DockerShutDownTest}'s and {@code SidecarStartTest}'s. The running child is
- * {@link SleepingJar}'s. The words of the warning and of its two answers are the record's, and are read whole.
+ * <p>The window is given a {@link RecordingDockerControl}, so no Docker command is run: what the engine's code runs is
+ * {@code DockerShutDownTest}'s and {@code SidecarStartTest}'s. The running child is {@link SleepingJar}'s. The words of
+ * the warning and of its two answers are the record's, and are read whole.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -83,7 +84,7 @@ class TheShutDownDockerButtonTest {
                     () -> assertThat(said).isEqualTo(START_REFUSED));
             claim("and Docker was asked one thing, once: to start the engine, for the launch values the window holds",
                     () -> assertThat(docker.calls).containsExactly(
-                            new RecordingDockerControl.Call("start", state.values(), false)));
+                            new RecordingDockerControl.Call("start", Optional.of(state.values()), false)));
         }
     }
 
@@ -142,12 +143,52 @@ class TheShutDownDockerButtonTest {
                             new AnsweringDialogs.Asked(WARNING + " " + THE_CHILD_FIRST, GO_ON, KEEP)));
             claim("Docker was asked to shut down once, after the invocation had been stopped",
                     () -> assertThat(docker.of("shut-down")).containsExactly(
-                            new RecordingDockerControl.Call("shut-down", state.values(), false)));
+                            new RecordingDockerControl.Call("shut-down", Optional.empty(), false)));
             claim("and the invocation it stopped no longer runs", () -> assertThat(state.childRuns()).isFalse());
             claim("the refused engine stop's line is shown where the window says what happened",
                     () -> assertThat(said).isEqualTo(ENGINE_NOT_STOPPED));
             claim("and nothing else failed: Shut down Docker and Run are both enabled again",
                     () -> assertThat(enabled).containsExactly(true, true));
+        }
+    }
+
+    @Test
+    @Story("Closing the control panel stops the sidecars")
+    @DisplayName("Closing the window, its running invocation stopped as the operator confirms, stops the sidecars and not the Docker engine")
+    void closingTheWindowStopsTheSidecarsAndNotTheEngine() throws Exception {
+        RecordingDockerControl docker = new RecordingDockerControl(STARTED, STARTED);
+        ControlPanelState state = aState(SleepingJar.runtime(), docker);
+        docker.watching(state);
+        state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(),
+                Files.createDirectories(folder.resolve("working")).toString(), "", "", "", "", "", ""));
+
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            Optional<String> refusal = state.start(ControlPanelState.Start.RUN, new ArrayList<>());
+            Assumptions.assumeThat(refusal).as("the sleeping child is started").isEmpty();
+            window.dialogs.answer = true;
+            HeadlessToolkit.onTheToolkit(() -> {
+                window.stage.fireEvent(new WindowEvent(window.stage, WindowEvent.WINDOW_CLOSE_REQUEST));
+                return null;
+            });
+            boolean closed = WindowForTests.within(() -> !docker.of("stop-sidecars").isEmpty() && !showing(window));
+
+            claim("closing asked one question, Stop's own, as it does today",
+                    () -> assertThat(window.dialogs.asked).containsExactly(new AnsweringDialogs.Asked(
+                            Child.STOP_CONFIRMATION, "Stop and close", "Keep the window")));
+            claim("and the window closed once the sidecars were stopped", () -> assertThat(closed).isTrue());
+            claim("the sidecars were stopped once, for the launch values the window holds, after the invocation had"
+                            + " been stopped",
+                    () -> assertThat(docker.of("stop-sidecars")).containsExactly(new RecordingDockerControl.Call(
+                            "stop-sidecars", Optional.of(state.values()), false)));
+            claim("and the engine was not shut down", () -> assertThat(docker.of("shut-down")).isEmpty());
+        }
+    }
+
+    private static boolean showing(WindowForTests window) {
+        try {
+            return HeadlessToolkit.onTheToolkit(window.stage::isShowing);
+        } catch (Exception unanswered) {
+            throw new IllegalStateException(unanswered);
         }
     }
 

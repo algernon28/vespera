@@ -176,7 +176,7 @@ class SidecarStartTest {
 
     @Test
     @Story("The control panel starts the Docker engine as its window opens")
-    @DisplayName("The control panel's start makes the engine answer and asks no sidecar, and starts nothing where Vespera is not to or the sidecars are elsewhere")
+    @DisplayName("The control panel's start makes the engine answer and asks no sidecar, and starts nothing where the sidecars are on another machine")
     @Issue("816")
     void theControlPanelsStartStartsTheEngineAloneAndAsksNoSidecar() {
         ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
@@ -193,17 +193,9 @@ class SidecarStartTest {
                         ScriptedDocker.ENGINE_CHECK, ScriptedDocker.ENGINE_CHECK));
         claim("and no sidecar was asked anything", () -> assertThat(health.questionsAsked()).isZero());
 
-        ScriptedDocker notToStart = ScriptedDocker.engineAnsweringAfter(ScriptedDocker.NEVER);
-        SidecarStarter.Outcome notAsked = starter(
-                new SidecarStartSettings(false, DOCLING_HERE, OLLAMA_HERE, cpuImage, WAIT_AT_MOST),
-                notToStart, health, HostSystem.LINUX).ensureTheEngineRuns();
-        claim("with vespera.sidecars.start false, it is not asked to start, and runs nothing",
-                () -> assertThat(List.of(notAsked, notToStart.commands()))
-                        .containsExactly(SidecarStarter.Outcome.NOT_ASKED_TO_START, List.of()));
-
         ScriptedDocker elsewhere = ScriptedDocker.engineAnsweringAfter(ScriptedDocker.NEVER);
         SidecarStarter.Outcome onAnother = starter(
-                new SidecarStartSettings(true, URI.create("http://docling.example.org:5001"), OLLAMA_HERE, cpuImage,
+                new SidecarStartSettings(URI.create("http://docling.example.org:5001"), OLLAMA_HERE, cpuImage,
                         WAIT_AT_MOST),
                 elsewhere, health, HostSystem.LINUX).ensureTheEngineRuns();
         claim("with docling-serve looked for on another machine, it starts nothing there, and runs nothing",
@@ -249,7 +241,7 @@ class SidecarStartTest {
     }
 
     private static SidecarStartSettings settings(String image) {
-        return new SidecarStartSettings(true, DOCLING_HERE, OLLAMA_HERE, image, WAIT_AT_MOST);
+        return new SidecarStartSettings(DOCLING_HERE, OLLAMA_HERE, image, WAIT_AT_MOST);
     }
 
     /** ADR-323 §4's up, naming {@code files} in the order given. */

@@ -28,7 +28,10 @@ import org.junit.jupiter.api.Test;
  * {@code java.base}, JavaFX's public packages, those whose names begin {@code javafx.}, and Jackson's, with which it
  * reads the jar's {@code application.yaml} (ADR-344 §3); so nothing else of {@code io.algernon.vespera}, neither
  * {@code engine} nor {@code publish} nor the application class nor the entry point, nor Spring, {@code java.sql},
- * {@code java.desktop}, {@code jdk.httpserver} or JavaFX's internals. No class of the jar, which is every class
+ * {@code java.desktop}, {@code jdk.httpserver} or JavaFX's internals, but for one class of the jar: {@code
+ * DockerEngine}, through which it starts the Docker engine, stops the sidecars and shuts Docker down (ADR-389 §4), a
+ * class that names no type of Spring, of JavaFX or of the control panel, and whose public constructors and methods
+ * take and give only types of {@code java.base} and itself. No class of the jar, which is every class
  * of {@code io.algernon.vespera} but the control panel's and the entry point, which names both, names the control
  * panel or JavaFX, so a command of the jar never loads JavaFX. Its contract with the jar is the process and the files
  * ADR-278 names.
@@ -51,6 +54,7 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
 @Link(name = "ADR-360", url = Adr.THE_CONTROL_PANEL_DROPS_JAVAFXS_CLASS_PATH_LINE, type = "adr")
 @Link(name = "ADR-367", url = Adr.THE_JARS_PACKAGES_LIE_UNDER_ENGINE_PUBLISH_AND_UI, type = "adr")
+@Link(name = "ADR-389", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
 class TheControlPanelLinksNoClassOfTheJarTest {
 
     private static final String CONTROL_PANEL = "io.algernon.vespera.ui";
@@ -59,6 +63,9 @@ class TheControlPanelLinksNoClassOfTheJarTest {
 
     /** The entry point, which names the control panel and the command line both, and is no part of the jar's own. */
     private static final String THE_ENTRY_POINT = THE_APPLICATION_PACKAGE + ".EntryPoint";
+
+    /** The one class of the jar the control panel may name: the Docker engine's, called in its own process (ADR-389 §4). */
+    private static final String THE_DOCKER_ENGINE = THE_APPLICATION_PACKAGE + ".engine.pipeline.DockerEngine";
 
     /** The JDK modules whose types the control panel may name: the base alone. */
     private static final Set<String> JDK_MODULES = Set.of("java.base");
@@ -87,18 +94,19 @@ class TheControlPanelLinksNoClassOfTheJarTest {
 
     @Test
     @Story("The control panel and the jar meet only at the process")
-    @DisplayName("Every class of the control panel but its filter on JavaFX's logger names only types of its own package, of the JDK's base module, of JavaFX and of Jackson")
+    @DisplayName("Every class of the control panel but its filter on JavaFX's logger names only types of its own package, of the JDK's base module, of JavaFX and of Jackson, and the Docker engine's one class")
     void theControlPanelNamesOnlyTypesOfItsOwnPackageTheJdksBaseJavaFxAndJackson() {
         claim("the import read the control panel's compiled classes, checked by one it must hold",
                 () -> assertThat(CONTROL_PANEL_CLASSES.contain(A_CLASS_OF_THE_CONTROL_PANEL)).isTrue());
         claim("and every type each of them but the filter on JavaFX's logger names is of the control panel's own"
-                        + " package, of the JDK's java.base, of a javafx package or of Jackson, so none is of the jar, of"
-                        + " Spring, of the JDK's logging, database, desktop or HTTP server modules, or of JavaFX's"
-                        + " internals",
+                        + " package, of the JDK's java.base, of a javafx package, of Jackson, or the Docker engine's one"
+                        + " class, so none is another of the jar, of Spring, of the JDK's logging, database, desktop or"
+                        + " HTTP server modules, or of JavaFX's internals",
                 () -> assertThatCode(() -> classes()
                                 .that().resideInAPackage(CONTROL_PANEL + "..")
                                 .and(DescribedPredicate.not(theClassPathLine()))
-                                .should().onlyDependOnClassesThat(ofTheControlPanelOrWhatItMayName(JDK_MODULES))
+                                .should().onlyDependOnClassesThat(DescribedPredicate.or(
+                                        ofTheControlPanelOrWhatItMayName(JDK_MODULES), theDockerEngine()))
                                 .check(CONTROL_PANEL_CLASSES))
                         .doesNotThrowAnyException());
     }
@@ -117,6 +125,40 @@ class TheControlPanelLinksNoClassOfTheJarTest {
                                 .should().onlyDependOnClassesThat(
                                         ofTheControlPanelOrWhatItMayName(JDK_MODULES_OF_THE_CLASS_PATH_LINE))
                                 .check(CONTROL_PANEL_CLASSES))
+                        .doesNotThrowAnyException());
+    }
+
+    @Test
+    @Story("The control panel and the jar meet only at the process")
+    @DisplayName("The one class of the jar the control panel names, the Docker engine's, names no Spring, JavaFX or control panel type, and takes and gives only the JDK's base types")
+    @Issue("816")
+    void theDockerEnginesClassIsNarrowAndNamesNoSpring() {
+        claim("the import of the jar holds the Docker engine's class", () -> assertThat(JAR_CLASSES.contain(
+                THE_DOCKER_ENGINE)).isTrue());
+        JavaClass engine = JAR_CLASSES.get(THE_DOCKER_ENGINE);
+        List<String> outside = new java.util.ArrayList<>();
+        for (com.tngtech.archunit.core.domain.JavaCodeUnit unit : engine.getCodeUnits()) {
+            if (!unit.getModifiers().contains(com.tngtech.archunit.core.domain.JavaModifier.PUBLIC)) {
+                continue;
+            }
+            List<JavaClass> types = new java.util.ArrayList<>(unit.getRawParameterTypes());
+            types.add(unit.getRawReturnType());
+            for (JavaClass type : types) {
+                JavaClass base = type.getBaseComponentType();
+                if (!base.isPrimitive() && !base.getName().equals(THE_DOCKER_ENGINE) && !inTheJdksBase(base)) {
+                    outside.add(unit.getFullName() + " names " + base.getName());
+                }
+            }
+        }
+        claim("each public constructor and method of it takes and gives only primitives, types of java.base and the"
+                        + " class itself, so the control panel names no other type of the jar through it",
+                () -> assertThat(outside).isEmpty());
+        claim("and it names no type of Spring, of JavaFX or of the control panel",
+                () -> assertThatCode(() -> noClasses()
+                                .that().haveFullyQualifiedName(THE_DOCKER_ENGINE)
+                                .should().dependOnClassesThat().resideInAnyPackage(
+                                        "org.springframework..", JAVAFX, CONTROL_PANEL + "..")
+                                .check(JAR_CLASSES))
                         .doesNotThrowAnyException());
     }
 
@@ -167,6 +209,23 @@ class TheControlPanelLinksNoClassOfTheJarTest {
                             && !name.equals(THE_ENTRY_POINT)
                             && !name.startsWith(THE_ENTRY_POINT + "$");
                 });
+    }
+
+    /** The Docker engine's one class, which the control panel may name. */
+    private static DescribedPredicate<JavaClass> theDockerEngine() {
+        return DescribedPredicate.describe("are " + THE_DOCKER_ENGINE,
+                type -> type.getBaseComponentType().getName().equals(THE_DOCKER_ENGINE));
+    }
+
+    /** Whether {@code type} is loaded from the JDK's {@code java.base}. */
+    private static boolean inTheJdksBase(JavaClass type) {
+        try {
+            Module module = Class.forName(
+                    type.getName(), false, TheControlPanelLinksNoClassOfTheJarTest.class.getClassLoader()).getModule();
+            return module.isNamed() && module.getName().equals("java.base");
+        } catch (ClassNotFoundException notOnTheClassPath) {
+            return false;
+        }
     }
 
     /** The filter on JavaFX's logger. */
