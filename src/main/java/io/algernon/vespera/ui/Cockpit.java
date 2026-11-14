@@ -622,6 +622,21 @@ final class Cockpit {
         return named.isEmpty() ? Optional.empty() : ControlPanelState.pathOf(named);
     }
 
+    /** Whether both name a folder and it is the same one, compared absolute and normalized, ignoring case on Windows. */
+    private static boolean sameFolder(Optional<Path> loaded, Optional<Path> named) {
+        if (loaded.isEmpty() || named.isEmpty()) {
+            return false;
+        }
+        try {
+            String was = loaded.get().toAbsolutePath().normalize().toString();
+            String now = named.get().toAbsolutePath().normalize().toString();
+            boolean windows = System.getProperty("os.name", "").startsWith("Windows");
+            return windows ? was.equalsIgnoreCase(now) : was.equals(now);
+        } catch (java.io.IOError | RuntimeException cannotBeHeld) {
+            return false;
+        }
+    }
+
     /** Set while an answer of ADR-389 section 4 is being carried out, so that the loading it ends in asks nothing more. */
     private boolean asked;
 
@@ -632,6 +647,10 @@ final class Cockpit {
      */
     private void settleTheEditBeforeLoading() {
         if (profileWindow == null || asked || !profile.unsaved()) {
+            return;
+        }
+        if (sameFolder(profile.loadedFrom(), folderOf(fields.get("vespera.working-dir")))) {
+            // the same folder named another way is no change of folder: the loading asks its own three answers
             return;
         }
         String answer = dialogs.choose("The profile", "The profile has changes not saved in profile.yaml.",

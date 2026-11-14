@@ -10,22 +10,36 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
+import javafx.application.Platform;
+import javafx.event.Event;
 import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.Accordion;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.DialogPane;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.control.ToggleButton;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.Window;
+import javafx.stage.WindowEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,13 +50,15 @@ import org.junit.jupiter.api.io.TempDir;
  * are kept by the cockpit and written nowhere, and at its first size every row's title is shown whole; closing it, or
  * the cockpit, or the cockpit loading the working directory's files again, with an edit unsaved asks Save, Discard or
  * Cancel, and naming another working directory asks Save or Discard alone, a Save or no answer writing into the old one
- * and a Save refused dropping the edit, said in the outcome, the new one loaded after each; the section
- * and the window's title carry the badge; a line naming the Profile window offers a button opening it; and the window
- * follows the cockpit's theme.
+ * and a Save refused dropping the edit, said in the outcome, the new one loaded after each, while the same folder
+ * spelled another way is no other working directory; the question, in the system's dialog, gives the answer pressed and
+ * none where it is closed with no button pressed; the section and the window's title carry the badge; a line naming the
+ * Profile window offers a button opening it; and the window follows the cockpit's theme.
  *
- * <p>Each test shows the cockpit as the control panel shows it, on the Headless platform (ADR-342 §6), with dialogs the
- * test answers, and finds the Profile window among the toolkit's windows by the form its root holds. A window is closed
- * as the system's close button closes it, by a close request a handler may consume.
+ * <p>Each test but the system's dialog's shows the cockpit as the control panel shows it, on the Headless platform
+ * (ADR-342 §6), with dialogs the test answers, and finds the Profile window among the toolkit's windows by the form its
+ * root holds; that one asks through {@code Dialogs.of} over a stage of its own. A window is closed as the system's close
+ * button closes it, by a close request a handler may consume.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -120,6 +136,9 @@ class TheProfileWindowTest {
     private static final String OTHER_SPACE = "OT";
 
     private static final String THIRD_SPACE = "TH";
+
+    /** The working directory's folder name, {@code working}, in capitals: the same folder where the file system ignores case. */
+    private static final String WORKING_IN_CAPITALS = "WORKING";
 
     /** A width the test makes the Profile window, at which some title is cut, so that its reading is seen to find one. */
     private static final double NARROW = 500;
@@ -745,6 +764,129 @@ class TheProfileWindowTest {
     }
 
     @Test
+    @Story("An edit of the profile is not lost by loading the files again")
+    @DisplayName("Naming the same working directory another way, with a trailing separator and then through . and .., with an edit unsaved in the profile window asks Save, Discard or Cancel as any loading of the files does, and Cancel writes nothing and keeps the edit")
+    void namingTheSameWorkingDirectoryAnotherWayAsksSaveDiscardOrCancelAsAnyLoad(@TempDir Path folder)
+            throws Exception {
+        Path working = Files.createDirectories(folder.resolve("working"));
+        Path workingFile = aProfileNamingTheSpace(working);
+        Path beside = Files.createDirectories(folder.resolve("beside"));
+        byte[] asWritten = Files.readAllBytes(workingFile);
+        List<String> respellings = List.of(working + File.separator,
+                beside.resolve("..").resolve(".").resolve("working").toString());
+
+        List<AnsweringDialogs.Chose> asked;
+        byte[] theFile;
+        String form;
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, working))) {
+            window.openProfile();
+            typed(window, FIRST_EDIT);
+            window.dialogs.chosen = Optional.of(CANCEL);
+            for (String respelled : respellings) {
+                workingDirectorySpelled(window, respelled);
+            }
+            asked = List.copyOf(window.dialogs.choices);
+            theFile = Files.readAllBytes(workingFile);
+            form = window.readProfile(TheProfileWindowTest::theFieldsText);
+        }
+
+        claim("each of the two spellings names the folder the form was loaded from, so each is asked about as any loading"
+                        + " of the files is: once, titled The profile, saying the profile has changes not saved in"
+                        + " profile.yaml, with Save, Discard and Cancel in that order, and never with Save and Discard"
+                        + " alone",
+                () -> assertThat(asked).containsExactly(THE_CHOICE, THE_CHOICE));
+        claim("Cancel writes nothing: the profile is as the test wrote it",
+                () -> assertThat(theFile).isEqualTo(asWritten));
+        claim("and keeps the edit in the form",
+                () -> assertThat(form).isEqualTo(FIRST_EDIT));
+    }
+
+    @Test
+    @Story("An edit of the profile is not lost by loading the files again")
+    @DisplayName("On Windows, naming the working directory with its name in capitals, with an edit unsaved in the profile window, asks Save, Discard or Cancel as any loading of the files does, the file system ignoring case, and Cancel writes nothing and keeps the edit")
+    void onWindowsTheWorkingDirectoryNamedInOtherCaseAsksSaveDiscardOrCancelAsAnyLoad(@TempDir Path folder)
+            throws Exception {
+        assumeThat(System.getProperty("os.name", "")).as("the operating system, whose file system ignores case on"
+                + " Windows alone").startsWith("Windows");
+        Path working = Files.createDirectories(folder.resolve("working"));
+        Path workingFile = aProfileNamingTheSpace(working);
+        Path inCapitals = folder.resolve(WORKING_IN_CAPITALS);
+        assumeThat(Files.exists(inCapitals) && Files.isSameFile(working, inCapitals))
+                .as("the temporary folder's file system finds the working directory by its name in capitals").isTrue();
+        byte[] asWritten = Files.readAllBytes(workingFile);
+
+        List<AnsweringDialogs.Chose> asked;
+        byte[] theFile;
+        String form;
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder, working))) {
+            window.openProfile();
+            typed(window, FIRST_EDIT);
+            window.dialogs.chosen = Optional.of(CANCEL);
+            workingDirectoryNamed(window, inCapitals);
+            asked = List.copyOf(window.dialogs.choices);
+            theFile = Files.readAllBytes(workingFile);
+            form = window.readProfile(TheProfileWindowTest::theFieldsText);
+        }
+
+        claim("the name in capitals names the folder the form was loaded from, so it is asked about as any loading of the"
+                        + " files is: once, titled The profile, saying the profile has changes not saved in profile.yaml,"
+                        + " with Save, Discard and Cancel in that order, and not with Save and Discard alone",
+                () -> assertThat(asked).containsExactly(THE_CHOICE));
+        claim("Cancel writes nothing: the profile is as the test wrote it",
+                () -> assertThat(theFile).isEqualTo(asWritten));
+        claim("and keeps the edit in the form",
+                () -> assertThat(form).isEqualTo(FIRST_EDIT));
+    }
+
+    @Test
+    @Story("An edit of the profile is not lost by loading the files again")
+    @DisplayName("The profile's question, asked in the system's dialog with Save and Discard or with Save, Discard and Cancel, gives the answer whose button is pressed, and no answer where the dialog is closed by its close button or by Escape with no button pressed")
+    void theQuestionGivesTheAnswerPressedAndNoneWhereItIsClosedWithNoButtonPressed() throws Exception {
+        List<List<String>> answerLists = List.of(SAVE_OR_DISCARD.answers(), THE_CHOICE.answers());
+        Stage owner = HeadlessToolkit.onTheToolkit(() -> {
+            Stage made = new Stage();
+            made.setScene(new Scene(new VBox()));
+            made.show();
+            return made;
+        });
+        Map<List<String>, List<Ended>> pressed = new LinkedHashMap<>();
+        Map<List<String>, List<Ended>> closed = new LinkedHashMap<>();
+        try {
+            for (List<String> answers : answerLists) {
+                List<Ended> byButton = new ArrayList<>();
+                for (String answer : answers) {
+                    byButton.add(askedAndEnded(owner, answers, pane -> pressing(pane, answer)));
+                }
+                pressed.put(answers, byButton);
+                closed.put(answers, List.of(askedAndEnded(owner, answers, TheProfileWindowTest::closeRequested),
+                        askedAndEnded(owner, answers, TheProfileWindowTest::escapePressed)));
+            }
+        } finally {
+            HeadlessToolkit.onTheToolkit(() -> {
+                owner.close();
+                return null;
+            });
+        }
+        List<Ended> eachAnswerGiven = List.of(new Ended(true, Optional.of(SAVE)), new Ended(true, Optional.of(DISCARD)));
+        List<Ended> eachOfThreeGiven = List.of(new Ended(true, Optional.of(SAVE)), new Ended(true, Optional.of(DISCARD)),
+                new Ended(true, Optional.of(CANCEL)));
+        List<Ended> noneGiven = List.of(new Ended(true, Optional.empty()), new Ended(true, Optional.empty()));
+
+        claim("with Save and Discard, pressing each answer's button closes the dialog and gives that answer's words, Save"
+                        + " then Discard",
+                () -> assertThat(pressed.get(answerLists.get(0))).containsExactlyElementsOf(eachAnswerGiven));
+        claim("with Save, Discard and Cancel, pressing each answer's button closes the dialog and gives that answer's"
+                        + " words, Save, then Discard, then Cancel",
+                () -> assertThat(pressed.get(answerLists.get(1))).containsExactlyElementsOf(eachOfThreeGiven));
+        claim("with Save and Discard, the dialog closed by its close button, then by Escape, with no button pressed, closes"
+                        + " and gives no answer, and not its last answer, Discard",
+                () -> assertThat(closed.get(answerLists.get(0))).containsExactlyElementsOf(noneGiven));
+        claim("with Save, Discard and Cancel, the dialog closed by its close button, then by Escape, with no button"
+                        + " pressed, closes and gives no answer, and not its last answer, Cancel",
+                () -> assertThat(closed.get(answerLists.get(1))).containsExactlyElementsOf(noneGiven));
+    }
+
+    @Test
     @Story("The profile is edited in a window of its own")
     @DisplayName("Once the next invocation wants a value, the Profile section and the open profile window's title both say it needs a value")
     void theSectionAndTheWindowsTitleCarryTheBadge(@TempDir Path folder) throws Exception {
@@ -890,8 +1032,83 @@ class TheProfileWindowTest {
 
     /** Names {@code working} in the control panel's working directory field, as the operator does. */
     private static void workingDirectoryNamed(WindowForTests window, Path working) throws Exception {
-        window.act(root -> WindowForTests.node(root, "vespera.working-dir", TextInputControl.class)
-                .setText(working.toString()));
+        workingDirectorySpelled(window, working.toString());
+    }
+
+    /** Writes {@code spelled} in the control panel's working directory field, as the operator does. */
+    private static void workingDirectorySpelled(WindowForTests window, String spelled) throws Exception {
+        window.act(root -> WindowForTests.node(root, "vespera.working-dir", TextInputControl.class).setText(spelled));
+    }
+
+    /**
+     * How one asking of the system's dialog ended: whether what the test did closed it, and the answer it gave. A dialog
+     * the test's act left open is hidden by the test, so that its loop ends, and reads {@code closedByIt} false.
+     */
+    private record Ended(boolean closedByIt, Optional<String> answer) {
+    }
+
+    /** How many turns of the toolkit the test waits for the system's dialog to show. */
+    private static final int TURNS = 100;
+
+    /**
+     * Asks the profile's question with {@code answers} through the system's dialogs over {@code owner}, and ends it, once
+     * it shows, by {@code ending} on its pane: how it ended. Run on the toolkit's thread, where the dialog's own loop
+     * runs the ending.
+     */
+    private static Ended askedAndEnded(Stage owner, List<String> answers, Consumer<DialogPane> ending) throws Exception {
+        Dialogs dialogs = Dialogs.of(() -> owner, address -> { });
+        return HeadlessToolkit.onTheToolkit(() -> {
+            List<Boolean> closedByIt = new ArrayList<>();
+            endWhenShown(ending, closedByIt, 0);
+            Optional<String> answer = dialogs.choose(THE_QUESTIONS_TITLE, THE_QUESTION, answers);
+            if (closedByIt.isEmpty()) {
+                throw new AssertionError("no dialog titled " + THE_QUESTIONS_TITLE + " showed");
+            }
+            return new Ended(closedByIt.getFirst(), answer);
+        });
+    }
+
+    private static void endWhenShown(Consumer<DialogPane> ending, List<Boolean> closedByIt, int turn) {
+        Platform.runLater(() -> {
+            Optional<Stage> shown = Window.getWindows().stream()
+                    .filter(each -> each instanceof Stage stage && THE_QUESTIONS_TITLE.equals(stage.getTitle()))
+                    .filter(each -> each.isShowing() && each.getScene() != null)
+                    .map(Stage.class::cast).findFirst();
+            Optional<DialogPane> pane = shown.flatMap(stage -> HeadlessToolkit.everyNodeUnder(stage.getScene().getRoot())
+                    .stream().filter(DialogPane.class::isInstance).map(DialogPane.class::cast).findFirst());
+            if (pane.isEmpty()) {
+                if (turn < TURNS) {
+                    endWhenShown(ending, closedByIt, turn + 1);
+                }
+                return;
+            }
+            ending.accept(pane.get());
+            boolean stillShowing = shown.get().isShowing();
+            closedByIt.add(!stillShowing);
+            if (stillShowing) {
+                shown.get().hide();
+            }
+        });
+    }
+
+    /** Presses the button of {@code answer}, as the operator clicks it; the test fails where the dialog has none. */
+    private static void pressing(DialogPane pane, String answer) {
+        ButtonType type = pane.getButtonTypes().stream().filter(each -> answer.equals(each.getText())).findFirst()
+                .orElseThrow(() -> new AssertionError("the dialog has no button " + answer));
+        ((Button) pane.lookupButton(type)).fire();
+    }
+
+    /** Asks the dialog's window to close as its close button does, pressing no button. */
+    private static void closeRequested(DialogPane pane) {
+        Window window = pane.getScene().getWindow();
+        Event.fireEvent(window, new WindowEvent(window, WindowEvent.WINDOW_CLOSE_REQUEST));
+    }
+
+    /** Presses Escape in the dialog, at the control holding the focus or, where none does, at its pane. */
+    private static void escapePressed(DialogPane pane) {
+        Node target = Optional.ofNullable(pane.getScene().getFocusOwner()).orElse(pane);
+        Event.fireEvent(target, new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.ESCAPE, false, false, false, false));
+        Event.fireEvent(target, new KeyEvent(KeyEvent.KEY_RELEASED, "", "", KeyCode.ESCAPE, false, false, false, false));
     }
 
     /** Every key of the profile, in its order. */

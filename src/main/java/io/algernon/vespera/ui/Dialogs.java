@@ -8,6 +8,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import javafx.event.ActionEvent;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
@@ -149,7 +152,25 @@ interface Dialogs {
                     ask.initOwner(over);
                     themed(ask.getDialogPane(), over);
                 }
-                return ask.showAndWait().map(ButtonType::getText);
+                // JavaFX answers a close, and Escape through the cancel button, with the CANCEL_CLOSE button's type: only a
+                // button really pressed is an answer (ADR-389 section 4)
+                String[] pressed = new String[1];
+                boolean[] escaping = new boolean[1];
+                ask.getDialogPane().addEventFilter(KeyEvent.ANY, key -> {
+                    if (key.getCode() == KeyCode.ESCAPE) {
+                        escaping[0] = key.getEventType() == KeyEvent.KEY_PRESSED;
+                    }
+                });
+                for (ButtonType type : buttons) {
+                    Node button = ask.getDialogPane().lookupButton(type);
+                    button.addEventFilter(ActionEvent.ACTION, event -> {
+                        if (!escaping[0]) {
+                            pressed[0] = type.getText();
+                        }
+                    });
+                }
+                ask.showAndWait();
+                return Optional.ofNullable(pressed[0]);
             }
 
             @Override

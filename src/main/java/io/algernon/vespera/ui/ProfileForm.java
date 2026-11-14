@@ -78,6 +78,11 @@ final class ProfileForm {
         return saved;
     }
 
+    /** The working directory the form was last loaded from, empty where none was named. */
+    Optional<Path> loadedFrom() {
+        return loadedFrom;
+    }
+
     /**
      * Saves into the working directory the form was last loaded from, not the one now named, and loads nothing again
      * (ADR-389 §4: the working directory changed under an edit unsaved).
