@@ -240,7 +240,7 @@ You need Java 26 and a Docker daemon. Run every command below from the root of t
 Vespera uses Docker Engine, not Docker Desktop:
 
 - **Linux**: Docker Engine, installed as the `docker` service.
-- **Windows**: a WSL 2 distribution, Ubuntu for example, with Docker Engine installed inside it. You set this up once: install the distribution with `wsl --install`, then install Docker Engine in it as you would on Linux. You never need to open a WSL window afterwards.
+- **Windows**: a WSL 2 distribution, Ubuntu for example, with Docker Engine installed inside it. You set this up once: install the distribution with `wsl --install`, then install Docker Engine in it as you would on Linux. Then set two things, once, so that WSL does not shut the distribution down, and Docker with it, in the middle of a run: `systemd=true` under `[boot]` in the distribution's `/etc/wsl.conf`, and `instanceIdleTimeout=-1` under `[wsl2]` in `%UserProfile%\.wslconfig`. Run `wsl --shutdown` once afterwards so both take effect. You never need to open a WSL window after that.
 - **macOS**: Colima, with the `docker` command-line client.
 
 **Build it.** This builds the jar Vespera runs from:
