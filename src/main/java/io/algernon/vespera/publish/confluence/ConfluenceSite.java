@@ -85,7 +85,7 @@ final class ConfluenceSite {
      * profile}'s, else missing (ADR-359 §2). The parent is taken whole from one side: where the shell names it by id
      * or by title, the profile's parent is not read. The token is read from {@code environment} alone. Where the
      * control panel started the publish ({@link #STARTED_BY_VARIABLE}), a missing value is named by its profile key
-     * and the Profile tab, and a missing token as the API token Publish asks for (ADR-359 §4); so are a parent named
+     * and the Profile window, and a missing token as the API token Publish asks for (ADR-359 §4); so are a parent named
      * both by id and by title, and an address that is not a Confluence Cloud site's (ADR-372 §1).
      */
     static Read of(
@@ -135,7 +135,7 @@ final class ConfluenceSite {
                 return new Read.Refused("vespera publish sent nothing: " + String.join(", ", missing)
                         + (missing.size() == 1 ? " is" : " are") + " not set."
                         + (keysMissing ? " Set " + (missing.size() - (token == null ? 1 : 0) == 1 ? "it" : "each key")
-                                + " in the control panel's Profile tab, and publish again." : " Publish again."));
+                                + " in the control panel's Profile window, and publish again." : " Publish again."));
             }
         } else if (!missing.isEmpty() || token == null) {
             if (token == null) {
@@ -149,7 +149,7 @@ final class ConfluenceSite {
         if (blankToNull(parentId) != null && blankToNull(parentTitle) != null) {
             return new Read.Refused(fromTheControlPanel
                     ? "vespera publish sent nothing: the parent is named both by confluenceFolderId and by"
-                            + " confluenceFolderTitle. Clear one in the control panel's Profile tab, and publish again."
+                            + " confluenceFolderTitle. Clear one in the control panel's Profile window, and publish again."
                     : "vespera publish sent nothing: the parent is named both by VESPERA_CONFLUENCE_FOLDER_ID and by"
                             + " VESPERA_CONFLUENCE_FOLDER_TITLE. Name it by one.");
         }
@@ -159,7 +159,7 @@ final class ConfluenceSite {
                     + " https://<site>/wiki, with no user, query or other path.";
             return new Read.Refused(fromTheControlPanel
                     ? "vespera publish sent nothing: confluenceBaseUrl" + notASite
-                            + " Correct it in the control panel's Profile tab, and publish again."
+                            + " Correct it in the control panel's Profile window, and publish again."
                     : "vespera publish sent nothing: VESPERA_CONFLUENCE_BASE_URL" + notASite);
         }
         String basic = Base64.getEncoder().encodeToString((user + ":" + token).getBytes(StandardCharsets.UTF_8));

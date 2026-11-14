@@ -379,8 +379,7 @@ public final class Deliverable {
                         writeIndexAndClusterPages(
                                 tree, provenance, partitions, source, entryPictures, copies, written, filesLeft, moves,
                                 progress, ceiling, sizes, drawings,
-                                index -> listingPart[0] = codeCopies.draw(
-                                        code, namesTypedIn(workingDirectory, progress), index, written, source.language()));
+                                index -> listingPart[0] = codeCopies.draw(code, index, written, source.language()));
                 progress.copiesAtALongPath(copies.copiesAtALongPath() + codeCopies.copiesAtALongPath());
                 Path manifestPart = writeManifest(tree, source, copies, progress);
                 // Both are whole before either is moved, so a write that fails before the first move leaves the pair
@@ -390,6 +389,10 @@ public final class Deliverable {
                 moves.intoPlace(manifestPart, tree.resolve(MANIFEST_FILE_NAME));
                 if (listingPart[0] != null) {
                     moves.intoPlace(listingPart[0], tree.resolve(CODE_LISTING_FILE_NAME));
+                    // Told once the listing is in place, so that a drawing failing before it tells nothing the next
+                    // drawing would tell again (ADR-377 §9).
+                    codeCopies.foldersChanged()
+                            .forEach(change -> progress.codeSetFolderChanged(change.earlier(), change.now()));
                 }
                 // A plugin's last word is said once documents.csv stands: the Confluence rendering's root page carries
                 // it as it now stands, and its page list comes last (ADR-316 §1).
@@ -401,19 +404,6 @@ public final class Deliverable {
             return tree;
         } catch (IOException e) {
             throw new UncheckedIOException("could not write the deliverable tree at " + tree, e);
-        }
-    }
-
-    /**
-     * The entries of the names file beside the database. A file refused whole, or one that cannot be read, fails nothing:
-     * the tree is drawn with every set's default name and {@code progress} is told once (ADR-296 §6.2).
-     */
-    private static List<CodeSetNames.Entry> namesTypedIn(Path workingDirectory, DeliverableProgress progress) {
-        try {
-            return CodeSetNames.read(workingDirectory);
-        } catch (IllegalArgumentException | UncheckedIOException refused) {
-            progress.codeSetNamesRefused();
-            return List.of();
         }
     }
 

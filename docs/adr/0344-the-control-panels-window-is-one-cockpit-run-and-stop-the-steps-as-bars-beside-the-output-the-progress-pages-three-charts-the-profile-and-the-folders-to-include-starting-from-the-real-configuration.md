@@ -294,7 +294,7 @@ The words each holds are the pages' as the records give them.
 | `controlpanel.StartingValuesTest.aValueIsRememberedOnlyWhereTheOperatorChoseIt` | kept only where it came from the launch values or was changed (§3) |
 | `controlpanel.TheCommandOptionsTest.theOptionsAreFivePresetsTheJarShips` | the five, their commands, each in the shipped `application.yaml` (§4) |
 | `controlpanel.TheCommandOptionsTest.eachOptionIsPassedOnlyToTheCommandsItIsForAfterTheirArguments` | each preset after the command's arguments, in order, to its commands alone (§4) |
-| `controlpanel.TheCommandOptionsTest.theLabelFileIsPassedToLabelAndNeverToLabelAuto` | the label file to `label`, none to `label --auto` (§4) |
+| `controlpanel.TheCommandOptionsTest.theLabelFileIsPassedToLabelAndNeverToLabelAuto` (removed: the window offers no label file, ADR-377 section 10, #808) | the label file to `label`, none to `label --auto` (§4) |
 | `controlpanel.TheCommandOptionsTest.theLineShownIsTheCommandStarted` | `shown()` is `vespera` and the child's arguments, a space quoted (§4) |
 
 What the implementation owes is held, through the window shown by `ControlPanelWindow.shownOn(Stage, ControlPanelState, Dialogs)` on the Headless platform, its questions answered by the test through `Dialogs.confirm(String, String, String)` (ADR-342 §6), by these (added in place, [#700](https://github.com/algernon28/vespera/issues/700)):
@@ -306,7 +306,7 @@ What the implementation owes is held, through the window shown by `ControlPanelW
 | `controlpanel.TheFoldersToIncludeTest.aListedSubfolderComesBackUnchanged` | a listed `A/B`, with `A` holding `B` alone or `B` and `C`: drawn unticked under a half-ticked `A`, the file unchanged by a Save (§1) |
 | `controlpanel.TheFoldersToIncludeTest.aListedFolderNoLongerThereIsKept` | a listed folder no longer there, at the top and below a folder: kept by a Save (§1) |
 | `controlpanel.TheFoldersToIncludeTest.anotherCorpusRootSetInTheFieldIsTheTreeDrawnAndSaved` | a window drawn over one corpus root, its field set to another: the tree draws the other's folders and none of the first's, and Save writes a path under the other (§1, §3) |
-| `controlpanel.TheWindowSavesTheProfileTest.theProfileTabsSaveWritesEachValueAndNoteAsTheTableSays` | the Profile tab's Save writes ADR-343 §2's table, row by row, a key the file never stated left unwritten (§1, ADR-343 §2) |
+| `controlpanel.TheWindowSavesTheProfileTest.theProfileTabsSaveWritesEachValueAsTheTableSays`, named `theProfileTabsSaveWritesEachValueAndNoteAsTheTableSays` until ADR-377 | the Profile tab's Save writes ADR-343 §2's table, row by row, a key the file never stated left unwritten (§1, ADR-343 §2) |
 | `controlpanel.TheWindowSavesTheProfileTest.aSeedFolderOfferedFromTheLastOneIsWrittenBySave` | the seed folder offered from `last-seed-folder`, which the profile does not state, is written by the section's Save with the filled-in note (§1, ADR-343 §2) |
 | `controlpanel.TheWorkingDirectoryInTheFoldersFieldTest.theFieldsWorkingDirectoryIsReadAndWrittenBeforeARunAndAfterIt` | the working directory from the environment or `.env`, kept nowhere: its profile, folders not relevant and reports read, its `progress.json` read as the Run ends, its profile and folders not relevant written after it (§1, §2, §3) |
 | `controlpanel.TheWorkingDirectoryInTheFoldersFieldTest.anotherWorkingDirectoryTypedInTheFieldIsTheOneRead` | another working directory typed in the field: its profile, folders not relevant and reports read (§1, §3) |

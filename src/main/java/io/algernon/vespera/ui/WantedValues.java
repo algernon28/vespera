@@ -67,7 +67,7 @@ final class WantedValues {
                 stated = ProfileEdit.read(text.get());
             }
         } catch (IOException | IllegalArgumentException unreadable) {
-            // the Profile tab says so
+            // the Profile window says so
         }
         Optional<EffectiveValues> effective = state.effectiveValues(folders.workingDirectory());
         Map<String, Boolean> written = folders.writtenReports();

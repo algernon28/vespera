@@ -41,8 +41,8 @@ import javafx.util.Duration;
 
 /**
  * The control panel's window as one cockpit (ADR-344 §1): Run and Stop, the job's steps as a bar each beside the
- * child's output, a chart for each stage in two rows (ADR-382), the Profile and Inclusions tabs and a sidebar of seven
- * sections in their order. Every part is found by its id. The cockpit reads and writes only through the {@link ControlPanelState}
+ * child's output, a chart for each stage in two rows (ADR-382), the Report and Inclusions tabs and a sidebar of eight
+ * sections in their order, Profile first, which opens the Profile window (ADR-388). Every part is found by its id. The cockpit reads and writes only through the {@link ControlPanelState}
  * it is given, and reads the sources its fields start from from that state (ADR-344 §3), so a cockpit a test draws
  * starts from what the test gives it. Every colour, size and space is the stylesheet's; no node here sets a style.
  * It composes the parts, each its own class, and keeps what they share: the launch fields, the plan a start is given,
@@ -72,7 +72,6 @@ final class Cockpit {
     private final TextArea output = new TextArea();
     private final OutputPanel outputPanel = new OutputPanel(output);
     private final TabPane tabs = new TabPane();
-    private final Tab profileTab = new Tab("Profile");
     private final Tab inclusionsTab = new Tab("Inclusions");
     private final Accordion sidebar = new Accordion();
     private final Map<String, TitledPane> sections = new LinkedHashMap<>();
@@ -88,6 +87,9 @@ final class Cockpit {
     private final CodeSetsPane codeSets;
     private final InclusionsTab inclusions;
     private final ProfileForm profile;
+    private final ProfileWindow profileWindow;
+    private final Button openProfile = new Button("Open profile");
+    private final Button outcomeOpenProfile = new Button("Open profile");
     private final WantedValues wanted;
     private ProfileRow seedRow;
     private boolean seedStated;
@@ -112,7 +114,7 @@ final class Cockpit {
     Cockpit(ControlPanelState state, Dialogs dialogs) {
         this.state = state;
         this.dialogs = dialogs;
-        this.options = new OptionsPane(state, dialogs, this::showCommandLines);
+        this.options = new OptionsPane(state, this::showCommandLines);
         this.reports = new ReportsPane(tabs, dialogs, folders, this::say);
         this.live = new LiveReport(this::openReport, dialogs::handToTheSystem);
         this.preflight = new PreflightPane(state, folders, property -> fields.get(property).text());
@@ -125,6 +127,7 @@ final class Cockpit {
         if (state.darkChosen()) {
             root.getStyleClass().add("dark");
         }
+        this.profileWindow = new ProfileWindow(profile, root, dialogs);
         root.setLeft(sidebarPane());
         root.setCenter(mainPane());
         loadFiles();
@@ -186,21 +189,36 @@ final class Cockpit {
         ((ScrollPane) split.getItems().getFirst()).setFitToWidth(true);
         split.getStyleClass().add("steps-and-output");
 
-        profileTab.setId("profile");
         inclusionsTab.setId("inclusions");
-        profileTab.setClosable(false);
         inclusionsTab.setClosable(false);
-        profileTab.setContent(profile.content());
         inclusionsTab.setContent(inclusions.content());
-        tabs.getTabs().addAll(live.tab(), profileTab, inclusionsTab);
+        tabs.getTabs().addAll(live.tab(), inclusionsTab);
         tabs.getStyleClass().add("form-tabs");
 
-        VBox main = new VBox(header, outcome, actionCard, split, charts, tabs);
+        outcomeOpenProfile.setId("outcome-open-profile");
+        outcomeOpenProfile.setOnAction(event -> profileWindow.open());
+        HBox.setHgrow(outcome, Priority.ALWAYS);
+        HBox outcomeLine = new HBox(outcome, outcomeOpenProfile);
+        outcomeLine.setAlignment(Pos.CENTER_LEFT);
+        showTheButtonBesideTheOutcome();
+        child.textProperty().addListener((observed, was, now) -> showTheButtonBesideTheOutcome());
+        outcome.textProperty().addListener((observed, was, now) -> showTheButtonBesideTheOutcome());
+        VBox main = new VBox(header, outcomeLine, actionCard, split, charts, tabs);
         main.getStyleClass().add("main");
         VBox.setVgrow(tabs, Priority.ALWAYS);
         ScrollPane scroll = new ScrollPane(main);
         scroll.setFitToWidth(true);
         return scroll;
+    }
+
+    /** The words by which a line says to set a value in the Profile window; the jar's refusals reach the window as text (ADR-388 §6). */
+    private static final String THE_PROFILE_WINDOW = "Profile window";
+
+    /** Shows Open profile beside the outcome while the child's line or the outcome holds the words, and lays it out only then. */
+    private void showTheButtonBesideTheOutcome() {
+        boolean names = child.getText().contains(THE_PROFILE_WINDOW) || outcome.getText().contains(THE_PROFILE_WINDOW);
+        outcomeOpenProfile.setVisible(names);
+        outcomeOpenProfile.setManaged(names);
     }
 
     private String autoSentence(String model) {
@@ -227,8 +245,6 @@ final class Cockpit {
         String seed = seedRow == null || seedRow.value().isBlank() ? state.values().lastSeedFolder()
                 : seedRow.value().stripTrailing();
         Map<String, String> passedOptions = options.passed(sources);
-        String labelText = options.labelFileText();
-        Path file = labelText.isBlank() ? null : InclusionsTree.pathOf(labelText.strip()).orElse(null);
         if (!passed.containsKey("vespera.working-dir")) {
             // the field left empty stands for the folder the jar would use on this machine (ADR-345 §1)
             passed.put("vespera.working-dir", state.workingDirectoryDefault().folder());
@@ -236,7 +252,7 @@ final class Cockpit {
         List<String> ticked = publishTo.getChildren().stream().filter(CheckBox.class::isInstance)
                 .map(CheckBox.class::cast).filter(CheckBox::isSelected)
                 .map(box -> box.getId().substring("publish-to-".length())).toList();
-        return new ControlPanelState.Plan(valuesOf(passed, seed), valuesOf(kept, seed), passedOptions, file, ticked);
+        return new ControlPanelState.Plan(valuesOf(passed, seed), valuesOf(kept, seed), passedOptions, ticked);
     }
 
     /** Draws a box for each destination whose rendering is drawn, Confluence's ticked and the others not, as each is added (ADR-345 §4). */
@@ -306,7 +322,7 @@ final class Cockpit {
 
     private static final String TITLE_LEFT_AS_IT_WAS = "the publish to Confluence sent nothing: confluenceFolderTitle is"
             + " left as profile.yaml states it; name the parent by confluenceFolderTitle or confluenceFolderId in the"
-            + " Profile tab, and publish again";
+            + " Profile window, and publish again";
 
     /** Opens the warning for an ending of this window's own Publish child with 3 or 4, once for that ending. */
     private void warnOfTheParentsTitle(Ending ending) {
@@ -340,7 +356,7 @@ final class Cockpit {
         String sentence = (exitCode == NO_PAGE_SO_TITLED ? "No page or folder" : "Several pages or folders")
                 + " of the space " + space + (exitCode == NO_PAGE_SO_TITLED ? " is" : " are") + " titled " + title
                 + ", so the publish to Confluence sent nothing. Enter a different title for the parent the pages are"
-                + " published under: it is saved as confluenceFolderTitle in the Profile tab, and the publish starts"
+                + " published under: it is saved as confluenceFolderTitle in the Profile window, and the publish starts"
                 + " again.";
         Optional<String> entered = dialogs.warnAndAsk("The parent's title", sentence, title)
                 .map(String::strip).filter(typed -> !typed.isEmpty());
@@ -357,7 +373,7 @@ final class Cockpit {
         begin(ControlPanelState.Start.PUBLISH, "Publish");
     }
 
-    /** Saves {@code title} as confluenceFolderTitle as the Profile tab saves a key; a title as the file states it is not written. */
+    /** Saves {@code title} as confluenceFolderTitle as the Profile window saves a key; a title as the file states it is not written. */
     private Optional<String> saveTheTitle(Path folder, String title) {
         Optional<ProfileEdit.Stated> inFile;
         try {
@@ -366,18 +382,18 @@ final class Cockpit {
             return Optional.of(unreadable.getMessage() == null ? ProfileEdit.FILE_NAME + " cannot be read"
                     : unreadable.getMessage());
         }
-        Optional<String> note = ProfileEdit.noteToSave(ProfileKey.CONFLUENCE_FOLDER_TITLE, title,
-                ProfileEdit.noteShown(inFile), inFile);
-        if (note.isEmpty()) {
+        Optional<String> provenance = ProfileEdit.provenanceToSave(ProfileKey.CONFLUENCE_FOLDER_TITLE, title,
+                ProfileEdit.provenanceShown(inFile), inFile);
+        if (provenance.isEmpty()) {
             return Optional.empty();
         }
-        Optional<String> refused = ProfileEdit.refusalOfSave(ProfileKey.CONFLUENCE_FOLDER_TITLE, title, note.get(),
+        Optional<String> refused = ProfileEdit.refusalOfSave(ProfileKey.CONFLUENCE_FOLDER_TITLE, title, provenance.get(),
                 inFile, Optional.empty());
         if (refused.isPresent()) {
             return refused;
         }
         return state.write(folder, ProfileEdit.FILE_NAME, current -> ProfileEdit.rewrite(current,
-                ProfileKey.CONFLUENCE_FOLDER_TITLE, title, note.get()));
+                ProfileKey.CONFLUENCE_FOLDER_TITLE, title, provenance.get()));
     }
 
     /** Stop is confirmed with the one sentence a stop is confirmed by (ADR-278 §6); the child is stopped only on the answer that goes on. */
@@ -409,6 +425,11 @@ final class Cockpit {
 
     private Node sidebarPane() {
         sidebar.setId("sidebar");
+        openProfile.setId("open-profile");
+        openProfile.setOnAction(event -> profileWindow.open());
+        VBox profilePane = new VBox(openProfile);
+        profilePane.getStyleClass().add("section");
+        section("profile", "Profile", profilePane);
         section("preflight", "Preflight", preflight.pane());
         section("folders", "Folders", foldersPane());
         section("services", "Services", servicesPane());
@@ -559,7 +580,7 @@ final class Cockpit {
                 new CodeSetFolderChecks.Apart("output folder", fields.get("vespera.deliverable-root").text()));
     }
 
-    /** Takes the operator to where {@code chosen}, a key the Profile tab does not edit, is edited. */
+    /** Takes the operator to where {@code chosen}, a key the Profile window does not edit, is edited. */
     private void pointTo(ProfileKey chosen) {
         if (chosen == ProfileKey.FOLDERS_NOT_WALKED) {
             tabs.getSelectionModel().select(inclusionsTab);
@@ -688,7 +709,8 @@ final class Cockpit {
                 || fields.get("spring.ai.ollama.base-url").text().isEmpty()
                 || fields.get("vespera.label.model").text().isEmpty());
         badge("seed-folder", seedRow != null && !seedStated);
-        profileTab.setText(wanted.isEmpty() ? "Profile" : "Profile (" + NEEDS_A_VALUE + ")");
+        badge("profile", !wanted.isEmpty());
+        profileWindow.titled(sections.get("profile").getText());
     }
 
     private void badge(String id, boolean needs) {
@@ -885,8 +907,14 @@ final class Cockpit {
         return state.childRuns();
     }
 
+    /** Whether the window may close, as far as an unsaved edit of the profile is concerned: asked over the window (ADR-388 §4). */
+    boolean profileAllowsClosing() {
+        return profileWindow.mayClose(dialogs);
+    }
+
     /** Where the window is closed: the clock stops with it. */
     void closed() {
         timeline.stop();
+        profileWindow.close();
     }
 }

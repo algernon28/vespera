@@ -53,9 +53,9 @@ final class AnsweringDialogs implements Dialogs {
     volatile Optional<String> chosen = Optional.empty();
 
     /**
-     * Answers {@code Dialogs.choose} (ADR-388 §4): keeps the choice asked for and gives {@link #chosen}. Written before
-     * the interface declares it, so it carries no {@code @Override} yet.
+     * Answers {@code Dialogs.choose} (ADR-388 §4): keeps the choice asked for and gives {@link #chosen}.
      */
+    @Override
     public Optional<String> choose(String title, String sentence, List<String> answers) {
         choices.add(new Chose(title, sentence, List.copyOf(answers)));
         return chosen;

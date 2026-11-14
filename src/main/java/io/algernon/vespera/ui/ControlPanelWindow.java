@@ -56,6 +56,10 @@ public final class ControlPanelWindow extends Application {
         stage.setTitle("Vespera control panel");
         stage.setScene(new Scene(cockpit.root(), WIDTH, HEIGHT));
         stage.setOnCloseRequest(event -> {
+            if (!cockpit.profileAllowsClosing()) {
+                event.consume();
+                return;
+            }
             if (cockpit.childRuns() && !dialogs.confirm(Child.STOP_CONFIRMATION, "Stop and close", "Keep the window")) {
                 event.consume();
             }

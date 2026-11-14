@@ -9,6 +9,7 @@ import static io.algernon.vespera.engine.deliverable.ListedTree.slotOf;
 import static io.algernon.vespera.engine.deliverable.ListedTree.survivor;
 import static io.algernon.vespera.engine.deliverable.ListedTree.writing;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
@@ -23,9 +24,11 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -42,10 +45,12 @@ import org.junit.jupiter.api.io.TempDir;
  * The code sets in the tree (ADR-296): every member of every set copied byte for byte to {@code code/<set>/<kept
  * path>}, each checked against the size and last-modified time the walk recorded and {@code changed} where either
  * differs, with the outcomes of ADR-274 §2.3 otherwise as for documents; one row a member in {@code code.csv}, and none
- * in {@code documents.csv}; a section of the index after the groups, one row a set; the operator's names applied, the
- * dormant ones counted and a refused file told; a folder in {@code code/} this drawing did not write counted as left
- * behind, and one whose name differs in case alone from a set's this drawing wrote counted only where the file system
- * holds the two apart (ADR-373); and the code copies surveyed in numbers only.
+ * in {@code documents.csv}; a section of the index after the groups, one row a set; each set named by its folder, a
+ * file of names left in the working directory read by nothing, and a set whose folder in {@code code/} changed since
+ * the listing the tree held told once, after the new listing is in place, a change of case alone being none (ADR-377
+ * §9); a folder in {@code code/} this drawing did not write counted as left behind, and one whose name differs in case
+ * alone from a set's this drawing wrote counted only where the file system holds the two apart (ADR-373); and the code
+ * copies surveyed in numbers only.
  *
  * <p>Each test lays out {@code <base>/archive} as the corpus root and {@code <base>/work} as the working directory,
  * the tree drawn at the working directory's {@code deliverable/} folder, with one group of one document beside the
@@ -90,6 +95,12 @@ class CodeSetsInTheTreeTest {
     private static final long THE_SETS_MEMBER = 170;
 
     private static final String THE_SETS_TEXT = "int a;\n";
+
+    /** The file of names the control panel once wrote, which no class of the jar reads (ADR-377 §9). */
+    private static final String A_NAMES_FILE = "code-set-names.yaml";
+
+    /** The folder in code/ an earlier listing puts set core's copies in, other than its default name. */
+    private static final String CORE_EARLIER = "billing-core";
 
     @Test
     @Story("Each code set is copied whole in its own layout")
@@ -172,31 +183,184 @@ class CodeSetsInTheTreeTest {
     }
 
     @Test
-    @Story("The operator renames a code set")
-    @DisplayName("A file of renames that is refused whole leaves every set its default name, fails nothing, and is told once")
-    void aNamesFileThatIsRefusedLeavesTheDefaultNamesAndIsToldOnce(@TempDir Path base) throws IOException {
+    @Story("A code set is named by its folder")
+    @DisplayName("A file of code set names left in the working directory renames nothing and is told of nowhere")
+    @Issue("807")
+    @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
+    void aNamesFileLeftInTheWorkingDirectoryRenamesNothing(@TempDir Path base) throws IOException {
         Path archive = base.resolve("archive");
         Files.createDirectories(base.resolve("work"));
-        Files.writeString(base.resolve("work").resolve(CodeSetNames.FILE_NAME),
-                "folder: shop/core\nname: Shop core\n", StandardCharsets.UTF_8);
-        ListedCodeSets code = codeSets(Map.of(set("shop/core", "core", 160),
-                List.of(file(archive, 160, "shop/core/a.c", "shop/core", "code", null, "int a;\n"))));
-        long[] refused = new long[1];
-        DeliverableProgress hearing = new DeliverableProgress() {
-            @Override
-            public void codeSetNamesRefused() {
-                refused[0]++;
-            }
-        };
+        Files.writeString(base.resolve("work").resolve(A_NAMES_FILE),
+                "- folder: shop/core\n  name: Shop core\n- folder: gone/away\n  name: Gone\n", StandardCharsets.UTF_8);
+        Map<ListedCodeSet, List<ListedCodeFile>> sets = new LinkedHashMap<>();
+        sets.put(set("libs/kernel", "kernel", 150), List.of(
+                file(archive, 150, "libs/kernel/k.c", "libs/kernel", "code", null, "int k;\n")));
+        sets.put(set("shop/core", "core", 160), List.of(
+                file(archive, 160, "shop/core/a.c", "shop/core", "code", null, "int a;\n")));
+        List<String> told = new ArrayList<>();
 
-        Path tree = draw(base, archive, code, hearing, () -> ROOM_ENOUGH);
+        Path tree = draw(base, archive, codeSets(sets), everyCall(told), () -> ROOM_ENOUGH);
 
         claim(
-                "the set is copied under its default name, the file being a mapping and not a list",
-                () -> assertThat(filesUnder(tree.resolve("code"))).containsExactly("core/a.c"));
+                "both sets are copied under their default names, kernel and core, though the file names the second Shop"
+                        + " core",
+                () -> assertThat(filesUnder(tree.resolve("code"))).containsExactly("core/a.c", "kernel/k.c"));
         claim(
-                "and the drawing is told once that the file was refused",
-                () -> assertThat(refused[0]).isEqualTo(1L));
+                "the listing of code names each copy in its set's default folder",
+                () -> assertThat(outcomesOf(tree)).containsExactlyInAnyOrderEntriesOf(Map.of(
+                        "libs/kernel/k.c", "code/kernel/k.c copied", "shop/core/a.c", "code/core/a.c copied")));
+        claim(
+                "the index links each set by its default folder, and names neither name the file gives",
+                () -> assertThat(Files.readString(tree.resolve("index.html"), StandardCharsets.UTF_8))
+                        .contains("href=\"code/core/\"", "href=\"code/kernel/\"")
+                        .doesNotContain("Shop core", "Gone"));
+        claim(
+                "and the drawing tells nothing of the file: no call it hears is about code set names",
+                () -> assertThat(told).noneMatch(call -> call.contains("CodeSetNames")));
+    }
+
+    @Test
+    @Story("A code set is named by its folder")
+    @DisplayName("A code set whose folder in code/ changed since the last drawing is told once, after the listing of code is in place")
+    @Issue("807")
+    @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
+    void aSetWhoseFolderInCodeChangedIsToldOnceAfterTheListingIsInPlace(@TempDir Path base) throws IOException {
+        Path archive = base.resolve("archive");
+        ListedCodeSets code = coreAndKernel(archive);
+        Path first = draw(base, archive, code, DeliverableProgress.NONE, () -> ROOM_ENOUGH);
+        listedIn(first, CORE_EARLIER);
+        List<String> second = new ArrayList<>();
+        List<String> listingWhenTold = new ArrayList<>();
+
+        draw(base, archive, code, changes(second, first, listingWhenTold), () -> ROOM_ENOUGH);
+        List<String> third = new ArrayList<>();
+        draw(base, archive, code, changes(third, first, new ArrayList<>()), () -> ROOM_ENOUGH);
+
+        claim(
+                "the drawing over a listing that put core's files in code/billing-core/ is told once, of core alone,"
+                        + " from billing-core to core",
+                () -> assertThat(second).containsExactly("billing-core -> core"));
+        claim(
+                "and when it is told, the listing in place already names core's copies in code/core/",
+                () -> assertThat(listingWhenTold).singleElement().asString()
+                        .contains("code/core/a.c").doesNotContain("code/billing-core/"));
+        claim(
+                "the drawing after it, reading the listing the second left, is told nothing",
+                () -> assertThat(third).isEmpty());
+    }
+
+    @Test
+    @Story("A code set is named by its folder")
+    @DisplayName("A drawing that fails before its listing of code is moved into place tells nothing, and the next tells the change")
+    @Issue("807")
+    @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
+    void aDrawingThatFailsBeforeTheListingMovesTellsNothing(@TempDir Path base) throws IOException {
+        Path archive = base.resolve("archive");
+        ListedCodeSets code = coreAndKernel(archive);
+        Path first = draw(base, archive, code, DeliverableProgress.NONE, () -> ROOM_ENOUGH);
+        listedIn(first, CORE_EARLIER);
+        ReplacingMove refusingTheListing = new ReplacingMove(
+                (part, target) -> {
+                    if (target.getFileName().toString().equals(CodeCopies.LISTING_FILE_NAME)) {
+                        throw new IOException("the listing's place refuses it");
+                    }
+                    Files.move(part, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                },
+                millis -> {});
+        List<String> failing = new ArrayList<>();
+
+        Throwable thrown = catchThrowable(() -> draw(base, archive, code, changes(failing, first, new ArrayList<>()),
+                () -> ROOM_ENOUGH, refusingTheListing));
+        List<String> next = new ArrayList<>();
+        draw(base, archive, code, changes(next, first, new ArrayList<>()), () -> ROOM_ENOUGH);
+
+        claim(
+                "the drawing whose listing could not be moved fails",
+                () -> assertThat(thrown).isNotNull());
+        claim(
+                "and it tells no change",
+                () -> assertThat(failing).isEmpty());
+        claim(
+                "the next drawing reads the same earlier listing, and tells the change once",
+                () -> assertThat(next).containsExactly("billing-core -> core"));
+    }
+
+    @Test
+    @Story("A code set is named by its folder")
+    @DisplayName("A code set's folder in code/ that changed in case alone is no change, and is told nothing")
+    @Issue("807")
+    @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
+    void aChangeOfCaseAloneIsNoChange(@TempDir Path base) throws IOException {
+        Path archive = base.resolve("archive");
+        ListedCodeFile member = file(archive, THE_SETS_MEMBER, THE_RENAMED_SET + "/a.c", THE_RENAMED_SET, "code", null,
+                THE_SETS_TEXT);
+        // An earlier drawing that gave the set at core the folder Core in code/, as one under another name would.
+        ListedCodeSets drawnAsCore = codeSets(Map.of(set(THE_RENAMED_SET, THE_SET, THE_SETS_MEMBER), List.of(member)));
+        Path tree = draw(base, archive, drawnAsCore, DeliverableProgress.NONE, () -> ROOM_ENOUGH);
+        Map<String, String> earlier = outcomesOf(tree);
+        ListedCodeSets byItsFolder = codeSets(Map.of(set(THE_RENAMED_SET, THE_RENAMED_SET, THE_SETS_MEMBER),
+                List.of(member)));
+        List<String> told = new ArrayList<>();
+
+        draw(base, archive, byItsFolder, changes(told, tree, new ArrayList<>()), () -> ROOM_ENOUGH);
+
+        claim(
+                "the earlier listing put the set's file in code/Core/",
+                () -> assertThat(earlier).containsExactly(Map.entry("core/a.c", "code/Core/a.c copied")));
+        claim(
+                "the drawing over a listing that put the set's files in code/Core/, its folder now core, is told nothing",
+                () -> assertThat(told).isEmpty());
+        if (foldsCase(base)) {
+            claim(
+                    "and where the file system takes both spellings for one folder, the copies stand in code/Core/,"
+                            + " the one folder of code/",
+                    () -> {
+                        assertThat(foldersIn(tree.resolve("code"))).containsExactly(THE_SET);
+                        assertThat(tree.resolve("code").resolve(THE_SET).resolve("a.c"))
+                                .hasBinaryContent(bytes(THE_SETS_TEXT));
+                    });
+        }
+    }
+
+    @Test
+    @Story("A code set is named by its folder")
+    @DisplayName("No earlier listing of code, one cut short in a quoted cell, or one whose header names no copy, is told nothing")
+    @Issue("807")
+    @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
+    void anEarlierListingAbsentOrUnreadableTellsNothing(@TempDir Path base) throws IOException {
+        Path archive = base.resolve("archive");
+        ListedCodeSets code = coreAndKernel(archive);
+        List<String> withNone = new ArrayList<>();
+        Path tree = draw(base, archive, code, changes(withNone, null, new ArrayList<>()), () -> ROOM_ENOUGH);
+        Path listing = tree.resolve(CodeCopies.LISTING_FILE_NAME);
+        List<String> copied = filesUnder(tree.resolve("code"));
+        String header = Files.readAllLines(listing, StandardCharsets.UTF_8).getFirst();
+        String earlierRow = "160,shop/core/a.c,shop/core,code,,7,2026-01-02T03:04:05Z,code/billing-core/a.c,copied";
+
+        Files.writeString(listing, header + "\n" + earlierRow + "\n161,\"shop/core/b,", StandardCharsets.UTF_8);
+        List<String> cutShort = new ArrayList<>();
+        draw(base, archive, code, changes(cutShort, null, new ArrayList<>()), () -> ROOM_ENOUGH);
+        List<String> copiedOverCutShort = filesUnder(tree.resolve("code"));
+
+        Files.writeString(listing, header.replace(",copy,", ",kopie,") + "\n" + earlierRow + "\n",
+                StandardCharsets.UTF_8);
+        List<String> noCopyColumn = new ArrayList<>();
+        draw(base, archive, code, changes(noCopyColumn, null, new ArrayList<>()), () -> ROOM_ENOUGH);
+
+        claim(
+                "a tree with no earlier listing is told nothing",
+                () -> assertThat(withNone).isEmpty());
+        claim(
+                "an earlier listing whose last cell is a quote never closed is told nothing, though a row before it"
+                        + " puts core's files in code/billing-core/",
+                () -> assertThat(cutShort).isEmpty());
+        claim(
+                "an earlier listing whose header names no copy column is told nothing, though its row holds the same"
+                        + " folder where the copy stood",
+                () -> assertThat(noCopyColumn).isEmpty());
+        claim(
+                "and every set is copied as with no earlier listing",
+                () -> assertThat(copiedOverCutShort).isEqualTo(copied).containsExactly("core/a.c", "kernel/k.c"));
     }
 
     @Test
@@ -277,17 +441,70 @@ class CodeSetsInTheTreeTest {
     }
 
     /**
-     * Draws {@link #THE_SET} under its default name, then again with {@link CodeSetNames#FILE_NAME} naming it {@link
-     * #THE_RENAMED_SET}, and returns the tree; {@code reported} hears what the second drawing found left behind.
+     * Draws {@link #THE_SET} under its default name, then renames its folder in the archive {@link #THE_RENAMED_SET},
+     * which names the set by its folder (ADR-377 §9), draws it again and returns the tree; {@code reported} hears what
+     * the second drawing found left behind.
      */
     private static Path renameInCaseAlone(Path base, List<String> reported) throws IOException {
         Path archive = base.resolve("archive");
         ListedCodeSets code = codeSets(Map.of(set(THE_SET, THE_SET, THE_SETS_MEMBER), List.of(
                 file(archive, THE_SETS_MEMBER, THE_SET + "/a.c", THE_SET, "code", null, THE_SETS_TEXT))));
         draw(base, archive, code, DeliverableProgress.NONE, () -> ROOM_ENOUGH);
-        Files.writeString(base.resolve("work").resolve(CodeSetNames.FILE_NAME),
-                "- folder: " + THE_SET + "\n  name: " + THE_RENAMED_SET + "\n", StandardCharsets.UTF_8);
-        return draw(base, archive, code, hearing(reported), () -> ROOM_ENOUGH);
+        Files.move(archive.resolve(THE_SET), archive.resolve("moving"));
+        Files.move(archive.resolve("moving"), archive.resolve(THE_RENAMED_SET));
+        ListedCodeSets renamed = codeSets(Map.of(set(THE_RENAMED_SET, THE_RENAMED_SET, THE_SETS_MEMBER), List.of(
+                file(archive, THE_SETS_MEMBER, THE_RENAMED_SET + "/a.c", THE_RENAMED_SET, "code", null,
+                        THE_SETS_TEXT))));
+        return draw(base, archive, renamed, hearing(reported), () -> ROOM_ENOUGH);
+    }
+
+    /** Two sets, {@code shop/core} named core and {@code libs/kernel} named kernel, one file each. */
+    private static ListedCodeSets coreAndKernel(Path archive) throws IOException {
+        Map<ListedCodeSet, List<ListedCodeFile>> sets = new LinkedHashMap<>();
+        sets.put(set("libs/kernel", "kernel", 150), List.of(
+                file(archive, 150, "libs/kernel/k.c", "libs/kernel", "code", null, "int k;\n")));
+        sets.put(set("shop/core", "core", 160), List.of(
+                file(archive, 160, "shop/core/a.c", "shop/core", "code", null, "int a;\n")));
+        return codeSets(sets);
+    }
+
+    /** Rewrites the tree's listing of code as an earlier drawing would have left it, core's copies in {@code folder}. */
+    private static void listedIn(Path tree, String folder) throws IOException {
+        Path listing = tree.resolve(CodeCopies.LISTING_FILE_NAME);
+        String text = Files.readString(listing, StandardCharsets.UTF_8);
+        assumeTrue(text.contains("code/core/"), "the first drawing listed core's copies in code/core/");
+        Files.writeString(listing, text.replace("code/core/", "code/" + folder + "/"), StandardCharsets.UTF_8);
+    }
+
+    /**
+     * A hearing that adds {@code earlier -> now} to {@code told} for each set whose folder in code/ changed, and, where
+     * {@code tree} is given, the listing of code standing in it at that moment to {@code listings}.
+     */
+    private static DeliverableProgress changes(List<String> told, Path tree, List<String> listings) {
+        return new DeliverableProgress() {
+            @Override
+            public void codeSetFolderChanged(String earlier, String now) {
+                told.add(earlier + " -> " + now);
+                if (tree != null) {
+                    try {
+                        listings.add(Files.readString(tree.resolve(CodeCopies.LISTING_FILE_NAME), StandardCharsets.UTF_8));
+                    } catch (IOException unread) {
+                        listings.add("unread: " + unread);
+                    }
+                }
+            }
+        };
+    }
+
+    /** A hearing that adds the name of every method of it called to {@code told}, in order. */
+    private static DeliverableProgress everyCall(List<String> told) {
+        return (DeliverableProgress) Proxy.newProxyInstance(
+                DeliverableProgress.class.getClassLoader(),
+                new Class<?>[] {DeliverableProgress.class},
+                (proxy, method, arguments) -> {
+                    told.add(method.getName());
+                    return null;
+                });
     }
 
     /** A hearing that adds to {@code reported} each listing of what was left behind it is told of. */
@@ -324,6 +541,18 @@ class CodeSetsInTheTreeTest {
     private static Path draw(
             Path base, Path archive, ListedCodeSets code, DeliverableProgress progress, LongSupplier usableSpace)
             throws IOException {
+        return draw(base, archive, code, progress, usableSpace, ReplacingMove.ATOMIC);
+    }
+
+    /** As above, each file put in place by {@code moves}. */
+    private static Path draw(
+            Path base,
+            Path archive,
+            ListedCodeSets code,
+            DeliverableProgress progress,
+            LongSupplier usableSpace,
+            ReplacingMove moves)
+            throws IOException {
         Path document = archive.resolve(THE_DOCUMENT);
         Files.createDirectories(document.getParent());
         Files.writeString(document, THE_DOCUMENTS_TEXT, StandardCharsets.UTF_8);
@@ -342,7 +571,7 @@ class CodeSetsInTheTreeTest {
                 code,
                 SurvivorPictures.none(),
                 progress,
-                ReplacingMove.ATOMIC,
+                moves,
                 usableSpace);
     }
 

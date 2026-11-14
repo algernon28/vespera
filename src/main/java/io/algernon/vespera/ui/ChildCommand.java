@@ -38,9 +38,10 @@ public final class ChildCommand {
                             + " empty, the folder the jar would use on this machine is passed (ADR-345 §1)."),
             new Argument("label", "auto", "label-auto",
                     "Passed by Let the local model answer; Record my answers passes none."),
-            new Argument("label", "<file>", "label-file",
-                    "Passed by the label file option, absolute, to Record my answers alone: label --auto refuses one"
-                            + " (ADR-197 §6)."),
+            new Argument("label", "<file>", "",
+                    "Never passed: the window answers the questions in the Inclusions tab, by folder (ADR-334 §6), in"
+                            + " the working directory's label file, which label reads where no file is named; the"
+                            + " command line keeps it (ADR-377)."),
             new Argument("label", "db-dir", "vespera.working-dir", "As for run."),
             new Argument("publish", "to", "publish-to",
                     "The boxes beside Publish, one for each destination drawn; never a launch value."),
@@ -213,15 +214,6 @@ public final class ChildCommand {
             return this;
         }
         return new ChildCommand(java, jar, values, directory, arguments, commandName, passed, token);
-    }
-
-    /** {@code label}'s {@code <file>}, absolute, before {@code --db-dir}; {@code label --auto}, {@code run} and {@code publish} are unchanged. */
-    public ChildCommand withLabelFile(Path file) {
-        if (!commandName.equals("label")) {
-            return this;
-        }
-        return new ChildCommand(java, jar, values, directory, List.of("label", file.toAbsolutePath().toString()),
-                commandName, passed, confluenceToken);
     }
 
     /** {@code vespera} and the arguments after {@code -jar <jar>}, one holding a space in double quotes (ADR-344 §4). */

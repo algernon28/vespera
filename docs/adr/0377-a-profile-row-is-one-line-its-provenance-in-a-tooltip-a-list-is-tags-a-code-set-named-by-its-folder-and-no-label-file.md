@@ -164,6 +164,7 @@ In the data file a tooltip is one string, a backslash in it written as JSON writ
 | The earliest run | The cost line |
 | --- | --- |
 | none, for the five Confluence keys | Changing it redoes no work; it takes effect the next time you press Publish. |
+| none, for `modelsRunOn` | It cannot be changed here; Vespera checks it each time it starts, and it redoes no work. |
 | none, for `clusterPageByteCeiling` | Changing it rewrites only the group pages (a split group's pictures are read again); everything else is kept. |
 | byte-level reduction | Changing it redoes everything from sorting your files to writing the pages; text already read out of your files is kept. |
 | extraction | Changing it redoes everything after reading the text out of your files; the text already read is kept. |

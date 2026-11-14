@@ -3,13 +3,17 @@ package io.algernon.vespera.ui;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.Node;
 import javafx.scene.control.Dialog;
+import javafx.scene.control.DialogPane;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
@@ -49,6 +53,17 @@ interface Dialogs {
     /** Asks {@code sentence} with two answers; true where the operator gives {@code yes}, the one that goes on. */
     boolean confirm(String sentence, String yes, String no);
 
+    /**
+     * Asks {@code sentence} under {@code title} with one button for each of {@code answers}, in their order (ADR-388 §4):
+     * the words of the answer pressed, empty where the dialog is closed with none.
+     */
+    Optional<String> choose(String title, String sentence, List<String> answers);
+
+    /** These dialogs asked over the window {@code owner} gives; dialogs with no window of their own stay as they are. */
+    default Dialogs over(Supplier<Window> owner) {
+        return this;
+    }
+
     /** Dialogs that open nothing and choose nothing: what a window drawn without a stage holds. */
     Dialogs NONE = new Dialogs() {
         @Override
@@ -64,6 +79,11 @@ interface Dialogs {
         @Override
         public boolean confirm(String sentence, String yes, String no) {
             return false;
+        }
+
+        @Override
+        public Optional<String> choose(String title, String sentence, List<String> answers) {
+            return Optional.empty();
         }
 
         @Override
@@ -97,6 +117,41 @@ interface Dialogs {
     /** The system's dialogs over {@code owner}, a document handed over by {@code showDocument} with its address. */
     static Dialogs of(Supplier<Window> owner, Consumer<String> showDocument) {
         return new Dialogs() {
+            @Override
+            public Dialogs over(Supplier<Window> other) {
+                return of(other, showDocument);
+            }
+
+            @Override
+            public Optional<String> choose(String title, String sentence, List<String> answers) {
+                List<ButtonType> buttons = new ArrayList<>();
+                for (int at = 0; at < answers.size(); at++) {
+                    ButtonBar.ButtonData data = at == answers.size() - 1 ? ButtonBar.ButtonData.CANCEL_CLOSE
+                            : at == 0 ? ButtonBar.ButtonData.OK_DONE : ButtonBar.ButtonData.OTHER;
+                    buttons.add(new ButtonType(answers.get(at), data));
+                }
+                Dialog<ButtonType> ask = new Dialog<>();
+                ask.setDialogPane(new DialogPane() {
+                    @Override
+                    protected Node createButtonBar() {
+                        ButtonBar bar = (ButtonBar) super.createButtonBar();
+                        bar.setButtonOrder(ButtonBar.BUTTON_ORDER_NONE);
+                        return bar;
+                    }
+                });
+                ask.setTitle(title);
+                Label words = new Label(sentence);
+                words.setWrapText(true);
+                ask.getDialogPane().setContent(words);
+                ask.getDialogPane().getButtonTypes().setAll(buttons);
+                Window over = owner.get();
+                if (over != null) {
+                    ask.initOwner(over);
+                    themed(ask.getDialogPane(), over);
+                }
+                return ask.showAndWait().map(ButtonType::getText);
+            }
+
             @Override
             public Optional<String> masked(String title, String sentence) {
                 ButtonType goOn = new ButtonType("Publish", ButtonBar.ButtonData.OK_DONE);

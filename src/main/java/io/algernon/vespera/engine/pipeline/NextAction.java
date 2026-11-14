@@ -10,7 +10,6 @@ import io.algernon.vespera.engine.profile.NumericValue;
 import io.algernon.vespera.engine.profile.Profile;
 import io.algernon.vespera.engine.profile.ProfileStore;
 import io.algernon.vespera.engine.profile.ProfileValue;
-import io.algernon.vespera.engine.deliverable.CodeSetNames;
 import io.algernon.vespera.engine.deliverable.Deliverable;
 import io.algernon.vespera.engine.deliverable.DeliverableRoot;
 import io.algernon.vespera.engine.synthesis.Clusters;
@@ -229,7 +228,6 @@ class NextAction {
                 invocationRuns.foldersLeftBehind(),
                 invocationRuns.filesLeftBehind(),
                 invocationRuns.codeFilesNotCopied(),
-                invocationRuns.dormantCodeSetNames(),
                 invocationRuns.renderingsNotDrawn()));
     }
 
@@ -260,7 +258,7 @@ class NextAction {
         int arranged = clustersBean.countForRun(upstream.getFirst());
         int written = synthesisDocsBean.countForRun(generation);
         return Optional.of(new DeliverableSummary(
-                tree, Math.max(0, arranged - written), OptionalInt.empty(), false, 0, 0, OptionalInt.empty(), 0));
+                tree, Math.max(0, arranged - written), OptionalInt.empty(), false, 0, 0, OptionalInt.empty()));
     }
 
     /**
@@ -279,8 +277,6 @@ class NextAction {
      *     §4)
      * @param codeFilesNotCopied how many files of code have no copy standing in the tree this invocation wrote, or
      *     empty where the tree has no code set or this invocation wrote none (ADR-296 §6.1)
-     * @param dormantCodeSetNames how many entries of {@code code-set-names.yaml} name no code set of the run (ADR-296
-     *     §6.2)
      */
     record DeliverableSummary(
             Path tree,
@@ -290,7 +286,6 @@ class NextAction {
             int foldersLeftBehind,
             int filesLeftBehind,
             OptionalInt codeFilesNotCopied,
-            int dormantCodeSetNames,
             List<RenderingNotDrawn> renderingsNotDrawn) {
 
         /** A summary of a tree whose every plugin drew. */
@@ -301,8 +296,7 @@ class NextAction {
                 boolean documentsFolderLeftBehind,
                 int foldersLeftBehind,
                 int filesLeftBehind,
-                OptionalInt codeFilesNotCopied,
-                int dormantCodeSetNames) {
+                OptionalInt codeFilesNotCopied) {
             this(
                     tree,
                     clustersLeftUnwritten,
@@ -311,11 +305,10 @@ class NextAction {
                     foldersLeftBehind,
                     filesLeftBehind,
                     codeFilesNotCopied,
-                    dormantCodeSetNames,
                     List.of());
         }
 
-        /** A summary of a tree with no code set and no dormant name. */
+        /** A summary of a tree with no code set. */
         DeliverableSummary(
                 Path tree,
                 int clustersLeftUnwritten,
@@ -330,8 +323,7 @@ class NextAction {
                     documentsFolderLeftBehind,
                     foldersLeftBehind,
                     filesLeftBehind,
-                    OptionalInt.empty(),
-                    0);
+                    OptionalInt.empty());
         }
     }
 
@@ -360,24 +352,15 @@ class NextAction {
 
     /**
      * What the line says of code, to follow the count of documents not copied (ADR-296 §6): the files of code not
-     * copied where the tree has a code set, even at none, and then the entries of the names file that name no set of
-     * the run, whether or not it has one. Nothing where this invocation drew no tree.
+     * copied where the tree has a code set, even at none. Nothing where this invocation drew no tree or the tree has no
+     * code set.
      */
     private static String ofCode(DeliverableSummary deliverable) {
-        if (deliverable.documentsNotCopied().isEmpty()) {
+        if (deliverable.documentsNotCopied().isEmpty() || deliverable.codeFilesNotCopied().isEmpty()) {
             return "";
         }
-        String files = "";
-        if (deliverable.codeFilesNotCopied().isPresent()) {
-            int count = deliverable.codeFilesNotCopied().getAsInt();
-            files = ", and " + count + (count == 1 ? " file" : " files") + " of code not copied";
-        }
-        int dormant = deliverable.dormantCodeSetNames();
-        String names = dormant == 0
-                ? ""
-                : "; " + dormant + (dormant == 1 ? " name" : " names") + " in " + CodeSetNames.FILE_NAME
-                        + (dormant == 1 ? " names" : " name") + " no code set of this run";
-        return files + names;
+        int count = deliverable.codeFilesNotCopied().getAsInt();
+        return ", and " + count + (count == 1 ? " file" : " files") + " of code not copied";
     }
 
     /**

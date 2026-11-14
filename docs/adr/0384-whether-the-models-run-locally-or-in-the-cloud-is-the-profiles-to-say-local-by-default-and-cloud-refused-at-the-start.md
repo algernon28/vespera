@@ -129,7 +129,7 @@ The jar reads a file holding the three lines as a profile whose `modelsRunOn` is
 - **Its holder**, `<prefix>modelsRunOn.holder`, the `HBox` it stands in on the row's line, is not disabled and carries the tooltip **Cloud is not supported yet.**, since JavaFX shows no tooltip over a disabled control.
 - **No Save writes it**: the tab's Save passes over the row, whatever the control shows, so that a key the file holds commented out stays so. A load or a Reset draws the control's value from the file again. A value is changed in `profile.yaml` alone.
 
-It is no row of `wanted`, since it is no gate. Its cost line is that of a key a change of which redoes no work, which ADR-377 §4 words.
+It is no row of `wanted`, since it is no gate. Its cost line is its own, since the window does not change it: *It cannot be changed here; Vespera checks it each time it starts, and it redoes no work.* ADR-377 §4's table holds it.
 
 **Its texts.** Its title is *Where the models run*. Its short description: *The AI models that read your documents run on this machine; running them in the cloud is not supported yet.* Its tooltip: *Vespera sends your documents' text only to AI models that run on this machine. Running them in the cloud is not supported yet, so this value cannot be changed here; profile.yaml shows it as a comment.* They stand in `profile-texts.json` once ADR-377 §4 builds it; until then `plainName()` is the title and `about()` the short description.
 

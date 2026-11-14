@@ -65,8 +65,58 @@ class TheControlPanelsWindowTest {
                 () -> assertThat(missing).as("controls the table names that the window does not hold").isEmpty());
     }
 
+    /**
+     * ADR-377 §10: Command options offer the five presets and no label file, and Record my answers' command line names
+     * the working directory alone, the one the field left empty stands for.
+     */
+    @Test
+    @Issue("808")
+    @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
+    @Story("Record my answers records the working directory's label file")
+    @DisplayName("Command options offer no label file, and Record my answers' command line names the working directory alone")
+    void theCommandOptionsOfferNoLabelFile() throws Exception {
+        record Read(boolean field, boolean browse, List<String> texts, String labelLine, String workingDirectory) {
+        }
+        Read read = inTheWindowOfItsState(state -> root -> new Read(
+                HeadlessToolkit.nodeWithId(root, "label-file").isPresent(),
+                HeadlessToolkit.nodeWithId(root, "label-file.browse").isPresent(),
+                HeadlessToolkit.everyNodeUnder(root).stream().map(TheControlPanelsWindowTest::textOf)
+                        .filter(text -> !text.isEmpty()).toList(),
+                HeadlessToolkit.nodeWithId(root, "command-line-label").map(TheControlPanelsWindowTest::textOf)
+                        .orElse(""),
+                Path.of(state.workingDirectoryDefault().folder()).toAbsolutePath().toString()));
+        String dbDir = "--db-dir=" + read.workingDirectory();
+
+        claim("the window holds no label file field and no Browse for one",
+                () -> assertThat(List.of(read.field(), read.browse())).containsOnly(false));
+        claim("the window reads texts at all, the command lines among them, so that the check below reads something",
+                () -> assertThat(read.texts()).contains(read.labelLine()));
+        claim("no text of the window is the heading Label file",
+                () -> assertThat(read.texts()).doesNotContain("Label file"));
+        claim("Record my answers' command line is vespera label and --db-dir naming the working directory, nothing else",
+                () -> assertThat(read.labelLine()).isEqualTo("vespera label "
+                        + (dbDir.contains(" ") ? "\"" + dbDir + "\"" : dbDir)));
+    }
+
+    /** The text a node shows, a selectable text's or a label's or a button's, empty for any other. */
+    private static String textOf(Node node) {
+        if (node instanceof javafx.scene.control.TextInputControl input && node instanceof SelectableText) {
+            return input.getText() == null ? "" : input.getText();
+        }
+        if (node instanceof javafx.scene.control.Labeled labeled) {
+            return labeled.getText() == null ? "" : labeled.getText();
+        }
+        return "";
+    }
+
     /** Draws the window from a first start's state, shows it, and answers what {@code reading} reads of it. */
     private static <T> T inTheWindow(Function<Parent, T> reading) throws Exception {
+        return inTheWindowOfItsState(state -> reading);
+    }
+
+    /** As {@link #inTheWindow(Function)}, the reading also given the state the window was drawn from. */
+    private static <T> T inTheWindowOfItsState(Function<ControlPanelState, Function<Parent, T>> reading)
+            throws Exception {
         ControlPanelState state = new ControlPanelState(
                 new ChildRuntime(temporary.resolve("java"), temporary.resolve("vespera.jar")),
                 temporary.resolve("launch-values.properties"),
@@ -80,7 +130,7 @@ class TheControlPanelsWindowTest {
             root.applyCss();
             root.layout();
             try {
-                return reading.apply(root);
+                return reading.apply(state).apply(root);
             } finally {
                 stage.close();
             }

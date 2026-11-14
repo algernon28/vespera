@@ -49,10 +49,8 @@ class InvocationRuns {
     private static final String FOLDERS_LEFT_BEHIND = "vespera.deliverable.folders-left-behind";
     private static final String FILES_LEFT_BEHIND = "vespera.deliverable.files-left-behind";
 
-    /** Where what the tree's code sets and the names file came to is handed to the closing line (ADR-296 §6). */
+    /** Where what the tree's code sets came to is handed to the closing line (ADR-296 §6). */
     private static final String CODE_FILES_NOT_COPIED = "vespera.deliverable.code-files-not-copied";
-
-    private static final String DORMANT_CODE_SET_NAMES = "vespera.deliverable.dormant-code-set-names";
 
     /** Where the plugins whose drawing failed are handed to the closing line, one {@code name:type} to a line (ADR-333 §11). */
     private static final String RENDERINGS_NOT_DRAWN = "vespera.deliverable.renderings-not-drawn";
@@ -153,16 +151,6 @@ class InvocationRuns {
         return executionContext.containsKey(CODE_FILES_NOT_COPIED)
                 ? OptionalInt.of(executionContext.getInt(CODE_FILES_NOT_COPIED))
                 : OptionalInt.empty();
-    }
-
-    /** Records how many entries of the names file name no code set of the run, for the closing line (ADR-296 §6.2). */
-    void recordDormantCodeSetNames(int entries) {
-        executionContext.putInt(DORMANT_CODE_SET_NAMES, entries);
-    }
-
-    /** The count {@link #recordDormantCodeSetNames} recorded; 0 where none was recorded. */
-    int dormantCodeSetNames() {
-        return executionContext.getInt(DORMANT_CODE_SET_NAMES, 0);
     }
 
     /**

@@ -4,13 +4,11 @@ import static io.algernon.vespera.TestSteps.claim;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.algernon.vespera.ui.CodeSetRenames.Rename;
 import io.algernon.vespera.ui.ProfileEdit;
 import io.algernon.vespera.ui.ProfileEdit.Stated;
 import io.algernon.vespera.ui.ProfileKey;
 import io.algernon.vespera.ui.WorkingDirectoryWrite;
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.engine.deliverable.CodeSetNames;
 import io.algernon.vespera.engine.embedding.RelevanceDistribution;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.profile.Measurement;
@@ -42,13 +40,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The control panel writes {@code profile.yaml}, the answers of {@code relevance-labels.yaml} and
- * {@code code-set-names.yaml} with rules of its own in {@code java.base}, linking no class of the jar (ADR-285 §3);
- * this is the contract, on a test class path that sees both, that holds those rules to the jar's (ADR-295): its table
- * of keys to {@code Profile} and {@code StageModules} (§5), every value it saves to an answered reading by the jar, and
- * every sample it refuses to one the jar cannot act on (§3, §4), a profile the jar wrote to its reading and rewrite
- * (§3), the label file to {@code LabelFileReader} (§6), the code-set names to {@code CodeSetNames} (§7), and its lock to
- * the jar's {@link WorkingDirectoryLock} in another process (§1).
+ * The control panel writes {@code profile.yaml} and the answers of {@code relevance-labels.yaml} with rules of its own
+ * in {@code java.base}, linking no class of the jar (ADR-285 §3), three formats with its folders not relevant, which
+ * the jar does not read; this is the contract, on a test class path that sees both, that holds those rules to the
+ * jar's (ADR-295, as ADR-377 §9 amends it): its table of keys to {@code Profile} and {@code StageModules} (§5), every
+ * value it saves to an answered reading by the jar, and every sample it refuses to one the jar cannot act on (§3, §4),
+ * a profile the jar wrote to its reading and rewrite (§3), the label file to {@code LabelFileReader} (§6), and its lock
+ * to the jar's {@link WorkingDirectoryLock} in another process (§1).
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -239,15 +237,6 @@ class TheJarReadsWhatTheControlPanelWritesTest {
         return new RelevanceDistribution.Sampled(new OccurrenceId(occurrence), score, new OccurrenceId(99), band);
     }
 
-    /** The list as an operator would write it by hand, in the control panel's own form, refused or not. */
-    private static String byHand(List<Rename> list) {
-        StringBuilder text = new StringBuilder("---\n");
-        for (Rename rename : list) {
-            text.append("- folder: \"").append(rename.folder().replace("\\", "\\\\")).append("\"\n")
-                    .append("  name: \"").append(rename.name()).append("\"\n");
-        }
-        return text.toString();
-    }
 
     /** What a second JVM taking the working directory as an invocation does printed: held, or refused and why. */
     private static String tryInASecondProcess(Path workingDirectory) {

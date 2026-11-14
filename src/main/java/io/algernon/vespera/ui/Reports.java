@@ -1,7 +1,10 @@
 package io.algernon.vespera.ui;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SequencedMap;
 
 /**
  * The reports the jar writes in the working directory, and the ones each profile key is read off (ADR-344 §6, which
@@ -19,6 +22,24 @@ public final class Reports {
             "confidence-distribution", "document-frequency", "word-count-distribution",
             "seed-corpus-comparison", "translations", "cluster-sizes", "relevance-labelling",
             "arrangement", "cluster-page-sizes");
+
+    /**
+     * Each analysis report's title, by name, in the order of {@link #ALL} (ADR-377 §5): what a row's tooltip names a
+     * report by, under the record's word rule.
+     */
+    public static final SequencedMap<String, String> TITLES = titles(
+            "format-mix", "What the files turned out to be",
+            "extraction-failures", "Files whose text could not be read",
+            "extraction-survivors", "Files whose text was read and kept",
+            "confidence-distribution", "Text quality distribution",
+            "document-frequency", "Repeated text across documents",
+            "word-count-distribution", "Word count distribution",
+            "seed-corpus-comparison", "Your documents compared with your seed documents",
+            "translations", "Copies in another language",
+            "cluster-sizes", "Group sizes",
+            "relevance-labelling", "Choosing the relevance cut-off",
+            "arrangement", "Grouping to approve",
+            "cluster-page-sizes", "Group page sizes");
 
     /** The reports each key is read off, in the order the README's table of values names them. */
     public static final Map<String, List<String>> OF_A_KEY = Map.ofEntries(
@@ -51,6 +72,15 @@ public final class Reports {
     /** The name of the report whose page is {@code file}, empty where it is no analysis report's page. */
     public static java.util.Optional<String> nameOfPage(String file) {
         return ALL.stream().filter(name -> pageOf(name).equals(file)).findFirst();
+    }
+
+    /** The map of names and titles given in pairs, in their order, which no one can change. */
+    private static SequencedMap<String, String> titles(String... pairs) {
+        LinkedHashMap<String, String> titles = new LinkedHashMap<>();
+        for (int i = 0; i < pairs.length; i += 2) {
+            titles.put(pairs[i], pairs[i + 1]);
+        }
+        return Collections.unmodifiableSequencedMap(titles);
     }
 
     private Reports() {

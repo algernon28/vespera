@@ -820,7 +820,7 @@ public class Publisher {
                     throw new TheSiteRefusedThePublishException(named + "name it by VESPERA_CONFLUENCE_FOLDER_ID");
                 }
                 throw new TheSiteRefusedThePublishException(named + "set another title in confluenceFolderTitle, or"
-                        + " the parent's id in confluenceFolderId, in the control panel's Profile tab",
+                        + " the parent's id in confluenceFolderId, in the control panel's Profile window",
                         titled.isEmpty() ? NO_PAGE_EXIT_CODE : SEVERAL_EXIT_CODE);
             }
             return titled.getFirst();

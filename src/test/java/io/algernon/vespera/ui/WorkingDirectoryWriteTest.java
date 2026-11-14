@@ -28,7 +28,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * How the control panel writes into a working directory (ADR-295 §1, §2): only while no invocation it started runs,
  * only in a folder of the user's own (ADR-291 §8, checked as ADR-292 §3 checks its folder), only holding
- * {@code vespera.lock} as the jar takes it, never waiting for it, and only the four files (ADR-334 §6), each written
+ * {@code vespera.lock} as the jar takes it, never waiting for it, and only the three files (ADR-334 §6, ADR-377 §9), each written
  * whole by a move. A save of {@code profile.yaml} alone makes a working directory that is not there, owner-only
  * (ADR-330 §7). Taking the lock against the jar's own lock in another process is the contract test's,
  * {@code pipeline.TheJarReadsWhatTheControlPanelWritesTest}.
@@ -142,6 +142,43 @@ class WorkingDirectoryWriteTest {
                     assertThat(namesIn(workingDirectory))
                             .containsExactly(PROFILE, WorkingDirectoryWrite.LOCK_FILE_NAME);
                 });
+    }
+
+    /**
+     * ADR-377 §9: the control panel writes {@code profile.yaml}, {@code relevance-labels.yaml} and {@code
+     * not-relevant-folders.yaml}, and refuses {@code code-set-names.yaml}, which nothing reads, as it refuses any other
+     * file, writing nothing.
+     */
+    @Test
+    @Story("The control panel writes into a working directory")
+    @DisplayName("Only the profile, the label file and the folders not relevant are written, and the file of code set names is refused as any other")
+    @Issue("807")
+    @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
+    void onlyTheThreeFilesAreWritten(@TempDir Path workingDirectory) throws IOException {
+        List<String> written = new ArrayList<>();
+        for (String file : List.of(PROFILE, "relevance-labels.yaml", "not-relevant-folders.yaml")) {
+            if (NO_CHILD_RUNS.write(workingDirectory, file, current -> AFTER).isEmpty()
+                    && AFTER.equals(Files.readString(workingDirectory.resolve(file), UTF_8))) {
+                written.add(file);
+            }
+        }
+        List<String> refused = new ArrayList<>();
+        for (String file : List.of("code-set-names.yaml", "anything-else.yaml")) {
+            try {
+                NO_CHILD_RUNS.write(workingDirectory, file, current -> AFTER);
+            } catch (IllegalArgumentException refusal) {
+                refused.add(refusal.getMessage());
+            }
+        }
+
+        claim("the three files are each written with the text the change gives",
+                () -> assertThat(written).containsExactly(PROFILE, "relevance-labels.yaml", "not-relevant-folders.yaml"));
+        claim("the file of code set names is refused as a file of any other name is, in the same words",
+                () -> assertThat(refused).containsExactly(
+                        "code-set-names.yaml is not a file the control panel writes",
+                        "anything-else.yaml is not a file the control panel writes"));
+        claim("and neither is written",
+                () -> assertThat(namesIn(workingDirectory)).doesNotContain("code-set-names.yaml", "anything-else.yaml"));
     }
 
     @Test

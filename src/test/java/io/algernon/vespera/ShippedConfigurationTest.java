@@ -3,6 +3,7 @@ package io.algernon.vespera;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.algernon.vespera.ui.ProfileKey;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -79,6 +80,22 @@ class ShippedConfigurationTest {
                         .asString()
                         .isNotBlank()
                         .doesNotContainAnyWhitespaces());
+    }
+
+    /**
+     * ADR-377 §4: the comparing model's tooltip on the Profile tab names the model the jar ships, so that a changed
+     * default fails here until the text the operator reads is changed with it.
+     */
+    @Test
+    @Story("The embedding model ships with a default")
+    @DisplayName("The comparing model's tooltip in the control panel names the model the application ships")
+    @Issue("802")
+    @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
+    void theComparingModelsTooltipNamesTheShippedModel() throws IOException {
+        Object shipped = shippedProperties().get(EMBEDDING_MODEL);
+
+        claim("the comparing model's tooltip holds the name of the model the shipped configuration names",
+                () -> assertThat(ProfileKey.EMBEDDING_MODEL.tooltip()).contains(String.valueOf(shipped)));
     }
 
     /** The shipped file flattened to properties, exactly as Spring reads it — nesting and all. */

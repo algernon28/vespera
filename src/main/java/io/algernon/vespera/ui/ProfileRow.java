@@ -6,7 +6,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -26,11 +25,11 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 /**
- * One value of the profile in the window (ADR-344 §1, ADR-343): its descriptive name, its key beneath it in small type,
- * a plain description and which steps a change makes again; a control that constrains the value by its kind; the
- * reports that inform it; and the note saved with it, filled in. The row holds what the file stated as it was loaded, and
- * a save compares the form with it by {@link ProfileEdit#noteToSave} and writes by {@link ProfileEdit#rewrite}, never a
- * key left as it was shown.
+ * One value of the profile in the window (ADR-344 §1, ADR-343): its title, its key beneath it in small type, its short
+ * description, the value in use, what a change redoes and its warnings, as ADR-377 §4 words them; a control that
+ * constrains the value by its kind; the reports that inform it; and the provenance saved with it, filled in. The row
+ * holds what the file stated as it was loaded, and a save compares the form with it by {@link
+ * ProfileEdit#provenanceToSave} and writes by {@link ProfileEdit#rewrite}, never a key left as it was shown.
  */
 final class ProfileRow {
 
@@ -45,7 +44,7 @@ final class ProfileRow {
     private final ProfileKey key;
     private final String idPrefix;
     private final VBox node = new VBox();
-    private final TextField note = new TextField();
+    private final TextField provenance = new TextField();
     private final SelectableText.Wrapping inUse = SelectableText.wrapping("");
     private final HBox links = new HBox();
     private Consumer<String> opensReport;
@@ -68,11 +67,11 @@ final class ProfileRow {
         this.idPrefix = idPrefix;
         node.getStyleClass().add("profile-row");
         node.setId(idPrefix + "row-" + key.key());
-        SelectableText.Line title = SelectableText.line(nameOf(key));
+        SelectableText.Line title = SelectableText.line(key.title());
         title.getStyleClass().add("key-name");
         SelectableText.Line small = SelectableText.line(key.key());
         small.getStyleClass().add("small");
-        SelectableText.Wrapping about = SelectableText.wrapping(key.about() + " Read from " + key.hint() + ".");
+        SelectableText.Wrapping about = SelectableText.wrapping(key.shortDescription());
         about.getStyleClass().add("dim");
         node.getChildren().addAll(title, small, about);
         if (key == ProfileKey.CODE_SET_FOLDERS
@@ -88,28 +87,32 @@ final class ProfileRow {
         } else {
             node.getChildren().add(controlFor(models, dialogs));
         }
-        beneath.ifPresent(said -> inUse.setText("In use where the profile names none: " + said.value() + " ("
-                + said.source() + ")"));
+        beneath.ifPresent(said -> inUse.setText(inUseOf(said)));
         inUse.getStyleClass().add("small");
         node.getChildren().add(inUse);
         SelectableText.Wrapping cost = SelectableText.wrapping(costOf(key));
         cost.getStyleClass().add("small");
         node.getChildren().add(cost);
+        for (String warning : warningsOf(key)) {
+            SelectableText.Wrapping line = SelectableText.wrapping(warning);
+            line.getStyleClass().add("small");
+            node.getChildren().add(line);
+        }
         this.opensReport = opensReport;
         if (!Reports.OF_A_KEY.getOrDefault(key.key(), List.of()).isEmpty()) {
             links.getStyleClass().addAll("spaced-row", "reports-of-a-key");
             node.getChildren().add(links);
             showReports(reportsWritten);
         }
-        SelectableText.Line noteLabel = SelectableText.line("Note saved with it");
-        note.setId(idPrefix + key.key() + ".provenance");
-        note.setPromptText(ProfileEdit.FILLED_IN_NOTE);
-        HBox.setHgrow(note, Priority.ALWAYS);
+        SelectableText.Line provenanceLabel = SelectableText.line("Note saved with it");
+        provenance.setId(idPrefix + key.key() + ".provenance");
+        provenance.setPromptText(ProfileEdit.FILLED_IN_PROVENANCE);
+        HBox.setHgrow(provenance, Priority.ALWAYS);
         SelectableText.Wrapping hint = SelectableText.wrapping("Saved beside the value in profile.yaml so that whoever reads it later knows"
                 + " where the value came from. You may write how you chose the value instead.");
         hint.getStyleClass().add("small");
-        HBox noteLine = spaced(noteLabel, note);
-        node.getChildren().addAll(noteLine, hint);
+        HBox provenanceLine = spaced(provenanceLabel, provenance);
+        node.getChildren().addAll(provenanceLine, hint);
     }
 
     /** Draws the key's reports, each a link where the working directory holds it and grey where it does not (ADR-344 §6). */
@@ -157,7 +160,7 @@ final class ProfileRow {
     void load(Optional<ProfileEdit.Stated> inFile) {
         loaded = inFile;
         setValue.accept(inFile.map(ProfileEdit.Stated::value).orElse(""));
-        note.setText(ProfileEdit.noteShown(inFile));
+        provenance.setText(ProfileEdit.provenanceShown(inFile));
     }
 
     /** Puts the form back to the file as last loaded. */
@@ -166,12 +169,12 @@ final class ProfileRow {
     }
 
     /** The provenance to write for this row by ADR-343 §2's table; empty where the key is not written. */
-    Optional<String> noteToSave() {
+    Optional<String> provenanceToSave() {
         if (key == ProfileKey.MODELS_RUN_ON) {
             // A value is changed in profile.yaml alone, so that a key held commented out stays so (ADR-384 §7).
             return Optional.empty();
         }
-        return ProfileEdit.noteToSave(key, value(), note.getText(), loaded);
+        return ProfileEdit.provenanceToSave(key, value(), provenance.getText(), loaded);
     }
 
     /** The digest of what the form was loaded from, which a save checks the file against (ADR-330 §5). */
@@ -205,19 +208,19 @@ final class ProfileRow {
                     : unreadable.getMessage(), false);
         }
         List<ProfileRow> written = new ArrayList<>();
-        List<String> notes = new ArrayList<>();
+        List<String> provenances = new ArrayList<>();
         for (ProfileRow row : rows) {
-            Optional<String> note = row.noteToSave();
-            if (note.isEmpty()) {
+            Optional<String> provenance = row.provenanceToSave();
+            if (provenance.isEmpty()) {
                 continue;
             }
-            Optional<String> refusal = ProfileEdit.refusalOfSave(row.key, row.value(), note.get(),
+            Optional<String> refusal = ProfileEdit.refusalOfSave(row.key, row.value(), provenance.get(),
                     Optional.ofNullable(fresh.get(row.key)), Optional.of(row.drawn()));
             if (refusal.isPresent()) {
                 return new Saved(refusal.get(), false);
             }
             written.add(row);
-            notes.add(note.get());
+            provenances.add(provenance.get());
         }
         if (written.isEmpty()) {
             return new Saved("nothing was written: every value is as profile.yaml states it", false);
@@ -225,7 +228,7 @@ final class ProfileRow {
         Optional<String> refusal = state.write(folder.get(), ProfileEdit.FILE_NAME, current -> {
             Optional<String> text = current;
             for (int i = 0; i < written.size(); i++) {
-                text = Optional.of(ProfileEdit.rewrite(text, written.get(i).key, written.get(i).value(), notes.get(i)));
+                text = Optional.of(ProfileEdit.rewrite(text, written.get(i).key, written.get(i).value(), provenances.get(i)));
             }
             return text.orElseThrow();
         });
@@ -395,39 +398,82 @@ final class ProfileRow {
                 ? Long.toString((long) number) : Double.toString(number);
     }
 
-    // ---- words
+    // ---- words (ADR-377 §4)
 
-    /** The key's descriptive name: its words, the first with a capital. */
-    static String nameOf(ProfileKey key) {
-        StringBuilder words = new StringBuilder();
-        for (char c : key.key().toCharArray()) {
-            if (Character.isUpperCase(c)) {
-                words.append(' ').append(Character.toLowerCase(c));
-            } else {
-                words.append(c);
-            }
+    /** The line of a key whose change redoes no work: the five Confluence keys', and so every key entering none. */
+    private static final String NO_WORK = "Changing it redoes no work; it takes effect the next time you press Publish.";
+
+    /** The line of where the models run, which no Save writes and so no change in the window costs (ADR-384 §7). */
+    private static final String WHERE_THE_MODELS_RUN = "It cannot be changed here; Vespera checks it each time it starts, and it redoes no work.";
+
+    /** The cost line of each earliest work a change redoes, the work said in plain words. */
+    private static final Map<ProfileKey.Run, String> COST_BY_EARLIEST = Map.of(
+            ProfileKey.Run.BYTE_LEVEL_REDUCTION, "Changing it redoes everything from sorting your files to writing the"
+                    + " pages; text already read out of your files is kept.",
+            ProfileKey.Run.EXTRACTION, "Changing it redoes everything after reading the text out of your files; the"
+                    + " text already read is kept.",
+            ProfileKey.Run.CONTENT_REDUNDANCY, "Changing it redoes the search for documents that say the same thing,"
+                    + " the groups and the pages; your files are not read again.",
+            ProfileKey.Run.SEED_MEASUREMENT, "Changing it redoes everything from reading your seed documents to writing"
+                    + " the pages; your other files are not read again.",
+            ProfileKey.Run.EMBEDDING_SCORING, "Changing it redoes the measuring of closeness, the grouping and the"
+                    + " writing of the pages; your files are not read again.",
+            ProfileKey.Run.GENERATION, "Changing it redoes only the writing of the pages; everything before it is kept.");
+
+    /** The cost line of the largest group page, which enters no work but draws the group pages again. */
+    private static final String THE_GROUP_PAGES = "Changing it rewrites only the group pages (a split group's pictures"
+            + " are read again); everything else is kept.";
+
+    /** Each source {@code effective-values.properties} names, in plain words. */
+    private static final Map<String, String> SOURCES = Map.of(
+            "shipped", "Vespera's settings",
+            "local-file", "your local settings file",
+            "command-line", "the command that started Vespera",
+            "environment", "this computer's environment",
+            "code", "Vespera's built-in value");
+
+    /**
+     * The one sentence of what a change redoes, chosen by its earliest work. A key whose earliest work the table gives
+     * no line, the content census or the arrangement, fails here rather than show none.
+     */
+    static String costOf(ProfileKey key) {
+        if (key == ProfileKey.CLUSTER_PAGE_BYTE_CEILING) {
+            return THE_GROUP_PAGES;
         }
-        String text = words.toString();
-        return text.substring(0, 1).toUpperCase(Locale.ROOT) + text.substring(1);
+        if (key == ProfileKey.MODELS_RUN_ON) {
+            return WHERE_THE_MODELS_RUN;
+        }
+        return key.earliestRun().map(run -> {
+            String line = COST_BY_EARLIEST.get(run);
+            if (line == null) {
+                throw new IllegalStateException(key.key() + " first enters " + run.stageName()
+                        + ", for which no cost line is written");
+            }
+            return line;
+        }).orElse(NO_WORK);
     }
 
-    /** Which steps a change makes again, in words (ADR-330 §9). */
-    static String costOf(ProfileKey key) {
+    /** The warnings a change of the key carries, one line each, in order, each only where its cost applies it. */
+    static List<String> warningsOf(ProfileKey key) {
         ProfileKey.Cost cost = key.cost();
-        if (cost.runs().isEmpty()) {
-            return "A change makes no step again.";
-        }
-        StringBuilder words = new StringBuilder("A change makes again: ")
-                .append(cost.runs().stream().map(ProfileKey.Run::stageName).collect(Collectors.joining(", "))).append('.');
+        List<String> warnings = new ArrayList<>();
         if (cost.approvalCloses()) {
-            words.append(" The approval written names an arrangement the next invocation no longer arrives at.");
+            warnings.add("Approval: a grouping you approved must be approved again in the Approved grouping row.");
         }
         if (cost.labelsRefused()) {
-            words.append(" The label file names the old seed set, so label refuses it.");
+            warnings.add("Answers: press Record my answers first; after the change the old answers file is refused.");
+        } else if (cost.sampleDrawnAgain()) {
+            warnings.add("Answers: press Record my answers first, or unsaved answers in relevance-labels.yaml are lost.");
         }
         if (cost.sampleDrawnAgain()) {
-            words.append(" The sample being answered is drawn again and the label file is written over.");
+            warnings.add("New sample: Vespera picks new documents for you to judge in relevance-labels.yaml.");
         }
-        return words.toString();
+        return List.copyOf(warnings);
+    }
+
+    /** The line of the value in use where the profile names none, its source in plain words where it is a known one. */
+    static String inUseOf(EffectiveValues.Value said) {
+        String source = SOURCES.get(said.source());
+        return "Left empty, Vespera uses " + said.value() + (source == null ? "" : " (" + source + ")") + ".";
     }
 }

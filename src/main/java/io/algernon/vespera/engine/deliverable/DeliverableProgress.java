@@ -6,7 +6,8 @@ package io.algernon.vespera.engine.deliverable;
  * the line; this module writes none and declares no logger.
  *
  * <p><b>Every method takes numbers alone</b> (ADR-274 §8), so nothing it reports can name a path, a file or a
- * document's text.
+ * document's text; but for {@link #codeSetFolderChanged}, which takes two names of the tree's own {@code code/}, and
+ * {@link #pluginDrawingFailed}, which takes two words of ours (ADR-377 §9, ADR-333 §11).
  *
  * <p><b>The contract, for each {@code to...} method:</b> called exactly once each time its loop is reached,
  * with the loop's total, before the loop's first item, zero included; its completion method is called once
@@ -142,16 +143,13 @@ public interface DeliverableProgress {
     default void codeFileNotCopied() {}
 
     /**
-     * Called once, where {@code code-set-names.yaml} is refused whole or cannot be read, and the tree is drawn with every
-     * set's default name (ADR-296 §6.2). It names no entry.
+     * Called once for each code set whose folder in the tree's {@code code/} is not the one the tree's earlier listing
+     * of code gave it, case aside, in the order the sets are drawn, once the listing this drawing wrote is in place
+     * (ADR-377 §9). The one method taking names and not numbers: {@code earlier} and {@code now} are two folders of the
+     * tree's own {@code code/}, each a set's folder's last element made safe, or that, {@code ~} and an occurrence id,
+     * which name a set of code and no document, file or path of the archive (ADR-274 §8 as ADR-377 §9 amends it).
      */
-    default void codeSetNamesRefused() {}
-
-    /**
-     * Called once, where {@code entries} entries of {@code code-set-names.yaml} name a folder holding no code set of the
-     * run, and none where there are none (ADR-296 §6.2).
-     */
-    default void dormantCodeSetNames(long entries) {}
+    default void codeSetFolderChanged(String earlier, String now) {}
 
     /**
      * Called once for each plugin whose drawing failed and was stopped, with its name and the simple name of the type
