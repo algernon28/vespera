@@ -1,11 +1,11 @@
 package io.algernon.vespera.engine.pipeline;
 
-/** There is no {@code docker} command on this machine (ADR-323 §8). */
+/** The engine check's program, {@code docker} or {@code wsl} on Windows, is not on this machine (ADR-390 §6). */
 final class DockerIsNotInstalledException extends SidecarStartRefusedException {
 
-    DockerIsNotInstalledException() {
-        super("the sidecars are not answering and Vespera cannot start them: no docker command was found. Install"
-                + " Docker -- Docker Desktop on Windows and macOS, Docker Engine on Linux -- and run the same command"
-                + " again, or start the sidecars yourself and set VESPERA_SIDECARS_START=false.");
+    DockerIsNotInstalledException(String program) {
+        super("Vespera cannot start Docker: no " + program + " command was found. Install Docker Engine -- in a WSL 2"
+                + " distribution on Windows, with Colima on macOS, as the docker service on Linux -- and run the same"
+                + " command again.");
     }
 }

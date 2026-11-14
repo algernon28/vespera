@@ -22,7 +22,7 @@ final class OptionsPane {
 
     private static final Pattern A_DURATION = Pattern.compile("(\\d+)\\s*([smh]?)");
 
-    private static final List<String> FLAGS = List.of("vespera.sidecars.start", "vespera.models.pull");
+    private static final List<String> FLAGS = List.of("vespera.models.pull");
 
     private final ControlPanelState state;
     private final Runnable changed;

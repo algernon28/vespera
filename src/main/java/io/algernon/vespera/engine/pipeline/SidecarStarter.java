@@ -11,6 +11,7 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,8 +19,9 @@ import org.springframework.core.env.Environment;
 
 /**
  * Brings the two sidecars up where they are not answering: starts the Docker engine where it is not running, then
- * runs the README's {@code up} with {@code --no-recreate}, and waits for both sidecars (ADR-323). It never stops,
- * removes or recreates a container or the engine, and does nothing at exit.
+ * runs the README's {@code up} with {@code --no-recreate}, and waits for both sidecars (ADR-323). It never removes or
+ * recreates a container, and stops the sidecars and the engine only when asked to ({@link #stopTheSidecars} and
+ * {@link #shutDown}, ADR-390 §3); it does nothing at exit.
  *
  * <p>The commands that use a sidecar, {@code vespera run} and {@code vespera label --auto}, ask {@link
  * #ensureRunning} before they do anything else; a {@link SidecarStartRefusedException} is its refusal, one line and
@@ -30,15 +32,25 @@ public class SidecarStarter {
 
     /** How a call to {@link #ensureRunning} ended when it did not refuse. */
     enum Outcome {
-        /** {@code vespera.sidecars.start} is false (ADR-323 §9). */
-        NOT_ASKED_TO_START,
         /** A base URL names another machine, which Docker on this one cannot make answer. */
         ON_ANOTHER_MACHINE,
         /** Both sidecars answered, when first asked or when asked again under the lock. */
         ALREADY_ANSWERING,
         /** The engine was made to answer where it did not, {@code up} was run and both sidecars answer. */
-        STARTED
+        STARTED,
+        /** {@link #ensureTheEngineRuns}: the engine answered when asked, and nothing was started. */
+        ENGINE_ANSWERING,
+        /** {@link #ensureTheEngineRuns}: the engine was made to answer where it did not; no {@code up} was run. */
+        ENGINE_STARTED
     }
+
+    /** What the shut-down did: whether both the sidecars and the engine are stopped, and the one line that says it (ADR-390 §6). */
+    record ShutDown(boolean done, String line) {
+    }
+
+    /** The line of a shut-down that stopped both (ADR-390 §6). */
+    static final String SHUT_DOWN_DONE =
+            "the sidecars and the Docker engine are stopped; Vespera starts them again when it next needs them.";
 
     /** The lock file, in the folder the corpus-root locks lie in (ADR-323 §6). */
     private static final String LOCK_FILE = "sidecars.lock";
@@ -108,12 +120,7 @@ public class SidecarStarter {
      * @throws SidecarStartRefusedException when they do not answer and cannot be made to
      */
     Outcome ensureRunning() {
-        if (!settings.start()) {
-            return Outcome.NOT_ASKED_TO_START;
-        }
-        if (!isOnThisMachine(settings.doclingBaseUrl()) || !isOnThisMachine(settings.ollamaBaseUrl())) {
-            log.info("A sidecar is looked for on another machine ({} and {}): Vespera starts none; one that does not"
-                    + " answer fails where it fails", settings.doclingBaseUrl(), settings.ollamaBaseUrl());
+        if (aSidecarIsOnAnotherMachine()) {
             return Outcome.ON_ANOTHER_MACHINE;
         }
         if (bothAnswer()) {
@@ -144,6 +151,88 @@ public class SidecarStarter {
         }
     }
 
+    private boolean aSidecarIsOnAnotherMachine() {
+        if (!isOnThisMachine(settings.doclingBaseUrl()) || !isOnThisMachine(settings.ollamaBaseUrl())) {
+            log.info("A sidecar is looked for on another machine ({} and {}): Vespera starts none; one that does not"
+                    + " answer fails where it fails", settings.doclingBaseUrl(), settings.ollamaBaseUrl());
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Makes the Docker engine answer where it does not and asks no sidecar: ADR-323 §3's step 2, then, under the lock,
+     * the engine's check, its start and the wait (ADR-390 §4). What the control panel runs as its window opens.
+     *
+     * @throws SidecarStartRefusedException when the engine does not answer and cannot be made to
+     */
+    Outcome ensureTheEngineRuns() {
+        if (aSidecarIsOnAnotherMachine()) {
+            return Outcome.ON_ANOTHER_MACHINE;
+        }
+        try (SidecarLock lock = takeTheLock()) {
+            return makeTheEngineAnswer() ? Outcome.ENGINE_STARTED : Outcome.ENGINE_ANSWERING;
+        }
+    }
+
+    /**
+     * Stops the sidecars alone, only where both base URLs name this machine and either sidecar answers, so that no
+     * engine stopped behind its socket is started and no WSL distribution is booted for nothing to stop (ADR-390 §3).
+     *
+     * @return the line of a refusal, empty where they were stopped or nothing was to be done
+     */
+    Optional<String> stopTheSidecars() {
+        if (!isOnThisMachine(settings.doclingBaseUrl()) || !isOnThisMachine(settings.ollamaBaseUrl())
+                || !(health.doclingAnswers() || health.ollamaAnswers())) {
+            return Optional.empty();
+        }
+        try (SidecarLock lock = takeTheLock()) {
+            ProcessOutcome stopped = runStop(host.composeStop(settings.wslDistribution()));
+            if (stopped.exitCode() != 0) {
+                return Optional.of("the sidecars were not stopped: " + exited(host.composeStop(settings.wslDistribution()),
+                        stopped) + ".");
+            }
+            return Optional.empty();
+        } catch (SidecarLockUnavailableException unusable) {
+            return Optional.of("the sidecars were not stopped: " + unusable.unusable() + ".");
+        } catch (CommandOutputFileUnusableException unusable) {
+            return Optional.of("the sidecars were not stopped: " + unusable.unusable() + ".");
+        }
+    }
+
+    /** The shut-down: the sidecars' stop, then, only where it exited 0, the engine's (ADR-390 §3). */
+    ShutDown shutDown() {
+        List<String> composeStop = host.composeStop(settings.wslDistribution());
+        List<String> engineStop = host.engineStop(settings.wslDistribution());
+        try (SidecarLock lock = takeTheLock()) {
+            ProcessOutcome sidecars = runStop(composeStop);
+            if (sidecars.exitCode() != 0) {
+                return new ShutDown(false, "Docker was not shut down: " + exited(composeStop, sidecars)
+                        + ". The Docker engine was not stopped.");
+            }
+            ProcessOutcome engine = runStop(engineStop);
+            if (engine.exitCode() != 0) {
+                return new ShutDown(false, "the sidecars are stopped, but the Docker engine is not: "
+                        + exited(engineStop, engine) + ". Stop Docker yourself, or leave it running.");
+            }
+            return new ShutDown(true, SHUT_DOWN_DONE);
+        } catch (SidecarLockUnavailableException unusable) {
+            return new ShutDown(false, "Docker was not shut down: " + unusable.unusable() + ".");
+        } catch (CommandOutputFileUnusableException unusable) {
+            return new ShutDown(false, "Docker was not shut down: " + unusable.unusable() + ".");
+        }
+    }
+
+    private static String exited(List<String> command, ProcessOutcome outcome) {
+        return SidecarStartRefusedException.asRun(command) + " exited " + outcome.exitCode() + ": "
+                + outcome.lastLine();
+    }
+
+    /** Runs a stop, killed after the bound; a program that cannot be started counts as exit 127 with its reason. */
+    private ProcessOutcome runStop(List<String> command) {
+        return runCounting(command, settings.waitAtMost());
+    }
+
     private boolean bothAnswer() {
         boolean docling = health.doclingAnswers();
         boolean ollama = health.ollamaAnswers();
@@ -166,23 +255,15 @@ public class SidecarStarter {
 
     // ---- the engine (ADR-323 §5)
 
-    private void makeTheEngineAnswer() {
+    /** Makes the engine answer; true where it had to be started, false where it answered when asked. */
+    private boolean makeTheEngineAnswer() {
         if (engineAnswers()) {
-            return;
+            return false;
         }
-        List<String> tried = new ArrayList<>();
-        boolean started = false;
-        for (List<String> command : host.engineStartCommands()) {
-            ProcessOutcome outcome = runOrNotInstalled(command);
-            if (outcome.exitCode() == 0) {
-                started = true;
-                break;
-            }
-            tried.add(SidecarStartRefusedException.asRun(command) + " exited " + outcome.exitCode() + ": "
-                    + outcome.lastLine());
-        }
-        if (!started) {
-            throw DockerEngineDidNotStartException.noCommandStartedIt(tried);
+        List<String> start = host.engineStart(settings.wslDistribution());
+        ProcessOutcome outcome = runCounting(start, settings.waitAtMost());
+        if (outcome.exitCode() != 0) {
+            throw DockerEngineDidNotStartException.noCommandStartedIt(List.of(exited(start, outcome)));
         }
         log.info("Waiting up to {} seconds for the Docker engine to answer", settings.waitAtMost().toSeconds());
         long began = System.nanoTime();
@@ -193,27 +274,31 @@ public class SidecarStarter {
             sleep();
         }
         log.info("The Docker engine answers after {} seconds", secondsSince(began));
+        return true;
     }
 
     private boolean engineAnswers() {
-        return runOrNotInstalled(List.of("docker", "version", "--format", "{{.Server.Version}}")).exitCode() == 0;
+        List<String> check = host.engineCheck(settings.wslDistribution());
+        try {
+            return runner.run(check, COMMAND_LIMIT).exitCode() == 0;
+        } catch (CommandOutputFileException unusable) {
+            throw new CommandOutputFileUnusableException(unusable);
+        } catch (IOException cannotStart) {
+            throw new DockerIsNotInstalledException(host.engineProgram());
+        }
     }
 
     /**
-     * Runs a command of the engine's section. A {@code docker} that cannot be started is Docker not being installed;
-     * any other program that cannot be started, {@code systemctl} on a machine without systemd, is a command that
-     * exited non-zero.
+     * Runs a command of the engine's start or stop. A program that cannot be started, {@code systemctl} on a machine
+     * without systemd or {@code colima} not installed, is a command that exited 127 with its reason (ADR-390 §2).
      */
-    private ProcessOutcome runOrNotInstalled(List<String> command) {
+    private ProcessOutcome runCounting(List<String> command, Duration limit) {
         try {
-            return runner.run(command, COMMAND_LIMIT);
+            return runner.run(command, limit);
         } catch (CommandOutputFileException unusable) {
             // Whatever the program: Docker is not what failed, and the next command writes to the same folder.
             throw new CommandOutputFileUnusableException(unusable);
         } catch (IOException cannotStart) {
-            if (command.getFirst().equals("docker")) {
-                throw new DockerIsNotInstalledException();
-            }
             return new ProcessOutcome(127, cannotStart.getMessage() == null ? "" : cannotStart.getMessage());
         }
     }
@@ -231,19 +316,16 @@ public class SidecarStarter {
 
     private void bringUp(boolean withTheGpuFile) {
         try (ComposeFiles files = writtenOut()) {
-            List<String> up = new ArrayList<>(List.of("docker", "compose", "-p", "vespera", "-f"));
-            up.add(files.composeFile().toString());
-            if (withTheGpuFile) {
-                up.add("-f");
-                up.add(files.gpuFile().toString());
-            }
-            up.addAll(List.of("up", "-d", "--build", "--no-recreate"));
+            List<Path> named = withTheGpuFile
+                    ? List.of(files.composeFile(), files.gpuFile())
+                    : List.of(files.composeFile());
+            List<String> up = host.composeUp(settings.wslDistribution(), named);
             log.info("Starting the sidecars: {}", SidecarStartRefusedException.asRun(up));
             ProcessOutcome outcome;
             try {
                 outcome = runner.runToTheEnd(up, line -> log.info("{}", line));
             } catch (IOException cannotStart) {
-                throw new DockerIsNotInstalledException();
+                throw new DockerIsNotInstalledException(host.engineProgram());
             }
             if (outcome.exitCode() != 0) {
                 throw new SidecarsDidNotStartException(up, outcome);

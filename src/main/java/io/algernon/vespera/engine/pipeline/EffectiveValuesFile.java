@@ -64,7 +64,6 @@ final class EffectiveValuesFile {
     /** The keys of the application's own file the control panel shows, in the order of ADR-330 §1. */
     private static final String[] AS_THE_APPLICATION_RESOLVES_THEM = {
         "vespera.docling.image",
-        SidecarStartSettings.START_PROPERTY,
         SidecarStartSettings.WAIT_AT_MOST_PROPERTY,
         "vespera.progress-interval",
         // The presets of ADR-330 §9, in the order of its table: the neighbours first, then the fourteen from the OCR

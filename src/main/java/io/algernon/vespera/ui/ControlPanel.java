@@ -48,11 +48,13 @@ public final class ControlPanel {
             return new Opening(Opening.Result.NO_JAR, refusal.getMessage());
         }
         String userName = System.getProperty("user.name");
+        StartingValues.Sources sources = readSources();
+        Path lockFolder = corpusRootLockFolder(System.getenv(CORPUS_ROOT_LOCK_FOLDER_VARIABLE),
+                System.getProperty("user.home"));
         ControlPanelState state = new ControlPanelState(runtime,
-                LaunchValues.fileIn(Path.of(System.getProperty("java.io.tmpdir")), userName),
-                corpusRootLockFolder(System.getenv(CORPUS_ROOT_LOCK_FOLDER_VARIABLE), System.getProperty("user.home")),
-                userName);
-        state.useSources(readSources());
+                LaunchValues.fileIn(Path.of(System.getProperty("java.io.tmpdir")), userName), lockFolder, userName,
+                DockerControl.inProcess(dockerSettings(sources, lockFolder)));
+        state.useSources(sources);
         Map<String, String> properties = new HashMap<>();
         System.getProperties().stringPropertyNames().forEach(name -> properties.put(name, System.getProperty(name)));
         state.useWorkingDirectoryDefault(WorkingDirectoryDefault.of(Path.of(""), properties, System.getenv()));
@@ -67,6 +69,28 @@ public final class ControlPanel {
                     cannotStart.getClass().getName() + (message == null ? "" : ": " + message));
         }
         return new Opening(Opening.Result.CLOSED, "");
+    }
+
+    /**
+     * What the Docker engine's code is given (ADR-390 §4): the WSL distribution and {@code vespera.sidecars.wait-at-most}
+     * from the sources the window's fields start from, and the corpus-root lock folder, where {@code sidecars.lock} lies
+     * too.
+     */
+    static DockerControl.Settings dockerSettings(StartingValues.Sources sources, Path lockFolder) {
+        String distribution = StartingValues.of("vespera.sidecars.wsl-distribution", sources).value();
+        String wait = StartingValues.of("vespera.sidecars.wait-at-most", sources).value();
+        java.util.regex.Matcher read = java.util.regex.Pattern.compile("(\\d+)\\s*([smh]?)").matcher(wait.strip());
+        long seconds = 180;
+        if (read.matches()) {
+            long number = Long.parseLong(read.group(1));
+            seconds = switch (read.group(2)) {
+                case "m" -> number * 60;
+                case "h" -> number * 3600;
+                default -> number;
+            };
+        }
+        return new DockerControl.Settings(distribution, java.time.Duration.ofSeconds(Math.max(1, seconds)), lockFolder,
+                sources);
     }
 
     /**
