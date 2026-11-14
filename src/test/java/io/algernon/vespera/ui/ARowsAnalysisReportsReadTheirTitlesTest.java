@@ -33,8 +33,9 @@ import org.junit.jupiter.api.io.TempDir;
  * A profile row's reports read their titles (ADR-377 §5): each report of the key is a link reading the report's title,
  * {@code <prefix><key>.report-<name>}, which opens the report's native view (ADR-362 §10); a report whose JSON the
  * working directory does not hold is its title in grey, not written yet; and the twelve titles are {@code
- * Reports.TITLES}, which the jar's pages carry too. Each window is shown on the Headless platform, the Profile tab
- * selected.
+ * Reports.TITLES}, which the jar's pages carry too. Each window is shown on the Headless platform, the Profile window
+ * opened: its rows are read and pressed there, and the report's tab a link opens is read in the control panel's window
+ * (ADR-389 §2).
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -52,7 +53,7 @@ class ARowsAnalysisReportsReadTheirTitlesTest {
     /** The report {@link #ONE_ANALYSIS_REPORT}'s row links. */
     private static final String ITS_ANALYSIS_REPORT = "document-frequency";
 
-    /** The Profile tab's prefix of every id of its rows. */
+    /** The Profile window's prefix of every id of its rows. */
     private static final String PROFILE = "profile-";
 
     /** The twelve analysis reports' titles, by name, as the record gives them. */
@@ -85,8 +86,8 @@ class ARowsAnalysisReportsReadTheirTitlesTest {
         Map<String, String> links = new LinkedHashMap<>();
         List<String> texts = new ArrayList<>();
         try (WindowForTests window = windowOver(folder, working)) {
-            window.act(root -> WindowForTests.node(root, prefix + ".more", ToggleButton.class).fire());
-            window.act(root -> {
+            window.actOnProfile(root -> WindowForTests.node(root, prefix + ".more", ToggleButton.class).fire());
+            window.actOnProfile(root -> {
                 for (Node each : HeadlessToolkit.everyNodeUnder(
                         WindowForTests.node(root, prefix + ".reports", Node.class))) {
                     if (each instanceof Hyperlink link) {
@@ -114,7 +115,8 @@ class ARowsAnalysisReportsReadTheirTitlesTest {
 
     @Test
     @Story("A row's reports read their titles")
-    @DisplayName("A row's link opens its report's native view in the window, and hands nothing to the system")
+    @Link(name = "ADR-389", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
+    @DisplayName("A row's link opens its report's native view in the control panel's window, and hands nothing to the system")
     void aLinkOpensItsAnalysisReportsNativeView(@TempDir Path folder) throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
         writeJson(working, ITS_ANALYSIS_REPORT);
@@ -123,7 +125,7 @@ class ARowsAnalysisReportsReadTheirTitlesTest {
         List<String> viewers = new ArrayList<>();
         List<URI> handed;
         try (WindowForTests window = windowOver(folder, working)) {
-            window.act(root -> WindowForTests.pressRowAnalysisReportLink(root, PROFILE, ONE_ANALYSIS_REPORT, ITS_ANALYSIS_REPORT));
+            window.actOnProfile(root -> WindowForTests.pressRowAnalysisReportLink(root, PROFILE, ONE_ANALYSIS_REPORT, ITS_ANALYSIS_REPORT));
             opened = window.read(root -> WindowForTests.reportTab(root, ITS_ANALYSIS_REPORT));
             title = window.read(root -> HeadlessToolkit.tabWithId(root, "analysis-report-" + ITS_ANALYSIS_REPORT)
                     .map(Tab::getText).orElse(null));
@@ -152,7 +154,7 @@ class ARowsAnalysisReportsReadTheirTitlesTest {
         Node[] shown = new Node[1];
         List<Hyperlink> links = new ArrayList<>();
         try (WindowForTests window = windowOver(folder, working)) {
-            window.act(root -> {
+            window.actOnProfile(root -> {
                 shown[0] = WindowForTests.node(root, prefix + ".report-" + ITS_ANALYSIS_REPORT, Node.class);
                 links.addAll(WindowForTests.every(root, PROFILE + "row-" + ONE_ANALYSIS_REPORT.key(), Hyperlink.class).stream()
                         .filter(link -> link.getId() != null && link.getId().contains(".report-")).toList());
@@ -184,17 +186,14 @@ class ARowsAnalysisReportsReadTheirTitlesTest {
 
     // ---- the window and its files
 
-    /** The window over {@code working}, with a corpus root under {@code folder}, the Profile tab selected. */
+    /** The window over {@code working}, with a corpus root under {@code folder}, the Profile window opened. */
     private static WindowForTests windowOver(Path folder, Path working) throws Exception {
         Path corpus = Files.createDirectories(folder.resolve("corpus"));
         ControlPanelState state = WindowForTests.aState(folder, SleepingJar.runtime());
         state.hold(new LaunchValues(corpus.toString(), working.toString(), "", "", "", "", "", ""));
         WindowForTests window = WindowForTests.shown(state);
         try {
-            window.act(root -> {
-                Tab profileTab = HeadlessToolkit.tabWithId(root, "profile").orElseThrow();
-                profileTab.getTabPane().getSelectionModel().select(profileTab);
-            });
+            window.openProfile();
             return window;
         } catch (Exception | Error failed) {
             window.close();

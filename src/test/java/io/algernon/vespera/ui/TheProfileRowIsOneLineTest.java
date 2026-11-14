@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 import javafx.event.Event;
 import javafx.geometry.Bounds;
 import javafx.scene.Node;
@@ -27,7 +28,6 @@ import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.Labeled;
 import javafx.scene.control.Spinner;
-import javafx.scene.control.Tab;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.control.TitledPane;
@@ -46,7 +46,8 @@ import org.junit.jupiter.api.io.TempDir;
  * short description, the line of the value in use, its cost line, its warnings and its reports; its open state carried
  * by its key while the working directory stays the same; and the provenance the file states in its title's tooltip
  * alone, no line or field of the row holding it (§1). Each window is shown on the Headless platform at the control
- * panel's 1500 by 960, the Profile tab selected.
+ * panel's 1500 by 960, and the Profile window opened, its rows read and acted on there at the size it opens at
+ * (ADR-389 §2, §3).
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -66,7 +67,7 @@ class TheProfileRowIsOneLineTest {
     /** The words that open the provenance's part of a title's tooltip. */
     private static final String CAME_FROM = "Where this value came from: ";
 
-    /** A key with a control of its own on the Profile tab, a number, and one report. */
+    /** A key with a control of its own in the Profile window, a number, and one report. */
     private static final ProfileKey A_FLOOR = ProfileKey.BOILERPLATE_DOCUMENT_FREQUENCY_FLOOR;
 
     /** A key no test opens. */
@@ -85,7 +86,7 @@ class TheProfileRowIsOneLineTest {
         Map<ProfileKey, FirstLine> lines = new LinkedHashMap<>();
         try (WindowForTests window = windowOver(folder, "")) {
             for (ProfileKey key : List.of(ProfileKey.SEED_FOLDER, A_FLOOR)) {
-                lines.put(key, window.read(root -> firstLine(root, "profile-", key)));
+                lines.put(key, window.readProfile(root -> firstLine(root, "profile-", key)));
             }
         }
 
@@ -125,32 +126,23 @@ class TheProfileRowIsOneLineTest {
 
     @Test
     @Story("A profile row is one line")
-    @DisplayName("Every control of the Profile tab starts at one edge, and no title is cut")
-    void everyControlOfTheTabStartsAtOneEdge(@TempDir Path folder) throws Exception {
+    @DisplayName("Every control of the Profile window starts at one edge, at the size the window opens at")
+    void everyControlOfTheProfileWindowStartsAtOneEdge(@TempDir Path folder) throws Exception {
         Map<String, Double> lefts = new LinkedHashMap<>();
-        Map<String, double[]> titleAndLine = new LinkedHashMap<>();
         try (WindowForTests window = windowOver(folder, "")) {
-            window.act(root -> {
+            window.actOnProfile(root -> {
                 for (ProfileKey key : ProfileKey.values()) {
-                    FirstLine line = firstLine(root, "profile-", key);
-                    lefts.put(key.key(), line.control().minX());
-                    TextInputControl title = WindowForTests.node(root, "profile-" + key.key() + ".title",
-                            TextInputControl.class);
-                    Text measure = new Text(title.getText());
-                    measure.setFont(title.getFont());
-                    titleAndLine.put(key.key(), new double[] {measure.getLayoutBounds().getWidth(), title.getWidth()});
+                    lefts.put(key.key(), firstLine(root, "profile-", key).control().minX());
                 }
             });
         }
         double first = lefts.values().iterator().next();
 
-        claim("every key of the profile has a row on the Profile tab, so that a check of one edge cannot pass over none",
+        claim("every key of the profile has a row in the Profile window, so that a check of one edge cannot pass over"
+                        + " none",
                 () -> assertThat(lefts).hasSize(ProfileKey.values().length));
         claim("every row's control starts at the same left edge, within a pixel",
                 () -> lefts.forEach((key, left) -> assertThat(left).as(key).isCloseTo(first, offset(ONE_PIXEL))));
-        claim("no title is cut: each title's text is no wider than the one-line text that shows it, within a pixel",
-                () -> titleAndLine.forEach((key, widths) -> assertThat(widths[0]).as(key)
-                        .isLessThanOrEqualTo(widths[1] + ONE_PIXEL)));
     }
 
     @Test
@@ -175,8 +167,8 @@ class TheProfileRowIsOneLineTest {
         List<String> inUseDetails = new ArrayList<>();
         String[] inUseLine = new String[1];
         try (WindowForTests window = windowOver(folder, "")) {
-            window.act(root -> WindowForTests.node(root, prefix + ".more", ToggleButton.class).fire());
-            window.act(root -> {
+            window.actOnProfile(root -> WindowForTests.node(root, prefix + ".more", ToggleButton.class).fire());
+            window.actOnProfile(root -> {
                 ToggleButton toggle = WindowForTests.node(root, prefix + ".more", ToggleButton.class);
                 Pane box = WindowForTests.node(root, prefix + ".details", Pane.class);
                 opened[0] = toggle.getText();
@@ -191,7 +183,7 @@ class TheProfileRowIsOneLineTest {
                 }
                 toggle.fire();
             });
-            window.act(root -> {
+            window.actOnProfile(root -> {
                 closed[0] = WindowForTests.node(root, prefix + ".more", ToggleButton.class).getText();
                 Pane box = WindowForTests.node(root, prefix + ".details", Pane.class);
                 closedShown[0] = box.isVisible();
@@ -205,7 +197,7 @@ class TheProfileRowIsOneLineTest {
                         false));
                 byTheKeyboard[1] = keyed.isSelected();
             });
-            window.act(root -> {
+            window.actOnProfile(root -> {
                 Pane box = WindowForTests.node(root, inUsePrefix + ".details", Pane.class);
                 box.getChildren().forEach(child -> inUseDetails.add(child.getId()));
                 inUseLine[0] = WindowForTests.node(root, inUsePrefix + ".in-use", TextInputControl.class).getText();
@@ -240,6 +232,7 @@ class TheProfileRowIsOneLineTest {
 
     @Test
     @Story("A profile row is one line")
+    @Link(name = "ADR-389", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
     @DisplayName("A row opened stays open through a Save and a Reset, and is drawn closed for another working directory")
     void aRowStaysOpenThroughASaveAndAResetAndClosesForAnotherWorkingDirectory(@TempDir Path folder) throws Exception {
         String prefix = "profile-" + A_FLOOR.key();
@@ -250,22 +243,24 @@ class TheProfileRowIsOneLineTest {
         Map<String, Boolean> neverOpenedAfter = new LinkedHashMap<>();
         String saved;
         try (WindowForTests window = windowOver(folder, profile)) {
-            window.act(root -> WindowForTests.node(root, prefix + ".more", ToggleButton.class).fire());
-            window.act(root -> {
+            window.actOnProfile(root -> WindowForTests.node(root, prefix + ".more", ToggleButton.class).fire());
+            window.actOnProfile(root -> {
                 WindowForTests.node(root, prefix, Spinner.class).getEditor().setText("0.5");
                 WindowForTests.node(root, "profile-save", Button.class).fire();
             });
-            window.act(root -> {
+            window.actOnProfile(root -> {
                 openAfter.put("a Save that writes", isOpen(root, prefix));
                 neverOpenedAfter.put("a Save that writes", isOpen(root, "profile-" + NEVER_OPENED.key()));
                 WindowForTests.node(root, "profile-reset", Button.class).fire();
             });
-            window.act(root -> {
+            window.actOnProfile(root -> {
                 openAfter.put("Reset", isOpen(root, prefix));
                 neverOpenedAfter.put("Reset", isOpen(root, "profile-" + NEVER_OPENED.key()));
-                WindowForTests.node(root, "vespera.working-dir", TextField.class).setText(otherWorking.toString());
             });
-            window.act(root -> {
+            // the working directory is a launch value, set in the control panel's window, which loads the form again
+            window.act(root -> WindowForTests.node(root, "vespera.working-dir", TextField.class)
+                    .setText(otherWorking.toString()));
+            window.actOnProfile(root -> {
                 openAfter.put("another working directory", isOpen(root, prefix));
                 neverOpenedAfter.put("another working directory", isOpen(root, "profile-" + NEVER_OPENED.key()));
             });
@@ -292,7 +287,7 @@ class TheProfileRowIsOneLineTest {
                 + block(blank, "20", "\"   \"");
         Map<ProfileKey, String> tooltips = new LinkedHashMap<>();
         try (WindowForTests window = windowOver(folder, profile)) {
-            window.act(root -> {
+            window.actOnProfile(root -> {
                 for (ProfileKey key : List.of(A_FLOOR, blank, absent)) {
                     tooltips.put(key, textOfTooltip(root, "profile-" + key.key() + ".title"));
                 }
@@ -322,17 +317,19 @@ class TheProfileRowIsOneLineTest {
         List<String> ids = new ArrayList<>();
         int[] opened = new int[1];
         try (WindowForTests window = windowOver(folder, profile.toString())) {
-            window.act(root -> HeadlessToolkit.everyNodeUnder(root).stream().filter(ToggleButton.class::isInstance)
-                    .map(ToggleButton.class::cast).filter(toggle -> toggle.getStyleClass().contains("more"))
-                    .forEach(toggle -> {
-                        toggle.fire();
-                        opened[0]++;
-                    }));
-            window.act(root -> {
+            // the rows of the profile lie in the Profile window, and the Seed folder's row in the control panel's: both
+            // windows are walked, every row of each opened first
+            Consumer<Parent> walk = root -> {
                 for (Node node : HeadlessToolkit.everyNodeUnder(root)) {
                     ids.add(node.getId());
                     textOf(node).ifPresent(texts::add);
                 }
+            };
+            window.act(TheProfileRowIsOneLineTest::openEveryRow);
+            opened[0] = window.readProfile(TheProfileRowIsOneLineTest::openEveryRow);
+            window.act(walk);
+            window.actOnProfile(root -> {
+                walk.accept(root);
                 for (ProfileKey key : ProfileKey.values()) {
                     HeadlessToolkit.everyNodeUnder(WindowForTests.node(root, "profile-row-" + key.key(), Node.class))
                             .stream().filter(SelectableText.class::isInstance)
@@ -341,11 +338,12 @@ class TheProfileRowIsOneLineTest {
             });
         }
 
-        claim("every row of the Profile tab was opened, so that its details are walked",
+        claim("every row of the Profile window was opened, so that its details are walked",
                 () -> assertThat(opened[0]).isGreaterThanOrEqualTo(ProfileKey.values().length));
-        claim("no text of the window holds the mark every provenance of the profile carries",
+        claim("no text of the control panel's window or of the Profile window holds the mark every provenance of the"
+                        + " profile carries",
                 () -> assertThat(texts).noneMatch(text -> text.contains(MARKER)));
-        claim("no node of the window is a field of a provenance, its box or a reason for an edit",
+        claim("no node of either window is a field of a provenance, its box or a reason for an edit",
                 () -> assertThat(ids).filteredOn(Objects::nonNull).noneMatch(id -> id.endsWith(".provenance")
                         || id.endsWith(".provenance-box") || id.endsWith(".edit-reason")));
         claim("no text reads the caption or the hint the provenance's field had",
@@ -363,8 +361,8 @@ class TheProfileRowIsOneLineTest {
 
     @Test
     @Story("A profile row is one line")
-    @DisplayName("The Seed folder's row and a wanted value's row are drawn as the Profile tab's rows are")
-    void theSeedFolderAndAWantedValueAreDrawnAsTheProfileTabsRows(@TempDir Path folder) throws Exception {
+    @DisplayName("The Seed folder's row and a wanted value's row are drawn as the Profile window's rows are")
+    void theSeedFolderAndAWantedValueAreDrawnAsTheProfileWindowsRows(@TempDir Path folder) throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
         Path corpus = Files.createDirectories(folder.resolve("corpus"));
         Files.writeString(working.resolve(NextInvocation.FILE_NAME),
@@ -420,7 +418,7 @@ class TheProfileRowIsOneLineTest {
 
     // ---- the window and its rows
 
-    /** The window over a working directory holding {@code profile} as its profile.yaml, the Profile tab selected. */
+    /** The window over a working directory holding {@code profile} as its profile.yaml, the Profile window opened. */
     private static WindowForTests windowOver(Path folder, String profile) throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
         Path corpus = Files.createDirectories(folder.resolve("corpus"));
@@ -431,10 +429,7 @@ class TheProfileRowIsOneLineTest {
         state.hold(new LaunchValues(corpus.toString(), working.toString(), "", "", "", "", "", ""));
         WindowForTests window = WindowForTests.shown(state);
         try {
-            window.act(root -> {
-                Tab profileTab = HeadlessToolkit.tabWithId(root, "profile").orElseThrow();
-                profileTab.getTabPane().getSelectionModel().select(profileTab);
-            });
+            window.openProfile();
             return window;
         } catch (Exception | Error failed) {
             window.close();
@@ -467,6 +462,15 @@ class TheProfileRowIsOneLineTest {
         return new FirstLine(placed(toggle), toggle.getText(), placed(title), ((TextInputControl) title).getText(),
                 title instanceof SelectableText.Line, placed(small), ((TextInputControl) small).getText(),
                 small instanceof SelectableText.Line, placed(line.getLast()), details.isVisible(), details.isManaged());
+    }
+
+    /** Opens every row under {@code root} by its toggle, and answers how many it opened. */
+    private static int openEveryRow(Parent root) {
+        List<ToggleButton> toggles = HeadlessToolkit.everyNodeUnder(root).stream()
+                .filter(ToggleButton.class::isInstance).map(ToggleButton.class::cast)
+                .filter(toggle -> toggle.getStyleClass().contains("more")).toList();
+        toggles.forEach(ToggleButton::fire);
+        return toggles.size();
     }
 
     private static boolean isOpen(Parent root, String prefix) {

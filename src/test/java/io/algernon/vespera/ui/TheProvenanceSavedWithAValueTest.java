@@ -35,8 +35,8 @@ import org.junit.jupiter.params.provider.MethodSource;
  * written, so a provenance written by hand in {@code profile.yaml} stays until its value is changed in the window. The
  * provenance the file states is shown in the title's tooltip alone (ADR-377 §1).
  *
- * <p>The rule is {@code ProfileEdit}'s, which every write of the profile passes through (ADR-295 §4); the window's rows
- * call it. Each expected provenance is written out: {@code set in the control panel} is the words ADR-343 §1 fixes.
+ * <p>The rule is {@code ProfileEdit}'s, which every write of the profile passes through (ADR-295 §4); the rows of the
+ * Profile window, where the form lies (ADR-389 §2), call it. Each expected provenance is written out: {@code set in the control panel} is the words ADR-343 §1 fixes.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -148,12 +148,13 @@ class TheProvenanceSavedWithAValueTest {
         state.hold(new LaunchValues(corpus.toString(), working.toString(), "", "", "", "", "", ""));
         String[] tooltips = new String[2];
         try (WindowForTests window = WindowForTests.shown(state)) {
-            window.act(root -> {
+            window.openProfile();
+            window.actOnProfile(root -> {
                 WindowForTests.node(root, "profile-" + A_FLOOR.key(), Spinner.class).getEditor().setText("0.5");
                 WindowForTests.node(root, "profile-" + EMPTIED.key() + ".set", CheckBox.class).setSelected(false);
                 WindowForTests.node(root, "profile-save", Button.class).fire();
             });
-            window.act(root -> {
+            window.actOnProfile(root -> {
                 tooltips[0] = tooltipOf(root, "profile-" + A_FLOOR.key() + ".title");
                 tooltips[1] = tooltipOf(root, "profile-" + EMPTIED.key() + ".title");
             });

@@ -2796,6 +2796,17 @@ public final class Adr {
             + "0388-where-the-models-run-is-worded-under-a-profile-rows-rules-and-a-change-of-it-takes-effect-the-next-time-vespera-starts.md";
 
     /**
+     * ADR-389 -- the profile is edited in a window of its own: Profile is the sidebar's first section, of eight, holding
+     * Open profile, which opens the one Profile window, with no owner and no modality, or brings it to the front; its
+     * size and place kept by the cockpit and written nowhere; closing it, or the cockpit, with an edit unsaved asks Save,
+     * Discard or Cancel; the badge on the section and the window's title; the refusals naming the Profile window, a
+     * button beside the outcome opening it; the tabs pane the Report tab and Inclusions (amends ADR-344 §1, ADR-359 §4,
+     * ADR-372 §1 and ADR-383 §1, §3 and §5).
+     */
+    public static final String THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN = FILE
+            + "0389-the-profile-is-edited-in-a-window-of-its-own-opened-from-the-first-section-of-the-sidebar.md";
+
+    /**
      * ADR-390 -- Vespera uses Docker Engine alone: one start command per system, inside a WSL 2 distribution on Windows
      * and Colima on macOS, and no Docker Desktop; the control panel calls {@code DockerEngine}, the one class of the
      * jar it names, to start the engine as its window opens, stop the sidecars as it closes, and, on its <i>Shut down
