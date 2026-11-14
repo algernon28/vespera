@@ -81,17 +81,15 @@ public final class ChildCommand {
 
     /**
      * One option of the command line the window passes (ADR-344 §4): the jar's property, the commands it is passed
-     * to, among {@code run}, {@code label} and {@code label --auto}, and why it is among the five.
+     * to, among {@code run}, {@code label} and {@code label --auto}, and why it is among the four.
      */
     public record Option(String property, List<String> commands, String reason) {
     }
 
-    /** The five presets the window offers, in the order they are passed (ADR-344 §4). */
+    /** The four presets the window offers, in the order they are passed (ADR-344 §4). */
     public static final List<Option> OPTIONS = List.of(
             new Option("vespera.progress-interval", List.of("run", "label", "label --auto"),
                     "How often the report and its page are rewritten; no run's identity holds it."),
-            new Option("vespera.sidecars.start", List.of("run", "label --auto"),
-                    "Whether the jar starts the sidecars; no run's identity holds it."),
             new Option("vespera.sidecars.wait-at-most", List.of("run", "label --auto"),
                     "How long the jar waits for the sidecars to answer; no run's identity holds it."),
             new Option("vespera.models.pull", List.of("run"),
