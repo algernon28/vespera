@@ -55,16 +55,25 @@ public final class ControlPanelWindow extends Application {
         Cockpit cockpit = drawn(state, dialogs);
         stage.setTitle("Vespera control panel");
         stage.setScene(new Scene(cockpit.root(), WIDTH, HEIGHT));
+        java.util.concurrent.atomic.AtomicBoolean closing = new java.util.concurrent.atomic.AtomicBoolean();
         stage.setOnCloseRequest(event -> {
-            if (!cockpit.profileAllowsClosing()) {
-                event.consume();
+            // The window stays shown while the child and then the sidecars are stopped, and closes after (ADR-390 §5).
+            event.consume();
+            if (closing.get()) {
                 return;
             }
-            if (cockpit.childRuns() && !dialogs.confirm(Child.STOP_CONFIRMATION, "Stop and close", "Keep the window")) {
-                event.consume();
+            // an edit unsaved in the Profile window is asked about first (ADR-389 section 4)
+            if (!cockpit.profileAllowsClosing()) {
+                return;
             }
+            if (cockpit.childRuns() && !dialogs.confirm(Child.STOP_CONFIRMATION, "Stop and close", "Keep the window")
+                    || !closing.compareAndSet(false, true)) {
+                return;
+            }
+            cockpit.stopTheChildAndTheSidecarsThen(stage::close);
         });
         stage.setOnHidden(event -> cockpit.closed());
         stage.show();
+        cockpit.startDocker();
     }
 }

@@ -439,7 +439,7 @@ class TheProfileWindowTest {
             afterCancel = showing(WindowForTests.closeAsTheOperatorDoes(window.stage), profile);
             fileAfterCancel = Files.readAllBytes(profileFile);
             window.dialogs.chosen = Optional.of(SAVE);
-            afterSave = showing(WindowForTests.closeAsTheOperatorDoes(window.stage), profile);
+            afterSave = closedOnceTheSidecarsAreStopped(window, profile);
             statedAfterSave = spaceIn(profileFile);
             askedOnSave = List.copyOf(window.dialogs.choices);
         }
@@ -455,7 +455,7 @@ class TheProfileWindowTest {
             Stage profile = window.profileWindow();
             typed(window, FIRST_EDIT);
             window.dialogs.chosen = Optional.of(DISCARD);
-            afterDiscard = showing(WindowForTests.closeAsTheOperatorDoes(window.stage), profile);
+            afterDiscard = closedOnceTheSidecarsAreStopped(window, profile);
             askedOnDiscard = window.dialogs.choices.size();
         }
 
@@ -465,7 +465,7 @@ class TheProfileWindowTest {
         try (WindowForTests window = WindowForTests.shown(aStateOver(unedited))) {
             window.openProfile();
             Stage profile = window.profileWindow();
-            withNoEdit = showing(WindowForTests.closeAsTheOperatorDoes(window.stage), profile);
+            withNoEdit = closedOnceTheSidecarsAreStopped(window, profile);
             askedWithNoEdit = window.dialogs.choices.size();
         }
 
@@ -1221,6 +1221,23 @@ class TheProfileWindowTest {
     }
 
     /** Whether the control panel's window, which {@code cockpitShowing} says, and {@code profile} are showing, in that order. */
+    /**
+     * Closes the cockpit as the operator does and waits, within the tests' bound, for it to close: since ADR-390 §5 it
+     * stays shown while its child and then the sidecars are stopped, and closes after. Gives whether the cockpit and the
+     * Profile window are each still shown.
+     */
+    private static boolean[] closedOnceTheSidecarsAreStopped(WindowForTests window, Stage profile) throws Exception {
+        WindowForTests.closeAsTheOperatorDoes(window.stage);
+        WindowForTests.within(() -> {
+            try {
+                return !HeadlessToolkit.onTheToolkit(window.stage::isShowing);
+            } catch (Exception unanswered) {
+                throw new IllegalStateException(unanswered);
+            }
+        });
+        return showing(HeadlessToolkit.onTheToolkit(window.stage::isShowing), profile);
+    }
+
     private static boolean[] showing(boolean cockpitShowing, Stage profile) throws Exception {
         return new boolean[] {cockpitShowing, HeadlessToolkit.onTheToolkit(profile::isShowing)};
     }
