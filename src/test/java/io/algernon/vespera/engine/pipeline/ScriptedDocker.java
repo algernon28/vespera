@@ -16,6 +16,10 @@ import java.util.function.Consumer;
  * up. Not installed, every command it is given throws as {@code ProcessBuilder.start} does for a program that is not
  * there. A command {@link #outputFileFails} names throws as the runner does where the temporary file its output goes to
  * cannot be created or read (ADR-326).
+ *
+ * <p>A command ending in {@link #ENGINE_CHECK} is the engine check, run as it is or inside a WSL distribution through
+ * {@code wsl} (ADR-389 §1); not installed, {@code wsl} is as missing as {@code docker} is. Each command's limit is
+ * recorded beside it, {@link #limits}.
  */
 final class ScriptedDocker implements ProcessRunner {
 
@@ -26,6 +30,7 @@ final class ScriptedDocker implements ProcessRunner {
     static final int NEVER = Integer.MAX_VALUE;
 
     private final List<List<String>> commands = new ArrayList<>();
+    private final List<Duration> limits = new ArrayList<>();
     private final Map<List<String>, ProcessOutcome> scripted = new HashMap<>();
     private final java.util.Set<List<String>> unlaunchable = new java.util.HashSet<>();
     private final Map<List<String>, CommandOutputFileException> outputFileFailures = new HashMap<>();
@@ -97,9 +102,21 @@ final class ScriptedDocker implements ProcessRunner {
         return List.copyOf(commands);
     }
 
+    /** The limit each command given to {@link #run} was given, in the order given; {@code up} is given none. */
+    List<Duration> limits() {
+        return List.copyOf(limits);
+    }
+
+    /** Whether {@code command} is the engine check, run as it is or inside {@code wsl}. */
+    static boolean isTheEngineCheck(List<String> command) {
+        return command.size() >= ENGINE_CHECK.size()
+                && command.subList(command.size() - ENGINE_CHECK.size(), command.size()).equals(ENGINE_CHECK);
+    }
+
     @Override
     public ProcessOutcome run(List<String> command, Duration timeout) throws IOException, CommandOutputFileException {
         commands.add(List.copyOf(command));
+        limits.add(timeout);
         if (outputFileFailures.containsKey(command)) {
             throw outputFileFailures.get(command);
         }
@@ -107,7 +124,7 @@ final class ScriptedDocker implements ProcessRunner {
         if (unlaunchable.contains(command)) {
             throw new IOException(scripted.get(command).output());
         }
-        if (command.equals(ENGINE_CHECK)) {
+        if (isTheEngineCheck(command)) {
             engineChecks++;
             return engineChecks > engineAnswersAfter
                     ? new ProcessOutcome(0, "29.9.1\n")
@@ -129,8 +146,8 @@ final class ScriptedDocker implements ProcessRunner {
     }
 
     private void refuseWhereNotInstalled(List<String> command) throws IOException {
-        if (!installed && command.getFirst().equals("docker")) {
-            throw new IOException("Cannot run program \"docker\": error=2, No such file or directory");
+        if (!installed && (command.getFirst().equals("docker") || command.getFirst().equals("wsl"))) {
+            throw new IOException("Cannot run program \"" + command.getFirst() + "\": error=2, No such file or directory");
         }
     }
 }

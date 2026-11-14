@@ -6,6 +6,8 @@
 
 > **Read with [ADR-354](0354-the-docling-images-are-built-where-they-run-from-the-one-containerfile-and-no-workflow-pushes-them-to-a-registry.md)**, which supersedes [ADR-349](0349-the-docling-images-are-built-once-pushed-to-ghcr-as-public-packages-never-over-a-tag-already-there-and-pulled-by-digest.md) whole, so ADR-349's amendment of this record is withdrawn and nothing of it is built. §2's *"Each compose file passes its own image name as `VESPERA_IMAGE`"*, §3's check and its two messages, and §4's revision rule, not extended, stand; the tag is `-r2`, and no image is pushed. ADR-349 changes nothing here; the ADR-214 and ADR-323 notes above stand.
 
+> **Partly amended — see [ADR-389](0389-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** The sidecars are stopped, never removed or recreated, by the control panel's *Shut down Docker* alone, with `docker compose -p vespera stop` before the engine's stop. The rest of this record, as ADR-323 left it, stands.
+
 - **Date**: 2026-10-03
 - **Status**: accepted
 - **Amends**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md). Its *"ADR-011's single-command start still holds where Spring Boot's compose support is on the classpath, which is the development entry points only"* stops being true. No entry point starts or stops a sidecar any more. The operator starts them with the `up` line the README gives, and that holds for the jar, the IDE and `spring-boot:run` alike. Its *Keeps ADR-046* paragraph is replaced by §1 here: the two compose artifacts leave `pom.xml`.

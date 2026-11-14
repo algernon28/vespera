@@ -227,6 +227,37 @@ class ChildCommandTest {
                 () -> assertThat(factories).containsExactly("label", "publish", "run"));
     }
 
+    /**
+     * ADR-389 §4: the control panel reaches the Docker engine through the jar's {@code docker} command, which takes no
+     * working directory and is handed on before Spring, its environment an invocation's, so the addresses of the
+     * sidecars and any {@code VESPERA_SIDECARS_*} the operator set reach it.
+     */
+    @Test
+    @Story("The control panel starts and shuts down the Docker engine through the jar")
+    @DisplayName("Docker's start and shut-down are the jar's docker command after both encoding flags, with no working directory, and an invocation's environment")
+    @Issue("816")
+    @Link(name = "ADR-389", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
+    void dockerIsTheJarsDockerCommandWithNoWorkingDirectory() {
+        Map<String, String> theControlPanels = new HashMap<>();
+        theControlPanels.put("PATH", "the-path");
+        theControlPanels.put("VESPERA_SIDECARS_WSL_DISTRIBUTION", "Ubuntu-24.04");
+        theControlPanels.put("VESPERA_WORKING_DIR", "D:\\another\\work\\folder");
+        Map<String, String> expected = new HashMap<>(EVERY_VALUE.toChildEnvironment());
+        expected.put("CI", "1");
+        expected.put("PATH", "the-path");
+        expected.put("VESPERA_SIDECARS_WSL_DISTRIBUTION", "Ubuntu-24.04");
+
+        for (String action : List.of("start", "shut-down")) {
+            ChildCommand docker = ChildCommand.docker(JAVA, JAR, EVERY_VALUE, action);
+            claim("docker " + action + "'s command line is the JVM, the two encoding flags, -jar and the jar, then"
+                            + " docker and " + action + ", and nothing after: no --db-dir and no option",
+                    () -> assertThat(docker.command()).containsExactlyElementsOf(with("docker", action)));
+            claim("and its environment is the control panel's less the variables naming the working directory, with"
+                            + " CI=1 and the launch values' five added, a distribution the operator named kept",
+                    () -> assertThat(docker.environmentFrom(theControlPanels)).isEqualTo(expected));
+        }
+    }
+
     private static List<String> with(String... after) {
         List<String> command = new ArrayList<>(BEFORE_THE_COMMAND);
         command.addAll(List.of(after));

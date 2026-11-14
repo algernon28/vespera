@@ -48,9 +48,8 @@ import org.springframework.test.context.DynamicPropertySource;
 import tools.jackson.databind.JsonNode;
 
 /**
- * No command of the jar opens a browser, a file or a window, and the report says so (ADR-362 section 2): the one start
- * of a program the jar still makes that looks like opening is Docker Desktop's, for the sidecars (ADR-323 section 5),
- * and it is no file opened.
+ * No command of the jar opens a browser, a file or a window, and the report says so (ADR-362 section 2), with no
+ * exception: no class starts Docker Desktop, whose start was the one that looked like opening (ADR-389 section 2).
  *
  * <p>What a class opens is read off its compiled form, as {@code ShippedClasses} reads what a class names: the
  * detector looks at constants loaded and types referred to, never at the text of a source. The control keeps it
@@ -59,16 +58,17 @@ import tools.jackson.databind.JsonNode;
 @CascadeSliceTest
 @Import({
     StubbedExtractionBeans.class,
-    NoCommandOpensAnythingTest.AStarterOnADesktopWhereTheEngineIsDown.class,
+    NoCommandOpensAnythingTest.AStarterOnAMacWhereTheEngineIsDown.class,
     NoCommandOpensAnythingTest.AnAnswerForTheDisplay.class
 })
 @Epic("Pipeline")
 @Feature("Nothing is opened")
 @Issue("760")
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
+@Link(name = "ADR-389", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
 class NoCommandOpensAnythingTest {
 
-    /** The class that starts Docker Desktop, and is the one class the detector exempts by name. */
+    /** The class that holds the commands of the Docker engine, which the scan must read, and which is exempt from nothing. */
     private static final String HOST_SYSTEM = "io.algernon.vespera.engine.pipeline.HostSystem";
 
     private static final Set<String> NAMING_A_PROGRAM = Set.of("rundll32", "xdg-open", "cmd");
@@ -89,10 +89,6 @@ class NoCommandOpensAnythingTest {
             "io/algernon/vespera/engine/pipeline/ProcessRunner",
             "io/algernon/vespera/engine/pipeline/SystemProcessRunner",
             "io/algernon/vespera/engine/pipeline/SidecarStarter");
-
-    private static final List<String> DESKTOP_START = List.of("docker", "desktop", "start", "--detach");
-
-    private static final List<String> OPEN_DOCKER_APP = List.of("open", "-a", "Docker");
 
     /** Engine checks the engine fails before it answers, so Vespera starts it. */
     private static final int ENGINE_CHECKS_FAILED = 2;
@@ -145,7 +141,7 @@ class NoCommandOpensAnythingTest {
 
     /** The production starter on a Mac whose Docker engine is down, run through whatever {@link #docker} is. */
     @TestConfiguration
-    static class AStarterOnADesktopWhereTheEngineIsDown {
+    static class AStarterOnAMacWhereTheEngineIsDown {
 
         @Bean
         SidecarStarter sidecarStarter() {
@@ -175,13 +171,13 @@ class NoCommandOpensAnythingTest {
 
     @Test
     @Story("No class of the jar names a way to open a file")
-    @DisplayName("No class of the jar but the one that starts Docker Desktop names a way to open a file, and the control finds exactly the three fixtures that do")
+    @DisplayName("No class of the jar names a way to open a file, the one that starts the Docker engine included, and the control finds exactly the three fixtures that do")
     void noClassOfTheJarNamesAWayToOpenAFile() throws Exception {
         List<ClassModel> shipped = shippedClasses();
         List<String> offenders = new ArrayList<>();
         for (ClassModel compiled : shipped) {
             String name = compiled.thisClass().asInternalName().replace('/', '.');
-            if (!name.equals(HOST_SYSTEM) && namesAWayToOpenAFile(compiled)) {
+            if (namesAWayToOpenAFile(compiled)) {
                 offenders.add(name);
             }
         }
@@ -197,20 +193,21 @@ class NoCommandOpensAnythingTest {
                         + " answer of no offender",
                 () -> assertThat(shipped).hasSizeGreaterThan(1).anyMatch(compiled ->
                         compiled.thisClass().asInternalName().equals(HOST_SYSTEM.replace('.', '/'))));
-        claim("and no class of the jar but HostSystem references java.awt.Desktop or HostServices, loads rundll32,"
-                        + " xdg-open or cmd, or loads open and starts a process",
+        claim("and no class of the jar references java.awt.Desktop or HostServices, loads rundll32, xdg-open or cmd,"
+                        + " or loads open and starts a process",
                 () -> assertThat(offenders).isEmpty());
         claim("the control run over fixtures reports the one that starts a process on open, the one that runs open"
                         + " through the runner and the one that loads rundll32, and neither the one that holds open as a"
                         + " key nor the one that starts a process on none of the four",
                 () -> assertThat(found).containsExactlyInAnyOrder(
                         "StartsAProcessOnOpen", "RunsOpenThroughTheRunner", "LoadsRundll32"));
-        claim("the constants of HostSystem, which starts Docker Desktop, are open and cmd and no other of the four",
+        claim("HostSystem, which holds the commands that start and stop the Docker engine, loads none of the four:"
+                        + " no Docker Desktop is started through open or cmd",
                 () -> assertThat(constantsOfTheFour(shipped.stream()
                                 .filter(compiled -> compiled.thisClass().asInternalName().equals(HOST_SYSTEM.replace('.', '/')))
                                 .findFirst()
                                 .orElseThrow()))
-                        .containsExactlyInAnyOrder(OPEN, "cmd"));
+                        .isEmpty());
     }
 
     private static boolean namesAWayToOpenAFile(ClassModel compiled) {

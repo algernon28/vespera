@@ -27,7 +27,8 @@ import org.yaml.snakeyaml.Yaml;
 
 /**
  * What Vespera runs to bring its two sidecars up when they are not answering, and what it refuses with when it cannot
- * (ADR-323 §2 to §6 and §8, ADR-326).
+ * (ADR-323 §2 to §6 and §8, ADR-326), each system starting Docker Engine with its one command (ADR-389 §1, §2); and
+ * the control panel's start of the engine alone (ADR-389 §4).
  *
  * <p>No Docker is needed: the starter is given a {@link ScriptedDocker}, which records every command and answers each
  * from a script, and a {@link ScriptedSidecarHealth}. The compose files are the repository's own, read where the tests
@@ -41,6 +42,7 @@ import org.yaml.snakeyaml.Yaml;
 @Feature("The sidecars")
 @Issue("652")
 @Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
+@Link(name = "ADR-389", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
 class SidecarStartTest {
 
     /** The repository root, which is where Maven runs the tests from and where the compose files lie. */
@@ -67,9 +69,15 @@ class SidecarStartTest {
     /** Engine checks the engine fails before it answers, in the tests where Vespera starts it. */
     private static final int ENGINE_CHECKS_FAILED = 2;
 
-    private static final List<String> DESKTOP_START = List.of("docker", "desktop", "start", "--detach");
-
     private static final List<String> SYSTEMCTL_START = List.of("systemctl", "--no-ask-password", "start", "docker");
+
+    private static final List<String> COLIMA_START = List.of("colima", "start");
+
+    /** Run inside WSL's default distribution, as root, with no shell between (ADR-389 §1). */
+    private static final List<String> IN_WSL = List.of("wsl", "-u", "root", "--exec");
+
+    /** How long the engine check may run before it is killed (ADR-323 §5). */
+    private static final Duration ENGINE_CHECK_LIMIT = Duration.ofSeconds(30);
 
     /** How long a test holds the sidecar lock: longer than {@link #WAIT_AT_MOST}, so a bounded wait would have ended. */
     private static final Duration HELD_FOR = Duration.ofMillis(1500);
@@ -126,27 +134,81 @@ class SidecarStartTest {
 
     @Test
     @Story("Vespera never recreates, stops or removes a sidecar")
-    @DisplayName("Across every start, the only commands run are the engine check, the engine's start commands and an up that builds and recreates nothing")
-    void theOnlyCommandsAreTheEngineCheckItsStartAndAnUpThatRecreatesNothing() {
-        List<List<String>> ran = new ArrayList<>();
-        for (HostSystem host : HostSystem.values()) {
-            for (String image : List.of(cpuImage, gpuImage)) {
-                ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
-                ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
-                        .answering(DESKTOP_START, 0, "")
-                        .answering(SYSTEMCTL_START, 0, "")
-                        .whenUpSucceeds(() -> health.answering(true, true));
-                starter(settings(image), docker, health, host).ensureRunning();
-                ran.addAll(docker.commands());
-            }
-        }
-        List<List<String>> allowed = List.of(ScriptedDocker.ENGINE_CHECK, DESKTOP_START, SYSTEMCTL_START,
-                up(COMPOSE_FILE), up(COMPOSE_FILE, GPU_FILE));
+    @DisplayName("With the engine down, each system runs exactly the engine check, its one start, the wait's checks and an up that builds and recreates nothing")
+    @Issue("816")
+    void theEngineIsStartedByItsSystemsOneCommandThenUpRecreatesNothing() {
+        List<String> wslCheck = concat(IN_WSL, ScriptedDocker.ENGINE_CHECK);
+        Map<HostSystem, List<List<String>>> expected = new java.util.LinkedHashMap<>();
+        expected.put(HostSystem.LINUX, List.of(ScriptedDocker.ENGINE_CHECK, SYSTEMCTL_START,
+                ScriptedDocker.ENGINE_CHECK, ScriptedDocker.ENGINE_CHECK, up(COMPOSE_FILE)));
+        expected.put(HostSystem.MAC, List.of(ScriptedDocker.ENGINE_CHECK, COLIMA_START,
+                ScriptedDocker.ENGINE_CHECK, ScriptedDocker.ENGINE_CHECK, up(COMPOSE_FILE)));
+        expected.put(HostSystem.WINDOWS, List.of(wslCheck, concat(IN_WSL, List.of("systemctl", "start", "docker")),
+                wslCheck, wslCheck,
+                concat(List.of("wsl", "-u", "root", "--cd", REPOSITORY.toString(), "--exec"),
+                        List.of("docker", "compose", "-p", "vespera", "-f", "compose.yaml",
+                                "up", "-d", "--build", "--no-recreate"))));
 
-        claim("every command run, on Windows, macOS and Linux and for both images, is the engine check, Docker"
-                        + " Desktop's start, the service's start, or an up with --build and --no-recreate; none"
-                        + " recreates, stops, removes, restarts or pulls a container",
-                () -> assertThat(ran).isNotEmpty().allMatch(allowed::contains));
+        for (Map.Entry<HostSystem, List<List<String>>> system : expected.entrySet()) {
+            HostSystem host = system.getKey();
+            List<List<String>> starts = List.of(SYSTEMCTL_START, COLIMA_START,
+                    concat(IN_WSL, List.of("systemctl", "start", "docker")));
+            ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
+            ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
+                    .whenUpSucceeds(() -> health.answering(true, true));
+            starts.forEach(start -> docker.answering(start, 0, ""));
+
+            SidecarStarter.Outcome outcome = starter(settings(cpuImage), docker, health, host).ensureRunning();
+
+            claim("on " + host + ", the sidecars were started", () -> assertThat(outcome)
+                    .isEqualTo(SidecarStarter.Outcome.STARTED));
+            claim("and the commands run were, in order and whole, the engine check, the system's one start, the "
+                            + ENGINE_CHECKS_FAILED + " checks of the wait for the engine, the last answering, and an up"
+                            + " with --build and --no-recreate; none of Docker Desktop, and no second start",
+                    () -> assertThat(docker.commands()).containsExactlyElementsOf(system.getValue()));
+            claim("and the engine check was given " + ENGINE_CHECK_LIMIT.toSeconds() + " seconds each time and the"
+                            + " start the " + WAIT_AT_MOST.toSeconds() + " second(s) every wait of these tests is"
+                            + " bounded by",
+                    () -> assertThat(docker.limits()).containsExactly(
+                            ENGINE_CHECK_LIMIT, WAIT_AT_MOST, ENGINE_CHECK_LIMIT, ENGINE_CHECK_LIMIT));
+        }
+    }
+
+    @Test
+    @Story("The control panel starts the Docker engine as its window opens")
+    @DisplayName("The control panel's start makes the engine answer and asks no sidecar, and starts nothing where Vespera is not to or the sidecars are elsewhere")
+    @Issue("816")
+    void theControlPanelsStartStartsTheEngineAloneAndAsksNoSidecar() {
+        ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
+        ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
+                .answering(SYSTEMCTL_START, 0, "");
+
+        SidecarStarter.Outcome outcome = starter(settings(cpuImage), docker, health, HostSystem.LINUX)
+                .ensureTheEngineRuns();
+
+        claim("the engine was started", () -> assertThat(outcome).isEqualTo(SidecarStarter.Outcome.ENGINE_STARTED));
+        claim("and the commands were the engine check, the service's start and the " + ENGINE_CHECKS_FAILED
+                        + " checks of the wait, and no up",
+                () -> assertThat(docker.commands()).containsExactly(ScriptedDocker.ENGINE_CHECK, SYSTEMCTL_START,
+                        ScriptedDocker.ENGINE_CHECK, ScriptedDocker.ENGINE_CHECK));
+        claim("and no sidecar was asked anything", () -> assertThat(health.questionsAsked()).isZero());
+
+        ScriptedDocker notToStart = ScriptedDocker.engineAnsweringAfter(ScriptedDocker.NEVER);
+        SidecarStarter.Outcome notAsked = starter(
+                new SidecarStartSettings(false, DOCLING_HERE, OLLAMA_HERE, cpuImage, WAIT_AT_MOST),
+                notToStart, health, HostSystem.LINUX).ensureTheEngineRuns();
+        claim("with vespera.sidecars.start false, it is not asked to start, and runs nothing",
+                () -> assertThat(List.of(notAsked, notToStart.commands()))
+                        .containsExactly(SidecarStarter.Outcome.NOT_ASKED_TO_START, List.of()));
+
+        ScriptedDocker elsewhere = ScriptedDocker.engineAnsweringAfter(ScriptedDocker.NEVER);
+        SidecarStarter.Outcome onAnother = starter(
+                new SidecarStartSettings(true, URI.create("http://docling.example.org:5001"), OLLAMA_HERE, cpuImage,
+                        WAIT_AT_MOST),
+                elsewhere, health, HostSystem.LINUX).ensureTheEngineRuns();
+        claim("with docling-serve looked for on another machine, it starts nothing there, and runs nothing",
+                () -> assertThat(List.of(onAnother, elsewhere.commands()))
+                        .containsExactly(SidecarStarter.Outcome.ON_ANOTHER_MACHINE, List.of()));
     }
 
     @Test
@@ -199,6 +261,12 @@ class SidecarStartTest {
         }
         command.addAll(List.of("up", "-d", "--build", "--no-recreate"));
         return List.copyOf(command);
+    }
+
+    private static List<String> concat(List<String> first, List<String> then) {
+        List<String> whole = new ArrayList<>(first);
+        whole.addAll(then);
+        return List.copyOf(whole);
     }
 
     @SuppressWarnings("unchecked")

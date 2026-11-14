@@ -24,6 +24,8 @@
 
 > **Partly amended — see [ADR-364](0364-the-output-panel-is-copyable-text-of-the-whole-output-from-a-file-of-its-own-and-every-text-of-the-window-is-copyable.md).** Of Alternatives refused, *the output copied to a file*: the jar writes each invocation's output to `logs/output-<invocation>.log` itself, and the window shows that file once the invocation's report names it. Of §3: the one thread still reads the merged stream to its end, and the control panel still writes nothing of it; besides the tail, kept for how a child ended alone, it holds every line read until the output file is found, at most 10,000. Of Context's *Start-up*: a line the JVM writes itself is in the stream and not in the file. The rest of this record stands.
 
+> **Partly amended — see [ADR-389](0389-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** Of §1: the control panel also starts the jar as `docker start` and `docker shut-down`, with no `--db-dir`, beside the invocation it watches, which neither is. The rest of this record stands.
+
 - **Date**: 2026-10-18
 - **Status**: accepted on 2026-10-18.
 - **Keeps**: [ADR-158](0158-the-operator-starts-the-sidecars-from-compose-yaml-and-the-packaged-jar-starts-none.md), whose What this does not decide leaves a program that starts the jar for the operator to a decision of its own: this is that decision for the **control panel**, and this record changes nothing in the packaged jar, its commands or what it starts; ADR-279 adds the corpus-root lock to `run`.
