@@ -237,6 +237,12 @@ Every `vespera run`, `vespera label` and `vespera publish` writes `report.json` 
 
 You need Java 26 and a Docker daemon. Run every command below from the root of this repository.
 
+Vespera uses Docker Engine, not Docker Desktop:
+
+- **Linux**: Docker Engine, installed as the `docker` service.
+- **Windows**: a WSL 2 distribution, Ubuntu for example, with Docker Engine installed inside it. You set this up once: install the distribution with `wsl --install`, then install Docker Engine in it as you would on Linux. You never need to open a WSL window afterwards.
+- **macOS**: Colima, with the `docker` command-line client.
+
 **Build it.** This builds the jar Vespera runs from:
 
 ```
