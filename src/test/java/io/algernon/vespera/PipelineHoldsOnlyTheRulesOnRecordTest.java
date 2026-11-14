@@ -215,6 +215,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-326: say that a command's output file failed, apart from a program that cannot be started.
             "CommandOutputFileException",
             "CommandOutputFileUnusableException",
+            // ADR-389 §8: the control panel's way to start the engine and shut it down; it decides nothing.
+            "DockerEngine",
             "DockerEngineDidNotStartException",
             "DockerIsNotInstalledException",
             "HostSystem",
