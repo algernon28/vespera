@@ -50,6 +50,8 @@ import javafx.util.Duration;
  */
 final class Cockpit {
 
+    private static final System.Logger log = System.getLogger(Cockpit.class.getName());
+
     private static final String NEEDS_A_VALUE = "needs a value";
 
     private final ControlPanelState state;
@@ -62,6 +64,8 @@ final class Cockpit {
     private final SelectableText.Wrapping outcome = SelectableText.wrapping("");
     private final Button run = new Button("Run");
     private final Button stop = new Button("Stop");
+    private final Button shutDownDocker = new Button("Shut down Docker");
+    private volatile boolean shuttingDown;
     private final Button publish = new Button("Publish");
     /** What this window's own child was last started as, and the ending the parent's title warning was last opened for. */
     private ControlPanelState.Start startedKind;
@@ -161,6 +165,7 @@ final class Cockpit {
 
         run.setId("run");
         stop.setId("stop");
+        shutDownDocker.setId("shut-down-docker");
         publish.setId("publish");
         label.setId("label");
         labelAuto.setId("label-auto");
@@ -169,9 +174,10 @@ final class Cockpit {
         label.setOnAction(event -> begin(ControlPanelState.Start.LABEL, "Record my answers"));
         labelAuto.setOnAction(event -> begin(ControlPanelState.Start.LABEL_AUTO, "Let the local model answer"));
         stop.setOnAction(event -> stopAfterConfirming());
+        shutDownDocker.setOnAction(event -> shutDownDockerAfterConfirming());
         publishTo.setId("publish-to");
         publishTo.getStyleClass().add("spaced-row");
-        actions.getChildren().addAll(run, stop, publishTo);
+        actions.getChildren().addAll(run, stop, shutDownDocker, publishTo);
         actions.getStyleClass().add("actions");
         SelectableText.Wrapping recordWords = SelectableText.wrapping("You answered in relevance-labels.yaml, and this saves those answers"
                 + " for the next Run.");
@@ -400,6 +406,79 @@ final class Cockpit {
                 say("the invocation was stopped");
                 refresh();
             });
+        });
+    }
+
+    /** The warning of the button, and with a child running the sentence that says it is stopped first (ADR-389 §5). */
+    private static final String SHUT_DOWN_WARNING = "Shutting down Docker stops Vespera's sidecars and then the Docker"
+            + " engine, even if Vespera did not start it, and with the engine every other container running on it.";
+
+    private void shutDownDockerAfterConfirming() {
+        String sentence = SHUT_DOWN_WARNING + (state.childRuns()
+                ? " The invocation running now is stopped first. " + Child.STOP_CONFIRMATION : "");
+        if (!dialogs.confirm(sentence, "Shut down Docker", "Keep Docker running")) {
+            return;
+        }
+        shuttingDown = true;
+        shutDownDocker.setDisable(true);
+        Thread.ofPlatform().daemon().name("the control panel shuts Docker down").start(() -> {
+            String line;
+            try {
+                state.stop();
+                line = state.shutDownDocker().line();
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                line = "Docker was not shut down: interrupted.";
+            } catch (RuntimeException failed) {
+                line = "Docker was not shut down: " + failed;
+            }
+            String said = line;
+            Platform.runLater(() -> {
+                say(said);
+                shuttingDown = false;
+                shutDownDocker.setDisable(false);
+                refresh();
+            });
+        });
+    }
+
+    /** Starts the Docker engine once, on a thread of its own, as the window opens; a refusal's line is shown (ADR-389 §5). */
+    void startDocker() {
+        Thread.ofPlatform().daemon().name("the control panel starts Docker").start(() -> {
+            String refusal;
+            try {
+                DockerControl.Said started = state.startDocker();
+                refusal = started.done() ? "" : started.line();
+            } catch (RuntimeException failed) {
+                refusal = "Docker was not started: " + failed;
+            }
+            if (!refusal.isEmpty()) {
+                String line = refusal;
+                Platform.runLater(() -> say(line));
+            }
+        });
+    }
+
+    /**
+     * Where the operator closes the window and it goes on: on a thread of its own the child, where one runs, is stopped
+     * and waited for, then the sidecars are stopped, and then {@code close} runs on the toolkit's thread. The engine is
+     * not stopped; a line the stop gives is logged, the window being gone through the JDK's own logger, which writes to this process's console, as ADR-364 lets no class but the entry point name a stream (ADR-389 §5).
+     */
+    void stopTheChildAndTheSidecarsThen(Runnable close) {
+        Thread.ofPlatform().daemon().name("the control panel closes").start(() -> {
+            try {
+                state.stop();
+                DockerControl.Said stopped = state.stopTheSidecars();
+                if (!stopped.done() && !stopped.line().isEmpty()) {
+                    log.log(System.Logger.Level.WARNING, stopped.line());
+                }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            } catch (RuntimeException failed) {
+                log.log(System.Logger.Level.WARNING, "the sidecars were not stopped: " + failed);
+            } finally {
+                Platform.runLater(close);
+            }
         });
     }
 
@@ -723,6 +802,7 @@ final class Cockpit {
         labelAuto.setDisable(busy);
         publish.setDisable(busy);
         stop.setDisable(!runs);
+        shutDownDocker.setDisable(shuttingDown);
         List<String> drawnDestinations = state.destinationsDrawn(workingDirectory(),
                 fields.get("vespera.deliverable-root").text());
         boolean drawn = !drawnDestinations.isEmpty();
