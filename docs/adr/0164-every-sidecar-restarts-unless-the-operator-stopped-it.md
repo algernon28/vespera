@@ -4,7 +4,7 @@
 
 > **Partly amended — see [ADR-323](0323-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md).** Vespera starts the sidecars too, when they are not answering, so a container the operator stopped is started again by the next `vespera run` or `vespera label --auto` unless `VESPERA_SIDECARS_START=false`. `restart: unless-stopped` stands on every service.
 
-> **Partly amended — see [ADR-389](0389-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** There is no `VESPERA_SIDECARS_START`: a container the operator stopped is started again by the next `vespera run` or `vespera label --auto` where it is on this machine. The rest of this record stands.
+> **Partly amended — see [ADR-390](0390-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** There is no `VESPERA_SIDECARS_START`: a container the operator stopped is started again by the next `vespera run` or `vespera label --auto` where it is on this machine. The rest of this record stands.
 
 - **Date**: 2026-09-27
 - **Status**: accepted

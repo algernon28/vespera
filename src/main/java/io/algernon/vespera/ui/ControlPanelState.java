@@ -70,7 +70,7 @@ final class ControlPanelState {
     private Ending ending;
     private boolean controlPanelEnds;
 
-    /** A state that runs no Docker command: {@link DockerControl#NONE} (ADR-389 §4). */
+    /** A state that runs no Docker command: {@link DockerControl#NONE} (ADR-390 §4). */
     ControlPanelState(ChildRuntime runtime, Path launchValuesFile, Path corpusRootLockFolder, String userName) {
         this(runtime, launchValuesFile, corpusRootLockFolder, userName, DockerControl.NONE);
     }
@@ -86,17 +86,17 @@ final class ControlPanelState {
         this.values = LaunchValues.load(launchValuesFile, userName, launchLines::add);
     }
 
-    /** Starts the Docker engine for the launch values held now, once as the window opens (ADR-389 §5). */
+    /** Starts the Docker engine for the launch values held now, once as the window opens (ADR-390 §5). */
     DockerControl.Said startDocker() {
         return docker.start(values);
     }
 
-    /** Stops the sidecars and then the engine (ADR-389 §3); the child is stopped by the caller, first. */
+    /** Stops the sidecars and then the engine (ADR-390 §3); the child is stopped by the caller, first. */
     DockerControl.Said shutDownDocker() {
         return docker.shutDown();
     }
 
-    /** Stops the sidecars alone, for the launch values held now, as the window closes (ADR-389 §5). */
+    /** Stops the sidecars alone, for the launch values held now, as the window closes (ADR-390 §5). */
     DockerControl.Said stopTheSidecars() {
         return docker.stopTheSidecars(values);
     }

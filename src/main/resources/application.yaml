@@ -16,7 +16,7 @@ vespera:
   # working directory's deliverable folder. Set per machine, as VESPERA_DELIVERABLE_ROOT.
   deliverable-root:
   sidecars:
-    # The WSL 2 distribution Docker Engine runs in, read on Windows alone (ADR-389 section 1): every docker command is
+    # The WSL 2 distribution Docker Engine runs in, read on Windows alone (ADR-390 section 1): every docker command is
     # run inside it, as `wsl -d <distribution> -u root --exec docker`. Empty passes no -d and uses WSL's default
     # distribution. Set it per machine, as VESPERA_SIDECARS_WSL_DISTRIBUTION. An application property and no
     # profile value: it says where Docker runs on one machine, not what has been judged about a corpus.

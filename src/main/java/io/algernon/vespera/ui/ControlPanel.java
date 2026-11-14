@@ -72,7 +72,7 @@ public final class ControlPanel {
     }
 
     /**
-     * What the Docker engine's code is given (ADR-389 §4): the WSL distribution and {@code vespera.sidecars.wait-at-most}
+     * What the Docker engine's code is given (ADR-390 §4): the WSL distribution and {@code vespera.sidecars.wait-at-most}
      * from the sources the window's fields start from, and the corpus-root lock folder, where {@code sidecars.lock} lies
      * too.
      */

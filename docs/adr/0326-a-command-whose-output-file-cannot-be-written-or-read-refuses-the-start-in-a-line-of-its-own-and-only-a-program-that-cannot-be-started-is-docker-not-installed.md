@@ -1,6 +1,6 @@
 # ADR-326 — A command whose output file cannot be written or read refuses the start in a line of its own, and only a program that cannot be started is Docker not installed
 
-> **Partly amended — see [ADR-389](0389-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** Of §2: a program that cannot be started is Docker not installed where it is the engine check's, `docker`, or `wsl` on Windows. The rest of this record stands.
+> **Partly amended — see [ADR-390](0390-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** Of §2: a program that cannot be started is Docker not installed where it is the engine check's, `docker`, or `wsl` on Windows. The rest of this record stands.
 
 - **Date**: 2026-10-29
 - **Status**: accepted on 2026-10-29.

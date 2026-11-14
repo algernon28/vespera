@@ -14,7 +14,7 @@
 
 > **Partly amended — see [ADR-377](0377-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §3, as ADR-295 amends it: `code-set-names.yaml` leaves the jar's formats the control panel reads and writes, the file being read and written by nothing. The rest of this record stands.
 
-> **Partly amended — see [ADR-389](0389-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** Of §3, as ADR-342 §3 leaves it: the control panel names one class of the jar, `DockerEngine` of `pipeline`, whose public surface is `java.base` types and itself and which names no Spring, JavaFX or control-panel type, to start the Docker engine, stop the sidecars and shut Docker down; it names nothing else of the jar. The rest of this record, as ADR-342 left it, stands.
+> **Partly amended — see [ADR-390](0390-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** Of §3, as ADR-342 §3 leaves it: the control panel names one class of the jar, `DockerEngine` of `pipeline`, whose public surface is `java.base` types and itself and which names no Spring, JavaFX or control-panel type, to start the Docker engine, stop the sidecars and shut Docker down; it names nothing else of the jar. The rest of this record, as ADR-342 left it, stands.
 
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.

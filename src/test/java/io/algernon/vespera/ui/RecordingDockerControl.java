@@ -6,7 +6,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
 
 /**
- * The window's {@link DockerControl} as a test answers it (ADR-389 §4, §5): no Docker command is run. Each call is kept
+ * The window's {@link DockerControl} as a test answers it (ADR-390 §4, §5): no Docker command is run. Each call is kept
  * in order, with the launch values it was given, where it takes them, and whether the window's own child ran as it was
  * made, and is answered with what the test set for its kind.
  */

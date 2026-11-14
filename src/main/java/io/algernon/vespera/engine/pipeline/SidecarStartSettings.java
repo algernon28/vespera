@@ -6,7 +6,7 @@ import org.springframework.boot.convert.DurationStyle;
 import org.springframework.core.env.Environment;
 
 /**
- * What the sidecar starter reads from configuration (ADR-323 §2, §7, ADR-389 §1, §7): the WSL distribution Docker
+ * What the sidecar starter reads from configuration (ADR-323 §2, §7, ADR-390 §1, §7): the WSL distribution Docker
  * runs in on Windows ({@code vespera.sidecars.wsl-distribution}, blank for WSL's default), how long to wait for the engine or a sidecar
  * ({@code vespera.sidecars.wait-at-most}, 180 seconds unless set), the converter image that chooses the compose
  * files ({@code vespera.docling.image}), and where each sidecar is looked for.

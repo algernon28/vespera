@@ -27,8 +27,8 @@ import org.yaml.snakeyaml.Yaml;
 
 /**
  * What Vespera runs to bring its two sidecars up when they are not answering, and what it refuses with when it cannot
- * (ADR-323 §2 to §6 and §8, ADR-326), each system starting Docker Engine with its one command (ADR-389 §1, §2); and
- * the control panel's start of the engine alone (ADR-389 §4).
+ * (ADR-323 §2 to §6 and §8, ADR-326), each system starting Docker Engine with its one command (ADR-390 §1, §2); and
+ * the control panel's start of the engine alone (ADR-390 §4).
  *
  * <p>No Docker is needed: the starter is given a {@link ScriptedDocker}, which records every command and answers each
  * from a script, and a {@link ScriptedSidecarHealth}. The compose files are the repository's own, read where the tests
@@ -42,7 +42,7 @@ import org.yaml.snakeyaml.Yaml;
 @Feature("The sidecars")
 @Issue("652")
 @Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
-@Link(name = "ADR-389", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
+@Link(name = "ADR-390", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
 class SidecarStartTest {
 
     /** The repository root, which is where Maven runs the tests from and where the compose files lie. */
@@ -73,7 +73,7 @@ class SidecarStartTest {
 
     private static final List<String> COLIMA_START = List.of("colima", "start");
 
-    /** Run inside WSL's default distribution, as root, with no shell between (ADR-389 §1). */
+    /** Run inside WSL's default distribution, as root, with no shell between (ADR-390 §1). */
     private static final List<String> IN_WSL = List.of("wsl", "-u", "root", "--exec");
 
     /** How long the engine check may run before it is killed (ADR-323 §5). */

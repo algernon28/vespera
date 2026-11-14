@@ -6,17 +6,17 @@ import java.time.Duration;
 import java.util.Optional;
 
 /**
- * The Docker engine's code as the control panel calls it, in its own process (ADR-389 §4): the one class of the jar
+ * The Docker engine's code as the control panel calls it, in its own process (ADR-390 §4): the one class of the jar
  * the control panel names. It names no type of Spring, of JavaFX or of the control panel, and its public constructors
  * and methods take and give only primitives, types of {@code java.base} and itself.
  *
  * <p>It is built over {@link SidecarStarter}, with {@link HostSystem#current()}, the runner of real processes on
  * {@code java.io.tmpdir} and the health that asks over HTTP, as {@link SidecarStarter#forTheApplication} builds them;
- * its lines are ADR-323 §8's and ADR-389 §6's. Its log lines go where this process sends them, its console.
+ * its lines are ADR-323 §8's and ADR-390 §6's. Its log lines go where this process sends them, its console.
  */
 public final class DockerEngine {
 
-    /** The line of a shut-down that stopped both the sidecars and the engine (ADR-389 §6). */
+    /** The line of a shut-down that stopped both the sidecars and the engine (ADR-390 §6). */
     public static final String SHUT_DOWN_DONE = SidecarStarter.SHUT_DOWN_DONE;
 
     private static final Duration CHECK_EVERY = Duration.ofSeconds(2);

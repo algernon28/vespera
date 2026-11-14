@@ -12,7 +12,7 @@
 
 > **Partly amended — see [ADR-379](0379-the-control-panels-window-has-a-light-and-a-dark-theme-switched-in-its-header-and-kept-beside-the-launch-values.md).** Of §3: the one stylesheet holds each colour token twice, the light set under `.root` and the dark under `.root.dark` and `.dark-dialog`, chosen by the style class `dark` on the window's root or `dark-dialog` on a dialog's pane, and a dialog's pane is given the window's stylesheet; no class sets a style of its own still. The rest of this record stands.
 
-> **Partly amended — see [ADR-389](0389-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** Of §3: the control panel names one class of `io.algernon.vespera`, `DockerEngine` of `pipeline`, whose public surface is `java.base` types and itself and which names no Spring, JavaFX or control-panel type; it names nothing else of the jar. The rest of this record stands.
+> **Partly amended — see [ADR-390](0390-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** Of §3: the control panel names one class of `io.algernon.vespera`, `DockerEngine` of `pipeline`, whose public surface is `java.base` types and itself and which names no Spring, JavaFX or control-panel type; it names nothing else of the jar. The rest of this record stands.
 
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.

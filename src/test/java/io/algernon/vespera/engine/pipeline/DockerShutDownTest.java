@@ -22,19 +22,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * What the shut-down runs, the control panel's <i>Shut down Docker</i> behind it, and what it says (ADR-389 §3, §6):
+ * What the shut-down runs, the control panel's <i>Shut down Docker</i> behind it, and what it says (ADR-390 §3, §6):
  * {@code docker compose -p vespera stop}, then, only where that exited 0, the engine's one stop, and nothing else, never
  * {@code down}; a refused step is one line. And what closing the window runs: the sidecars' stop alone, only
- * where one answers (ADR-389 §5).
+ * where one answers (ADR-390 §5).
  *
  * <p>No Docker is needed: the starter is given a {@link ScriptedDocker}, which records every command and its limit. The
- * refusals' last lines are written as Docker Compose printed its own with the daemon down (ADR-389's probe H) and, for
+ * refusals' last lines are written as Docker Compose printed its own with the daemon down (ADR-390's probe H) and, for
  * {@code systemctl}, as a synthetic refusal: what polkit prints was not measured.
  */
 @Epic("Pipeline")
 @Feature("The sidecars")
 @Issue("816")
-@Link(name = "ADR-389", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
+@Link(name = "ADR-390", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
 class DockerShutDownTest {
 
     private static final Path REPOSITORY = Path.of("").toAbsolutePath();
@@ -62,7 +62,7 @@ class DockerShutDownTest {
     private static final String DONE =
             "the sidecars and the Docker engine are stopped; Vespera starts them again when it next needs them.";
 
-    /** What Docker Compose printed last, exit 1, with the daemon down (ADR-389's probe H). */
+    /** What Docker Compose printed last, exit 1, with the daemon down (ADR-390's probe H). */
     private static final String NO_DAEMON = "failed to connect to the docker API at unix:///var/run/docker.sock; check"
             + " if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such"
             + " file or directory";

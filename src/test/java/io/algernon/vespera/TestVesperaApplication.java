@@ -18,7 +18,7 @@ import org.springframework.boot.SpringApplication;
  * It names both sidecars on a host under {@code .invalid}, which never resolves (RFC 6761), as JVM system
  * properties, so the starter, which reads them before Testcontainers has published its own, takes them for
  * another machine's and starts nothing beside the containers this entry point brings; the converter's address
- * Testcontainers registers, and Ollama's connection detail, come before them once published (ADR-389 §7).
+ * Testcontainers registers, and Ollama's connection detail, come before them once published (ADR-390 §7).
  *
  * @see TestcontainersConfiguration for the containers this adds
  */

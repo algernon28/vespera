@@ -7,7 +7,7 @@ import java.time.Duration;
 import java.util.Optional;
 
 /**
- * What the window asks of Docker (ADR-389 §4): start the engine as the window opens, stop the sidecars as it closes,
+ * What the window asks of Docker (ADR-390 §4): start the engine as the window opens, stop the sidecars as it closes,
  * and shut down the sidecars and the engine on its button. Each answers a {@link Said}: whether it went through, and
  * its line. {@link #inProcess} is the window's, over {@link DockerEngine}, the one class of the jar the control panel
  * names; {@link #NONE} runs nothing.
@@ -46,7 +46,7 @@ interface DockerControl {
     };
 
     /**
-     * Where the engine's code takes its settings from (ADR-389 §4).
+     * Where the engine's code takes its settings from (ADR-390 §4).
      *
      * @param wslDistribution the WSL distribution, blank for WSL's default
      * @param waitAtMost the bound of every start and stop command

@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The Docker engine from the control panel's window (ADR-389 §5): it is started once as the window opens, a refusal's
+ * The Docker engine from the control panel's window (ADR-390 §5): it is started once as the window opens, a refusal's
  * line shown where the window says what happened; <i>Shut down Docker</i>, beside Stop, warns first, stops the window's
  * running child before anything else, and then stops the sidecars and the engine, showing the line it said; and closing
  * the window stops the sidecars and not the engine.
@@ -38,7 +38,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("816")
-@Link(name = "ADR-389", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
+@Link(name = "ADR-390", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
 class TheShutDownDockerButtonTest {
 
     private static final String USER = System.getProperty("user.name");
@@ -58,7 +58,7 @@ class TheShutDownDockerButtonTest {
             + " systemctl --no-ask-password start docker exited 1: Failed to start docker.service: Access denied."
             + " Start Docker yourself and run the same command again.";
 
-    /** A shut-down whose engine stop was refused, in the words of its line (ADR-389 §6). */
+    /** A shut-down whose engine stop was refused, in the words of its line (ADR-390 §6). */
     private static final String ENGINE_NOT_STOPPED = "the sidecars are stopped, but the Docker engine is not:"
             + " systemctl --no-ask-password stop docker.socket docker.service exited 1: Failed to stop docker.socket:"
             + " Access denied. Stop Docker yourself, or leave it running.";

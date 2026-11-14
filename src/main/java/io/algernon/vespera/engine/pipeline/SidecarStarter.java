@@ -21,7 +21,7 @@ import org.springframework.core.env.Environment;
  * Brings the two sidecars up where they are not answering: starts the Docker engine where it is not running, then
  * runs the README's {@code up} with {@code --no-recreate}, and waits for both sidecars (ADR-323). It never removes or
  * recreates a container, and stops the sidecars and the engine only when asked to ({@link #stopTheSidecars} and
- * {@link #shutDown}, ADR-389 §3); it does nothing at exit.
+ * {@link #shutDown}, ADR-390 §3); it does nothing at exit.
  *
  * <p>The commands that use a sidecar, {@code vespera run} and {@code vespera label --auto}, ask {@link
  * #ensureRunning} before they do anything else; a {@link SidecarStartRefusedException} is its refusal, one line and
@@ -44,11 +44,11 @@ public class SidecarStarter {
         ENGINE_STARTED
     }
 
-    /** What the shut-down did: whether both the sidecars and the engine are stopped, and the one line that says it (ADR-389 §6). */
+    /** What the shut-down did: whether both the sidecars and the engine are stopped, and the one line that says it (ADR-390 §6). */
     record ShutDown(boolean done, String line) {
     }
 
-    /** The line of a shut-down that stopped both (ADR-389 §6). */
+    /** The line of a shut-down that stopped both (ADR-390 §6). */
     static final String SHUT_DOWN_DONE =
             "the sidecars and the Docker engine are stopped; Vespera starts them again when it next needs them.";
 
@@ -162,7 +162,7 @@ public class SidecarStarter {
 
     /**
      * Makes the Docker engine answer where it does not and asks no sidecar: ADR-323 §3's step 2, then, under the lock,
-     * the engine's check, its start and the wait (ADR-389 §4). What the control panel runs as its window opens.
+     * the engine's check, its start and the wait (ADR-390 §4). What the control panel runs as its window opens.
      *
      * @throws SidecarStartRefusedException when the engine does not answer and cannot be made to
      */
@@ -177,7 +177,7 @@ public class SidecarStarter {
 
     /**
      * Stops the sidecars alone, only where both base URLs name this machine and either sidecar answers, so that no
-     * engine stopped behind its socket is started and no WSL distribution is booted for nothing to stop (ADR-389 §3).
+     * engine stopped behind its socket is started and no WSL distribution is booted for nothing to stop (ADR-390 §3).
      *
      * @return the line of a refusal, empty where they were stopped or nothing was to be done
      */
@@ -200,7 +200,7 @@ public class SidecarStarter {
         }
     }
 
-    /** The shut-down: the sidecars' stop, then, only where it exited 0, the engine's (ADR-389 §3). */
+    /** The shut-down: the sidecars' stop, then, only where it exited 0, the engine's (ADR-390 §3). */
     ShutDown shutDown() {
         List<String> composeStop = host.composeStop(settings.wslDistribution());
         List<String> engineStop = host.engineStop(settings.wslDistribution());
@@ -290,7 +290,7 @@ public class SidecarStarter {
 
     /**
      * Runs a command of the engine's start or stop. A program that cannot be started, {@code systemctl} on a machine
-     * without systemd or {@code colima} not installed, is a command that exited 127 with its reason (ADR-389 §2).
+     * without systemd or {@code colima} not installed, is a command that exited 127 with its reason (ADR-390 §2).
      */
     private ProcessOutcome runCounting(List<String> command, Duration limit) {
         try {

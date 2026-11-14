@@ -52,7 +52,7 @@ class CliExitIT {
     /**
      * Where each launch names both sidecars: a host under {@code .invalid}, which never resolves (RFC 6761), so the
      * starter takes them for another machine's and runs no Docker command, and a converter is never reached
-     * (ADR-389 §7, ADR-323 §3 step 2).
+     * (ADR-390 §7, ADR-323 §3 step 2).
      */
     private static final String SIDECARS_ON_NO_MACHINE = "http://sidecars.invalid";
 

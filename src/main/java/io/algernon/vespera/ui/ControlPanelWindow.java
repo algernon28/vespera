@@ -57,7 +57,7 @@ public final class ControlPanelWindow extends Application {
         stage.setScene(new Scene(cockpit.root(), WIDTH, HEIGHT));
         java.util.concurrent.atomic.AtomicBoolean closing = new java.util.concurrent.atomic.AtomicBoolean();
         stage.setOnCloseRequest(event -> {
-            // The window stays shown while the child and then the sidecars are stopped, and closes after (ADR-389 §5).
+            // The window stays shown while the child and then the sidecars are stopped, and closes after (ADR-390 §5).
             event.consume();
             if (closing.get()
                     || cockpit.childRuns() && !dialogs.confirm(Child.STOP_CONFIRMATION, "Stop and close", "Keep the window")

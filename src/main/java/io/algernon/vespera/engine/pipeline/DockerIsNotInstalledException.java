@@ -1,6 +1,6 @@
 package io.algernon.vespera.engine.pipeline;
 
-/** The engine check's program, {@code docker} or {@code wsl} on Windows, is not on this machine (ADR-389 §6). */
+/** The engine check's program, {@code docker} or {@code wsl} on Windows, is not on this machine (ADR-390 §6). */
 final class DockerIsNotInstalledException extends SidecarStartRefusedException {
 
     DockerIsNotInstalledException(String program) {

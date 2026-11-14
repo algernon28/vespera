@@ -18,7 +18,7 @@ import java.util.function.Consumer;
  * cannot be created or read (ADR-326).
  *
  * <p>A command ending in {@link #ENGINE_CHECK} is the engine check, run as it is or inside a WSL distribution through
- * {@code wsl} (ADR-389 §1); not installed, {@code wsl} is as missing as {@code docker} is. Each command's limit is
+ * {@code wsl} (ADR-390 §1); not installed, {@code wsl} is as missing as {@code docker} is. Each command's limit is
  * recorded beside it, {@link #limits}.
  */
 final class ScriptedDocker implements ProcessRunner {

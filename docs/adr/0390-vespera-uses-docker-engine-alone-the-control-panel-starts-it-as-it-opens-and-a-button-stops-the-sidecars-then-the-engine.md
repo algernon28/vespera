@@ -1,4 +1,4 @@
-# ADR-389 — Vespera uses Docker Engine alone, the control panel starts it as it opens, and a button stops the sidecars then the engine
+# ADR-390 — Vespera uses Docker Engine alone, the control panel starts it as it opens, and a button stops the sidecars then the engine
 
 - **Date**: 2026-11-14
 - **Status**: accepted on 2026-11-14.

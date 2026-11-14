@@ -16,7 +16,7 @@ final class CommandOutputFileUnusableException extends SidecarStartRefusedExcept
                 + ")";
     }
 
-    /** What the refusal says of the file, for the lines of the stops (ADR-389 §6). */
+    /** What the refusal says of the file, for the lines of the stops (ADR-390 §6). */
     String unusable() {
         return unusable;
     }

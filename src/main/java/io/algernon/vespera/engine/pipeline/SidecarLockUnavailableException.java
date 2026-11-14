@@ -16,7 +16,7 @@ final class SidecarLockUnavailableException extends SidecarStartRefusedException
         this.unusable = "the lock file " + lockFile.toAbsolutePath() + " cannot be opened (" + reasonOf(reason) + ")";
     }
 
-    /** What the lock's refusal says of the lock, for the lines of the stops (ADR-389 §6). */
+    /** What the lock's refusal says of the lock, for the lines of the stops (ADR-390 §6). */
     String unusable() {
         return unusable;
     }

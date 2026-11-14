@@ -49,7 +49,7 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * No command of the jar opens a browser, a file or a window, and the report says so (ADR-362 section 2), with no
- * exception: no class starts Docker Desktop, whose start was the one that looked like opening (ADR-389 section 2).
+ * exception: no class starts Docker Desktop, whose start was the one that looked like opening (ADR-390 section 2).
  *
  * <p>What a class opens is read off its compiled form, as {@code ShippedClasses} reads what a class names: the
  * detector looks at constants loaded and types referred to, never at the text of a source. The control keeps it
@@ -65,7 +65,7 @@ import tools.jackson.databind.JsonNode;
 @Feature("Nothing is opened")
 @Issue("760")
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
-@Link(name = "ADR-389", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
+@Link(name = "ADR-390", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
 class NoCommandOpensAnythingTest {
 
     /** The class that holds the commands of the Docker engine, which the scan must read, and which is exempt from nothing. */

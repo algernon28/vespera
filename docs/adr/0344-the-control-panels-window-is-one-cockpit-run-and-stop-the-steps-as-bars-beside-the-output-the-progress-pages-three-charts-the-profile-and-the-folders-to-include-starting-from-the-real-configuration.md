@@ -18,7 +18,7 @@
 
 > **Partly amended — see [ADR-382](0382-each-stage-has-a-chart-of-its-own-in-two-rows-frozen-once-it-finishes-and-kept-under-its-run-beside-the-report.md).** Of §1: the header carries `database-size` under `where` and `child`, the database's size read from its two files at every tick; and the charts' row is eight charts, `stage-chart-0` to `stage-chart-6b`, one for each stage, in two rows, `stage-charts-row-1` for stages 0 to 3 above `stage-charts-row-2` for 4 to 6b, in `stage-charts`, which scrolls sideways below the charts' least width of 250 px each, each chart drawn from the file the jar keeps for its stage, `chart-stage-<stage>.json`, and frozen once its stage has finished; `database-chart`, `counts-chart` and `verdicts-chart` are gone. Of §2: the series of a stage's chart are the jar's, written in that file. The rest of this record stands.
 
-> **Partly amended — see [ADR-389](0389-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** Of §4: the presets are four, `vespera.sidecars.start` removed with its row and its box. The rest of this record stands.
+> **Partly amended — see [ADR-390](0390-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** Of §4: the presets are four, `vespera.sidecars.start` removed with its row and its box. The rest of this record stands.
 
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.

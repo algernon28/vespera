@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
  * reads the jar's {@code application.yaml} (ADR-344 §3); so nothing else of {@code io.algernon.vespera}, neither
  * {@code engine} nor {@code publish} nor the application class nor the entry point, nor Spring, {@code java.sql},
  * {@code java.desktop}, {@code jdk.httpserver} or JavaFX's internals, but for one class of the jar: {@code
- * DockerEngine}, through which it starts the Docker engine, stops the sidecars and shuts Docker down (ADR-389 §4), a
+ * DockerEngine}, through which it starts the Docker engine, stops the sidecars and shuts Docker down (ADR-390 §4), a
  * class that names no type of Spring, of JavaFX or of the control panel, and whose public constructors and methods
  * take and give only types of {@code java.base} and itself. No class of the jar, which is every class
  * of {@code io.algernon.vespera} but the control panel's and the entry point, which names both, names the control
@@ -54,7 +54,7 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-342", url = Adr.THE_CONTROL_PANEL_IS_A_JAVAFX_WINDOW_INSIDE_THE_JAR, type = "adr")
 @Link(name = "ADR-360", url = Adr.THE_CONTROL_PANEL_DROPS_JAVAFXS_CLASS_PATH_LINE, type = "adr")
 @Link(name = "ADR-367", url = Adr.THE_JARS_PACKAGES_LIE_UNDER_ENGINE_PUBLISH_AND_UI, type = "adr")
-@Link(name = "ADR-389", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
+@Link(name = "ADR-390", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
 class TheControlPanelLinksNoClassOfTheJarTest {
 
     private static final String CONTROL_PANEL = "io.algernon.vespera.ui";
@@ -64,7 +64,7 @@ class TheControlPanelLinksNoClassOfTheJarTest {
     /** The entry point, which names the control panel and the command line both, and is no part of the jar's own. */
     private static final String THE_ENTRY_POINT = THE_APPLICATION_PACKAGE + ".EntryPoint";
 
-    /** The one class of the jar the control panel may name: the Docker engine's, called in its own process (ADR-389 §4). */
+    /** The one class of the jar the control panel may name: the Docker engine's, called in its own process (ADR-390 §4). */
     private static final String THE_DOCKER_ENGINE = THE_APPLICATION_PACKAGE + ".engine.pipeline.DockerEngine";
 
     /** The JDK modules whose types the control panel may name: the base alone. */

@@ -8,7 +8,7 @@
 
 > **Partly amended — see [ADR-382](0382-each-stage-has-a-chart-of-its-own-in-two-rows-frozen-once-it-finishes-and-kept-under-its-run-beside-the-report.md).** Of §8: the window draws the steps' bars from `steps`, and the stages' charts from `chart-stage-<stage>.json`, one file for each stage beside `report.json`, read at each reading of the report and whenever it reads its working directory's files; `report.json`'s `charts` and `database`, and `report.html`'s three charts, stand. The rest of this record stands.
 
-> **Partly amended — see [ADR-389](0389-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** Of §2: the one exception, starting Docker Desktop, is gone; no class of the jar names a way to open anything, `HostSystem` included. The rest of this record stands.
+> **Partly amended — see [ADR-390](0390-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** Of §2: the one exception, starting Docker Desktop, is gone; no class of the jar names a way to open anything, `HostSystem` included. The rest of this record stands.
 
 - **Date**: 2026-11-06
 - **Status**: accepted on 2026-11-06.

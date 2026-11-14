@@ -409,7 +409,7 @@ final class Cockpit {
         });
     }
 
-    /** The warning of the button, and with a child running the sentence that says it is stopped first (ADR-389 §5). */
+    /** The warning of the button, and with a child running the sentence that says it is stopped first (ADR-390 §5). */
     private static final String SHUT_DOWN_WARNING = "Shutting down Docker stops Vespera's sidecars and then the Docker"
             + " engine, even if Vespera did not start it, and with the engine every other container running on it.";
 
@@ -442,7 +442,7 @@ final class Cockpit {
         });
     }
 
-    /** Starts the Docker engine once, on a thread of its own, as the window opens; a refusal's line is shown (ADR-389 §5). */
+    /** Starts the Docker engine once, on a thread of its own, as the window opens; a refusal's line is shown (ADR-390 §5). */
     void startDocker() {
         Thread.ofPlatform().daemon().name("the control panel starts Docker").start(() -> {
             String refusal;
@@ -462,7 +462,7 @@ final class Cockpit {
     /**
      * Where the operator closes the window and it goes on: on a thread of its own the child, where one runs, is stopped
      * and waited for, then the sidecars are stopped, and then {@code close} runs on the toolkit's thread. The engine is
-     * not stopped; a line the stop gives is logged, the window being gone through the JDK's own logger, which writes to this process's console, as ADR-364 lets no class but the entry point name a stream (ADR-389 §5).
+     * not stopped; a line the stop gives is logged, the window being gone through the JDK's own logger, which writes to this process's console, as ADR-364 lets no class but the entry point name a stream (ADR-390 §5).
      */
     void stopTheChildAndTheSidecarsThen(Runnable close) {
         Thread.ofPlatform().daemon().name("the control panel closes").start(() -> {

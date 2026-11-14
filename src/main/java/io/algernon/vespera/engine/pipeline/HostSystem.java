@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** The operating systems whose Docker engine Vespera knows how to start and stop (ADR-323 §5, ADR-389 §1). */
+/** The operating systems whose Docker engine Vespera knows how to start and stop (ADR-323 §5, ADR-390 §1). */
 enum HostSystem {
     WINDOWS,
     MAC,
@@ -28,12 +28,12 @@ enum HostSystem {
         return LINUX;
     }
 
-    /** The engine check, killed after thirty seconds (ADR-389 §2): {@code docker version}, inside WSL on Windows. */
+    /** The engine check, killed after thirty seconds (ADR-390 §2): {@code docker version}, inside WSL on Windows. */
     List<String> engineCheck(String wslDistribution) {
         return inTheEngine(wslDistribution, List.of("docker", "version", "--format", "{{.Server.Version}}"));
     }
 
-    /** The one command that starts the engine (ADR-389 §2). */
+    /** The one command that starts the engine (ADR-390 §2). */
     List<String> engineStart(String wslDistribution) {
         return switch (this) {
             case LINUX -> List.of("systemctl", "--no-ask-password", "start", "docker");
@@ -42,12 +42,12 @@ enum HostSystem {
         };
     }
 
-    /** The stop of the sidecars, {@code stop} and nothing harder (ADR-389 §3, step 1). */
+    /** The stop of the sidecars, {@code stop} and nothing harder (ADR-390 §3, step 1). */
     List<String> composeStop(String wslDistribution) {
         return inTheEngine(wslDistribution, List.of("docker", "compose", "-p", "vespera", "stop"));
     }
 
-    /** The one command that stops the engine (ADR-389 §3, step 2). */
+    /** The one command that stops the engine (ADR-390 §3, step 2). */
     List<String> engineStop(String wslDistribution) {
         return switch (this) {
             case LINUX -> List.of("systemctl", "--no-ask-password", "stop", "docker.socket", "docker.service");
@@ -59,7 +59,7 @@ enum HostSystem {
     /**
      * ADR-323 §4's {@code up}, {@code composeFiles} being the files written out to one folder, {@code compose.yaml}
      * first. On Windows it runs inside the distribution, given the folder by {@code --cd} and the files by their names
-     * (ADR-389 §1); elsewhere it names each file by its path.
+     * (ADR-390 §1); elsewhere it names each file by its path.
      */
     List<String> composeUp(String wslDistribution, List<Path> composeFiles) {
         List<String> command = new ArrayList<>();
@@ -78,7 +78,7 @@ enum HostSystem {
         return List.copyOf(command);
     }
 
-    /** {@code command}, run inside the WSL distribution on Windows and as it is elsewhere (ADR-389 §1). */
+    /** {@code command}, run inside the WSL distribution on Windows and as it is elsewhere (ADR-390 §1). */
     private List<String> inTheEngine(String wslDistribution, List<String> command) {
         if (this != WINDOWS) {
             return command;
@@ -100,7 +100,7 @@ enum HostSystem {
         return prefix;
     }
 
-    /** The program of the engine check, which a machine without it is Docker not being installed (ADR-389 §2). */
+    /** The program of the engine check, which a machine without it is Docker not being installed (ADR-390 §2). */
     String engineProgram() {
         return this == WINDOWS ? "wsl" : "docker";
     }

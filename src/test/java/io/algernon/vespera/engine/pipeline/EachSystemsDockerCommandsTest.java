@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The commands Vespera runs on each system to check, start and stop the Docker engine, to stop the sidecars and to
- * bring them up (ADR-389 §1 to §3, ADR-323 §4 and §5): Docker Engine alone, the {@code docker} service on Linux, Docker
+ * bring them up (ADR-390 §1 to §3, ADR-323 §4 and §5): Docker Engine alone, the {@code docker} service on Linux, Docker
  * Engine inside a WSL 2 distribution on Windows, reached through {@code wsl}, and Colima on macOS; one start command
  * on each, and none of Docker Desktop.
  *
@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
 @Epic("Pipeline")
 @Feature("The sidecars")
 @Issue("816")
-@Link(name = "ADR-389", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
+@Link(name = "ADR-390", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
 @Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
 class EachSystemsDockerCommandsTest {
 
