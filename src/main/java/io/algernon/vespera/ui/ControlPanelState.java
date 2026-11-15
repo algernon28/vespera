@@ -563,7 +563,9 @@ final class ControlPanelState {
         held.store(launchValuesFile, userName, stored::add);
         try {
             Instant before = Instant.now();
-            child = Child.start(command.processBuilder());
+            ProcessBuilder builder = command.processBuilder();
+            giveTheLockFolder(builder.environment(), corpusRootLockFolder);
+            child = Child.start(builder);
             childStartInstant = before;
         } catch (IOException | RuntimeException notStarted) {
             return Optional.of(kind.name + " is not started: " + (notStarted.getMessage() == null
@@ -577,5 +579,15 @@ final class ControlPanelState {
                     .ifPresent(folder -> workingDirectories().started(folder.toAbsolutePath().normalize()));
         }
         return Optional.empty();
+    }
+
+    /**
+     * Names the folder of the locks in a child's environment, absolute (ADR-395 §2): the variable inherited in any case
+     * of its letters is removed first, as ADR-359 §3 removes the Confluence variables, since on Windows a second
+     * spelling reaches the child beside the first and the child's own read of the variable would take either.
+     */
+    static void giveTheLockFolder(java.util.Map<String, String> environment, Path folder) {
+        environment.keySet().removeIf(name -> name.equalsIgnoreCase(ControlPanel.CORPUS_ROOT_LOCK_FOLDER_VARIABLE));
+        environment.put(ControlPanel.CORPUS_ROOT_LOCK_FOLDER_VARIABLE, folder.toAbsolutePath().toString());
     }
 }

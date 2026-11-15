@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.engine.pipeline.DisplayPresence;
+import io.algernon.vespera.engine.pipeline.HoldsTheMachine;
+import io.algernon.vespera.engine.pipeline.MachineLock;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -69,6 +71,20 @@ class CliExitIT {
     /** What the line says before the toolkit's reason, as ADR-342 §2 gives it. */
     private static final String NO_WINDOW =
             "the control panel cannot open a window here, so the jar answers as its command line: ";
+
+    /**
+     * The variable that names the folder of the machine lock and the corpus-root locks (ADR-395 §2, ADR-302 §2), set for
+     * every launch to a folder of this class's, so that no launch takes or is refused by a lock of the user's own.
+     */
+    private static final String LOCK_FOLDER_VARIABLE = "VESPERA_CORPUS_ROOT_LOCK_FOLDER";
+
+    /** A line of standard error the JVM writes itself, and not the jar: the tool options it picked up, a warning. */
+    private static final Pattern THE_JVMS_OWN = Pattern.compile("^(Picked up \\S+:|WARNING:).*");
+
+    /** The folder every launch names in {@link #LOCK_FOLDER_VARIABLE}. */
+    private static Path lockFolder() {
+        return workingDirectory.resolve("root-locks");
+    }
 
     /** What a launch returned: whether it exited within the bound, and its code. */
     private record Launched(boolean finished, int exitCode) {
@@ -184,6 +200,54 @@ class CliExitIT {
                 });
     }
 
+    /**
+     * One Vespera runs on a machine at a time (ADR-395 §4, §5): the packaged jar started as {@code vespera run} while a
+     * second process holds the machine as a control panel, in the folder the launch's environment names, is refused
+     * before the context starts, so its working directory is never made; and {@code vespera serve}, which uses no
+     * sidecar, is not refused by it. Held here, among this class's launches, because the suite holds at most seven
+     * integration tests (ADR-368).
+     */
+    @Test
+    @Issue("818")
+    @Link(name = "ADR-395", url = Adr.ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME, type = "adr")
+    @Story("One Vespera runs on a machine at a time")
+    @DisplayName("A command started while a control panel holds the machine is refused in one line, exit 1, before it makes its working directory, and serve is not")
+    void aCommandStartedWhileAControlPanelRunsIsRefusedBeforeItOpensAWorkingDirectory() throws Exception {
+        claim("the packaged jar exists, since this test launches it and needs verify to have built it",
+                () -> assertThat(Files.exists(EXECUTABLE_JAR)).isTrue());
+        HoldsTheMachine.Holder controlPanel = HoldsTheMachine.start(lockFolder(), MachineLock.Kind.CONTROL_PANEL, false);
+        try {
+            String holder = Files.readString(lockFolder().resolve(MachineLock.FILE_NAME), StandardCharsets.UTF_8).strip();
+            Path root = Files.createDirectories(workingDirectory.resolve("a-corpus-another-vespera-would-share"));
+
+            Streams refused = launchSplit("run", root.toString());
+
+            claim("vespera run exits 1 within " + EXIT_BOUND_SECONDS + " seconds",
+                    () -> assertThat(List.of(refused.finished(), refused.exitCode())).containsExactly(true, 1));
+            claim("its one line of standard error that is not the JVM's own is the refusal, quoting the control"
+                            + " panel's holder line whole, and standard output is empty",
+                    () -> assertThat(List.of(theJarsOwn(refused.standardError()), theJarsOwn(refused.standardOutput())))
+                            .containsExactly(List.of("another Vespera is running on this machine (" + holder + ");"
+                                    + " wait for it to end, or stop it or close its control panel, then run the same"
+                                    + " command again. One Vespera runs on a machine at a time, so that none stops the"
+                                    + " sidecars another is using."), List.of()));
+            claim("and the working directory it names was never made, so no lock, database or log of it was written",
+                    () -> assertThat(Files.exists(refused.workingDirectory())).isFalse());
+
+            Streams served = launchSplit("serve");
+            claim("vespera serve, started the same way, is not refused for another Vespera: no line of its says so",
+                    () -> assertThat(served.standardError())
+                            .noneMatch(line -> line.startsWith("another Vespera is running on this machine")));
+        } finally {
+            controlPanel.process().destroyForcibly().waitFor(EXIT_BOUND_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    /** The lines of {@code stream} that are the jar's: every one that is not blank and not the JVM's own. */
+    private static List<String> theJarsOwn(List<String> stream) {
+        return stream.stream().filter(line -> !line.isBlank() && !THE_JVMS_OWN.matcher(line).matches()).toList();
+    }
+
     /** As {@link #launch}, standard output and standard error kept in two files, so the stream a line is on is read. */
     private static Streams launchSplit(String... args) throws Exception {
         Path out = Files.createTempFile(workingDirectory, "split", ".out");
@@ -208,6 +272,7 @@ class CliExitIT {
                 .redirectError(err.toFile());
         builder.environment().put("CI", "true");
         builder.environment().putIfAbsent("DISPLAY", ":99");
+        builder.environment().put(LOCK_FOLDER_VARIABLE, lockFolder().toString());
         Process process = builder.start();
         boolean finished = process.waitFor(EXIT_BOUND_SECONDS, TimeUnit.SECONDS);
         if (!finished) {
@@ -293,6 +358,7 @@ class CliExitIT {
                 .redirectOutput(workingDirectory.resolve(OUTPUT).toFile());
         // The jar opens no browser on the machine running the tests (ADR-266 section 2).
         builder.environment().put("CI", "true");
+        builder.environment().put(LOCK_FOLDER_VARIABLE, lockFolder().toString());
         // On Linux the launch decides whether a display is present: DISPLAY set to a non-blank value, or neither variable.
         if (displayPresent) {
             builder.environment().putIfAbsent("DISPLAY", ":99");

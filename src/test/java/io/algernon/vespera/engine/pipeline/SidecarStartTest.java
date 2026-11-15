@@ -234,6 +234,39 @@ class SidecarStartTest {
         claim("no command was run at any point", () -> assertThat(docker.commands()).isEmpty());
     }
 
+    @Test
+    @Story("Vespera starts the sidecars only where they are not answering")
+    @DisplayName("With no program to ask the engine, docker or wsl on Windows, a start of the sidecars and the control panel's start are each refused as Docker not installed, naming that program")
+    @Issue("818")
+    void dockerNotInstalledNamesTheEngineChecksProgramOnEachSystem() {
+        Map<HostSystem, List<String>> checks = new java.util.LinkedHashMap<>();
+        checks.put(HostSystem.LINUX, ScriptedDocker.ENGINE_CHECK);
+        checks.put(HostSystem.MAC, ScriptedDocker.ENGINE_CHECK);
+        checks.put(HostSystem.WINDOWS, concat(IN_WSL, ScriptedDocker.ENGINE_CHECK));
+
+        for (Map.Entry<HostSystem, List<String>> system : checks.entrySet()) {
+            String program = system.getValue().getFirst();
+            String line = "Vespera cannot start Docker: no " + program + " command was found. Install Docker Engine --"
+                    + " in a WSL 2 distribution on Windows, with Colima on macOS, as the docker service on Linux -- and"
+                    + " run the same command again.";
+
+            ScriptedDocker forTheSidecars = ScriptedDocker.notInstalled();
+            Throwable sidecars = catchThrowable(() -> starter(settings(cpuImage), forTheSidecars,
+                    ScriptedSidecarHealth.neitherAnswering(), system.getKey()).ensureRunning());
+            claim("on " + system.getKey() + ", the start of the sidecars is refused as Docker not installed, in the"
+                            + " line naming " + program + ", after the engine check alone",
+                    () -> assertThat(List.of(sidecars.getClass(), sidecars.getMessage(), forTheSidecars.commands()))
+                            .containsExactly(DockerIsNotInstalledException.class, line, List.of(system.getValue())));
+
+            ScriptedDocker forTheWindow = ScriptedDocker.notInstalled();
+            Throwable engine = catchThrowable(() -> starter(settings(cpuImage), forTheWindow,
+                    ScriptedSidecarHealth.neitherAnswering(), system.getKey()).ensureTheEngineRuns());
+            claim("and so is the control panel's start of the engine, in the same line, after the same check",
+                    () -> assertThat(List.of(engine.getClass(), engine.getMessage(), forTheWindow.commands()))
+                            .containsExactly(DockerIsNotInstalledException.class, line, List.of(system.getValue())));
+        }
+    }
+
     private SidecarStarter starter(
             SidecarStartSettings settings, ScriptedDocker docker, ScriptedSidecarHealth health, HostSystem host) {
         Supplier<ComposeFiles> theRepositorysFiles = () -> ComposeFiles.in(REPOSITORY);

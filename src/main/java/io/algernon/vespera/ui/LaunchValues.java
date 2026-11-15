@@ -22,7 +22,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 /**
  * The values the control panel passes when it starts an invocation, and the last seed folder, remembered per user in
  * one UTF-8 {@link Properties} file under a folder of the user's own in the temp directory (ADR-292). Keyed by the
- * jar's property names as text, linking no class of the jar (ADR-285 §3). A null or blank component is {@code ""}.
+ * jar's property names as text, linking no class of the jar but {@code DockerEngine} (ADR-390 §4; ADR-285 §3). A null or blank component is {@code ""}.
  */
 public record LaunchValues(String corpusRoot, String workingDirectory, String deliverableRoot, String doclingImage,
         String doclingBaseUrl, String ollamaBaseUrl, String labelModel, String lastSeedFolder) {

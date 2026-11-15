@@ -9,7 +9,7 @@ import java.util.HexFormat;
 
 /**
  * Where the jar keeps the corpus-root lock of a corpus root (ADR-279 §2, §3), named by the same rule in {@code
- * java.base}, because the control panel links no class of the jar (ADR-285 §3): the root's real path, or its absolute
+ * java.base}, because the control panel links no class of the jar but {@code DockerEngine} (ADR-390 §4; ADR-285 §3): the root's real path, or its absolute
  * normalised path where it has none, and the first sixteen hexadecimal digits of that key's SHA-256 with {@code .lock}
  * after them, in the folder ADR-302 §2 names. A contract test holds this to the jar's {@code CorpusRootLock}.
  */

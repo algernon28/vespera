@@ -22,7 +22,7 @@ final class OutputPanel {
 
     /**
      * The form of an invocation id, ADR-362 section 3's, read as the jar's {@code InvocationOutput} reads it; written
-     * here because the control panel links no class of the jar (ADR-285). An id of any other form names no file.
+     * here because the control panel links no class of the jar but {@code DockerEngine} (ADR-390 §4; ADR-285). An id of any other form names no file.
      */
     private static final Pattern ID = Pattern.compile("\\d{8}T\\d{6}Z(?:-[1-9]\\d*)?");
 

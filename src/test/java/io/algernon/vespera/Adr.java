@@ -2838,6 +2838,18 @@ public final class Adr {
     public static final String A_WORKING_DIRECTORY_IS_NAMED_FOR_ITS_CORPUS_ROOT_AND_DAY_AND_PUBLISH_TAKES_WHAT_THE_LAST_RUN_REACHED =
             FILE + "0393-a-working-directory-is-named-for-its-corpus-root-and-day-chosen-from-a-list-and-publish-takes-what-the-last-run-reached.md";
 
+    /**
+     * ADR-395 -- one Vespera runs on a machine at a time: the jar's entry point takes the machine lock, {@code
+     * machine.lock} in the folder of the corpus-root locks, for the control panel, {@code vespera run}, {@code vespera
+     * label} and {@code vespera publish}, refusing a second in one line before anything is opened; the control panel's
+     * own child, whose parent process holds it as the control panel, is let through and holds {@code
+     * machine-child.lock}; {@code vespera serve} takes none; once the sidecars are stopped, a shut-down whose engine stop
+     * cannot write its output file says so (amends ADR-390 §5 and §6, ADR-342 §2, ADR-279 §3, ADR-278 §4 and §7, and
+     * ADR-307 §2).
+     */
+    public static final String ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME = FILE
+            + "0395-one-vespera-runs-on-a-machine-at-a-time-and-the-control-panels-own-child-is-let-through.md";
+
     private Adr() {
     }
 }
