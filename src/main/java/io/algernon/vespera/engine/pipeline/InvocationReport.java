@@ -92,8 +92,7 @@ final class InvocationReport {
 
     /**
      * The four legs of the timeline, each with its steps in job order, every step in exactly one (ADR-324 section 1,
-     * as ADR-394 redraws the line between relevance and clustering: the relevance leg runs through relevance-floor, and
-     * the clustering leg is clustering and relevance-report).
+     * as ADR-394 redraws it).
      */
     private static final Map<String, List<String>> LEGS = legs();
 
