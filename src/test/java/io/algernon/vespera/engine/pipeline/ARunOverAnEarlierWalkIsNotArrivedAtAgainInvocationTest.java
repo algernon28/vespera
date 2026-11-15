@@ -92,7 +92,7 @@ class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
 
     /**
      * Which stages' runs hold rows in each table keyed by a run, as the first invocation of this fixture
-     * leaves them: fourteen of the twenty-nine. The other fifteen hold no row in this fixture: the three of
+     * leaves them: fourteen of the twenty-eight. The other fourteen hold no row in this fixture: the three of
      * generation, which is not reached, and those a corpus of two texts that share every shingle, one usable
      * seed and no answer recorded gives nothing to write to, {@code verdict} among them.
      */

@@ -10,6 +10,7 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -32,19 +33,39 @@ class VerdictKindTest {
     /** The kind ADR-277 adds, named by its stored name so that this compiles before the value exists. */
     private static final String CODE = "CODE";
 
+    /**
+     * The ten kinds ADR-392 leaves, by their stored names in the order {@link VerdictKind} declares them, so that this
+     * compiles while {@code TRANSLATION_OF} is still declared and fails until it goes.
+     */
+    private static final List<String> THE_TEN_KINDS = List.of("BROKEN", "DUPLICATE_OF", "SUPERSEDED_BY",
+            "OUT_OF_SCOPE", CODE, "EXTRACTION_FAILED", "DEGENERATE_OUTPUT", "REDUNDANT_WITH", "BELOW_THRESHOLD",
+            "PASSED");
+
     @Test
     @Story("The vocabulary is closed")
     @DisplayName("Every verdict but one removes a document from what survives")
-    @Link(name = "ADR-271", url = Adr.ONE_COPY_OF_A_TRANSLATION_SET_SURVIVES, type = "adr")
     @Link(name = "ADR-277", url = Adr.CODE_IS_RECOGNISED_BY_A_NAME_ENDING_OR_A_GENERATORS_MARK, type = "adr")
+    @Link(name = "ADR-392", url = Adr.VESPERA_FINDS_NO_TRANSLATION_SETS, type = "adr")
     void onlyOneVerdictIsNonBlocking() {
         claim(
                 "passing is the single verdict that does not remove a document, so survival is the absence"
-                        + " of a blocking verdict rather than the presence of an approving one: translation-of"
-                        + " removes the copy it is written against, and code is not a survivor either",
+                        + " of a blocking verdict rather than the presence of an approving one: code is not a"
+                        + " survivor either",
                 () -> assertThat(Arrays.stream(VerdictKind.values())
                                 .filter(kind -> !kind.blocking())
                                 .toList())
                         .containsExactly(VerdictKind.PASSED));
+    }
+
+    @Test
+    @Story("The vocabulary is closed")
+    @DisplayName("The verdicts are ten, in their order, and none says a document is a copy of another in another language")
+    @Link(name = "ADR-392", url = Adr.VESPERA_FINDS_NO_TRANSLATION_SETS, type = "adr")
+    void theVocabularyIsTenValuesAndNoneSaysACopyIsInAnotherLanguage() {
+        claim(
+                "the vocabulary is the ten kinds, from broken to passed, in the order they are declared, and no"
+                        + " kind removes a copy for being in another language, since every such copy is kept",
+                () -> assertThat(Arrays.stream(VerdictKind.values()).map(Enum::name).toList())
+                        .containsExactlyElementsOf(THE_TEN_KINDS));
     }
 }

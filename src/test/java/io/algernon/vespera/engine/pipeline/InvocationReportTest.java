@@ -55,12 +55,12 @@ import tools.jackson.databind.JsonNode;
 @Link(name = "ADR-324", url = Adr.THE_TIMELINE_FOLDS_INTO_FOUR_LEGS, type = "adr")
 class InvocationReportTest {
 
-    /** ADR-324 section 1's four legs, written out here and not read from the jar's constant. */
+    /** ADR-324 section 1's four legs, as ADR-392 section 3 amends them, written out here and not read from the jar's constant. */
     private static final Map<String, List<String>> THE_FOUR_LEGS = Map.of(
             "deduplication", STEPS_IN_JOB_ORDER.subList(0, 6),
-            "translation", STEPS_IN_JOB_ORDER.subList(6, 10),
-            "clustering", STEPS_IN_JOB_ORDER.subList(10, 14),
-            "generation", STEPS_IN_JOB_ORDER.subList(14, 16));
+            "relevance", STEPS_IN_JOB_ORDER.subList(6, 9),
+            "clustering", STEPS_IN_JOB_ORDER.subList(9, 13),
+            "generation", STEPS_IN_JOB_ORDER.subList(13, 15));
 
     private static final List<String> THE_FIVE_STATES =
             List.of("not started", "running", "stopped at a gate", "failed", "finished");
@@ -163,7 +163,7 @@ class InvocationReportTest {
             boolean last = "ended".equals(report.get("invocation").get("state").asString());
             claim("for the job " + job + ", the report names the four legs in order",
                     () -> assertThat(names(report.get("legs"))).containsExactly(
-                            "deduplication", "translation", "clustering", "generation"));
+                            "deduplication", "relevance", "clustering", "generation"));
             String firstGated = STEPS_IN_JOB_ORDER.stream()
                     .filter(step -> "stopped at a gate".equals(states.get(step))).findFirst().orElse(null);
             for (JsonNode leg : report.get("legs")) {

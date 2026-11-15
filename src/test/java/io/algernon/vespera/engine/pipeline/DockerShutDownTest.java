@@ -34,7 +34,7 @@ import org.junit.jupiter.api.io.TempDir;
  * {@code down}; a refused step is one line, the lock's and an output file's among them; and each stop waits for
  * {@code sidecars.lock} where another holds it. And what closing the window runs: the sidecars' stop alone, only where
  * one answers and both are looked for on this machine (ADR-390 §5). Once the sidecars are stopped, an engine stop whose
- * output file fails says so (ADR-391 §6).
+ * output file fails says so (ADR-394 §6).
  *
  * <p>No Docker is needed: the starter is given a {@link ScriptedDocker}, which records every command and its limit. The
  * refusals' last lines are written as Docker Compose printed its own with the daemon down (ADR-390's probe H) and, for
@@ -293,7 +293,7 @@ class DockerShutDownTest {
     @Story("A button stops the sidecars and then the Docker engine")
     @DisplayName("Once the sidecars are stopped, an engine stop whose output file cannot be written says the sidecars were stopped and Docker was not shut down")
     @Issue("818")
-    @Link(name = "ADR-391", url = Adr.ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME, type = "adr")
+    @Link(name = "ADR-394", url = Adr.ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME, type = "adr")
     void anEngineStopsUnusableOutputFileSaysTheSidecarsWereStopped() {
         ScriptedDocker docker = ScriptedDocker.engineRunning()
                 .outputFileFails(SYSTEMCTL_STOP, lockFolder, DRIVE_FULL)

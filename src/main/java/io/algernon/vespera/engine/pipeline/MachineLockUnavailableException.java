@@ -5,7 +5,7 @@ import java.nio.file.Path;
 
 /**
  * The machine lock could not be taken because its folder or a file of it cannot be created, opened or locked, so the
- * start is refused rather than run unguarded (ADR-391 §2, §5).
+ * start is refused rather than run unguarded (ADR-394 §2, §5).
  */
 public class MachineLockUnavailableException extends RuntimeException {
 

@@ -214,7 +214,7 @@ public class SidecarStarter {
             try {
                 engine = runStop(engineStop);
             } catch (CommandOutputFileUnusableException unusable) {
-                // Step 1 exited 0: the sidecars are stopped, and it is the engine stop's output file that failed (ADR-391 §6).
+                // Step 1 exited 0: the sidecars are stopped, and it is the engine stop's output file that failed (ADR-394 §6).
                 return new ShutDown(false, "The sidecars were stopped, but Docker was not shut down: "
                         + unusable.unusable() + ".");
             }

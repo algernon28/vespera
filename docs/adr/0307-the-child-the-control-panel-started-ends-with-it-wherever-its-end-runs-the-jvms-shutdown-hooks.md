@@ -1,6 +1,6 @@
 # ADR-307 — The child the control panel started ends with it, wherever its end runs the JVM's shutdown hooks
 
-> **Partly amended — see [ADR-391](0391-one-vespera-runs-on-a-machine-at-a-time-and-the-control-panels-own-child-is-let-through.md).** Of §2: a child left running by a forced end of the control panel holds `machine-child.lock`, so a control panel started again does not open while it runs, its line quoting that child's holder line, and no other invocation starts either. The rest of this record stands.
+> **Partly amended — see [ADR-394](0394-one-vespera-runs-on-a-machine-at-a-time-and-the-control-panels-own-child-is-let-through.md).** Of §2: a child left running by a forced end of the control panel holds `machine-child.lock`, so a control panel started again does not open while it runs, its line quoting that child's holder line, and no other invocation starts either. The rest of this record stands.
 
 - **Date**: 2026-10-21
 - **Status**: accepted on 2026-10-21.

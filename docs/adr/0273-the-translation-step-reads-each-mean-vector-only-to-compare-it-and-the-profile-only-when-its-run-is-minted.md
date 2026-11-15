@@ -1,5 +1,7 @@
 # ADR-273 — The translation step reads each mean vector only to compare it, and the profile only when its run is minted
 
+> **Superseded — see ADR-392.** [ADR-392](0392-vespera-finds-no-translation-sets-the-translation-step-its-verdict-its-report-and-its-two-profile-keys-go.md) **supersedes this record**: the translation step whose reads it narrows no longer runs. The scoring run's identity is still read from one load of the profile when the run is minted, as ADR-117 and ADR-228 §2 have it. The tests named below go with that record's implementation.
+
 - **Date**: 2026-10-17
 - **Status**: accepted on 2026-10-17.
 - **Amends**: [ADR-271](0271-one-copy-of-a-translation-set-survives-in-the-language-the-profile-prefers-first.md), in these places and no others: §9's `TranslationCandidates`, "the mean vectors read in blocks as `NearestNeighbourGraph` reads them", which §1 below reads for the comparison and for nothing else, with a vector's width read once from the vector cache; §6's two keys, which join the scoring run's `config_consumed` after `relevanceScoreFloor` and are now read with it from one load of the profile (§2); and §7's last item, "the two keys and how they were read", which states how they read at that load (§3).

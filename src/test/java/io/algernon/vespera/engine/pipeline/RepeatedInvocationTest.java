@@ -29,9 +29,9 @@ import org.springframework.test.context.DynamicPropertySource;
  * What a second invocation over an unchanged corpus does to the work the first one recorded
  * (ADR-115, ADR-116, #191).
  *
- * <p><b>Several steps share one run, and that is what this class is about.</b> Fifteen of the job's
- * sixteen steps write under eight run identities, the census minting none: stage 4's two steps share one,
- * the seed measurement's two share one, and stage 5's scoring half has six steps under a single run, four of
+ * <p><b>Several steps share one run, and that is what this class is about.</b> Fourteen of the job's
+ * fifteen steps write under eight run identities, the census minting none: stage 4's two steps share one,
+ * the seed measurement's two share one, and stage 5's scoring half has five steps under a single run, three of
  * which record their completion. A record of completion kept against the run therefore says "all of this is recorded" on the strength
  * of whichever step reached the end first, and the steps behind it are told their work is done. So
  * completion is recorded against the step that did the work, and every claim here is a claim about

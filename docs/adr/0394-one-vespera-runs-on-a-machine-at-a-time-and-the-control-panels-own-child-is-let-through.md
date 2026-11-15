@@ -1,4 +1,4 @@
-# ADR-391 — One Vespera runs on a machine at a time, and the control panel's own child is let through
+# ADR-394 — One Vespera runs on a machine at a time, and the control panel's own child is let through
 
 - **Date**: 2026-11-15
 - **Status**: accepted on 2026-11-15.
@@ -50,7 +50,7 @@ The **machine lock** is the operating system's lock on one byte of `machine.lock
 
 **The folder** is the one the corpus-root locks lie in, read the way the control panel reads it (ADR-302 §2): the one `VESPERA_CORPUS_ROOT_LOCK_FOLDER` in the environment names where it is not blank, and `<user home>/.vespera-root-locks` otherwise. It is read from the environment alone, because the lock is taken before any configuration is read (§4). The folder is created where it is not there.
 
-**The child is given the folder, absolute.** The control panel's child starts in its working directory (ADR-278 §1), so a relative value it inherited would name another folder than the control panel's, and the child would find neither the control panel's machine lock nor its corpus-root locks. When the control panel starts a child it sets `VESPERA_CORPUS_ROOT_LOCK_FOLDER` in the child's environment to the absolute path of the folder it resolved itself, a relative value resolved against the control panel's own current directory, as it gives the deliverable root absolute (ADR-292 §4). So the two read one folder.
+**The child is given the folder, absolute.** The control panel's child starts in its working directory (ADR-278 §1), so a relative value it inherited would name another folder than the control panel's, and the child would find neither the control panel's machine lock nor its corpus-root locks. When the control panel starts a child it sets `VESPERA_CORPUS_ROOT_LOCK_FOLDER` in the child's environment to the absolute path of the folder it resolved itself, a relative value resolved against the control panel's own current directory, as it gives the deliverable root absolute (ADR-292 §4). It first removes the variable the child would inherit, in any case of its letters, as ADR-359 §3 removes the Confluence variables: on Windows a second spelling reaches the child beside the first, and the child's read of the variable, whose name Windows compares without case, would take either. So the two read one folder.
 
 **A value that is no path** this system can hold, as `<>|?*"` is none on Windows, is read as a path only when the lock is taken: a start that takes none (§1) never reads it, and one that takes it is refused in §5's second line, `<folder>` being the value as written. The control panel's window, which reads the same variable, is not reached: its start was refused first (§4).
 
@@ -146,6 +146,7 @@ The control panel reads `vespera.sidecars.wait-at-most`, from the sources ADR-39
 - **The README's "Starting the control panel"** opens on it: one Vespera runs on a machine at a time, the control panel's own invocations and `vespera serve` excepted. It quotes the refusal by its first words, *another Vespera is running on this machine*, and not whole.
 - **The README's "Where things live"** names `machine.lock` and `machine-child.lock`, in the folder of the corpus-root locks.
 - **A wait written as a bare number is read by the control panel in milliseconds** (§9): `180` is one second there now, the least it takes, as the jar has read it all along. A wait written with its unit, as the jar's `application.yaml` writes `180s`, reads as before.
+- **A folder of the locks set only in a configuration file does not reach the control panel's children.** The variable the control panel sets comes before `vespera.corpus-root-lock-folder` in the working directory's `application-local.yaml`, so its children take their corpus-root locks, as their machine lock, in the folder the environment names, or in `.vespera-root-locks` in the home folder. The README says to name that folder in the environment.
 - **`CONTEXT.md` gains the machine lock**, beside the working-directory lock and the corpus-root lock.
 - **`AGENTS.md`'s "Where it stands"** names the machine lock where it names the control panel and `vespera serve`.
 
@@ -179,6 +180,7 @@ The control panel reads `vespera.sidecars.wait-at-most`, from the sources ADR-39
 | `TheEntryPointTakesTheMachineLockTest.theControlPanelTakesTheMachineLockAfterTheDisplayAndBeforeTheWindow` | §4: with a display, the lock as `control-panel`, then the window; with none, no lock |
 | `TheEntryPointTakesTheMachineLockTest.aSecondControlPanelIsRefusedInOneLineAndTriesNoWindow` | §4, §5: the line, exit 1, no window and no command line |
 | `TheEntryPointTakesTheMachineLockTest.aFolderThatIsNoPathRefusesOnlyAStartThatTakesTheLock` | §1, §4: a lock that would refuse for `<>\|?*"`: `--version`, `--help` and a start with no display ask nothing and start the command line; `run` is refused in its line, exit 1 |
+| `ui.TheLockFolderIsNamedOnceInTheChildsEnvironmentTest.anInheritedVariableInAnyCaseGivesWayToTheControlPanelsFolder` | §2: an inherited variable spelled in any case is removed, and the child's environment names the control panel's folder once, absolute |
 | `ui.TheChildIsGivenTheLockFolderAbsoluteTest.aRelativeLockFolderReachesTheChildAbsolute` | §2: a control panel's state given a relative folder starts a child whose environment names it absolute, against the control panel's current directory |
 | `ui.TheControlPanelsDockerSettingsTest.theWaitIsReadInTheJarsFormsAndThreeMinutesWhereNoFormReadsIt` | §9: `PT3M`, `5M` and `2d` read; `180` and `500ms` one second; a value of no form and `99999999999999999999` 180 s |
 | `CliExitIT.aCommandStartedWhileAControlPanelRunsIsRefusedBeforeItOpensAWorkingDirectory` | §4, §5: the packaged jar, with a second process holding as `control-panel` in the folder its environment names: `run` exits 1, its one line of the jar's own on standard error quoting the holder line, and its working directory never made; `serve` is not refused by it |

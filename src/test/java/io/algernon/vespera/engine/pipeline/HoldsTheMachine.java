@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * A second process that holds the machine lock the way a Vespera does, for {@link MachineLockTest} and {@code
- * CliExitIT} to be refused by, and to kill (ADR-391 §2).
+ * CliExitIT} to be refused by, and to kill (ADR-394 §2).
  *
  * <p>A file lock belongs to the process that took it, so the cases of two Vespera processes need a real second one.
  * This one takes the lock in the folder named by its first argument, as the kind named by its second, prints {@value

@@ -121,12 +121,6 @@ package io.algernon.vespera.engine.profile;
  *     beginning with a dot, matched at the end of a file's name in any case, and read only for a file
  *     detected as of no known kind or as text. Ships unset; unset or unreadable, it leaves nothing out.
  *     Its {@link Measurement} points at the format-mix page.
- * @param translationSimilarityFloor the cosine of two mean vectors at or above which a likeness across
- *     languages is applied (ADR-271 §6). Ships unset; unset or unreadable, none is applied. Not a gate.
- *     Its {@link Measurement} points at {@code translations.html}.
- * @param preferredLanguages the languages whose copy survives, most preferred first (ADR-271 §6). Ships
- *     unset; unset or unreadable, nothing is removed. Not a gate. Its {@link Measurement} points at
- *     {@code translations.html}.
  * @param configurationSettingShareFloor stage 1's rule for a configuration file (ADR-287 §7): a share on a
  *     0-to-1 scale, the setting lines among the lines counted, at or above which a file is a configuration
  *     file. Ships unset, per <b>observe before enforce</b>; unset or unreadable, no file is one. Not a gate.
@@ -170,8 +164,6 @@ public record Profile(
         NumericValue extractionAttempt,
         NameEndingsValue codeNameEndings,
         NameEndingsValue outOfScopeNameEndings,
-        NumericValue translationSimilarityFloor,
-        LanguagesValue preferredLanguages,
         NumericValue configurationSettingShareFloor,
         TextValue deliverableLanguage,
         NumericValue clusterResolution,
@@ -202,9 +194,6 @@ public record Profile(
         extractionAttempt = extractionAttempt == null ? NumericValue.unset() : extractionAttempt;
         outOfScopeNameEndings = outOfScopeNameEndings == null ? NameEndingsValue.unset() : outOfScopeNameEndings;
         codeNameEndings = codeNameEndings == null ? NameEndingsValue.unset() : codeNameEndings;
-        translationSimilarityFloor =
-                translationSimilarityFloor == null ? NumericValue.unset() : translationSimilarityFloor;
-        preferredLanguages = preferredLanguages == null ? LanguagesValue.unset() : preferredLanguages;
         configurationSettingShareFloor =
                 configurationSettingShareFloor == null ? NumericValue.unset() : configurationSettingShareFloor;
         deliverableLanguage = deliverableLanguage == null ? TextValue.unset() : deliverableLanguage;
@@ -260,7 +249,7 @@ public record Profile(
     static Profile skeleton() {
         return new Profile(
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -281,8 +270,6 @@ public record Profile(
                 extractionAttempt,
                 codeNameEndings,
                 outOfScopeNameEndings,
-                translationSimilarityFloor,
-                preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
@@ -317,8 +304,6 @@ public record Profile(
                 extractionAttempt,
                 codeNameEndings,
                 outOfScopeNameEndings,
-                translationSimilarityFloor,
-                preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
@@ -349,8 +334,6 @@ public record Profile(
                 extractionAttempt,
                 codeNameEndings,
                 outOfScopeNameEndings,
-                translationSimilarityFloor,
-                preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
@@ -384,8 +367,6 @@ public record Profile(
                 extractionAttempt,
                 codeNameEndings,
                 outOfScopeNameEndings,
-                translationSimilarityFloor,
-                preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
@@ -424,8 +405,6 @@ public record Profile(
                 extractionAttempt,
                 codeNameEndings,
                 outOfScopeNameEndings,
-                translationSimilarityFloor,
-                preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
@@ -459,8 +438,6 @@ public record Profile(
                 extractionAttempt,
                 codeNameEndings,
                 outOfScopeNameEndings,
-                translationSimilarityFloor,
-                preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
@@ -491,8 +468,6 @@ public record Profile(
                 extractionAttempt,
                 codeNameEndings,
                 outOfScopeNameEndings,
-                translationSimilarityFloor,
-                preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
@@ -523,72 +498,6 @@ public record Profile(
                 extractionAttempt,
                 codeNameEndings,
                 outOfScopeNameEndings.measuredBy(measurement),
-                translationSimilarityFloor,
-                preferredLanguages,
-                configurationSettingShareFloor,
-                deliverableLanguage,
-                clusterResolution,
-                codeSetFolders,
-                foldersNotWalked,
-                confluenceBaseUrl,
-                confluenceSpaceKey,
-                confluenceFolderId,
-                confluenceFolderTitle,
-                confluenceEmail);
-    }
-
-    /** The same profile, with the pointer to {@code translations.html} brought up to date (ADR-271 §6). */
-    public Profile withTranslationSimilarityFloorMeasurement(Measurement measurement) {
-        return new Profile(
-                seedFolder,
-                degenerateOutputConfidenceFloor,
-                degenerateOutputWordFloor,
-                boilerplateDocumentFrequencyFloor,
-                embeddingModel,
-                relevanceScoreFloor,
-                arrangementApproved,
-                generationModel,
-                modelsRunOn,
-                generationContextWindow,
-                clusterPageByteCeiling,
-                logTimestampShareFloor,
-                extractionAttempt,
-                codeNameEndings,
-                outOfScopeNameEndings,
-                translationSimilarityFloor.measuredBy(measurement),
-                preferredLanguages,
-                configurationSettingShareFloor,
-                deliverableLanguage,
-                clusterResolution,
-                codeSetFolders,
-                foldersNotWalked,
-                confluenceBaseUrl,
-                confluenceSpaceKey,
-                confluenceFolderId,
-                confluenceFolderTitle,
-                confluenceEmail);
-    }
-
-    /** The same profile, with the pointer to {@code translations.html} brought up to date (ADR-271 §6). */
-    public Profile withPreferredLanguagesMeasurement(Measurement measurement) {
-        return new Profile(
-                seedFolder,
-                degenerateOutputConfidenceFloor,
-                degenerateOutputWordFloor,
-                boilerplateDocumentFrequencyFloor,
-                embeddingModel,
-                relevanceScoreFloor,
-                arrangementApproved,
-                generationModel,
-                modelsRunOn,
-                generationContextWindow,
-                clusterPageByteCeiling,
-                logTimestampShareFloor,
-                extractionAttempt,
-                codeNameEndings,
-                outOfScopeNameEndings,
-                translationSimilarityFloor,
-                preferredLanguages.measuredBy(measurement),
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
@@ -619,8 +528,6 @@ public record Profile(
                 extractionAttempt,
                 codeNameEndings.measuredBy(measurement),
                 outOfScopeNameEndings,
-                translationSimilarityFloor,
-                preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
@@ -651,8 +558,6 @@ public record Profile(
                 extractionAttempt,
                 codeNameEndings,
                 outOfScopeNameEndings,
-                translationSimilarityFloor,
-                preferredLanguages,
                 configurationSettingShareFloor.measuredBy(measurement),
                 deliverableLanguage,
                 clusterResolution,

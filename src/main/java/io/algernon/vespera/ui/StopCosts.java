@@ -28,7 +28,6 @@ public final class StopCosts {
                     "its own work, done again, the conversions read back from the extraction cache"),
             new StopCost("seed-corpus-comparison", "its own work, done again"),
             new StopCost("embedding-scoring", "nothing computed: every vector stored is kept"),
-            new StopCost("translation", "its decisions, made again"),
             new StopCost("relevance-scoring", "the scores, computed again from the stored vectors"),
             new StopCost("relevance-floor", "nothing: it decides again on every invocation"),
             new StopCost("clustering", "the groups, formed again from the stored vectors"),
@@ -55,7 +54,7 @@ public final class StopCosts {
             case "content-census" -> "content-census";
             case "redundancy-signature", "content-redundancy" -> "content-redundancy";
             case "seed-extraction", "seed-corpus-comparison" -> "seed-measurement";
-            case "embedding-scoring", "translation", "relevance-scoring", "clustering" -> "embedding-scoring";
+            case "embedding-scoring", "relevance-scoring", "clustering" -> "embedding-scoring";
             case "arrangement" -> "arrangement";
             case "generation" -> "generation";
             default -> "";

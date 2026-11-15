@@ -35,7 +35,7 @@ public final class EntryPoint {
     private static final String NO_WINDOW =
             "the control panel cannot open a window here, so the jar answers as its command line: ";
 
-    /** The exit code of a start the machine lock refused (ADR-391 §5, ADR-141). */
+    /** The exit code of a start the machine lock refused (ADR-394 §5, ADR-141). */
     private static final int REFUSED = 1;
 
     private EntryPoint() {
@@ -69,7 +69,7 @@ public final class EntryPoint {
     /**
      * What {@link #main} does, with its seams given: the display (ADR-362 §1), asked only once {@link #chosen}
      * says the control panel and before the toolkit; the machine lock, answering a refusal's line or empty where taken
-     * (ADR-391 §4), asked for {@code run}, {@code label} and {@code publish} before the command line and for the control
+     * (ADR-394 §4), asked for {@code run}, {@code label} and {@code publish} before the command line and for the control
      * panel once a display is found, before the window; the window; the command line; standard error; and the exit.
      * {@code --headless} first is handed to the command line as the JVM's property {@code vespera.headless}.
      */

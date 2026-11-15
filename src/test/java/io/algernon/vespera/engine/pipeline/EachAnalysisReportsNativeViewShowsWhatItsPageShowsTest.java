@@ -11,7 +11,6 @@ import io.algernon.vespera.engine.corpus.FormatMix;
 import io.algernon.vespera.engine.embedding.LabelledSpread;
 import io.algernon.vespera.engine.embedding.RelevanceDistribution;
 import io.algernon.vespera.engine.embedding.SeedCorpusComparison;
-import io.algernon.vespera.engine.embedding.Translations;
 import io.algernon.vespera.engine.extraction.ConfidenceDistribution;
 import io.algernon.vespera.engine.extraction.WordCountDistribution;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
@@ -36,7 +35,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
@@ -46,7 +44,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Each analysis report's native view shows what its page shows (ADR-362 §10), and the title it shows is the one the
- * control panel links it by (ADR-377 §5): each of the twelve writers gives its page its {@code <title>} and first
+ * control panel links it by (ADR-377 §5): each of the eleven writers gives its page its {@code <title>} and first
  * heading, and its JSON its {@code title}, as {@code Reports.TITLES} names it. Each writer writes over the smallest
  * fixture it takes, its title being the same whatever it counts.
  */
@@ -79,13 +77,12 @@ class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
         written.put(DocumentFrequencyReport.NAME, documentFrequency());
         written.put(WordCountDistributionReport.NAME, wordCounts());
         written.put(SeedCorpusComparisonReport.NAME, seedCorpus());
-        written.put(TranslationReport.NAME, translations(base));
         written.put(ClusterSizeReport.NAME, clusterSizes());
         written.put(RelevanceLabellingReport.NAME, relevance());
         written.put(ArrangementReport.NAME, arrangement(base));
         written.put("cluster-page-sizes", clusterPageSizes(base));
 
-        claim("the twelve writers are those of the twelve reports the control panel lists, in its order",
+        claim("the eleven writers are those of the eleven reports the control panel lists, in its order",
                 () -> assertThat(written.keySet()).containsExactlyElementsOf(Reports.ALL));
         written.forEach((name, report) -> {
             String title = Reports.TITLES.get(name);
@@ -153,14 +150,6 @@ class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
                 new SeedCorpusComparison.Comparison(1, 2, 0, List.of(), List.of(), List.of());
         return new Written(SeedCorpusComparisonReport.render(comparison),
                 jsonOf(SeedCorpusComparisonReport.json(comparison, WRITTEN_AT)));
-    }
-
-    private static Written translations(Path base) throws IOException {
-        Translations.Resolution resolution = new Translations.Resolution(List.of(), List.of(), 0, 0, 0, new TreeMap<>());
-        Path json = Files.createDirectories(base.resolve("translations")).resolve("translations.json");
-        TranslationReport.writeJson(json, WRITTEN_AT, resolution, A_RUN, "a model", 2, 0, "unset", "unset", false);
-        return new Written(TranslationReport.render(resolution, A_RUN, "a model", 2, 0, "unset", "unset", false),
-                Files.readString(json, StandardCharsets.UTF_8));
     }
 
     private static Written clusterSizes() throws IOException {

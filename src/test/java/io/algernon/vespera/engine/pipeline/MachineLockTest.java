@@ -36,7 +36,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * One Vespera runs on a machine at a time (ADR-391): the machine lock is an operating-system lock on one byte of {@code
+ * One Vespera runs on a machine at a time (ADR-394): the machine lock is an operating-system lock on one byte of {@code
  * machine.lock}, in the folder the corpus-root locks lie in, whose holder line ends in the holder's kind; a second take
  * is refused in one line, but for a start whose parent process holds it as the control panel, which is let through and
  * holds {@code machine-child.lock} of its own.
@@ -51,7 +51,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Architecture")
 @Feature("One Vespera on a machine")
 @Issue("818")
-@Link(name = "ADR-391", url = Adr.ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME, type = "adr")
+@Link(name = "ADR-394", url = Adr.ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME, type = "adr")
 class MachineLockTest {
 
     /** The arguments the invocation in these tests was started with, a line break among them, as an operator may type. */

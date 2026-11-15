@@ -59,8 +59,14 @@ public final class ControlPanelWindow extends Application {
         stage.setOnCloseRequest(event -> {
             // The window stays shown while the child and then the sidecars are stopped, and closes after (ADR-390 §5).
             event.consume();
-            if (closing.get()
-                    || cockpit.childRuns() && !dialogs.confirm(Child.STOP_CONFIRMATION, "Stop and close", "Keep the window")
+            if (closing.get()) {
+                return;
+            }
+            // an edit unsaved in the Profile window is asked about first (ADR-389 section 4)
+            if (!cockpit.profileAllowsClosing()) {
+                return;
+            }
+            if (cockpit.childRuns() && !dialogs.confirm(Child.STOP_CONFIRMATION, "Stop and close", "Keep the window")
                     || !closing.compareAndSet(false, true)) {
                 return;
             }

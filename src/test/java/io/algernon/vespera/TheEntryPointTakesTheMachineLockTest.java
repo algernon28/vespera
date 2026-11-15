@@ -23,7 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The jar's entry point takes the machine lock before it hands a start on (ADR-391 §4): as the command for a command
+ * The jar's entry point takes the machine lock before it hands a start on (ADR-394 §4): as the command for a command
  * line whose first argument, a first {@code --headless} dropped, is {@code run}, {@code label} or {@code publish}, and
  * as the control panel for a start with no argument once a display is found, before the window; a start refused writes
  * its one line on standard error and exits 1, and nothing after it runs.
@@ -36,7 +36,7 @@ import org.junit.jupiter.api.Test;
 @Epic("Architecture")
 @Feature("One Vespera on a machine")
 @Issue("818")
-@Link(name = "ADR-391", url = Adr.ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME, type = "adr")
+@Link(name = "ADR-394", url = Adr.ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME, type = "adr")
 class TheEntryPointTakesTheMachineLockTest {
 
     /** A refusal's line as the lock would answer it; its words are {@code MachineLockTest}'s to hold. */
@@ -51,7 +51,7 @@ class TheEntryPointTakesTheMachineLockTest {
      */
     private static final String NO_PATH = "<>|?*\"";
 
-    /** The line a lock asked about that folder answers (ADR-391 §5), quoting it as written. */
+    /** The line a lock asked about that folder answers (ADR-394 §5), quoting it as written. */
     private static final String NO_PATH_REFUSED = "the machine lock could not be taken in the folder " + NO_PATH
             + " (Illegal char <<> at index 0: " + NO_PATH + "); make that folder one this user can write, or name"
             + " another in VESPERA_CORPUS_ROOT_LOCK_FOLDER, then run the same command again. Vespera does not start"

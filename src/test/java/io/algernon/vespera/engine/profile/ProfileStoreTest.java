@@ -219,8 +219,6 @@ class ProfileStoreTest {
             Map.entry("extractionAttempt", "3"),
             Map.entry("codeNameEndings", ".C .Java"),
             Map.entry("outOfScopeNameEndings", ".P3A .DGN"),
-            Map.entry("translationSimilarityFloor", "0.55"),
-            Map.entry("preferredLanguages", "it, en"),
             Map.entry("configurationSettingShareFloor", "0.56"),
             Map.entry("deliverableLanguage", "it"),
             Map.entry("clusterResolution", "2.5"),

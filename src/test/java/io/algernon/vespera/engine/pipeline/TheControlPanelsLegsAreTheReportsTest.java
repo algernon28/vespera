@@ -41,7 +41,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-324", url = Adr.THE_TIMELINE_FOLDS_INTO_FOUR_LEGS, type = "adr")
 class TheControlPanelsLegsAreTheReportsTest {
 
-    /** The legs ADR-324 section 1 folds the job into: deduplication, translation, clustering and generation. */
+    /** The legs ADR-324 section 1 folds the job into, as ADR-392 section 3 amends them: deduplication, relevance, clustering and generation. */
     private static final int FOUR_LEGS = 4;
 
     /** The five states a leg is drawn in (ADR-324 section 3, ADR-265 section 1), every one of which the six jobs draw. */
@@ -64,7 +64,7 @@ class TheControlPanelsLegsAreTheReportsTest {
         Map<String, List<String>> byTheWindow = new LinkedHashMap<>();
         Legs.ALL.forEach(each -> byTheWindow.put(each.name(), each.steps()));
 
-        claim("the report names four parts, which together hold each of the job's sixteen steps once, in the order the"
+        claim("the report names four parts, which together hold each of the job's fifteen steps once, in the order the"
                         + " job runs them",
                 () -> {
                     assertThat(byTheReport).hasSize(FOUR_LEGS);

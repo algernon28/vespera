@@ -49,7 +49,7 @@ class TheAnalysisReportsOpenNativelyTest {
     private static final String THE_REPORT = "format-mix";
 
     /** A report whose JSON the cell of {@link #THE_REPORT}'s table names and the test writes. */
-    private static final String WRITTEN = "translations";
+    private static final String WRITTEN = "arrangement";
 
     /** A report whose JSON the working directory does not hold, named by a cell of {@link #THE_REPORT}. */
     private static final String NOT_WRITTEN = "cluster-sizes";
@@ -67,7 +67,7 @@ class TheAnalysisReportsOpenNativelyTest {
     private static final String FILES_COUNTED = "51732300";
 
     /** The tabs the window opens with, before any report is opened. */
-    private static final List<String> THE_FORM_TABS = List.of("live-report", "profile", "inclusions");
+    private static final List<String> THE_FORM_TABS = List.of("live-report", "inclusions");
 
     private static final String THE_TAB = "analysis-report-" + THE_REPORT;
 
@@ -101,8 +101,8 @@ class TheAnalysisReportsOpenNativelyTest {
             handed = List.copyOf(window.dialogs.handed);
         }
 
-        claim("the report's tab is the fourth, after the three the window opens with, by the new id",
-                () -> assertThat(tabs).containsExactly("live-report", "profile", "inclusions", THE_TAB));
+        claim("the report's tab is the third, after the two the window opens with, by the new id",
+                () -> assertThat(tabs).containsExactly("live-report", "inclusions", THE_TAB));
         claim("it is selected",
                 () -> assertThat(opened).hasValueSatisfying(each -> {
                     assertThat(each.selected()).isTrue();
@@ -127,7 +127,7 @@ class TheAnalysisReportsOpenNativelyTest {
         Files.writeString(workingDirectory.resolve(Reports.jsonOf(THE_REPORT)), "{\"format\":1,\"title\":\"cut",
                 StandardCharsets.UTF_8);
         Files.writeString(workingDirectory.resolve(Reports.jsonOf(WRITTEN)),
-                json(WRITTEN, "Translations", WRITTEN_AT, "1").replace("\"format\":1", "\"format\":2"),
+                json(WRITTEN, "Grouping to approve", WRITTEN_AT, "1").replace("\"format\":1", "\"format\":2"),
                 StandardCharsets.UTF_8);
 
         String cut;

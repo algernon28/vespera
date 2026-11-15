@@ -14,7 +14,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
-/** The Profile tab: a row for each key of profile.yaml, the Save and Reset of the form, and the repair offered for a file not in the form the jar writes (ADR-344 §1). */
+/** The Profile window's form: a row for each key of profile.yaml, the Save and Reset of the form, and the repair offered for a file not in the form the jar writes (ADR-344 §1). */
 final class ProfileForm {
 
     private final ControlPanelState state;
@@ -45,23 +45,66 @@ final class ProfileForm {
         this.open = open;
     }
 
+    private Node content;
+    private boolean saving;
+    private Optional<Path> loadedFrom = Optional.empty();
+
+    /** The form's one node, drawn once: the Profile window's scene holds it while the window is open. */
     Node content() {
+        if (content == null) {
+            content = drawnContent();
+        }
+        return content;
+    }
+
+    /** Whether a Save would write a key: some row's value differs from what the file stated as it was loaded (ADR-389 §4). */
+    boolean unsaved() {
+        return !saving && profileRows.stream().anyMatch(row -> row.provenanceToSave().isPresent());
+    }
+
+    /** What the form's Save does: saves, says the line in the form's outcome, and loads the files again where it wrote. */
+    ProfileRow.Saved saveNow() {
+        ProfileRow.Saved saved = ProfileRow.save(state, folders.workingDirectory(), profileRows);
+        profileOutcome.setText(saved.line());
+        if (saved.written()) {
+            // the rows still hold the edit just written until the load draws them again: it is not asked about
+            saving = true;
+            try {
+                reload.run();
+            } finally {
+                saving = false;
+            }
+        }
+        return saved;
+    }
+
+    /** The working directory the form was last loaded from, empty where none was named. */
+    Optional<Path> loadedFrom() {
+        return loadedFrom;
+    }
+
+    /**
+     * Saves into the working directory the form was last loaded from, not the one now named, and loads nothing again
+     * (ADR-389 §4: the working directory changed under an edit unsaved).
+     */
+    ProfileRow.Saved saveWhereLoaded() {
+        return ProfileRow.save(state, loadedFrom, profileRows);
+    }
+
+    /** What the form's Reset does: the rows back to the file as last loaded. */
+    void discardNow() {
+        profileRows.forEach(ProfileRow::reset);
+        profileOutcome.setText("the form is back to profile.yaml as last saved");
+    }
+
+    private Node drawnContent() {
         profileBody.setId("profile-form");
         Button save = new Button("Save");
         save.setId("profile-save");
         Button reset = new Button("Reset");
         reset.setId("profile-reset");
-        save.setOnAction(event -> {
-            ProfileRow.Saved saved = ProfileRow.save(state, folders.workingDirectory(), profileRows);
-            profileOutcome.setText(saved.line());
-            if (saved.written()) {
-                reload.run();
-            }
-        });
-        reset.setOnAction(event -> {
-            profileRows.forEach(ProfileRow::reset);
-            profileOutcome.setText("the form is back to profile.yaml as last saved");
-        });
+        save.setOnAction(event -> saveNow());
+        reset.setOnAction(event -> discardNow());
         profileOutcome.setId("profile-outcome");
         ScrollPane scroll = new ScrollPane(profileBody);
         scroll.setFitToWidth(true);
@@ -79,6 +122,7 @@ final class ProfileForm {
             String text, Map<String, Boolean> written) {
         Optional<EffectiveValues> effective = state.effectiveValues(folders.workingDirectory());
         List<String> models = state.lastChecks().ollama().models();
+        loadedFrom = folders.workingDirectory();
         profileRows.clear();
         titles.clear();
         profileBody.getChildren().clear();

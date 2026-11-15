@@ -13,7 +13,6 @@ import io.algernon.vespera.engine.embedding.RelevanceDistribution;
 import io.algernon.vespera.engine.embedding.RelevanceLabels;
 import io.algernon.vespera.engine.embedding.RelevanceScoringBeans;
 import io.algernon.vespera.engine.embedding.SeedCorpusComparison;
-import io.algernon.vespera.engine.embedding.TranslationOf;
 import io.algernon.vespera.engine.embedding.UnusableSeeds;
 import io.algernon.vespera.engine.extraction.ConfidenceDistribution;
 import io.algernon.vespera.engine.extraction.DocumentTitles;
@@ -170,9 +169,6 @@ import org.springframework.transaction.annotation.Transactional;
     ModelPull.class,
     // Checks both models at the start of vespera run (ADR-375).
     ModelsAtTheStart.class,
-    // The translation step between embedding and relevance scoring (ADR-271 §5).
-    TranslationTasklet.class,
-    TranslationOf.class,
     RelevanceScoringTasklet.class,
     RelevanceScoringBeans.class,
     RelevanceFloorTasklet.class,

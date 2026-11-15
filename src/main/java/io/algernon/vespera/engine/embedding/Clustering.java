@@ -74,8 +74,7 @@ public class Clustering {
 
     /**
      * One document's mean vector computed from its stored chunk vectors as clustering computes it (ADR-087), for
-     * the translation step (ADR-271 section 3): empty where none is stored, which makes the document no candidate
-     * and is no error there. Returned to be discarded.
+     * its own use: empty where none is stored, which is no error. Returned to be discarded.
      */
     float[] meanVectorOf(
             String contentHash, String chunkerIdentity, String chunkingRuleIdentity, String embedderIdentity) {

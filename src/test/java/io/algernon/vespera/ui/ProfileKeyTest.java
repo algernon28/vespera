@@ -81,7 +81,7 @@ class ProfileKeyTest {
     }
 
     /**
-     * Each key's cost, written out by hand from the records' tables: sixteen keys draw the sample again, the seed
+     * Each key's cost, written out by hand from the records' tables: fourteen keys draw the sample again, the seed
      * folder alone refuses the labels, the four generation keys close no approval, and the page ceiling and where the
      * models run (ADR-384), which enters no run, cost nothing.
      */
@@ -89,7 +89,7 @@ class ProfileKeyTest {
 
     @Test
     @Story("The control panel says what a change costs before it is saved")
-    @DisplayName("A change costs its key's earliest run and every later one; the approval closes where the arrangement is among them, the labels are refused after a seed folder change, and the sample being answered is drawn again for the sixteen values whose runs include embedding scoring")
+    @DisplayName("A change costs its key's earliest run and every later one; the approval closes where the arrangement is among them, the labels are refused after a seed folder change, and the sample being answered is drawn again for the fourteen values whose runs include embedding scoring")
     @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
     void aChangeCostsItsRunAndEveryLaterOne() {
         Map<String, Cost> costs = new LinkedHashMap<>();
@@ -104,7 +104,7 @@ class ProfileKeyTest {
                         Run.ARRANGEMENT, Run.GENERATION));
         claim("a change of each key costs its earliest run and every later one; it closes the approval only where the"
                         + " arrangement is among them, refuses the labels only for the seed folder, and draws the"
-                        + " sample again for the sixteen whose runs include embedding scoring; the page ceiling, where the"
+                        + " sample again for the fourteen whose runs include embedding scoring; the page ceiling, where the"
                         + " models run and the five values of a publish cost no run, close no approval, refuse no labels"
                         + " and draw no sample",
                 () -> assertThat(costs).containsExactlyEntriesOf(COST_OF_EACH_KEY));
@@ -127,8 +127,6 @@ class ProfileKeyTest {
         costs.put("extractionAttempt", scoringAgainFrom(FROM_EXTRACTION));
         costs.put("codeNameEndings", scoringAgainFrom(FROM_BYTE_LEVEL_REDUCTION));
         costs.put("outOfScopeNameEndings", scoringAgainFrom(FROM_BYTE_LEVEL_REDUCTION));
-        costs.put("translationSimilarityFloor", scoringAgainFrom(FROM_EMBEDDING_SCORING));
-        costs.put("preferredLanguages", scoringAgainFrom(FROM_EMBEDDING_SCORING));
         costs.put("configurationSettingShareFloor", scoringAgainFrom(FROM_BYTE_LEVEL_REDUCTION));
         costs.put("deliverableLanguage", new Cost(FROM_GENERATION, false, false, false));
         costs.put("clusterResolution", scoringAgainFrom(FROM_EMBEDDING_SCORING));

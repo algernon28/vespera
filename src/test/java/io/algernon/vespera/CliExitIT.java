@@ -73,7 +73,7 @@ class CliExitIT {
             "the control panel cannot open a window here, so the jar answers as its command line: ";
 
     /**
-     * The variable that names the folder of the machine lock and the corpus-root locks (ADR-391 §2, ADR-302 §2), set for
+     * The variable that names the folder of the machine lock and the corpus-root locks (ADR-394 §2, ADR-302 §2), set for
      * every launch to a folder of this class's, so that no launch takes or is refused by a lock of the user's own.
      */
     private static final String LOCK_FOLDER_VARIABLE = "VESPERA_CORPUS_ROOT_LOCK_FOLDER";
@@ -201,7 +201,7 @@ class CliExitIT {
     }
 
     /**
-     * One Vespera runs on a machine at a time (ADR-391 §4, §5): the packaged jar started as {@code vespera run} while a
+     * One Vespera runs on a machine at a time (ADR-394 §4, §5): the packaged jar started as {@code vespera run} while a
      * second process holds the machine as a control panel, in the folder the launch's environment names, is refused
      * before the context starts, so its working directory is never made; and {@code vespera serve}, which uses no
      * sidecar, is not refused by it. Held here, among this class's launches, because the suite holds at most seven
@@ -209,7 +209,7 @@ class CliExitIT {
      */
     @Test
     @Issue("818")
-    @Link(name = "ADR-391", url = Adr.ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME, type = "adr")
+    @Link(name = "ADR-394", url = Adr.ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME, type = "adr")
     @Story("One Vespera runs on a machine at a time")
     @DisplayName("A command started while a control panel holds the machine is refused in one line, exit 1, before it makes its working directory, and serve is not")
     void aCommandStartedWhileAControlPanelRunsIsRefusedBeforeItOpensAWorkingDirectory() throws Exception {

@@ -3,13 +3,20 @@ package io.algernon.vespera.ui;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import javafx.event.ActionEvent;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.Node;
 import javafx.scene.control.Dialog;
+import javafx.scene.control.DialogPane;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
@@ -43,11 +50,30 @@ interface Dialogs {
      */
     Optional<String> warnAndAsk(String title, String sentence, String initial);
 
+    /**
+     * Shows New…'s one field, holding {@code proposed}, which the operator may edit, with Browse for its parent, OK and
+     * Cancel (ADR-393 §6): the folder written in it, empty where cancelled. A test answers it without a native dialog.
+     */
+    default Optional<Path> newWorkingDirectory(Path proposed) {
+        return Optional.empty();
+    }
+
     /** Hands {@code address}, a document that is no report of the window, to the operating system to open (ADR-344 §6). */
     void handToTheSystem(URI address);
 
     /** Asks {@code sentence} with two answers; true where the operator gives {@code yes}, the one that goes on. */
     boolean confirm(String sentence, String yes, String no);
+
+    /**
+     * Asks {@code sentence} under {@code title} with one button for each of {@code answers}, in their order (ADR-389 §4):
+     * the words of the answer pressed, empty where the dialog is closed with none.
+     */
+    Optional<String> choose(String title, String sentence, List<String> answers);
+
+    /** These dialogs asked over the window {@code owner} gives; dialogs with no window of their own stay as they are. */
+    default Dialogs over(Supplier<Window> owner) {
+        return this;
+    }
 
     /** Dialogs that open nothing and choose nothing: what a window drawn without a stage holds. */
     Dialogs NONE = new Dialogs() {
@@ -64,6 +90,11 @@ interface Dialogs {
         @Override
         public boolean confirm(String sentence, String yes, String no) {
             return false;
+        }
+
+        @Override
+        public Optional<String> choose(String title, String sentence, List<String> answers) {
+            return Optional.empty();
         }
 
         @Override
@@ -98,6 +129,60 @@ interface Dialogs {
     static Dialogs of(Supplier<Window> owner, Consumer<String> showDocument) {
         return new Dialogs() {
             @Override
+            public Dialogs over(Supplier<Window> other) {
+                return of(other, showDocument);
+            }
+
+            @Override
+            public Optional<String> choose(String title, String sentence, List<String> answers) {
+                List<ButtonType> buttons = new ArrayList<>();
+                for (int at = 0; at < answers.size(); at++) {
+                    ButtonBar.ButtonData data = at == answers.size() - 1 ? ButtonBar.ButtonData.CANCEL_CLOSE
+                            : at == 0 ? ButtonBar.ButtonData.OK_DONE : ButtonBar.ButtonData.OTHER;
+                    buttons.add(new ButtonType(answers.get(at), data));
+                }
+                Dialog<ButtonType> ask = new Dialog<>();
+                ask.setDialogPane(new DialogPane() {
+                    @Override
+                    protected Node createButtonBar() {
+                        ButtonBar bar = (ButtonBar) super.createButtonBar();
+                        bar.setButtonOrder(ButtonBar.BUTTON_ORDER_NONE);
+                        return bar;
+                    }
+                });
+                ask.setTitle(title);
+                Label words = new Label(sentence);
+                words.setWrapText(true);
+                ask.getDialogPane().setContent(words);
+                ask.getDialogPane().getButtonTypes().setAll(buttons);
+                Window over = owner.get();
+                if (over != null) {
+                    ask.initOwner(over);
+                    themed(ask.getDialogPane(), over);
+                }
+                // JavaFX answers a close, and Escape through the cancel button, with the CANCEL_CLOSE button's type: only a
+                // button really pressed is an answer (ADR-389 section 4)
+                String[] pressed = new String[1];
+                boolean[] escaping = new boolean[1];
+                // on the scene, so that a key with no focus owner, which targets the scene, is seen too
+                ask.getDialogPane().getScene().addEventFilter(KeyEvent.ANY, key -> {
+                    if (key.getCode() == KeyCode.ESCAPE) {
+                        escaping[0] = key.getEventType() == KeyEvent.KEY_PRESSED;
+                    }
+                });
+                for (ButtonType type : buttons) {
+                    Node button = ask.getDialogPane().lookupButton(type);
+                    button.addEventFilter(ActionEvent.ACTION, event -> {
+                        if (!escaping[0]) {
+                            pressed[0] = type.getText();
+                        }
+                    });
+                }
+                ask.showAndWait();
+                return Optional.ofNullable(pressed[0]);
+            }
+
+            @Override
             public Optional<String> masked(String title, String sentence) {
                 ButtonType goOn = new ButtonType("Publish", ButtonBar.ButtonData.OK_DONE);
                 ButtonType keep = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
@@ -110,6 +195,47 @@ interface Dialogs {
                 ask.getDialogPane().setContent(new VBox(8, words, field));
                 ask.getDialogPane().getButtonTypes().setAll(goOn, keep);
                 ask.setResultConverter(pressed -> pressed == goOn ? field.getText() : null);
+                Window over = owner.get();
+                if (over != null) {
+                    ask.initOwner(over);
+                    themed(ask.getDialogPane(), over);
+                }
+                return ask.showAndWait();
+            }
+
+            @Override
+            public Optional<Path> newWorkingDirectory(Path proposed) {
+                ButtonType goOn = new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
+                ButtonType keep = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+                Dialog<Path> ask = new Dialog<>();
+                ask.setTitle("New working directory");
+                TextField field = new TextField(proposed.toString());
+                field.setId("working-directory-new-field");
+                javafx.scene.control.Button browse = new javafx.scene.control.Button("Browse");
+                browse.setId("working-directory-new-browse");
+                browse.setOnAction(event -> {
+                    Path named = Path.of(field.getText().strip());
+                    Path parent = named.getParent();
+                    folder("Choose the folder the working directory is made in", parent == null ? "" : parent.toString())
+                            .ifPresent(chosen -> field.setText(chosen.resolve(named.getFileName()).toString()));
+                });
+                Label words = new Label("The folder of the new working directory. Its name is the corpus root's folder"
+                        + " name and the day; edit it as you like.");
+                words.setWrapText(true);
+                javafx.scene.layout.HBox line = new javafx.scene.layout.HBox(8, field, browse);
+                javafx.scene.layout.HBox.setHgrow(field, javafx.scene.layout.Priority.ALWAYS);
+                ask.getDialogPane().setContent(new VBox(8, words, line));
+                ask.getDialogPane().getButtonTypes().setAll(goOn, keep);
+                ask.setResultConverter(pressed -> {
+                    if (pressed != goOn || field.getText().isBlank()) {
+                        return null;
+                    }
+                    try {
+                        return Path.of(field.getText().strip()).toAbsolutePath().normalize();
+                    } catch (RuntimeException cannotBeHeld) {
+                        return null;
+                    }
+                });
                 Window over = owner.get();
                 if (over != null) {
                     ask.initOwner(over);

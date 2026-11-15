@@ -56,6 +56,10 @@ final class ControlPanelState {
     private final DockerControl docker;
     private final WorkingDirectoryWrite writer;
     private final List<String> launchLines = new ArrayList<>();
+    private final List<String> workingDirectoryLines = new ArrayList<>();
+    /** Where a line the list gives after the window is built goes, as it is given; null until the window sets it. */
+    private volatile java.util.function.Consumer<String> workingDirectoryLineSink;
+    private WorkingDirectories workingDirectories;
 
     private volatile StartingValues.Sources sources = StartingValues.Sources.none();
     private volatile WorkingDirectoryDefault workingDirectoryDefault = WorkingDirectoryDefault.of(Path.of(""), Map.of(),
@@ -249,6 +253,39 @@ final class ControlPanelState {
 
     void keepChecks(SidecarChecks.Checks asked) {
         this.lastChecks = asked;
+    }
+
+    /**
+     * The working directories the window lists (ADR-393 §4), read from the file beside the launch values as first asked,
+     * once the machine's folder is resolved and the launch values are held.
+     */
+    synchronized WorkingDirectories workingDirectories() {
+        if (workingDirectories == null) {
+            Path theDefault = pathOf(workingDirectoryDefault.folder()).orElse(Path.of(workingDirectoryDefault.folder()));
+            workingDirectories = new WorkingDirectories(WorkingDirectoryList.besides(launchValuesFile), userName,
+                    theDefault, values.workingDirectory(), line -> {
+                        synchronized (workingDirectoryLines) {
+                            workingDirectoryLines.add(line);
+                        }
+                        java.util.function.Consumer<String> sink = workingDirectoryLineSink;
+                        if (sink != null) {
+                            sink.accept(line);
+                        }
+                    });
+        }
+        return workingDirectories;
+    }
+
+    /** The lines the list of working directories gave as it was read or written, for the window's standard error. */
+    synchronized List<String> workingDirectoryLines() {
+        synchronized (workingDirectoryLines) {
+            return List.copyOf(workingDirectoryLines);
+        }
+    }
+
+    /** From now on each line the list of working directories gives, as it is read or written, goes to {@code sink} as it is given. */
+    void sendWorkingDirectoryLinesTo(java.util.function.Consumer<String> sink) {
+        this.workingDirectoryLineSink = sink;
     }
 
     /** The lines the launch values' file gave as it was loaded. */
@@ -527,7 +564,7 @@ final class ControlPanelState {
         try {
             Instant before = Instant.now();
             ProcessBuilder builder = command.processBuilder();
-            builder.environment().put("VESPERA_CORPUS_ROOT_LOCK_FOLDER", corpusRootLockFolder.toAbsolutePath().toString());
+            giveTheLockFolder(builder.environment(), corpusRootLockFolder);
             child = Child.start(builder);
             childStartInstant = before;
         } catch (IOException | RuntimeException notStarted) {
@@ -536,6 +573,21 @@ final class ControlPanelState {
         }
         childCommand = kind.command;
         ending = null;
+        // the folder it started in moves to the top of the list of working directories (ADR-393 §4)
+        if (now.workingDirectory() != null && !now.workingDirectory().isBlank()) {
+            pathOf(now.workingDirectory().stripTrailing())
+                    .ifPresent(folder -> workingDirectories().started(folder.toAbsolutePath().normalize()));
+        }
         return Optional.empty();
+    }
+
+    /**
+     * Names the folder of the locks in a child's environment, absolute (ADR-394 §2): the variable inherited in any case
+     * of its letters is removed first, as ADR-359 §3 removes the Confluence variables, since on Windows a second
+     * spelling reaches the child beside the first and the child's own read of the variable would take either.
+     */
+    static void giveTheLockFolder(java.util.Map<String, String> environment, Path folder) {
+        environment.keySet().removeIf(name -> name.equalsIgnoreCase(ControlPanel.CORPUS_ROOT_LOCK_FOLDER_VARIABLE));
+        environment.put(ControlPanel.CORPUS_ROOT_LOCK_FOLDER_VARIABLE, folder.toAbsolutePath().toString());
     }
 }

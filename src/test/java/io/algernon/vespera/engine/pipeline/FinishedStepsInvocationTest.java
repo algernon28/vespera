@@ -60,11 +60,11 @@ class FinishedStepsInvocationTest {
     /**
      * Every piece of work the job records as finished, as {@code the run's stage / the step's name}.
      *
-     * <p>Thirteen of the sixteen steps. Census works under no run, so it has nothing to record under.
+     * <p>Twelve of the fifteen steps. Census works under no run, so it has nothing to record under.
      * The relevance-floor and relevance-report steps record nothing at all (ADR-118): both read the
      * answers a person gave on the labelling page, which no run names, so both decide again on every
-     * invocation and an answer given between two of them takes effect. The translation step records
-     * under the scoring run, which names everything it reads (ADR-271 §5). Written out literally, since
+     * invocation and an answer given between two of them takes effect. The scoring run records three,
+     * embedding scoring, relevance scoring and clustering (ADR-392 §3). Written out literally, since
      * each half is a persisted name.
      */
     private static final List<String> EVERY_FINISHED_STEP = List.of(
@@ -76,7 +76,6 @@ class FinishedStepsInvocationTest {
             "seed-measurement / seed-extraction",
             "seed-measurement / seed-corpus-comparison",
             "embedding-scoring / embedding-scoring",
-            "embedding-scoring / translation",
             "embedding-scoring / relevance-scoring",
             "embedding-scoring / clustering",
             "arrangement / arrangement",
@@ -130,7 +129,7 @@ class FinishedStepsInvocationTest {
                 "and the finished work over this corpus is exactly these " + EVERY_FINISHED_STEP.size()
                         + " pieces, each recorded once, each under the run of its own stage and under its"
                         + " own name: the two steps of redundancy under one run, the two of the seed"
-                        + " measurement under another, and four of the scoring steps under a third. A"
+                        + " measurement under another, and three of the scoring steps under a third. A"
                         + " name one character off, or a record under a neighbour's run, would make a"
                         + " later invocation do that work all over again",
                 () -> assertThat(finishedStepsOver(root)).containsExactlyInAnyOrderElementsOf(EVERY_FINISHED_STEP));

@@ -55,10 +55,6 @@ public enum ProfileKey {
     OUT_OF_SCOPE_NAME_ENDINGS("outOfScopeNameEndings", Kind.NAME_ENDINGS, Run.BYTE_LEVEL_REDUCTION,
             "which files, of no known kind or text, you know are not documents by the ending of their name",
             ".ok .tmp"),
-    TRANSLATION_SIMILARITY_FLOOR("translationSimilarityFloor", Kind.NUMBER, Run.EMBEDDING_SCORING,
-            "how alike two documents in different languages must be to be taken for one", "0.85"),
-    PREFERRED_LANGUAGES("preferredLanguages", Kind.LANGUAGES, Run.EMBEDDING_SCORING,
-            "which language's copy you keep of a document held in several", "it, en"),
     CONFIGURATION_SETTING_SHARE_FLOOR("configurationSettingShareFloor", Kind.NUMBER, Run.BYTE_LEVEL_REDUCTION,
             "how much of each text file is settings, which files open with a program's configuration, and which"
                     + " interface definitions were kept",
@@ -84,7 +80,7 @@ public enum ProfileKey {
             "the email of your Confluence account", "you@example.com");
 
     /** The type of a key's value, which is how the jar reads it. */
-    public enum Kind { TEXT, NUMBER, NAME_ENDINGS, LANGUAGES, FOLDERS, CORPUS_FOLDERS }
+    public enum Kind { TEXT, NUMBER, NAME_ENDINGS, FOLDERS, CORPUS_FOLDERS }
 
     /** The runs a key can enter, in the cascade's order. */
     public enum Run {

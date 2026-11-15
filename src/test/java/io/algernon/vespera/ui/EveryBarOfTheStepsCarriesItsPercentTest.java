@@ -96,7 +96,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
         }
     }
 
-    /** The four folded summaries' places, the sixteen opened rows' places, and the percents not there or not shown. */
+    /** The four folded summaries' places, the fifteen opened rows' places, and the percents not there or not shown. */
     record Layout(Map<String, Placed> legs, Map<String, Placed> rows, List<String> missing) {
     }
 
@@ -116,7 +116,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
 
         Map<String, String> everyStepAtNothing = new LinkedHashMap<>();
         StopCosts.ROWS.forEach(cost -> everyStepAtNothing.put(cost.step(), "0%"));
-        claim("before any file is read, every one of the sixteen steps' bars carries 0%, as each bar stands empty",
+        claim("before any file is read, every one of the fifteen steps' bars carries 0%, as each bar stands empty",
                 () -> assertThat(read.get("before any file").stepPercents())
                         .as("each step's percent, by step").containsExactlyEntriesOf(everyStepAtNothing));
 
@@ -160,8 +160,8 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                 () -> assertThat(List.of(percentOf(read, "census failed with no counter", "census"),
                         wordsOf(read, "census failed with no counter", "census")))
                         .as("the census's percent and state words").containsExactly("—", "failed"));
-        Seen gate = read.get("first stopped at a gate in translation");
-        claim("with the job first stopped at a gate in translation, seed extraction finished with no count carries 100%,"
+        Seen gate = read.get("first stopped at a gate in relevance");
+        claim("with the job first stopped at a gate in relevance, seed extraction finished with no count carries 100%,"
                         + " the seed-corpus comparison stopped at a gate at 2 of 4 carries 50%, the percent of the half"
                         + " bar it is drawn on, and embedding scoring stopped at a gate with no count 100%; extraction,"
                         + " finished at 3 of 4, carries 75%, its bar's",
@@ -198,13 +198,13 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                 shown(root, byteLevelReductionFailedAt3Of4());
                 return seenIn(root);
             }));
-            read.put("seed extraction with no counter, translation folded by the operator", window.read(root -> {
+            read.put("seed extraction with no counter, relevance folded by the operator", window.read(root -> {
                 shown(root, seedExtractionWithNoCounter());
-                operatorFolds(root, "translation");
+                operatorFolds(root, "relevance");
                 return seenIn(root);
             }));
-            read.put("first stopped at a gate in translation", window.read(root -> {
-                shown(root, firstStoppedAtAGateInTranslation());
+            read.put("first stopped at a gate in relevance", window.read(root -> {
+                shown(root, firstStoppedAtAGateInRelevance());
                 return seenIn(root);
             }));
         }
@@ -212,10 +212,10 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
         claim("before any file is read, each of the four parts, folded, shows 0% on its bar",
                 () -> {
                     assertThat(read.get("before any file").legPercents()).as("each part's percent, by part")
-                            .containsExactlyEntriesOf(ordered("deduplication", "0%", "translation", "0%", "clustering",
+                            .containsExactlyEntriesOf(ordered("deduplication", "0%", "relevance", "0%", "clustering",
                                     "0%", "generation", "0%"));
                     assertThat(read.get("before any file").legPercentShown()).as("whether each part's percent is shown")
-                            .containsOnly(Map.entry("deduplication", true), Map.entry("translation", true),
+                            .containsOnly(Map.entry("deduplication", true), Map.entry("relevance", true),
                                     Map.entry("clustering", true), Map.entry("generation", true));
                 });
         Seen at340 = read.get("extraction at 340 of 1000");
@@ -223,10 +223,10 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                         + " shows no bar; the three other parts, folded, show 0%",
                 () -> {
                     assertThat(at340.legPercentShown()).as("whether each part's percent is shown")
-                            .containsExactlyEntriesOf(ordered("deduplication", false, "translation", true, "clustering",
+                            .containsExactlyEntriesOf(ordered("deduplication", false, "relevance", true, "clustering",
                                     true, "generation", true));
                     assertThat(at340.legPercents()).as("each part's percent, by part").containsAllEntriesOf(
-                            ordered("translation", "0%", "clustering", "0%", "generation", "0%"));
+                            ordered("relevance", "0%", "clustering", "0%", "generation", "0%"));
                 });
         Seen folded = read.get("deduplication folded by the operator");
         claim("folded by the operator, deduplication shows 39% on its bar: (1 + 1 + 0.34) / 6 is 38.99999999999999 as"
@@ -247,26 +247,26 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                                 .get("deduplication"),
                         read.get("byte-level reduction failed at 3 of 4").legWords().get("deduplication")))
                         .as("deduplication's percent and state words").containsExactly("29%", "failed"));
-        Seen noCounter = read.get("seed extraction with no counter, translation folded by the operator");
-        claim("with seed extraction running with no count and none of translation's steps finished, translation, folded"
+        Seen noCounter = read.get("seed extraction with no counter, relevance folded by the operator");
+        claim("with seed extraction running with no count and none of relevance's steps finished, relevance, folded"
                         + " by the operator, shows 0%, never …, its bar standing empty, and its state says running 0%;"
                         + " deduplication, every step finished, shows 100%",
-                () -> assertThat(List.of(noCounter.legPercents().get("translation"),
-                        noCounter.legWords().get("translation"), noCounter.legPercents().get("deduplication"),
+                () -> assertThat(List.of(noCounter.legPercents().get("relevance"),
+                        noCounter.legWords().get("relevance"), noCounter.legPercents().get("deduplication"),
                         noCounter.legWords().get("deduplication")))
-                        .as("translation's percent and words, then deduplication's")
+                        .as("relevance's percent and words, then deduplication's")
                         .containsExactly("0%", "running 0%", "100%", "finished"));
-        Seen gate = read.get("first stopped at a gate in translation");
-        claim("with the job first stopped at a gate in translation, extraction having finished at 3 of 4, deduplication"
-                        + " shows 95% of (5 + 0.75) / 6, translation 87% of (1 + 0.5 + 1 + 1) / 4, and clustering and"
+        Seen gate = read.get("first stopped at a gate in relevance");
+        claim("with the job first stopped at a gate in relevance, extraction having finished at 3 of 4, deduplication"
+                        + " shows 95% of (5 + 0.75) / 6, relevance 83% of (1 + 0.5 + 1) / 3, and clustering and"
                         + " generation, every step stopped at a gate, 100%; their states read finished, then stopped at"
                         + " a gate three times",
                 () -> {
                     assertThat(gate.legPercents()).as("each part's percent, by part").containsExactlyEntriesOf(
-                            ordered("deduplication", "95%", "translation", "87%", "clustering", "100%", "generation",
+                            ordered("deduplication", "95%", "relevance", "83%", "clustering", "100%", "generation",
                                     "100%"));
                     assertThat(gate.legWords()).as("each part's state words, by part").containsExactlyEntriesOf(
-                            ordered("deduplication", "finished", "translation", "stopped at a gate", "clustering",
+                            ordered("deduplication", "finished", "relevance", "stopped at a gate", "clustering",
                                     "stopped at a gate", "generation", "stopped at a gate"));
                 });
     }
@@ -316,7 +316,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
         }
         Layout layout = new Layout(legs, rows, missing);
 
-        claim("every one of the four folded parts and, with every part opened, every one of the sixteen steps shows a"
+        claim("every one of the four folded parts and, with every part opened, every one of the fifteen steps shows a"
                         + " percent on its bar",
                 () -> assertThat(layout.missing()).as("the percents the window does not hold or does not show")
                         .isEmpty());
@@ -334,7 +334,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                     assertThat(widths(layout.legs())).as("the parts' bars' widths, rounded to the pixel").hasSize(1);
                     assertThat(stateXs(layout.legs())).as("the x at which the parts' states start").hasSize(1);
                 });
-        claim("the sixteen steps' bars are one width, and their states start at one x, as before the percents",
+        claim("the fifteen steps' bars are one width, and their states start at one x, as before the percents",
                 () -> {
                     assertThat(widths(layout.rows())).as("the steps' bars' widths, rounded to the pixel").hasSize(1);
                     assertThat(stateXs(layout.rows())).as("the x at which the steps' states start").hasSize(1);
@@ -345,7 +345,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
     @Story("The window says how far each step and each part has got")
     @DisplayName("Each percent's text stands at WCAG AA against its halo, in the light and the dark theme")
     void eachPercentStandsAtWcagAaAgainstItsHaloInBothThemes() throws Exception {
-        List<String> ids = List.of("step-percent-extraction", "leg-percent-translation");
+        List<String> ids = List.of("step-percent-extraction", "leg-percent-relevance");
         List<String> faults = inTheWindow(root -> {
             shown(root, extractionAt(375, 1000));
             List<String> found = new ArrayList<>();
@@ -368,7 +368,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
             return found;
         });
 
-        claim("in the light theme and in the dark, extraction's percent and translation's are drawn in an opaque colour"
+        claim("in the light theme and in the dark, extraction's percent and relevance's are drawn in an opaque colour"
                         + " with a halo, a drop shadow centred on the text, at least 2 px across its blur and at least"
                         + " 0.8 of it solid, in an opaque colour the text stands against at 4.5 : 1 or more, WCAG AA,"
                         + " whatever of the bar's fill or its track lies under it",
@@ -380,6 +380,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
     @DisplayName("Every text of the window, and every line, swatch and marker of its charts, stands at WCAG AA in the light and the dark theme")
     @Link(name = "ADR-374", url = Adr.EVERY_TEXT_LINE_AND_MARKER_OF_THE_WINDOW_STANDS_AT_AA_IN_BOTH_THEMES, type = "adr")
     @Link(name = "ADR-382", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
+    @Link(name = "ADR-389", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
     void everyTextOfTheWindowAndEveryMarkOfItsChartsStandsAtAaInBothThemes(@TempDir Path folder) throws Exception {
         Map<String, String> faults = new LinkedHashMap<>();
         int[] measured = new int[3];
@@ -402,6 +403,10 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                         keptOncePerPair(faults, window.read(root -> faultsIn(root,
                                 theme + ", " + drawing + ", " + tab + " tab", measured)));
                     }
+                    // the profile's form is a window of its own, which follows the switch (ADR-389 §7)
+                    window.openProfile();
+                    keptOncePerPair(faults, window.readProfile(root -> faultsIn(root,
+                            theme + ", " + drawing + ", the profile window", measured)));
                 }
             }
         }
@@ -411,9 +416,9 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                 () -> assertThat(measured).as("texts measured, chart marks measured, dimmed chart marks measured")
                         .doesNotContain(0));
         claim("in the light theme and in the dark, with each section of the sidebar open in turn and each tab selected in"
-                        + " turn, the chart of stage 0 drawing one line, of stage 1 six and of stage 2 three, stage 1"
-                        + " running and then finished, every text shown, not disabled and not drawn transparent stands at"
-                        + " 4.5 : 1 or more against what is drawn behind it,"
+                        + " turn and the profile window open, the chart of stage 0 drawing one line, of stage 1 six and"
+                        + " of stage 2 three, stage 1 running and then finished, every text shown, not disabled and not"
+                        + " drawn transparent stands at 4.5 : 1 or more against what is drawn behind it,"
                         + " and every line, legend swatch and marked sample of the charts, a finished stage's dimmed"
                         + " ones as dimmed as they are drawn, at 3 : 1 or more against the chart's plot or its legend,"
                         + " WCAG AA",
@@ -514,7 +519,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                 .filter(id -> id != null).toList();
     }
 
-    /** Selects the tab {@code id} of the pane the Profile tab stands in. */
+    /** Selects the tab {@code id} of the pane the Inclusions tab stands in. */
     private static void select(Parent root, String id) {
         javafx.scene.control.Tab tab = HeadlessToolkit.tabWithId(root, id).orElseThrow();
         tab.getTabPane().getSelectionModel().select(tab);
@@ -568,7 +573,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                 .append(",{\"id\":\"where\",\"label\":\"Where\",\"kind\":\"path\"}");
         String file = new java.io.File(System.getProperty("java.io.tmpdir"), "lead.txt").getAbsolutePath()
                 .replace("\\", "\\\\");
-        String rows = "[\"docx\",1,2,3,4,5,6,7,8,\"translations\",\"" + file + "\"],"
+        String rows = "[\"docx\",1,2,3,4,5,6,7,8,\"arrangement\",\"" + file + "\"],"
                 + "[\"pdf\",8,7,6,5,4,3,2,1,\"cluster-sizes\",\"\"]";
         return "{\"format\":1,\"analysisReport\":\"" + AN_ANALYSIS_REPORT + "\",\"title\":\"Format mix\","
                 + "\"writtenAt\":\"2026-11-08T10:00:00Z\",\"headline\":[{\"key\":\"files\",\"label\":\"Files\","
@@ -1043,7 +1048,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
         files.put("byte-level reduction failed at 3 of 4", byteLevelReductionFailedAt3Of4());
         files.put("census failed with no counter", reportOf(step("census", "failed", null, null),
                 step("byte-level-reduction", "not started", null, null)));
-        files.put("first stopped at a gate in translation", firstStoppedAtAGateInTranslation());
+        files.put("first stopped at a gate in relevance", firstStoppedAtAGateInRelevance());
         return files;
     }
 
@@ -1089,7 +1094,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
      * At the last write: deduplication finished, extraction at 3 of 4; seed extraction finished; the seed-corpus
      * comparison stopped at a gate at 2 of 4; and every later step stopped at a gate with no count.
      */
-    private static InvocationReportFile.Report firstStoppedAtAGateInTranslation() {
+    private static InvocationReportFile.Report firstStoppedAtAGateInRelevance() {
         List<InvocationReportFile.Step> steps = new ArrayList<>();
         for (String name : Legs.ALL.getFirst().steps()) {
             steps.add(name.equals("extraction") ? step(name, "finished", 3L, 4L) : step(name, "finished", null, null));

@@ -3,7 +3,7 @@ package io.algernon.vespera.engine.pipeline;
 import java.nio.file.Path;
 
 /**
- * The child {@link HoldsTheMachine} starts, as the control panel starts its own (ADR-391 §3): it takes the machine
+ * The child {@link HoldsTheMachine} starts, as the control panel starts its own (ADR-394 §3): it takes the machine
  * lock in the folder named by its one argument as {@code vespera run} would, its parent read from the system, and
  * prints one line, {@value #LET_THROUGH} and its pid where it was let through, or {@value #REFUSED} and the refusal's
  * line; let through, it sleeps, holding {@code machine-child.lock}, until it is killed.

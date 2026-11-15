@@ -2796,6 +2796,17 @@ public final class Adr {
             + "0388-where-the-models-run-is-worded-under-a-profile-rows-rules-and-a-change-of-it-takes-effect-the-next-time-vespera-starts.md";
 
     /**
+     * ADR-389 -- the profile is edited in a window of its own: Profile is the sidebar's first section, of eight, holding
+     * Open profile, which opens the one Profile window, with no owner and no modality, or brings it to the front; its
+     * size and place kept by the cockpit and written nowhere; closing it, or the cockpit, with an edit unsaved asks Save,
+     * Discard or Cancel; the badge on the section and the window's title; the refusals naming the Profile window, a
+     * button beside the outcome opening it; the tabs pane the Report tab and Inclusions (amends ADR-344 §1, ADR-359 §4,
+     * ADR-372 §1 and ADR-383 §1, §3 and §5).
+     */
+    public static final String THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN = FILE
+            + "0389-the-profile-is-edited-in-a-window-of-its-own-opened-from-the-first-section-of-the-sidebar.md";
+
+    /**
      * ADR-390 -- Vespera uses Docker Engine alone: one start command per system, inside a WSL 2 distribution on Windows
      * and Colima on macOS, and no Docker Desktop; the control panel calls {@code DockerEngine}, the one class of the
      * jar it names, to start the engine as its window opens, stop the sidecars as it closes, and, on its <i>Shut down
@@ -2808,7 +2819,27 @@ public final class Adr {
             + "0390-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md";
 
     /**
-     * ADR-391 -- one Vespera runs on a machine at a time: the jar's entry point takes the machine lock, {@code
+     * ADR-392 -- Vespera finds no translation sets: {@code TRANSLATION_OF}, the {@code translation} step, {@code
+     * translation_of}, {@code translations.html} and its JSON go, and every copy in another language survives; the job
+     * is fifteen steps and its second leg {@code relevance}; {@code translationSimilarityFloor} and {@code
+     * preferredLanguages} are retired keys, loaded, told of in one line where one holds a value, and left out of the
+     * next save; {@code report.json} is of format 2 (supersedes ADR-271 and ADR-273).
+     */
+    public static final String VESPERA_FINDS_NO_TRANSLATION_SETS = FILE
+            + "0392-vespera-finds-no-translation-sets-the-translation-step-its-verdict-its-report-and-its-two-profile-keys-go.md";
+
+    /**
+     * ADR-393 -- a working directory's readable name is its folder's name, which the control panel proposes once as
+     * {@code <corpus root's folder name>_<yyyyMMdd>}, the local date, {@code -2} and on the same day; Run warns where
+     * the folder is named for another corpus root; the window chooses the working directory from a list kept beside the
+     * launch values, each row read from that folder's reports; and a publish delivers the generation run the last
+     * {@code vespera run} arrived at (amends ADR-054, ADR-292 §3, ADR-333 §6, ADR-340 §6, ADR-344 §1 and §3, ADR-345 §1).
+     */
+    public static final String A_WORKING_DIRECTORY_IS_NAMED_FOR_ITS_CORPUS_ROOT_AND_DAY_AND_PUBLISH_TAKES_WHAT_THE_LAST_RUN_REACHED =
+            FILE + "0393-a-working-directory-is-named-for-its-corpus-root-and-day-chosen-from-a-list-and-publish-takes-what-the-last-run-reached.md";
+
+    /**
+     * ADR-394 -- one Vespera runs on a machine at a time: the jar's entry point takes the machine lock, {@code
      * machine.lock} in the folder of the corpus-root locks, for the control panel, {@code vespera run}, {@code vespera
      * label} and {@code vespera publish}, refusing a second in one line before anything is opened; the control panel's
      * own child, whose parent process holds it as the control panel, is let through and holds {@code
@@ -2817,7 +2848,7 @@ public final class Adr {
      * ADR-307 §2).
      */
     public static final String ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME = FILE
-            + "0391-one-vespera-runs-on-a-machine-at-a-time-and-the-control-panels-own-child-is-let-through.md";
+            + "0394-one-vespera-runs-on-a-machine-at-a-time-and-the-control-panels-own-child-is-let-through.md";
 
     private Adr() {
     }

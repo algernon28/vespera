@@ -16,6 +16,9 @@ final class PreflightPane {
     private final Function<String, String> fieldText;
     private final VBox preflight = new VBox();
 
+    /** The lines last drawn. */
+    private List<String> drawn = List.of();
+
     /** {@code fieldText} gives the text of the launch field of a property. */
     PreflightPane(ControlPanelState state, WorkingFolders folders, Function<String, String> fieldText) {
         this.state = state;
@@ -62,7 +65,6 @@ final class PreflightPane {
 
     /** Draws a line for each folder, each sidecar, each holder and the free space, then the converter's warnings. */
     void draw() {
-        preflight.getChildren().clear();
         ControlPanelState.Holders holders = state.holders(folders.workingDirectory(), folders.corpusRoot());
         SidecarChecks.Checks checks = state.lastChecks();
         String working = fieldText.apply("vespera.working-dir");
@@ -74,9 +76,12 @@ final class PreflightPane {
                 "Working directory held by: " + holders.workingDirectory().orElse("nobody"),
                 "Corpus root held by: " + holders.corpusRoot().orElse("nobody"),
                 "Free space: " + FolderStatus.usable(working).map(FolderStatus::gib).orElse("not known")));
-        for (String line : lines) {
-            preflight.getChildren().add(SelectableText.line(line));
+        lines.addAll(checks.docling().warnings());
+        if (lines.equals(drawn)) {
+            // the clock draws this each second; lines that are the same are left as they are, selection and all
+            return;
         }
-        checks.docling().warnings().forEach(warning -> preflight.getChildren().add(SelectableText.line(warning)));
+        drawn = lines;
+        preflight.getChildren().setAll(lines.stream().map(line -> (Node) SelectableText.line(line)).toList());
     }
 }

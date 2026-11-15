@@ -51,7 +51,7 @@ final class ReportFixtures {
             first = false;
         }
         steps.append(']');
-        return "{\"format\":1,\"invocation\":{\"id\":\"20261108T000000Z\",\"pid\":" + pid
+        return "{\"format\":" + InvocationReportFile.FORMAT + ",\"invocation\":{\"id\":\"20261108T000000Z\",\"pid\":" + pid
                 + ",\"command\":\"run\",\"started\":\"" + started + "\",\"ended\":null,\"state\":\""
                 + (ended ? "ended" : "running") + "\",\"outcome\":null,\"exitCode\":null,\"writtenAt\":\"" + writtenAt
                 + "\",\"interval\":" + interval + "},\"steps\":" + steps + ",\"legs\":[],\"charts\":"

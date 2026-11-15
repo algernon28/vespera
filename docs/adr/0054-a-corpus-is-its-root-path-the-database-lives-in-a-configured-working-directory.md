@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-340](0340-the-control-panel-is-a-home-page-under-a-top-bar-with-every-value-in-one-drawer-and-a-folder-the-profile-names-is-not-walked.md).** Of *"A corpus is identified by its root path alone"*: the profile's `foldersNotWalked` names folders below the corpus root that a walk counts and does not enter, so a walk given another list is another walk. The rest of this record stands.
 
+> **Partly amended — see [ADR-393](0393-a-working-directory-is-named-for-its-corpus-root-and-day-chosen-from-a-list-and-publish-takes-what-the-last-run-reached.md).** Of *"never derived from the root"*: the control panel proposes a new working directory's folder name from the corpus root, `<the corpus root's folder name>_<yyyyMMdd>`, once, as its New… adds the folder; every invocation still names its working directory, and nothing locates one by its name. Of Consequences' *"No guard against a working directory pointed at the wrong root"*: the window's Run warns in one line, and starts, where the folder it passes is named so for a corpus root of another name; the jar compares no name. The rest of this record stands.
+
 - **Date**: 2026-08-29
 - **Status**: accepted
 

@@ -4,7 +4,7 @@ import java.io.Serial;
 
 /**
  * Another Vespera holds the machine, so this start is refused before it opens a working directory or a window
- * (ADR-391 §5). Its message is the whole of what the operator is shown, in one line.
+ * (ADR-394 §5). Its message is the whole of what the operator is shown, in one line.
  */
 public class AnotherVesperaRunsException extends RuntimeException {
 
