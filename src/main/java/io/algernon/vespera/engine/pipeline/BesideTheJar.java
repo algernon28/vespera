@@ -311,17 +311,25 @@ public final class BesideTheJar implements ApplicationListener<ApplicationEvent>
     private boolean writeFrom(String name, Path target, boolean replace) throws IOException {
         byte[] bytes = shippedBytes(name);
         Files.createDirectories(target.getParent());
-        Path part = target.resolveSibling(target.getFileName() + ".part");
-        Files.write(part, bytes);
+        // Each start's own temp file, so two starts never write into one inode that one of them then moves into place.
+        Path part = Files.createTempFile(target.getParent(), target.getFileName() + ".", ".part");
         try {
+            Files.write(part, bytes);
             if (replace) {
                 Files.move(part, target, StandardCopyOption.REPLACE_EXISTING);
             } else {
                 Files.move(part, target);
             }
         } catch (FileAlreadyExistsException alreadyThere) {
-            Files.deleteIfExists(part);
             return false;
+        } catch (IOException | RuntimeException unmoved) {
+            // A file that now stands there was placed by another start: it is already there, not a refusal.
+            if (!replace && Files.exists(target)) {
+                return false;
+            }
+            throw unmoved;
+        } finally {
+            Files.deleteIfExists(part);
         }
         return true;
     }
