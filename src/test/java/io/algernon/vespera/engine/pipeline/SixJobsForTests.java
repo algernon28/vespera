@@ -33,7 +33,7 @@ final class SixJobsForTests {
 
     static final long WRITTEN_AT = 100;
 
-    /** The job's sixteen steps in the order it runs them. */
+    /** The job's fifteen steps in the order it runs them. */
     static final List<String> STEPS_IN_JOB_ORDER = List.of(
             StepNames.CENSUS,
             StepNames.BYTE_LEVEL_REDUCTION,
@@ -44,7 +44,6 @@ final class SixJobsForTests {
             StepNames.SEED_EXTRACTION,
             StepNames.SEED_CORPUS_COMPARISON,
             StepNames.EMBEDDING_SCORING,
-            StepNames.TRANSLATION,
             StepNames.RELEVANCE_SCORING,
             StepNames.RELEVANCE_FLOOR,
             StepNames.CLUSTERING,
@@ -66,8 +65,8 @@ final class SixJobsForTests {
         written.put("between two steps at the last write",
                 lastWrite(base, betweenTwoSteps(), BatchStatus.FAILED, "between-last"));
         written.put("every step finished", lastWrite(base, everyStepFinished(), BatchStatus.COMPLETED, "finished"));
-        written.put("first stopped at a gate in translation",
-                lastWrite(base, firstStoppedAtAGateInTranslation(), BatchStatus.COMPLETED, "gate"));
+        written.put("first stopped at a gate in relevance",
+                lastWrite(base, firstStoppedAtAGateInRelevance(), BatchStatus.COMPLETED, "gate"));
         return written;
     }
 
@@ -103,7 +102,6 @@ final class SixJobsForTests {
         aStep(job, StepNames.SEED_EXTRACTION, BatchStatus.COMPLETED, second, ++second);
         gated(job, aStep(job, StepNames.SEED_CORPUS_COMPARISON, BatchStatus.COMPLETED, second, ++second));
         aStep(job, StepNames.EMBEDDING_SCORING, BatchStatus.COMPLETED, second, ++second);
-        gated(job, aStep(job, StepNames.TRANSLATION, BatchStatus.COMPLETED, second, ++second));
         aStep(job, StepNames.RELEVANCE_SCORING, BatchStatus.COMPLETED, second, ++second);
         aStep(job, StepNames.RELEVANCE_FLOOR, BatchStatus.STARTED, second, null);
         return job;
@@ -134,7 +132,7 @@ final class SixJobsForTests {
         return job;
     }
 
-    static JobExecution firstStoppedAtAGateInTranslation() {
+    static JobExecution firstStoppedAtAGateInRelevance() {
         JobExecution job = aJob();
         long second = 0;
         for (String step : STEPS_IN_JOB_ORDER.subList(0, STEPS_IN_JOB_ORDER.indexOf(StepNames.SEED_CORPUS_COMPARISON))) {

@@ -51,11 +51,11 @@ class EachWorkingDirectoryIsARowOfWhatItsReportSaysTest {
     void aRowShowsItsNameRootLastInvocationLegAndNextValue() throws IOException {
         Path folder = Files.createDirectories(parent.resolve(NAME));
         String run = report("20261112T080000Z", "run", "2026-11-12T08:00:00.000Z", "stopped", json(CORPUS_ROOT),
-                "[" + leg("deduplication", "finished") + "," + leg("translation", "finished") + ","
+                "[" + leg("deduplication", "finished") + "," + leg("relevance", "finished") + ","
                         + leg("clustering", "stopped at a gate") + "," + leg("generation", "not started") + "]",
                 "{\"invocation\":\"run\",\"wants\":[\"relevanceScoreFloor\"],\"answer\":false,\"arrangement\":null}");
         String label = report("20261113T233000Z", "label", "2026-11-13T23:30:00.000Z", "recorded", "null",
-                "[" + leg("deduplication", "not started") + "," + leg("translation", "not started") + ","
+                "[" + leg("deduplication", "not started") + "," + leg("relevance", "not started") + ","
                         + leg("clustering", "not started") + "," + leg("generation", "not started") + "]",
                 "{\"invocation\":\"run\",\"wants\":[\"relevanceScoreFloor\",\"clusterResolution\"],\"answer\":false,"
                         + "\"arrangement\":null}");

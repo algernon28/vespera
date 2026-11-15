@@ -226,9 +226,9 @@ class EveryStatementThatSortsIsRecordedTest {
 
     /**
      * The indexes of {@code schema.sql} that rows 3 to 5 of ADR-218's table list, thirty-one, the one
-     * ADR-236 adds to its class, the two ADR-271 §1 builds with {@code translation_of}, and the one ADR-284 §7
-     * builds with {@code code_set_member}, each over a table that holds no row when it is built: thirty-five, by
-     * name.
+     * ADR-236 adds to its class, and the one ADR-284 §7 builds with {@code code_set_member}, each over a table that
+     * holds no row when it is built: thirty-three, by name, the two ADR-271 §1 built with {@code translation_of}
+     * gone with it (ADR-392 §2).
      */
     private static final List<String> SCHEMA_INDEXES_RECORDED = List.of(
             "call_exemplar_by_occurrence_id",
@@ -260,8 +260,6 @@ class EveryStatementThatSortsIsRecordedTest {
             "superseded_by_by_representative_occurrence_id",
             "superseded_by_by_run_id",
             "synthesis_doc_by_winning_seed_occurrence_id",
-            "translation_of_by_run_id",
-            "translation_of_by_translation_of_occurrence_id",
             "unusable_seed_by_run_id",
             "verdict_by_occurrence",
             "verdict_by_run_id",

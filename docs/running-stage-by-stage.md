@@ -12,7 +12,7 @@ Read the README first if you have not set the tool up. The sidecars, the models 
 vespera run <root>
 ```
 
-Every invocation starts at the first step and goes through all sixteen in order. A step whose work is already recorded does nothing and says so in one line. A step that was interrupted picks its work up or does it again, as its section below describes. A step whose input is missing says it is gated and does nothing. The invocation then ends with one line that names what to set next.
+Every invocation starts at the first step and goes through all fifteen in order. A step whose work is already recorded does nothing and says so in one line. A step that was interrupted picks its work up or does it again, as its section below describes. A step whose input is missing says it is gated and does nothing. The invocation then ends with one line that names what to set next.
 
 So you never choose where to resume. The ledger in `vespera.db` records what is done, and the command reads it.
 
@@ -33,7 +33,7 @@ You do not need to know the stage to continue. To find out anyway:
 
 ## The steps, in the order they run
 
-One invocation runs these sixteen steps. The names are the ones the log prints.
+One invocation runs these fifteen steps. The names are the ones the log prints.
 
 | Stage | Step | Needs | Leaves |
 |---|---|---|---|
@@ -46,7 +46,6 @@ One invocation runs these sixteen steps. The names are the ones the log prints.
 | 5a | `seed-extraction` | `seedFolder`, stage 4 done | your exemplars' text |
 | 5b | `seed-corpus-comparison` | exemplars that produced text | `seed-corpus-comparison.html` |
 | 5c | `embedding-scoring` | the embedding model (`hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M` unless `embeddingModel` names another), served by Ollama | a vector for each piece of text |
-| 5 | `translation` | vectors under one embedder; `translationSimilarityFloor` and `preferredLanguages`, or nothing | `translations.html`; once `preferredLanguages` is set, all but one copy of each translation set removed, unless two copies share a language |
 | 5d | `relevance-scoring` | the embedding model (`hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M` unless `embeddingModel` names another), served by Ollama | a score for each document |
 | 5e | `relevance-floor` | `relevanceScoreFloor`, or nothing | documents below the floor removed |
 | 5f | `clustering` | scores | the groups, `cluster-sizes.html` |
@@ -162,16 +161,6 @@ Stage 5 is eight steps and spans three invocations, with `vespera label` between
 
 **Resume.** Vectors are stored by content and by model, not by the run, so vectors already computed are kept across a stop, across a change of floor, and across a new walk of a changed archive. A pull that changes the embedding model is the exception: Vespera treats it as another model, does not use the vectors computed before the pull, and computes every vector again. The earlier vectors stay in the database, and are used again only if Ollama serves the earlier model again. Interrupted, `relevance-scoring` discards its own scores and computes them again from the stored vectors. Ollama has to be running whenever these two steps do work, even when every vector is already stored.
 
-### Between 5c and 5d — translations
-
-**Needs:** what 5c and 5d need. With `preferredLanguages` unset it removes nothing.
-
-**What it does.** `translation` finds survivors that are one content in more than one language: by their paths, and, once `translationSimilarityFloor` is set, by how alike their vectors are. It writes `translations.html`. Once `preferredLanguages` is set, it keeps the copy whose language comes earliest in that list, or, where no copy's language is listed, the one whose path sorts first, and removes the others. A set with two copies in one language stands whole.
-
-**Where it stops.** Gated for the same reasons as 5c and 5d. Gated too when the vectors under the model carry no single embedder identity: it then removes nothing, and `relevance-scoring` scores every survivor.
-
-**Resume.** Interrupted, it discards its own verdicts and decides again.
-
 ### 5e — the floor
 
 **Needs:** nothing. With `relevanceScoreFloor` unset it removes nothing, and that is the normal state for the first pass.
@@ -250,7 +239,6 @@ A stage runs again when something it was computed from changes. What it was comp
 | `seedFolder` | stage 5 onward | extraction, stage 4; the answers given for the old folder stay with the old folder |
 | `embeddingModel` | stage 5 scoring onward | extraction, stage 4, your answers |
 | `relevanceScoreFloor` | stage 5 scoring onward, from the stored vectors | extraction, stage 4, vectors, your answers |
-| `translationSimilarityFloor`, `preferredLanguages` | stage 5 scoring onward, from the stored vectors | extraction, stage 4, vectors, your answers |
 | `arrangementApproved` | generation only | everything before it |
 | `generationModel`, `generationContextWindow`, `deliverableLanguage` | generation | everything before it |
 | `clusterPageByteCeiling` | no stage: the next invocation that reaches generation draws the tree again | everything |

@@ -33,8 +33,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * A list value is tags (ADR-377 §7): each item of {@code codeNameEndings}, {@code outOfScopeNameEndings} and
- * {@code preferredLanguages} a tag with a remove button, one box after the last where Enter adds what is typed, Backspace
+ * A list value is tags (ADR-377 §7, as ADR-392 §4 leaves it): each item of {@code codeNameEndings} and {@code
+ * outOfScopeNameEndings} a tag with a remove button, one box after the last where Enter adds what is typed, Backspace
  * in the empty box removing the last tag, and a Save keeping what is still typed. Each window is shown on the Headless
  * platform, the Profile window opened, where the rows are read and acted on (ADR-389 §2).
  */
@@ -42,6 +42,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("The control panel")
 @Issue("805")
 @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
+@Link(name = "ADR-392", url = Adr.VESPERA_FINDS_NO_TRANSLATION_SETS, type = "adr")
 class AListValueIsTagsTest {
 
     /** The list value every test but the last works on. */
@@ -225,15 +226,14 @@ class AListValueIsTagsTest {
 
     @Test
     @Story("A list value is tags")
-    @DisplayName("The three list values are tags, each box prompting with its key's first example, and the list field and its + are gone")
-    void theThreeListValuesAreTagsAndTheListBoxAndThePlusAreGone(@TempDir Path folder) throws Exception {
+    @DisplayName("The two list values are tags, each box prompting with its key's first example, and the list field and its + are gone")
+    void theTwoListValuesAreTagsAndTheListBoxAndThePlusAreGone(@TempDir Path folder) throws Exception {
         Map<ProfileKey, String> prompts = new LinkedHashMap<>();
         List<String> notAFlow = new ArrayList<>();
         List<String> plusFound = new ArrayList<>();
         Map<ProfileKey, String> expected = new LinkedHashMap<>();
         expected.put(ProfileKey.CODE_NAME_ENDINGS, "e.g. .java, then Enter");
         expected.put(ProfileKey.OUT_OF_SCOPE_NAME_ENDINGS, "e.g. .ok, then Enter");
-        expected.put(ProfileKey.PREFERRED_LANGUAGES, "e.g. it, then Enter");
         try (WindowForTests window = windowOver(folder, "")) {
             window.actOnProfile(root -> {
                 for (ProfileKey key : expected.keySet()) {
@@ -247,7 +247,7 @@ class AListValueIsTagsTest {
             });
         }
 
-        claim("each of the three lists is a flow of tags", () -> assertThat(notAFlow).isEmpty());
+        claim("each of the two lists is a flow of tags", () -> assertThat(notAFlow).isEmpty());
         claim("each box prompts with the first piece of its key's example, then Enter",
                 () -> assertThat(prompts).containsExactlyEntriesOf(expected));
         claim("no list has a + button", () -> assertThat(plusFound).isEmpty());

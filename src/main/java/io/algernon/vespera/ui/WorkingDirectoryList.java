@@ -22,8 +22,8 @@ import java.util.function.Consumer;
  */
 final class WorkingDirectoryList {
 
-    /** The file's name, beside {@code launch-values.properties}. */
-    static final String FILE_NAME = "working-directories";
+    /** The file's name, beside {@code launch-values.properties} and outside every working directory, so not a file of the working directory the README lists. */
+    static final String LIST_NAME = "working-directories";
 
     private static final boolean POSIX = FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
 
@@ -32,7 +32,7 @@ final class WorkingDirectoryList {
 
     /** The file beside {@code launchValuesFile}. */
     static Path besides(Path launchValuesFile) {
-        return launchValuesFile.toAbsolutePath().getParent().resolve(FILE_NAME);
+        return launchValuesFile.toAbsolutePath().getParent().resolve(LIST_NAME);
     }
 
     /** What the file listed, and whether it could not be read (its line having been said). */

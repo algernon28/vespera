@@ -36,9 +36,10 @@ import org.springframework.jdbc.support.JdbcTransactionManager;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * The scoring run's identity is read from one load of the profile (ADR-273 §2): the relevance floor, the similarity
- * floor for copies in other languages and the preferred languages are all read from the profile as it stood at that
- * one load, so that a profile saved while the run is minted cannot split one run's identity across two profiles.
+ * The scoring run's identity is read from one load of the profile when the run is minted (ADR-117, ADR-228 §2, kept by
+ * ADR-392): the relevance floor is read from the profile as it stood at that one load, so that a profile saved while
+ * the run is minted cannot split one run's identity across two profiles, and its settings end at that floor (ADR-392
+ * §6).
  *
  * <p>Assembled by hand, as {@link StageThreeWritesTheDocumentFrequencyPageTest} assembles its holder: a corpus root
  * and a seed folder walked, a content redundancy run recorded in the invocation, and the gates the seed measurement
@@ -52,7 +53,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Epic("Pipeline")
 @Feature("What a piece of work is identified by")
 @Issue("548")
-@Link(name = "ADR-273", url = Adr.THE_TRANSLATION_STEP_READS_A_MEAN_VECTOR_ONLY_TO_COMPARE_IT_AND_THE_PROFILE_ONCE, type = "adr")
+@Link(name = "ADR-392", url = Adr.VESPERA_FINDS_NO_TRANSLATION_SETS, type = "adr")
 @Link(name = "ADR-117", url = Adr.THE_RELEVANCE_FLOOR_JOINS_THE_SCORING_RUNS_IDENTITY, type = "adr")
 class TheScoringRunIsMintedFromOneReadingOfTheProfileTest {
 
@@ -62,18 +63,14 @@ class TheScoringRunIsMintedFromOneReadingOfTheProfileTest {
     /** What the double serving the model reports for it. */
     private static final ModelArtefact ARTEFACT = new ModelArtefact("sha256:5c0r1ng", "F16");
 
-    /** The profile as the mint first reads it: a relevance floor of 0.5, a similarity floor of 0.9, English. */
+    /** The profile as the mint first reads it: a relevance floor of 0.5. */
     private static final Profile AS_FIRST_READ = ProfileFixture.profile()
             .relevanceScoreFloor("0.5", "set by this test")
-            .translationSimilarityFloor("0.9", "set by this test")
-            .preferredLanguages("en", "set by this test")
             .build();
 
-    /** The profile as saved after that first read: each of the three keys answered otherwise. */
+    /** The profile as saved after that first read: the relevance floor answered otherwise, 0.6. */
     private static final Profile AS_SAVED_AFTER_IT = ProfileFixture.profile()
             .relevanceScoreFloor("0.6", "saved again by this test")
-            .translationSimilarityFloor("0.8", "saved again by this test")
-            .preferredLanguages("zh", "saved again by this test")
             .build();
 
     @Autowired
@@ -84,8 +81,8 @@ class TheScoringRunIsMintedFromOneReadingOfTheProfileTest {
 
     @Test
     @Story("A piece of scoring work is identified by one reading of the profile")
-    @DisplayName("A profile saved after the scoring work first reads it changes none of the three values the work is identified by")
-    void theThreeValuesOfTheScoringRunsIdentityAreReadFromOneProfile(
+    @DisplayName("A profile saved after the scoring work first reads it leaves the relevance floor the work is identified by as first read")
+    void theRelevanceFloorOfTheScoringRunsIdentityIsReadFromOneProfile(
             @TempDir Path root, @TempDir Path seeds, @TempDir Path gatesWorking, @TempDir Path scoringWorking)
             throws Exception {
         Files.writeString(root.resolve("corpus.txt"), "a corpus text");
@@ -126,12 +123,9 @@ class TheScoringRunIsMintedFromOneReadingOfTheProfileTest {
         String configConsumed = jdbcTemplate.queryForObject(
                 "SELECT config_consumed FROM run WHERE id = ?", String.class, scoring.value());
         claim(
-                "the scoring work records, as its last three values, the relevance floor 0.5, the similarity floor"
-                        + " 0.9 and the preferred language en: all three from the profile as first read, and none"
-                        + " from the profile saved after it",
-                () -> assertThat(configConsumed)
-                        .endsWith("\"relevanceScoreFloor\":0.5,\"translationSimilarityFloor\":0.9,"
-                                + "\"preferredLanguages\":[\"en\"]}"));
+                "the scoring work records, as its last value, the relevance floor 0.5 from the profile as first"
+                        + " read, and not the 0.6 of the profile saved after it",
+                () -> assertThat(configConsumed).endsWith("\"relevanceScoreFloor\":0.5}"));
     }
 
     /** A runtime serving {@link #ARTEFACT} under any name, asked nothing else. */

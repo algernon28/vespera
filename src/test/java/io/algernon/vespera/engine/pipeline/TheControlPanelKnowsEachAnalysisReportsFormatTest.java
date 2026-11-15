@@ -47,7 +47,6 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
     void eachFormatTheWindowReadsIsTheOneTheJarWrites(@TempDir Path base) throws IOException {
         Map<String, Integer> written = Map.ofEntries(
                 Map.entry(FormatMixReport.NAME, FormatMixReport.FORMAT),
-                Map.entry(TranslationReport.NAME, TranslationReport.FORMAT),
                 Map.entry(ClusterSizeReport.NAME, ClusterSizeReport.FORMAT),
                 Map.entry(RelevanceLabellingReport.NAME, RelevanceLabellingReport.FORMAT),
                 Map.entry(ArrangementReport.NAME, AnalysisReportJson.FORMAT),
@@ -61,7 +60,7 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
         claim("the seed/corpus comparison's entry is the format its writer writes",
                 () -> assertThat(AnalysisReportFile.FORMATS)
                         .containsEntry(SeedCorpusComparisonReport.NAME, SeedCorpusComparisonReport.FORMAT));
-        claim("the window names no report that is not one of the twelve",
+        claim("the window names no report that is not one of the eleven",
                 () -> assertThat(Reports.ALL).containsAll(AnalysisReportFile.FORMATS.keySet()));
 
         StringWriter reviewPage = new StringWriter();

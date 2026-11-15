@@ -70,8 +70,9 @@ class EveryTableKeyedByARunIsOnRecordTest {
     private static final Set<String> WRITTEN_OVER_ACROSS_RUNS = Set.of("relevance_label", "relevance_label_provenance");
 
     /**
-     * The twenty-six tables ADR-229 states the growth of, translation_of, which ADR-271 adds, and code_set and
-     * code_set_member, which ADR-284 adds, each with the module that owns it.
+     * The twenty-six tables ADR-229 states the growth of, and code_set and code_set_member, which ADR-284 adds,
+     * twenty-eight, each with the module that owns it; translation_of, which ADR-271 added, schema.sql no longer
+     * creates (ADR-392 section 2).
      */
     private static final Map<String, String> ON_RECORD = new TreeMap<>(Map.ofEntries(
             Map.entry("run_upstream", "ledger"),
@@ -98,7 +99,6 @@ class EveryTableKeyedByARunIsOnRecordTest {
             Map.entry("document_cluster", "embedding"),
             Map.entry("relevance_label", "embedding"),
             Map.entry("relevance_label_provenance", "embedding"),
-            Map.entry("translation_of", "embedding"),
             Map.entry("cluster", "synthesis"),
             Map.entry("synthesis_doc", "synthesis"),
             Map.entry("call_exemplar", "synthesis"),

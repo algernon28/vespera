@@ -1018,7 +1018,7 @@ function markerPattern(source, whole = false) {
 const UNCHECKED = [
   'the whole of "The shape of the system" — the ledger model, the two identities, the module rule',
   '"The cascade is built end to end", and what it says the two commands and the stages do',
-  "the sixteen job steps and their order, and that a later stage is a step on that same job",
+  "the fifteen job steps and their order, and that a later stage is a step on that same job",
   "the ADR-052 test conventions, and whether the report a run produces actually reads that way",
   "the ADR index table's rows — a row's title and date, and whether every record has a row, are not checked; the range line above it, the boundary sentence and the order of the rows are",
   "docs/architecture.md, which this never opens — its own status line has rotted the same way",

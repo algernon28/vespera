@@ -95,13 +95,13 @@ class TheReportFollowsItsSchemaTest {
             List<String> problems = SchemaWalker.problems(report, schema);
             claim("the report of " + which + " follows the schema, field by field", () -> assertThat(problems).isEmpty());
         });
-        claim("the report of a run holds a field of each kind the schema describes: steps, charts, runs, counts and the twelve analysis reports",
+        claim("the report of a run holds a field of each kind the schema describes: steps, charts, runs, counts and the eleven analysis reports",
                 () -> {
-                    assertThat(run.get("steps")).hasSize(16);
+                    assertThat(run.get("steps")).hasSize(15);
                     assertThat(run.get("charts")).isNotEmpty();
                     assertThat(run.get("runs").get("rows")).isNotEmpty();
                     assertThat(run.get("counts").isNull()).isFalse();
-                    assertThat(run.get("analysisReports")).hasSize(12);
+                    assertThat(run.get("analysisReports")).hasSize(11);
                 });
         claim("the report of a publish holds a destination for each one named, which found no rendering drawn and stopped",
                 () -> {
