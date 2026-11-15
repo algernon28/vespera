@@ -151,8 +151,8 @@ The one topic a survivor is placed under: where it is arranged, clustered and co
 _Avoid_: best topic, assigned topic, home topic, primary topic, the winning seed's topic (a seed may feed several topics, or none)
 
 **Seed partition**:
-Retired by ADR-396, which put the topic in its place. It was all file occurrences sharing a winning seed: the top level of the arrangement and the unit clustering ran within, one for each seed that won a survivor. No name of ours added from ADR-396 on says it; the names of ours that still say partition, `partition_order` and the `seed_partition` column of `documents.csv` among them, change with the code that holds them.
-_Avoid_: partition, as a name for a topic
+Retired by ADR-396, which put the topic in its place. It was all file occurrences sharing a winning seed: the top level of the arrangement and the unit clustering ran within, one for each seed that won a survivor. No name of ours added from ADR-396 on says it. The names of ours that still say partition, as `partition_order` and the `seed_partition` column of `documents.csv`, name the code that still holds them, and each is settled by the child of map [#822](https://github.com/algernon28/vespera/issues/822) that rebuilds that code.
+_Avoid_: bucket, category
 
 **Cluster**:
 Documents within one topic that belong together by subject, and one of however many that topic breaks into — the lowest level of the arrangement (ADR-396). An arrangement of relevant documents, never a set of interchangeable ones (that is a redundancy set), and never a judgement: nothing is removed for the cluster it lands in. What a document contributes to it is what the document *is*, not the passage that earned its score.
@@ -419,11 +419,11 @@ The file of the Confluence rendering that a publish reads, listing the rendering
 _Avoid_: manifest (the deliverable's `documents.csv`), index (`index.html`, whose counterpart is the root page), load plan, sitemap, table of contents
 
 **Seed partition's page**:
-Retired by ADR-396, with the seed partition. It was the Confluence rendering's parent page for one seed partition, under the root page and over the pages of its clusters ([#610](https://github.com/algernon28/vespera/issues/610)); a topic's page takes its place there, carrying the topic's overview, and in the HTML tree too, where a seed partition had a heading on the index and a folder and no page (ADR-274 §1.4).
+Retired by ADR-396, with the seed partition. It was the Confluence rendering's parent page for one seed partition, under the root page and over the pages of its clusters ([#610](https://github.com/algernon28/vespera/issues/610)). The HTML tree gave a seed partition a heading on the index and a folder, and no page (ADR-274 §1.4). In its place a topic has a page: in the HTML tree the topic's overview is that page, and on Confluence the overview sits above the table of the topic's clusters (ADR-396).
 _Avoid_: partition page, section page, category page, folder (Confluence Cloud's folders, ruled out by map [#604](https://github.com/algernon28/vespera/issues/604))
 
 **Cluster folder**:
-The folder of the deliverable a cluster's pages lie in, `<topic>/<cluster>/`, named with the cluster's place in its topic and the slug of its cluster label (ADR-112, ADR-280, ADR-396). It holds the cluster's page or pages, `index.html` and, where the cluster is past `clusterPageByteCeiling`, `index-2.html` on (ADR-303), and the copy of each of the cluster's survivors, and nothing else: the pictures a page shows are inlined in it (ADR-286). Its counterpart under `confluence/` holds the cluster's page bodies and its pictures' files, and no copy (ADR-312, ADR-314); its counterpart under `website/` holds its pages, and no copy until a publish writes them into the website (ADR-333). A rendering, like the label it is named from: never the cluster's identity.
+The folder of the deliverable a cluster's pages lie in, `<topic>/<cluster>/`, a level deeper where its topic is crowded, named with the cluster's place in its topic and the slug of its cluster label (ADR-112, ADR-280, ADR-396). It holds the cluster's page or pages, `index.html` and, where the cluster is past `clusterPageByteCeiling`, `index-2.html` on (ADR-303), and the copy of each of the cluster's survivors, and nothing else: the pictures a page shows are inlined in it (ADR-286). Its counterpart under `confluence/` holds the cluster's page bodies and its pictures' files, and no copy (ADR-312, ADR-314); its counterpart under `website/` holds its pages, and no copy until a publish writes them into the website (ADR-333). A rendering, like the label it is named from: never the cluster's identity.
 _Avoid_: group folder (group is how a cluster renders for a reader, never a name of ours), page folder
 
 **Cluster page**:

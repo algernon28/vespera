@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-280](0280-a-clusters-folder-holds-its-page-and-a-copy-of-each-of-its-survivors-under-the-originals-own-name-suffixed-only-on-a-collision.md).** A cluster's segment of the path is a folder, named as its page was, and the page in it is `index.html`. The order prefix, its padding and the slug stand.
 
+> **Partly amended — see [ADR-396](0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md).** Of *"Seed partitions sort by document count, descending"*: the top level is the topics, sorted by the number of survivors placed under each, descending, ties broken on a stable topic key that survives a re-walk and is never the topic's generated name. Of *"The path carries the order"*: a top-level folder keeps its order prefix and its padding, padded to the topic count, and is no longer named after a seed's filename stem; what it is named from is left to [#833](https://github.com/algernon28/vespera/issues/833). The order of the clusters within a topic stands as written here. The rest of this record stands.
+
 - **Date**: 2026-09-13
 - **Status**: accepted
 - **Amends**: [ADR-104](0104-the-surviving-originals-stay-where-they-are-and-the-deliverable-references-them.md) — **its `documents.csv` column list only**, which gains `partition_order` and `cluster_order`. Everything that record decided — the originals stay where they are, nothing is copied, links are absolute `file:` targets and are not durable — is untouched.

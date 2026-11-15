@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md).** *"Mean top-3 chunk similarity"*: the mean is of the top `vespera.relevance.top-similarities`, which ships 3, and a score under another number is on another scale. The summary is transcribed verbatim and is not edited.
 
+> **Partly amended — see [ADR-396](0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md).** *"winning seed stored"*: the winning seed is the score's provenance, and no longer decides where a survivor is arranged; each survivor is placed under its winning topic, by a step apart from the score. The score, its function and the storing of the winning seed stand. The summary is transcribed verbatim and is not edited.
+
 > **Reconstituted record — the original text of this ADR is lost.**
 > Rebuilt on 2026-08-22 from the decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md), the only surviving record of these decisions. The summary below is transcribed **verbatim** from that digest.
 > There are deliberately no Context, Decision or Consequences sections: that rationale was not recorded in the digest, and inferring it would place invented reasoning under an original date. Where a later decision amends this one, the digest says so inside the summary, and it is transcribed as written.
