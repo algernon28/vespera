@@ -156,7 +156,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "LanguageOfTheDeliverable",
             // ADR-393 §7: reads which generation run the last run invocation's report copy arrived at, for publish to
             // send; which tree it names is that run's, and it decides no verdict, cache key, cluster or text.
-            "LastRunReader",
+            "LastRunInvocationReader",
             "MisshapenProfileRefusal",
             "NextAction",
             // ADR-294: writes and deletes what NextAction gives for the control panel, and decides none of it.

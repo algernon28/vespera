@@ -67,12 +67,12 @@ the working directory <the folder's name> is named for a corpus root named <X>, 
 **An editable list, `working-directories`, takes the place of the Folders section's field `vespera.working-dir`, holding the working directories this user has used, in a file kept beside the launch values. The row chosen is the launch value `vespera.working-dir` (ADR-292 §1), and every part of the window reads it as it read the field: its status, its preflight row, its reports, its profile, its holder line.**
 
 - **The first row is the machine's folder**, ADR-340 §6's, resolved by `WorkingDirectoryDefault` as the window opens, its *in use* line as ADR-340 §6 words it. Chosen, the launch value is kept empty, as the field left empty was, and Run, Label and Publish pass the folder as ADR-345 §1 has them.
-- **The rows after it are the file's**, most recently started first, a folder named by the launch values file and not by the list added second. A folder named twice is listed once, compared as `ControlPanelState.namesTheSameFolder` compares.
+- **The rows after it are the file's**, in the order the file holds them (each window puts the folder it started last on top, §4), a folder named by the launch values file and not by the list added second. A folder named twice is listed once, compared as `ControlPanelState.namesTheSameFolder` compares.
 - **New…**, `working-directory-new`, adds a row (§6); **Browse**, `working-directory-browse`, opens the system's folder dialog and adds the folder chosen as a row, and chooses it; **Remove from list**, `working-directory-remove`, takes the chosen row off the list, the first row excepted, and deletes nothing.
 - **The folders not chosen are kept as they are**: nothing deletes, moves or archives a working directory.
 - **While the window's own child runs the list cannot be changed**, as Run cannot be pressed: the child works in the folder it was started in.
 
-**The file** is `<java.io.tmpdir>/vespera-control-panel-<user>/working-directories`, in ADR-292 §3's folder: UTF-8, one absolute, normalised path a line, each ending in `\n`, most recently started first, the machine's folder not among them. It is written whole to a temporary file in its folder moved over it, as ADR-292 §2 writes the launch values, and only where the folder is the user's own (ADR-292 §3): as an invocation starts, the folder it starts in moved to the top; after a Save of `profile.yaml` that made a folder (§6); and as a row is removed. A row New… added is written once its folder exists. A blank line, or one naming no absolute path, is passed over as the file is read. Where the file cannot be read, the list holds the machine's folder and the launch value's, and one line on the window's standard error says so:
+**The file** is `<java.io.tmpdir>/vespera-control-panel-<user>/working-directories`, in ADR-292 §3's folder: UTF-8, one absolute, normalised path a line, each ending in `\n`, most recently started first, the machine's folder not among them. It is written whole to a temporary file in its folder moved over it, as ADR-292 §2 writes the launch values, and only where the folder is the user's own (ADR-292 §3): as an invocation starts, the folder it starts in moved to the top; after a Save of `profile.yaml` that made a folder (§6); and as a row is removed. **Another window may write the same file**: at each write the window reads the file again, keeps every row another window wrote that this one has not removed, and writes this window's rows in its order, a folder just started on top, then those others in the file's order. A row New… added is written once its folder exists. A blank line, or one naming no absolute path, is passed over as the file is read. Where the file cannot be read, the list holds the machine's folder and the launch value's, and one line on the window's standard error says so:
 
 ```
 the control panel could not read its list of working directories at <file>, and lists only the folders in use: <reason>
@@ -158,6 +158,7 @@ public record WorkingDirectoryRow(String name, String corpusRoot, String lastInv
 | `ui.ANewWorkingDirectoryIsNamedForItsCorpusRootAndDayTest.aCorpusRootWithNoFolderNameGivesTheDateAlone` | §2: no corpus root, or a file system's root, gives `<yyyyMMdd>` |
 | `ui.AWorkingDirectoryNamedForAnotherCorpusRootIsWarnedOfTest.aWorkingDirectoryNamedForAnotherRootIsWarnedOf` | §3: the warning, whole, for a name with and without its number |
 | `ui.AWorkingDirectoryNamedForAnotherCorpusRootIsWarnedOfTest.aWorkingDirectoryNamedForItsOwnRootOrForNoneIsNot` | §3: no warning for its own root in another case, the date alone or a name of no such form |
+| `ui.WorkingDirectoriesTest.aRowAnotherWindowStartedIsKeptAndARowRemovedStaysOff` | §4: of two windows over one file, one starts a folder and the other, opened before, removes a row: the file holds the folder started and not the row removed, the remover's rows first, whole |
 | `ui.EachWorkingDirectoryIsARowOfWhatItsReportSaysTest.aRowShowsItsNameRootLastInvocationLegAndNextValue` | §5: every part of a row, whole, the root and the leg from the last run's copy and the rest from `report.json` |
 | `ui.EachWorkingDirectoryIsARowOfWhatItsReportSaysTest.aFolderNoInvocationWroteInSaysSo` | §5: the words of a folder with no report |
 | `ui.EachWorkingDirectoryIsARowOfWhatItsReportSaysTest.aFolderAnotherProcessHoldsSaysSinceWhen` | §5: the holder's words in place of the last invocation |
@@ -172,6 +173,6 @@ Beside turning the tests above green: `WorkingDirectoryName` and `WorkingDirecto
 
 ## What this does not decide
 
-- **A bound on the list's length**, and its order beyond the most recently started first.
+- **A bound on the list's length.**
 - **Whether ADR-345 §4's boxes offer only what §7 would deliver** (Known limits).
 - **Moving a working directory to another parent from the window**: it is done in the system, as a rename is.
