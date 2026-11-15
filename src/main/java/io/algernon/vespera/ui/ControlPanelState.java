@@ -526,7 +526,9 @@ final class ControlPanelState {
         held.store(launchValuesFile, userName, stored::add);
         try {
             Instant before = Instant.now();
-            child = Child.start(command.processBuilder());
+            ProcessBuilder builder = command.processBuilder();
+            builder.environment().put("VESPERA_CORPUS_ROOT_LOCK_FOLDER", corpusRootLockFolder.toAbsolutePath().toString());
+            child = Child.start(builder);
             childStartInstant = before;
         } catch (IOException | RuntimeException notStarted) {
             return Optional.of(kind.name + " is not started: " + (notStarted.getMessage() == null

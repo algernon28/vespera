@@ -13,7 +13,12 @@ public class MachineLockUnavailableException extends RuntimeException {
     private static final long serialVersionUID = 1L;
 
     public MachineLockUnavailableException(Path folder, Exception cause, MachineLock.Kind kind) {
-        super("the machine lock could not be taken in the folder " + folder.toAbsolutePath() + " ("
+        this(folder.toAbsolutePath().toString(), cause, kind);
+    }
+
+    /** For a folder named by a value that is no path, quoted as written. */
+    MachineLockUnavailableException(String folder, Exception cause, MachineLock.Kind kind) {
+        super("the machine lock could not be taken in the folder " + folder + " ("
                 + (cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage())
                 + "); make that folder one this user can write, or name another in " + MachineLock.FOLDER_VARIABLE
                 + ", then " + kind.then() + ". Vespera does not start while it cannot tell whether another Vespera is"

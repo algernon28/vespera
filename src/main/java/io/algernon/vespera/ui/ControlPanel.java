@@ -110,7 +110,7 @@ public final class ControlPanel {
                     default -> fallback;
                 };
             }
-        } catch (java.time.format.DateTimeParseException | ArithmeticException unreadable) {
+        } catch (java.time.format.DateTimeParseException | ArithmeticException | NumberFormatException unreadable) {
             read = fallback;
         }
         return read.compareTo(java.time.Duration.ofSeconds(1)) < 0 ? java.time.Duration.ofSeconds(1) : read;

@@ -7,6 +7,7 @@ import java.nio.channels.FileLock;
 import java.nio.channels.OverlappingFileLockException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
@@ -88,6 +89,12 @@ public class MachineLock {
         }
     }
 
+    /** The folder as the environment wrote it, read as a path only in {@link #take}. */
+    private final String named;
+
+    /** Where the value is a home, the name of the folder below it. */
+    private final String below;
+
     private final Path folder;
 
     private final OptionalLong parentPid;
@@ -98,15 +105,35 @@ public class MachineLock {
     }
 
     MachineLock(Path folder, OptionalLong parentPid) {
+        this.named = null;
+        this.below = null;
         this.folder = folder;
+        this.parentPid = parentPid;
+    }
+
+    private MachineLock(String named, String below, OptionalLong parentPid) {
+        this.named = named;
+        this.below = below;
+        this.folder = null;
         this.parentPid = parentPid;
     }
 
     /** The lock in the folder the environment names, where it is not blank, and in the user's home otherwise. */
     public static MachineLock ofThisProcess() {
-        String named = System.getenv(FOLDER_VARIABLE);
-        return new MachineLock(named == null || named.isBlank()
-                ? Path.of(System.getProperty("user.home")).resolve(DEFAULT_FOLDER) : Path.of(named));
+        return ofTheFolderNamed(System.getenv(FOLDER_VARIABLE), System.getProperty("user.home"));
+    }
+
+    /**
+     * The lock in the folder {@code value} names, where it is not blank, and in {@code userHome} otherwise. Never
+     * throws: a value that is no path is read as one only in {@link #take}, where it is refused (ADR-391 §2).
+     */
+    static MachineLock ofTheFolderNamed(String value, String userHome) {
+        OptionalLong parent = ProcessHandle.current().parent().map(p -> OptionalLong.of(p.pid()))
+                .orElse(OptionalLong.empty());
+        if (value == null || value.isBlank()) {
+            return new MachineLock(userHome, DEFAULT_FOLDER, parent);
+        }
+        return new MachineLock(value, null, parent);
     }
 
     /**
@@ -128,6 +155,13 @@ public class MachineLock {
      * @throws MachineLockUnavailableException when the folder or a file cannot be created, opened or locked
      */
     public void take(Kind kind, String[] arguments) {
+        Path folder;
+        try {
+            folder = this.folder != null ? this.folder
+                    : below == null ? Path.of(named) : Path.of(named).resolve(below);
+        } catch (InvalidPathException noPath) {
+            throw new MachineLockUnavailableException(named, noPath, kind);
+        }
         Path machineFile = folder.resolve(FILE_NAME);
         Path childFile = folder.resolve(CHILD_FILE_NAME);
         try {
@@ -145,7 +179,12 @@ public class MachineLock {
             if (child.lock() == null) {
                 throw new AnotherVesperaRunsException(holderLine(childFile), kind);
             }
-            write(child.channel(), line(kind, arguments));
+            try {
+                write(child.channel(), line(kind, arguments));
+            } catch (IOException | RuntimeException notWritten) {
+                release(child);
+                throw notWritten;
+            }
         } catch (IOException | RuntimeException unusable) {
             if (unusable instanceof AnotherVesperaRunsException refused) {
                 throw refused;
@@ -203,8 +242,14 @@ public class MachineLock {
             return false;
         }
         Matcher matcher = HOLDER.matcher(holder);
-        return matcher.matches() && matcher.group(2).equals(Kind.CONTROL_PANEL.word())
-                && Long.parseLong(matcher.group(1)) == parentPid.getAsLong();
+        if (!matcher.matches() || !matcher.group(2).equals(Kind.CONTROL_PANEL.word())) {
+            return false;
+        }
+        try {
+            return Long.parseLong(matcher.group(1)) == parentPid.getAsLong();
+        } catch (NumberFormatException overflows) {
+            return false;
+        }
     }
 
     private static String line(Kind kind, String[] arguments) {

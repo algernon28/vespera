@@ -60,8 +60,9 @@ public final class EntryPoint {
             System.exit(new ServeCommand(System.out, System.err).call(served.get().toArray(String[]::new)));
             return;
         }
-        MachineLock machine = MachineLock.ofThisProcess();
-        start(arguments, DisplayPresence::ofThisProcess, kind -> machine.refusal(kind, passedOn(arguments)),
+        // Built inside the lambda, so that --help, --version and a start with no display never touch the folder.
+        start(arguments, DisplayPresence::ofThisProcess,
+                kind -> MachineLock.ofThisProcess().refusal(kind, passedOn(arguments)),
                 ControlPanel::open, VesperaApplication::main, System.err, System::exit);
     }
 
