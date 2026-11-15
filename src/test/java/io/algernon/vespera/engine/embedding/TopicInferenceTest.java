@@ -25,12 +25,16 @@ import org.junit.jupiter.api.Test;
  * <p>The fixture is nine passages of five seeds, each passage a vector of three small whole numbers, measured through
  * {@code NearestNeighbourGraph.build} and {@code Communities.of} at {@value #NEIGHBOURS} neighbours and a resolution of
  * {@value #RESOLUTION}. Visited in the record's order, passages 0, 2, 3, 7 and 8 form one topic and 1, 4, 5 and 6 the
- * other; visited seed by seed with the seeds in the reverse order, passage 7 goes with the second. The nearest neighbours themselves are no part of
- * what moves: no passage's third and fourth nearest are closer in similarity than 0.0013, so a cosine computed another
+ * other; visited seed by seed with the seeds in the reverse order, passage 7 goes with the second. The nearest
+ * neighbours themselves are no part of what moves: no passage's third and fourth nearest are closer in similarity than 0.0013, so a cosine computed another
  * way chooses the same graph. The seeds' paths are chosen so that each order a path could be wrongly compared in
  * (folding case, comparing the names of folders one by one, or comparing UTF-16 code units) puts them in another order,
  * which {@link SeedPassageTest} holds of the comparison itself; here, an order that folds case gives each topic another
  * first passage.
+ *
+ * <p>Each seed is handed over with the content hash seed extraction recorded for it (ADR-206), which names its content
+ * identity: a seed of the same content identity as one before it in the visiting order feeds no passage, so the topics
+ * are those of the set without it, and the first of the two in that order is the one that feeds.
  */
 @Epic("Relevance")
 @Feature("Topics")
@@ -74,6 +78,12 @@ class TopicInferenceTest {
             new SeedPassage(PAST_THE_BASIC_PLANE, 0),
             new SeedPassage(PAST_THE_BASIC_PLANE, 1));
 
+    /** A path sorting after every seed of the fixture's: the last seed's first character, then {@code z}, after its {@code n}. */
+    private static final String SORTS_LAST = "\uD83D\uDCC4zz.md";
+
+    /** A path sorting before every seed of the fixture's, an upper-case A before {@code Zeta.md}. */
+    private static final String SORTS_FIRST = "A.md";
+
     /** Each passage's vector, by its index in {@link #IN_VISITING_ORDER}. */
     private static final float[][] VECTORS = {
         {3, 0, 2}, {4, 4, 4}, {3, 1, 1}, {4, 1, 0}, {1, 4, 4}, {1, 3, 4}, {2, 4, 2}, {3, 2, 4}, {4, 0, 3},
@@ -105,6 +115,29 @@ class TopicInferenceTest {
     }
 
     @Test
+    @Story("The same seeds give the same topics")
+    @DisplayName("A seed of the same content as an earlier one feeds no passage, and of the two the first in seed-path order is the one that feeds")
+    void aSeedOfTheContentOfAnEarlierOneFeedsNoPassage() {
+        List<Topic> without = TopicInference.over(seedsHandedOverIn(false), NEIGHBOURS, RESOLUTION);
+        Map<String, SeedVectors> withALaterOne = new LinkedHashMap<>(seedsHandedOverIn(false));
+        withALaterOne.put(SORTS_LAST, withALaterOne.get(UPPER_CASE));
+        Map<String, SeedVectors> withAnEarlierOne = new LinkedHashMap<>(seedsHandedOverIn(false));
+        withAnEarlierOne.put(SORTS_FIRST, withAnEarlierOne.get(UPPER_CASE));
+
+        claim("the upper-case seed's content under a second path sorting last adds no passage: the two topics are those"
+                        + " of the five seeds without it, keys and passages alike",
+                () -> assertThat(TopicInference.over(withALaterOne, NEIGHBOURS, RESOLUTION)).isEqualTo(without));
+        claim("under a second path sorting first, that path is the one that feeds: the same two topics, each passage of"
+                        + " the upper-case seed in them under the earlier path, which keys both topics",
+                () -> assertThat(TopicInference.over(withAnEarlierOne, NEIGHBOURS, RESOLUTION))
+                        .isEqualTo(without.stream()
+                                .map(topic -> new Topic(
+                                        new TopicKey(underTheEarlierPath(topic.key().firstPassage())),
+                                        topic.passages().stream().map(TopicInferenceTest::underTheEarlierPath).toList()))
+                                .toList()));
+    }
+
+    @Test
     @Story("How many topics there are is found, not given")
     @DisplayName("Three families of passages far from one another form three topics, and two form two, with no count given")
     void findsHowManyTopicsThereAreWithoutBeingTold() {
@@ -115,33 +148,38 @@ class TopicInferenceTest {
     }
 
     /**
-     * The fixture's five seeds, each mapped to its chunks' vectors in chunk order, as the scoring step holds a seed's
-     * stored vectors. Reversed, the seeds are handed over last first, so that a pass visiting them as handed over would
-     * visit passages 7, 8, 6, 4, 5, 3, 0, 1 and 2.
+     * The fixture's five seeds, each mapped to its content hash and its chunks' vectors in chunk order, as the scoring
+     * step holds a seed's stored vectors, each seed of a content of its own. Reversed, the seeds are handed over last
+     * first, so that a pass visiting them as handed over would visit passages 7, 8, 6, 4, 5, 3, 0, 1 and 2.
      */
-    private static Map<String, List<float[]>> seedsHandedOverIn(boolean reversed) {
+    private static Map<String, SeedVectors> seedsHandedOverIn(boolean reversed) {
         Map<String, List<float[]>> inOrder = new LinkedHashMap<>();
         for (int index = 0; index < IN_VISITING_ORDER.size(); index++) {
             inOrder.computeIfAbsent(IN_VISITING_ORDER.get(index).seedPath(), path -> new ArrayList<>())
                     .add(VECTORS[index]);
         }
-        if (!reversed) {
-            return inOrder;
-        }
         List<String> paths = new ArrayList<>(inOrder.keySet());
-        Map<String, List<float[]>> seeds = new LinkedHashMap<>();
-        for (int at = paths.size() - 1; at >= 0; at--) {
-            seeds.put(paths.get(at), inOrder.get(paths.get(at)));
+        if (reversed) {
+            paths = paths.reversed();
+        }
+        Map<String, SeedVectors> seeds = new LinkedHashMap<>();
+        for (String path : paths) {
+            seeds.put(path, new SeedVectors("the content of " + path, inOrder.get(path)));
         }
         return seeds;
+    }
+
+    /** A passage of the upper-case seed under {@link #SORTS_FIRST}, at its own chunk index; any other as it is. */
+    private static SeedPassage underTheEarlierPath(SeedPassage passage) {
+        return passage.seedPath().equals(UPPER_CASE) ? new SeedPassage(SORTS_FIRST, passage.chunkIndex()) : passage;
     }
 
     /**
      * {@code count} seeds of four chunks, the chunks of one seed close to one axis of a space of {@code count}
      * dimensions and far from the others, so that each passage's three nearest are its own seed's other three.
      */
-    private static Map<String, List<float[]>> families(int count) {
-        Map<String, List<float[]>> seeds = new LinkedHashMap<>();
+    private static Map<String, SeedVectors> families(int count) {
+        Map<String, SeedVectors> seeds = new LinkedHashMap<>();
         for (int family = 0; family < count; family++) {
             List<float[]> chunks = new ArrayList<>();
             for (int chunk = 0; chunk < 4; chunk++) {
@@ -150,7 +188,7 @@ class TopicInferenceTest {
                 vector[(family + 1) % count] = chunk * 0.25f;
                 chunks.add(vector);
             }
-            seeds.put("family-" + family + ".md", chunks);
+            seeds.put("family-" + family + ".md", new SeedVectors("the content of family " + family, chunks));
         }
         return seeds;
     }

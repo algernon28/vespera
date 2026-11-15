@@ -2,7 +2,7 @@
 
 - **Date**: 2026-11-15
 - **Status**: accepted on 2026-11-15.
-- **Decided**: by the operator, in map [#822](https://github.com/algernon28/vespera/issues/822), as [ADR-396](0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md) records it: that topics are found across the seeds' passages, how many inferred, the same seeds giving the same topics, in the order of each seed's path then each chunk's index (ADR-396 §9), a seed renamed or moved being a change of input (§2, §4). Under the operator's delegation, in [#826](https://github.com/algernon28/vespera/issues/826): what a passage is (§1), the method (§2), its two numbers and that they are presets (§3), how §9's order compares two paths (§4), the topic key (§5), and where the step runs and which run its numbers enter (§6).
+- **Decided**: by the operator, in map [#822](https://github.com/algernon28/vespera/issues/822), as [ADR-396](0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md) records it: that topics are found across the seeds' passages, how many inferred, the same seeds giving the same topics, in the order of each seed's path then each chunk's index (ADR-396 §9), a seed renamed or moved being a change of input (§2, §4). By the operator, in [#826](https://github.com/algernon28/vespera/issues/826): that the topics' two numbers ship as presets (§3); that the topic key is decided here (§5); and that a seed of the same content as another feeds the topics once, relevance unchanged (§1). Under the operator's delegation, in #826: what a passage is, what the same content is and which of two seeds of it feeds (§1), the method (§2), the two numbers' values (§3), how §9's order compares two paths (§4), what the key is (§5), and where the step runs and which run its numbers enter (§6).
 - **Amends**: [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md) §8 and §9, whose tables of presets gain two rows, `vespera.topics.neighbours` and `vespera.topics.resolution`, and whose table of the members a run's configuration gains gains two, `topicResolution` and `topicNeighbours` (§3, §6). It carries a note at its head.
 - **Amends**: ADR-396 §8, whose table gives the stable topic key to [#832](https://github.com/algernon28/vespera/issues/832): what the key is, is this record's (§5), and #832 keeps the table it is stored in and the run it is written under. It carries a note at its head.
 - **Keeps**: [ADR-087](0087-clusters-are-modularity-communities-over-a-k-nearest-neighbour-graph-built-in-blocks.md)'s graph and communities, `NearestNeighbourGraph` and `Communities` as they are, so that no cluster moves (§2); [ADR-085](0085-vectors-live-in-sqlite-and-the-pairwise-matrix-is-never-materialised.md)'s memory contract, the seed side resident and no pairwise matrix stored (§2, §6); [ADR-029](0029-chunking-structure-first-with-a-measured-llm-fallback.md)'s chunks, `ChunkingRule.DEFAULT` (§1); [ADR-051](0051-a-file-occurrence-is-identified-by-its-path-relative-to-the-corpus-root.md)'s spelling of a path (§4); ADR-020's score, which no topic enters (§6); ADR-396 §1, §4 and §9, whose order this record compares paths in and does not change.
@@ -68,7 +68,7 @@ By size, the scaled families:
 | a seed removed | 0.911 (0.750) | 5 |
 | the seed sorting first removed | 0.881 (0.634) | 6 |
 | a seed of 5 passages added, sorting first | 0.933 (0.783) | 3 |
-| a seed copied under a second name | 0.932 (0.786) | 4 |
+| a seed's content added again under a second name | 0.932 (0.786) | 4 |
 
 At 15 and 1.0, exchanging every seed's name gave 0.825 (0.673) and changed the count in 9 of 15.
 
@@ -79,7 +79,7 @@ At 15 and 1.0, exchanging every seed's name gave 0.825 (0.673) and changed the c
 | a seed added | 0.82 | 0.93 | 0.51 |
 | a seed removed | 0.91 | 0.92 | 0.73 |
 | the first seed removed | 0.77 | 0.88 | 0.33 |
-| a seed copied | 0.95 | 0.96 | 0.85 |
+| a seed's content added again | 0.95 | 0.96 | 0.85 |
 
 The medoid is the passage most like the rest of its topic, by the sum of its similarities.
 
@@ -116,7 +116,9 @@ Under both, the graph at 10 and 1.0 gave much the same counts on every scaled se
 
 **A passage is one chunk of a usable seed**, as the embedding step cut it (`HybridChunker` at `ChunkingRule.DEFAULT`, ADR-029) and embedded it (`ChunkEmbedder`), its vector the one stored under the content hash, the chunker's identity, the rule's identity, the chunk's ordinal and the embedder identity the scoring run reads (ADR-085). Its *chunk index* is that ordinal. The vectors are those the relevance-scoring step already holds resident for every usable seed (`RelevanceScoring.residentSeedVectors`, ADR-231), so finding the topics costs no embedding call and no read of its own.
 
-Every usable seed occurrence's chunks are passages, a seed holding the same content as another included, as each is a seed relevance is scored against (ADR-020). A seed with no chunk, which scoring leaves out (ADR-231 §2a), has no passage and feeds no topic.
+**A seed of the same content identity as a seed before it in §4's order feeds no passage.** Its content identity is the content hash seed extraction recorded for it under the measurement run (ADR-206 §3), the key the scoring step already reads its vectors by; no other hash is taken. Of two or more seeds of one content, the first in §4's order feeds, its path and chunk indexes being the passages', and the rest feed the topics it feeds: none of them is reported as feeding no topic for want of passages of its own (ADR-396 §1). Each is still a seed relevance is scored against, as before (ADR-020): a survivor's score and winning seed are unchanged by this.
+
+A seed with no chunk, which scoring leaves out (ADR-231 §2a), has no passage and feeds no topic.
 
 ### 2. The method is ADR-087's, over the passages
 
@@ -152,7 +154,7 @@ They are presets under ADR-330 §8, *every candidate is a preset*, and apart fro
 
 ### 7. What the implementation owes
 
-- In `embedding`: `SeedPassage(String seedPath, int chunkIndex)`, comparable in §4's order; `TopicKey(SeedPassage firstPassage)`; `Topic(TopicKey key, List<SeedPassage> passages)`, its passages in visiting order; and `TopicInference.over(Map<String, List<float[]>> chunkVectorsBySeedPath, int neighbours, double resolution)`, returning the topics in the order of their keys, the vectors of each seed being its chunks' in chunk order, as `residentSeedVectors` holds them.
+- In `embedding`: `SeedPassage(String seedPath, int chunkIndex)`, comparable in §4's order; `TopicKey(SeedPassage firstPassage)`; `Topic(TopicKey key, List<SeedPassage> passages)`, its passages in visiting order; `SeedVectors(String contentHash, List<float[]> chunkVectors)`, a seed's content hash and its chunks' vectors in chunk order, as `residentSeedVectors` holds them; and `TopicInference.over(Map<String, SeedVectors> bySeedPath, int neighbours, double resolution)`, returning the topics in the order of their keys, a seed of an earlier seed's content hash feeding no passage.
 - In `pipeline`: `Presets.topicNeighbours()` and `Presets.topicResolution()`, their refusals in `Presets.refusal`, the two members of the scoring run's configuration, and the call at the head of `RelevanceScoringTasklet`, a seed's path read from the seed walk's occurrences.
 - `application.yaml` gains the two presets under `vespera.topics`, each with its comment; the control panel shows them read-only, as ADR-330 §12 shows a preset with no profile key.
 
@@ -172,8 +174,8 @@ They are presets under ADR-330 §8, *every candidate is a preset*, and apart fro
 - **A seed set larger than tens of subjects is divided coarser than its subjects**, measured at 13 to 20 topics for 27 to 34. A topic may then span subjects the operator would part; placement, clustering within the topic and the level below it ([#831](https://github.com/algernon28/vespera/issues/831)) divide it further.
 - **A subject with fewer passages than ten is not kept apart from its neighbours**, and a seed set of one subject is divided into several topics. Which of them stand is the breadth floor's (#827).
 - **A very short seed never forms a topic of its own**, so it is not under the breadth floor by being alone: it lies in the topic of its nearest passages, and feeds that topic. #827 and #834 read it so.
-- **A seed renamed, added, removed or copied re-forms some topics**: ARI 0.88 to 0.98 between the two, and the count changing in up to 6 of 15 sets. ADR-396 §9 counts each as a change of input.
-- **A seed copied under a second name weighs twice**: its passages are counted twice in each topic's breadth, as it is scored against twice by ADR-020.
+- **A seed renamed, added or removed re-forms some topics**: ARI 0.88 to 0.98 between the two, and the count changing in up to 6 of 15 sets. ADR-396 §9 counts each as a change of input.
+- **A seed's content under a second name changes no topic**, where counting its passages again moved the topics as much as a seed added (ARI 0.932, the count changing in 4 of 15 sets), and would count them twice in each topic's breadth. A seed renamed so that it sorts before its twin moves which path the topics name, and so the keys that name it. Relevance still scores against both.
 - **Clusters do not move**: `Communities` and `NearestNeighbourGraph` are unchanged, and clustering keeps its presets.
 - **ADR-330 and ADR-396 carry a note *"Partly amended — see ADR-399"*** at their heads.
 - **Run ids**: the embedding-scoring stage's run id moves with the code that builds this record, as ADR-396 §12 says of the children that build it; at the shipped values no member is written, so its configuration's text stays what `RunIdentityGoldenTest` holds. The walk, stages 1 to 4 and seed measurement do not move.
@@ -184,6 +186,7 @@ They are presets under ADR-330 §8, *every candidate is a preset*, and apart fro
 | --- | --- |
 | `SeedPassageTest.ordersBySeedPathByCodePointThenByChunkIndex` | an upper-case letter before a lower-case one, a hyphen before a slash, U+FF5E before U+1F4C4, chunk 2 before chunk 10, and every chunk of a seed before the next seed's (§4) |
 | `TopicInferenceTest.visitsThePassagesInSeedPathThenChunkOrderWhateverOrderTheyAreHandedOver` | nine passages of five seeds, whose topics differ where the seeds are visited in the reverse order, form the two topics of §4's order whichever order they are handed over in, each keyed by its first passage, its passages in that order (§2, §4, §5) |
+| `TopicInferenceTest.aSeedOfTheContentOfAnEarlierOneFeedsNoPassage` | the fixture's upper-case seed's content added under a path sorting last gives the topics of the set without it, keys and passages alike; under a path sorting first, the same topics, that path's passages in place of the upper-case seed's and keying both (§1) |
 | `TopicInferenceTest.findsHowManyTopicsThereAreWithoutBeingTold` | three families of passages give three topics and two give two, with no count given (§2) |
 | `TheTopicPresetsTest.shipsTheMeasuredValues` | `application.yaml` names 10 neighbours and a resolution of 1.0 for the topics (§3) |
 | `TheTopicPresetsTest.refusesValuesNoRunCanBeMadeUnder` | no neighbours and a resolution of 0 are refused, each in its line (§3) |
@@ -196,5 +199,4 @@ They are presets under ADR-330 §8, *every candidate is a preset*, and apart fro
 - **The breadth floor's value** and what becomes of a topic under it and of its passages: #827.
 - **The placement function** and whether it reads the topics in the scoring pass: #828.
 - **Where the topics and their keys are stored**, and the table's run: #832.
-- **Whether a seed holding the same content as another should feed the topics once.** §1 counts each seed occurrence, as relevance does; what a copy does to the topics is measured above.
 - **How the topics are found for seeds of long documents of many sections**, which nothing here measured: whether a seed's many alike chunks crowd a topic, and whether the shipped 8B embedder moves the numbers of §3.
