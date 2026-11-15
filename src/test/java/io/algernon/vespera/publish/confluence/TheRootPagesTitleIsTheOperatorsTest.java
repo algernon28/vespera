@@ -29,20 +29,30 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.ClientHttpResponse;
+import org.springframework.mock.http.client.MockClientHttpRequest;
+import org.springframework.mock.http.client.MockClientHttpResponse;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
- * The title a publish sends the root page under (ADR-398 §2 to §4): the title the shell's {@code
+ * The title a publish sends the root page under (ADR-398 §2 to §5): the title the shell's {@code
  * VESPERA_CONFLUENCE_ROOT_TITLE} states, not blank, or else the profile's, folded as a title's text is; blank or stated
  * nowhere, {@code Vespera_{language}}; {@code {language}} replaced by the language's code wherever it stands, and, where
- * the title holds none, an underscore and the code appended; and a title past Confluence's 255 characters refused before
- * any request, never cut. And the two templates a publish writes set the variable to nothing (ADR-398 §8).
+ * the title holds none, an underscore and the code appended; a title past Confluence's 255 characters refused before
+ * any request, never cut; and the root page created under that title, or its body sent under it to the root page an
+ * earlier publish made. And the two templates a publish writes set the variable to nothing (ADR-398 §8).
  *
- * <p>Each publish reads a rendering drawn by hand ({@link Rendering}) and is pointed at a request factory that refuses to
- * build any request, so no connection is opened: the publish's first line, which names the tree once the values and
- * the page list are checked and before any request (ADR-378 §7), is read, and the publish then stops at its first
- * request. That the title reaches the site, and retitles a tree in place, is {@code
- * PublishUpdatesOneTreeInPlaceIT}'s. Untagged: nothing is sent (ADR-320 §6).
+ * <p>Each publish reads a rendering drawn by hand ({@link Rendering}). Most are pointed at a request factory that refuses
+ * to build any request: the publish's first line, which names the tree once the values and the page list are checked
+ * and before any request (ADR-378 §7), is read, and the publish then stops at its first request. Where the request that
+ * writes the root page is what is read, the factory is a site answered in memory ({@link SiteInMemory}), which records
+ * each page write with its title and refuses it. That a changed title retitles a whole tree in place, the pages under
+ * the root page kept, is {@code PublishUpdatesOneTreeInPlaceIT}'s. Untagged: no connection is opened and the stub site
+ * is not started, every answer being the factory's own (ADR-320 §6).
  */
 @Epic("Operation")
 @Feature("The publish")
@@ -92,6 +102,11 @@ class TheRootPagesTitleIsTheOperatorsTest {
     private static final Map<String, Pattern> EACH_TEMPLATES_LINE = Map.of(
             "confluence-env.sh", Pattern.compile("(?m)^export VESPERA_CONFLUENCE_ROOT_TITLE=''(\\s+#.*)?$"),
             "confluence-env.ps1", Pattern.compile("(?m)^\\$env:VESPERA_CONFLUENCE_ROOT_TITLE = ''(\\s+#.*)?$"));
+
+    /** A title holding the placeholder, and the English root page's title it gives (ADR-398 §3). */
+    private static final String A_TITLE_WITH_THE_PLACEHOLDER = "Hand-overs {language}";
+
+    private static final String THE_TITLE_IN_ENGLISH = "Hand-overs en";
 
     @TempDir
     Path folder;
@@ -212,6 +227,29 @@ class TheRootPagesTitleIsTheOperatorsTest {
 
     @Test
     @Story("The operator names the root page's title")
+    @DisplayName("The root page reaches the site under the stated title: created under it where no tree stands, and its body sent under it to the root page an earlier publish made")
+    void theRootPageReachesTheSiteUnderTheStatedTitle() throws IOException {
+        Rendering english = Rendering.drawnIn(folder.resolve("en"));
+        SiteInMemory holdingNoTree = new SiteInMemory(false);
+        SiteInMemory holdingTheRootPage = new SiteInMemory(true);
+
+        Publisher.Outcome intoNoTree = publishedTo(holdingNoTree, english, A_TITLE_WITH_THE_PLACEHOLDER);
+        Publisher.Outcome intoTheTree = publishedTo(holdingTheRootPage, english, A_TITLE_WITH_THE_PLACEHOLDER);
+
+        claim("where no tree stands, the root page is created under Hand-overs en, the title Hand-overs {language}"
+                        + " gives, and not under the page list's Vespera_en",
+                () -> assertThat(holdingNoTree.pageWrites())
+                        .as("the page writes the publish sent, which ended: %s", intoNoTree.closingLine())
+                        .containsExactly("created: " + THE_TITLE_IN_ENGLISH));
+        claim("where the root page an earlier publish made stands, titled Vespera_en and keyed en:root, its body is"
+                        + " sent to that page under Hand-overs en, and no page is created",
+                () -> assertThat(holdingTheRootPage.pageWrites())
+                        .as("the page writes the publish sent, which ended: %s", intoTheTree.closingLine())
+                        .containsExactly("sent to page " + SiteInMemory.ROOT_PAGE_ID + ": " + THE_TITLE_IN_ENGLISH));
+    }
+
+    @Test
+    @Story("The operator names the root page's title")
     @DisplayName("Each template a publish writes sets the root page's title variable to nothing")
     void eachTemplateSetsTheRootTitlesVariableToNothing() throws IOException {
         Map<String, String> shipped = new LinkedHashMap<>();
@@ -291,6 +329,127 @@ class TheRootPagesTitleIsTheOperatorsTest {
             written = files.map(file -> file.getFileName().toString()).toList();
         }
         return new Published(outcome, lines, requested, written);
+    }
+
+    /**
+     * A publish of {@code rendering} typed on the command line to {@code site}: the shell holding the account's email
+     * and token and {@code stated} as the root page's title, the site, the space and the parent by its id given as
+     * properties, and a working directory whose profile names nothing.
+     */
+    private Publisher.Outcome publishedTo(SiteInMemory site, Rendering rendering, String stated) throws IOException {
+        Map<String, String> environment = Map.of(StubConfluence.EMAIL_VARIABLE, StubConfluence.USER,
+                ConfluenceSite.TOKEN_VARIABLE, StubConfluence.TOKEN, ROOT_TITLE_VARIABLE, stated);
+        Publisher publisher = new Publisher(environment::get, site, duration -> { }, Clock.systemUTC(),
+                StubConfluence.BASE_URL, StubConfluence.SPACE_KEY, StubConfluence.PARENT_ID, "",
+                directory -> ConfluenceValues.NONE);
+        return publisher.publish(rendering.confluence(), rendering.run(), Files.createTempDirectory(folder, "work"),
+                line -> { });
+    }
+
+    /**
+     * A Confluence site answered in memory, no connection opened, as {@code StubConfluence} answers the same calls: the
+     * space {@code KT}; the folder {@code 7001} the publish names as its parent, under which nothing stands; and, where
+     * it holds it, the English tree's root page an earlier publish made, {@value #ROOT_PAGE_ID}, titled {@code
+     * Vespera_en}, labelled {@code vespera-en}, keyed {@code en:root}, under the folder and with no files, its body's
+     * digest not the rendering's. A file sent to that page is taken. Every page write, a page created or a page's body
+     * sent, is recorded with the title it carries and refused, so the publish stops at its first; any other request is
+     * answered {@code 404}, naming it, so a publish that asks for something else stops saying what.
+     */
+    private static final class SiteInMemory implements ClientHttpRequestFactory {
+
+        /** The id of the root page an earlier publish made. */
+        static final String ROOT_PAGE_ID = "9001";
+
+        private static final JsonMapper JSON = JsonMapper.builder().build();
+
+        private static final String PAGES = "/wiki/api/v2/pages";
+
+        private static final String THE_ROOT_PAGE = PAGES + "/" + ROOT_PAGE_ID;
+
+        private static final String THE_FOLDER = "/wiki/api/v2/folders/" + StubConfluence.PARENT_ID;
+
+        private final boolean holdsTheRootPage;
+
+        private final List<String> pageWrites = new ArrayList<>();
+
+        SiteInMemory(boolean holdsTheRootPage) {
+            this.holdsTheRootPage = holdsTheRootPage;
+        }
+
+        /** Each page write the publish sent, in order: {@code created: <title>} or {@code sent to page <id>: <title>}. */
+        List<String> pageWrites() {
+            return List.copyOf(pageWrites);
+        }
+
+        @Override
+        public ClientHttpRequest createRequest(URI uri, HttpMethod method) {
+            return new MockClientHttpRequest(method, uri) {
+                @Override
+                protected ClientHttpResponse executeInternal() {
+                    return answer(method.name() + " " + uri.getRawPath(), getBodyAsBytes());
+                }
+            };
+        }
+
+        private ClientHttpResponse answer(String request, byte[] body) {
+            if (request.equals("GET /wiki/api/v2/spaces")) {
+                return json(200, results(Map.of("id", StubConfluence.SPACE_ID, "key", StubConfluence.SPACE_KEY)));
+            }
+            if (request.equals("GET " + THE_FOLDER)) {
+                return json(200, Map.of("id", StubConfluence.PARENT_ID, "title", StubConfluence.PARENT_TITLE,
+                        "spaceId", StubConfluence.SPACE_ID));
+            }
+            if (request.equals("GET " + THE_FOLDER + "/direct-children") || request.equals("GET " + PAGES)) {
+                return json(200, results());
+            }
+            if (request.equals("GET /wiki/rest/api/content/search")) {
+                return json(200, holdsTheRootPage
+                        ? results(Map.of("id", ROOT_PAGE_ID, "type", "page", "title", Rendering.ROOT_TITLE))
+                        : results());
+            }
+            if (request.equals("POST " + PAGES)) {
+                pageWrites.add("created: " + titleOf(body));
+                return refusedWrite();
+            }
+            if (holdsTheRootPage && request.equals("GET " + THE_ROOT_PAGE)) {
+                return json(200, Map.of("id", ROOT_PAGE_ID, "title", Rendering.ROOT_TITLE, "spaceId",
+                        StubConfluence.SPACE_ID, "parentId", StubConfluence.PARENT_ID, "version", Map.of("number", 2)));
+            }
+            if (holdsTheRootPage && request.equals("GET " + THE_ROOT_PAGE + "/properties")) {
+                return json(200, results(Map.of("id", "p" + ROOT_PAGE_ID, "key", ConfluenceApi.PROPERTY_KEY,
+                        "version", Map.of("number", 2),
+                        "value", Map.of("key", Rendering.ROOT, "bodySha256", "0".repeat(64)))));
+            }
+            if (holdsTheRootPage && request.equals("GET " + THE_ROOT_PAGE + "/attachments")) {
+                return json(200, results());
+            }
+            if (holdsTheRootPage && request.equals("POST /wiki/rest/api/content/" + ROOT_PAGE_ID + "/child/attachment")) {
+                return json(200, results(Map.of("id", "att" + ROOT_PAGE_ID, "title", Rendering.LISTING)));
+            }
+            if (holdsTheRootPage && request.equals("PUT " + THE_ROOT_PAGE)) {
+                pageWrites.add("sent to page " + ROOT_PAGE_ID + ": " + titleOf(body));
+                return refusedWrite();
+            }
+            return json(404, Map.of("message", "the test's site does not answer " + request));
+        }
+
+        private static String titleOf(byte[] body) {
+            return JSON.readTree(body).path("title").asString("(no title)");
+        }
+
+        private static ClientHttpResponse refusedWrite() {
+            return json(400, Map.of("message", "the test's site records a page write and takes none"));
+        }
+
+        private static Map<String, Object> results(Object... results) {
+            return Map.of("results", List.of(results));
+        }
+
+        private static ClientHttpResponse json(int status, Object body) {
+            MockClientHttpResponse response = new MockClientHttpResponse(JSON.writeValueAsBytes(body), status);
+            response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+            return response;
+        }
     }
 
     /**

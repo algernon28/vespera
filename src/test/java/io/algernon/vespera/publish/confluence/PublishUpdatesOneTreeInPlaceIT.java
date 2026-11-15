@@ -257,11 +257,12 @@ class PublishUpdatesOneTreeInPlaceIT {
             Publisher.Outcome backAgain = publishTitled(site, rendering, "");
             List<String> afterGoingBack = site.pages().stream().map(page -> page.id + " " + described(page)).toList();
 
-            claim("the publish with the title stated went to its end, naming the tree by the new title, the root page"
-                            + " updated and no page created",
-                    () -> assertThat(List.of(retitled.published(),
-                            retitled.closingLine().startsWith(closingLineOf(Rendering.MARKER, THE_TITLE_IN_ENGLISH)
-                                    + "3 pages (0 created, 1 updated, 2 unchanged)"))).containsExactly(true, true));
+            claim("the publish with the title stated went to its end",
+                    () -> assertThat(retitled.published()).as("published; it ended: %s", retitled.closingLine())
+                            .isTrue());
+            claim("its closing line names the tree by the new title, the root page updated and no page created",
+                    () -> assertThat(retitled.closingLine()).startsWith(closingLineOf(Rendering.MARKER,
+                            THE_TITLE_IN_ENGLISH) + "3 pages (0 created, 1 updated, 2 unchanged)"));
             claim("the site holds the same three pages at the same addresses, the root page now titled by the new title"
                             + " and still labelled and keyed as the English tree's root page",
                     () -> assertThat(afterRetitling).containsExactly(
@@ -274,11 +275,12 @@ class PublishUpdatesOneTreeInPlaceIT {
                             + " file sent again",
                     () -> assertThat(writesOfRetitling).extracting(StubConfluence.Write::toString).containsExactly(
                             new StubConfluence.Write(StubConfluence.Kind.BODY, THE_TITLE_IN_ENGLISH, null).toString()));
-            claim("the publish with the title blank again went to its end, the tree Vespera_en again, the root page"
-                            + " updated and no page created",
-                    () -> assertThat(List.of(backAgain.published(),
-                            backAgain.closingLine().startsWith(closingLineOf(Rendering.MARKER, Rendering.ROOT_TITLE)
-                                    + "3 pages (0 created, 1 updated, 2 unchanged)"))).containsExactly(true, true));
+            claim("the publish with the title blank again went to its end",
+                    () -> assertThat(backAgain.published()).as("published; it ended: %s", backAgain.closingLine())
+                            .isTrue());
+            claim("its closing line names the tree Vespera_en again, the root page updated and no page created",
+                    () -> assertThat(backAgain.closingLine()).startsWith(closingLineOf(Rendering.MARKER,
+                            Rendering.ROOT_TITLE) + "3 pages (0 created, 1 updated, 2 unchanged)"));
             claim("the same three pages stand, the root page titled Vespera_en again",
                     () -> assertThat(afterGoingBack).containsExactly(
                             ids.get(0) + " " + Rendering.ROOT_TITLE + " [" + Rendering.LABEL + "] " + Rendering.ROOT,
