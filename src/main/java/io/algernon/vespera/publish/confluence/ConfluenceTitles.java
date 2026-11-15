@@ -23,9 +23,36 @@ final class ConfluenceTitles {
 
     private ConfluenceTitles() {}
 
+    /** What the root page is titled where the operator names no title (ADR-398 §2). */
+    static final String DEFAULT_ROOT_TITLE = "Vespera_{language}";
+
+    /** The language's code, where a root page's title says it (ADR-398 §3). */
+    static final String LANGUAGE_PLACEHOLDER = "{language}";
+
     /** The root page's title, {@code Vespera_<code>}, never cut (ADR-378 §1). */
     static String root(DeliverableLanguage language) {
-        return "Vespera_" + language.code();
+        return root(language, null);
+    }
+
+    /**
+     * The root page's title from {@code stated}, as the operator states it, or {@code null} for none (ADR-398 §2, §3):
+     * folded as a title's text is, each {@code {language}} replaced by the language's code, and where it holds none an
+     * underscore and the code appended. Never cut; a title past {@link #LONGEST_TITLE} is the publish's to refuse.
+     */
+    static String root(DeliverableLanguage language, String stated) {
+        String folded = stated == null ? "" : fold(stated);
+        if (folded.isEmpty()) {
+            folded = DEFAULT_ROOT_TITLE;
+        }
+        return folded.contains(LANGUAGE_PLACEHOLDER)
+                ? folded.replace(LANGUAGE_PLACEHOLDER, language.code())
+                : folded + "_" + language.code();
+    }
+
+    private static String fold(String text) {
+        StringBuilder spaced = new StringBuilder();
+        text.codePoints().forEach(point -> spaced.appendCodePoint(Character.isISOControl(point) ? ' ' : point));
+        return spaced.toString().replaceAll("\\s+", " ").strip();
     }
 
     /** The suffix's last part: the language's code, after a middle dot with a space on each side (ADR-378 §1). */
@@ -49,9 +76,7 @@ final class ConfluenceTitles {
 
     /** {@code text} folded and, where the whole would pass the limit, cut, then {@code suffix} whole (ADR-310 §4). */
     private static String titled(String text, String suffix) {
-        StringBuilder spaced = new StringBuilder();
-        text.codePoints().forEach(point -> spaced.appendCodePoint(Character.isISOControl(point) ? ' ' : point));
-        String folded = spaced.toString().replaceAll("\\s+", " ").strip();
+        String folded = fold(text);
         if (folded.isEmpty()) {
             return suffix.strip();
         }

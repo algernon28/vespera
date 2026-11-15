@@ -391,7 +391,7 @@ public final class ProfileEdit {
             case EMBEDDING_MODEL, GENERATION_MODEL -> Optional.empty();
             // Any text: a publish refuses an address that is no Cloud site's itself (ADR-308 §2, ADR-359 §1).
             case CONFLUENCE_BASE_URL, CONFLUENCE_SPACE_KEY, CONFLUENCE_FOLDER_ID, CONFLUENCE_FOLDER_TITLE,
-                    CONFLUENCE_EMAIL -> Optional.empty();
+                    CONFLUENCE_EMAIL, CONFLUENCE_ROOT_TITLE -> Optional.empty();
             case ARRANGEMENT_APPROVED -> ARRANGEMENT.matcher(value).matches() || AUTOMATIC.equalsIgnoreCase(value) ? Optional.empty()
                     : Optional.of(quoted + " is not the twelve characters naming an arrangement, each 0 to 9 or a to f,"
                             + " nor " + AUTOMATIC);

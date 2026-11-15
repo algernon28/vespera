@@ -2870,6 +2870,17 @@ public final class Adr {
     public static final String TOPICS_REPLACE_SEED_PARTITIONS = FILE
             + "0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md";
 
+    /**
+     * ADR-398 -- the profile's {@code confluenceRootTitle}, read on the command line from {@code
+     * VESPERA_CONFLUENCE_ROOT_TITLE} alone, the shell's first, gives the title a publish sends the root page under:
+     * folded, blank being {@code Vespera_{language}}, {@code {language}} replaced by the language's code and, where it is
+     * absent, an underscore and the code appended; past 255 characters it is refused before any request, never cut; the
+     * page list is unchanged; a changed title retitles the tree found by its label and key in place, no page created; the
+     * Profile window's row follows the email's (amends ADR-378 sections 1 and 7, ADR-359 sections 1, 2, 5 and 7).
+     */
+    public static final String THE_CONFLUENCE_ROOT_PAGES_TITLE_IS_A_PROFILE_VALUE = FILE
+            + "0398-the-confluence-root-pages-title-is-a-profile-value-vespera-and-its-code-by-default-and-a-change-retitles-it-in-place.md";
+
     private Adr() {
     }
 }

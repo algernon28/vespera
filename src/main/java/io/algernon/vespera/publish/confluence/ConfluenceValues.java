@@ -3,17 +3,18 @@ package io.algernon.vespera.publish.confluence;
 import java.nio.file.Path;
 
 /**
- * The five plain values of a publish that a working directory's profile names (ADR-359 §1, §5): the site's address, the
- * space's key, the parent by its id or by its title, and the account's email. Each is {@code null} where the profile
- * names none. The token is no component: it is read from the environment alone (ADR-308 §3).
+ * The six plain values of a publish that a working directory's profile names (ADR-359 §1, §5, ADR-398 §1): the site's
+ * address, the space's key, the parent by its id or by its title, the account's email, and the root page's title. Each
+ * is {@code null} where the profile names none, the root page's title also where the profile names it blank. The token is no component: it is read from the environment alone (ADR-308 §3).
  *
  * <p>{@code confluence} names no class of {@code profile}; {@code pipeline} hands these values over through {@link
  * InTheProfile}.
  */
-public record ConfluenceValues(String baseUrl, String spaceKey, String folderId, String folderTitle, String email) {
+public record ConfluenceValues(String baseUrl, String spaceKey, String folderId, String folderTitle, String email,
+        String rootTitle) {
 
     /** No value named: what a publish reads where no profile names any, so that it reads the shell alone. */
-    public static final ConfluenceValues NONE = new ConfluenceValues(null, null, null, null, null);
+    public static final ConfluenceValues NONE = new ConfluenceValues(null, null, null, null, null, null);
 
     /** The values the profile of a working directory names (ADR-359 §5). */
     @FunctionalInterface

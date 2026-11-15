@@ -219,10 +219,20 @@ public class Publisher {
             return new Outcome(false, line);
         }
         PageList list = ((PageList.Read.Listed) listed).list();
+        String rootTitle = ConfluenceTitles.root(list.drawnIn(), site.rootTitle());
         Optional<String> unlike = unlikeItsList(confluence, list);
         if (unlike.isPresent()) {
             return new Outcome(false, "vespera publish sent nothing: " + unlike.get() + ". Run vespera run to draw the"
                     + " deliverable again, and publish again.");
+        }
+        if (rootTitle.length() > ConfluenceTitles.LONGEST_TITLE) {
+            boolean fromThePanel =
+                    ConfluenceSite.THE_CONTROL_PANEL.equals(environment.apply(ConfluenceSite.STARTED_BY_VARIABLE));
+            return new Outcome(false, "vespera publish sent nothing: "
+                    + (site.rootTitleFromTheShell() ? ConfluenceSite.ROOT_TITLE_VARIABLE : "confluenceRootTitle")
+                    + " gives the root page a title of " + rootTitle.length() + " characters, and Confluence takes at"
+                    + " most " + ConfluenceTitles.LONGEST_TITLE + ". Shorten it"
+                    + (fromThePanel ? " in the control panel's Profile window" : "") + ", and publish again.");
         }
         Run run = new Run(site, list, confluence, workingDirectory, new ConfluenceApi(site, requests, pause, clock), out,
                 ConfluenceSite.THE_CONTROL_PANEL.equals(environment.apply(ConfluenceSite.STARTED_BY_VARIABLE)));
@@ -358,7 +368,7 @@ public class Publisher {
             this.fromTheControlPanel = fromTheControlPanel;
             this.workingDirectory = workingDirectory;
             this.language = list.drawnIn();
-            this.treeRootTitle = ConfluenceTitles.root(language);
+            this.treeRootTitle = ConfluenceTitles.root(language, site.rootTitle());
             this.rootKey = language.code() + ":root";
             this.label = LABEL_PREFIX + language.code();
             this.treeKey = java.util.regex.Pattern.compile(java.util.regex.Pattern.quote(language.code() + ":")
@@ -371,7 +381,13 @@ public class Publisher {
         }
 
         void publish() throws InterruptedException {
-            List<Page> pages = list.pages();
+            // The root page goes by the title the tree is given (ADR-398 §3), not the page list's own.
+            List<Page> pages = list.pages().stream()
+                    .map(page -> page.key().equals(rootKey)
+                            ? new Page(page.key(), page.parent(), treeRootTitle, page.body(), page.bodySha256(),
+                                    page.files())
+                            : page)
+                    .toList();
             long bytes = 0;
             int fileCount = 0;
             for (Page page : pages) {

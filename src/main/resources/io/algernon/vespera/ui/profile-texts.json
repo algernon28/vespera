@@ -123,5 +123,10 @@
     "title": "Confluence sign-in email",
     "short": "The email of the Atlassian account that Publish uses to put your pages on Confluence.",
     "tooltip": "Text, an email address such as you@example.com. Each time you publish to Confluence from the control panel, you are asked for the API token of the same Atlassian account (a password-like key you create in your Atlassian account settings). The token is never saved. Empty: publishing to Confluence from the control panel is refused until you fill it in. Publishing only to the website (the HTML copy of the same documentation) does not need it."
+  },
+  "confluenceRootTitle": {
+    "title": "Confluence top page title",
+    "short": "The title of the top page Publish puts all your other pages under; {language} stands for the language's code.",
+    "tooltip": "Text, empty by default, which gives the title Vespera_{language}: Vespera_en for pages in English, Vespera_it for pages in Italian. Write {language} where the language's code should go, for example Hand-overs {language}; without it, an underscore and the code are added at the end, so Hand-overs becomes Hand-overs_en. Each language has its own top page, so its title always carries the code. The title can be at most 255 characters once the code is in it; a longer one is refused before anything is sent. After a change, the next Publish renames the top page you published before, keeping its address and the pages under it, and makes no new one. Publishing only to the website copy does not use it."
   }
 }

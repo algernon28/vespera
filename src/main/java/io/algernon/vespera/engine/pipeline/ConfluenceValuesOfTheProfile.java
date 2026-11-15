@@ -30,7 +30,8 @@ public class ConfluenceValuesOfTheProfile implements ConfluenceValues.InTheProfi
                 named(profile.confluenceSpaceKey().value()),
                 named(profile.confluenceFolderId().value()),
                 named(profile.confluenceFolderTitle().value()),
-                named(profile.confluenceEmail().value()));
+                named(profile.confluenceEmail().value()),
+                named(profile.confluenceRootTitle().value()));
         return read.equals(ConfluenceValues.NONE) ? ConfluenceValues.NONE : read;
     }
 

@@ -64,7 +64,7 @@ public final class ProfileFixture {
 
     private FoldersValue codeSetFolders = FoldersValue.unset();
 
-    /** The five values of a publish (ADR-359 §1), each a text. */
+    /** The six values of a publish (ADR-359 §1, ADR-398 §1), each a text. */
     private TextValue confluenceBaseUrl = TextValue.unset();
 
     private TextValue confluenceSpaceKey = TextValue.unset();
@@ -74,6 +74,8 @@ public final class ProfileFixture {
     private TextValue confluenceFolderTitle = TextValue.unset();
 
     private TextValue confluenceEmail = TextValue.unset();
+
+    private TextValue confluenceRootTitle = TextValue.unset();
 
     private ProfileFixture() {
     }
@@ -110,6 +112,7 @@ public final class ProfileFixture {
         fixture.confluenceFolderId = existing.confluenceFolderId();
         fixture.confluenceFolderTitle = existing.confluenceFolderTitle();
         fixture.confluenceEmail = existing.confluenceEmail();
+        fixture.confluenceRootTitle = existing.confluenceRootTitle();
         return fixture;
     }
 
@@ -297,6 +300,15 @@ public final class ProfileFixture {
         return this;
     }
 
+    /**
+     * The title of the Confluence root page (ADR-398 §1), {@code {language}} standing for the language's code, written
+     * as text, or unset where {@code value} is null.
+     */
+    public ProfileFixture confluenceRootTitle(String value, String provenance) {
+        this.confluenceRootTitle = value == null ? TextValue.unset() : someText(value, provenance);
+        return this;
+    }
+
     /** The profile itself, through the one constructor {@link Profile} has. */
     public Profile build() {
         return new Profile(
@@ -324,6 +336,7 @@ public final class ProfileFixture {
                 confluenceSpaceKey,
                 confluenceFolderId,
                 confluenceFolderTitle,
-                confluenceEmail);
+                confluenceEmail,
+                confluenceRootTitle);
     }
 }

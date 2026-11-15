@@ -22,6 +22,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -228,6 +229,75 @@ class PublishUpdatesOneTreeInPlaceIT {
                                     "[" + Rendering.LABEL + "] " + Rendering.CLUSTER));
             claim("and nothing was moved to the trash", () -> assertThat(site.trash()).isEmpty());
         }
+    }
+
+    /** The variable the shell states the root page's title in, and the title the test states (ADR-398 §2, §3). */
+    private static final String ROOT_TITLE_VARIABLE = "VESPERA_CONFLUENCE_ROOT_TITLE";
+
+    private static final String A_TITLE_WITH_THE_PLACEHOLDER = "Hand-overs {language}";
+
+    /** The English tree's root page's title that title gives (ADR-398 §3). */
+    private static final String THE_TITLE_IN_ENGLISH = "Hand-overs en";
+
+    @Test
+    @Story("A publish updates one tree in place")
+    @Link(name = "ADR-398", url = Adr.THE_CONFLUENCE_ROOT_PAGES_TITLE_IS_A_PROFILE_VALUE, type = "adr")
+    @Issue("837")
+    @DisplayName("A root page's title changed, and changed back, retitles the root page in place each time: no page is created or removed, every page keeps its address, its label and its key")
+    void aChangedRootTitleRetitlesTheTreeInPlaceAndMakesNoNewTree() throws IOException {
+        Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
+        try (StubConfluence site = StubConfluence.start()) {
+            publish(site, rendering, Rendering.RUN, new ArrayList<>());
+            List<String> ids = site.pages().stream().map(page -> page.id).toList();
+            site.forgetTheRequests();
+            Publisher.Outcome retitled = publishTitled(site, rendering, A_TITLE_WITH_THE_PLACEHOLDER);
+            List<String> afterRetitling = site.pages().stream().map(page -> page.id + " " + described(page)).toList();
+            List<StubConfluence.Write> writesOfRetitling = site.writes();
+            site.forgetTheRequests();
+            Publisher.Outcome backAgain = publishTitled(site, rendering, "");
+            List<String> afterGoingBack = site.pages().stream().map(page -> page.id + " " + described(page)).toList();
+
+            claim("the publish with the title stated went to its end",
+                    () -> assertThat(retitled.published()).as("published; it ended: %s", retitled.closingLine())
+                            .isTrue());
+            claim("its closing line names the tree by the new title, the root page updated and no page created",
+                    () -> assertThat(retitled.closingLine()).startsWith(closingLineOf(Rendering.MARKER,
+                            THE_TITLE_IN_ENGLISH) + "3 pages (0 created, 1 updated, 2 unchanged)"));
+            claim("the site holds the same three pages at the same addresses, the root page now titled by the new title"
+                            + " and still labelled and keyed as the English tree's root page",
+                    () -> assertThat(afterRetitling).containsExactly(
+                            ids.get(0) + " " + THE_TITLE_IN_ENGLISH + " [" + Rendering.LABEL + "] " + Rendering.ROOT,
+                            ids.get(1) + " " + Rendering.PARTITION_TITLE + " [" + Rendering.LABEL + "] "
+                                    + Rendering.PARTITION,
+                            ids.get(2) + " " + Rendering.CLUSTER_TITLE + " [" + Rendering.LABEL + "] "
+                                    + Rendering.CLUSTER));
+            claim("the one write the site took was the root page's body, sent under the new title: no page created, no"
+                            + " file sent again",
+                    () -> assertThat(writesOfRetitling).extracting(StubConfluence.Write::toString).containsExactly(
+                            new StubConfluence.Write(StubConfluence.Kind.BODY, THE_TITLE_IN_ENGLISH, null).toString()));
+            claim("the publish with the title blank again went to its end",
+                    () -> assertThat(backAgain.published()).as("published; it ended: %s", backAgain.closingLine())
+                            .isTrue());
+            claim("its closing line names the tree Vespera_en again, the root page updated and no page created",
+                    () -> assertThat(backAgain.closingLine()).startsWith(closingLineOf(Rendering.MARKER,
+                            Rendering.ROOT_TITLE) + "3 pages (0 created, 1 updated, 2 unchanged)"));
+            claim("the same three pages stand, the root page titled Vespera_en again",
+                    () -> assertThat(afterGoingBack).containsExactly(
+                            ids.get(0) + " " + Rendering.ROOT_TITLE + " [" + Rendering.LABEL + "] " + Rendering.ROOT,
+                            ids.get(1) + " " + Rendering.PARTITION_TITLE + " [" + Rendering.LABEL + "] "
+                                    + Rendering.PARTITION,
+                            ids.get(2) + " " + Rendering.CLUSTER_TITLE + " [" + Rendering.LABEL + "] "
+                                    + Rendering.CLUSTER));
+            claim("and nothing was moved to the trash", () -> assertThat(site.trash()).isEmpty());
+        }
+    }
+
+    /** A publish of {@code rendering} typed on the command line, the shell stating {@code title} as the root page's. */
+    private Publisher.Outcome publishTitled(StubConfluence site, Rendering rendering, String title) {
+        Function<String, String> environment = Map.of(StubConfluence.EMAIL_VARIABLE, StubConfluence.USER,
+                ConfluenceSite.TOKEN_VARIABLE, StubConfluence.TOKEN, ROOT_TITLE_VARIABLE, title)::get;
+        return site.publisher(environment, StubConfluence.BASE_URL, StubConfluence.PARENT_ID, "", new ArrayList<>())
+                .publish(rendering.confluence(), rendering.run(), folder, line -> { });
     }
 
     @Test
@@ -981,7 +1051,7 @@ class PublishUpdatesOneTreeInPlaceIT {
         Map<String, String> environment = Map.of(ConfluenceSite.TOKEN_VARIABLE, StubConfluence.TOKEN,
                 ConfluenceSite.STARTED_BY_VARIABLE, ConfluenceSite.THE_CONTROL_PANEL);
         ConfluenceValues profile = new ConfluenceValues(StubConfluence.BASE_URL, StubConfluence.SPACE_KEY, null, title,
-                StubConfluence.USER);
+                StubConfluence.USER, null);
         return new ConfluencePlugin(new Publisher(environment::get, site.requests(), new ArrayList<Duration>()::add,
                 Clock.systemUTC(), "", "", "", "", workingDirectory -> profile));
     }

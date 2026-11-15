@@ -77,7 +77,11 @@ public enum ProfileKey {
     CONFLUENCE_FOLDER_TITLE("confluenceFolderTitle", Kind.TEXT, null,
             "the title of the page or folder the pages go under; name this or its id, not both", "Hand-overs"),
     CONFLUENCE_EMAIL("confluenceEmail", Kind.TEXT, null,
-            "the email of your Confluence account", "you@example.com");
+            "the email of your Confluence account", "you@example.com"),
+    CONFLUENCE_ROOT_TITLE("confluenceRootTitle", Kind.TEXT, null,
+            "the title of the top page the others go under, {language} standing for the language's code; empty is"
+                    + " Vespera_{language}",
+            "Vespera_{language}");
 
     /** The type of a key's value, which is how the jar reads it. */
     public enum Kind { TEXT, NUMBER, NAME_ENDINGS, FOLDERS, CORPUS_FOLDERS }
