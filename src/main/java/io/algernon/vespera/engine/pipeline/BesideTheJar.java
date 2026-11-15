@@ -9,6 +9,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.security.CodeSource;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,6 +17,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.UUID;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.event.ApplicationPreparedEvent;
@@ -312,9 +314,10 @@ public final class BesideTheJar implements ApplicationListener<ApplicationEvent>
         byte[] bytes = shippedBytes(name);
         Files.createDirectories(target.getParent());
         // Each start's own temp file, so two starts never write into one inode that one of them then moves into place.
-        Path part = Files.createTempFile(target.getParent(), target.getFileName() + ".", ".part");
+        Path part = target.resolveSibling(target.getFileName() + "." + UUID.randomUUID() + ".part");
+        // A normal create honours the umask; createTempFile would make it rw------- and the image could not read it.
         try {
-            Files.write(part, bytes);
+            Files.write(part, bytes, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
             if (replace) {
                 Files.move(part, target, StandardCopyOption.REPLACE_EXISTING);
             } else {
