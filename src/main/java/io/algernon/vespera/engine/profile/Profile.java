@@ -146,7 +146,9 @@ package io.algernon.vespera.engine.profile;
  * @param confluenceFolderId the parent, by its id (ADR-359 section 1); as {@code confluenceBaseUrl}.
  * @param confluenceFolderTitle the parent, by its title (ADR-359 section 1); as {@code confluenceBaseUrl}.
  * @param confluenceEmail the account's email (ADR-359 section 1); as {@code confluenceBaseUrl}. No key holds
- *     the token. The five are the last components.
+ *     the token.
+ * @param confluenceRootTitle the title of the Confluence root page, {@code {language}} standing for the language's
+ *     code (ADR-398); as {@code confluenceBaseUrl}. The six are the last components, this the last.
  */
 public record Profile(
         TextValue seedFolder,
@@ -173,7 +175,8 @@ public record Profile(
         TextValue confluenceSpaceKey,
         TextValue confluenceFolderId,
         TextValue confluenceFolderTitle,
-        TextValue confluenceEmail) {
+        TextValue confluenceEmail,
+        TextValue confluenceRootTitle) {
 
     public Profile {
         seedFolder = seedFolder == null ? TextValue.unset() : seedFolder;
@@ -205,6 +208,7 @@ public record Profile(
         confluenceFolderId = confluenceFolderId == null ? TextValue.unset() : confluenceFolderId;
         confluenceFolderTitle = confluenceFolderTitle == null ? TextValue.unset() : confluenceFolderTitle;
         confluenceEmail = confluenceEmail == null ? TextValue.unset() : confluenceEmail;
+        confluenceRootTitle = confluenceRootTitle == null ? TextValue.unset() : confluenceRootTitle;
     }
 
     /**
@@ -229,14 +233,17 @@ public record Profile(
         return java.util.Collections.unmodifiableSequencedMap(keys);
     }
 
-    /** The five keys a publish reads and the deliverable's index does not state (ADR-359 sections 1 and 7). */
+    /**
+     * The six keys a publish reads and the deliverable's index does not state (ADR-359 sections 1 and 7, ADR-398
+     * section 1).
+     */
     private static final java.util.Set<String> CONFLUENCE_KEYS = java.util.Set.of(
             "confluenceBaseUrl", "confluenceSpaceKey", "confluenceFolderId", "confluenceFolderTitle",
-            "confluenceEmail");
+            "confluenceEmail", "confluenceRootTitle");
 
     /**
-     * {@link #keysAsWritten()} less the five Confluence keys, in the record's order: the keys the deliverable's
-     * index states (ADR-359 section 7, amending ADR-186 section 1). Unmodifiable, and kept out of {@code profile.yaml}.
+     * {@link #keysAsWritten()} less the six Confluence keys, in the record's order: the keys the deliverable's
+     * index states (ADR-359 section 7, amending ADR-186 section 1; ADR-398 section 1). Unmodifiable, and kept out of {@code profile.yaml}.
      */
     @com.fasterxml.jackson.annotation.JsonIgnore
     public java.util.SequencedMap<String, String> keysTheIndexStates() {
@@ -249,7 +256,7 @@ public record Profile(
     static Profile skeleton() {
         return new Profile(
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -279,7 +286,8 @@ public record Profile(
                 confluenceSpaceKey,
                 confluenceFolderId,
                 confluenceFolderTitle,
-                confluenceEmail);
+                confluenceEmail,
+                confluenceRootTitle);
     }
 
     /**
@@ -313,7 +321,8 @@ public record Profile(
                 confluenceSpaceKey,
                 confluenceFolderId,
                 confluenceFolderTitle,
-                confluenceEmail);
+                confluenceEmail,
+                confluenceRootTitle);
     }
 
     /** The same profile, with stage 3's pointer to {@code word-count-distribution.html} brought up to date (ADR-282). */
@@ -343,7 +352,8 @@ public record Profile(
                 confluenceSpaceKey,
                 confluenceFolderId,
                 confluenceFolderTitle,
-                confluenceEmail);
+                confluenceEmail,
+                confluenceRootTitle);
     }
 
     /**
@@ -376,7 +386,8 @@ public record Profile(
                 confluenceSpaceKey,
                 confluenceFolderId,
                 confluenceFolderTitle,
-                confluenceEmail);
+                confluenceEmail,
+                confluenceRootTitle);
     }
 
     /**
@@ -414,7 +425,8 @@ public record Profile(
                 confluenceSpaceKey,
                 confluenceFolderId,
                 confluenceFolderTitle,
-                confluenceEmail);
+                confluenceEmail,
+                confluenceRootTitle);
     }
 
     /**
@@ -447,7 +459,8 @@ public record Profile(
                 confluenceSpaceKey,
                 confluenceFolderId,
                 confluenceFolderTitle,
-                confluenceEmail);
+                confluenceEmail,
+                confluenceRootTitle);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-171). */
@@ -477,7 +490,8 @@ public record Profile(
                 confluenceSpaceKey,
                 confluenceFolderId,
                 confluenceFolderTitle,
-                confluenceEmail);
+                confluenceEmail,
+                confluenceRootTitle);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-256). */
@@ -507,7 +521,8 @@ public record Profile(
                 confluenceSpaceKey,
                 confluenceFolderId,
                 confluenceFolderTitle,
-                confluenceEmail);
+                confluenceEmail,
+                confluenceRootTitle);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-277 §2). */
@@ -537,7 +552,8 @@ public record Profile(
                 confluenceSpaceKey,
                 confluenceFolderId,
                 confluenceFolderTitle,
-                confluenceEmail);
+                confluenceEmail,
+                confluenceRootTitle);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-287 §7). */
@@ -567,6 +583,7 @@ public record Profile(
                 confluenceSpaceKey,
                 confluenceFolderId,
                 confluenceFolderTitle,
-                confluenceEmail);
+                confluenceEmail,
+                confluenceRootTitle);
     }
 }

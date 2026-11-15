@@ -94,7 +94,7 @@ class ARefusedPublishSaysWhereToSetWhatIsMissingTest {
     void fromTheControlPanelTheRefusalNamesTheProfileWindowsKeysAndWritesNoTemplate(@TempDir Path folder)
             throws IOException {
         Path workingDirectory = Files.createDirectories(folder.resolve("work"));
-        ConfluenceValues siteAndFolder = new ConfluenceValues(SITE, null, null, "Hand-overs", null);
+        ConfluenceValues siteAndFolder = new ConfluenceValues(SITE, null, null, "Hand-overs", null, null);
         Map<String, String> withTheToken = Map.of(ConfluenceSite.TOKEN_VARIABLE, TOKEN, STARTED_BY_VARIABLE,
                 THE_CONTROL_PANEL);
         Map<String, String> withNoToken = new HashMap<>(Map.of(STARTED_BY_VARIABLE, THE_CONTROL_PANEL,
@@ -129,8 +129,8 @@ class ARefusedPublishSaysWhereToSetWhatIsMissingTest {
     void fromTheControlPanelAParentNamedTwiceAndAnAddressNotASitesNameTheProfilesKeys() {
         Map<String, String> fromThePanel = Map.of(ConfluenceSite.TOKEN_VARIABLE, TOKEN, STARTED_BY_VARIABLE,
                 THE_CONTROL_PANEL);
-        ConfluenceValues bothFolders = new ConfluenceValues(SITE, SPACE, FOLDER_ID, FOLDER_TITLE, EMAIL);
-        ConfluenceValues notASite = new ConfluenceValues(NOT_A_SITE, SPACE, FOLDER_ID, null, EMAIL);
+        ConfluenceValues bothFolders = new ConfluenceValues(SITE, SPACE, FOLDER_ID, FOLDER_TITLE, EMAIL, null);
+        ConfluenceValues notASite = new ConfluenceValues(NOT_A_SITE, SPACE, FOLDER_ID, null, EMAIL, null);
 
         ConfluenceSite.Read twice = ConfluenceSite.of(fromThePanel::get, "", "", "", "", bothFolders);
         ConfluenceSite.Read wrongAddress = ConfluenceSite.of(fromThePanel::get, "", "", "", "", notASite);
