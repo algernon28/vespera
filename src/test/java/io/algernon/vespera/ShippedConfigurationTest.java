@@ -41,8 +41,11 @@ import org.springframework.core.io.ClassPathResource;
 @Link(name = "ADR-114", url = Adr.THE_GENERATION_MODEL_IS_CONFIGURATION_WITH_A_DEFAULT, type = "adr")
 class ShippedConfigurationTest {
 
-    /** The file the application ships with, layered over by {@code application-test.yaml} at test time. */
-    private static final String SHIPPED = "application.yaml";
+    /**
+     * The jar's shipped copy of {@code application.yaml}, which it writes beside itself where none is there (ADR-397
+     * §2), and which a test context imports, {@code application-test.yaml} standing over it.
+     */
+    private static final String SHIPPED = TheShippedCopy.APPLICATION_YAML;
 
     /**
      * Model kinds no starter on the classpath serves today (ADR-195). Each stays named and set to none

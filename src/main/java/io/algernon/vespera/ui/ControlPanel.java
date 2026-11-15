@@ -2,11 +2,11 @@ package io.algernon.vespera.ui;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import javafx.application.Application;
 
@@ -24,8 +24,12 @@ public final class ControlPanel {
     /** How an opening came out, and the one line to say where it came to nothing. */
     public record Opening(Result result, String line) {
 
-        /** {@code CLOSED}: the window opened and was closed; {@code NO_JAR}: the class path names no jar; {@code NO_WINDOW}: the toolkit could not start. */
-        public enum Result { CLOSED, NO_JAR, NO_WINDOW }
+        /**
+         * {@code CLOSED}: the window opened and was closed; {@code NO_JAR}: the class path names no jar;
+         * {@code NO_WINDOW}: the toolkit could not start; {@code REFUSED}: the folder beside the jar cannot be written,
+         * and no window opens (ADR-397 §3).
+         */
+        public enum Result { CLOSED, NO_JAR, NO_WINDOW, REFUSED }
     }
 
     private ControlPanel() {
@@ -39,7 +43,7 @@ public final class ControlPanel {
      * {@code Application.launch}, inside the attempt whose throw answers {@link Opening.Result#NO_WINDOW}, and drops JavaFX's class path line from its
      * logger before the toolkit starts (ADR-360 §2).
      */
-    public static Opening open() {
+    public static Opening open(Path besideTheJar, List<String> besideTheJarLines) {
         ChildRuntime runtime;
         try {
             runtime = ChildRuntime.find(System.getProperty("java.class.path"),
@@ -48,13 +52,14 @@ public final class ControlPanel {
             return new Opening(Opening.Result.NO_JAR, refusal.getMessage());
         }
         String userName = System.getProperty("user.name");
-        StartingValues.Sources sources = readSources();
+        StartingValues.Sources sources = readSources(besideTheJar);
         Path lockFolder = corpusRootLockFolder(System.getenv(CORPUS_ROOT_LOCK_FOLDER_VARIABLE),
                 System.getProperty("user.home"));
         ControlPanelState state = new ControlPanelState(runtime,
                 LaunchValues.fileIn(Path.of(System.getProperty("java.io.tmpdir")), userName), lockFolder, userName,
                 DockerControl.inProcess(dockerSettings(sources, lockFolder)));
         state.useSources(sources);
+        state.useBesideTheJarLines(besideTheJarLines);
         Map<String, String> properties = new HashMap<>();
         System.getProperties().stringPropertyNames().forEach(name -> properties.put(name, System.getProperty(name)));
         state.useWorkingDirectoryDefault(WorkingDirectoryDefault.of(Path.of(""), properties, System.getenv()));
@@ -142,10 +147,10 @@ public final class ControlPanel {
     }
 
     /**
-     * What the environment, {@code .env} in the current directory and the jar's own {@code application.yaml} say, read
+     * What the environment, {@code .env} in the current directory and {@code application.yaml} beside the jar say (ADR-397 §10), read
      * once for the window's fields (ADR-344 §3). A source that cannot be read says nothing; {@code .env} is never written.
      */
-    private static StartingValues.Sources readSources() {
+    private static StartingValues.Sources readSources(Path besideTheJar) {
         Map<String, String> dotEnv = Map.of();
         try {
             Path file = Path.of("").toAbsolutePath().resolve(".env");
@@ -156,9 +161,10 @@ public final class ControlPanel {
             dotEnv = Map.of();
         }
         Map<String, String> yaml = Map.of();
-        try (InputStream in = ControlPanel.class.getResourceAsStream("/application.yaml")) {
-            if (in != null) {
-                yaml = StartingValues.readApplicationYaml(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+        try {
+            Path file = besideTheJar.resolve("application.yaml");
+            if (Files.isRegularFile(file)) {
+                yaml = StartingValues.readApplicationYaml(Files.readString(file, StandardCharsets.UTF_8));
             }
         } catch (IOException | RuntimeException unreadable) {
             yaml = Map.of();

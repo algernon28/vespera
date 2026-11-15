@@ -11,10 +11,9 @@ vespera:
     # test that means to pull sets it true and points spring.ai.ollama.base-url at a StubOllama.
     pull: false
 
-# Loaded on top of src/main/resources/application.yaml when the "test" profile is active,
-# because a profile-specific file layers rather than replaces. An identically named
-# application.yaml here would shadow the main one entirely instead — same classpath
-# resource name, test-classes first — and every shipped setting would silently stop applying.
+# Loaded on top of the jar's shipped copy of application.yaml, which application.properties
+# beside this file imports (ADR-397 section 8), when the "test" profile is active, because a
+# profile-specific file layers rather than replaces.
 #
 # The datasource is test-only. Where the real database lives is still an open decision
 # (issue #11), so nothing here settles it: this exists so the context can be built at all,

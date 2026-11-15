@@ -103,13 +103,7 @@ public class SidecarStarter {
                 new SystemProcessRunner(Path.of(System.getProperty("java.io.tmpdir"))),
                 new HttpSidecarHealth(settings),
                 HostSystem.current(),
-                () -> {
-                    try {
-                        return ComposeFiles.fromTheClasspath();
-                    } catch (IOException unwritten) {
-                        throw new ComposeFilesUnwritableException(unwritten);
-                    }
-                },
+                () -> BesideTheJar.ofThisApplication().composeFiles(),
                 CorpusRootLock.folderNamedBy(environment.getProperty(CorpusRootLock.FOLDER_PROPERTY)),
                 CHECK_EVERY);
     }
@@ -310,13 +304,9 @@ public class SidecarStarter {
         }
     }
 
-    /** The compose files, written out; a folder that will not take them refuses the start (ADR-323 §8). */
+    /** The compose files, where they lie beside the jar (ADR-397 §6). */
     private ComposeFiles writtenOut() {
-        try {
-            return composeFiles.get();
-        } catch (java.io.UncheckedIOException unwritten) {
-            throw new ComposeFilesUnwritableException(unwritten.getCause());
-        }
+        return composeFiles.get();
     }
 
     // ---- up (ADR-323 §4)

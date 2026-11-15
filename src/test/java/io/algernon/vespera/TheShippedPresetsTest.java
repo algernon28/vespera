@@ -31,8 +31,8 @@ import org.springframework.core.io.ClassPathResource;
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
 class TheShippedPresetsTest {
 
-    /** The file the application ships with. */
-    private static final String SHIPPED = "application.yaml";
+    /** The jar's shipped copy of {@code application.yaml}, which it writes beside itself where none is there (ADR-397 §2). */
+    private static final String SHIPPED = TheShippedCopy.APPLICATION_YAML;
 
     /** How many neighbours clustering keeps of each document, the value ADR-087 chose. */
     private static final String SHIPPED_NEIGHBOURS = "15";
