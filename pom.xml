@@ -264,13 +264,20 @@
                 <directory>${project.build.directory}/generated-resources/implementation-versions</directory>
             </resource>
             <!--
-              The compose files and the build context of the Docling image, copied byte for byte into the jar under
-              sidecars/ (ADR-323 section 4): Vespera starts the sidecars from these, so the jar needs nothing from the
-              checkout. Unfiltered, so the files in the jar are the files the README and the tests read.
+              The shipped copies the jar writes into the folder beside itself where a file is missing (ADR-397
+              section 2), under beside-the-jar/, which no default location of Spring's configuration loading reads:
+              application.yaml from src/main/beside-the-jar, then the compose files and the build context of the
+              Docling image from the repository's root. Unfiltered, byte for byte, so the files in the jar are the
+              files the README and the tests read.
             -->
             <resource>
+                <directory>src/main/beside-the-jar</directory>
+                <targetPath>beside-the-jar</targetPath>
+                <filtering>false</filtering>
+            </resource>
+            <resource>
                 <directory>${project.basedir}</directory>
-                <targetPath>sidecars</targetPath>
+                <targetPath>beside-the-jar</targetPath>
                 <filtering>false</filtering>
                 <includes>
                     <include>compose.yaml</include>

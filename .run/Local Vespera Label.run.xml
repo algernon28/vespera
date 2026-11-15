@@ -4,7 +4,7 @@
     <module name="vespera" />
     <option name="PROGRAM_PARAMETERS" value="label --auto" />
     <option name="SPRING_BOOT_MAIN_CLASS" value="io.algernon.vespera.VesperaApplication" />
-    <option name="VM_PARAMETERS" value="-Dspring.config.import=optional:classpath:/application-local.yaml" />
+    <option name="VM_PARAMETERS" value="-Dspring.config.additional-location=optional:file:./application-local.yaml" />
     <option name="WORKING_DIRECTORY" value="file://$PROJECT_DIR$" />
     <extension name="net.ashald.envfile">
       <option name="IS_ENABLED" value="true" />

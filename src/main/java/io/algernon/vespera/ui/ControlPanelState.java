@@ -139,6 +139,18 @@ final class ControlPanelState {
                 sources.applicationYaml());
     }
 
+    /** The lines of ADR-397 §5, for the window's log as it opens. */
+    private List<String> besideTheJarLines = List.of();
+
+    /** Hands the state the lines that say which file beside the jar differs from the jar's own (ADR-397 §5). */
+    void useBesideTheJarLines(List<String> lines) {
+        this.besideTheJarLines = List.copyOf(lines);
+    }
+
+    List<String> besideTheJarLines() {
+        return besideTheJarLines;
+    }
+
     /** Hands the state what the environment, {@code .env} and {@code application.yaml} say; the launch values are its own. */
     void useSources(StartingValues.Sources read) {
         this.sources = read;

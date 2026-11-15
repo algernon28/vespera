@@ -1,5 +1,7 @@
 package io.algernon.vespera;
 
+import io.algernon.vespera.engine.pipeline.BesideTheJar;
+import io.algernon.vespera.engine.pipeline.BesideTheJarUnwritableException;
 import io.algernon.vespera.engine.pipeline.DisplayPresence;
 import io.algernon.vespera.engine.pipeline.MachineLock;
 import io.algernon.vespera.engine.pipeline.ServeCommand;
@@ -63,7 +65,22 @@ public final class EntryPoint {
         // Built inside the lambda, so that --help, --version and a start with no display never touch the folder.
         start(arguments, DisplayPresence::ofThisProcess,
                 kind -> MachineLock.ofThisProcess().refusal(kind, passedOn(arguments)),
-                ControlPanel::open, VesperaApplication::main, System.err, System::exit);
+                EntryPoint::openTheWindow, VesperaApplication::main, System.err, System::exit);
+    }
+
+    /**
+     * Prepares the folder beside the jar, once the machine lock is held and before the window opens (ADR-397 §3), and
+     * hands the window its path and the lines of §5; a folder that cannot be written refuses the start in §3's line.
+     */
+    private static ControlPanel.Opening openTheWindow() {
+        BesideTheJar besideTheJar = BesideTheJar.ofThisApplication();
+        List<String> lines;
+        try {
+            lines = besideTheJar.prepare();
+        } catch (BesideTheJarUnwritableException refused) {
+            return new ControlPanel.Opening(ControlPanel.Opening.Result.REFUSED, refused.getMessage());
+        }
+        return ControlPanel.open(besideTheJar.folder(), lines);
     }
 
     /**
@@ -106,7 +123,7 @@ public final class EntryPoint {
         }
         ControlPanel.Opening opening = window.get();
         switch (opening.result()) {
-            case NO_JAR -> {
+            case NO_JAR, REFUSED -> {
                 err.println(opening.line());
                 exit.accept(1);
             }

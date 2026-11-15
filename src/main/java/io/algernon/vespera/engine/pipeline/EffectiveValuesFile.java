@@ -206,6 +206,7 @@ final class EffectiveValuesFile {
      * variable, a system property or any other source a process is given, {@code environment}.
      */
     private String sourceOf(String property) {
+        // ADR-397 §7: a value of a file named application.yaml is shipped only at the value the jar's shipped copy holds.
         if (!(environment instanceof ConfigurableEnvironment configurable)) {
             return "code";
         }
@@ -215,13 +216,32 @@ final class EffectiveValuesFile {
             }
             String name = source.getName();
             if (name.startsWith("Config resource")) {
-                return name.contains("class path resource [application.yaml]")
-                                || name.contains("class path resource [application.yml]")
-                        ? "shipped"
-                        : "local-file";
+                return isApplicationYaml(name) && isAsShipped(source, property) ? "shipped" : "local-file";
             }
             return name.startsWith("commandLineArgs") ? "command-line" : "environment";
         }
         return "code";
+    }
+
+    /** Whether a config resource's source name names a file called {@code application.yaml} (or {@code .yml}), wherever it lies. */
+    private static boolean isApplicationYaml(String sourceName) {
+        int via = sourceName.indexOf("' via location");
+        String resource = via < 0 ? sourceName : sourceName.substring(0, via);
+        for (String file : new String[] {"application.yaml]", "application.yml]"}) {
+            if (resource.endsWith(file)) {
+                int before = resource.length() - file.length() - 1;
+                if (before < 0 || "/\\[".indexOf(resource.charAt(before)) >= 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Whether the source holds the property at the value the jar's shipped copy holds for it, compared as text. */
+    private static boolean isAsShipped(PropertySource<?> source, String property) {
+        Object value = source.getProperty(property);
+        String shipped = BesideTheJar.shippedApplicationValues().get(property);
+        return value != null && shipped != null && value.toString().equals(shipped);
     }
 }
