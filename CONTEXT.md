@@ -260,7 +260,7 @@ The operating system's lock `vespera run` takes on a file named for its corpus r
 _Avoid_: root mutex, archive lock (nothing is written into the archive)
 
 **Machine lock**:
-The operating system's lock on `machine.lock`, in the folder the corpus-root locks lie in, taken before anything else by a control panel and by `vespera run`, `vespera label` and `vespera publish`, and held until its process ends, so that one Vespera runs on a machine at a time and none stops the sidecars another is using (ADR-394). The control panel's own child is let through, its parent being the holder, and holds `machine-child.lock` while it runs. `vespera serve` takes none.
+The operating system's lock on `machine.lock`, in the folder the corpus-root locks lie in, taken before anything else by a control panel and by `vespera run`, `vespera label` and `vespera publish`, and held until its process ends, so that one Vespera runs on a machine at a time and none stops the sidecars another is using (ADR-395). The control panel's own child is let through, its parent being the holder, and holds `machine-child.lock` while it runs. `vespera serve` takes none.
 _Avoid_: mutex, pidfile, single-instance lock
 
 **Invocation account**:

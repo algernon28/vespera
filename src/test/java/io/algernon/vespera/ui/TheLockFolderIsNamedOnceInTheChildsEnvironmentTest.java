@@ -16,14 +16,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * ADR-394 §2: the control panel names the folder of the locks in its child's environment once, absolute, whatever case
+ * ADR-395 §2: the control panel names the folder of the locks in its child's environment once, absolute, whatever case
  * an inherited variable of the same name is spelled in, so that on Windows, where a second spelling reaches the child,
  * the child cannot read the inherited one.
  */
 @Epic("Operation")
 @Feature("One Vespera on a machine")
 @Issue("818")
-@Link(name = "ADR-394", url = Adr.ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME, type = "adr")
+@Link(name = "ADR-395", url = Adr.ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME, type = "adr")
 class TheLockFolderIsNamedOnceInTheChildsEnvironmentTest {
 
     /** A variable the child inherits that has nothing to do with the locks, and is kept. */

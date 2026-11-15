@@ -24,12 +24,12 @@ import java.util.stream.Stream;
 
 /**
  * Holds the machine for the length of the process, so that one Vespera runs on a machine at a time and none stops the
- * sidecars another is using (ADR-394).
+ * sidecars another is using (ADR-395).
  *
  * <p>The same shape as {@link CorpusRootLock}: an operating-system lock on one byte far past the end of {@code
  * machine.lock}, so the holder's line stays readable while it is held; released by the operating system however the
  * process ends; the file never deleted. A start whose parent process holds the machine as the control panel is let
- * through, and holds {@code machine-child.lock} of its own instead (ADR-394 §3).
+ * through, and holds {@code machine-child.lock} of its own instead (ADR-395 §3).
  */
 public class MachineLock {
 
@@ -125,7 +125,7 @@ public class MachineLock {
 
     /**
      * The lock in the folder {@code value} names, where it is not blank, and in {@code userHome} otherwise. Never
-     * throws: a value that is no path is read as one only in {@link #take}, where it is refused (ADR-394 §2).
+     * throws: a value that is no path is read as one only in {@link #take}, where it is refused (ADR-395 §2).
      */
     static MachineLock ofTheFolderNamed(String value, String userHome) {
         OptionalLong parent = ProcessHandle.current().parent().map(p -> OptionalLong.of(p.pid()))
@@ -199,7 +199,7 @@ public class MachineLock {
     private void takeAsTheOnlyOne(Held machine, Kind kind, String[] arguments, Path machineFile, Path childFile)
             throws IOException {
         try {
-            // A child a control panel forced to end left running still holds the machine (ADR-394 §3).
+            // A child a control panel forced to end left running still holds the machine (ADR-395 §3).
             Held child = tryLock(childFile);
             if (child.lock() == null) {
                 throw new AnotherVesperaRunsException(holderLine(childFile), kind);
@@ -236,7 +236,7 @@ public class MachineLock {
         return held;
     }
 
-    /** True where the holder line is a control panel's and its pid is this process's parent (ADR-394 §3). */
+    /** True where the holder line is a control panel's and its pid is this process's parent (ADR-395 §3). */
     private boolean isMyParent(String holder) {
         if (parentPid.isEmpty() || holder == null) {
             return false;

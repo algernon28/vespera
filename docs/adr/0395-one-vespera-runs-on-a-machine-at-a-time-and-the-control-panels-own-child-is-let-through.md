@@ -1,4 +1,4 @@
-# ADR-394 — One Vespera runs on a machine at a time, and the control panel's own child is let through
+# ADR-395 — One Vespera runs on a machine at a time, and the control panel's own child is let through
 
 - **Date**: 2026-11-15
 - **Status**: accepted on 2026-11-15.

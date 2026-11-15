@@ -24,7 +24,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The control panel gives the child it starts the folder of the locks as an absolute path, in {@code
- * VESPERA_CORPUS_ROOT_LOCK_FOLDER} (ADR-394 §2): the child's current directory is its working directory (ADR-278 §1),
+ * VESPERA_CORPUS_ROOT_LOCK_FOLDER} (ADR-395 §2): the child's current directory is its working directory (ADR-278 §1),
  * so a relative value it inherited would name another folder than the control panel's, and the child would not find
  * the control panel's machine lock, nor its corpus-root locks.
  *
@@ -36,7 +36,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("One Vespera on a machine")
 @Issue("818")
-@Link(name = "ADR-394", url = Adr.ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME, type = "adr")
+@Link(name = "ADR-395", url = Adr.ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME, type = "adr")
 class TheChildIsGivenTheLockFolderAbsoluteTest {
 
     private static final String USER = System.getProperty("user.name");

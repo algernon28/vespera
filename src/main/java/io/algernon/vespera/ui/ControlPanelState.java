@@ -582,7 +582,7 @@ final class ControlPanelState {
     }
 
     /**
-     * Names the folder of the locks in a child's environment, absolute (ADR-394 §2): the variable inherited in any case
+     * Names the folder of the locks in a child's environment, absolute (ADR-395 §2): the variable inherited in any case
      * of its letters is removed first, as ADR-359 §3 removes the Confluence variables, since on Windows a second
      * spelling reaches the child beside the first and the child's own read of the variable would take either.
      */

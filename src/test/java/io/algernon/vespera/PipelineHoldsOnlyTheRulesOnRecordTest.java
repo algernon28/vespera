@@ -112,7 +112,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "CorpusRootInUseException",
             "CorpusRootLock",
             "CorpusRootLockUnavailableException",
-            // ADR-394: refuses a second Vespera on the machine; locks a file, and decides no verdict.
+            // ADR-395: refuses a second Vespera on the machine; locks a file, and decides no verdict.
             "AnotherVesperaRunsException",
             "MachineLock",
             "MachineLockUnavailableException",

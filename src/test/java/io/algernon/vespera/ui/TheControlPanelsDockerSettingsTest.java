@@ -93,12 +93,12 @@ class TheControlPanelsDockerSettingsTest {
     }
 
     /**
-     * The wait in each form the jar reads it in, through Spring's {@code DurationStyle} (ADR-394 §9, amending ADR-390
+     * The wait in each form the jar reads it in, through Spring's {@code DurationStyle} (ADR-395 §9, amending ADR-390
      * §4): a bare number is milliseconds, a suffix of a unit is read in any case, ISO-8601 is read, a value under a
      * second is a second, and a value neither form reads, an overflowing number among them, is 180 seconds.
      */
     @Test
-    @Link(name = "ADR-394", url = Adr.ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME, type = "adr")
+    @Link(name = "ADR-395", url = Adr.ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME, type = "adr")
     @Story("The control panel starts the Docker engine as its window opens")
     @DisplayName("The wait is read as the jar reads it: a bare number in milliseconds, a unit in any case, ISO-8601, at least a second, and three minutes where no form reads it")
     void theWaitIsReadInTheJarsFormsAndThreeMinutesWhereNoFormReadsIt() {
