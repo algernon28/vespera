@@ -16,11 +16,6 @@ public record ConfluenceValues(String baseUrl, String spaceKey, String folderId,
     /** No value named: what a publish reads where no profile names any, so that it reads the shell alone. */
     public static final ConfluenceValues NONE = new ConfluenceValues(null, null, null, null, null, null);
 
-    /** The values of the site, the space, the parent and the account, the root page's title being named none (ADR-398). */
-    public ConfluenceValues(String baseUrl, String spaceKey, String folderId, String folderTitle, String email) {
-        this(baseUrl, spaceKey, folderId, folderTitle, email, null);
-    }
-
     /** The values the profile of a working directory names (ADR-359 §5). */
     @FunctionalInterface
     public interface InTheProfile {

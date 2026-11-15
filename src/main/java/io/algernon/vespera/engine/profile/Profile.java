@@ -178,41 +178,6 @@ public record Profile(
         TextValue confluenceEmail,
         TextValue confluenceRootTitle) {
 
-    /** A profile naming no root page's title: the keys before ADR-398 added it, which ships unset. */
-    public Profile(
-            TextValue seedFolder,
-            NumericValue degenerateOutputConfidenceFloor,
-            NumericValue degenerateOutputWordFloor,
-            NumericValue boilerplateDocumentFrequencyFloor,
-            TextValue embeddingModel,
-            NumericValue relevanceScoreFloor,
-            TextValue arrangementApproved,
-            TextValue generationModel,
-            TextValue modelsRunOn,
-            NumericValue generationContextWindow,
-            NumericValue clusterPageByteCeiling,
-            NumericValue logTimestampShareFloor,
-            NumericValue extractionAttempt,
-            NameEndingsValue codeNameEndings,
-            NameEndingsValue outOfScopeNameEndings,
-            NumericValue configurationSettingShareFloor,
-            TextValue deliverableLanguage,
-            NumericValue clusterResolution,
-            FoldersValue codeSetFolders,
-            CorpusFoldersValue foldersNotWalked,
-            TextValue confluenceBaseUrl,
-            TextValue confluenceSpaceKey,
-            TextValue confluenceFolderId,
-            TextValue confluenceFolderTitle,
-            TextValue confluenceEmail) {
-        this(seedFolder, degenerateOutputConfidenceFloor, degenerateOutputWordFloor,
-                boilerplateDocumentFrequencyFloor, embeddingModel, relevanceScoreFloor, arrangementApproved,
-                generationModel, modelsRunOn, generationContextWindow, clusterPageByteCeiling, logTimestampShareFloor,
-                extractionAttempt, codeNameEndings, outOfScopeNameEndings, configurationSettingShareFloor,
-                deliverableLanguage, clusterResolution, codeSetFolders, foldersNotWalked, confluenceBaseUrl,
-                confluenceSpaceKey, confluenceFolderId, confluenceFolderTitle, confluenceEmail, null);
-    }
-
     public Profile {
         seedFolder = seedFolder == null ? TextValue.unset() : seedFolder;
         degenerateOutputConfidenceFloor =
