@@ -24,6 +24,8 @@ final class WorkingDirectories {
     private final List<Path> rows = new ArrayList<>();
     /** The folders New… added that no Save has made yet: the file is written once their folder exists. */
     private final Set<Path> toBeCreated = new HashSet<>();
+    /** The folders this window took off the list: the file's row for one is not carried over when the file is written. */
+    private final List<Path> removed = new ArrayList<>();
 
     /**
      * The list as the file and the launch value give it; where the file cannot be read, the machine's folder and the
@@ -65,6 +67,7 @@ final class WorkingDirectories {
             return;
         }
         rows.removeIf(each -> same(each, folder));
+        removed.removeIf(each -> same(each, folder));
         rows.addFirst(folder);
         if (notThereYet && Files.notExists(folder)) {
             toBeCreated.add(folder);
@@ -78,6 +81,7 @@ final class WorkingDirectories {
         }
         rows.removeIf(each -> same(each, folder));
         toBeCreated.removeIf(each -> same(each, folder));
+        removed.add(folder);
         keep();
     }
 
@@ -89,7 +93,11 @@ final class WorkingDirectories {
         keep();
     }
 
-    /** Writes the file, leaving out the folders New… added that are not there yet, and the machine's own. */
+    /**
+     * Writes the file: this window's rows in its order, leaving out the folders New… added that are not there yet and the
+     * machine's own, then the rows the file holds that this window neither holds nor removed, in the file's order, so another
+     * window's rows are not lost (ADR-393 §4).
+     */
     synchronized void keep() {
         List<Path> written = new ArrayList<>();
         for (Path each : rows) {
@@ -99,6 +107,11 @@ final class WorkingDirectories {
             written.add(each);
         }
         toBeCreated.removeIf(Files::exists);
+        for (Path other : WorkingDirectoryList.load(file, userName, said).folders()) {
+            if (!isTheDefault(other) && !namedIn(rows, other) && !namedIn(removed, other) && !namedIn(written, other)) {
+                written.add(other);
+            }
+        }
         WorkingDirectoryList.store(file, userName, written, said);
     }
 

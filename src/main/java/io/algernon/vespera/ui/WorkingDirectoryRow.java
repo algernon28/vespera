@@ -46,10 +46,10 @@ public record WorkingDirectoryRow(String name, String corpusRoot, String lastInv
             if (!Files.isDirectory(folder)) {
                 return new WorkingDirectoryRow(name, NO_RUN, "not there", NONE, NOTHING);
             }
-            Optional<InvocationReportFile.Report> lastRun = lastRun(folder);
-            String corpusRoot = lastRun.map(InvocationReportFile.Report::places)
+            Optional<InvocationReportFile.Report> lastRunInvocation = lastRunInvocation(folder);
+            String corpusRoot = lastRunInvocation.map(InvocationReportFile.Report::places)
                     .map(InvocationReportFile.Places::corpusRoot).orElse(NO_RUN);
-            String leg = lastRun.map(WorkingDirectoryRow::furthestLeg).orElse(NONE);
+            String leg = lastRunInvocation.map(WorkingDirectoryRow::furthestLeg).orElse(NONE);
             String last;
             String next = NOTHING;
             Optional<String> heldSince = heldSince(folder, zone);
@@ -127,7 +127,7 @@ public record WorkingDirectoryRow(String name, String corpusRoot, String lastInv
      * characters, then by the number after the {@code -}; a copy that cannot be read or is of a format not known is
      * passed over (ADR-393 §7).
      */
-    private static Optional<InvocationReportFile.Report> lastRun(Path folder) {
+    private static Optional<InvocationReportFile.Report> lastRunInvocation(Path folder) {
         record Copy(Path file, String stamp, long number) {
         }
         List<Copy> copies = new ArrayList<>();

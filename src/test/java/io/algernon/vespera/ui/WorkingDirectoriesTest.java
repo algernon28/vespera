@@ -170,6 +170,25 @@ class WorkingDirectoriesTest {
                 () -> assertThat(Files.readString(file, UTF_8)).isEqualTo(letters + "\n" + toBeMade + "\n"));
     }
 
+    @Test
+    @Story("The window lists the working directories used")
+    @DisplayName("A window that removes a row keeps the folder another window started since it opened, and the row it removed stays off")
+    void aRowAnotherWindowStartedIsKeptAndARowRemovedStaysOff() throws IOException {
+        written(letters, invoices);
+        WorkingDirectories first = new WorkingDirectories(file, USER, machine, NO_LAUNCH_VALUE, said::add);
+        WorkingDirectories openedBefore = new WorkingDirectories(file, USER, machine, NO_LAUNCH_VALUE, said::add);
+
+        first.started(receipts);
+        String writtenAsTheFirstStarted = Files.readString(file, UTF_8);
+        openedBefore.remove(invoices);
+
+        claim("the first window's start writes the folder started on top, then the file's rows in its order",
+                () -> assertThat(writtenAsTheFirstStarted).isEqualTo(receipts + "\n" + letters + "\n" + invoices + "\n"));
+        claim("the window opened before it, removing a row, writes its own rows in its order, then the folder the"
+                        + " other started, read again from the file, and not the row it removed",
+                () -> assertThat(Files.readString(file, UTF_8)).isEqualTo(letters + "\n" + receipts + "\n"));
+    }
+
     /** The list's file holding {@code folders}, written as the window writes it. */
     private void written(Path... folders) {
         WorkingDirectoryList.store(file, USER, List.of(folders), said::add);

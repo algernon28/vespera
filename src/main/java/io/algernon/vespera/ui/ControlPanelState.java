@@ -57,6 +57,8 @@ final class ControlPanelState {
     private final WorkingDirectoryWrite writer;
     private final List<String> launchLines = new ArrayList<>();
     private final List<String> workingDirectoryLines = new ArrayList<>();
+    /** Where a line the list gives after the window is built goes, as it is given; null until the window sets it. */
+    private volatile java.util.function.Consumer<String> workingDirectoryLineSink;
     private WorkingDirectories workingDirectories;
 
     private volatile StartingValues.Sources sources = StartingValues.Sources.none();
@@ -261,14 +263,29 @@ final class ControlPanelState {
         if (workingDirectories == null) {
             Path theDefault = pathOf(workingDirectoryDefault.folder()).orElse(Path.of(workingDirectoryDefault.folder()));
             workingDirectories = new WorkingDirectories(WorkingDirectoryList.besides(launchValuesFile), userName,
-                    theDefault, values.workingDirectory(), workingDirectoryLines::add);
+                    theDefault, values.workingDirectory(), line -> {
+                        synchronized (workingDirectoryLines) {
+                            workingDirectoryLines.add(line);
+                        }
+                        java.util.function.Consumer<String> sink = workingDirectoryLineSink;
+                        if (sink != null) {
+                            sink.accept(line);
+                        }
+                    });
         }
         return workingDirectories;
     }
 
     /** The lines the list of working directories gave as it was read or written, for the window's standard error. */
     synchronized List<String> workingDirectoryLines() {
-        return List.copyOf(workingDirectoryLines);
+        synchronized (workingDirectoryLines) {
+            return List.copyOf(workingDirectoryLines);
+        }
+    }
+
+    /** From now on each line the list of working directories gives, as it is read or written, goes to {@code sink} as it is given. */
+    void sendWorkingDirectoryLinesTo(java.util.function.Consumer<String> sink) {
+        this.workingDirectoryLineSink = sink;
     }
 
     /** The lines the launch values' file gave as it was loaded. */

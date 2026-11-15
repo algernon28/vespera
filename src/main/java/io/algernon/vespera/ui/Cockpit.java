@@ -637,6 +637,7 @@ final class Cockpit {
         workingDirectoryRemove.setId("working-directory-remove");
         List<Path> rows = state.workingDirectories().rows();
         state.workingDirectoryLines().forEach(line -> log.log(System.Logger.Level.WARNING, line));
+        state.sendWorkingDirectoryLinesTo(line -> log.log(System.Logger.Level.WARNING, line));
         workingDirectoryList.setItems(FXCollections.observableArrayList(rows));
         rows.forEach(this::readRow);
         selectTheRowOf(working.text());

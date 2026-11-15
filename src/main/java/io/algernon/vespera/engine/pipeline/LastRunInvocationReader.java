@@ -23,7 +23,7 @@ import tools.jackson.databind.json.JsonMapper;
  * ignores the rest. It holds no rule of any stage: it reads a file the jar wrote, and the publish's choice is the
  * command's (ADR-393 §8).
  */
-final class LastRunReader {
+final class LastRunInvocationReader {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -43,7 +43,7 @@ final class LastRunReader {
 
     private record Copy(Path file, String stamp, long number) {}
 
-    private LastRunReader() {}
+    private LastRunInvocationReader() {}
 
     /** The last run's arrival, or empty where no readable copy of a {@code vespera run}'s report is kept. */
     static Optional<Arrival> of(Path workingDirectory, String generationStage) {
