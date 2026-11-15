@@ -2,8 +2,8 @@
 
 - **Date**: 2026-11-15
 - **Status**: accepted on 2026-11-15.
-- **Decided**: by the operator, in [#836](https://github.com/algernon28/vespera/issues/836): that `application.yaml`, `application-local.yaml`, `compose.yaml` and `compose.gpu.yaml`, with the `docker/` build context `compose.yaml` names relative to itself, lie outside the jar, by default in the folder the jar is in (§1); that the jar carries no configuration Spring reads, the file beside the jar being the whole configuration, and keeps only a shipped copy, on a resource path Spring's configuration loading never reads (§2); that a file missing beside the jar is written there from the shipped copy as the jar starts, and `application-local.yaml`, which is optional, never (§3); that `--spring.config.location` and `SPRING_CONFIG_LOCATION` still name another location, the jar's folder being only the default (§4); and that on an upgrade the operator's file is never written over, a newer jar saying which keys or images differ from its shipped copy, in the log and in the control panel, and writing its new default beside the file as `<name>.new` (§5). Under the operator's delegation: which folder a run from compiled classes takes (§1); the resource folder, and where the repository keeps `application.yaml`'s source (§2); when the folder is prepared, and the line of a folder that cannot be written (§3); how Spring is pointed at the folder (§4); how a difference is found and said (§5); how the starter reads the compose files (§6); what the effective values call a value of the file beside the jar (§7); how a test context reads the shipped copy (§8); and the IDE's run configurations (§9).
-- **Amends**: [ADR-323](0323-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md) §2 and §4: the starter reads both images from the compose files beside the jar, and `up` names those files where they lie; the jar no longer carries the files under `sidecars/`, writes them to no temporary folder and deletes none (§6). It carries a note at its head.
+- **Decided**: by the operator, in [#836](https://github.com/algernon28/vespera/issues/836): that `application.yaml`, `application-local.yaml`, `compose.yaml` and `compose.gpu.yaml`, with the `docker/` build context `compose.yaml` names relative to itself, lie outside the jar, by default in the folder the jar is in (§1); that the jar carries no configuration Spring reads, the file beside the jar being the whole configuration, and keeps only a shipped copy, on a resource path Spring's configuration loading never reads (§2); that a file missing beside the jar is written there from the shipped copy as the jar starts, and `application-local.yaml`, which is optional, never (§3); that `--spring.config.location` and `SPRING_CONFIG_LOCATION` still name another location, the jar's folder being only the default (§4); and that on an upgrade the operator's file is never written over, a newer jar saying which keys or images differ from its shipped copy, in the log and in the control panel, and writing its new default beside the file as `<name>.new` (§5). Under the operator's delegation: which folder a run from compiled classes takes (§1); the resource folder, and where the repository keeps `application.yaml`'s source (§2); when the folder is prepared, and the line of a folder that cannot be written (§3); how Spring is pointed at the folder (§4); how a difference is found and said (§5); how the starter reads the compose files (§6); what the effective values call a value of the file beside the jar (§7); how a test context reads the shipped copy (§8); the IDE's run configurations (§9); and the line of a compose file beside the jar that cannot be read (§12).
+- **Amends**: [ADR-323](0323-vespera-starts-the-docker-engine-and-the-sidecars-when-they-are-not-answering-recreates-and-stops-none-and-stage-2-waits-for-a-converter-still-starting.md) §2 and §4: the starter reads both images from the compose files beside the jar, and `up` names those files where they lie; the jar no longer carries the files under `sidecars/`, writes them to no temporary folder and deletes none (§6). And §8: `ComposeFilesUnwritableException`'s line goes with the class, and a compose file beside the jar that cannot be read for its image refuses the start in a line of its own, `ComposeFileUnreadableException`'s (§12). It carries a note at its head.
 - **Amends**: [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md) §1: `shipped` is a value read from a file named `application.yaml` at the value the jar's shipped copy holds for its key, and `local-file` a value of that file the operator changed or added, and any other file of application configuration (§7). §8's presets still ship in `application.yaml`: in its shipped copy, which the jar writes beside itself. It carries a note at its head.
 - **Amends**: [ADR-334](0334-the-default-output-folder-named-is-none-an-empty-field-shows-the-value-in-use-relevance-is-answered-by-folders-not-relevant-the-profile-is-one-form-and-a-code-set-folder-may-lie-outside-the-corpus-root.md) §11: the jar's own default image is the shipped copy's `vespera.docling.image`, still the processor build; the file beside the jar may name another, and `vespera` started by hand then runs it (§10). It carries a note at its head.
 - **Amends**: [ADR-344](0344-the-control-panels-window-is-one-cockpit-run-and-stop-the-steps-as-bars-beside-the-output-the-progress-pages-three-charts-the-profile-and-the-folders-to-include-starting-from-the-real-configuration.md) §3: the fifth source a field starts from is `application.yaml` in the folder beside the jar, read from the file, and no longer the window's class path (§10). It carries a note at its head.
@@ -42,7 +42,7 @@ The folder beside the jar is found from the code source the application class wa
 
 - **A jar** (`java -jar`, the control panel's child, Spring Boot's nested jar read as its outer file): the folder the jar lies in.
 - **A folder of compiled classes** (an IDE's run, a test): the folder above it, `target/` for `target/classes`, where the build writes the jar. Never the classes folder itself, which is on the class path.
-- **Neither, or a code source that is not there**: the current directory.
+- **Neither, or a code source that is not there**: the current directory. So is a code source whose URL names no file, a `jrt:` URL or an opaque one among them: it is not taken for a file, and so never for a folder whose parent would be the folder beside the jar.
 
 **Why not the current directory for a run from classes.** The IDE's run configurations start in the repository's root, which is also every test's current directory. Spring reads `./application.yaml` there with no flag, above `application-test.yaml`, so a file written there by one IDE run would stand over the test profile in every test context on that machine. A jar started from another folder would also find, and write, its files there.
 
@@ -68,6 +68,8 @@ The folder beside the jar is found from the code source the application class wa
 
 The control panel's start is refused in the same line, and no window opens.
 
+**Standard error, not the log.** The command line's refusal is thrown from the listener as Spring starts, before its logging is configured, so a log line would reach the console through whatever logging stands before it, on standard output, with a logger's prefix. The line goes to standard error as it stands, once, and the exit is 1, whichever of `VesperaApplication.main` and the entry point says it.
+
 **The folder is prepared even where §4's location names another.** The compose files are read beside the jar whatever Spring reads (§6).
 
 ### 4. Where Spring reads
@@ -78,7 +80,7 @@ The control panel's start is refused in the same line, and no window opens.
 spring.config.location=file:<folder>/application.yaml,optional:file:<folder>/application-local.yaml
 ```
 
-`application-local.yaml` comes last, and so stands over `application.yaml`, as it stood over the class path's file. A `spring.config.location` given on the command line, as a system property or as `SPRING_CONFIG_LOCATION` stands in its place, by Spring's own precedence, and neither file beside the jar is read; `spring.config.additional-location` adds to whichever is in force. The command line, the environment and the system properties stand over both files, as before.
+`application-local.yaml` comes last, and so stands over `application.yaml`, as it stood over the class path's file. Spring cuts `spring.config.location` at its commas, so a comma in the folder's path is written so that the cut does not fall inside it: whatever the folder is named, the property names the two files and Spring reads both. A `spring.config.location` given on the command line, as a system property or as `SPRING_CONFIG_LOCATION` stands in its place, by Spring's own precedence, and neither file beside the jar is read; `spring.config.additional-location` adds to whichever is in force. The command line, the environment and the system properties stand over both files, as before.
 
 ### 5. A file that differs from its shipped copy
 
@@ -86,7 +88,7 @@ After §3's writes, each file of §2 beside the jar is compared with its shipped
 
 - **`application.yaml`, `compose.yaml` and `compose.gpu.yaml`**, by their keys, flattened as Spring flattens a YAML file, each key by its dotted name and each item of a list by its index, and their values as Spring's YAML reading gives them. A key added, a key removed, or a key whose value is another differs. A comment, the order of the keys, a blank line or a quoting does not. An image is a key, `services.docling-serve.image` among them, so a compose file is named by the images that differ, and by any other key.
 - **A file of the build context**, by its bytes.
-- **A YAML file that does not load** differs at no key.
+- **A YAML file that does not load** differs, at no key: its `.new` is written and the line that names no key is said. It cannot be the shipped copy, which loads, and the `.new` is what the operator has to put it right from.
 
 For each file that differs, in §3's order, the shipped copy is written beside it as `<name>.new`, over a `.new` already there, and **the file is left as it is**. One line says so, naming the keys in the order of their names, and no value, since the operator's file may hold a path or a credential:
 
@@ -96,7 +98,11 @@ and where no key differs, *"&lt;name&gt; beside the jar differs from this jar's 
 
 **Where it is said.** The command line logs each line at WARN, so it is in its log and on its console. The entry point hands the lines to the control panel, whose window says each at WARNING in its log as it opens, as it says the lines of the list of working directories; its child prepares the folder again and says the same lines in its own output.
 
-A `.new` that cannot be written is logged at WARN, naming it and the reason, and the start goes on: the operator's file is the one in use either way. No `.new` is read or deleted; one beside a file that no longer differs is an earlier jar's.
+A `.new` that cannot be written is said in place of that file's line, among the same lines and where they are said, and the start goes on: the operator's file is the one in use either way. `<reason>` is the message of what refused the write, on one line:
+
+*"&lt;name&gt; beside the jar differs from this jar's own at &lt;key&gt;, &lt;key&gt;; this jar's cannot be written beside it as &lt;name&gt;.new (&lt;reason&gt;)"*
+
+and where no key differs, the same line without *"at &lt;key&gt;, &lt;key&gt;"*. It is not logged as the folder is prepared, before the logging is up, where the command line's log would not hold it. No `.new` is read or deleted; one beside a file that no longer differs is an earlier jar's.
 
 ### 6. The compose files
 
@@ -108,7 +114,7 @@ ADR-330 §1's table of `<key>.source`:
 
 | `<key>.source` | Where the value came from |
 | --- | --- |
-| `shipped` | a file named `application.yaml`, at the value the jar's shipped copy holds for the key, compared as the property's text |
+| `shipped` | a file named `application.yaml`, its name compared without regard to case, at the value the jar's shipped copy holds for the key, compared as the property's text |
 | `local-file` | a file named `application.yaml` at another value, or for a key the shipped copy does not hold; and any other file of application configuration, `application-local.yaml` among them |
 | `environment` | an environment variable or a system property |
 | `command-line` | the command line |
@@ -131,6 +137,23 @@ ADR-344 §3's fifth source is `application.yaml` in the folder beside the jar, r
 ### 11. No run id moves
 
 A run's identity takes values, never the file they came from, and the shipped copy holds the bytes `application.yaml` held.
+
+### 12. A compose file beside the jar that cannot be read refuses the start in one line
+
+`compose.yaml` and `compose.gpu.yaml` are the operator's to edit once they lie beside the jar, so the starter can meet one that does not load, one whose `docling-serve` service names no image, or one deleted after the folder was prepared. Each would reach the operator as a stack trace from the middle of a start, which ADR-323 §8's lines exist to prevent; so each is a refusal like the rest, `ComposeFileUnreadableException`, extending `SidecarStartRefusedException`, one line on standard error and exit 1:
+
+*"the sidecars are not answering and Vespera cannot start them: &lt;file&gt; cannot be read for the image its docling-serve service builds (&lt;reason&gt;). Put that file right, or delete it so that Vespera writes its own there, and run the same command again."*
+
+`<file>` is the file's absolute path. `<reason>` is one of, on one line:
+
+- *it is not there*;
+- *it names no image for its docling-serve service*, where the file loads and `services.docling-serve.image` is missing or not text;
+- *it does not load as YAML: &lt;the parser's message&gt;*;
+- the message of what refused the read, or its exception's simple name where it has none, for any other failure to read it.
+
+**When.** As ADR-323 §3 has it: only once the sidecars are found not answering, so a broken file stops nothing while they answer. Both files are read before the configured image is compared with theirs, `compose.yaml` first, and the first that cannot be read is the one named, whichever image is configured. Nothing is run before the refusal.
+
+Deleting the file is the remedy the line offers because §3 writes a missing file from the shipped copy at the next start, and the same command run again is that start.
 
 ## Alternatives refused
 
@@ -163,18 +186,27 @@ A run's identity takes values, never the file they came from, and the shipped co
 | `pipeline.BesideTheJarTest.aMissingFileIsWrittenFromTheJarsCopyAndTheLocalFileNever` | §2, §3: every file of the shipped copy written, in order, byte for byte, the resource folder `beside-the-jar/`; `application-local.yaml` not written; a second start writes nothing, finds nothing that differs and writes no `.new` |
 | `pipeline.BesideTheJarTest.aFileAlreadyBesideTheJarIsNeverWrittenOver` | §3: `application.yaml`, `compose.yaml` and a build-context file the operator wrote left untouched, only the missing ones written |
 | `pipeline.BesideTheJarTest.aFileThatDiffersIsNamedByItsKeysAndTheJarsCopyIsWrittenBesideIt` | §5: a key added, removed and changed in `application.yaml`, an image in `compose.yaml` and a build-context file's bytes named, in order, with §5's lines; a comment in `compose.gpu.yaml` not; `<name>.new` byte for byte the shipped copy beside each; every file as the operator wrote it |
+| `pipeline.BesideTheJarTest.aNewFileThatCannotBeWrittenIsSaidAmongTheLinesNamingItAndWhy` | §5: a `.new` stood in the way of by a folder of that name gives, among `prepare()`'s lines, the line naming the key, the `.new` and the reason, on one line; nothing thrown; the operator's file and folder untouched |
+| `pipeline.BesideTheJarTest.aYamlFileThatDoesNotLoadDiffersAtNoKey` | §5: an `application.yaml` that does not load is named with no key, in the line naming none, its `.new` the shipped copy byte for byte, the file untouched |
 | `pipeline.BesideTheJarTest.aFolderThatCannotBeWrittenRefusesTheStartNamingIt` | §3: `BesideTheJarUnwritableException`, its message §3's line, one line |
 | `pipeline.BesideTheJarTest.theFolderIsTheJarsTheOneAboveTheClassesOrTheCurrentDirectory` | §1: a jar's folder; the folder above compiled classes; the current directory for a code source not there |
+| `pipeline.BesideTheJarTest.aCodeSourceUrlThatNamesNoFileIsTheCurrentDirectory` | §1: `folderOf` a code source's URL: a `file:` URL of a jar its folder; a `jrt:` URL and an opaque URL the current directory |
 | `pipeline.BesideTheJarTest.springReadsTheConfigurationAndTheLocalFileBesideTheJar` | §4: Spring, pointed by `pointSpringAt`, reads `application.yaml` beside the jar and `application-local.yaml` over it |
+| `pipeline.BesideTheJarTest.aFolderWhoseNameHoldsACommaIsReadAsOneFolder` | §4: the same, for a folder named `a,b` |
 | `pipeline.BesideTheJarTest.aLocationNamedElsewhereIsReadInPlaceOfTheFolderBesideTheJar` | §4: `spring.config.location` on the command line, as a system property and as `SPRING_CONFIG_LOCATION` read in place of both files |
 | `pipeline.BesideTheJarTest.theComposeFilesAreReadBesideTheJar` | §6: the compose files read in the folder beside the jar, an image the operator wrote there the one read, neither deleted |
 | `pipeline.TheEffectiveValuesSayWhereAValueBesideTheJarCameFromTest.aValueBesideTheJarIsShippedOnlyAtTheShippedValue` | §7: a preset left as shipped `shipped`; one changed in `application.yaml` and one set in `application-local.yaml` `local-file` |
-| `TheJarCarriesNoConfigurationSpringReadsTest.theJarCarriesNoFileSpringsConfigurationLoadingReads` | §2: no name Spring reads at the root of the jar's classes or under `config/` |
+| `pipeline.TheEffectiveValuesSayWhereAValueBesideTheJarCameFromTest.anApplicationYamlSpeltInAnotherCaseIsShippedAtTheShippedValue` | §7: read from `Application.yaml` named by `spring.config.location`, a preset left as shipped `shipped` and one changed `local-file` |
+| `pipeline.AComposeFileThatCannotBeReadRefusesTheStartTest.aComposeFileNamingNoImageRefusesTheStartInOneLine` | §12: `ComposeFileUnreadableException`, a `SidecarStartRefusedException`, in §12's line for a `compose.yaml` naming no image; no command run |
+| `pipeline.AComposeFileThatCannotBeReadRefusesTheStartTest.aComposeFileThatDoesNotLoadRefusesTheStartInOneLine` | §12: the line for a `compose.yaml` that does not load, one line; no command run; nothing refused while both sidecars answer |
+| `pipeline.AComposeFileThatCannotBeReadRefusesTheStartTest.aGpuFileThatIsNotThereRefusesTheStartInOneLine` | §12: the line naming `compose.gpu.yaml`, not there, though `compose.yaml` builds the image configured |
+| `EntryPointTest.aFolderBesideTheJarThatCannotBeWrittenIsSaidOnStandardErrorAndExitsOne` | §3: the command line refused with `BesideTheJarUnwritableException` gives exactly its one line on standard error and exit 1, nothing escaping the start |
+| `TheJarCarriesNoConfigurationSpringReadsTest.theJarCarriesNoFileSpringsConfigurationLoadingReads` | §2: no name Spring reads at the root of the jar's classes or under `config/`, and no `application-local.yaml` at any depth |
 | `TheJarCarriesNoConfigurationSpringReadsTest.theRepositorysRootHoldsNoFileSpringReads` | §2: none at the repository's root either; `application.yaml`'s source below `src/main` |
 | `TheJarCarriesNoConfigurationSpringReadsTest.theJarCarriesTheRepositorysFilesAsItsShippedCopies` | §2: each file under `beside-the-jar/` byte for byte its source, nothing else there, no `application-local.yaml`, no `sidecars/` |
 | `TheFolderBesideTheJarIsPreparedBeforeSpringReadsItTest.mainRegistersTheFolderBesideTheJarFirst` | §3: `VesperaApplication.main` registers `BesideTheJar` ahead of `WorkingDirectoryPreparer` |
 
-Changed beside them, each now reading the shipped copy under `beside-the-jar/` through `TheShippedCopy`, in place of the class path's `application.yaml`: `ShippedConfigurationTest`, `TheShippedPresetsTest`, `NoPoolSetsSqlitesTemporaryDirectoryTest`, `pipeline.PresetsTest` and `pipeline.GroupingStepsPerRowTest`. `PipelineHoldsOnlyTheRulesOnRecordTest` puts `BesideTheJar` and `BesideTheJarUnwritableException` on record as holding no rule.
+Changed beside them, each now reading the shipped copy under `beside-the-jar/` through `TheShippedCopy`, in place of the class path's `application.yaml`: `ShippedConfigurationTest`, `TheShippedPresetsTest`, `NoPoolSetsSqlitesTemporaryDirectoryTest`, `pipeline.PresetsTest` and `pipeline.GroupingStepsPerRowTest`. `PipelineHoldsOnlyTheRulesOnRecordTest` puts `BesideTheJar`, `BesideTheJarUnwritableException` and `ComposeFileUnreadableException` on record as holding no rule, and `ComposeFilesUnwritableException` no longer.
 
 Not held by a test: §5's lines in the control panel's window and in the command line's log, the entry point's preparation before the window, and §9's run configurations.
 
@@ -183,6 +215,10 @@ Not held by a test: §5's lines in the control panel's window and in the command
 - `src/main/java/io/algernon/vespera/engine/pipeline/BesideTheJar.java` and `BesideTheJarUnwritableException.java`, with the members the tests name, and the deletion of the two stand-ins of those names under `src/test/java/io/algernon/vespera/engine/pipeline/`, in the same commit.
 - `VesperaApplication.main`: the listener first, the default property of §4, and §3's refusal said in its line with exit 1. `EntryPoint`: the preparation before the window, the folder and the lines handed to `ControlPanel.open`, which reads `application.yaml` from the folder (§10) and says the lines (§5).
 - `SidecarStarter.forTheApplication` reading `ComposeFiles.in` the folder beside the jar; `ComposeFiles.fromTheClasspath` and `ComposeFilesUnwritableException` removed (§6).
+- `BesideTheJar`: its record of a file that differs named `Difference`, and the method that writes the `.new` files `writeNewWhereDifferent`, in the words of `CONTEXT.md`, which keeps the word the earlier names used out of identifiers; `folderOf(URL, Path)` for a code source's URL (§1); `pointSpringAt` for a folder whose path holds a comma (§4); a YAML file that does not load differing at no key, and a `.new` that cannot be written said among the lines (§5).
+- §3's refusal on standard error, exit 1, through `EntryPoint.start`'s `err` and `exit` where the command line throws `BesideTheJarUnwritableException`, in place of `VesperaApplication.main`'s log line and its own exit.
+- `EffectiveValuesFile`'s comparison of the file's name without regard to case (§7).
+- `ComposeFileUnreadableException` and `ComposeFiles`' reading of the two images as §12 has it.
 - `EffectiveValuesFile.sourceOf` as §7 has it.
 - `application.yaml` moved to `src/main/beside-the-jar/`; `pom.xml`'s resources as §2 has them; `.gitignore` as §2 and §9 have it; the three run configurations of §9.
 - The README, `docs/architecture.md`, and `AGENTS.md`'s line on the test configuration, which says it layers over `src/main/resources/application.yaml`.

@@ -13,6 +13,8 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -97,7 +99,7 @@ class BesideTheJarTest {
                 new BesideTheJar(besideTheJar).writeWhatIsMissing()).isEmpty());
         claim("and finds nothing that differs from the jar's own, so writes no .new file",
                 () -> {
-                    assertThat(new BesideTheJar(besideTheJar).writeNewWhereDrifted()).isEmpty();
+                    assertThat(new BesideTheJar(besideTheJar).writeNewWhereDifferent()).isEmpty();
                     assertThat(filesEndingIn(BesideTheJar.NEW_SUFFIX)).isEmpty();
                 });
     }
@@ -148,21 +150,21 @@ class BesideTheJarTest {
         Files.write(besideTheJar.resolve(aFileOfTheBuildContext), buildContextFile);
         String imageKey = "services." + service.getKey() + ".image";
 
-        List<BesideTheJar.Drift> drift = folder.writeNewWhereDrifted();
+        List<BesideTheJar.Difference> differences = folder.writeNewWhereDifferent();
 
         claim("the three files that differ are named, in the order they are written, and the GPU file, whose one change"
                         + " is a comment, is not",
-                () -> assertThat(drift).extracting(BesideTheJar.Drift::file)
+                () -> assertThat(differences).extracting(BesideTheJar.Difference::file)
                         .containsExactly("application.yaml", "compose.yaml", aFileOfTheBuildContext));
         claim("application.yaml is named with the key added, the key removed and the key changed, in the order of"
                         + " their names, and no value; compose.yaml with its service's image; the build context's file"
                         + " with no key, its bytes being what differs",
-                () -> assertThat(drift).extracting(BesideTheJar.Drift::keys).containsExactly(
+                () -> assertThat(differences).extracting(BesideTheJar.Difference::keys).containsExactly(
                         List.of(ADDED_BY_THE_OPERATOR, REMOVED_BY_THE_OPERATOR, CHANGED_BY_THE_OPERATOR),
                         List.of(imageKey),
                         List.of()));
         claim("each is said in one line, naming the file, its keys, and the file the jar's own is written to",
-                () -> assertThat(drift).extracting(BesideTheJar.Drift::line).containsExactly(
+                () -> assertThat(differences).extracting(BesideTheJar.Difference::line).containsExactly(
                         "application.yaml beside the jar differs from this jar's own at " + ADDED_BY_THE_OPERATOR
                                 + ", " + REMOVED_BY_THE_OPERATOR + ", " + CHANGED_BY_THE_OPERATOR
                                 + "; this jar's is written beside it as application.yaml.new",
@@ -183,6 +185,62 @@ class BesideTheJarTest {
                     assertThat(besideTheJar.resolve("compose.gpu.yaml")).hasContent(gpu);
                     assertThat(besideTheJar.resolve(aFileOfTheBuildContext)).hasBinaryContent(buildContextFile);
                 });
+    }
+
+    @Test
+    @Story("An upgrade says what differs and changes nothing")
+    @DisplayName("A .new that cannot be written is said among the lines, naming it and why, and the start goes on with the operator's file")
+    void aNewFileThatCannotBeWrittenIsSaidAmongTheLinesNamingItAndWhy() throws IOException {
+        BesideTheJar folder = new BesideTheJar(besideTheJar);
+        folder.writeWhatIsMissing();
+        String application = TheOperatorsEdits.setting(TheOperatorsEdits.shipped("application.yaml"),
+                CHANGED_BY_THE_OPERATOR, "7s");
+        Files.writeString(besideTheJar.resolve("application.yaml"), application);
+        Path inTheWay = Files.createDirectories(besideTheJar.resolve("application.yaml" + BesideTheJar.NEW_SUFFIX));
+        Path theOperatorsFileInIt = Files.writeString(inTheWay.resolve("a file of the operator's"), "kept");
+
+        List<String> lines = new ArrayList<>();
+        Throwable refused = catchThrowable(() -> lines.addAll(folder.prepare()));
+
+        claim("the start is not refused: the operator's file is the one in use whether or not the .new is written",
+                () -> assertThat(refused).as("what prepare() threw").isNull());
+        claim("one line, among the lines said once the logging is up, names application.yaml, the key that differs,"
+                        + " the .new that cannot be written and why, on one line",
+                () -> assertThat(lines).singleElement(org.assertj.core.api.InstanceOfAssertFactories.STRING)
+                        .startsWith("application.yaml beside the jar differs from this jar's own at "
+                                + CHANGED_BY_THE_OPERATOR + "; this jar's cannot be written beside it as"
+                                + " application.yaml.new (")
+                        .endsWith(")")
+                        .doesNotContain("\n")
+                        .doesNotEndWith("()"));
+        claim("and what stood in the way, and the operator's file, are as the operator left them",
+                () -> {
+                    assertThat(theOperatorsFileInIt).hasContent("kept");
+                    assertThat(besideTheJar.resolve("application.yaml")).hasContent(application);
+                });
+    }
+
+    @Test
+    @Story("An upgrade says what differs and changes nothing")
+    @DisplayName("An application.yaml beside the jar that does not load differs at no key: the jar's own is written beside it as .new and the line names no key")
+    void aYamlFileThatDoesNotLoadDiffersAtNoKey() throws IOException {
+        BesideTheJar folder = new BesideTheJar(besideTheJar);
+        folder.writeWhatIsMissing();
+        String doesNotLoad = "vespera: [a list the operator never closed\n";
+        Files.writeString(besideTheJar.resolve("application.yaml"), doesNotLoad);
+
+        List<BesideTheJar.Difference> differences = folder.writeNewWhereDifferent();
+
+        claim("application.yaml alone is named, with no key, in the line of a file that differs at no key",
+                () -> assertThat(differences).extracting(BesideTheJar.Difference::file, BesideTheJar.Difference::keys,
+                        BesideTheJar.Difference::line).containsExactly(org.assertj.core.groups.Tuple.tuple(
+                                "application.yaml", List.of(), "application.yaml beside the jar differs from this"
+                                        + " jar's own; this jar's is written beside it as application.yaml.new")));
+        claim("the jar's own copy is written beside it as application.yaml.new, byte for byte",
+                () -> assertThat(differingFromTheJarsCopy(List.of("application.yaml"), BesideTheJar.NEW_SUFFIX))
+                        .isEmpty());
+        claim("and the file that does not load is left as the operator wrote it",
+                () -> assertThat(besideTheJar.resolve("application.yaml")).hasContent(doesNotLoad));
     }
 
     @Test
@@ -225,6 +283,24 @@ class BesideTheJarTest {
 
     @Test
     @Story("The configuration lies beside the jar")
+    @DisplayName("A code source given as a URL is the folder its file lies in, and the current directory where the URL names no file")
+    void aCodeSourceUrlThatNamesNoFileIsTheCurrentDirectory() throws IOException {
+        Path jar = Files.writeString(besideTheJar.resolve("vespera.jar"), "");
+        Path current = elsewhere;
+        URL aJarsUrl = jar.toUri().toURL();
+        URL theRuntimesImage = URI.create("jrt:/java.base").toURL();
+        URL anOpaqueUrl = URI.create("mailto:nobody@example.invalid").toURL();
+
+        claim("a file: URL of a jar is the folder the jar lies in",
+                () -> assertThat(BesideTheJar.folderOf(aJarsUrl, current)).isEqualTo(besideTheJar));
+        claim("a jrt: URL, the runtime's own image, is the current directory, and not the folder above it",
+                () -> assertThat(BesideTheJar.folderOf(theRuntimesImage, current)).isEqualTo(current));
+        claim("and so is an opaque URL, which names no path at all",
+                () -> assertThat(BesideTheJar.folderOf(anOpaqueUrl, current)).isEqualTo(current));
+    }
+
+    @Test
+    @Story("The configuration lies beside the jar")
     @DisplayName("Spring reads application.yaml beside the jar, with the local settings file over it")
     void springReadsTheConfigurationAndTheLocalFileBesideTheJar() throws IOException {
         theFilesOfThisTestBesideTheJarAndElsewhere();
@@ -233,6 +309,20 @@ class BesideTheJarTest {
 
         claim("a value application.yaml beside the jar names is read, and one the local settings file names over it"
                         + " is the local file's",
+                () -> assertThat(read).containsExactly("beside the jar", "the local file"));
+    }
+
+    @Test
+    @Story("The configuration lies beside the jar")
+    @DisplayName("A folder beside the jar whose name holds a comma is read as one folder: application.yaml there, the local settings file over it")
+    void aFolderWhoseNameHoldsACommaIsReadAsOneFolder() throws IOException {
+        Path withAComma = Files.createDirectories(besideTheJar.resolve("a,b"));
+        theFilesOfThisTestIn(withAComma);
+
+        List<String> read = readBySpring(withAComma, new String[0], Map.of(), Map.of());
+
+        claim("the comma in the folder's name does not split the location: application.yaml there is read, and the"
+                        + " local settings file there over it",
                 () -> assertThat(read).containsExactly("beside the jar", "the local file"));
     }
 
@@ -288,16 +378,27 @@ class BesideTheJarTest {
      * second; elsewhere, an {@code application.yaml} naming the first alone.
      */
     private void theFilesOfThisTestBesideTheJarAndElsewhere() throws IOException {
-        Files.writeString(besideTheJar.resolve("application.yaml"),
-                "vespera:\n  a-key-of-this-test: beside the jar\n  another-key-of-this-test: beside the jar\n");
-        Files.writeString(besideTheJar.resolve(THE_LOCAL_FILE), "vespera:\n  another-key-of-this-test: the local file\n");
+        theFilesOfThisTestIn(besideTheJar);
         Files.writeString(elsewhere.resolve("application.yaml"), "vespera:\n  a-key-of-this-test: named elsewhere\n");
+    }
+
+    /** In {@code folder}, an {@code application.yaml} naming two keys and an {@code application-local.yaml} naming the second. */
+    private static void theFilesOfThisTestIn(Path folder) throws IOException {
+        Files.writeString(folder.resolve("application.yaml"),
+                "vespera:\n  a-key-of-this-test: beside the jar\n  another-key-of-this-test: beside the jar\n");
+        Files.writeString(folder.resolve(THE_LOCAL_FILE), "vespera:\n  another-key-of-this-test: the local file\n");
     }
 
     /** The two keys of this test as Spring reads them for a start pointed at the folder beside the jar. */
     private List<String> readBySpring(String[] arguments, Map<String, Object> systemProperties,
             Map<String, Object> environmentVariables) {
-        return SpringsOwnReading.read(new BesideTheJar(besideTheJar)::pointSpringAt, arguments,
+        return readBySpring(besideTheJar, arguments, systemProperties, environmentVariables);
+    }
+
+    /** The two keys of this test as Spring reads them for a start pointed at {@code folder} as the folder beside the jar. */
+    private static List<String> readBySpring(Path folder, String[] arguments, Map<String, Object> systemProperties,
+            Map<String, Object> environmentVariables) {
+        return SpringsOwnReading.read(new BesideTheJar(folder)::pointSpringAt, arguments,
                 new HashMap<>(systemProperties), new HashMap<>(environmentVariables), BesideTheJarTest::theTwoKeys);
     }
 

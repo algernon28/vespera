@@ -218,7 +218,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-323: start the Docker engine and the sidecars, and say why where they cannot; none decides a
             // verdict, a cache key, a cluster or text of the deliverable.
             "ComposeFiles",
-            "ComposeFilesUnwritableException",
+            // ADR-397 §12: say in one line that a compose file beside the jar cannot be read for its image.
+            "ComposeFileUnreadableException",
             // ADR-397: write a file missing beside the jar from its shipped copy, say which differ, and refuse a folder
             // that cannot be written; none decides a verdict, a cache key, a cluster or text of the deliverable.
             "BesideTheJar",

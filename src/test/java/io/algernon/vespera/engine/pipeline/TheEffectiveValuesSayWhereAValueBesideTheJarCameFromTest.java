@@ -88,6 +88,35 @@ class TheEffectiveValuesSayWhereAValueBesideTheJarCameFromTest {
                         .containsExactly("shipped", "local-file", "local-file"));
     }
 
+    @Test
+    @Story("The jar says what it would use")
+    @DisplayName("An application.yaml whose name is spelt in another case, named by the location, is still the file whose values are Vespera's own where they are as shipped")
+    void anApplicationYamlSpeltInAnotherCaseIsShippedAtTheShippedValue() throws IOException {
+        String spelt = "Application.yaml";
+        Files.writeString(besideTheJar.resolve(spelt), TheOperatorsEdits.setting(
+                TheOperatorsEdits.shipped("application.yaml"), CHANGED_BY_THE_OPERATOR, THE_OPERATORS_VALUE));
+        String folder = besideTheJar.toUri().toString();
+
+        Properties said = SpringsOwnReading.read(
+                application -> { },
+                new String[] {"--spring.config.location=" + folder + spelt},
+                Map.of(), Map.of(),
+                environment -> {
+                    new EffectiveValuesFile(environment, workingDirectory).write();
+                    return theFile();
+                });
+
+        claim("the changed value is the one in use, so " + spelt + " was the file read",
+                () -> assertThat(said.getProperty(CHANGED_BY_THE_OPERATOR)).isEqualTo(THE_OPERATORS_VALUE));
+        claim("a value left as the jar ships it is Vespera's own, the name being compared without regard to case,"
+                        + " and the one changed the local settings'",
+                () -> assertThat(List.of(said.getProperty(LEFT_AS_SHIPPED + ".source", "(no source)"),
+                                said.getProperty(CHANGED_BY_THE_OPERATOR + ".source", "(no source)")))
+                        .as("the sources of " + LEFT_AS_SHIPPED + " and " + CHANGED_BY_THE_OPERATOR + " read from "
+                                + spelt)
+                        .containsExactly("shipped", "local-file"));
+    }
+
     private Properties theFile() {
         Properties properties = new Properties();
         try (Reader reader = Files.newBufferedReader(workingDirectory.resolve(EffectiveValuesFile.FILE_NAME),

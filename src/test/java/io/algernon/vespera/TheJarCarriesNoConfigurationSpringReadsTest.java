@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -47,16 +48,26 @@ class TheJarCarriesNoConfigurationSpringReadsTest {
 
     @Test
     @Story("The configuration lies beside the jar")
-    @DisplayName("The jar carries no configuration file Spring would read: none at the root of its classes and none under config/")
-    void theJarCarriesNoFileSpringsConfigurationLoadingReads() throws URISyntaxException {
+    @DisplayName("The jar carries no configuration file Spring would read: none at the root of its classes, none under config/, and no local settings file anywhere")
+    void theJarCarriesNoFileSpringsConfigurationLoadingReads() throws URISyntaxException, IOException {
         Path classes = theJarsClasses();
         List<String> found = namesSpringReadsUnder(classes);
+        List<String> localFiles;
+        try (Stream<Path> paths = Files.walk(classes)) {
+            localFiles = paths.filter(path -> path.getFileName().toString().equals(THE_LOCAL_FILE))
+                    .map(path -> classes.relativize(path).toString().replace('\\', '/'))
+                    .sorted()
+                    .toList();
+        }
 
         claim("the folder read is the jar's compiled classes, checked by the application class it must hold",
                 () -> assertThat(classes.resolve("io/algernon/vespera/VesperaApplication.class")).isRegularFile());
-        claim("and none of the " + READ_BY_SPRING.size() + " names Spring reads with no profile lies at its root or"
+        claim("none of the " + READ_BY_SPRING.size() + " names Spring reads with no profile lies at its root or"
                         + " under config/, so the configuration Spring reads is never the jar's own",
                 () -> assertThat(found).as("configuration files Spring would read from the jar").isEmpty());
+        claim("and no " + THE_LOCAL_FILE + " lies anywhere in the jar's classes, at any depth, the local settings"
+                        + " being the operator's alone",
+                () -> assertThat(localFiles).as("local settings files carried in the jar's classes").isEmpty());
     }
 
     @Test
