@@ -82,7 +82,9 @@ final class EffectiveValuesFile {
         Presets.RARE_SHINGLE_HITS,
         Presets.TOP_SIMILARITIES,
         Presets.BANDS_IN_THE_SAMPLE,
-        Presets.DOCUMENTS_FROM_EACH_BAND
+        Presets.DOCUMENTS_FROM_EACH_BAND,
+        Presets.TOPIC_NEIGHBOURS,
+        Presets.TOPIC_RESOLUTION
     };
 
     private final Environment environment;

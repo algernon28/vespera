@@ -4,6 +4,9 @@ import io.algernon.vespera.engine.embedding.RelevanceDistribution;
 import io.algernon.vespera.engine.embedding.RelevanceScoring;
 import io.algernon.vespera.engine.embedding.ScoringProgress;
 import io.algernon.vespera.engine.embedding.SeedChunks;
+import io.algernon.vespera.engine.embedding.SeedVectors;
+import io.algernon.vespera.engine.embedding.Topic;
+import io.algernon.vespera.engine.embedding.TopicInference;
 import io.algernon.vespera.engine.embedding.UnusableSeed;
 import io.algernon.vespera.engine.embedding.UnusableSeeds;
 import io.algernon.vespera.engine.extraction.ChunkingRule;
@@ -13,6 +16,7 @@ import io.algernon.vespera.engine.ledger.KeysetPages;
 import io.algernon.vespera.engine.ledger.Ledger;
 import io.algernon.vespera.engine.ledger.ListedPages;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
+import io.algernon.vespera.engine.ledger.OccurrencePath;
 import io.algernon.vespera.engine.ledger.RunId;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -147,6 +151,11 @@ class RelevanceScoringTasklet implements Tasklet {
                         return false;
                     }
 
+                    // The topics are found at the head of the step, from the vectors already resident, before the
+                    // first survivor is scored (ADR-399 section 6). Where they are stored is #832's: not yet.
+                    List<Topic> topics = topicsOf(seedContentHashes, residentSeedVectors);
+                    LOG.info("Stage 5d (relevance scoring) found {} topic(s) across the seeds' passages", topics.size());
+
                     // Counted, and then gone through a page at a time: no set of the corpus survivors is held
                     // (ADR-211 section 6). Nothing this step writes is a verdict, so no page still to come
                     // is changed by what is done with the ones before it.
@@ -256,6 +265,25 @@ class RelevanceScoringTasklet implements Tasklet {
             }
         });
         return contentHashes;
+    }
+
+    /**
+     * The topics of the seed set, from the resident vectors and each seed's path in the seed walk (ADR-399): no
+     * embedding call and no read of its own beyond the paths. A seed with no resident vector has no passage.
+     */
+    private List<Topic> topicsOf(
+            Map<OccurrenceId, SeedChunks> seedContentHashes,
+            Map<OccurrenceId, List<float[]>> residentSeedVectors) {
+        Map<OccurrenceId, OccurrencePath> paths = ledger.occurrences().pathsOf(residentSeedVectors.keySet());
+        Map<String, SeedVectors> bySeedPath = new LinkedHashMap<>();
+        for (Map.Entry<OccurrenceId, List<float[]>> seed : residentSeedVectors.entrySet()) {
+            OccurrencePath path = paths.get(seed.getKey());
+            SeedChunks chunks = seedContentHashes.get(seed.getKey());
+            if (path != null && chunks != null) {
+                bySeedPath.put(path.value(), new SeedVectors(chunks.contentHash(), seed.getValue()));
+            }
+        }
+        return TopicInference.over(bySeedPath, stageRuns.topicNeighbours(), stageRuns.topicResolution());
     }
 
     /** {@code embedding} tells this stage the seeds' total and each seed read; this stage owns the line. */
