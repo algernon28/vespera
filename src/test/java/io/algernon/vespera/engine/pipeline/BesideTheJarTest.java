@@ -3,6 +3,7 @@ package io.algernon.vespera.engine.pipeline;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.TheShippedCopy;
@@ -13,16 +14,24 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URL;
+import java.net.URLConnection;
+import java.net.URLStreamHandler;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -42,7 +51,8 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
 /**
  * The folder beside the jar (ADR-397): which folder it is (§1); a file missing there written from the jar's shipped
  * copy, and never over a file there, {@code application-local.yaml} never, two starts preparing one folder at once
- * both going on and leaving the shipped copy and no {@code .part} file (§3); a folder that cannot be written refusing
+ * both going on and leaving the shipped copy and no {@code .part} file, and each file written, as each {@code .new},
+ * taking the mode a file this user creates in its folder takes (§3); a folder that cannot be written refusing
  * the start (§3); Spring reading {@code application.yaml} and {@code application-local.yaml} there, and a location
  * named on the command line, as a system property or in the environment read in their place (§4); each file that
  * differs from its shipped copy named by its keys, the shipped copy written beside it as {@code <name>.new} and the
@@ -87,6 +97,15 @@ class BesideTheJarTest {
 
     /** How many fresh folders two starts prepare at once, so that a clash between them is met rather than missed. */
     private static final int FOLDERS_TWO_STARTS_PREPARE_AT_ONCE = 50;
+
+    /** The file of the build context the Docling image's build copies in and runs, as a user other than the owner. */
+    private static final String THE_REPORT_SCRIPT = "docker/docling-serve/report_image.py";
+
+    /** The name of the file this user creates in a folder, whose mode a file written there is compared with. */
+    private static final String A_FILE_THIS_USER_CREATES = "a file this user creates";
+
+    /** The folder the jar lies in, its name holding a space and a bang, which a code source's URL writes %20 and %21. */
+    private static final String A_FOLDER_WITH_A_SPACE_AND_A_BANG = "a folder with a space and a bang!";
 
     @TempDir
     Path besideTheJar;
@@ -193,6 +212,51 @@ class BesideTheJarTest {
                 () -> assertThat(leftBehind).as("the files left ending " + WHILE_IT_IS_WRITTEN).isEmpty());
         claim("and neither start finds a file that differs from the jar's own, so neither says a line",
                 () -> assertThat(said).as("the lines said, by folder").isEmpty());
+    }
+
+    @Test
+    @Story("The configuration lies beside the jar")
+    @DisplayName("Every file written beside the jar, and every .new, takes the mode a file this user creates in that folder takes")
+    void aFileWrittenBesideTheJarTakesTheModeOfAFileTheUserCreatesThere() throws IOException {
+        assumeTrue(FileSystems.getDefault().supportedFileAttributeViews().contains("posix"),
+                "this file system keeps no POSIX mode, as NTFS keeps none");
+        List<String> expected = TheShippedCopy.namesInTheRepository();
+        BesideTheJar folder = new BesideTheJar(besideTheJar);
+
+        List<String> written = folder.writeWhatIsMissing();
+        for (String name : written) {
+            // Each file changed where it lies, which keeps its mode, so that each differs and has its .new written.
+            String change = name.endsWith(".yaml") ? "\n" + ADDED_BY_THE_OPERATOR + ": added\n" : A_COMMENT_OF_THE_OPERATORS;
+            Files.writeString(besideTheJar.resolve(name), change, StandardOpenOption.APPEND);
+        }
+        List<String> newFiles = folder.writeNewWhereDifferent().stream()
+                .map(difference -> difference.file() + BesideTheJar.NEW_SUFFIX).toList();
+        Map<Path, Set<PosixFilePermission>> theUsersMode = new HashMap<>();
+        List<String> writtenInAnotherMode = inAnotherMode(written, theUsersMode);
+        List<String> newInAnotherMode = inAnotherMode(newFiles, theUsersMode);
+        Path theScript = besideTheJar.resolve(THE_REPORT_SCRIPT);
+        Set<PosixFilePermission> readableByOthers = theUsersMode(theScript.getParent(), theUsersMode)
+                .contains(PosixFilePermission.OTHERS_READ) ? Set.of(PosixFilePermission.OTHERS_READ) : Set.of();
+
+        claim("every file the jar keeps beside itself was written, and each, once changed, has its .new written",
+                () -> {
+                    assertThat(expected).as("the files the jar keeps beside itself").contains(THE_REPORT_SCRIPT);
+                    assertThat(written).containsExactlyElementsOf(expected);
+                    assertThat(newFiles).containsExactlyElementsOf(
+                            expected.stream().map(name -> name + BesideTheJar.NEW_SUFFIX).toList());
+                });
+        claim("each file written beside the jar has the mode a file this user creates in its folder has",
+                () -> assertThat(writtenInAnotherMode).as("the files written in another mode, with both modes")
+                        .isEmpty());
+        claim("and so has each .new",
+                () -> assertThat(newInAnotherMode).as("the .new files written in another mode, with both modes")
+                        .isEmpty());
+        claim("in particular " + THE_REPORT_SCRIPT + ", which the Docling image's build copies in, and its .new are"
+                        + " readable by others wherever a file this user creates there is",
+                () -> assertThat(List.of(theScript, besideTheJar.resolve(THE_REPORT_SCRIPT + BesideTheJar.NEW_SUFFIX)))
+                        .allSatisfy(file -> assertThat(Files.getPosixFilePermissions(file))
+                                .as("the mode of %s", besideTheJar.relativize(file))
+                                .containsAll(readableByOthers)));
     }
 
     @Test
@@ -350,16 +414,32 @@ class BesideTheJarTest {
 
     @Test
     @Story("The configuration lies beside the jar")
-    @DisplayName("A code source given as a URL is the folder its file lies in, and the current directory where the URL names no file")
+    @DisplayName("A code source given as a URL is the folder its file lies in, a nested jar's that of its outer jar, and the current directory where the URL names no file")
     void aCodeSourceUrlThatNamesNoFileIsTheCurrentDirectory() throws IOException {
         Path jar = Files.writeString(besideTheJar.resolve("vespera.jar"), "");
+        Path theJarsFolder = Files.createDirectories(besideTheJar.resolve(A_FOLDER_WITH_A_SPACE_AND_A_BANG));
+        Path thePackagedJar = Files.writeString(theJarsFolder.resolve("vespera.jar"), "");
+        // As Spring Boot's loader writes a jar's path in a URL: its raw path, a space %20, and a bang %21, so that no
+        // bang of the path is taken for the one that ends the jar's name.
+        String thePackagedJarsPath = thePackagedJar.toUri().getRawPath().replace("!", "%21");
         Path current = elsewhere;
         URL aJarsUrl = jar.toUri().toURL();
         URL theRuntimesImage = URI.create("jrt:/java.base").toURL();
         URL anOpaqueUrl = URI.create("mailto:nobody@example.invalid").toURL();
+        URL theNestedClasses = asTheLoaderGivesIt("jar:nested:" + thePackagedJarsPath + "/!BOOT-INF/classes/!/");
+        URL theJarsRoot = asTheLoaderGivesIt("jar:file:" + thePackagedJarsPath + "!/");
 
+        claim("the packaged jar's path is written in its URLs with its space as %20 and its bang as %21",
+                () -> assertThat(thePackagedJarsPath).contains("%20").contains("%21").doesNotContain(" ", "!"));
         claim("a file: URL of a jar is the folder the jar lies in",
                 () -> assertThat(BesideTheJar.folderOf(aJarsUrl, current)).isEqualTo(besideTheJar));
+        claim("the classes nested in the packaged jar, as Spring Boot's loader names their code source, are the folder"
+                        + " the outer jar lies in, and not the current directory",
+                () -> assertThat(BesideTheJar.folderOf(theNestedClasses, current))
+                        .as("the folder of %s", theNestedClasses).isEqualTo(theJarsFolder));
+        claim("and so is the root of the jar named by a jar:file: URL",
+                () -> assertThat(BesideTheJar.folderOf(theJarsRoot, current))
+                        .as("the folder of %s", theJarsRoot).isEqualTo(theJarsFolder));
         claim("a jrt: URL, the runtime's own image, is the current directory, and not the folder above it",
                 () -> assertThat(BesideTheJar.folderOf(theRuntimesImage, current)).isEqualTo(current));
         claim("and so is an opaque URL, which names no path at all",
@@ -487,6 +567,58 @@ class BesideTheJarTest {
         claim("compose.yaml has a service whose image is written once, which the operator changes",
                 () -> assertThat(services.isEmpty()).as("compose.yaml has no service").isFalse());
         throw new IllegalStateException("no service of compose.yaml has an image written once");
+    }
+
+    /**
+     * The URL of {@code spec} as Spring Boot's loader gives a code source, its text kept as written. The JDK's own
+     * handler of {@code jar:} refuses a {@code nested:} jar, whose handler only the packaged jar's loader installs, so
+     * the URL is given a handler that keeps the text and opens nothing.
+     */
+    private static URL asTheLoaderGivesIt(String spec) throws IOException {
+        URL url = URL.of(URI.create(spec), new URLStreamHandler() {
+            @Override
+            protected void parseURL(URL u, String text, int start, int limit) {
+                setURL(u, u.getProtocol(), null, -1, null, null, text.substring(start, limit), null, null);
+            }
+
+            @Override
+            protected URLConnection openConnection(URL u) {
+                throw new UnsupportedOperationException("a code source of this test is never opened: " + u);
+            }
+        });
+        claim("the URL " + spec + " keeps its text as written",
+                () -> assertThat(url.toString()).isEqualTo(spec));
+        return url;
+    }
+
+    /**
+     * Of the files given, below the folder beside the jar, those whose mode is not that of a file this user creates in
+     * the same folder, each with both modes.
+     */
+    private List<String> inAnotherMode(List<String> names, Map<Path, Set<PosixFilePermission>> theUsersMode)
+            throws IOException {
+        List<String> inAnotherMode = new ArrayList<>();
+        for (String name : names) {
+            Path file = besideTheJar.resolve(name);
+            Set<PosixFilePermission> its = Files.getPosixFilePermissions(file);
+            Set<PosixFilePermission> theUsers = theUsersMode(file.getParent(), theUsersMode);
+            if (!its.equals(theUsers)) {
+                inAnotherMode.add(name + " is " + PosixFilePermissions.toString(its) + " where a file this user"
+                        + " creates is " + PosixFilePermissions.toString(theUsers));
+            }
+        }
+        return inAnotherMode;
+    }
+
+    /** The mode of a file this user creates in {@code folder} with {@link Files#createFile}, created once per folder. */
+    private static Set<PosixFilePermission> theUsersMode(Path folder, Map<Path, Set<PosixFilePermission>> theUsersMode) {
+        return theUsersMode.computeIfAbsent(folder, inIt -> {
+            try {
+                return Files.getPosixFilePermissions(Files.createFile(inIt.resolve(A_FILE_THIS_USER_CREATES)));
+            } catch (IOException uncreated) {
+                throw new UncheckedIOException(uncreated);
+            }
+        });
     }
 
     /** The files below the folder beside the jar whose names end in {@code suffix}. */
