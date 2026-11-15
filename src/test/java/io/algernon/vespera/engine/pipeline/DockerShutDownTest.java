@@ -31,8 +31,10 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * What the shut-down runs, the control panel's <i>Shut down Docker</i> behind it, and what it says (ADR-390 §3, §6):
  * {@code docker compose -p vespera stop}, then, only where that exited 0, the engine's one stop, and nothing else, never
- * {@code down}; a refused step is one line. And what closing the window runs: the sidecars' stop alone, only
- * where one answers (ADR-390 §5).
+ * {@code down}; a refused step is one line, the lock's and an output file's among them; and each stop waits for
+ * {@code sidecars.lock} where another holds it. And what closing the window runs: the sidecars' stop alone, only where
+ * one answers and both are looked for on this machine (ADR-390 §5). Once the sidecars are stopped, an engine stop whose
+ * output file fails says so (ADR-391 §6).
  *
  * <p>No Docker is needed: the starter is given a {@link ScriptedDocker}, which records every command and its limit. The
  * refusals' last lines are written as Docker Compose printed its own with the daemon down (ADR-390's probe H) and, for

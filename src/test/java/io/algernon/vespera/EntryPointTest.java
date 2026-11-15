@@ -124,12 +124,14 @@ class EntryPointTest {
         List<List<String>> commandLines = new ArrayList<>();
         int[] windows = {0};
         ByteArrayOutputStream err = new ByteArrayOutputStream();
-        EntryPoint.start(arguments, () -> display,
+        EntryPoint.start(arguments, () -> display, kind -> java.util.Optional.empty(),
                 () -> {
                     windows[0]++;
                     return new ControlPanel.Opening(ControlPanel.Opening.Result.NO_WINDOW, "the toolkit said no");
                 },
-                passed -> commandLines.add(List.of(passed)), new PrintStream(err, true, StandardCharsets.UTF_8));
+                passed -> commandLines.add(List.of(passed)), new PrintStream(err, true, StandardCharsets.UTF_8),
+                code -> {
+                });
         return new Did(commandLines, windows[0], err.toString(StandardCharsets.UTF_8));
     }
 

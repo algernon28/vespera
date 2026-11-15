@@ -1,5 +1,7 @@
 # ADR-279 — One `vespera run` per corpus root, by a lock on a file named for its real path, outside every working directory
 
+> **Partly amended — see [ADR-391](0391-one-vespera-runs-on-a-machine-at-a-time-and-the-control-panels-own-child-is-let-through.md).** Of §3: the folder also holds `machine.lock` and `machine-child.lock`, the machine lock's two files, beside `sidecars.lock`; neither is named `vespera.lock` or `vespera.db`, nor by sixteen hexadecimal digits. The rest of this record stands.
+
 - **Date**: 2026-10-18
 - **Status**: accepted on 2026-10-18.
 - **Keeps**: [ADR-177](0177-one-invocation-per-working-directory-and-a-locked-database-file-is-named.md), whole. The **working-directory lock** is unchanged; this is a second lock beside it, taken later, by one command, on a file in another place.

@@ -2814,10 +2814,10 @@ public final class Adr {
      * own child, whose parent process holds it as the control panel, is let through and holds {@code
      * machine-child.lock}; {@code vespera serve} takes none; once the sidecars are stopped, a shut-down whose engine stop
      * cannot write its output file says so (amends ADR-390 §5 and §6, ADR-342 §2, ADR-279 §3, ADR-278 §4 and §7, and
-     * ADR-302 §2).
+     * ADR-307 §2).
      */
     public static final String ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME = FILE
-            + "0391-one-vespera-runs-on-a-machine-at-a-time-by-a-lock-the-jars-entry-point-takes-and-the-control-panels-own-child-is-let-through.md";
+            + "0391-one-vespera-runs-on-a-machine-at-a-time-and-the-control-panels-own-child-is-let-through.md";
 
     private Adr() {
     }
