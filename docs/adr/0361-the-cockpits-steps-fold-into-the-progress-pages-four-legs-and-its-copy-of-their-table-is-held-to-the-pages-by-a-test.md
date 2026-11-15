@@ -8,6 +8,8 @@
 
 > **Partly amended — see [ADR-392](0392-vespera-finds-no-translation-sets-the-translation-step-its-verdict-its-report-and-its-two-profile-keys-go.md).** Of §1: `Legs.ALL` is `deduplication`, `relevance`, `clustering` and `generation`, `relevance` holding `seed-extraction`, `seed-corpus-comparison` and `embedding-scoring`, over the fifteen steps of `StopCosts.ROWS`. The rest of this record stands.
 
+> **Partly amended — see [ADR-394](0394-the-relevance-leg-runs-through-the-relevance-floor-and-the-clustering-leg-is-the-clustering-and-the-relevance-report.md).** Of §1: `Legs.ALL` is `deduplication`, `relevance`, `clustering` and `generation`, `relevance` holding `seed-extraction`, `seed-corpus-comparison`, `embedding-scoring`, `relevance-scoring` and `relevance-floor`, and `clustering` holding `clustering` and `relevance-report`, over the fifteen steps of `StopCosts.ROWS`. The rest of this record stands.
+
 - **Date**: 2026-11-06
 - **Status**: accepted on 2026-11-06.
 - **Decided**: by the operator, that the cockpit's steps fold into legs as `progress.html`'s timeline folds them ([#726](https://github.com/algernon28/vespera/issues/726)), and that the control panel holds its own copy of the legs' table, which a test holds equal to the progress page's; the ids, what a leg's bar shows, its state before any `progress.json` is read, which legs open, how long a fold the operator makes lasts, the columns and the tests are decided under delegation.

@@ -53,13 +53,18 @@ import tools.jackson.databind.JsonNode;
 @Issue("737")
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
 @Link(name = "ADR-324", url = Adr.THE_TIMELINE_FOLDS_INTO_FOUR_LEGS, type = "adr")
+@Link(name = "ADR-394", url = Adr.THE_RELEVANCE_LEG_RUNS_THROUGH_THE_RELEVANCE_FLOOR, type = "adr")
 class InvocationReportTest {
 
-    /** ADR-324 section 1's four legs, as ADR-392 section 3 amends them, written out here and not read from the jar's constant. */
+    /**
+     * ADR-324 section 1's four legs, as ADR-394 section 1 amends them, written out here and not read from the jar's
+     * constant: relevance from the seed extraction through the relevance floor, clustering the clustering and the
+     * relevance report.
+     */
     private static final Map<String, List<String>> THE_FOUR_LEGS = Map.of(
             "deduplication", STEPS_IN_JOB_ORDER.subList(0, 6),
-            "relevance", STEPS_IN_JOB_ORDER.subList(6, 9),
-            "clustering", STEPS_IN_JOB_ORDER.subList(9, 13),
+            "relevance", STEPS_IN_JOB_ORDER.subList(6, 11),
+            "clustering", STEPS_IN_JOB_ORDER.subList(11, 13),
             "generation", STEPS_IN_JOB_ORDER.subList(13, 15));
 
     private static final List<String> THE_FIVE_STATES =

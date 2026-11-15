@@ -2838,6 +2838,15 @@ public final class Adr {
     public static final String A_WORKING_DIRECTORY_IS_NAMED_FOR_ITS_CORPUS_ROOT_AND_DAY_AND_PUBLISH_TAKES_WHAT_THE_LAST_RUN_REACHED =
             FILE + "0393-a-working-directory-is-named-for-its-corpus-root-and-day-chosen-from-a-list-and-publish-takes-what-the-last-run-reached.md";
 
+    /**
+     * ADR-394 -- the four legs are deduplication; relevance, from {@code seed-extraction} through {@code
+     * relevance-floor}; clustering, {@code clustering} and {@code relevance-report}, which the job runs after the
+     * clustering, so that each leg stays consecutive in job order; and generation; {@code report.json} stays of format 2
+     * (amends ADR-324 section 1, ADR-361 section 1, ADR-362 section 3 and ADR-392 section 3).
+     */
+    public static final String THE_RELEVANCE_LEG_RUNS_THROUGH_THE_RELEVANCE_FLOOR = FILE
+            + "0394-the-relevance-leg-runs-through-the-relevance-floor-and-the-clustering-leg-is-the-clustering-and-the-relevance-report.md";
+
     private Adr() {
     }
 }
