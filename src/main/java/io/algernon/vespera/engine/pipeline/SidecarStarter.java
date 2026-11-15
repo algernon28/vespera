@@ -210,7 +210,14 @@ public class SidecarStarter {
                 return new ShutDown(false, "Docker was not shut down: " + exited(composeStop, sidecars)
                         + ". The Docker engine was not stopped.");
             }
-            ProcessOutcome engine = runStop(engineStop);
+            ProcessOutcome engine;
+            try {
+                engine = runStop(engineStop);
+            } catch (CommandOutputFileUnusableException unusable) {
+                // Step 1 exited 0: the sidecars are stopped, and it is the engine stop's output file that failed (ADR-391 §6).
+                return new ShutDown(false, "The sidecars were stopped, but Docker was not shut down: "
+                        + unusable.unusable() + ".");
+            }
             if (engine.exitCode() != 0) {
                 return new ShutDown(false, "the sidecars are stopped, but the Docker engine is not: "
                         + exited(engineStop, engine) + ". Stop Docker yourself, or leave it running.");
