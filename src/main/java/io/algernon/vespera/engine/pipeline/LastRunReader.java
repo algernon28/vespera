@@ -86,13 +86,13 @@ final class LastRunReader {
         try {
             JsonNode report = JSON.readTree(Files.readString(file, StandardCharsets.UTF_8));
             if (!report.path("format").isIntegralNumber() || report.path("format").asLong() != InvocationReport.FORMAT
-                    || !"run".equals(report.path("invocation").path("command").asString(""))) {
+                    || !InvocationReport.RUN.equals(report.path("invocation").path("command").asString(""))) {
                 return Optional.empty();
             }
             String generation = null;
             for (JsonNode reached : report.path("arrivedAt")) {
                 if (generationStage.equals(reached.path("stage").asString(""))) {
-                    generation = reached.path("run").asString(null);
+                    generation = reached.path(InvocationReport.RUN).asString(null);
                 }
             }
             return Optional.of(new Arrival(generation));
