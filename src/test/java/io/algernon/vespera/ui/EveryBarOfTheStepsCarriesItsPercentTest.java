@@ -61,6 +61,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Issue("791")
 @Link(name = "ADR-370", url = Adr.EVERY_BAR_OF_THE_COCKPITS_STEPS_CARRIES_ITS_PERCENT, type = "adr")
 @Link(name = "ADR-361", url = Adr.THE_COCKPITS_STEPS_FOLD_INTO_THE_PROGRESS_PAGES_FOUR_LEGS, type = "adr")
+@Link(name = "ADR-394", url = Adr.THE_RELEVANCE_LEG_RUNS_THROUGH_THE_RELEVANCE_FLOOR, type = "adr")
 @Link(name = "ADR-365", url = Adr.THE_COCKPITS_CHARTS_CARRY_A_LEGEND_AND_A_RUNNING_STEP_SAYS_ITS_PERCENT, type = "adr")
 class EveryBarOfTheStepsCarriesItsPercentTest {
 
@@ -258,12 +259,12 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                         .containsExactly("0%", "running 0%", "100%", "finished"));
         Seen gate = read.get("first stopped at a gate in relevance");
         claim("with the job first stopped at a gate in relevance, extraction having finished at 3 of 4, deduplication"
-                        + " shows 95% of (5 + 0.75) / 6, relevance 83% of (1 + 0.5 + 1) / 3, and clustering and"
-                        + " generation, every step stopped at a gate, 100%; their states read finished, then stopped at"
-                        + " a gate three times",
+                        + " shows 95% of (5 + 0.75) / 6, relevance 90% of its five steps, (1 + 0.5 + 1 + 1 + 1) / 5,"
+                        + " the seed-corpus comparison at half, and clustering and generation, every step stopped at a"
+                        + " gate, 100%; their states read finished, then stopped at a gate three times",
                 () -> {
                     assertThat(gate.legPercents()).as("each part's percent, by part").containsExactlyEntriesOf(
-                            ordered("deduplication", "95%", "relevance", "83%", "clustering", "100%", "generation",
+                            ordered("deduplication", "95%", "relevance", "90%", "clustering", "100%", "generation",
                                     "100%"));
                     assertThat(gate.legWords()).as("each part's state words, by part").containsExactlyEntriesOf(
                             ordered("deduplication", "finished", "relevance", "stopped at a gate", "clustering",

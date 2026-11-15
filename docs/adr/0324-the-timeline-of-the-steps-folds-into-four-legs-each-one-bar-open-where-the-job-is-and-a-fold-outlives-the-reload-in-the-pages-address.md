@@ -8,6 +8,8 @@
 
 > **Partly amended — see [ADR-392](0392-vespera-finds-no-translation-sets-the-translation-step-its-verdict-its-report-and-its-two-profile-keys-go.md).** Of §1: the second leg is `relevance`, holding `seed-extraction`, `seed-corpus-comparison` and `embedding-scoring`, the translation step being gone, and the boundary inside stage 5 lies after `embedding-scoring`; the legs fold fifteen steps. The rest of this record stands.
 
+> **Partly amended — see [ADR-394](0394-the-relevance-leg-runs-through-the-relevance-floor-and-the-clustering-leg-is-the-clustering-and-the-relevance-report.md).** Of §1: the second leg, `relevance`, holds `seed-extraction`, `seed-corpus-comparison`, `embedding-scoring`, `relevance-scoring` and `relevance-floor`, and `clustering` holds `clustering` and `relevance-report`; the boundary inside stage 5 lies after `relevance-floor`. The relevance report stays clustering's also because the job runs it after the clustering, and with it in `relevance` the legs would not be consecutive in job order. The rest of this record stands.
+
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.
 - **Decided**: by the operator, who asked that the bars of the timeline fold, on `progress.html` and in the control panel, into four named deduplication, translation, clustering and generation, each folding to one bar, and who approved a drawing of four rows, one open on its steps; which steps each holds, the bar's span and state, which is open, how a fold is kept across the page's reload and what the control panel shows are decided under delegation.

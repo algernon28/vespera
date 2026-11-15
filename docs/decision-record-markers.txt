@@ -19,6 +19,6 @@ status	^- \*\*Status\*\*: (.*)$
 accepted	accepted(?: on \d{4}-\d{2}-\d{2})?\.?
 acceptedOnADate	accepted on \d{4}-\d{2}-\d{2}\.
 historyFromTheFirstWithout	(?i)(\breview(?!\s+list)(?!List)\w*\b|\bsession\b|/pull/\d+|\bfailed first\b|\bfailed on\b|operator's (answer|word|call)|operator answered|\./mvnw|\bregister\b|`[0-9a-f]{7}`)
-historyInAnyRecord	(?i)(/pull/\d+|`(?=[0-9a-f]{0,39}\d)(?=[0-9a-f]{0,39}[a-f])[0-9a-f]{7,40}`|operator's (answer|word|call)|operator answered|review register|\bfailed first\b|\bthe session that\b|architect review|code review|\bon the call of\b)
+historyInAnyRecord	(?i)(/pull/\d+|`(?=[0-9a-f]{0,39}\d)(?=[0-9a-f]{0,39}[a-f])[0-9a-f]{7,40}`|operator's (answer|word|call)|operator answered|review register|\bfailed first\b|\bthe session that\b|architect review|code review|\bon the call of\b|\bby Claude\b(?! Code)|\bClaude (decided|recommended)\b|\bClaude's(?: readings|, under))
 indexRow	^\| \[ADR-(\d+)\]
 firstWithoutHistory	237

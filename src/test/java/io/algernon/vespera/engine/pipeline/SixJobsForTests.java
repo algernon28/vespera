@@ -93,6 +93,11 @@ final class SixJobsForTests {
         return TheReportFile.textIn(directory);
     }
 
+    /**
+     * Deduplication finished; relevance with the seed-corpus comparison stopped at a gate and every other step of it
+     * finished; and the job gone on past the gate into clustering, whose first step, the clustering, runs (ADR-394
+     * section 1's legs): one leg open for its gate and the next open where the job runs.
+     */
     static JobExecution runningPastAGate() {
         JobExecution job = aJob();
         long second = 0;
@@ -103,7 +108,8 @@ final class SixJobsForTests {
         gated(job, aStep(job, StepNames.SEED_CORPUS_COMPARISON, BatchStatus.COMPLETED, second, ++second));
         aStep(job, StepNames.EMBEDDING_SCORING, BatchStatus.COMPLETED, second, ++second);
         aStep(job, StepNames.RELEVANCE_SCORING, BatchStatus.COMPLETED, second, ++second);
-        aStep(job, StepNames.RELEVANCE_FLOOR, BatchStatus.STARTED, second, null);
+        aStep(job, StepNames.RELEVANCE_FLOOR, BatchStatus.COMPLETED, second, ++second);
+        aStep(job, StepNames.CLUSTERING, BatchStatus.STARTED, second, null);
         return job;
     }
 

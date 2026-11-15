@@ -2839,6 +2839,15 @@ public final class Adr {
             FILE + "0393-a-working-directory-is-named-for-its-corpus-root-and-day-chosen-from-a-list-and-publish-takes-what-the-last-run-reached.md";
 
     /**
+     * ADR-394 -- the four legs are deduplication; relevance, from {@code seed-extraction} through {@code
+     * relevance-floor}; clustering, {@code clustering} and {@code relevance-report}, which the job runs after the
+     * clustering, so that each leg stays consecutive in job order; and generation; {@code report.json} stays of format 2
+     * (amends ADR-324 section 1, ADR-361 section 1, ADR-362 section 3 and ADR-392 section 3).
+     */
+    public static final String THE_RELEVANCE_LEG_RUNS_THROUGH_THE_RELEVANCE_FLOOR = FILE
+            + "0394-the-relevance-leg-runs-through-the-relevance-floor-and-the-clustering-leg-is-the-clustering-and-the-relevance-report.md";
+
+    /**
      * ADR-395 -- one Vespera runs on a machine at a time: the jar's entry point takes the machine lock, {@code
      * machine.lock} in the folder of the corpus-root locks, for the control panel, {@code vespera run}, {@code vespera
      * label} and {@code vespera publish}, refusing a second in one line before anything is opened; the control panel's

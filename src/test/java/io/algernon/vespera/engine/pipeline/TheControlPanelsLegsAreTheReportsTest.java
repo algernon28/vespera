@@ -39,9 +39,10 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
 @Link(name = "ADR-361", url = Adr.THE_COCKPITS_STEPS_FOLD_INTO_THE_PROGRESS_PAGES_FOUR_LEGS, type = "adr")
 @Link(name = "ADR-324", url = Adr.THE_TIMELINE_FOLDS_INTO_FOUR_LEGS, type = "adr")
+@Link(name = "ADR-394", url = Adr.THE_RELEVANCE_LEG_RUNS_THROUGH_THE_RELEVANCE_FLOOR, type = "adr")
 class TheControlPanelsLegsAreTheReportsTest {
 
-    /** The legs ADR-324 section 1 folds the job into, as ADR-392 section 3 amends them: deduplication, relevance, clustering and generation. */
+    /** The legs ADR-324 section 1 folds the job into, as ADR-394 section 1 amends them: deduplication, relevance, clustering and generation. */
     private static final int FOUR_LEGS = 4;
 
     /** The five states a leg is drawn in (ADR-324 section 3, ADR-265 section 1), every one of which the six jobs draw. */
