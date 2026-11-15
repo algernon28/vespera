@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-359", url = Adr.THE_PUBLISH_READS_ITS_CONFLUENCE_VALUES_FROM_THE_PROFILE_AND_THE_CONTROL_PANEL_PASSES_THE_TOKEN, type = "adr")
 @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
 @Link(name = "ADR-318", url = Adr.THE_PUBLISH_READS_THE_EMAIL_AND_THE_FOLDER_BY_THEIR_NEW_NAMES, type = "adr")
+@Link(name = "ADR-398", url = Adr.THE_CONFLUENCE_ROOT_PAGES_TITLE_IS_A_PROFILE_VALUE, type = "adr")
 class ThePublishReadsItsPlainValuesFromTheProfileTest {
 
     /** A token, synthetic, which the environment alone holds. */
@@ -51,11 +52,11 @@ class ThePublishReadsItsPlainValuesFromTheProfileTest {
     void theTokenComesFromTheEnvironmentAlone() {
         ConfluenceSite.Read read = ConfluenceSite.of(Map.<String, String>of()::get, "", "", "", "", THE_PROFILES);
 
-        claim("what a publish reads of the profile is the site, the space, the folder by its id and by its title, and"
-                        + " the email, and no token",
+        claim("what a publish reads of the profile is the site, the space, the folder by its id and by its title, the"
+                        + " email and the root page's title, and no token",
                 () -> assertThat(Arrays.stream(ConfluenceValues.class.getRecordComponents())
                                 .map(RecordComponent::getName).toList())
-                        .containsExactly("baseUrl", "spaceKey", "folderId", "folderTitle", "email"));
+                        .containsExactly("baseUrl", "spaceKey", "folderId", "folderTitle", "email", "rootTitle"));
         claim("with no token in the environment the publish is refused, however much the profile names",
                 () -> assertThat(read).isInstanceOf(ConfluenceSite.Read.Refused.class));
         String line = ((ConfluenceSite.Read.Refused) read).line();

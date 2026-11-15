@@ -7,11 +7,16 @@ import io.algernon.vespera.Adr;
 import io.algernon.vespera.publish.confluence.ConfluenceValues;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
+import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.lang.reflect.RecordComponent;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -20,7 +25,7 @@ import org.junit.jupiter.api.io.TempDir;
  * What a publish reads of the profile (ADR-359 §2, §5): {@code pipeline}, the one module naming {@code profile}, reads
  * the five Confluence values off {@code profile.yaml} in the working directory and hands them to {@code confluence} as
  * plain values. Where the file is not there, names none of them or does not load, no value is read, so the publish
- * reads the shell alone, as before.
+ * reads the shell alone, as before. The root page's title is read with them, a sixth value (ADR-398 §1).
  */
 @Epic("Operation")
 @Feature("The publish")
@@ -57,5 +62,58 @@ class ThePublishReadsTheProfilesConfluenceValuesTest {
         claim("the four the file names are read as it wrote them, and the folder's title, which it does not name, is none",
                 () -> assertThat(read).isEqualTo(new ConfluenceValues("https://wiki.example.com", "DOCS", "123456789",
                         null, "operator@example.org")));
+    }
+
+    /** The root page's title the profile names, with its language placeholder. */
+    private static final String A_ROOT_TITLE = "Hand-overs {language}";
+
+    /** The name of the component of the values handed to the publish that holds the root page's title (ADR-398 §1). */
+    private static final String ROOT_TITLE_COMPONENT = "rootTitle";
+
+    @Test
+    @Story("The operator names the root page's title")
+    @Issue("837")
+    @Link(name = "ADR-398", url = Adr.THE_CONFLUENCE_ROOT_PAGES_TITLE_IS_A_PROFILE_VALUE, type = "adr")
+    @DisplayName("The root page's title is read off the working directory's profile with the other Confluence values, as written, and a blank one is read as none")
+    void theRootPagesTitleIsReadOffTheProfileWithTheOtherValues(@TempDir Path workingDirectory) throws IOException {
+        Path named = Files.createDirectories(workingDirectory.resolve("named"));
+        Path blank = Files.createDirectories(workingDirectory.resolve("blank"));
+        Files.writeString(named.resolve("profile.yaml"), FOUR_OF_THE_FIVE + rootTitleOf(A_ROOT_TITLE));
+        Files.writeString(blank.resolve("profile.yaml"), FOUR_OF_THE_FIVE + rootTitleOf("   "));
+
+        ConfluenceValues readNamed = new ConfluenceValuesOfTheProfile().of(named);
+        ConfluenceValues readBlank = new ConfluenceValuesOfTheProfile().of(blank);
+
+        claim("a profile naming the root page's title beside the other values loads, and the site, the space, the folder"
+                        + " and the email are read from it as before",
+                () -> assertThat(List.of(String.valueOf(readNamed.baseUrl()), String.valueOf(readNamed.spaceKey()),
+                        String.valueOf(readNamed.folderId()), String.valueOf(readNamed.email()))).containsExactly(
+                        "https://wiki.example.com", "DOCS", "123456789", "operator@example.org"));
+        claim("its root page's title is read as written, the placeholder kept for the publish to replace",
+                () -> assertThat(rootTitleIn(readNamed)).isEqualTo(Optional.of(A_ROOT_TITLE)));
+        claim("and a root page's title of blanks is read as none, so the publish falls back to its default",
+                () -> assertThat(rootTitleIn(readBlank)).isEqualTo(Optional.empty()));
+    }
+
+    /** The profile's lines naming {@code title} as the root page's, with a provenance. */
+    private static String rootTitleOf(String title) {
+        return "confluenceRootTitle:\n  value: \"" + title + "\"\n  provenance: \"the team's name for its pages\"\n";
+    }
+
+    /**
+     * The root page's title {@code values} holds, empty where it is {@code null}, read by its component's name; the test
+     * stops, saying what the record holds, where it has no such component.
+     */
+    private static Optional<String> rootTitleIn(ConfluenceValues values) {
+        RecordComponent component = Arrays.stream(ConfluenceValues.class.getRecordComponents())
+                .filter(each -> each.getName().equals(ROOT_TITLE_COMPONENT)).findFirst()
+                .orElseThrow(() -> new AssertionError("what a publish reads of the profile holds no "
+                        + ROOT_TITLE_COMPONENT + ": it holds " + Arrays.stream(ConfluenceValues.class
+                                .getRecordComponents()).map(RecordComponent::getName).toList()));
+        try {
+            return Optional.ofNullable((String) component.getAccessor().invoke(values));
+        } catch (ReflectiveOperationException unread) {
+            throw new IllegalStateException("the root page's title could not be read from " + values, unread);
+        }
     }
 }
