@@ -15,7 +15,7 @@ import java.util.Optional;
  * {@code codeSetFolders} (ADR-334 §5.2), in the order of the start of {@code vespera run} (§5.1): it must be the whole
  * path of a folder that is there, and may not be equal to, inside or above the corpus root, the working directory, the
  * seed folder, the output folder or a folder already stated. Paths are compared by their real paths and name by name,
- * without regard to case on Windows. The control panel links no class of the jar (ADR-285 §3), so this holds the
+ * without regard to case on Windows. The control panel links no class of the jar but {@code DockerEngine} (ADR-390 §4; ADR-285 §3), so this holds the
  * comparison the jar's own start makes, for the page to refuse early with its own words.
  */
 final class CodeSetFolderChecks {

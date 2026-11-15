@@ -12,8 +12,8 @@ import java.util.Optional;
  * A stage's chart as the jar keeps it beside {@code report.json}, {@code chart-stage-<stage>.json} (ADR-382 §4), as the
  * window reads it: the stage's lines, each with its own seconds and values, and the instant the stage finished once its
  * chart is frozen (ADR-382 §6). The window draws what the file holds and decides none of it: the series, the freezing
- * and the key are the jar's. It reads with {@link JsonReader}, in {@code java.base} alone, and links no class of the jar
- * (ADR-285 §3). A field the window has no use for, the key among them, is not read.
+ * and the key are the jar's. It reads with {@link JsonReader}, in {@code java.base} alone, and links no class of the jar but {@code DockerEngine}
+ * (ADR-390 §4; ADR-285 §3). A field the window has no use for, the key among them, is not read.
  */
 final class StageChartFile {
 

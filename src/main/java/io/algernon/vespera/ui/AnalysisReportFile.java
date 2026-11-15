@@ -11,7 +11,7 @@ import java.util.Map;
  * An analysis report's JSON, {@code <name>.json} in the working directory (ADR-362 §9), as the window reads it to draw
  * the report's tab (ADR-362 §10): the title, when it was written, the headline numbers and the sections in the page's
  * order, each with its paragraphs, its chart and its table. The window draws what it reads and decides none of it; it
- * reads with {@link JsonReader}, in {@code java.base} alone, and links no class of the jar (ADR-285 §3). A cell is a
+ * reads with {@link JsonReader}, in {@code java.base} alone, and links no class of the jar but {@code DockerEngine} (ADR-390 §4; ADR-285 §3). A cell is a
  * {@link String}, a {@link BigDecimal} or null, as its column's {@code kind} says; a {@code share} is a fraction of one.
  */
 public final class AnalysisReportFile {

@@ -52,7 +52,7 @@ public final class ChildCommand {
 
     /**
      * The destinations the control panel offers, which {@code publish --to} names, in the order the boxes are offered: a
-     * closed list of the control panel's own, which names no class of the jar (ADR-285 §3, ADR-333 §6). A test holds it
+     * closed list of the control panel's own, which names no class of the jar but {@code DockerEngine} (ADR-390 §4; ADR-285 §3, ADR-333 §6). A test holds it
      * to the names of the plugins compiled into the jar.
      */
     public static final List<String> DESTINATIONS = List.copyOf(destinationLists().keySet());

@@ -39,7 +39,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * as the jar takes it, never waiting for it, and only in a folder of the user's own (ADR-295 §1, §2; ADR-177 §1,
  * ADR-291 §8). The file is written whole to a {@code .part} file and moved over the target. Every refusal is one line
  * returned, none thrown; what the change returns is the text, and its own refusal is an
- * {@link IllegalArgumentException} whose message is the line. Taking the lock links no class of the jar (ADR-285 §3).
+ * {@link IllegalArgumentException} whose message is the line. Taking the lock links no class of the jar but {@code DockerEngine} (ADR-390 §4; ADR-285 §3).
  *
  * <p>A save of {@code profile.yaml} makes the working directory where it is not there, each folder born the user's
  * alone, and a folder that exists is checked by its owner on a file system with no POSIX permissions (ADR-330 §7). The

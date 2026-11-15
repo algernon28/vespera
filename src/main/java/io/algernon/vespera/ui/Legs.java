@@ -8,7 +8,7 @@ import java.util.Map;
 
 /**
  * The four legs the job's steps fold into (ADR-361 §1): ADR-324 §1's table held as text, because the control panel
- * links no class of the jar (ADR-285 §3); {@code pipeline.TheControlPanelsLegsAreTheReportsTest} holds it, and the
+ * links no class of the jar but {@code DockerEngine} (ADR-390 §4; ADR-285 §3); {@code pipeline.TheControlPanelsLegsAreTheReportsTest} holds it, and the
  * rules of a leg's state and of which legs are open, to the report's.
  */
 public final class Legs {
