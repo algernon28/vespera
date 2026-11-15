@@ -321,7 +321,7 @@ public final class BesideTheJar implements ApplicationListener<ApplicationEvent>
             if (replace) {
                 Files.move(part, target, StandardCopyOption.REPLACE_EXISTING);
             } else {
-                Files.move(part, target);
+                placeWithoutReplacing(part, target);
             }
         } catch (FileAlreadyExistsException alreadyThere) {
             return false;
@@ -335,5 +335,21 @@ public final class BesideTheJar implements ApplicationListener<ApplicationEvent>
             Files.deleteIfExists(part);
         }
         return true;
+    }
+
+    /**
+     * Places {@code part} at {@code target} so that a file already there is never written over. A hard link fails
+     * atomically with {@link FileAlreadyExistsException}; the JDK's move without REPLACE_EXISTING is a check followed
+     * by rename(2) on POSIX, so two starts could both pass the check and the second would replace the first. Where
+     * hard links are not supported (FAT/exFAT) the move is the fallback. The part file is deleted by the caller.
+     */
+    private static void placeWithoutReplacing(Path part, Path target) throws IOException {
+        try {
+            Files.createLink(target, part);
+        } catch (FileAlreadyExistsException alreadyThere) {
+            throw alreadyThere;
+        } catch (UnsupportedOperationException | java.nio.file.FileSystemException noHardLinks) {
+            Files.move(part, target);
+        }
     }
 }
