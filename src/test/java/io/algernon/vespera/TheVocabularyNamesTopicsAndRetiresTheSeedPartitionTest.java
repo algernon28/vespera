@@ -57,6 +57,7 @@ class TheVocabularyNamesTopicsAndRetiresTheSeedPartitionTest {
 
     private static final String RETIRED_BY_THE_RECORD = "Retired by ADR-396";
 
+    /** The retired term, which its plural "seed partitions" also holds. */
     private static final String THE_RETIRED_TERM = "seed partition";
 
     /** Each entry's name, in the order the vocabulary gives them, to the lines beneath its heading. */
@@ -91,7 +92,7 @@ class TheVocabularyNamesTopicsAndRetiresTheSeedPartitionTest {
 
     @Test
     @Story("A topic is a term of the project's own")
-    @DisplayName("The glossary defines a topic and a winning topic, and no list of rejected words holds topic")
+    @DisplayName("The glossary defines a topic and a winning topic, and no list of rejected words holds topic or topics")
     void topicIsATermAndNoAvoidLineRejectsIt() {
         List<String> rejected = new ArrayList<>();
         ENTRIES.values().forEach(lines -> lines.stream()
@@ -103,8 +104,8 @@ class TheVocabularyNamesTopicsAndRetiresTheSeedPartitionTest {
 
         claim("The glossary has an entry for a topic and one for a winning topic",
                 () -> assertThat(ENTRIES).containsKeys(TOPIC, WINNING_TOPIC));
-        claim("No glossary entry lists topic among the words it rejects",
-                () -> assertThat(rejected).isNotEmpty().doesNotContain("topic"));
+        claim("No glossary entry lists topic, or topics, among the words it rejects",
+                () -> assertThat(rejected).isNotEmpty().doesNotContain("topic", "topics"));
     }
 
     @Test

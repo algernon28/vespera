@@ -1,6 +1,6 @@
 # ADR-106 — A cluster gets a derived label from 6a and a generated title from 6b
 
-> **Partly amended — see [ADR-396](0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md).** Of its Consequences, *"No model runs before the human gate"*: the local model names the topics before the gate, which shows them and their names read-only. No model runs before the gate for a cluster, whose label 6a still derives, and the operator still renames nothing there. The rest of this record stands.
+> **Partly amended — see [ADR-396](0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md).** Of its Consequences, *"No model runs before the human gate"*: the local model names the topics, and the level between a topic and its clusters, before the gate, which shows both and their names read-only, as topic › that level › clusters. No model runs before the gate for a cluster, whose label 6a still derives, and the operator still renames nothing there. The rest of this record stands.
 
 - **Date**: 2026-09-12
 - **Status**: accepted

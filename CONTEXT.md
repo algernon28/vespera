@@ -151,7 +151,7 @@ The one topic a survivor is placed under: where it is arranged, clustered and co
 _Avoid_: best topic, assigned topic, home topic, primary topic, the winning seed's topic (a seed may feed several topics, or none)
 
 **Seed partition**:
-Retired by ADR-396, which put the topic in its place. It was all file occurrences sharing a winning seed: the top level of the arrangement and the unit clustering ran within, one for each seed that won a survivor. No name of ours added from ADR-396 on says it. The names of ours that still say partition, as `partition_order` and the `seed_partition` column of `documents.csv`, name the code that still holds them, and each is settled by the child of map [#822](https://github.com/algernon28/vespera/issues/822) that rebuilds that code.
+Retired by ADR-396, which put the topic in its place. It was all file occurrences sharing a winning seed: the top level of the arrangement and the unit clustering ran within, one for each seed that won a survivor. No name of ours added from ADR-396 on says it, but to name its retirement. The names of ours that still say partition, as `partition_order` and the `seed_partition` column of `documents.csv`, name the code that still holds them, and each is settled by the child of map [#822](https://github.com/algernon28/vespera/issues/822) that rebuilds that code.
 _Avoid_: bucket, category
 
 **Cluster**:
@@ -341,11 +341,11 @@ A generated document that makes a set of survivors coherent by connecting them. 
 _Avoid_: summary, digest, abstract
 
 **Arrangement**:
-The shape stage 6a gives the survivors: topics at the top, each survivor under its winning topic, and clusters beneath them within each topic, with at most one level between the two where a topic is crowded (ADR-396). An order over survivors, never a copy of them — a document is arranged where it belongs, not moved there. Ordered in both senses: the levels are a structure, and each level is also a sequence, chosen rather than inherited from the filesystem. The sequence is part of what the operator approves at the gate, so nothing downstream re-sorts it; the topics and their names are shown there read-only, and are neither approved nor edited. Code is not arranged: it is not a survivor, and is held in code sets instead (ADR-284), which the deliverable copies whole under `code/` (ADR-296).
-_Avoid_: page tree, hierarchy, taxonomy (the topics are inferred from the seed set's passages; the arrangement is the shape they and the clusters give the survivors)
+The shape stage 6a gives the survivors: topics at the top, each survivor under its winning topic, and clusters beneath them within each topic, with at most one level between the two where a topic is crowded (ADR-396). An order over survivors, never a copy of them — a document is arranged where it belongs, not moved there. Ordered in both senses: the levels are a structure, and each level is also a sequence, chosen rather than inherited from the filesystem. The sequence is part of what the operator approves at the gate, so nothing downstream re-sorts it; the topics, the level between a topic and its clusters, and their names are shown there read-only, as topic › that level › clusters, and are neither approved nor edited. Code is not arranged: it is not a survivor, and is held in code sets instead (ADR-284), which the deliverable copies whole under `code/` (ADR-296).
+_Avoid_: page tree, hierarchy, taxonomy (the topics are inferred from the seed set's passages, not a taxonomy anyone names; the arrangement is the shape they and the clusters give the survivors)
 
 **Cluster label**:
-What stage 6a calls a cluster: derived from the cluster's own members — the title of its highest-scoring document, and how many documents it holds. Derived rather than written, so it exists before anything is generated and can be checked against a document anyone can open. Never unique and never edited by hand: a cluster is identified by its ordinal within its topic, not by what it is called.
+What stage 6a calls a cluster: derived from the cluster's own members — the title of its highest-scoring document, and how many documents it holds. Derived rather than written, so it exists before anything is generated and can be checked against a document anyone can open. Never unique and never edited by hand: a cluster is identified by its ordinal, not by what it is called.
 _Avoid_: cluster name (a cluster has two, and the word chosen says which), heading
 
 **Cluster title**:

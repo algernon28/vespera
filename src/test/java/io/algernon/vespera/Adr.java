@@ -2863,8 +2863,8 @@ public final class Adr {
      * ADR-396 -- the top level of the arrangement is topics found across the seed set's passages, no longer one seed
      * partition per seed; relevance stays ADR-020's, the winning seed its provenance, and a step apart from the score
      * places each survivor under its winning topic; clustering runs within a topic; topics sort by survivors placed,
-     * ties on a stable topic key; the local model names them before the 6a gate, which shows them read-only; each topic
-     * has an overview at 6b; {@code CONTEXT.md} gains Topic and Winning topic and retires Seed partition (amends
+     * ties on a stable topic key; the local model names them, and the level between a topic and its clusters, before the
+     * 6a gate, which shows both read-only; each topic has an overview at 6b, read off its clusters' synthesis docs; {@code CONTEXT.md} gains Topic and Winning topic and retires Seed partition (amends
      * ADR-020, ADR-022, ADR-027, ADR-045, ADR-106 and ADR-112, partly reopens ADR-113).
      */
     public static final String TOPICS_REPLACE_SEED_PARTITIONS = FILE
