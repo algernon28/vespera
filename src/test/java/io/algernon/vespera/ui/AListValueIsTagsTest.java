@@ -21,7 +21,6 @@ import javafx.event.Event;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
-import javafx.scene.control.Tab;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.input.KeyCode;
@@ -37,7 +36,7 @@ import org.junit.jupiter.api.io.TempDir;
  * A list value is tags (ADR-377 §7): each item of {@code codeNameEndings}, {@code outOfScopeNameEndings} and
  * {@code preferredLanguages} a tag with a remove button, one box after the last where Enter adds what is typed, Backspace
  * in the empty box removing the last tag, and a Save keeping what is still typed. Each window is shown on the Headless
- * platform, the Profile tab selected.
+ * platform, the Profile window opened, where the rows are read and acted on (ADR-389 §2).
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -64,8 +63,8 @@ class AListValueIsTagsTest {
         Tags tags;
         boolean[] kinds = new boolean[2];
         try (WindowForTests window = windowOver(folder, stated(THREE))) {
-            tags = window.read(AListValueIsTagsTest::tagsOf);
-            window.act(root -> {
+            tags = window.readProfile(AListValueIsTagsTest::tagsOf);
+            window.actOnProfile(root -> {
                 Node list = WindowForTests.node(root, ID, Node.class);
                 kinds[0] = list instanceof FlowPane;
                 List<Node> children = ((Pane) list).getChildrenUnmodifiable();
@@ -93,15 +92,15 @@ class AListValueIsTagsTest {
         Tags afterAnEmptyEnter;
         String[] box = new String[1];
         try (WindowForTests window = windowOver(folder, stated(".java"))) {
-            window.act(root -> {
+            window.actOnProfile(root -> {
                 TextField field = box(root);
                 field.setText(".py, .java .rs");
                 press(field, KeyCode.ENTER);
             });
-            added = window.read(AListValueIsTagsTest::tagsOf);
-            box[0] = window.read(root -> box(root).getText());
-            window.act(root -> press(box(root), KeyCode.ENTER));
-            afterAnEmptyEnter = window.read(AListValueIsTagsTest::tagsOf);
+            added = window.readProfile(AListValueIsTagsTest::tagsOf);
+            box[0] = window.readProfile(root -> box(root).getText());
+            window.actOnProfile(root -> press(box(root), KeyCode.ENTER));
+            afterAnEmptyEnter = window.readProfile(AListValueIsTagsTest::tagsOf);
         }
 
         claim("the pieces typed are added after the last tag in the order typed, and .java, a tag already, not twice",
@@ -118,9 +117,9 @@ class AListValueIsTagsTest {
         Tags left;
         boolean[] focused = new boolean[1];
         try (WindowForTests window = windowOver(folder, stated(THREE))) {
-            window.act(root -> WindowForTests.node(root, ID + ".remove-2", Button.class).fire());
-            left = window.read(AListValueIsTagsTest::tagsOf);
-            focused[0] = window.read(root -> box(root).isFocused());
+            window.actOnProfile(root -> WindowForTests.node(root, ID + ".remove-2", Button.class).fire());
+            left = window.readProfile(AListValueIsTagsTest::tagsOf);
+            focused[0] = window.readProfile(root -> box(root).isFocused());
         }
 
         claim("the second tag is gone and the others stand in their order, numbered again from 1",
@@ -139,20 +138,20 @@ class AListValueIsTagsTest {
         Tags afterTheTypedBox;
         String[] box = new String[1];
         try (WindowForTests window = windowOver(folder, stated(THREE))) {
-            window.act(root -> {
+            window.actOnProfile(root -> {
                 TextField field = box(root);
                 field.requestFocus();
                 press(field, KeyCode.BACK_SPACE);
             });
-            afterTheEmptyBox = window.read(AListValueIsTagsTest::tagsOf);
-            window.act(root -> {
+            afterTheEmptyBox = window.readProfile(AListValueIsTagsTest::tagsOf);
+            window.actOnProfile(root -> {
                 TextField field = box(root);
                 field.setText(".p");
                 field.positionCaret(field.getLength());
                 press(field, KeyCode.BACK_SPACE);
             });
-            afterTheTypedBox = window.read(AListValueIsTagsTest::tagsOf);
-            box[0] = window.read(root -> box(root).getText());
+            afterTheTypedBox = window.readProfile(AListValueIsTagsTest::tagsOf);
+            box[0] = window.readProfile(root -> box(root).getText());
         }
 
         claim("Backspace in the empty box removes the last tag",
@@ -171,14 +170,14 @@ class AListValueIsTagsTest {
         List<String> reachedByTab;
         Tags left;
         try (WindowForTests window = windowOver(folder, stated(THREE))) {
-            reachedByTab = window.read(AListValueIsTagsTest::reachedByTab);
-            window.act(root -> {
+            reachedByTab = window.readProfile(AListValueIsTagsTest::reachedByTab);
+            window.actOnProfile(root -> {
                 Button remove = WindowForTests.node(root, ID + ".remove-1", Button.class);
                 remove.requestFocus();
                 Event.fireEvent(remove, key(KeyEvent.KEY_PRESSED, KeyCode.SPACE));
                 Event.fireEvent(remove, key(KeyEvent.KEY_RELEASED, KeyCode.SPACE));
             });
-            left = window.read(AListValueIsTagsTest::tagsOf);
+            left = window.readProfile(AListValueIsTagsTest::tagsOf);
         }
 
         claim("what the list holds that Tab reaches is each remove button in the tags' order, then the box",
@@ -194,7 +193,7 @@ class AListValueIsTagsTest {
     void aSaveWritesTheTagsJoinedByOneSpaceAndWhatIsStillTyped(@TempDir Path folder) throws Exception {
         String changed;
         try (WindowForTests window = windowOver(folder, stated(".java .sql"))) {
-            window.act(root -> {
+            window.actOnProfile(root -> {
                 box(root).setText(".kt");
                 WindowForTests.node(root, "profile-save", Button.class).fire();
             });
@@ -205,8 +204,8 @@ class AListValueIsTagsTest {
         String[] outcome = new String[1];
         String afterwards;
         try (WindowForTests window = windowOver(second, leftAlone)) {
-            window.act(root -> WindowForTests.node(root, "profile-save", Button.class).fire());
-            outcome[0] = window.read(root -> textOf(WindowForTests.node(root, "profile-outcome", Node.class)));
+            window.actOnProfile(root -> WindowForTests.node(root, "profile-save", Button.class).fire());
+            outcome[0] = window.readProfile(root -> textOf(WindowForTests.node(root, "profile-outcome", Node.class)));
             afterwards = Files.readString(second.resolve("working").resolve(ProfileEdit.FILE_NAME),
                     StandardCharsets.UTF_8);
         }
@@ -236,7 +235,7 @@ class AListValueIsTagsTest {
         expected.put(ProfileKey.OUT_OF_SCOPE_NAME_ENDINGS, "e.g. .ok, then Enter");
         expected.put(ProfileKey.PREFERRED_LANGUAGES, "e.g. it, then Enter");
         try (WindowForTests window = windowOver(folder, "")) {
-            window.act(root -> {
+            window.actOnProfile(root -> {
                 for (ProfileKey key : expected.keySet()) {
                     String id = "profile-" + key.key();
                     if (!(WindowForTests.node(root, id, Node.class) instanceof FlowPane)) {
@@ -256,7 +255,7 @@ class AListValueIsTagsTest {
 
     // ---- the window and its tags
 
-    /** The window over a working directory holding {@code profile} as its profile.yaml, the Profile tab selected. */
+    /** The window over a working directory holding {@code profile} as its profile.yaml, the Profile window opened. */
     private static WindowForTests windowOver(Path folder, String profile) throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
         Path corpus = Files.createDirectories(folder.resolve("corpus"));
@@ -267,10 +266,7 @@ class AListValueIsTagsTest {
         state.hold(new LaunchValues(corpus.toString(), working.toString(), "", "", "", "", "", ""));
         WindowForTests window = WindowForTests.shown(state);
         try {
-            window.act(root -> {
-                Tab profileTab = HeadlessToolkit.tabWithId(root, "profile").orElseThrow();
-                profileTab.getTabPane().getSelectionModel().select(profileTab);
-            });
+            window.openProfile();
             return window;
         } catch (Exception | Error failed) {
             window.close();

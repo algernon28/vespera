@@ -102,7 +102,7 @@ public record WorkingDirectoryRow(String name, String corpusRoot, String lastInv
 
 ### 6. New…
 
-**New… proposes §2's name and adds the folder as a row, chosen; the first Save of `profile.yaml` makes it (ADR-330 §7), and nothing else does.** Pressed, it shows one field holding `<parent>/<the name proposed>`, absolute, which the operator may edit, with Browse for the parent, an OK and a Cancel; the parent is the parent of the folder chosen as New… is pressed. OK adds the field's folder as the first row after the machine's and chooses it; its status reads *to be created*, and Run, Label and Publish are refused as they are for a folder not there (ADR-340 §6), until a Save of the Profile tab makes it.
+**New… proposes §2's name and adds the folder as a row, chosen; the first Save of `profile.yaml` makes it (ADR-330 §7), and nothing else does.** Pressed, it shows one field holding `<parent>/<the name proposed>`, absolute, which the operator may edit, with Browse for the parent, an OK and a Cancel; the parent is the parent of the folder chosen as New… is pressed. OK adds the field's folder as the first row after the machine's and chooses it; its status reads *to be created*, and Run, Label and Publish are refused as they are for a folder not there (ADR-340 §6), until a Save of the Profile window makes it.
 
 ### 7. A publish takes the generation run the last `vespera run` arrived at
 
