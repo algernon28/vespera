@@ -1051,7 +1051,7 @@ class PublishUpdatesOneTreeInPlaceIT {
         Map<String, String> environment = Map.of(ConfluenceSite.TOKEN_VARIABLE, StubConfluence.TOKEN,
                 ConfluenceSite.STARTED_BY_VARIABLE, ConfluenceSite.THE_CONTROL_PANEL);
         ConfluenceValues profile = new ConfluenceValues(StubConfluence.BASE_URL, StubConfluence.SPACE_KEY, null, title,
-                StubConfluence.USER);
+                StubConfluence.USER, null);
         return new ConfluencePlugin(new Publisher(environment::get, site.requests(), new ArrayList<Duration>()::add,
                 Clock.systemUTC(), "", "", "", "", workingDirectory -> profile));
     }

@@ -11,14 +11,12 @@ import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.RecordComponent;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -63,9 +61,6 @@ class TheRootPagesTitleIsTheOperatorsTest {
 
     /** The variable the shell states the root page's title in (ADR-398 §2). */
     private static final String ROOT_TITLE_VARIABLE = "VESPERA_CONFLUENCE_ROOT_TITLE";
-
-    /** The name of the component of what a publish reads of the profile that holds the root page's title (ADR-398 §1). */
-    private static final String ROOT_TITLE_COMPONENT = "rootTitle";
 
     /** The variable by which the control panel tells the child it started it, and its one value (ADR-359 §3). */
     private static final String STARTED_BY_VARIABLE = "VESPERA_STARTED_BY";
@@ -171,7 +166,7 @@ class TheRootPagesTitleIsTheOperatorsTest {
     @DisplayName("A title the shell names comes before the profile's, a blank one being none, and the profile's comes before the default")
     void theShellsTitleComesBeforeTheProfilesAndABlankOneIsNone() throws IOException {
         Rendering english = Rendering.drawnIn(folder.resolve("en"));
-        ConfluenceValues profile = theProfileNaming(Map.of(ROOT_TITLE_COMPONENT, "From the profile"));
+        ConfluenceValues profile = theProfileNaming("From the profile");
 
         Published profilesAlone = published(english, Map.of(), profile);
         Published both = published(english, Map.of(ROOT_TITLE_VARIABLE, "From the shell"), profile);
@@ -190,14 +185,9 @@ class TheRootPagesTitleIsTheOperatorsTest {
     @DisplayName("A title that comes to 256 characters is refused before anything is sent, naming where it was stated, and one that comes to 255 is not")
     void aTitlePastConfluencesLimitIsRefusedBeforeAnythingIsSentAndOneAtItIsNot() throws IOException {
         Rendering english = Rendering.drawnIn(folder.resolve("en"));
-        ConfluenceValues profilePastTheLimit = theProfileNaming(Map.of(ROOT_TITLE_COMPONENT, PAST_THE_LIMIT));
-        Map<String, String> everyValueAndTooLong = new LinkedHashMap<>();
-        everyValueAndTooLong.put("baseUrl", StubConfluence.BASE_URL);
-        everyValueAndTooLong.put("spaceKey", StubConfluence.SPACE_KEY);
-        everyValueAndTooLong.put("folderId", StubConfluence.PARENT_ID);
-        everyValueAndTooLong.put("email", StubConfluence.USER);
-        everyValueAndTooLong.put(ROOT_TITLE_COMPONENT, PAST_THE_LIMIT);
-        ConfluenceValues panelsProfile = theProfileNaming(everyValueAndTooLong);
+        ConfluenceValues profilePastTheLimit = theProfileNaming(PAST_THE_LIMIT);
+        ConfluenceValues panelsProfile = new ConfluenceValues(StubConfluence.BASE_URL, StubConfluence.SPACE_KEY,
+                StubConfluence.PARENT_ID, null, StubConfluence.USER, PAST_THE_LIMIT);
 
         Published fromTheShell = published(english, Map.of(ROOT_TITLE_VARIABLE, PAST_THE_LIMIT), ConfluenceValues.NONE);
         Published fromTheProfile = published(english, Map.of(), profilePastTheLimit);
@@ -452,25 +442,8 @@ class TheRootPagesTitleIsTheOperatorsTest {
         }
     }
 
-    /**
-     * What the working directory's profile names, by the names of {@link ConfluenceValues}' components, each component
-     * it does not name being {@code null}: built through the record's canonical constructor by those names, so that a
-     * name the record has no component for stops the test, saying what the record holds.
-     */
-    private static ConfluenceValues theProfileNaming(Map<String, String> named) {
-        RecordComponent[] components = ConfluenceValues.class.getRecordComponents();
-        List<String> names = Arrays.stream(components).map(RecordComponent::getName).toList();
-        List<String> missing = named.keySet().stream().filter(name -> !names.contains(name)).toList();
-        if (!missing.isEmpty()) {
-            throw new AssertionError("what a publish reads of the profile holds no " + missing + ": it holds " + names);
-        }
-        Object[] values = new Object[components.length];
-        named.forEach((name, value) -> values[names.indexOf(name)] = value);
-        try {
-            return ConfluenceValues.class.getDeclaredConstructor(
-                    Arrays.stream(components).map(RecordComponent::getType).toArray(Class<?>[]::new)).newInstance(values);
-        } catch (ReflectiveOperationException unbuilt) {
-            throw new IllegalStateException("the profile's values could not be built from " + named, unbuilt);
-        }
+    /** A working directory's profile naming the root page's title {@code rootTitle} and no other Confluence value. */
+    private static ConfluenceValues theProfileNaming(String rootTitle) {
+        return new ConfluenceValues(null, null, null, null, null, rootTitle);
     }
 }

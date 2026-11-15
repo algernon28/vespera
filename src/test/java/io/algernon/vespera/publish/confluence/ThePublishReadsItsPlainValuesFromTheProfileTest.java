@@ -44,7 +44,7 @@ class ThePublishReadsItsPlainValuesFromTheProfileTest {
     private static final String PROFILES_EMAIL = "profile@example.org";
 
     private static final ConfluenceValues THE_PROFILES = new ConfluenceValues("https://" + PROFILES_HOST, PROFILES_SPACE,
-            PROFILES_FOLDER_ID, null, PROFILES_EMAIL);
+            PROFILES_FOLDER_ID, null, PROFILES_EMAIL, null);
 
     @Test
     @Story("The token is the environment's alone")
