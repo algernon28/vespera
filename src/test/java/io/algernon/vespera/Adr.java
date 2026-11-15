@@ -2870,6 +2870,16 @@ public final class Adr {
     public static final String TOPICS_REPLACE_SEED_PARTITIONS = FILE
             + "0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md";
 
+    /**
+     * ADR-399 -- the topics are ADR-087's modularity communities over a k-nearest-neighbour graph of the seed passages,
+     * a passage being a stored seed chunk, at ten neighbours and a resolution of 1.0, two presets entering the
+     * embedding-scoring run where they are not those; the passages are visited by seed path compared by code point, then
+     * by chunk index; a topic is keyed by its first passage; the topics are found at the head of the relevance-scoring
+     * step (amends ADR-330 §8 and §9 and ADR-396 §8).
+     */
+    public static final String TOPICS_ARE_COMMUNITIES_OF_THE_SEED_PASSAGES = FILE
+            + "0399-topics-are-modularity-communities-over-a-ten-neighbour-graph-of-the-seed-passages-keyed-by-their-first-passage.md";
+
     private Adr() {
     }
 }

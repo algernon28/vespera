@@ -12,7 +12,7 @@ final class PresetsFixture {
 
     private PresetsFixture() {}
 
-    /** An environment naming the sixteen, for a test to name another over one of them. */
+    /** An environment naming the eighteen, the two of the topics (ADR-399) last, for a test to name another over one of them. */
     static MockEnvironment shippedEnvironment() {
         return new MockEnvironment()
                 .withProperty("vespera.clustering.resolution", "1.0")
@@ -30,7 +30,9 @@ final class PresetsFixture {
                 .withProperty("vespera.redundancy.rare-shingle-hits", "24")
                 .withProperty("vespera.relevance.top-similarities", "3")
                 .withProperty("vespera.relevance.sample.bands", "5")
-                .withProperty("vespera.relevance.sample.per-band", "12");
+                .withProperty("vespera.relevance.sample.per-band", "12")
+                .withProperty("vespera.topics.resolution", "1.0")
+                .withProperty("vespera.topics.neighbours", "10");
     }
 
     /** The presets resolved from what ships. */
