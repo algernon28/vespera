@@ -79,18 +79,41 @@ public final class ControlPanel {
     static DockerControl.Settings dockerSettings(StartingValues.Sources sources, Path lockFolder) {
         String distribution = StartingValues.of("vespera.sidecars.wsl-distribution", sources).value();
         String wait = StartingValues.of("vespera.sidecars.wait-at-most", sources).value();
-        java.util.regex.Matcher read = java.util.regex.Pattern.compile("(\\d+)\\s*([smh]?)").matcher(wait.strip());
-        long seconds = 180;
-        if (read.matches()) {
-            long number = Long.parseLong(read.group(1));
-            seconds = switch (read.group(2)) {
-                case "m" -> number * 60;
-                case "h" -> number * 3600;
-                default -> number;
-            };
+        java.time.Duration waitAtMost = waitAtMostOf(wait);
+        return new DockerControl.Settings(distribution, waitAtMost, lockFolder, sources);
+    }
+
+    /**
+     * The wait as the jar reads it through Spring's {@code DurationStyle}, which the window may not use: a number with
+     * {@code ns}, {@code us}, {@code ms}, {@code s}, {@code m}, {@code h} or {@code d} (a bare number being
+     * milliseconds), or ISO-8601 as {@link java.time.Duration#parse} reads it. Anything else, or less than a second,
+     * is 180 seconds or one second respectively.
+     */
+    static java.time.Duration waitAtMostOf(String wait) {
+        java.time.Duration fallback = java.time.Duration.ofSeconds(180);
+        String text = wait == null ? "" : wait.strip();
+        java.time.Duration read = fallback;
+        try {
+            java.util.regex.Matcher simple = java.util.regex.Pattern.compile("([+-]?\\d+)([a-zA-Z]{0,2})").matcher(text);
+            if (text.matches("[+-]?[pP].*")) {
+                read = java.time.Duration.parse(text);
+            } else if (simple.matches()) {
+                long number = Long.parseLong(simple.group(1));
+                read = switch (simple.group(2).toLowerCase(java.util.Locale.ROOT)) {
+                    case "ns" -> java.time.Duration.ofNanos(number);
+                    case "us" -> java.time.Duration.of(number, java.time.temporal.ChronoUnit.MICROS);
+                    case "", "ms" -> java.time.Duration.ofMillis(number);
+                    case "s" -> java.time.Duration.ofSeconds(number);
+                    case "m" -> java.time.Duration.ofMinutes(number);
+                    case "h" -> java.time.Duration.ofHours(number);
+                    case "d" -> java.time.Duration.ofDays(number);
+                    default -> fallback;
+                };
+            }
+        } catch (java.time.format.DateTimeParseException | ArithmeticException | NumberFormatException unreadable) {
+            read = fallback;
         }
-        return new DockerControl.Settings(distribution, java.time.Duration.ofSeconds(Math.max(1, seconds)), lockFolder,
-                sources);
+        return read.compareTo(java.time.Duration.ofSeconds(1)) < 0 ? java.time.Duration.ofSeconds(1) : read;
     }
 
     /**

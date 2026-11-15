@@ -112,6 +112,10 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "CorpusRootInUseException",
             "CorpusRootLock",
             "CorpusRootLockUnavailableException",
+            // ADR-395: refuses a second Vespera on the machine; locks a file, and decides no verdict.
+            "AnotherVesperaRunsException",
+            "MachineLock",
+            "MachineLockUnavailableException",
             "DegenerateOutputConfidenceFloor",
             // ADR-282: reads the word floor the profile holds, as ExtractionAttempt reads the attempt; the floor's rule is extraction's.
             "DegenerateOutputWordFloor",

@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /**
  * The window's {@link DockerControl} as a test answers it (ADR-390 §4, §5): no Docker command is run. Each call is kept
@@ -21,7 +22,11 @@ final class RecordingDockerControl implements DockerControl {
 
     private final Said startSays;
     private final Said shutDownSays;
+    /** Whether the window was shown at each stop of the sidecars, in order; empty where it could not be asked. */
+    final List<Optional<Boolean>> shownAtEachStop = new CopyOnWriteArrayList<>();
+
     private volatile BooleanSupplier childRuns = () -> false;
+    private volatile Supplier<Optional<Boolean>> windowShown = Optional::empty;
 
     /** Answers a start with {@code startSays}, a shut-down with {@code shutDownSays}, and a stop of the sidecars as done. */
     RecordingDockerControl(Said startSays, Said shutDownSays) {
@@ -32,6 +37,12 @@ final class RecordingDockerControl implements DockerControl {
     /** Reads whether a child of the window runs from {@code state}, at each call. */
     RecordingDockerControl watching(ControlPanelState state) {
         childRuns = state::childRuns;
+        return this;
+    }
+
+    /** Asks {@code shown} whether the window is shown, at each stop of the sidecars, as the stop is called. */
+    RecordingDockerControl askingWhetherShown(Supplier<Optional<Boolean>> shown) {
+        windowShown = shown;
         return this;
     }
 
@@ -54,6 +65,7 @@ final class RecordingDockerControl implements DockerControl {
 
     @Override
     public Said stopTheSidecars(LaunchValues values) {
+        shownAtEachStop.add(windowShown.get());
         calls.add(new Call("stop-sidecars", Optional.of(values), childRuns.getAsBoolean()));
         return new Said(true, "");
     }

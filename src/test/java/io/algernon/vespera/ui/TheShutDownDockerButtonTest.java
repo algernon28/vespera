@@ -163,6 +163,7 @@ class TheShutDownDockerButtonTest {
                 Files.createDirectories(folder.resolve("working")).toString(), "", "", "", "", "", ""));
 
         try (WindowForTests window = WindowForTests.shown(state)) {
+            docker.askingWhetherShown(() -> shownAsAsked(window));
             Optional<String> refusal = state.start(ControlPanelState.Start.RUN, new ArrayList<>());
             Assumptions.assumeThat(refusal).as("the sleeping child is started").isEmpty();
             window.dialogs.answer = true;
@@ -175,7 +176,9 @@ class TheShutDownDockerButtonTest {
             claim("closing asked one question, Stop's own, as it does today",
                     () -> assertThat(window.dialogs.asked).containsExactly(new AnsweringDialogs.Asked(
                             Child.STOP_CONFIRMATION, "Stop and close", "Keep the window")));
-            claim("and the window closed once the sidecars were stopped", () -> assertThat(closed).isTrue());
+            claim("the window was still shown at the moment the sidecars' stop was called",
+                    () -> assertThat(docker.shownAtEachStop).containsExactly(Optional.of(true)));
+            claim("and it closed once the sidecars were stopped", () -> assertThat(closed).isTrue());
             claim("the sidecars were stopped once, for the launch values the window holds, after the invocation had"
                             + " been stopped",
                     () -> assertThat(docker.of("stop-sidecars")).containsExactly(new RecordingDockerControl.Call(
@@ -189,6 +192,19 @@ class TheShutDownDockerButtonTest {
             return HeadlessToolkit.onTheToolkit(window.stage::isShowing);
         } catch (Exception unanswered) {
             throw new IllegalStateException(unanswered);
+        }
+    }
+
+    /**
+     * Whether the window is shown, asked on the toolkit's thread from the thread the stop of the sidecars is called on;
+     * empty where it cannot be asked from there, as from the toolkit's own thread, which a stop that blocked the window
+     * would be called on.
+     */
+    private static Optional<Boolean> shownAsAsked(WindowForTests window) {
+        try {
+            return Optional.of(HeadlessToolkit.onTheToolkit(window.stage::isShowing));
+        } catch (Exception unanswered) {
+            return Optional.empty();
         }
     }
 

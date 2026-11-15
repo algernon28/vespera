@@ -1,6 +1,7 @@
 package io.algernon.vespera;
 
 import io.algernon.vespera.engine.pipeline.DisplayPresence;
+import io.algernon.vespera.engine.pipeline.MachineLock;
 import io.algernon.vespera.engine.pipeline.ServeCommand;
 import io.algernon.vespera.ui.ControlPanel;
 import java.io.PrintStream;
@@ -8,6 +9,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -32,6 +35,9 @@ public final class EntryPoint {
     private static final String NO_WINDOW =
             "the control panel cannot open a window here, so the jar answers as its command line: ";
 
+    /** The exit code of a start the machine lock refused (ADR-395 §5, ADR-141). */
+    private static final int REFUSED = 1;
+
     private EntryPoint() {
     }
 
@@ -54,17 +60,32 @@ public final class EntryPoint {
             System.exit(new ServeCommand(System.out, System.err).call(served.get().toArray(String[]::new)));
             return;
         }
-        start(arguments, DisplayPresence::ofThisProcess, ControlPanel::open, VesperaApplication::main, System.err);
+        // Built inside the lambda, so that --help, --version and a start with no display never touch the folder.
+        start(arguments, DisplayPresence::ofThisProcess,
+                kind -> MachineLock.ofThisProcess().refusal(kind, passedOn(arguments)),
+                ControlPanel::open, VesperaApplication::main, System.err, System::exit);
     }
 
     /**
-     * What {@link #main} does, with its four seams given: the display (ADR-362 §1), asked only once {@link #chosen}
-     * says the control panel and before the toolkit; the window; the command line; and standard error. {@code
-     * --headless} first is handed to the command line as the JVM's property {@code vespera.headless}.
+     * What {@link #main} does, with its seams given: the display (ADR-362 §1), asked only once {@link #chosen}
+     * says the control panel and before the toolkit; the machine lock, answering a refusal's line or empty where taken
+     * (ADR-395 §4), asked for {@code run}, {@code label} and {@code publish} before the command line and for the control
+     * panel once a display is found, before the window; the window; the command line; standard error; and the exit.
+     * {@code --headless} first is handed to the command line as the JVM's property {@code vespera.headless}.
      */
-    static void start(String[] arguments, Supplier<DisplayPresence.Answer> display, Supplier<ControlPanel.Opening> window,
-                      Consumer<String[]> commandLine, PrintStream err) {
+    static void start(String[] arguments, Supplier<DisplayPresence.Answer> display,
+                      Function<MachineLock.Kind, Optional<String>> machine, Supplier<ControlPanel.Opening> window,
+                      Consumer<String[]> commandLine, PrintStream err, IntConsumer exit) {
         if (chosen(arguments) == Started.COMMAND_LINE) {
+            Optional<MachineLock.Kind> kind = MachineLock.Kind.ofTheCommand(passedOn(arguments));
+            if (kind.isPresent()) {
+                Optional<String> refusal = machine.apply(kind.get());
+                if (refusal.isPresent()) {
+                    err.println(refusal.get());
+                    exit.accept(REFUSED);
+                    return;
+                }
+            }
             if (arguments.length > 0 && arguments[0].equals(HEADLESS)) {
                 System.setProperty(DisplayPresence.HEADLESS_PROPERTY, "true");
             }
@@ -77,17 +98,23 @@ public final class EntryPoint {
             commandLine.accept(new String[0]);
             return;
         }
+        Optional<String> refusal = machine.apply(MachineLock.Kind.CONTROL_PANEL);
+        if (refusal.isPresent()) {
+            err.println(refusal.get());
+            exit.accept(REFUSED);
+            return;
+        }
         ControlPanel.Opening opening = window.get();
         switch (opening.result()) {
             case NO_JAR -> {
                 err.println(opening.line());
-                System.exit(1);
+                exit.accept(1);
             }
             case NO_WINDOW -> {
                 err.println(NO_WINDOW + opening.line());
                 commandLine.accept(new String[0]);
             }
-            case CLOSED -> System.exit(0);
+            case CLOSED -> exit.accept(0);
         }
     }
 }
