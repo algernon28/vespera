@@ -114,7 +114,7 @@ Each value below is left to the child of #822 named beside it, and none is chose
 | the breadth floor's value, measured on synthetic or public text, and its preset | [#827](https://github.com/algernon28/vespera/issues/827) |
 | the placement function that gives the winning topic, the topic centroid that #823 measured placing best being the candidate and not a decision, and the threshold over which a survivor fits another topic, its "see also" | [#828](https://github.com/algernon28/vespera/issues/828) |
 | the topic names: the call, the prompt, what the strongest contributing seed is, and where a name is stored | [#829](https://github.com/algernon28/vespera/issues/829) |
-| the topic overview: its word budget, the wording of the second call and of the placeholder, their Italian rendering (ADR-321), and the fault's table (§7) | [#830](https://github.com/algernon28/vespera/issues/830) |
+| the topic overview: what it reads, and the range a citation is checked against, where some of its topic's clusters have no synthesis doc; its word budget, the wording of the second call and of the placeholder, their Italian rendering (ADR-321), and the fault's table (§7) | [#830](https://github.com/algernon28/vespera/issues/830) |
 | the level between a topic and its clusters: when a topic is crowded, how the level forms, its order, and its term | [#831](https://github.com/algernon28/vespera/issues/831) |
 | the ledger's tables for topics, placement and names, the stable topic key, and which run each is written under | [#832](https://github.com/algernon28/vespera/issues/832) |
 | the reports: seeds feeding no topic, topics with no survivor, and cluster sizes per topic | [#834](https://github.com/algernon28/vespera/issues/834) |
