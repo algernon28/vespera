@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.TheShippedCopy;
 import io.algernon.vespera.engine.profile.Profile;
 import io.algernon.vespera.engine.profile.ProfileFixture;
 import io.qameta.allure.Epic;
@@ -58,7 +59,7 @@ class PresetsTest {
     private static Presets theShippedFile() throws IOException {
         MockEnvironment environment = new MockEnvironment();
         new YamlPropertySourceLoader()
-                .load("the shipped file", new ClassPathResource("application.yaml"))
+                .load("the shipped file", TheShippedCopy.of("application.yaml"))
                 .forEach(environment.getPropertySources()::addLast);
         return new Presets(environment);
     }

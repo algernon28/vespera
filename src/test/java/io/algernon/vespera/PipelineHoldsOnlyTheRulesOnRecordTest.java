@@ -219,6 +219,10 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // verdict, a cache key, a cluster or text of the deliverable.
             "ComposeFiles",
             "ComposeFilesUnwritableException",
+            // ADR-397: write a file missing beside the jar from its shipped copy, say which differ, and refuse a folder
+            // that cannot be written; none decides a verdict, a cache key, a cluster or text of the deliverable.
+            "BesideTheJar",
+            "BesideTheJarUnwritableException",
             // ADR-326: say that a command's output file failed, apart from a program that cannot be started.
             "CommandOutputFileException",
             "CommandOutputFileUnusableException",

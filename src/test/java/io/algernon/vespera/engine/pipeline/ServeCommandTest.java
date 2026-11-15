@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.TheShippedCopy;
 import io.algernon.vespera.VesperaApplication;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -67,9 +68,8 @@ class ServeCommandTest {
 
     private static final String DB_DIR = "db-dir";
 
-    private static final Path SHIPPED_RESOURCES = Path.of("src", "main", "resources");
-
-    private static final Path APPLICATION_YAML = SHIPPED_RESOURCES.resolve("application.yaml");
+    /** The source of the jar's shipped copy of {@code application.yaml} (ADR-397 §2). */
+    private static final Path APPLICATION_YAML = TheShippedCopy.APPLICATION_YAML_SOURCE;
 
     /** The website's folder in the working directory, and the file a publish to it leaves there (ADR-333 §7). */
     private static final String WEBSITE = "website";

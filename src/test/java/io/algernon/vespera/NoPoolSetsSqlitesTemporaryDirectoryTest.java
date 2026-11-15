@@ -58,8 +58,8 @@ class NoPoolSetsSqlitesTemporaryDirectoryTest {
     /** SQLite's name for the setting, as a datasource URL or a driver property would carry it. */
     private static final String THE_SETTING = "temp_store_directory";
 
-    /** The shipped file and the one the test profile layers over it. */
-    private static final List<String> CONFIGURATION_FILES = List.of("application.yaml", "application-test.yaml");
+    /** The shipped copy of {@code application.yaml} (ADR-397 §2) and the file the test profile layers over it. */
+    private static final List<String> CONFIGURATION_FILES = List.of(TheShippedCopy.APPLICATION_YAML, "application-test.yaml");
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
