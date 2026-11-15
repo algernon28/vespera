@@ -2807,6 +2807,26 @@ public final class Adr {
     public static final String VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN = FILE
             + "0390-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md";
 
+    /**
+     * ADR-392 -- Vespera finds no translation sets: {@code TRANSLATION_OF}, the {@code translation} step, {@code
+     * translation_of}, {@code translations.html} and its JSON go, and every copy in another language survives; the job
+     * is fifteen steps and its second leg {@code relevance}; {@code translationSimilarityFloor} and {@code
+     * preferredLanguages} are retired keys, loaded, told of in one line where one holds a value, and left out of the
+     * next save; {@code report.json} is of format 2 (supersedes ADR-271 and ADR-273).
+     */
+    public static final String VESPERA_FINDS_NO_TRANSLATION_SETS = FILE
+            + "0392-vespera-finds-no-translation-sets-the-translation-step-its-verdict-its-report-and-its-two-profile-keys-go.md";
+
+    /**
+     * ADR-393 -- a working directory's readable name is its folder's name, which the control panel proposes once as
+     * {@code <corpus root's folder name>_<yyyyMMdd>}, the local date, {@code -2} and on the same day; Run warns where
+     * the folder is named for another corpus root; the window chooses the working directory from a list kept beside the
+     * launch values, each row read from that folder's reports; and a publish delivers the generation run the last
+     * {@code vespera run} arrived at (amends ADR-054, ADR-292 §3, ADR-333 §6, ADR-340 §6, ADR-344 §1 and §3, ADR-345 §1).
+     */
+    public static final String A_WORKING_DIRECTORY_IS_NAMED_FOR_ITS_CORPUS_ROOT_AND_DAY_AND_PUBLISH_TAKES_WHAT_THE_LAST_RUN_REACHED =
+            FILE + "0393-a-working-directory-is-named-for-its-corpus-root-and-day-chosen-from-a-list-and-publish-takes-what-the-last-run-reached.md";
+
     private Adr() {
     }
 }

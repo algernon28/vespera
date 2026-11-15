@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §5: the script goes, so a fold is not kept in the address and does not outlive a reload of `report.html`. Of §6: the progress page shown as the file in a report's tab, its first paragraph, is no longer written; the window draws the steps from `report.json`, in the four legs ADR-361 folds them into. §1 to §4 stand, the legs written into the report by the jar. The rest of this record stands.
 
+> **Partly amended — see [ADR-392](0392-vespera-finds-no-translation-sets-the-translation-step-its-verdict-its-report-and-its-two-profile-keys-go.md).** Of §1: the second leg is `relevance`, holding `seed-extraction`, `seed-corpus-comparison` and `embedding-scoring`, the translation step being gone, and the boundary inside stage 5 lies after `embedding-scoring`; the legs fold fifteen steps. The rest of this record stands.
+
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.
 - **Decided**: by the operator, who asked that the bars of the timeline fold, on `progress.html` and in the control panel, into four named deduplication, translation, clustering and generation, each folding to one bar, and who approved a drawing of four rows, one open on its steps; which steps each holds, the bar's span and state, which is open, how a fold is kept across the page's reload and what the control panel shows are decided under delegation.

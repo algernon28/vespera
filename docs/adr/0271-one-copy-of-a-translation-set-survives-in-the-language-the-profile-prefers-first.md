@@ -1,5 +1,7 @@
 # ADR-271 — One copy of a translation set survives, in the language the profile prefers first
 
+> **Superseded — see ADR-392.** [ADR-392](0392-vespera-finds-no-translation-sets-the-translation-step-its-verdict-its-report-and-its-two-profile-keys-go.md) **supersedes this record**: Vespera finds no translation sets. The `translation` step, `TRANSLATION_OF` and `translation_of`, `translations.html` and its JSON, and the keys `translationSimilarityFloor` and `preferredLanguages` go, and every copy in another language survives. A database an earlier version wrote keeps what this record added, read by nothing; a profile naming either key loads, says so once, and loses it at the next save. The tests named below go with that record's implementation.
+
 > **Partly amended — see [ADR-273](0273-the-translation-step-reads-each-mean-vector-only-to-compare-it-and-the-profile-only-when-its-run-is-minted.md).** Of §6: the two keys are read with `relevanceScoreFloor` from one load of the profile when the scoring run is minted. Of §7: the page states the two keys as they read at that load, and does not load the profile to write them. Of §9: `TranslationCandidates` reads each candidate's language without its vector and each mean vector only as the comparison reads its block, skipping an empty one, and a vector's width is one read of the vector cache. The rest of this record stands.
 
 - **Date**: 2026-10-17

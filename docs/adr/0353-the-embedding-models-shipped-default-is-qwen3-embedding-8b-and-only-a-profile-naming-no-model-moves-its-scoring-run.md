@@ -1,5 +1,7 @@
 # ADR-353 — The embedding model's shipped default is Qwen3-Embedding-8B, named as its file on Hugging Face, `hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M`, and only a profile naming no model moves its scoring run
 
+> **Partly amended — see [ADR-392](0392-vespera-finds-no-translation-sets-the-translation-step-its-verdict-its-report-and-its-two-profile-keys-go.md).** Of §3 and §4: `translationSimilarityFloor` enters no scoring run, being no key of the profile, and no translation step takes clustering's block. The rest of this record stands.
+
 - **Date**: 2026-11-05
 - **Status**: accepted on 2026-11-05.
 - **Settles**: that the embedding model `application.yaml` ships is Qwen3-Embedding-8B in place of `bge-m3:latest`, named `hf.co/Qwen/Qwen3-Embedding-8B-GGUF:Q4_K_M`, which is the operator's decision of 2026-11-05, and the record ADR-298 §7 asks for before the default changes; and §7's two rules for the tests, also the operator's of 2026-11-05. §2 to §6 are decided under the first.

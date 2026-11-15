@@ -1,5 +1,7 @@
 # ADR-282 — An occurrence with fewer words than the word floor is `degenerate-output`, whatever its detected format, and stage 3 writes the page the floor is read off
 
+> **Partly amended — see [ADR-392](0392-vespera-finds-no-translation-sets-the-translation-step-its-verdict-its-report-and-its-two-profile-keys-go.md).** Of §8: there is no translation step and no translation set; tier 3 reads no language, as before. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Amends**: [ADR-070](0070-extraction-failed-splits-on-doclings-status-degenerate-output-is-a-two-tier-floor.md), its *"`degenerate-output` is a two-tier floor"*: the floor gains a third tier, after the two it has (§1). It carries a note at its head.
