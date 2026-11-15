@@ -11,8 +11,10 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,6 +29,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -64,6 +67,22 @@ class MachineLockTest {
     private static final String THEN_THE_COMMAND = "run the same command again";
 
     private static final String THEN_THE_CONTROL_PANEL = "open the control panel again";
+
+    /** A holder line that is not blank and is not of the holder line's shape. */
+    private static final String NOT_A_HOLDER_LINE = "held by something that is not Vespera";
+
+    /** A control panel's line whose pid has twenty digits, past the largest long. */
+    private static final String A_PID_TOO_LARGE =
+            "pid=99999999999999999999 started=2026-11-15T09:00:00+01:00 command= kind=control-panel";
+
+    /** A value of the folder's variable that is no path on any system: it holds the character NUL. */
+    private static final String NO_PATH = "root-locks\u0000here";
+
+    /** A device every write to fails on, as a full disk fails it; a file linked to it is opened and locked. */
+    private static final Path A_FULL_DEVICE = Path.of("/dev/full");
+
+    /** The byte every lock of this test is on, as the machine lock takes it. */
+    private static final long LOCKED_BYTE = Long.MAX_VALUE - 1;
 
     /** How long a process this test killed gets to end. */
     private static final long END_BOUND_SECONDS = 30;
@@ -282,6 +301,112 @@ class MachineLockTest {
     }
 
     @Test
+    @Story("The control panel's own invocations are let through")
+    @DisplayName("A start the control panel's line lets through is refused where the child's file is already held by another, quoting that holder")
+    void aChildWhoseFileAnotherHoldsIsRefusedQuotingThatHolder(@TempDir Path temporary) throws Exception {
+        Path folder = temporary.resolve("root-locks");
+        HoldsTheMachine.Holder panel = hold(folder, MachineLock.Kind.CONTROL_PANEL, true);
+        claim("the control panel's own child was let through and holds the child's file",
+                () -> assertThat(panel.childSaid()).hasValueSatisfying(
+                        said -> assertThat(said).startsWith(TakesTheMachine.LET_THROUGH)));
+        String childsLine = holderLine(folder.resolve(MachineLock.CHILD_FILE_NAME));
+
+        Throwable refused = catchThrowable(() -> new MachineLock(folder, OptionalLong.of(panel.process().pid()))
+                .take(MachineLock.Kind.LABEL, ARGUMENTS));
+
+        claim("a second start whose parent is that control panel is refused as another Vespera, quoting the line of the"
+                        + " child that holds the child's file",
+                () -> assertThat(List.of(refused.getClass(), refused.getMessage())).containsExactly(
+                        AnotherVesperaRunsException.class, refusal(childsLine, THEN_THE_COMMAND)));
+        claim("and the child's line is left as it was",
+                () -> assertThat(holderLine(folder.resolve(MachineLock.CHILD_FILE_NAME))).isEqualTo(childsLine));
+    }
+
+    @Test
+    @Story("The control panel's own invocations are let through")
+    @DisplayName("A held machine is refused as another Vespera where the start has no parent, or the holder line does not parse, a pid too large for a number among them")
+    void aStartTheHolderLineCannotLetThroughIsRefusedAsAnotherVespera(@TempDir Path temporary) throws Exception {
+        Path folder = temporary.resolve("root-locks");
+        HoldsTheMachine.Holder panel = hold(folder, MachineLock.Kind.CONTROL_PANEL, false);
+        Path machineFile = folder.resolve(MachineLock.FILE_NAME);
+        String panelsLine = holderLine(machineFile);
+        OptionalLong theHoldersPid = OptionalLong.of(panel.process().pid());
+
+        Throwable noParent = catchThrowable(() -> new MachineLock(folder, OptionalLong.empty())
+                .take(MachineLock.Kind.RUN, ARGUMENTS));
+        claim("a start whose parent is not given is refused as another Vespera, quoting the control panel's line",
+                () -> assertThat(List.of(noParent.getClass(), noParent.getMessage())).containsExactly(
+                        AnotherVesperaRunsException.class, refusal(panelsLine, THEN_THE_COMMAND)));
+
+        // The holder's lock is on a byte far past the end of the file, so its line can be written over while it holds it.
+        Files.writeString(machineFile, NOT_A_HOLDER_LINE, StandardCharsets.UTF_8);
+        Throwable notParsed = catchThrowable(() -> new MachineLock(folder, theHoldersPid)
+                .take(MachineLock.Kind.RUN, ARGUMENTS));
+        claim("a holder line that is not blank and does not parse refuses a start whose parent is the holder, as another"
+                        + " Vespera, quoting the line whole",
+                () -> assertThat(List.of(notParsed.getClass(), notParsed.getMessage())).containsExactly(
+                        AnotherVesperaRunsException.class, refusal(NOT_A_HOLDER_LINE, THEN_THE_COMMAND)));
+
+        Files.writeString(machineFile, A_PID_TOO_LARGE, StandardCharsets.UTF_8);
+        Throwable tooLarge = catchThrowable(() -> new MachineLock(folder, theHoldersPid)
+                .take(MachineLock.Kind.RUN, ARGUMENTS));
+        claim("and so does a control panel's line whose pid is too large for a number, refused as another Vespera and"
+                        + " not as a lock that cannot be taken",
+                () -> assertThat(List.of(tooLarge.getClass(), tooLarge.getMessage())).containsExactly(
+                        AnotherVesperaRunsException.class, refusal(A_PID_TOO_LARGE, THEN_THE_COMMAND)));
+    }
+
+    @Test
+    @Story("One Vespera runs on a machine at a time")
+    @DisplayName("A folder named by a value that is no path is read only when the lock is taken, and refuses that start in one line quoting the value as written")
+    void aFolderValueThatIsNoPathRefusesTheTakeQuotingTheValue(@TempDir Path temporary) {
+        String reason = catchThrowable(() -> Path.of(NO_PATH)).getMessage();
+
+        Throwable made = catchThrowable(() -> MachineLock.ofTheFolderNamed(NO_PATH, temporary.toString()));
+        claim("a lock named by such a value is made without reading it",
+                () -> assertThat(made).isNull());
+        MachineLock lock = MachineLock.ofTheFolderNamed(NO_PATH, temporary.toString());
+        claim("a command that takes it is refused in the line naming the value as written and the system's reason, and"
+                        + " a control panel in the same line telling it to open the control panel again",
+                () -> assertThat(List.of(lock.refusal(MachineLock.Kind.RUN, ARGUMENTS),
+                                lock.refusal(MachineLock.Kind.CONTROL_PANEL, new String[0])))
+                        .containsExactly(Optional.of(unavailableAsWritten(NO_PATH, reason, THEN_THE_COMMAND)),
+                                Optional.of(unavailableAsWritten(NO_PATH, reason, THEN_THE_CONTROL_PANEL))));
+    }
+
+    @Test
+    @Story("One Vespera runs on a machine at a time")
+    @DisplayName("A lock whose holder line cannot be written refuses the start and is let go, the machine lock's and the child's alike")
+    void aLockWhoseHolderLineCannotBeWrittenIsLetGo(@TempDir Path temporary) throws Exception {
+        Assumptions.assumeTrue(Files.isWritable(A_FULL_DEVICE), "this system has no " + A_FULL_DEVICE);
+        String reason = whyNothingIsWritten();
+        Path alone = temporary.resolve("root-locks");
+        Files.createDirectories(alone);
+        linkedToTheFullDevice(alone.resolve(MachineLock.FILE_NAME));
+
+        Throwable taking = catchThrowable(() -> new MachineLock(alone).take(MachineLock.Kind.RUN, ARGUMENTS));
+        claim("the machine lock's line not written, the start is refused in the line of a lock that cannot be taken",
+                () -> assertThat(List.of(taking.getClass(), taking.getMessage())).containsExactly(
+                        MachineLockUnavailableException.class, unavailable(alone, reason, THEN_THE_COMMAND)));
+        claim("and the lock it took on the machine lock's file is let go",
+                () -> assertThat(isFree(alone.resolve(MachineLock.FILE_NAME))).isTrue());
+
+        Path besideAPanel = temporary.resolve("root-locks-of-a-control-panel");
+        HoldsTheMachine.Holder panel = hold(besideAPanel, MachineLock.Kind.CONTROL_PANEL, false);
+        Files.delete(besideAPanel.resolve(MachineLock.CHILD_FILE_NAME));
+        linkedToTheFullDevice(besideAPanel.resolve(MachineLock.CHILD_FILE_NAME));
+
+        Throwable letThrough = catchThrowable(() -> new MachineLock(besideAPanel, OptionalLong.of(panel.process().pid()))
+                .take(MachineLock.Kind.RUN, ARGUMENTS));
+        claim("a start the control panel's line lets through, its line not written in the child's file, is refused in"
+                        + " the same line",
+                () -> assertThat(List.of(letThrough.getClass(), letThrough.getMessage())).containsExactly(
+                        MachineLockUnavailableException.class, unavailable(besideAPanel, reason, THEN_THE_COMMAND)));
+        claim("and the lock it took on the child's file is let go",
+                () -> assertThat(isFree(besideAPanel.resolve(MachineLock.CHILD_FILE_NAME))).isTrue());
+    }
+
+    @Test
     @Story("One Vespera runs on a machine at a time")
     @DisplayName("Only run, label and publish named first take the machine as their kind; serve, help, version and no command take nothing")
     void onlyRunLabelAndPublishNameAKind() {
@@ -325,6 +450,49 @@ class MachineLockTest {
         return "the machine lock could not be taken in the folder " + folder.toAbsolutePath() + " (" + reason + ");"
                 + " make that folder one this user can write, or name another in VESPERA_CORPUS_ROOT_LOCK_FOLDER, then "
                 + then + ". Vespera does not start while it cannot tell whether another Vespera is running.";
+    }
+
+    /** The line of a lock that cannot be taken, naming the folder as the variable wrote it, being no path. */
+    private static String unavailableAsWritten(String folder, String reason, String then) {
+        return "the machine lock could not be taken in the folder " + folder + " (" + reason + ");"
+                + " make that folder one this user can write, or name another in VESPERA_CORPUS_ROOT_LOCK_FOLDER, then "
+                + then + ". Vespera does not start while it cannot tell whether another Vespera is running.";
+    }
+
+    /** What the system says a write to the full device fails with, as the line quotes it. */
+    private static String whyNothingIsWritten() throws IOException {
+        try (FileChannel full = FileChannel.open(A_FULL_DEVICE, StandardOpenOption.WRITE)) {
+            full.write(ByteBuffer.wrap(new byte[] {'x'}));
+            throw new IllegalStateException(A_FULL_DEVICE + " took a write");
+        } catch (IOException refused) {
+            return refused.getMessage();
+        }
+    }
+
+    /** {@code file} made a link to the full device; the test is skipped where this system makes no link. */
+    private static void linkedToTheFullDevice(Path file) throws IOException {
+        try {
+            Files.createSymbolicLink(file, A_FULL_DEVICE);
+        } catch (UnsupportedOperationException | IOException noLink) {
+            Assumptions.abort("this system makes no symbolic link: " + noLink);
+        }
+    }
+
+    /**
+     * True where this JVM holds no lock on {@code file}'s byte: a lock it still held would make a second take in it
+     * overlap. The lock taken to see so is let go at once.
+     */
+    private static boolean isFree(Path file) throws IOException {
+        try (FileChannel channel = FileChannel.open(file, StandardOpenOption.WRITE)) {
+            FileLock lock = channel.tryLock(LOCKED_BYTE, 1, false);
+            if (lock == null) {
+                return false;
+            }
+            lock.release();
+            return true;
+        } catch (OverlappingFileLockException stillHeld) {
+            return false;
+        }
     }
 
     /** What the system says making {@code folder} fails with, in its own words, as the line quotes it. */

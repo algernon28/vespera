@@ -45,6 +45,18 @@ class TheEntryPointTakesTheMachineLockTest {
             + " control panel, then run the same command again. One Vespera runs on a machine at a time, so that none"
             + " stops the sidecars another is using.";
 
+    /**
+     * The value of {@code VESPERA_CORPUS_ROOT_LOCK_FOLDER} that is no path on Windows, which refuses every character of
+     * it in a file name; {@code MachineLockTest} holds the line a lock answers for such a value.
+     */
+    private static final String NO_PATH = "<>|?*\"";
+
+    /** The line a lock asked about that folder answers (ADR-391 §5), quoting it as written. */
+    private static final String NO_PATH_REFUSED = "the machine lock could not be taken in the folder " + NO_PATH
+            + " (Illegal char <<> at index 0: " + NO_PATH + "); make that folder one this user can write, or name"
+            + " another in VESPERA_CORPUS_ROOT_LOCK_FOLDER, then run the same command again. Vespera does not start"
+            + " while it cannot tell whether another Vespera is running.";
+
     /** The exit code of a refused start (ADR-141). */
     private static final int REFUSED_EXIT = 1;
 
@@ -144,6 +156,28 @@ class TheEntryPointTakesTheMachineLockTest {
                 () -> assertThat(did.calls()).containsExactly("lock CONTROL_PANEL", "exit " + REFUSED_EXIT));
         claim("standard error holds the refusal's line and nothing else",
                 () -> assertThat(did.err()).isEqualTo(REFUSED + System.lineSeparator()));
+    }
+
+    @Test
+    @Story("One Vespera runs on a machine at a time")
+    @DisplayName("A folder of the locks that is no path refuses only a start that takes the lock: version, help and a start with no display take nothing and start as before")
+    void aFolderThatIsNoPathRefusesOnlyAStartThatTakesTheLock() {
+        claim("--version and --help, and a start with no argument and no display, never ask the lock and start the"
+                        + " command line as before",
+                () -> assertThat(List.of(
+                                started(new String[] {"--version"}, A_DISPLAY, Optional.of(NO_PATH_REFUSED)).calls(),
+                                started(new String[] {"--help"}, A_DISPLAY, Optional.of(NO_PATH_REFUSED)).calls(),
+                                started(new String[0], NO_DISPLAY, Optional.of(NO_PATH_REFUSED)).calls()))
+                        .containsExactly(
+                                List.of("command line [--version]"),
+                                List.of("command line [--help]"),
+                                List.of("command line []")));
+
+        Did run = started(new String[] {"run", "D:/corpus"}, A_DISPLAY, Optional.of(NO_PATH_REFUSED));
+        claim("a run asks the lock, and is refused in its line quoting the folder as written, exit " + REFUSED_EXIT
+                        + ", and the command line never starts",
+                () -> assertThat(List.of(run.calls(), run.err())).containsExactly(
+                        List.of("lock RUN", "exit " + REFUSED_EXIT), NO_PATH_REFUSED + System.lineSeparator()));
     }
 
     /**
