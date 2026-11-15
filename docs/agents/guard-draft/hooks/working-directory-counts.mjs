@@ -40,7 +40,6 @@ const STEPS = [
   "seed-extraction",
   "seed-corpus-comparison",
   "embedding-scoring",
-  "translation",
   "relevance-scoring",
   "relevance-floor",
   "clustering",

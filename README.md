@@ -209,7 +209,7 @@ The database also keeps its temporary files in the working directory, not in the
 ```
 vespera run <root> [--db-dir=<path>]     walk a corpus and take it as far as the next missing value
 vespera label [file] [--db-dir=<path>]   record the answers you wrote into the label file
-vespera publish [--to <names>] [--db-dir=<path>]  deliver the last rendering drawn to each destination named: confluence, website
+vespera publish [--to <names>] [--db-dir=<path>]  deliver what your last vespera run drew to each destination named: confluence, website
 vespera serve [--db-dir=<path>]          serve <working directory>/website/ at http://127.0.0.1:<port>/ until the process ends
 ```
 
