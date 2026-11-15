@@ -1,14 +1,22 @@
 package io.algernon.vespera.engine.profile;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.dataformat.yaml.YAMLMapper;
 
 /**
@@ -41,8 +49,22 @@ public class ProfileStore {
     /** The profile's name in the working directory, fixed by ADR-054. */
     static final String FILE_NAME = "profile.yaml";
 
-    private static final YAMLMapper YAML =
-            YAMLMapper.builder().enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build();
+    private static final Logger LOG = LoggerFactory.getLogger(ProfileStore.class);
+
+    /** The two keys the translation step read, which a file an earlier version wrote may still name (ADR-392 section 4). */
+    private static final List<String> RETIRED_KEYS = List.of("translationSimilarityFloor", "preferredLanguages");
+
+    /** Names the retired keys to the reader as ones to pass over, so that {@link Profile} holds no component for them. */
+    @JsonIgnoreProperties({"translationSimilarityFloor", "preferredLanguages"})
+    private abstract static class RetiredKeysPassedOver {}
+
+    private static final YAMLMapper YAML = YAMLMapper.builder()
+            .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+            .addMixIn(Profile.class, RetiredKeysPassedOver.class)
+            .build();
+
+    /** The files this process has already warned of, by their path: the line is written once for each (ADR-392 section 4). */
+    private static final Set<Path> WARNED_OF = ConcurrentHashMap.newKeySet();
 
     private final Path file;
 
@@ -79,11 +101,41 @@ public class ProfileStore {
         if (yaml.isBlank()) {
             return Profile.skeleton();
         }
+        Profile profile;
         try {
-            return YAML.readValue(yaml, Profile.class);
+            profile = YAML.readValue(yaml, Profile.class);
         } catch (JacksonException notInShape) {
             throw new MisshapenProfileException(file, notInShape);
         }
+        warnOfRetiredKeysHoldingAValue(yaml);
+        return profile;
+    }
+
+    /**
+     * Writes one line at WARN, the first time this process loads the file, naming the retired keys that hold a value:
+     * a {@code value} neither null nor blank (ADR-392 section 4). A retired key unset passes silently.
+     */
+    private void warnOfRetiredKeysHoldingAValue(String yaml) {
+        List<String> holding = new ArrayList<>();
+        try {
+            JsonNode root = YAML.readTree(yaml);
+            for (String key : RETIRED_KEYS) {
+                JsonNode block = root.isObject() ? root.get(key) : null;
+                JsonNode value = block != null && block.isObject() ? block.get("value") : null;
+                if (value != null && !value.isNull() && !value.isMissingNode() && !value.asText().isBlank()) {
+                    holding.add(key);
+                }
+            }
+        } catch (JacksonException unreadAsATree) {
+            return;
+        }
+        if (holding.isEmpty() || !WARNED_OF.add(file.toAbsolutePath().normalize())) {
+            return;
+        }
+        boolean both = holding.size() == 2;
+        LOG.warn("{} holds {}, which Vespera no longer reads, since every copy of a document in another language is"
+                        + " now kept: {} ignored, and left out the next time Vespera writes the profile",
+                file, String.join(" and ", holding), both ? "they are" : "it is");
     }
 
     /** Writes the profile out whole, creating the working directory if it is not there yet. */

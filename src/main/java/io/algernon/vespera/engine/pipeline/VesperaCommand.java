@@ -441,7 +441,7 @@ public class VesperaCommand implements Callable<Integer> {
                 }
             }
             return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null);
         }
 
         /**
@@ -906,7 +906,26 @@ public class VesperaCommand implements Callable<Integer> {
          * @return 0 where it was delivered, else the code its stop carries (1 where it carries none of its own)
          */
         private int deliverTo(Plugin plugin, boolean bare, Map<String, Set<String>> finished, List<Runs.Listed> runs) {
-            Optional<String> generation = lastDrawn(plugin, finished, runs);
+            Optional<LastRunReader.Arrival> lastRun = LastRunReader.of(workingDirectoryInUse, StageModules.GENERATION.stage());
+            Optional<String> generation;
+            if (lastRun.isPresent()) {
+                String arrived = lastRun.get().generationRun();
+                if (arrived == null
+                        || !finished.getOrDefault(arrived, Set.of()).contains(StepNames.GENERATION)) {
+                    return stopped(plugin, bare
+                            ? "vespera publish sent nothing: the last vespera run did not reach the deliverable."
+                                    + " Run vespera run to the deliverable, and publish again."
+                            : "vespera publish sent nothing to " + plugin.name() + ": the last vespera run did not"
+                                    + " reach the deliverable. Run vespera run to the deliverable, and publish again.");
+                }
+                Path drawn = renderingOf(plugin, arrived);
+                generation = Files.isRegularFile(drawn.resolve(plugin.listName()))
+                        || Files.isRegularFile(drawn.resolve(Plugin.DRAWING_STATE_FILE_NAME))
+                                ? Optional.of(arrived)
+                                : Optional.empty();
+            } else {
+                generation = lastDrawn(plugin, finished, runs);
+            }
             if (generation.isEmpty()) {
                 return stopped(plugin, bare
                         ? "vespera publish sent nothing: no Confluence rendering is drawn in this working directory."
@@ -939,7 +958,7 @@ public class VesperaCommand implements Callable<Integer> {
         }
 
         /**
-         * The last generation run minted whose generation step finished and whose tree holds {@code plugin}'s folder
+         * Where no copy of a {@code vespera run}'s report is kept (ADR-393 §7), the last generation run minted whose generation step finished and whose tree holds {@code plugin}'s folder
          * with its list or a {@code drawing.txt}: the last run to have drawn it, or begun to, so that an older run's
          * rendering is never sent in place of one whose drawing did not finish (ADR-333 §6, §11).
          */

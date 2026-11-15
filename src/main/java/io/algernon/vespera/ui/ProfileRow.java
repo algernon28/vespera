@@ -409,7 +409,7 @@ final class ProfileRow {
     private Node controlFor(List<String> models, Dialogs dialogs) {
         return switch (key.kind()) {
             case NUMBER -> numberControl();
-            case NAME_ENDINGS, LANGUAGES -> listControl();
+            case NAME_ENDINGS -> listControl();
             case FOLDERS, CORPUS_FOLDERS -> SelectableText.line("");
             case TEXT -> switch (key) {
                 case EMBEDDING_MODEL, GENERATION_MODEL -> choice(models);

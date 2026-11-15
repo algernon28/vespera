@@ -78,7 +78,7 @@ final class ReportHtml {
 
     private static final List<String> BLOCKING = List.of(
             "broken", "duplicate-of", "superseded-by", "out-of-scope", "code",
-            "extraction-failed", "degenerate-output", "redundant-with", "translation-of", "below-threshold");
+            "extraction-failed", "degenerate-output", "redundant-with", "below-threshold");
 
     /** What each tile shows, as hover text: one for each tile key and each blocking kind (ADR-275 section 2). */
     private static final Map<String, String> TILE_HOVER = Map.ofEntries(
@@ -96,7 +96,6 @@ final class ReportHtml {
             Map.entry("extraction-failed", "Occurrences removed because the document converter could not turn them into text."),
             Map.entry("degenerate-output", "Occurrences removed because the converted text is too poor or too short to use."),
             Map.entry("redundant-with", "Occurrences removed because their text repeats or is contained in another document."),
-            Map.entry("translation-of", "Occurrences removed because they are a translation of a document kept in another language."),
             Map.entry("below-threshold", "Occurrences removed because their relevance scores below the threshold."));
 
     /**

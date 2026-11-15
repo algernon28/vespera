@@ -4,7 +4,6 @@ import io.algernon.vespera.engine.corpus.Walk;
 import io.algernon.vespera.engine.embedding.RelevanceLabels;
 import io.algernon.vespera.engine.ledger.Ledger;
 import io.algernon.vespera.engine.ledger.RunId;
-import io.algernon.vespera.engine.profile.LanguagesValue;
 import io.algernon.vespera.engine.profile.NameEndingsValue;
 import io.algernon.vespera.engine.profile.NumericValue;
 import io.algernon.vespera.engine.profile.Profile;
@@ -635,10 +634,6 @@ class NextAction {
                         .map(line -> runWanting(line, "outOfScopeNameEndings", "codeNameEndings")))
                 .or(() -> theConfigurationFloorUnreadable(profile)
                         .map(line -> runWanting(line, "configurationSettingShareFloor")))
-                .or(() -> theTranslationFloorUnreadable(profile)
-                        .map(line -> runWanting(line, "translationSimilarityFloor")))
-                .or(() -> thePreferredLanguagesUnreadable(profile)
-                        .map(line -> runWanting(line, "preferredLanguages")))
                 .or(() -> theExtractionAttemptIgnored(profile)
                         .map(line -> runWanting(line, ExtractionAttempt.KEY)))
                 .or(() -> theClusterResolutionIgnored(profile)
@@ -664,31 +659,6 @@ class NextAction {
                 + quoted(profile.clusterResolution().value().strip()) + ", which is not a number above 0, so this run"
                 + " ignored it and divided the documents at the resolution configuration names. Next: write a number"
                 + " above 0 into clusterResolution in " + PROFILE + ", or remove it, and run again.");
-    }
-
-    // The line for translationSimilarityFloor (ADR-271 section 8), in the shape of logTimestampShareFloor's:
-    // empty unless it holds something no number can be read from. Unset is not reported.
-    private static Optional<String> theTranslationFloorUnreadable(Profile profile) {
-        if (profile.translationSimilarityFloor().reading() instanceof NumericValue.Unreadable unreadable) {
-            return Optional.of("Every run value is set, but translationSimilarityFloor reads "
-                    + quoted(unreadable.text()) + ", which is not a number, so this run ignored it and applied"
-                    + " no likeness between languages. Next: write a similarity between 0 and 1 into"
-                    + " translationSimilarityFloor in " + PROFILE + ", read off " + TranslationTasklet.PAGE_FILE_NAME
-                    + ", and run again.");
-        }
-        return Optional.empty();
-    }
-
-    // The line for preferredLanguages (ADR-271 section 8): empty unless a piece of it is not a two-letter code.
-    private static Optional<String> thePreferredLanguagesUnreadable(Profile profile) {
-        if (profile.preferredLanguages().reading() instanceof LanguagesValue.Unreadable unreadable) {
-            return Optional.of("Every run value is set, but preferredLanguages reads "
-                    + quoted(unreadable.text()) + ", which is not a list of two-letter language codes, so this"
-                    + " run ignored it and removed no copy in another language. Next: write the languages to keep"
-                    + " into preferredLanguages in " + PROFILE + ", most preferred first, as two-letter codes"
-                    + " separated by spaces or commas, and run again.");
-        }
-        return Optional.empty();
     }
 
     /**

@@ -50,6 +50,14 @@ interface Dialogs {
      */
     Optional<String> warnAndAsk(String title, String sentence, String initial);
 
+    /**
+     * Shows New…'s one field, holding {@code proposed}, which the operator may edit, with Browse for its parent, OK and
+     * Cancel (ADR-393 §6): the folder written in it, empty where cancelled. A test answers it without a native dialog.
+     */
+    default Optional<Path> newWorkingDirectory(Path proposed) {
+        return Optional.empty();
+    }
+
     /** Hands {@code address}, a document that is no report of the window, to the operating system to open (ADR-344 §6). */
     void handToTheSystem(URI address);
 
@@ -187,6 +195,47 @@ interface Dialogs {
                 ask.getDialogPane().setContent(new VBox(8, words, field));
                 ask.getDialogPane().getButtonTypes().setAll(goOn, keep);
                 ask.setResultConverter(pressed -> pressed == goOn ? field.getText() : null);
+                Window over = owner.get();
+                if (over != null) {
+                    ask.initOwner(over);
+                    themed(ask.getDialogPane(), over);
+                }
+                return ask.showAndWait();
+            }
+
+            @Override
+            public Optional<Path> newWorkingDirectory(Path proposed) {
+                ButtonType goOn = new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
+                ButtonType keep = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+                Dialog<Path> ask = new Dialog<>();
+                ask.setTitle("New working directory");
+                TextField field = new TextField(proposed.toString());
+                field.setId("working-directory-new-field");
+                javafx.scene.control.Button browse = new javafx.scene.control.Button("Browse");
+                browse.setId("working-directory-new-browse");
+                browse.setOnAction(event -> {
+                    Path named = Path.of(field.getText().strip());
+                    Path parent = named.getParent();
+                    folder("Choose the folder the working directory is made in", parent == null ? "" : parent.toString())
+                            .ifPresent(chosen -> field.setText(chosen.resolve(named.getFileName()).toString()));
+                });
+                Label words = new Label("The folder of the new working directory. Its name is the corpus root's folder"
+                        + " name and the day; edit it as you like.");
+                words.setWrapText(true);
+                javafx.scene.layout.HBox line = new javafx.scene.layout.HBox(8, field, browse);
+                javafx.scene.layout.HBox.setHgrow(field, javafx.scene.layout.Priority.ALWAYS);
+                ask.getDialogPane().setContent(new VBox(8, words, line));
+                ask.getDialogPane().getButtonTypes().setAll(goOn, keep);
+                ask.setResultConverter(pressed -> {
+                    if (pressed != goOn || field.getText().isBlank()) {
+                        return null;
+                    }
+                    try {
+                        return Path.of(field.getText().strip()).toAbsolutePath().normalize();
+                    } catch (RuntimeException cannotBeHeld) {
+                        return null;
+                    }
+                });
                 Window over = owner.get();
                 if (over != null) {
                     ask.initOwner(over);

@@ -101,7 +101,7 @@ final class JobSampler implements JobExecutionListener {
      */
     private static final List<String> BLOCKING = List.of(
             "broken", "duplicate-of", "superseded-by", "out-of-scope", "code",
-            "extraction-failed", "degenerate-output", "redundant-with", "translation-of", "below-threshold");
+            "extraction-failed", "degenerate-output", "redundant-with", "below-threshold");
 
     /** The steps that remove occurrences, in job order, and the kinds each records (ADR-268 section 1). */
     private static final Map<String, List<String>> OUTCOME_STEPS = new LinkedHashMap<>();
@@ -111,7 +111,6 @@ final class JobSampler implements JobExecutionListener {
                 StepNames.BYTE_LEVEL_REDUCTION, List.of("broken", "duplicate-of", "superseded-by", "out-of-scope", "code"));
         OUTCOME_STEPS.put(StepNames.EXTRACTION, List.of("extraction-failed", "degenerate-output"));
         OUTCOME_STEPS.put(StepNames.CONTENT_REDUNDANCY, List.of("redundant-with"));
-        OUTCOME_STEPS.put(StepNames.TRANSLATION, List.of("translation-of"));
         OUTCOME_STEPS.put(StepNames.RELEVANCE_FLOOR, List.of("below-threshold"));
     }
 
@@ -765,10 +764,10 @@ final class JobSampler implements JobExecutionListener {
                     List.of(StageModules.CONTENT_REDUNDANCY.stage()), OUTCOME_STEPS.get(StepNames.CONTENT_REDUNDANCY)),
             new StageOfChart("5",
                     List.of(StepNames.SEED_EXTRACTION, StepNames.SEED_CORPUS_COMPARISON, StepNames.EMBEDDING_SCORING,
-                            StepNames.TRANSLATION, StepNames.RELEVANCE_SCORING, StepNames.RELEVANCE_FLOOR,
+                            StepNames.RELEVANCE_SCORING, StepNames.RELEVANCE_FLOOR,
                             StepNames.CLUSTERING, StepNames.RELEVANCE_REPORT),
                     List.of(StageModules.SEED_MEASUREMENT.stage(), StageModules.EMBEDDING_SCORING.stage()),
-                    List.of("translation-of", "below-threshold")),
+                    List.of("below-threshold")),
             new StageOfChart("6a", List.of(StepNames.ARRANGEMENT), List.of(StageModules.ARRANGEMENT.stage()), List.of()),
             new StageOfChart("6b", List.of(StepNames.GENERATION), List.of(StageModules.GENERATION.stage()), List.of()));
 

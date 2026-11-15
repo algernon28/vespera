@@ -21,8 +21,7 @@ public final class Legs {
     public static final List<Leg> ALL = List.of(
             new Leg("deduplication", List.of("census", "byte-level-reduction", "extraction", "content-census",
                     "redundancy-signature", "content-redundancy")),
-            new Leg("translation", List.of("seed-extraction", "seed-corpus-comparison", "embedding-scoring",
-                    "translation")),
+            new Leg("relevance", List.of("seed-extraction", "seed-corpus-comparison", "embedding-scoring")),
             new Leg("clustering", List.of("relevance-scoring", "relevance-floor", "clustering", "relevance-report")),
             new Leg("generation", List.of("arrangement", "generation")));
 
