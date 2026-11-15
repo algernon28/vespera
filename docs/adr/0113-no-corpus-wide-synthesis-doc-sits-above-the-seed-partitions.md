@@ -1,5 +1,7 @@
 # ADR-113 — No corpus-wide synthesis doc sits above the seed partitions; the deliverable's top level stays mechanical
 
+> **Partly reopened — see [ADR-396](0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md).** Each topic has a short generated overview, written at 6b over its clusters' synthesis docs. This record's third reason, that the top level is the operator's own structure, does not hold of a topic, which the operator does not name; its first is answered by the overview citing the topic's clusters by ordinal, checked as ADR-109 checks a cluster's citations, one retry and then a placeholder and a fault where it fails; its second, synthesis over synthesis, is accepted for a topic's overview, which reads its clusters' synthesis docs and cites the clusters. No corpus-wide synthesis doc sits above the topics: that stands.
+
 - **Date**: 2026-09-13
 - **Status**: accepted
 - **Closes a deferral in**: [ADR-103](0103-the-deliverable-is-a-markdown-tree-in-the-working-directory-one-tree-per-run-id.md) — *"Whether a **generated** overview sits above the partitions as well is not settled here."* It is settled here, and the answer is no. Nothing that record decided changes: `index.md` is mechanical, and it stays mechanical.

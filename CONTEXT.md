@@ -119,7 +119,7 @@ _Avoid_: language duplicates, localised copies, language variants, translation c
 ### Relevance
 
 **Seed set**:
-The operator-supplied folder of known-relevant documents. The sole carrier of domain knowledge in the system: it defines relevance, names the top level of the arrangement, and shapes what sits beneath it.
+The operator-supplied folder of known-relevant documents. The sole carrier of domain knowledge in the system: it defines relevance, scored against each of its documents, and its passages are what the topics at the top level of the arrangement are inferred from (ADR-396). It names no topic itself: one seed may feed several topics, several seeds one, and a seed may feed none.
 _Avoid_: training set, examples, ground truth
 
 **Unusable seed**:
@@ -127,7 +127,7 @@ A seed document extraction produced no text from, or none outside its page heade
 _Avoid_: broken seed, failed seed, invalid seed
 
 **Seed/corpus mismatch**:
-A difference in *form* between the seed set and the survivors it will be scored against — language, length, born-digital against converted, OCR damage — large enough that the score measures format rather than topic. A measurement and never a judgement: it is reported before the corpus is embedded, and what to do about it is the operator's. It cannot see a mismatch of subject, which only the score distribution reveals.
+A difference in *form* between the seed set and the survivors it will be scored against — language, length, born-digital against converted, OCR damage — large enough that the score measures format rather than subject. A measurement and never a judgement: it is reported before the corpus is embedded, and what to do about it is the operator's. It cannot see a mismatch of subject, which only the score distribution reveals.
 _Avoid_: drift, skew, bias, incompatible seeds
 
 **Hard negative**:
@@ -142,12 +142,20 @@ _Avoid_: annotation, ground truth, judgement, rating
 The one seed document that produced a file occurrence's relevance score. Stored, so that a seed's influence over the corpus is a question anyone can ask.
 _Avoid_: best match, nearest seed
 
+**Topic**:
+One of the subjects the seed set's passages fall into, found across the passages of every seed rather than taken one per seed file, so that one seed may feed several topics and several seeds one (ADR-396). The top level of the arrangement, and the unit clustering runs within. How many there are is inferred from the passages and never set by the operator; a topic whose share of all seed passages is under a measured floor is not one, and a seed whose passages all fall under it feeds no topic. The same seed set, models and configuration give the same topics every run. Named by the local model, but its name is a rendering stored under its run, never its identity. Not a judgement: nothing is removed for the topic it lands in, and relevance is still scored against the seeds, not the topics. A topic no survivor is placed under has no folder, and is reported.
+_Avoid_: seed partition (retired: a topic is no one seed's), bucket, category, theme (a cluster's rejected word), class
+
+**Winning topic**:
+The one topic a survivor is placed under: where it is arranged, clustered and copied, once (ADR-280, ADR-396). Chosen by a placement step of its own, apart from the relevance score, whose provenance stays the winning seed (ADR-020). Every survivor has one, a survivor no topic fits well taking its nearest (ADR-105); each other topic it fits carries a link to it, and no second copy.
+_Avoid_: best topic, assigned topic, home topic, primary topic, the winning seed's topic (a seed may feed several topics, or none)
+
 **Seed partition**:
-All file occurrences sharing a winning seed. The unit within which grouping happens, and the top level of the arrangement — so its size is also a statement about the seed that owns it.
-_Avoid_: bucket, category, topic
+Retired by ADR-396, which put the topic in its place. It was all file occurrences sharing a winning seed: the top level of the arrangement and the unit clustering ran within, one for each seed that won a survivor. No name of ours added from ADR-396 on says it, but to name its retirement. The names of ours that still say partition, as `partition_order` and the `seed_partition` column of `documents.csv`, name the code that still holds them, and each is settled by the child of map [#822](https://github.com/algernon28/vespera/issues/822) that rebuilds that code.
+_Avoid_: bucket, category
 
 **Cluster**:
-Documents within one seed partition that belong together by subject, and one of however many that partition breaks into — the level below the partition in the arrangement. An arrangement of relevant documents, never a set of interchangeable ones (that is a redundancy set), and never a judgement: nothing is removed for the cluster it lands in. What a document contributes to it is what the document *is*, not the passage that earned its score.
+Documents within one topic that belong together by subject, and one of however many that topic breaks into — the lowest level of the arrangement (ADR-396). An arrangement of relevant documents, never a set of interchangeable ones (that is a redundancy set), and never a judgement: nothing is removed for the cluster it lands in. What a document contributes to it is what the document *is*, not the passage that earned its score.
 _Avoid_: group, theme, cluster of duplicates
 _Renders as_: **group**, and only in prose written for a reader outside this project; ADR-122 enumerates the audiences. In a deliverable whose language is Italian, **gruppo**, never the borrowed *cluster* (ADR-321). Everything we name ourselves says cluster, the header of `documents.csv` included. This line is the rendering, not the rule: ADR-122 states the rule once and enumerates what is bound and what is not, and is the place to read it. The rendering exists because the everyday sense of "cluster" is the one this entry spends a sentence refusing, and that reader cannot reach the entry.
 
@@ -333,11 +341,11 @@ A generated document that makes a set of survivors coherent by connecting them. 
 _Avoid_: summary, digest, abstract
 
 **Arrangement**:
-The shape stage 6a gives the survivors: seed partitions at the top, clusters beneath them. An order over survivors, never a copy of them — a document is arranged where it belongs, not moved there. Ordered in both senses: the two levels are a structure, and each level is also a sequence, chosen rather than inherited from the filesystem. The sequence is part of what the operator approves at the gate, so nothing downstream re-sorts it. Code is not arranged: it is not a survivor, and is held in code sets instead (ADR-284), which the deliverable copies whole under `code/` (ADR-296).
-_Avoid_: page tree, hierarchy, taxonomy (a seed set names one; the arrangement is what that naming produces)
+The shape stage 6a gives the survivors: topics at the top, each survivor under its winning topic, and clusters beneath them within each topic, with at most one level between the two where a topic is crowded (ADR-396). An order over survivors, never a copy of them — a document is arranged where it belongs, not moved there. Ordered in both senses: the levels are a structure, and each level is also a sequence, chosen rather than inherited from the filesystem. The sequence is part of what the operator approves at the gate, so nothing downstream re-sorts it; the topics, the level between a topic and its clusters, and their names are shown there read-only, as topic › that level › clusters, and are neither approved nor edited. Code is not arranged: it is not a survivor, and is held in code sets instead (ADR-284), which the deliverable copies whole under `code/` (ADR-296).
+_Avoid_: page tree, hierarchy, taxonomy (the topics are inferred from the seed set's passages, not a taxonomy anyone names; the arrangement is the shape they and the clusters give the survivors)
 
 **Cluster label**:
-What stage 6a calls a cluster: derived from the cluster's own members — the title of its highest-scoring document, and how many documents it holds. Derived rather than written, so it exists before anything is generated and can be checked against a document anyone can open. Never unique and never edited by hand: a cluster is identified by its ordinal within its seed partition, not by what it is called.
+What stage 6a calls a cluster: derived from the cluster's own members — the title of its highest-scoring document, and how many documents it holds. Derived rather than written, so it exists before anything is generated and can be checked against a document anyone can open. Never unique and never edited by hand: a cluster is identified by its ordinal, not by what it is called.
 _Avoid_: cluster name (a cluster has two, and the word chosen says which), heading
 
 **Cluster title**:
@@ -382,7 +390,7 @@ The one language a generation run's deliverable is in: the language the model is
 _Avoid_: locale, output language, target language, publication language (publication is the state the deliverable is handed over in), translation (nothing is translated)
 
 **Confluence rendering**:
-The second rendering of the deliverable, which stage 6b draws beside the HTML tree in Confluence's storage format, as files a publish sends to the operator's Confluence Cloud site (ADR-301, ADR-308, [#610](https://github.com/algernon28/vespera/issues/610)). Its pages are the root page, the index's counterpart, a seed partition's page for each seed partition, and a cluster's page for each cluster. A cluster's page carries its copies as files (ADR-313), and each picture it shows as the picture's file (ADR-314). It is drawn by stage 6b, and sent only by a publish: nothing else in this project sends it. A plugin draws and delivers it, and a drawing of it that does not finish leaves the HTML tree whole and a publish to it refused until a drawing finishes (ADR-333). It lies under `confluence/` at the tree's root (ADR-312); what each page holds is left to later tickets of map [#604](https://github.com/algernon28/vespera/issues/604).
+The second rendering of the deliverable, which stage 6b draws beside the HTML tree in Confluence's storage format, as files a publish sends to the operator's Confluence Cloud site (ADR-301, ADR-308, [#610](https://github.com/algernon28/vespera/issues/610)). Its pages are the root page, the index's counterpart, a page for each topic, its overview above the table of its clusters (ADR-396), and a cluster's page for each cluster. A cluster's page carries its copies as files (ADR-313), and each picture it shows as the picture's file (ADR-314). It is drawn by stage 6b, and sent only by a publish: nothing else in this project sends it. A plugin draws and delivers it, and a drawing of it that does not finish leaves the HTML tree whole and a publish to it refused until a drawing finishes (ADR-333). It lies under `confluence/` at the tree's root (ADR-312); what each page holds is left to later tickets of map [#604](https://github.com/algernon28/vespera/issues/604).
 _Avoid_: Confluence output, Confluence export, export, the wiki, wiki export, space export, upload, Confluence tree, Confluence version
 
 **Plugin**:
@@ -411,11 +419,11 @@ The file of the Confluence rendering that a publish reads, listing the rendering
 _Avoid_: manifest (the deliverable's `documents.csv`), index (`index.html`, whose counterpart is the root page), load plan, sitemap, table of contents
 
 **Seed partition's page**:
-The Confluence rendering's parent page for one seed partition, under the root page and over the pages of its clusters ([#610](https://github.com/algernon28/vespera/issues/610)). The HTML tree has none: there a seed partition is a heading on the index and a folder (ADR-274 §1.4).
+Retired by ADR-396, with the seed partition. It was the Confluence rendering's parent page for one seed partition, under the root page and over the pages of its clusters ([#610](https://github.com/algernon28/vespera/issues/610)). The HTML tree gave a seed partition a heading on the index and a folder, and no page (ADR-274 §1.4). In its place a topic has a page: in the HTML tree the topic's overview is that page, and on Confluence the overview sits above the table of the topic's clusters (ADR-396).
 _Avoid_: partition page, section page, category page, folder (Confluence Cloud's folders, ruled out by map [#604](https://github.com/algernon28/vespera/issues/604))
 
 **Cluster folder**:
-The folder of the deliverable a cluster's pages lie in, `<partition>/<cluster>/`, named with the cluster's place in its seed partition and the slug of its cluster label (ADR-112, ADR-280). It holds the cluster's page or pages, `index.html` and, where the cluster is past `clusterPageByteCeiling`, `index-2.html` on (ADR-303), and the copy of each of the cluster's survivors, and nothing else: the pictures a page shows are inlined in it (ADR-286). Its counterpart under `confluence/` holds the cluster's page bodies and its pictures' files, and no copy (ADR-312, ADR-314); its counterpart under `website/` holds its pages, and no copy until a publish writes them into the website (ADR-333). A rendering, like the label it is named from: never the cluster's identity.
+The folder of the deliverable a cluster's pages lie in, `<topic>/<cluster>/`, a level deeper where its topic is crowded, named with the cluster's place in its topic and the slug of its cluster label (ADR-112, ADR-280, ADR-396). It holds the cluster's page or pages, `index.html` and, where the cluster is past `clusterPageByteCeiling`, `index-2.html` on (ADR-303), and the copy of each of the cluster's survivors, and nothing else: the pictures a page shows are inlined in it (ADR-286). Its counterpart under `confluence/` holds the cluster's page bodies and its pictures' files, and no copy (ADR-312, ADR-314); its counterpart under `website/` holds its pages, and no copy until a publish writes them into the website (ADR-333). A rendering, like the label it is named from: never the cluster's identity.
 _Avoid_: group folder (group is how a cluster renders for a reader, never a name of ours), page folder
 
 **Cluster page**:

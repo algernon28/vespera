@@ -1,5 +1,7 @@
 # ADR-027 — Clustering moves to stage 5
 
+> **Partly amended — see [ADR-396](0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md).** The scope of stage 5's clustering, which ADR-045 clarifies, is each topic, no longer each seed partition. That clustering lies in stage 5 and comes before the floor is set stands. The summary is transcribed verbatim and is not edited.
+
 > **Reconstituted record — the original text of this ADR is lost.**
 > Rebuilt on 2026-08-22 from the decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md), the only surviving record of these decisions. The summary below is transcribed **verbatim** from that digest.
 > There are deliberately no Context, Decision or Consequences sections: that rationale was not recorded in the digest, and inferring it would place invented reasoning under an original date. Where a later decision amends this one, the digest says so inside the summary, and it is transcribed as written.

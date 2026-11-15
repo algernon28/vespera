@@ -2,6 +2,8 @@
 
 > **Amended — see ADR-105.** [ADR-105](0105-stage-6a-names-the-arrangement-stage-5-already-built-and-unattributed-is-struck.md) **amends this record** in two places: 6a does not build a page tree, because clustering moved to stage 5 ([ADR-027](0027-clustering-moves-to-stage-5.md)) and the structure is already in the ledger — 6a names and orders it; and the `unattributed` top-level node is struck, having no members it could ever hold. The 6a/6b split, and the human gate between them, survive untouched.
 
+> **Partly amended — see [ADR-396](0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md).** *"seed-named top level"*: the top level is the topics inferred from the seed set's passages, no longer one for each seed. The split between 6a and 6b, and the gate between them, stand. The summary is transcribed verbatim and is not edited.
+
 > **Reconstituted record — the original text of this ADR is lost.**
 > Rebuilt on 2026-08-22 from the decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md), the only surviving record of these decisions. The summary below is transcribed **verbatim** from that digest.
 > There are deliberately no Context, Decision or Consequences sections: that rationale was not recorded in the digest, and inferring it would place invented reasoning under an original date. Where a later decision amends this one, the digest says so inside the summary, and it is transcribed as written.
