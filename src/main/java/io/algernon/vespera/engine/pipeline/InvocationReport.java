@@ -42,7 +42,7 @@ final class InvocationReport {
     private static final Logger log = LoggerFactory.getLogger(InvocationReport.class);
 
     /** The format of {@code report.json}, raised by a change that removes, renames or retypes a field (ADR-362 section 3). */
-    static final int FORMAT = 1;
+    static final int FORMAT = 2;
 
     static final String FILE_NAME = "report.json";
 
@@ -71,7 +71,6 @@ final class InvocationReport {
             StepNames.SEED_EXTRACTION,
             StepNames.SEED_CORPUS_COMPARISON,
             StepNames.EMBEDDING_SCORING,
-            StepNames.TRANSLATION,
             StepNames.RELEVANCE_SCORING,
             StepNames.RELEVANCE_FLOOR,
             StepNames.CLUSTERING,
@@ -87,7 +86,7 @@ final class InvocationReport {
             StageModules.CONTENT_REDUNDANCY.stage(), List.of(StepNames.REDUNDANCY_SIGNATURE, StepNames.CONTENT_REDUNDANCY),
             StageModules.SEED_MEASUREMENT.stage(), List.of(StepNames.SEED_EXTRACTION, StepNames.SEED_CORPUS_COMPARISON),
             StageModules.EMBEDDING_SCORING.stage(),
-            List.of(StepNames.EMBEDDING_SCORING, StepNames.TRANSLATION, StepNames.RELEVANCE_SCORING, StepNames.CLUSTERING),
+            List.of(StepNames.EMBEDDING_SCORING, StepNames.RELEVANCE_SCORING, StepNames.CLUSTERING),
             StageModules.ARRANGEMENT.stage(), List.of(StepNames.ARRANGEMENT),
             StageModules.GENERATION.stage(), List.of(StepNames.GENERATION));
 
@@ -99,9 +98,8 @@ final class InvocationReport {
         legs.put("deduplication", List.of(
                 StepNames.CENSUS, StepNames.BYTE_LEVEL_REDUCTION, StepNames.EXTRACTION, StepNames.CONTENT_CENSUS,
                 StepNames.REDUNDANCY_SIGNATURE, StepNames.CONTENT_REDUNDANCY));
-        legs.put(StepNames.TRANSLATION, List.of(
-                StepNames.SEED_EXTRACTION, StepNames.SEED_CORPUS_COMPARISON, StepNames.EMBEDDING_SCORING,
-                StepNames.TRANSLATION));
+        legs.put("relevance", List.of(
+                StepNames.SEED_EXTRACTION, StepNames.SEED_CORPUS_COMPARISON, StepNames.EMBEDDING_SCORING));
         legs.put(StepNames.CLUSTERING, List.of(
                 StepNames.RELEVANCE_SCORING, StepNames.RELEVANCE_FLOOR, StepNames.CLUSTERING, StepNames.RELEVANCE_REPORT));
         legs.put(StepNames.GENERATION, List.of(StepNames.ARRANGEMENT, StepNames.GENERATION));
@@ -113,16 +111,15 @@ final class InvocationReport {
             StepNames.CENSUS, "0", StepNames.RELEVANCE_FLOOR, "5e", StepNames.RELEVANCE_REPORT, "5");
 
     /**
-     * The twelve analysis reports, by the name of the page each writes (ADR-362 section 9); a report is named by its
+     * The eleven analysis reports, by the name of the page each writes (ADR-362 section 9); a report is named by its
      * page's name without the ending, which {@link #ANALYSIS_REPORTS} holds.
      */
     private static final List<String> ANALYSIS_PAGES = List.of(
             "format-mix.html", "extraction-failures.html", "extraction-survivors.html", "confidence-distribution.html",
             "word-count-distribution.html", "document-frequency.html", "seed-corpus-comparison.html",
-            "translations.html", "relevance-labelling.html", "cluster-sizes.html", "arrangement.html",
-            "cluster-page-sizes.html");
+            "relevance-labelling.html", "cluster-sizes.html", "arrangement.html", "cluster-page-sizes.html");
 
-    /** The twelve analysis reports, by name. */
+    /** The eleven analysis reports, by name. */
     static final List<String> ANALYSIS_REPORTS =
             ANALYSIS_PAGES.stream().map(page -> page.substring(0, page.length() - ".html".length())).toList();
 
@@ -132,7 +129,6 @@ final class InvocationReport {
             Map.entry(ReviewListReport.NAME, 1),
             Map.entry(SurvivorListReport.NAME, 1),
             Map.entry(SeedCorpusComparisonReport.NAME, 1),
-            Map.entry(TranslationReport.NAME, TranslationReport.FORMAT),
             Map.entry(ClusterSizeReport.NAME, ClusterSizeReport.FORMAT),
             Map.entry(RelevanceLabellingReport.NAME, RelevanceLabellingReport.FORMAT),
             Map.entry(ArrangementReport.NAME, AnalysisReportJson.FORMAT),
@@ -163,8 +159,6 @@ final class InvocationReport {
             Map.entry("codeNameEndings", List.of("format-mix.html")),
             Map.entry("outOfScopeNameEndings", List.of("format-mix.html")),
             Map.entry("configurationSettingShareFloor", List.of("format-mix.html")),
-            Map.entry("preferredLanguages", List.of("translations.html")),
-            Map.entry("translationSimilarityFloor", List.of("translations.html")),
             Map.entry("clusterPageByteCeiling", List.of("cluster-page-sizes.html")),
             Map.entry("clusterResolution", List.of("cluster-sizes.html")));
 

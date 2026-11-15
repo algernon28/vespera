@@ -12,12 +12,12 @@ import java.util.Map;
 public final class Reports {
 
     /**
-     * The twelve analysis reports by name, in the order of ADR-302 §3 and ADR-306 §2, without the progress pages the
+     * The eleven analysis reports by name, in the order of ADR-302 §3 and ADR-306 §2, without the progress pages the
      * Report tab replaces (ADR-362 §8).
      */
     public static final List<String> ALL = List.of("format-mix", "extraction-failures", "extraction-survivors",
             "confidence-distribution", "document-frequency", "word-count-distribution",
-            "seed-corpus-comparison", "translations", "cluster-sizes", "relevance-labelling",
+            "seed-corpus-comparison", "cluster-sizes", "relevance-labelling",
             "arrangement", "cluster-page-sizes");
 
     /** Each analysis report's title by its name, in {@link #ALL}'s order (ADR-377 §5). */
@@ -29,7 +29,6 @@ public final class Reports {
             "document-frequency", "Repeated text across documents",
             "word-count-distribution", "Word count distribution",
             "seed-corpus-comparison", "Your documents compared with your seed documents",
-            "translations", "Copies in another language",
             "cluster-sizes", "Group sizes",
             "relevance-labelling", "Choosing the relevance cut-off",
             "arrangement", "Grouping to approve",
@@ -48,8 +47,6 @@ public final class Reports {
             Map.entry("codeNameEndings", List.of("format-mix")),
             Map.entry("outOfScopeNameEndings", List.of("format-mix")),
             Map.entry("configurationSettingShareFloor", List.of("format-mix")),
-            Map.entry("preferredLanguages", List.of("translations")),
-            Map.entry("translationSimilarityFloor", List.of("translations")),
             Map.entry("clusterPageByteCeiling", List.of("cluster-page-sizes")),
             Map.entry("clusterResolution", List.of("cluster-sizes")));
 

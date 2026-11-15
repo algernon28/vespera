@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-370](0370-every-bar-of-the-cockpits-steps-carries-its-whole-percent-drawn-on-it-and-nothing-else-of-the-window-changes.md).** Of §3: the summary's bar `leg-bar-<leg>` carries the leg's whole percent drawn centred on it, `leg-percent-<leg>`, and each row's bar its step's, `step-percent-<name>`, each bar and its percent standing in the bar's place; the other parts, their ids and their words are unchanged. Of §4: an open leg's summary shows its name alone, its percent hidden with its bar; a leg's percent is that of its bar, 99 at most while it runs. Of §7: a bar with its percent counts as the bar, every bar still one width and every state still starting at one x. The rest of this record stands.
 
+> **Partly amended — see [ADR-392](0392-vespera-finds-no-translation-sets-the-translation-step-its-verdict-its-report-and-its-two-profile-keys-go.md).** Of §1: `Legs.ALL` is `deduplication`, `relevance`, `clustering` and `generation`, `relevance` holding `seed-extraction`, `seed-corpus-comparison` and `embedding-scoring`, over the fifteen steps of `StopCosts.ROWS`. The rest of this record stands.
+
 - **Date**: 2026-11-06
 - **Status**: accepted on 2026-11-06.
 - **Decided**: by the operator, that the cockpit's steps fold into legs as `progress.html`'s timeline folds them ([#726](https://github.com/algernon28/vespera/issues/726)), and that the control panel holds its own copy of the legs' table, which a test holds equal to the progress page's; the ids, what a leg's bar shows, its state before any `progress.json` is read, which legs open, how long a fold the operator makes lasts, the columns and the tests are decided under delegation.

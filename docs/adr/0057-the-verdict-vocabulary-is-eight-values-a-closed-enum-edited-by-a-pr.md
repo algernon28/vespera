@@ -1,5 +1,7 @@
 # ADR-057 — The verdict vocabulary is eight values, a closed enum edited by a PR
 
+> **Partly amended — see [ADR-392](0392-vespera-finds-no-translation-sets-the-translation-step-its-verdict-its-report-and-its-two-profile-keys-go.md).** Of its Decision: `TRANSLATION_OF`, which ADR-271 added, leaves the vocabulary, which is ten values, nine of them blocking. The rest of this record stands.
+
 - **Date**: 2026-08-29
 - **Status**: accepted
 

@@ -1,9 +1,9 @@
 {
   "type": "object",
-  "description": "The invocation report, report.json (ADR-362 section 3), format 1.",
+  "description": "The invocation report, report.json (ADR-362 section 3), format 2.",
   "properties": {
     "format": {
-      "const": 1,
+      "const": 2,
       "description": "The report's format, the integer InvocationReport.FORMAT holds; raised by a change that removes, renames or retypes a field."
     },
     "vespera": {
@@ -389,10 +389,6 @@
               "type": "integer",
               "description": "The figure for redundant-with."
             },
-            "translation-of": {
-              "type": "integer",
-              "description": "The figure for translation-of."
-            },
             "below-threshold": {
               "type": "integer",
               "description": "The figure for below-threshold."
@@ -436,10 +432,6 @@
             "redundant-with": {
               "type": "number",
               "description": "The figure for redundant-with."
-            },
-            "translation-of": {
-              "type": "number",
-              "description": "The figure for translation-of."
             },
             "below-threshold": {
               "type": "number",
@@ -642,10 +634,6 @@
                     "type": "integer",
                     "description": "The figure for redundant-with."
                   },
-                  "translation-of": {
-                    "type": "integer",
-                    "description": "The figure for translation-of."
-                  },
                   "below-threshold": {
                     "type": "integer",
                     "description": "The figure for below-threshold."
@@ -660,7 +648,6 @@
                   "extraction-failed",
                   "degenerate-output",
                   "redundant-with",
-                  "translation-of",
                   "below-threshold"
                 ],
                 "additionalProperties": false
@@ -834,10 +821,6 @@
               "type": "integer",
               "description": "How many were counted as redundant-with."
             },
-            "translation-of": {
-              "type": "integer",
-              "description": "How many were counted as translation-of."
-            },
             "below-threshold": {
               "type": "integer",
               "description": "How many were counted as below-threshold."
@@ -860,7 +843,6 @@
             "extraction-failed",
             "degenerate-output",
             "redundant-with",
-            "translation-of",
             "below-threshold",
             "passed",
             "other"
@@ -1109,7 +1091,7 @@
     },
     "analysisReports": {
       "type": "array",
-      "description": "The twelve analysis reports.",
+      "description": "The eleven analysis reports.",
       "items": {
         "type": "object",
         "description": "One analysis report.",
@@ -1125,7 +1107,6 @@
               "word-count-distribution",
               "document-frequency",
               "seed-corpus-comparison",
-              "translations",
               "relevance-labelling",
               "cluster-sizes",
               "arrangement",

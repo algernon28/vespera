@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-383](0383-a-parents-title-naming-no-page-or-several-stops-a-control-panel-publish-with-its-own-code-and-a-warning-asks-for-another.md).** Of §6: the invocation exits with the code a destination's stop carries where one carries a code of its own, Confluence's 3 or 4 where a publish the control panel started stops at a parent's title naming no page or folder, or several, and 1 where any other stopped; `Plugin.Delivery` gains `exitCode`, its two-component constructor giving 0 and 1. The rest stands.
 
+> **Partly amended — see [ADR-393](0393-a-working-directory-is-named-for-its-corpus-root-and-day-chosen-from-a-list-and-publish-takes-what-the-last-run-reached.md).** Of §6's *"the last generation run whose generation step is recorded finished"*: each destination's rendering is that of the generation run the working directory's last `vespera run` arrived at, as `arrivedAt` names it in that invocation's copy in `logs`; a last run that arrived at none, or at one whose step is not finished, is refused with `vespera publish sent nothing to <name>: the last vespera run did not reach the deliverable. Run vespera run to the deliverable, and publish again.`; and the last minted is taken only where no copy of a `vespera run`'s report is kept. §11's check of `drawing.txt` stands. The rest of this record stands.
+
 - **Date**: 2026-11-02
 - **Status**: accepted on 2026-11-02.
 - **Decided**: by the operator on 2026-11-02: the ruling in bold at the head of each of §1 to §12, the order of §13 and the refusals under Alternatives refused marked as theirs. What a section adds beneath its ruling is what building it needs, and Decided here lists each such choice.

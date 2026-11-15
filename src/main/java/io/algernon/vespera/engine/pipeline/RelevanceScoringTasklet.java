@@ -14,7 +14,6 @@ import io.algernon.vespera.engine.ledger.Ledger;
 import io.algernon.vespera.engine.ledger.ListedPages;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.RunId;
-import io.algernon.vespera.engine.ledger.VerdictKind;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -156,9 +155,7 @@ class RelevanceScoringTasklet implements Tasklet {
                             "counting",
                             "counted",
                             "the corpus survivors",
-                            // a copy removed as a translation under the scoring run is not scored (ADR-271 section 5)
-                            () -> ledger.verdicts().survivorCount(measurementRun)
-                                    - ledger.verdicts().countOfKind(scoring, VerdictKind.TRANSLATION_OF));
+                            () -> ledger.verdicts().survivorCount(measurementRun));
                     LOG.info(
                             "Stage 5d (relevance scoring) starting under scoring run {}: scoring {} corpus"
                                     + " survivor(s) against {} resident seed document(s)",
@@ -202,12 +199,10 @@ class RelevanceScoringTasklet implements Tasklet {
             Map<OccurrenceId, List<float[]>> residentSeedVectors,
             int topSimilarities,
             StageProgress scored) {
-        Set<OccurrenceId> translations = ledger.verdicts().carryingAmong(scoring, VerdictKind.TRANSLATION_OF, page);
-        List<OccurrenceId> toScore = page.stream().filter(id -> !translations.contains(id)).toList();
-        Map<OccurrenceId, String> contentHashes = cacheKeys.requireForOccurrences(toScore, extractionRun);
+        Map<OccurrenceId, String> contentHashes = cacheKeys.requireForOccurrences(page, extractionRun);
         Map<String, Integer> chunkCounts =
                 hybridChunker.chunkCounts(new HashSet<>(contentHashes.values()), ChunkingRule.DEFAULT);
-        for (OccurrenceId occurrenceId : toScore) {
+        for (OccurrenceId occurrenceId : page) {
             String contentHash = contentHashes.get(occurrenceId);
             relevanceScoring.scoreAndRecord(
                     occurrenceId,

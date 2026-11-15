@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,6 +26,8 @@ import javafx.scene.Parent;
 import javafx.scene.control.Accordion;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ListCell;
+import javafx.scene.control.ListView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
@@ -33,6 +36,7 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TitledPane;
 import javafx.scene.control.ToggleGroup;
+import javafx.collections.FXCollections;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -101,6 +105,16 @@ final class Cockpit {
     private final ProfileRow.OpenKeys wantedOpen = new ProfileRow.OpenKeys(true);
     private ProfileRow seedRow;
     private boolean seedStated;
+
+    /** The list of working directories that takes the place of the working directory's field (ADR-393 §4). */
+    private final ListView<Path> workingDirectoryList = new ListView<>();
+    private final Button workingDirectoryNew = new Button("New\u2026");
+    private final Button workingDirectoryBrowse = new Button("Browse");
+    private final Button workingDirectoryRemove = new Button("Remove from list");
+    /** What each listed folder's row said when it was last read: as the window opens, as it is added, as the child ends. */
+    private final Map<Path, WorkingDirectoryRow> rowsRead = new HashMap<>();
+    /** Set while the list moves the launch value, so that the value's change does not move the list in turn. */
+    private boolean choosing;
 
     private final LiveReport live;
     private Ending reportedEnding;
@@ -317,7 +331,16 @@ final class Cockpit {
             }
         }
         Optional<String> refusal = state.start(kind, plan, token, stored);
-        say(refusal.orElse(words + " started" + (stored.isEmpty() ? "" : "; " + String.join("; ", stored))));
+        String started = words + " started" + (stored.isEmpty() ? "" : "; " + String.join("; ", stored));
+        if (refusal.isEmpty() && kind == ControlPanelState.Start.RUN) {
+            // Run warns, and starts, where its working directory is named for another corpus root (ADR-393 section 3)
+            Optional<Path> folder = workingDirectory();
+            Optional<Path> root = corpusRoot();
+            if (folder.isPresent() && root.isPresent()) {
+                started += WorkingDirectoryName.warningToRun(folder.get(), root.get()).map(line -> "\n" + line).orElse("");
+            }
+        }
+        say(refusal.orElse(started));
         sawChild = refusal.isEmpty() || sawChild;
         if (refusal.isEmpty()) {
             startedKind = kind;
@@ -580,10 +603,172 @@ final class Cockpit {
             settleTheEditBeforeLoading();
             loadFiles();
         });
-        VBox pane = new VBox(fieldBox(corpus, "Corpus root", true), fieldBox(working, "Working directory", true),
+        VBox pane = new VBox(fieldBox(corpus, "Corpus root", true), workingDirectoryBox(working),
                 fieldBox(deliverable, "Output folder", true));
         pane.getStyleClass().add("section");
         return pane;
+    }
+
+    // ---- the list of working directories (ADR-393 §4 to §6)
+
+    /**
+     * The list in the place of the working directory's field: the field stays, hidden, as the launch value
+     * {@code vespera.working-dir} the row chosen is; the machine's folder, the first row, chosen is the value left empty.
+     */
+    private Node workingDirectoryBox(LaunchField working) {
+        SelectableText.Line heading = SelectableText.line("Working directory");
+        heading.getStyleClass().add("field-name");
+        SelectableText.Wrapping hint = SelectableText.wrapping(LaunchValues.hintOf(working.property));
+        hint.setId("hint-" + working.property);
+        hint.getStyleClass().add("small");
+        working.input.setVisible(false);
+        working.input.setManaged(false);
+        workingDirectoryList.setId("working-directories");
+        workingDirectoryList.setPrefHeight(160);
+        workingDirectoryList.setCellFactory(list -> new ListCell<>() {
+            @Override
+            protected void updateItem(Path folder, boolean empty) {
+                super.updateItem(folder, empty);
+                setText(empty || folder == null ? null : wordsOfRow(folder));
+            }
+        });
+        workingDirectoryNew.setId("working-directory-new");
+        workingDirectoryBrowse.setId("working-directory-browse");
+        workingDirectoryRemove.setId("working-directory-remove");
+        List<Path> rows = state.workingDirectories().rows();
+        state.workingDirectoryLines().forEach(line -> log.log(System.Logger.Level.WARNING, line));
+        state.sendWorkingDirectoryLinesTo(line -> log.log(System.Logger.Level.WARNING, line));
+        workingDirectoryList.setItems(FXCollections.observableArrayList(rows));
+        rows.forEach(this::readRow);
+        selectTheRowOf(working.text());
+        workingDirectoryList.getSelectionModel().selectedItemProperty().addListener((observed, was, now) -> {
+            if (now != null && !choosing) {
+                choosing = true;
+                try {
+                    working.input.setText(state.workingDirectories().isTheDefault(now) ? "" : now.toString());
+                } finally {
+                    choosing = false;
+                }
+                showTheListsButtons();
+            }
+        });
+        working.input.textProperty().addListener((observed, was, now) -> {
+            if (!choosing) {
+                selectTheRowOf(now.strip());
+            }
+        });
+        workingDirectoryNew.setOnAction(event -> addANewWorkingDirectory());
+        workingDirectoryBrowse.setOnAction(event -> dialogs
+                .folder("Choose the working directory", working.input.getText()).ifPresent(chosen -> {
+                    Path folder = chosen.toAbsolutePath().normalize();
+                    state.workingDirectories().add(folder, false);
+                    drawTheRows(Optional.of(folder));
+                }));
+        workingDirectoryRemove.setOnAction(event -> {
+            Path chosen = workingDirectoryList.getSelectionModel().getSelectedItem();
+            if (chosen != null && !state.childRuns()) {
+                state.workingDirectories().remove(chosen);
+                rowsRead.remove(chosen);
+                drawTheRows(Optional.of(state.workingDirectories().rows().getFirst()));
+            }
+        });
+        showTheListsButtons();
+        HBox buttons = row(workingDirectoryNew, workingDirectoryBrowse, workingDirectoryRemove);
+        VBox box = tight(heading, working.input, workingDirectoryList, buttons, working.status, working.startingLine,
+                hint);
+        box.getStyleClass().add("field");
+        return box;
+    }
+
+    /** What a row says, on one line: its name and the parts of ADR-393 §5. */
+    private String wordsOfRow(Path folder) {
+        WorkingDirectoryRow row = rowsRead.computeIfAbsent(folder, each -> WorkingDirectoryRow.read(each, ZoneId.systemDefault()));
+        return (state.workingDirectories().isTheDefault(folder) ? row.name() + " (this machine's folder)" : row.name())
+                + " \u2014 corpus root: " + row.corpusRoot() + "; last invocation: " + row.lastInvocation()
+                + "; reached: " + row.legReached() + "; next: " + row.next();
+    }
+
+    private void readRow(Path folder) {
+        rowsRead.put(folder, WorkingDirectoryRow.read(folder, ZoneId.systemDefault()));
+    }
+
+    /** Reads every row again, as the window's child ends (ADR-393 §5). */
+    private void readTheRowsAgain() {
+        List<Path> shown = List.copyOf(workingDirectoryList.getItems());
+        rowsRead.clear();
+        shown.forEach(this::readRow);
+        workingDirectoryList.refresh();
+    }
+
+    /** Draws the rows as the state lists them, and chooses {@code chosen} where given, else the row chosen already. */
+    private void drawTheRows(Optional<Path> chosen) {
+        Path was = workingDirectoryList.getSelectionModel().getSelectedItem();
+        List<Path> rows = state.workingDirectories().rows();
+        chosen.ifPresent(this::readRow);
+        choosing = true;
+        try {
+            workingDirectoryList.getItems().setAll(rows);
+        } finally {
+            choosing = false;
+        }
+        Path toChoose = chosen.orElse(was);
+        workingDirectoryList.getSelectionModel().clearSelection();
+        workingDirectoryList.getSelectionModel().select(rows.stream()
+                .filter(each -> toChoose != null && ControlPanelState.namesTheSameFolder(each.toString(), toChoose.toString()))
+                .findFirst().orElse(rows.getFirst()));
+    }
+
+    /** Chooses the row {@code text}, the launch value, names, adding one (not written) where it names a folder not listed. */
+    private void selectTheRowOf(String text) {
+        Optional<Path> named = text.isBlank() ? Optional.empty() : ControlPanelState.pathOf(text);
+        List<Path> rows = state.workingDirectories().rows();
+        Path row = named.flatMap(folder -> rows.stream()
+                .filter(each -> ControlPanelState.namesTheSameFolder(each.toString(), folder.toString())).findFirst())
+                .orElse(named.isEmpty() ? rows.getFirst() : null);
+        boolean was = choosing;
+        choosing = true;
+        try {
+            if (row == null) {
+                Path folder = named.get().toAbsolutePath().normalize();
+                state.workingDirectories().add(folder, false);
+                readRow(folder);
+                workingDirectoryList.getItems().setAll(state.workingDirectories().rows());
+                row = folder;
+            }
+            Path toSelect = row;
+            workingDirectoryList.getSelectionModel().select(workingDirectoryList.getItems().stream()
+                    .filter(each -> ControlPanelState.namesTheSameFolder(each.toString(), toSelect.toString()))
+                    .findFirst().orElse(null));
+        } finally {
+            choosing = was;
+        }
+        showTheListsButtons();
+    }
+
+    /** New\u2026 proposes ADR-393 \u00a72's name and adds the folder as a row, chosen; nothing makes the folder but a Save of the profile. */
+    private void addANewWorkingDirectory() {
+        if (state.childRuns()) {
+            return;
+        }
+        Path chosen = workingDirectory().orElse(Path.of("").toAbsolutePath());
+        Path parent = chosen.toAbsolutePath().getParent() == null ? chosen.toAbsolutePath()
+                : chosen.toAbsolutePath().getParent();
+        Path proposed = WorkingDirectoryName.proposed(parent, corpusRoot(), Instant.now(), ZoneId.systemDefault());
+        dialogs.newWorkingDirectory(proposed).ifPresent(folder -> {
+            state.workingDirectories().add(folder, true);
+            drawTheRows(Optional.of(folder));
+            say("The working directory " + folder + " is to be created by the first Save of the profile");
+        });
+    }
+
+    /** The list cannot be changed while the window's own child runs, as Run cannot be pressed (ADR-393 \u00a74). */
+    private void showTheListsButtons() {
+        boolean runs = state.childRuns();
+        Path chosen = workingDirectoryList.getSelectionModel().getSelectedItem();
+        workingDirectoryList.setDisable(runs);
+        workingDirectoryNew.setDisable(runs);
+        workingDirectoryBrowse.setDisable(runs);
+        workingDirectoryRemove.setDisable(runs || chosen == null || state.workingDirectories().isTheDefault(chosen));
     }
 
     private void where() {
@@ -890,6 +1075,8 @@ final class Cockpit {
             return;
         }
         showDatabaseSize();
+        state.workingDirectories().keepWhatWasMade();
+        showTheListsButtons();
         boolean runs = state.childRuns();
         Optional<Ending> ending = state.ending();
         ending.ifPresent(this::warnOfTheParentsTitle);
@@ -916,6 +1103,7 @@ final class Cockpit {
         child.setText(childWords(runs, ending));
         if (ending.isPresent() && ending.get() != wantedFor) {
             wantedFor = ending.get();
+            readTheRowsAgain();
             Map<String, Boolean> written = folders.writtenReports();
             profile.showReports(written);
             wanted.showReports(written);

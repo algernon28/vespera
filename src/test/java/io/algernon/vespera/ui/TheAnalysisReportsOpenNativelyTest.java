@@ -49,7 +49,7 @@ class TheAnalysisReportsOpenNativelyTest {
     private static final String THE_REPORT = "format-mix";
 
     /** A report whose JSON the cell of {@link #THE_REPORT}'s table names and the test writes. */
-    private static final String WRITTEN = "translations";
+    private static final String WRITTEN = "arrangement";
 
     /** A report whose JSON the working directory does not hold, named by a cell of {@link #THE_REPORT}. */
     private static final String NOT_WRITTEN = "cluster-sizes";
@@ -127,7 +127,7 @@ class TheAnalysisReportsOpenNativelyTest {
         Files.writeString(workingDirectory.resolve(Reports.jsonOf(THE_REPORT)), "{\"format\":1,\"title\":\"cut",
                 StandardCharsets.UTF_8);
         Files.writeString(workingDirectory.resolve(Reports.jsonOf(WRITTEN)),
-                json(WRITTEN, "Translations", WRITTEN_AT, "1").replace("\"format\":1", "\"format\":2"),
+                json(WRITTEN, "Grouping to approve", WRITTEN_AT, "1").replace("\"format\":1", "\"format\":2"),
                 StandardCharsets.UTF_8);
 
         String cut;

@@ -10,8 +10,6 @@ import io.algernon.vespera.engine.ledger.ImplementationVersions;
 import io.algernon.vespera.engine.ledger.Ledger;
 import io.algernon.vespera.engine.ledger.RunId;
 import io.algernon.vespera.engine.ledger.WalkId;
-import io.algernon.vespera.engine.profile.LanguagesValue;
-import io.algernon.vespera.engine.profile.NumericValue;
 import io.algernon.vespera.engine.profile.Profile;
 import io.algernon.vespera.engine.profile.ProfileStore;
 import io.algernon.vespera.engine.similarity.MinHashParameters;
@@ -19,7 +17,6 @@ import io.algernon.vespera.engine.similarity.RedundancyThresholds;
 import io.algernon.vespera.engine.similarity.ShingleParameters;
 import io.algernon.vespera.engine.synthesis.ClusterSynthesis;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
@@ -123,10 +120,6 @@ class StageRuns {
     private String embeddingModelName;
     private ModelArtefact embeddingModelArtefact;
     private Double relevanceScoreFloor;
-    private Double translationSimilarityFloor;
-    private List<String> preferredLanguages;
-    private NumericValue.Reading translationSimilarityFloorReading;
-    private LanguagesValue.Reading preferredLanguagesReading;
     private RunId arrangement;
     private RunId generation;
 
@@ -363,21 +356,9 @@ class StageRuns {
         RunId measurementRunId = seedMeasurement();
         // Read here, fresh on every mint, rather than through a bean of its own: this holder is
         // @JobScope, so this is the freshness ADR-117 needs a changed profile value to be seen with.
-        // One load of the profile serves all three values (ADR-273 section 2).
+        // One load of the profile serves the values it is minted under.
         Profile profile = profileStore.load();
         Double relevanceScoreFloor = RelevanceScoreFloorValue.from(profile).value();
-        // The two keys of ADR-271 section 6 are read beside it: a number or null, the codes or none. Their
-        // readings are kept from the same load for the page (ADR-273 section 3).
-        NumericValue.Reading translationSimilarityFloorReading =
-                profile.translationSimilarityFloor().reading();
-        LanguagesValue.Reading preferredLanguagesReading =
-                profile.preferredLanguages().reading();
-        Double translationSimilarityFloor = translationSimilarityFloorReading instanceof NumericValue.Answered answered
-                ? answered.number()
-                : null;
-        List<String> preferredLanguages = preferredLanguagesReading instanceof LanguagesValue.Answered answered
-                ? answered.languages()
-                : List.of();
         // The five presets the run is minted under, read beside them: the resolution is the profile's where that can be
         // acted on, from the same load (ADR-330 section 9). They are kept to be handed to the steps that use them.
         double resolution = presets.clusterResolution(profile);
@@ -397,8 +378,6 @@ class StageRuns {
                         artefact.weightDtype(),
                         measurementRunId.value(),
                         relevanceScoreFloor,
-                        translationSimilarityFloor,
-                        preferredLanguages,
                         resolution == RESOLUTION_EVERY_EARLIER_RUN ? null : resolution,
                         neighbours == GRAPH_K_EVERY_EARLIER_RUN ? null : neighbours,
                         similarities == SIMILARITIES_EVERY_EARLIER_RUN ? null : similarities,
@@ -414,10 +393,6 @@ class StageRuns {
         embeddingModelName = modelName;
         embeddingModelArtefact = artefact;
         this.relevanceScoreFloor = relevanceScoreFloor;
-        this.translationSimilarityFloor = translationSimilarityFloor;
-        this.preferredLanguages = preferredLanguages;
-        this.translationSimilarityFloorReading = translationSimilarityFloorReading;
-        this.preferredLanguagesReading = preferredLanguagesReading;
     }
 
     /**
@@ -447,38 +422,6 @@ class StageRuns {
     OptionalDouble relevanceScoreFloor() {
         embeddingScoring();
         return relevanceScoreFloor == null ? OptionalDouble.empty() : OptionalDouble.of(relevanceScoreFloor);
-    }
-
-    /**
-     * The similarity floor for copies in other languages the scoring run was minted under, empty where it was
-     * unset or unreadable then, which mints that run if it has not yet been (ADR-271 section 6).
-     */
-    OptionalDouble translationSimilarityFloor() {
-        embeddingScoring();
-        return translationSimilarityFloor == null
-                ? OptionalDouble.empty()
-                : OptionalDouble.of(translationSimilarityFloor);
-    }
-
-    /**
-     * How {@code translationSimilarityFloor} read at the one load of the profile the scoring run was minted from,
-     * which mints that run if it has not yet been (ADR-273 section 3): unset and unreadable are two readings.
-     */
-    NumericValue.Reading translationSimilarityFloorReading() {
-        embeddingScoring();
-        return translationSimilarityFloorReading;
-    }
-
-    /** As {@link #translationSimilarityFloorReading()}, for {@code preferredLanguages} (ADR-273 section 3). */
-    LanguagesValue.Reading preferredLanguagesReading() {
-        embeddingScoring();
-        return preferredLanguagesReading;
-    }
-
-    /** The preferred languages the scoring run was minted under, none where unset or unreadable (ADR-271 section 6). */
-    List<String> preferredLanguages() {
-        embeddingScoring();
-        return preferredLanguages;
     }
 
     /**
@@ -641,8 +584,6 @@ class StageRuns {
             String embeddingModelWeightDtype,
             String measurementRunId,
             Double relevanceScoreFloor,
-            Double translationSimilarityFloor,
-            List<String> preferredLanguages,
             // The five of ADR-330 section 9, in that order, each written only where it is not what every run before
             // the presets was minted under: the number a scoring run's cluster and sample are made at, and the mean a
             // score is.

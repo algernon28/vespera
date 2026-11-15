@@ -441,7 +441,7 @@ public class VesperaCommand implements Callable<Integer> {
                 }
             }
             return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null);
         }
 
         /**
@@ -739,18 +739,21 @@ public class VesperaCommand implements Callable<Integer> {
     }
 
     /**
-     * Delivers the rendering of the generation run this working directory last drew to each destination {@code --to}
+     * Delivers the rendering of the generation run the last {@code vespera run}'s report copy names in {@code arrivedAt}
+     * (the last one minted only where no such copy is kept, ADR-393 §7) to each destination {@code --to}
      * names (ADR-333 §6): a separate command because it is a separate act, the one that sends anything off the machine,
      * and the operator's alone to ask for. A bare publish is Confluence (ADR-308 §5).
      *
      * <p>Each destination runs in turn, in the order written, a name written twice delivered once, and one stopping
-     * does not stop the next. Each finds its own rendering: the last generation run minted whose generation step is
+     * does not stop the next. Each finds its own rendering: the generation run the last {@code vespera run}'s report copy
+     * names in {@code arrivedAt}, or the last one minted where no such copy is kept (ADR-393 §7), whose generation step is
      * recorded as finished and whose tree holds that plugin's folder with its list or a {@code drawing.txt}. Where the
      * tree lies is the deliverable root {@code run} draws it at (ADR-276). It mints no run and opens no archive file;
      * what each sends and how is its plugin's.
      */
     @Component
-    @Command(name = "publish", description = "Delivers the rendering of the last generation run to each destination"
+    @Command(name = "publish", description = "Delivers the rendering of the generation run the last vespera run's report copy names in arrivedAt,"
+            + " the last one minted only where no such copy is kept, to each destination"
             + " named on --to: the operator's Confluence Cloud site, as the VESPERA_CONFLUENCE_* variables name it,"
             + " or the website folder of the working directory. Bare, it delivers to Confluence.")
     public static class Publish implements Callable<Integer> {
@@ -898,7 +901,8 @@ public class VesperaCommand implements Callable<Integer> {
         }
 
         /**
-         * Delivers the last rendering {@code plugin} drew, in one closing line: on standard output where it was
+         * Delivers the rendering {@code plugin} drew in the generation run the last {@code vespera run}'s report copy names in
+         * {@code arrivedAt}, the last one minted only where no such copy is kept (ADR-393 §7), in one closing line: on standard output where it was
          * delivered and on standard error where it stopped or was refused (ADR-333 §6). A plugin that throws is a stop,
          * its line naming it and the exception's type and never its message, which could name a document (ADR-274 §8).
          *
@@ -906,7 +910,26 @@ public class VesperaCommand implements Callable<Integer> {
          * @return 0 where it was delivered, else the code its stop carries (1 where it carries none of its own)
          */
         private int deliverTo(Plugin plugin, boolean bare, Map<String, Set<String>> finished, List<Runs.Listed> runs) {
-            Optional<String> generation = lastDrawn(plugin, finished, runs);
+            Optional<LastRunInvocationReader.Arrival> lastRunInvocation = LastRunInvocationReader.of(workingDirectoryInUse, StageModules.GENERATION.stage());
+            Optional<String> generation;
+            if (lastRunInvocation.isPresent()) {
+                String arrived = lastRunInvocation.get().generationRun();
+                if (arrived == null
+                        || !finished.getOrDefault(arrived, Set.of()).contains(StepNames.GENERATION)) {
+                    return stopped(plugin, bare
+                            ? "vespera publish sent nothing: the last vespera run did not reach the deliverable."
+                                    + " Run vespera run to the deliverable, and publish again."
+                            : "vespera publish sent nothing to " + plugin.name() + ": the last vespera run did not"
+                                    + " reach the deliverable. Run vespera run to the deliverable, and publish again.");
+                }
+                Path drawn = renderingOf(plugin, arrived);
+                generation = Files.isRegularFile(drawn.resolve(plugin.listName()))
+                        || Files.isRegularFile(drawn.resolve(Plugin.DRAWING_STATE_FILE_NAME))
+                                ? Optional.of(arrived)
+                                : Optional.empty();
+            } else {
+                generation = lastDrawn(plugin, finished, runs);
+            }
             if (generation.isEmpty()) {
                 return stopped(plugin, bare
                         ? "vespera publish sent nothing: no Confluence rendering is drawn in this working directory."
@@ -939,7 +962,7 @@ public class VesperaCommand implements Callable<Integer> {
         }
 
         /**
-         * The last generation run minted whose generation step finished and whose tree holds {@code plugin}'s folder
+         * Where no copy of a {@code vespera run}'s report is kept (ADR-393 §7), the last generation run minted whose generation step finished and whose tree holds {@code plugin}'s folder
          * with its list or a {@code drawing.txt}: the last run to have drawn it, or begun to, so that an older run's
          * rendering is never sent in place of one whose drawing did not finish (ADR-333 §6, §11).
          */

@@ -150,7 +150,6 @@ class ProfileEditTest {
                 new Sample(ProfileKey.ARRANGEMENT_APPROVED, "auto"),
                 new Sample(ProfileKey.RELEVANCE_SCORE_FLOOR, "0.579"),
                 new Sample(ProfileKey.BOILERPLATE_DOCUMENT_FREQUENCY_FLOOR, "1.5"),
-                new Sample(ProfileKey.TRANSLATION_SIMILARITY_FLOOR, "-0.2"),
                 new Sample(ProfileKey.DEGENERATE_OUTPUT_WORD_FLOOR, "0"),
                 new Sample(ProfileKey.DEGENERATE_OUTPUT_WORD_FLOOR, "2147483647"),
                 new Sample(ProfileKey.EXTRACTION_ATTEMPT, "1"),
@@ -161,7 +160,6 @@ class ProfileEditTest {
                 new Sample(ProfileKey.CLUSTER_PAGE_BYTE_CEILING, "9223372036854775807"),
                 new Sample(ProfileKey.OUT_OF_SCOPE_NAME_ENDINGS, ".P3A, .dgn .x.y"),
                 new Sample(ProfileKey.CODE_NAME_ENDINGS, ".java"),
-                new Sample(ProfileKey.PREFERRED_LANGUAGES, "it, EN"),
                 new Sample(ProfileKey.DELIVERABLE_LANGUAGE, "it"),
                 new Sample(ProfileKey.DELIVERABLE_LANGUAGE, "EN"),
                 new Sample(ProfileKey.CLUSTER_RESOLUTION, "2.5"),
@@ -177,8 +175,6 @@ class ProfileEditTest {
         refused.put(new Sample(ProfileKey.RELEVANCE_SCORE_FLOOR, "0,4"), "relevanceScoreFloor is not saved: \"0,4\" is not a number");
         refused.put(new Sample(ProfileKey.DEGENERATE_OUTPUT_CONFIDENCE_FLOOR, "NaN"),
                 "degenerateOutputConfidenceFloor is not saved: \"NaN\" is not a number");
-        refused.put(new Sample(ProfileKey.TRANSLATION_SIMILARITY_FLOOR, "Infinity"),
-                "translationSimilarityFloor is not saved: \"Infinity\" is not a number");
         refused.put(new Sample(ProfileKey.DEGENERATE_OUTPUT_WORD_FLOOR, "-1"),
                 "degenerateOutputWordFloor is not saved: \"-1\" is not a whole number from 0 to 2147483647");
         refused.put(new Sample(ProfileKey.DEGENERATE_OUTPUT_WORD_FLOOR, "1.5"),
@@ -200,8 +196,6 @@ class ProfileEditTest {
                 "outOfScopeNameEndings is not saved: \".P3A *.dgn\" is not a list of name endings, each beginning with a dot");
         refused.put(new Sample(ProfileKey.CODE_NAME_ENDINGS, ".."),
                 "codeNameEndings is not saved: \"..\" is not a list of name endings, each beginning with a dot");
-        refused.put(new Sample(ProfileKey.PREFERRED_LANGUAGES, "it, eng"),
-                "preferredLanguages is not saved: \"it, eng\" is not a list of two-letter language codes");
         refused.put(new Sample(ProfileKey.GENERATION_MODEL, "a-writing-model\n14b"), "generationModel is not saved: a value is one line");
         refused.put(new Sample(ProfileKey.DELIVERABLE_LANGUAGE, "fr"), "deliverableLanguage is not saved: \"fr\" is not en or it");
         refused.put(new Sample(ProfileKey.DELIVERABLE_LANGUAGE, "italian"),

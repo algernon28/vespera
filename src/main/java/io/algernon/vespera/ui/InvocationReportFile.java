@@ -20,7 +20,7 @@ public final class InvocationReportFile {
     public static final String FILE_NAME = "report.json";
 
     /** The format this window reads; a report of another is refused with {@link FormatNotKnownException}. */
-    public static final int FORMAT = 1;
+    public static final int FORMAT = 2;
 
     /** A report of a {@code format} other than {@link #FORMAT}, which the window does not read. */
     public static final class FormatNotKnownException extends IllegalArgumentException {
@@ -73,7 +73,7 @@ public final class InvocationReportFile {
     public record Fault(String step, String type, List<String> causes) {
     }
 
-    /** One of the twelve analysis reports: its name, whether its page is there, and the paths of the page and its JSON. */
+    /** One of the eleven analysis reports: its name, whether its page is there, and the paths of the page and its JSON. */
     public record AnalysisReport(String name, String html, String json, boolean written) {
     }
 

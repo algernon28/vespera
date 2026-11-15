@@ -80,7 +80,7 @@ class InvocationReportInvocationTest {
 
     private static final List<String> BLOCKING = List.of(
             "broken", "duplicate-of", "superseded-by", "out-of-scope", "code",
-            "extraction-failed", "degenerate-output", "redundant-with", "translation-of", "below-threshold");
+            "extraction-failed", "degenerate-output", "redundant-with", "below-threshold");
 
     @TempDir
     static Path workingDirectory;
@@ -167,9 +167,9 @@ class InvocationReportInvocationTest {
         claim("the report's copy, named by the invocation's id, holds the report's text",
                 () -> assertThat(Files.readString(TheReportFile.copyOf(workingDirectory, report), StandardCharsets.UTF_8))
                         .isEqualTo(TheReportFile.textIn(workingDirectory)));
-        claim("no step is shown running, and the first sixteen steps are named in the job's order",
+        claim("no step is shown running, and the first fifteen steps are named in the job's order",
                 () -> {
-                    assertThat(report.get("steps")).hasSize(SIXTEEN_STEPS);
+                    assertThat(report.get("steps")).hasSize(FIFTEEN_STEPS);
                     for (JsonNode step : report.get("steps")) {
                         assertThat(step.get("state").asString()).isNotEqualTo("running");
                     }
@@ -289,7 +289,7 @@ class InvocationReportInvocationTest {
                 () -> assertThat(Files.readAllBytes(workingDirectory.resolve(InvocationReport.FILE_NAME))).isEqualTo(before));
     }
 
-    private static final int SIXTEEN_STEPS = 16;
+    private static final int FIFTEEN_STEPS = 15;
 
     private static org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent prepared(
             Path directory, String... args) {

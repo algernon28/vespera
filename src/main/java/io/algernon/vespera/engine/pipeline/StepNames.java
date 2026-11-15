@@ -3,7 +3,7 @@ package io.algernon.vespera.engine.pipeline;
 import java.util.Map;
 
 /**
- * The job's sixteen persisted step names, in job order, each byte-identical to its value before this
+ * The job's fifteen persisted step names, in job order, each byte-identical to its value before this
  * record (ADR-157 §7, amending ADR-131's second reason for a per-stage configuration class).
  *
  * <p>Seven of these values are also a {@link StageModules} stage name — two persisted facts that
@@ -26,7 +26,6 @@ final class StepNames {
     static final String SEED_EXTRACTION = "seed-extraction";
     static final String SEED_CORPUS_COMPARISON = "seed-corpus-comparison";
     static final String EMBEDDING_SCORING = "embedding-scoring";
-    static final String TRANSLATION = "translation";
     static final String RELEVANCE_SCORING = "relevance-scoring";
     static final String RELEVANCE_FLOOR = "relevance-floor";
     static final String CLUSTERING = "clustering";
@@ -45,7 +44,6 @@ final class StepNames {
             Map.entry(SEED_EXTRACTION, "converts the seed set, the documents known to be relevant, to text"),
             Map.entry(SEED_CORPUS_COMPARISON, "compares the seed set with the archive's documents and writes how far they differ"),
             Map.entry(EMBEDDING_SCORING, "turns each document's text into vectors with the embedding model"),
-            Map.entry(TRANSLATION, "finds documents that are translations of one another and keeps one, in the language preferred first"),
             Map.entry(RELEVANCE_SCORING, "scores each document by how close it lies to the seed set"),
             Map.entry(RELEVANCE_FLOOR, "removes the documents scoring below the relevance threshold"),
             Map.entry(CLUSTERING, "gathers the documents under each seed into groups of documents alike"),

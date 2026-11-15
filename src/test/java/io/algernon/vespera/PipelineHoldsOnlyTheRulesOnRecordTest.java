@@ -154,6 +154,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-321: reads the deliverable's language the profile holds and hands synthesis and the tree a plain value;
             // the two languages, the default and what each says are synthesis's and deliverable's.
             "LanguageOfTheDeliverable",
+            // ADR-393 §7: reads which generation run the last run invocation's report copy arrived at, for publish to
+            // send; which tree it names is that run's, and it decides no verdict, cache key, cluster or text.
+            "LastRunInvocationReader",
             "MisshapenProfileRefusal",
             "NextAction",
             // ADR-294: writes and deletes what NextAction gives for the control panel, and decides none of it.
@@ -259,10 +262,6 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "TaskletSteps",
             "TemporaryFilesInTheWorkingDirectory",
             "TimedStatement",
-            // ADR-271: renders embedding's translation sets and rows; the pairing, the copy kept and the rounding are embedding's.
-            "TranslationReport",
-            // ADR-271: reads the survivors, their paths and languages, and writes what embedding's Translations decides.
-            "TranslationTasklet",
             "UnrecordedOccurrences",
             "UpstreamRuns",
             "UsableSeedGate",
@@ -283,9 +282,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
      * attempt's; stage 4b's discards one too; {@code InvocationAccount} counts the verdicts under each kind
      * of the closed vocabulary; {@code RelevanceFloorTasklet} withdraws and writes the below-threshold
      * verdicts {@code embedding}'s {@code FloorReach} answers for, with the kind and the reason it hands
-     * the step (ADR-226); {@code TranslationTasklet} withdraws and writes the translation-of verdicts
-     * {@code embedding}'s {@code Translations} decides; and {@code RelevanceScoringTasklet} names
-     * translation-of to leave the copies it removed unscored (ADR-271 §5).
+     * the step (ADR-226). Since ADR-392 no translation step writes a verdict, and {@code RelevanceScoringTasklet}
+     * names no kind, scoring every survivor of the seed measurement run (ADR-392 §3).
      */
     private static final Set<String> NAMING_A_VERDICT_KIND = Set.of(
             "ByteLevelReductionTasklet",
@@ -295,9 +293,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "ExtractionOutcome",
             "InvocationAccount",
             "RedundancyResolutionTasklet",
-            "RelevanceFloorTasklet",
-            "RelevanceScoringTasklet",
-            "TranslationTasklet");
+            "RelevanceFloorTasklet");
 
     /**
      * The classes of {@code pipeline} that name the class the deliverable is written by: {@code
@@ -435,27 +431,6 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "extraction.ChunkingRuleIdentity",
                             "extraction.ExtractionCacheKeys",
                             "extraction.HybridChunker")),
-            Map.entry(
-                    "TranslationTasklet",
-                    Set.of(
-                            "embedding.ClusteringProgress",
-                            "embedding.ModelArtefact",
-                            "embedding.RelevanceDistribution",
-                            "embedding.TranslationOf",
-                            "embedding.Translations",
-                            "extraction.ChunkingRule",
-                            "extraction.ChunkingRuleIdentity",
-                            "extraction.ExtractionCacheKeys",
-                            "extraction.ExtractionMetrics",
-                            // Asked for its identity only, the key the vectors are stored under, as 5d and 5f ask.
-                            "extraction.HybridChunker",
-                            // The callback the languages are handed to, as the seed comparison reads them.
-                            "extraction.MeasuredFormRow",
-                            "profile.LanguagesValue",
-                            "profile.Measurement",
-                            "profile.NumericValue",
-                            "profile.Profile",
-                            "profile.ProfileStore")),
             Map.entry(
                     "RelevanceFloor",
                     Set.of(
@@ -628,7 +603,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                 .anyMatch(name -> name.equals(THE_DELIVERABLE) || name.contains("L" + THE_DELIVERABLE + ";")));
 
         claim(
-                "the classes that name the kinds of removal are the ten on record. One more is a class"
+                "the classes that name the kinds of removal are the eight on record. One more is a class"
                         + " that has started to write a removal, to choose its kind or to branch on one,"
                         + " and whether it decides anything has to be answered and recorded; one fewer is"
                         + " an entry to take off the record",

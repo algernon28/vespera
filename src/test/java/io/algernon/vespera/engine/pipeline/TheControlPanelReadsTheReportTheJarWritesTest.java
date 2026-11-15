@@ -97,7 +97,7 @@ class TheControlPanelReadsTheReportTheJarWritesTest {
                     assertThat(read.invocation().hasEnded()).isTrue();
                     assertThat(read.invocation().exitCode()).isEqualTo(1);
                 });
-        claim("it lists each of the job's sixteen steps once, in the order the job runs them, each with its state",
+        claim("it lists each of the job's fifteen steps once, in the order the job runs them, each with its state",
                 () -> assertThat(states).containsExactlyElementsOf(expected));
         claim("a step whose progress line carries no counter has neither a count done nor a total",
                 () -> assertThat(read.steps()).allSatisfy(step -> {

@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-226](0226-the-eight-rules-in-pipeline-live-in-extraction-embedding-synthesis-and-profile-and-no-stages-version-names-pipeline.md).** Three more rows of §1's table no longer hold as written: `seed-measurement` and `embedding-scoring` do not name `pipeline`, and `generation` names `synthesis`, `extraction`, `embedding` and `profile`. Everything else below stands.
 
+> **Partly amended — see [ADR-392](0392-vespera-finds-no-translation-sets-the-translation-step-its-verdict-its-report-and-its-two-profile-keys-go.md).** Of §7: `StepNames` holds again the fifteen names listed there, the `translation` step ADR-271 added being gone, and the job is fifteen steps. The rest of this record stands.
+
 - **Date**: 2026-09-26
 - **Status**: accepted
 - **Amends**: [ADR-131](0131-one-module-builds-every-plain-tasklet-step.md), on its second reason for keeping the per-stage `*JobConfiguration` classes, "the place each stage's step is named" (§7). [ADR-153](0153-the-whole-job-tests-share-one-slice-and-a-stages-configuration-class-stops-being-their-seam.md) withdrew the first reason and left this one for a later record to weigh. It is weighed here and withdrawn. `TaskletSteps` also gains a third method (§5).

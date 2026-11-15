@@ -46,9 +46,11 @@ public final class ProfileEdit {
 
     private static final long SMALLEST_WINDOW = 1282;
 
+    /** The two keys an earlier version read, whose blocks the form admits and keeps (ADR-392 section 4). */
+    private static final List<String> RETIRED_KEYS = List.of("translationSimilarityFloor", "preferredLanguages");
+
     private static final Pattern PIECES = Pattern.compile("(?U)[\\s,]+");
 
-    private static final Pattern LANGUAGE = Pattern.compile("[A-Za-z]{2}");
 
     private static final Pattern ARRANGEMENT = Pattern.compile("[0-9a-f]{12}");
 
@@ -137,6 +139,11 @@ public final class ProfileEdit {
         for (Block other : parsed.blocks().values()) {
             if (other.keyLine() > block.keyLine() && other.keyLine() < next) {
                 next = other.keyLine();
+            }
+        }
+        for (int retiredLine : parsed.retiredKeyLines()) {
+            if (retiredLine > block.keyLine() && retiredLine < next) {
+                next = retiredLine;
             }
         }
         List<Line> lines = parsed.lines();
@@ -308,7 +315,7 @@ public final class ProfileEdit {
         if (key.kind() == ProfileKey.Kind.FOLDERS || key.kind() == ProfileKey.Kind.CORPUS_FOLDERS) {
             return String.join(java.io.File.pathSeparator, foldersOf(typed));
         }
-        return key.kind() == ProfileKey.Kind.NAME_ENDINGS || key.kind() == ProfileKey.Kind.LANGUAGES
+        return key.kind() == ProfileKey.Kind.NAME_ENDINGS
                 ? String.join(" ", piecesOf(typed)) : typed;
     }
 
@@ -402,8 +409,6 @@ public final class ProfileEdit {
             case DELIVERABLE_LANGUAGE -> "en".equalsIgnoreCase(value) || "it".equalsIgnoreCase(value)
                     ? Optional.empty()
                     : Optional.of(quoted + " is not en or it");
-            case PREFERRED_LANGUAGES -> areLanguages(value) ? Optional.empty()
-                    : Optional.of(quoted + " is not a list of two-letter language codes");
             case CODE_SET_FOLDERS -> areFolders(value) ? Optional.empty()
                     : Optional.of(quoted + " is not a list of absolute folders, separated by " + java.io.File.pathSeparator);
             case FOLDERS_NOT_WALKED -> areFoldersBelowTheCorpusRoot(value) ? Optional.empty()
@@ -457,11 +462,6 @@ public final class ProfileEdit {
                 && piece.chars().noneMatch(c -> "/\\*?".indexOf(c) >= 0));
     }
 
-    private static boolean areLanguages(String value) {
-        List<String> pieces = piecesOf(value);
-        return !pieces.isEmpty() && pieces.stream().allMatch(piece -> LANGUAGE.matcher(piece).matches());
-    }
-
     /** The pieces of a list value, split at white space and commas, none empty (ADR-377 §7 splits a box's text so). */
     static List<String> piecesOf(String value) {
         return List.of(PIECES.split(value)).stream().filter(piece -> !piece.isEmpty()).toList();
@@ -494,7 +494,8 @@ public final class ProfileEdit {
     private record Block(int keyLine, Entry value, Entry provenance, int measurementFirst, int measurementLast) {
     }
 
-    private record Parsed(List<Line> lines, Map<ProfileKey, Block> blocks) {
+    /** The lines of the form; each key's block; and the lines where a retired key's block opens, which end the block before it. */
+    private record Parsed(List<Line> lines, Map<ProfileKey, Block> blocks, List<Integer> retiredKeyLines) {
     }
 
     /** §3's form read, or {@link IllegalArgumentException} with §2's line. */
@@ -524,6 +525,8 @@ public final class ProfileEdit {
         int measurementLast = -1;
         boolean measurementSeen = false;
         boolean inMeasurement = false;
+        boolean retired = false;
+        List<Integer> retiredKeyLines = new ArrayList<>();
         for (; i < lines.size(); i++) {
             int at = i;
             try {
@@ -544,7 +547,17 @@ public final class ProfileEdit {
                     if (!line.endsWith(":")) {
                         throw new NotInFormException();
                     }
-                    key = ProfileKey.named(line.substring(0, line.length() - 1)).orElseThrow(NotInFormException::new);
+                    String named = line.substring(0, line.length() - 1);
+                    if (RETIRED_KEYS.contains(named)) {
+                        // A retired key's block (ADR-392 section 4) is a block of no key of the form: no row, and every
+                        // byte of it kept, as every line not owned is. The jar's next save is what removes it.
+                        key = null;
+                        retired = true;
+                        retiredKeyLines.add(i);
+                        continue;
+                    }
+                    retired = false;
+                    key = ProfileKey.named(named).orElseThrow(NotInFormException::new);
                     if (blocks.containsKey(key)) {
                         throw new NotInFormException();
                     }
@@ -555,6 +568,8 @@ public final class ProfileEdit {
                     measurementLast = -1;
                     measurementSeen = false;
                     inMeasurement = false;
+                } else if (retired) {
+                    continue;
                 } else if (key == null || line.charAt(indent) == '\t') {
                     throw new NotInFormException();
                 } else if (indent == 2) {
@@ -606,7 +621,7 @@ public final class ProfileEdit {
         if (key != null) {
             blocks.put(key, new Block(keyLine, value, provenance, measurementFirst, measurementLast));
         }
-        return new Parsed(lines, blocks);
+        return new Parsed(lines, blocks, retiredKeyLines);
     }
 
     /** The {@code value} or {@code provenance} entry that opens at line {@code index}, its scalar read (§3a). */
