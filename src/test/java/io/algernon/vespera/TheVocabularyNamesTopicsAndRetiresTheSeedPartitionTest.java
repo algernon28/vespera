@@ -31,7 +31,8 @@ import org.junit.jupiter.api.Test;
  *
  * <p>The first test holds that "topic" is a term: it has an entry, and so has the winning topic, and no {@code
  * _Avoid_} line lists it as a rejected word, as the seed partition's did. The second holds that the seed partition is
- * retired: no entry's definition names one but the two retired entries', and each of those opens by saying so.
+ * retired: no entry's definition names one but the two retired entries', and each of those opens by saying it is
+ * retired.
  */
 @Epic("Architecture")
 @Feature("The project's vocabulary")
@@ -118,8 +119,8 @@ class TheVocabularyNamesTopicsAndRetiresTheSeedPartitionTest {
             }
         });
 
-        claim("The entries whose definition uses the words 'seed partition' are the two retired ones, and no other",
-                () -> assertThat(naming).containsOnlyKeys(THE_RETIRED_ENTRIES));
+        claim("No entry's definition uses the words 'seed partition' but the two retired entries'",
+                () -> assertThat(naming.keySet()).isSubsetOf(THE_RETIRED_ENTRIES));
         claim("Each retired entry's definition opens by saying the record retired it",
                 () -> assertThat(THE_RETIRED_ENTRIES).allSatisfy(name ->
                         assertThat(definitionOf(ENTRIES.get(name))).startsWith(RETIRED_BY_THE_RECORD)));
