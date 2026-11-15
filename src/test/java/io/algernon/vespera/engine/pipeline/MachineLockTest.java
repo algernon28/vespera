@@ -179,8 +179,8 @@ class MachineLockTest {
                 });
 
         run.process().destroyForcibly().waitFor(END_BOUND_SECONDS, TimeUnit.SECONDS);
-        HoldsTheMachine.Holder panel = hold(folder, MachineLock.Kind.CONTROL_PANEL, false);
-        String panelsLine = holderLine(folder.resolve(MachineLock.FILE_NAME));
+        HoldsTheMachine.Holder controlPanel = hold(folder, MachineLock.Kind.CONTROL_PANEL, false);
+        String controlPanelsLine = holderLine(folder.resolve(MachineLock.FILE_NAME));
         long notTheHolder = ProcessHandle.current().pid();
 
         Throwable command = catchThrowable(() -> new MachineLock(folder, OptionalLong.of(notTheHolder))
@@ -188,8 +188,8 @@ class MachineLockTest {
         claim("a control panel in another process refuses a command whose parent is another process, quoting the"
                         + " control panel's line",
                 () -> {
-                    assertThat(command.getMessage()).isEqualTo(refusal(panelsLine, THEN_THE_COMMAND));
-                    assertThat(panelsLine).matches(holderLine(panel.process().pid(), "control-panel"));
+                    assertThat(command.getMessage()).isEqualTo(refusal(controlPanelsLine, THEN_THE_COMMAND));
+                    assertThat(controlPanelsLine).matches(holderLine(controlPanel.process().pid(), "control-panel"));
                 });
     }
 
@@ -198,10 +198,10 @@ class MachineLockTest {
     @DisplayName("A start whose parent holds the machine as the control panel is let through and holds a file of its own, and so is a real child of such a holder")
     void theControlPanelsOwnChildIsLetThroughAndHoldsTheChildsFile(@TempDir Path temporary) throws Exception {
         Path folder = temporary.resolve("root-locks");
-        HoldsTheMachine.Holder panel = hold(folder, MachineLock.Kind.CONTROL_PANEL, false);
-        String panelsLine = holderLine(folder.resolve(MachineLock.FILE_NAME));
+        HoldsTheMachine.Holder controlPanel = hold(folder, MachineLock.Kind.CONTROL_PANEL, false);
+        String controlPanelsLine = holderLine(folder.resolve(MachineLock.FILE_NAME));
 
-        Throwable letThrough = catchThrowable(() -> new MachineLock(folder, OptionalLong.of(panel.process().pid()))
+        Throwable letThrough = catchThrowable(() -> new MachineLock(folder, OptionalLong.of(controlPanel.process().pid()))
                 .take(MachineLock.Kind.RUN, ARGUMENTS));
 
         claim("a start whose parent is the control panel holding the machine is not refused",
@@ -211,7 +211,7 @@ class MachineLockTest {
                 () -> assertThat(List.of(child.matches(), child.group(1), child.group(3), child.group(4))).containsExactly(
                         true, String.valueOf(ProcessHandle.current().pid()), RECORDED, "run"));
         claim("and left the control panel's line in the machine lock's file as it was",
-                () -> assertThat(holderLine(folder.resolve(MachineLock.FILE_NAME))).isEqualTo(panelsLine));
+                () -> assertThat(holderLine(folder.resolve(MachineLock.FILE_NAME))).isEqualTo(controlPanelsLine));
 
         MachineLock.release();
         Path another = temporary.resolve("another-folder-of-locks");
@@ -241,13 +241,13 @@ class MachineLockTest {
     @DisplayName("A child left running by a control panel forced to end keeps the machine until it ends")
     void aChildLeftRunningByAControlPanelForcedToEndHoldsTheMachine(@TempDir Path temporary) throws Exception {
         Path folder = temporary.resolve("root-locks");
-        HoldsTheMachine.Holder panel = hold(folder, MachineLock.Kind.CONTROL_PANEL, true);
-        String said = panel.childSaid().orElseThrow();
+        HoldsTheMachine.Holder controlPanel = hold(folder, MachineLock.Kind.CONTROL_PANEL, true);
+        String said = controlPanel.childSaid().orElseThrow();
         long childPid = Long.parseLong(said.substring(TakesTheMachine.LET_THROUGH.length()).strip());
         ProcessHandle child = ProcessHandle.of(childPid).orElseThrow();
         started.add(child);
 
-        panel.process().destroyForcibly().waitFor(END_BOUND_SECONDS, TimeUnit.SECONDS);
+        controlPanel.process().destroyForcibly().waitFor(END_BOUND_SECONDS, TimeUnit.SECONDS);
         String childsLine = holderLine(folder.resolve(MachineLock.CHILD_FILE_NAME));
         Throwable refused = catchThrowable(() -> new MachineLock(folder).take(MachineLock.Kind.RUN, ARGUMENTS));
 
@@ -305,13 +305,13 @@ class MachineLockTest {
     @DisplayName("A start the control panel's line lets through is refused where the child's file is already held by another, quoting that holder")
     void aChildWhoseFileAnotherHoldsIsRefusedQuotingThatHolder(@TempDir Path temporary) throws Exception {
         Path folder = temporary.resolve("root-locks");
-        HoldsTheMachine.Holder panel = hold(folder, MachineLock.Kind.CONTROL_PANEL, true);
+        HoldsTheMachine.Holder controlPanel = hold(folder, MachineLock.Kind.CONTROL_PANEL, true);
         claim("the control panel's own child was let through and holds the child's file",
-                () -> assertThat(panel.childSaid()).hasValueSatisfying(
+                () -> assertThat(controlPanel.childSaid()).hasValueSatisfying(
                         said -> assertThat(said).startsWith(TakesTheMachine.LET_THROUGH)));
         String childsLine = holderLine(folder.resolve(MachineLock.CHILD_FILE_NAME));
 
-        Throwable refused = catchThrowable(() -> new MachineLock(folder, OptionalLong.of(panel.process().pid()))
+        Throwable refused = catchThrowable(() -> new MachineLock(folder, OptionalLong.of(controlPanel.process().pid()))
                 .take(MachineLock.Kind.LABEL, ARGUMENTS));
 
         claim("a second start whose parent is that control panel is refused as another Vespera, quoting the line of the"
@@ -327,16 +327,16 @@ class MachineLockTest {
     @DisplayName("A held machine is refused as another Vespera where the start has no parent, or the holder line does not parse, a pid too large for a number among them")
     void aStartTheHolderLineCannotLetThroughIsRefusedAsAnotherVespera(@TempDir Path temporary) throws Exception {
         Path folder = temporary.resolve("root-locks");
-        HoldsTheMachine.Holder panel = hold(folder, MachineLock.Kind.CONTROL_PANEL, false);
+        HoldsTheMachine.Holder controlPanel = hold(folder, MachineLock.Kind.CONTROL_PANEL, false);
         Path machineFile = folder.resolve(MachineLock.FILE_NAME);
-        String panelsLine = holderLine(machineFile);
-        OptionalLong theHoldersPid = OptionalLong.of(panel.process().pid());
+        String controlPanelsLine = holderLine(machineFile);
+        OptionalLong theHoldersPid = OptionalLong.of(controlPanel.process().pid());
 
         Throwable noParent = catchThrowable(() -> new MachineLock(folder, OptionalLong.empty())
                 .take(MachineLock.Kind.RUN, ARGUMENTS));
         claim("a start whose parent is not given is refused as another Vespera, quoting the control panel's line",
                 () -> assertThat(List.of(noParent.getClass(), noParent.getMessage())).containsExactly(
-                        AnotherVesperaRunsException.class, refusal(panelsLine, THEN_THE_COMMAND)));
+                        AnotherVesperaRunsException.class, refusal(controlPanelsLine, THEN_THE_COMMAND)));
 
         // The holder's lock is on a byte far past the end of the file, so its line can be written over while it holds it.
         Files.writeString(machineFile, NOT_A_HOLDER_LINE, StandardCharsets.UTF_8);
@@ -391,19 +391,19 @@ class MachineLockTest {
         claim("and the lock it took on the machine lock's file is let go",
                 () -> assertThat(isFree(alone.resolve(MachineLock.FILE_NAME))).isTrue());
 
-        Path besideAPanel = temporary.resolve("root-locks-of-a-control-panel");
-        HoldsTheMachine.Holder panel = hold(besideAPanel, MachineLock.Kind.CONTROL_PANEL, false);
-        Files.delete(besideAPanel.resolve(MachineLock.CHILD_FILE_NAME));
-        linkedToTheFullDevice(besideAPanel.resolve(MachineLock.CHILD_FILE_NAME));
+        Path besideAControlPanel = temporary.resolve("root-locks-of-a-control-panel");
+        HoldsTheMachine.Holder controlPanel = hold(besideAControlPanel, MachineLock.Kind.CONTROL_PANEL, false);
+        Files.delete(besideAControlPanel.resolve(MachineLock.CHILD_FILE_NAME));
+        linkedToTheFullDevice(besideAControlPanel.resolve(MachineLock.CHILD_FILE_NAME));
 
-        Throwable letThrough = catchThrowable(() -> new MachineLock(besideAPanel, OptionalLong.of(panel.process().pid()))
+        Throwable letThrough = catchThrowable(() -> new MachineLock(besideAControlPanel, OptionalLong.of(controlPanel.process().pid()))
                 .take(MachineLock.Kind.RUN, ARGUMENTS));
         claim("a start the control panel's line lets through, its line not written in the child's file, is refused in"
                         + " the same line",
                 () -> assertThat(List.of(letThrough.getClass(), letThrough.getMessage())).containsExactly(
-                        MachineLockUnavailableException.class, unavailable(besideAPanel, reason, THEN_THE_COMMAND)));
+                        MachineLockUnavailableException.class, unavailable(besideAControlPanel, reason, THEN_THE_COMMAND)));
         claim("and the lock it took on the child's file is let go",
-                () -> assertThat(isFree(besideAPanel.resolve(MachineLock.CHILD_FILE_NAME))).isTrue());
+                () -> assertThat(isFree(besideAControlPanel.resolve(MachineLock.CHILD_FILE_NAME))).isTrue());
     }
 
     @Test
