@@ -441,7 +441,7 @@ public class VesperaCommand implements Callable<Integer> {
                 }
             }
             return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null, null);
         }
 
         /**

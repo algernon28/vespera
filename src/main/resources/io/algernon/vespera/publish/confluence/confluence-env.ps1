@@ -12,6 +12,7 @@ $env:VESPERA_CONFLUENCE_BASE_URL = ''      # https://<your-site>
 $env:VESPERA_CONFLUENCE_SPACE_KEY = ''     # the key of the space the pages go to
 $env:VESPERA_CONFLUENCE_FOLDER_ID = ''     # the id of the page or folder they go under, or:
 $env:VESPERA_CONFLUENCE_FOLDER_TITLE = ''  # its title
+$env:VESPERA_CONFLUENCE_ROOT_TITLE = ''    # the top page's title, {language} for the code; empty: Vespera_{language}
 
 $env:VESPERA_CONFLUENCE_EMAIL = Read-Host 'Confluence account email'
 $secure = Read-Host 'Confluence API token' -AsSecureString
