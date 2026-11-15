@@ -16,7 +16,7 @@ import java.util.function.Consumer;
 
 /**
  * The file {@code working-directories} of ADR-292 §3's folder, the working directories this user has used (ADR-393 §4):
- * UTF-8, one absolute, normalised path a line, each ending in {@code \n}, most recently started first, the machine's
+ * UTF-8, one absolute, normalised path a line, each ending in {@code \n}, this window's folder started last on top and the others in the file's order, the machine's
  * folder not among them. It is read and written only where the folder is the user's own (ADR-292 §3), and written whole
  * to a temporary file in its folder moved over it (ADR-292 §2). In {@code java.base} alone (ADR-285 §3).
  */

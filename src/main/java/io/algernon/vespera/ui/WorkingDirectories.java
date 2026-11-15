@@ -11,7 +11,7 @@ import java.util.function.Consumer;
 
 /**
  * The working directories the window lists (ADR-393 §4): the machine's folder first, then the folders the file
- * {@link WorkingDirectoryList} keeps, most recently started first, a folder the launch values file names and the file
+ * {@link WorkingDirectoryList} keeps, this window's folder started last on top and the others in the file's order, a folder the launch values file names and the file
  * does not added second. A folder named twice is listed once, compared as {@link ControlPanelState#namesTheSameFolder}
  * compares. Nothing here deletes, moves or archives a working directory.
  */
