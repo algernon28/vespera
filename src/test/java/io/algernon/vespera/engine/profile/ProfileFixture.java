@@ -56,10 +56,6 @@ public final class ProfileFixture {
 
     private NameEndingsValue outOfScopeNameEndings = NameEndingsValue.unset();
 
-    private NumericValue translationSimilarityFloor = NumericValue.unset();
-
-    private LanguagesValue preferredLanguages = LanguagesValue.unset();
-
     private NumericValue configurationSettingShareFloor = NumericValue.unset();
 
     private TextValue deliverableLanguage = TextValue.unset();
@@ -105,8 +101,6 @@ public final class ProfileFixture {
         fixture.extractionAttempt = existing.extractionAttempt();
         fixture.codeNameEndings = existing.codeNameEndings();
         fixture.outOfScopeNameEndings = existing.outOfScopeNameEndings();
-        fixture.translationSimilarityFloor = existing.translationSimilarityFloor();
-        fixture.preferredLanguages = existing.preferredLanguages();
         fixture.configurationSettingShareFloor = existing.configurationSettingShareFloor();
         fixture.deliverableLanguage = existing.deliverableLanguage();
         fixture.clusterResolution = existing.clusterResolution();
@@ -256,18 +250,6 @@ public final class ProfileFixture {
         return this;
     }
 
-    /** Stage 5's similarity floor for copies in different languages (ADR-271 §6), a cosine. */
-    public ProfileFixture translationSimilarityFloor(String value, String provenance) {
-        this.translationSimilarityFloor = aNumber(value, provenance);
-        return this;
-    }
-
-    /** The languages whose copy survives, most preferred first (ADR-271 §6), written as one line. */
-    public ProfileFixture preferredLanguages(String value, String provenance) {
-        this.preferredLanguages = new LanguagesValue(value, provenance, null);
-        return this;
-    }
-
     /** The bytes past which a cluster's page is split at an entry's end (ADR-303 §2), a whole number from 1. */
     public ProfileFixture clusterPageByteCeiling(String value, String provenance) {
         this.clusterPageByteCeiling = aNumber(value, provenance);
@@ -333,8 +315,6 @@ public final class ProfileFixture {
                 extractionAttempt,
                 codeNameEndings,
                 outOfScopeNameEndings,
-                translationSimilarityFloor,
-                preferredLanguages,
                 configurationSettingShareFloor,
                 deliverableLanguage,
                 clusterResolution,
