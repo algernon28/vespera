@@ -16,45 +16,50 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The control panel's table of legs once the translation step is gone (ADR-392 §3, amending ADR-324 §1 and ADR-361
- * §1): the second leg is {@code relevance}, the seeds' two steps and the embedding scoring, and the other three are as
- * they were. {@code pipeline.TheControlPanelsLegsAreTheReportsTest} holds this table to the report's, so the report's
- * legs are held to it too.
+ * The control panel's table of legs (ADR-394 §1, amending ADR-324 §1 and ADR-361 §1 as ADR-392 §3 left them): the
+ * second leg is {@code relevance}, the seeds' two steps, the embedding scoring, the relevance scoring and the relevance
+ * floor; {@code clustering} is the clustering and the relevance report, which runs after it; the other two are as they
+ * were. {@code pipeline.TheControlPanelsLegsAreTheReportsTest} holds this table to the report's, so the report's legs
+ * are held to it too.
  *
- * <p>It fails while the second leg is named {@code translation} or holds the translation step.
+ * <p>It fails while the second leg is named {@code translation} or holds the translation step, and while the relevance
+ * scoring or the relevance floor lies in {@code clustering} (ADR-392 §3's table).
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("771")
 @Issue("770")
+@Link(name = "ADR-394", url = Adr.THE_RELEVANCE_LEG_RUNS_THROUGH_THE_RELEVANCE_FLOOR, type = "adr")
 @Link(name = "ADR-392", url = Adr.VESPERA_FINDS_NO_TRANSLATION_SETS, type = "adr")
 @Link(name = "ADR-324", url = Adr.THE_TIMELINE_FOLDS_INTO_FOUR_LEGS, type = "adr")
 @Link(name = "ADR-361", url = Adr.THE_COCKPITS_STEPS_FOLD_INTO_THE_PROGRESS_PAGES_FOUR_LEGS, type = "adr")
 class TheSecondLegIsRelevanceTest {
 
-    /** The four legs and their steps in job order, ADR-392 §3's table: fifteen steps, each in one leg. */
+    /** The four legs and their steps in job order, ADR-394 §1's table: fifteen steps, each in one leg. */
     private static final Map<String, List<String>> THE_FOUR_LEGS = theFourLegs();
 
     private static Map<String, List<String>> theFourLegs() {
         Map<String, List<String>> legs = new LinkedHashMap<>();
         legs.put("deduplication", List.of("census", "byte-level-reduction", "extraction", "content-census",
                 "redundancy-signature", "content-redundancy"));
-        legs.put("relevance", List.of("seed-extraction", "seed-corpus-comparison", "embedding-scoring"));
-        legs.put("clustering", List.of("relevance-scoring", "relevance-floor", "clustering", "relevance-report"));
+        legs.put("relevance", List.of("seed-extraction", "seed-corpus-comparison", "embedding-scoring",
+                "relevance-scoring", "relevance-floor"));
+        legs.put("clustering", List.of("clustering", "relevance-report"));
         legs.put("generation", List.of("arrangement", "generation"));
         return legs;
     }
 
     @Test
     @Story("The window folds the steps into the report's four parts")
-    @DisplayName("The four parts are deduplication, relevance, clustering and generation, relevance holding the seed extraction, the seed comparison and the embedding scoring")
+    @DisplayName("The four parts are deduplication, relevance, clustering and generation, relevance holding the seed extraction, the seed comparison, the embedding scoring, the relevance scoring and the relevance floor, and clustering the clustering and the relevance report")
     void theFourLegsAreDeduplicationRelevanceClusteringAndGeneration() {
         Map<String, List<String>> byTheWindow = new LinkedHashMap<>();
         Legs.ALL.forEach(leg -> byTheWindow.put(leg.name(), leg.steps()));
 
         claim("the window's four parts are deduplication, relevance, clustering and generation, in that order, the"
-                        + " second holding the seed extraction, the seed comparison and the embedding scoring, and"
-                        + " each part its steps in the order the job runs them",
+                        + " second holding the seed extraction, the seed comparison, the embedding scoring, the"
+                        + " relevance scoring and the relevance floor, the third the clustering and the relevance"
+                        + " report, and each part its steps in the order the job runs them",
                 () -> assertThat(byTheWindow).containsExactlyEntriesOf(THE_FOUR_LEGS));
     }
 }

@@ -90,7 +90,10 @@ final class InvocationReport {
             StageModules.ARRANGEMENT.stage(), List.of(StepNames.ARRANGEMENT),
             StageModules.GENERATION.stage(), List.of(StepNames.GENERATION));
 
-    /** The four legs of the timeline, each with its steps in job order, every step in exactly one (ADR-324 section 1). */
+    /**
+     * The four legs of the timeline, each with its steps in job order, every step in exactly one (ADR-324 section 1,
+     * as ADR-394 redraws it).
+     */
     private static final Map<String, List<String>> LEGS = legs();
 
     private static Map<String, List<String>> legs() {
@@ -99,9 +102,9 @@ final class InvocationReport {
                 StepNames.CENSUS, StepNames.BYTE_LEVEL_REDUCTION, StepNames.EXTRACTION, StepNames.CONTENT_CENSUS,
                 StepNames.REDUNDANCY_SIGNATURE, StepNames.CONTENT_REDUNDANCY));
         legs.put("relevance", List.of(
-                StepNames.SEED_EXTRACTION, StepNames.SEED_CORPUS_COMPARISON, StepNames.EMBEDDING_SCORING));
-        legs.put(StepNames.CLUSTERING, List.of(
-                StepNames.RELEVANCE_SCORING, StepNames.RELEVANCE_FLOOR, StepNames.CLUSTERING, StepNames.RELEVANCE_REPORT));
+                StepNames.SEED_EXTRACTION, StepNames.SEED_CORPUS_COMPARISON, StepNames.EMBEDDING_SCORING,
+                StepNames.RELEVANCE_SCORING, StepNames.RELEVANCE_FLOOR));
+        legs.put(StepNames.CLUSTERING, List.of(StepNames.CLUSTERING, StepNames.RELEVANCE_REPORT));
         legs.put(StepNames.GENERATION, List.of(StepNames.ARRANGEMENT, StepNames.GENERATION));
         return Collections.unmodifiableMap(legs);
     }
