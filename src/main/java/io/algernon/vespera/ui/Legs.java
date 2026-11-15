@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The four legs the job's steps fold into (ADR-361 §1): ADR-324 §1's table held as text, because the control panel
+ * The four legs the job's steps fold into (ADR-361 §1): ADR-324 §1's table as ADR-394 redraws it (the relevance leg ends at relevance-floor; the clustering leg is clustering and relevance-report), held as text, because the control panel
  * links no class of the jar (ADR-285 §3); {@code pipeline.TheControlPanelsLegsAreTheReportsTest} holds it, and the
  * rules of a leg's state and of which legs are open, to the report's.
  */
@@ -21,8 +21,9 @@ public final class Legs {
     public static final List<Leg> ALL = List.of(
             new Leg("deduplication", List.of("census", "byte-level-reduction", "extraction", "content-census",
                     "redundancy-signature", "content-redundancy")),
-            new Leg("relevance", List.of("seed-extraction", "seed-corpus-comparison", "embedding-scoring")),
-            new Leg("clustering", List.of("relevance-scoring", "relevance-floor", "clustering", "relevance-report")),
+            new Leg("relevance", List.of("seed-extraction", "seed-corpus-comparison", "embedding-scoring",
+                    "relevance-scoring", "relevance-floor")),
+            new Leg("clustering", List.of("clustering", "relevance-report")),
             new Leg("generation", List.of("arrangement", "generation")));
 
     private static final String WAITING = "waiting";
