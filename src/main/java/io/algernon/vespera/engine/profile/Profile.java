@@ -233,14 +233,17 @@ public record Profile(
         return java.util.Collections.unmodifiableSequencedMap(keys);
     }
 
-    /** The five keys a publish reads and the deliverable's index does not state (ADR-359 sections 1 and 7). */
+    /**
+     * The six keys a publish reads and the deliverable's index does not state (ADR-359 sections 1 and 7, ADR-398
+     * section 1).
+     */
     private static final java.util.Set<String> CONFLUENCE_KEYS = java.util.Set.of(
             "confluenceBaseUrl", "confluenceSpaceKey", "confluenceFolderId", "confluenceFolderTitle",
             "confluenceEmail", "confluenceRootTitle");
 
     /**
-     * {@link #keysAsWritten()} less the five Confluence keys, in the record's order: the keys the deliverable's
-     * index states (ADR-359 section 7, amending ADR-186 section 1). Unmodifiable, and kept out of {@code profile.yaml}.
+     * {@link #keysAsWritten()} less the six Confluence keys, in the record's order: the keys the deliverable's
+     * index states (ADR-359 section 7, amending ADR-186 section 1; ADR-398 section 1). Unmodifiable, and kept out of {@code profile.yaml}.
      */
     @com.fasterxml.jackson.annotation.JsonIgnore
     public java.util.SequencedMap<String, String> keysTheIndexStates() {
