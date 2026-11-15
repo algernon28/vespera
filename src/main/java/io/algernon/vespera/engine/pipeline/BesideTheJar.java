@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -15,8 +16,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.event.ApplicationPreparedEvent;
@@ -50,10 +49,8 @@ public final class BesideTheJar implements ApplicationListener<ApplicationEvent>
 
     private static final String LOCAL_FILE = "application-local.yaml";
 
-    private static final Logger LOG = LoggerFactory.getLogger(BesideTheJar.class);
-
     /** A file beside the jar that differs from its shipped copy, the keys that differ, and the line that says so. */
-    record Drift(String file, List<String> keys, String line) {
+    record Difference(String file, List<String> keys, String line) {
     }
 
     private final Path folder;
@@ -67,12 +64,19 @@ public final class BesideTheJar implements ApplicationListener<ApplicationEvent>
     /** The folder beside the jar of this application: that of the code source this class was loaded from (§1). */
     public static BesideTheJar ofThisApplication() {
         Path current = Path.of("").toAbsolutePath();
-        Path codeSource = null;
         CodeSource source = BesideTheJar.class.getProtectionDomain().getCodeSource();
-        if (source != null && source.getLocation() != null) {
-            codeSource = codeSourceOf(source.getLocation(), current);
+        if (source == null || source.getLocation() == null) {
+            return new BesideTheJar(current);
         }
-        return new BesideTheJar(folderOf(codeSource, current));
+        return new BesideTheJar(folderOf(source.getLocation(), current));
+    }
+
+    /**
+     * The folder beside the jar for a code source's URL (ADR-397 §1): that of the file it names; the current directory
+     * for a URL that names no file, a {@code jrt:} or an opaque one among them.
+     */
+    static Path folderOf(URL codeSource, Path currentDirectory) {
+        return folderOf(codeSourceOf(codeSource), currentDirectory);
     }
 
     /**
@@ -92,7 +96,7 @@ public final class BesideTheJar implements ApplicationListener<ApplicationEvent>
     }
 
     /** The file or folder a code source's URL names; a nested jar as its outer file. */
-    private static Path codeSourceOf(URL location, Path current) {
+    private static Path codeSourceOf(URL location) {
         try {
             String text = location.toString();
             if (text.startsWith("jar:")) {
@@ -109,11 +113,16 @@ public final class BesideTheJar implements ApplicationListener<ApplicationEvent>
                 text = text.substring(0, inside);
             }
             if (!text.startsWith("file:")) {
+                // Another scheme (jrt:, mailto:) names no file; a lone letter before the colon is a drive.
+                int colon = text.indexOf(':');
+                if (colon > 1 && text.substring(0, colon).matches("[A-Za-z][A-Za-z0-9+.-]*")) {
+                    return null;
+                }
                 text = "file:" + text;
             }
             return Path.of(URI.create(text));
         } catch (RuntimeException notAFile) {
-            return current;
+            return null;
         }
     }
 
@@ -129,7 +138,7 @@ public final class BesideTheJar implements ApplicationListener<ApplicationEvent>
      */
     public List<String> prepare() {
         writeWhatIsMissing();
-        lines = writeNewWhereDrifted().stream().map(Drift::line).toList();
+        lines = writeNewWhereDifferent().stream().map(Difference::line).toList();
         return lines;
     }
 
@@ -151,7 +160,10 @@ public final class BesideTheJar implements ApplicationListener<ApplicationEvent>
                 continue;
             }
             try {
-                writeFrom(name, target);
+                // Never over a file that appears meanwhile, as a second start in this folder may place it.
+                if (!writeFrom(name, target, false)) {
+                    continue;
+                }
             } catch (IOException | RuntimeException unwritten) {
                 throw new BesideTheJarUnwritableException(name, folder, unwritten);
             }
@@ -160,9 +172,12 @@ public final class BesideTheJar implements ApplicationListener<ApplicationEvent>
         return written;
     }
 
-    /** Writes {@code <name>.new} beside each file that differs, and names them (ADR-397 §5). */
-    List<Drift> writeNewWhereDrifted() {
-        List<Drift> drift = new ArrayList<>();
+    /**
+     * Writes {@code <name>.new} beside each file that differs, and names them (ADR-397 §5); a {@code .new} that cannot
+     * be written is named in the line of its file, with the reason.
+     */
+    List<Difference> writeNewWhereDifferent() {
+        List<Difference> differences = new ArrayList<>();
         for (String name : namesOfTheShippedCopy()) {
             Path beside = folder.resolve(name);
             if (!Files.isRegularFile(beside)) {
@@ -178,19 +193,19 @@ public final class BesideTheJar implements ApplicationListener<ApplicationEvent>
                 continue;
             }
             Path copy = folder.resolve(name + NEW_SUFFIX);
+            String said = name + " beside the jar differs from this jar's own"
+                    + (keys.isEmpty() ? "" : " at " + String.join(", ", keys));
+            String line;
             try {
-                writeFrom(name, copy);
+                writeFrom(name, copy, true);
+                line = said + "; this jar's is written beside it as " + name + NEW_SUFFIX;
             } catch (IOException | RuntimeException unwritten) {
-                LOG.warn("{} beside the jar differs from this jar's own, and {} cannot be written ({})", name,
-                        name + NEW_SUFFIX, SidecarLockUnavailableException.reasonOf(unwritten));
-                continue;
+                line = said + "; this jar's cannot be written beside it as " + name + NEW_SUFFIX + " ("
+                        + SidecarLockUnavailableException.reasonOf(unwritten) + ")";
             }
-            String line = name + " beside the jar differs from this jar's own"
-                    + (keys.isEmpty() ? "" : " at " + String.join(", ", keys))
-                    + "; this jar's is written beside it as " + name + NEW_SUFFIX;
-            drift.add(new Drift(name, keys, line));
+            differences.add(new Difference(name, keys, line));
         }
-        return drift;
+        return differences;
     }
 
     /** {@code null} where the file is the shipped copy's as far as ADR-397 §5 compares; else the keys that differ. */
@@ -206,7 +221,8 @@ public final class BesideTheJar implements ApplicationListener<ApplicationEvent>
             flatTheirs = flatten(theirs);
             flatOurs = flatten(ours);
         } catch (RuntimeException doesNotLoad) {
-            return null;
+            // A file that does not load differs at no key (ADR-397 §5): it cannot be the shipped copy, which loads.
+            return List.of();
         }
         TreeSet<String> keys = new TreeSet<>();
         for (String key : flatTheirs.keySet()) {
@@ -245,8 +261,10 @@ public final class BesideTheJar implements ApplicationListener<ApplicationEvent>
 
     /** Points Spring at the two files beside the jar (ADR-397 §4), among its default properties. */
     public void pointSpringAt(SpringApplication application) {
+        // Spring cuts the location at its commas, so a comma of the folder's path is written %2C, which it decodes.
         application.setDefaultProperties(Map.of("spring.config.location",
-                folder.resolve("application.yaml").toUri() + ",optional:" + folder.resolve(LOCAL_FILE).toUri()));
+                folder.resolve("application.yaml").toUri().toString().replace(",", "%2C") + ",optional:"
+                        + folder.resolve(LOCAL_FILE).toUri().toString().replace(",", "%2C")));
     }
 
     /** The compose files where they lie beside the jar (ADR-397 §6); none is written out or deleted. */
@@ -286,12 +304,25 @@ public final class BesideTheJar implements ApplicationListener<ApplicationEvent>
         }
     }
 
-    /** Writes the shipped copy of {@code name} to {@code target}, through {@code <target>.part}. */
-    private void writeFrom(String name, Path target) throws IOException {
+    /**
+     * Writes the shipped copy of {@code name} to {@code target}, through {@code <target>.part}; over a file already
+     * there only where {@code replace}. Without it a file that is there is left, and {@code false} is answered.
+     */
+    private boolean writeFrom(String name, Path target, boolean replace) throws IOException {
         byte[] bytes = shippedBytes(name);
         Files.createDirectories(target.getParent());
         Path part = target.resolveSibling(target.getFileName() + ".part");
         Files.write(part, bytes);
-        Files.move(part, target, StandardCopyOption.REPLACE_EXISTING);
+        try {
+            if (replace) {
+                Files.move(part, target, StandardCopyOption.REPLACE_EXISTING);
+            } else {
+                Files.move(part, target);
+            }
+        } catch (FileAlreadyExistsException alreadyThere) {
+            Files.deleteIfExists(part);
+            return false;
+        }
+        return true;
     }
 }

@@ -226,7 +226,7 @@ final class EffectiveValuesFile {
     /** Whether a config resource's source name names a file called {@code application.yaml} (or {@code .yml}), wherever it lies. */
     private static boolean isApplicationYaml(String sourceName) {
         int via = sourceName.indexOf("' via location");
-        String resource = via < 0 ? sourceName : sourceName.substring(0, via);
+        String resource = (via < 0 ? sourceName : sourceName.substring(0, via)).toLowerCase(java.util.Locale.ROOT);
         for (String file : new String[] {"application.yaml]", "application.yml]"}) {
             if (resource.endsWith(file)) {
                 int before = resource.length() - file.length() - 1;

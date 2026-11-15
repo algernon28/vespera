@@ -10,16 +10,12 @@ import io.algernon.vespera.engine.pipeline.TemporaryFilesInTheWorkingDirectory;
 import io.algernon.vespera.engine.pipeline.WorkingDirectoryInUseRefusal;
 import io.algernon.vespera.engine.pipeline.WorkingDirectoryLock;
 import io.algernon.vespera.engine.pipeline.WorkingDirectoryPreparer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ConfigurableApplicationContext;
 
 @SpringBootApplication
 public class VesperaApplication {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(VesperaApplication.class);
 
     public static void main(String[] args) {
         SpringApplication application = new SpringApplication(VesperaApplication.class);
@@ -57,13 +53,10 @@ public class VesperaApplication {
         try {
             context = application.run(args);
         } catch (RuntimeException failure) {
-            // Already said in one line by the refusal; its exit code is all that is left to deliver.
-            for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
-                if (cause instanceof BesideTheJarUnwritableException refused) {
-                    LOGGER.error("{}", refused.getMessage());
-                    System.exit(1);
-                    return;
-                }
+            // A folder beside the jar that cannot be written is thrown before logging is configured, so a log line
+            // would be dropped: it goes on, and the entry point says its line on standard error and exits 1 (ADR-397 §3).
+            if (failure instanceof BesideTheJarUnwritableException) {
+                throw failure;
             }
             if (MisshapenProfileRefusal.refuses(failure)) {
                 System.exit(MisshapenProfileRefusal.EXIT_CODE);

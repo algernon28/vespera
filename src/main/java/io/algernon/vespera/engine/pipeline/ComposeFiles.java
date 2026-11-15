@@ -1,8 +1,8 @@
 package io.algernon.vespera.engine.pipeline;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.dataformat.yaml.YAMLMapper;
@@ -60,15 +60,27 @@ final class ComposeFiles implements AutoCloseable {
     }
 
     private static String doclingImageIn(Path composeFile) {
+        String text;
         try {
-            JsonNode image = YAML.readTree(Files.readString(composeFile)).path("services").path("docling-serve")
-                    .path("image");
-            if (!image.isString()) {
-                throw new IllegalStateException(composeFile + " names no image for its docling-serve service");
-            }
-            return image.asString();
-        } catch (IOException unreadable) {
-            throw new UncheckedIOException(unreadable);
+            text = Files.readString(composeFile);
+        } catch (NoSuchFileException notThere) {
+            throw new ComposeFileUnreadableException(composeFile, "it is not there", notThere);
+        } catch (IOException | RuntimeException unreadable) {
+            throw new ComposeFileUnreadableException(composeFile, SidecarLockUnavailableException.reasonOf(unreadable),
+                    unreadable);
         }
+        JsonNode tree;
+        try {
+            tree = YAML.readTree(text);
+        } catch (RuntimeException doesNotLoad) {
+            throw new ComposeFileUnreadableException(composeFile,
+                    "it does not load as YAML: " + SidecarLockUnavailableException.reasonOf(doesNotLoad), doesNotLoad);
+        }
+        JsonNode image = tree.path("services").path("docling-serve").path("image");
+        if (!image.isString()) {
+            throw new ComposeFileUnreadableException(composeFile, "it names no image for its docling-serve service",
+                    null);
+        }
+        return image.asString();
     }
 }

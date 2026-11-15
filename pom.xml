@@ -259,6 +259,10 @@
             -->
             <resource>
                 <directory>src/main/resources</directory>
+                <!-- The operator's own file, which holds a private path and is never in the jar (ADR-397 section 2). -->
+                <excludes>
+                    <exclude>application-local.yaml</exclude>
+                </excludes>
             </resource>
             <resource>
                 <directory>${project.build.directory}/generated-resources/implementation-versions</directory>

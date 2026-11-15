@@ -106,13 +106,13 @@ public final class EntryPoint {
             if (arguments.length > 0 && arguments[0].equals(HEADLESS)) {
                 System.setProperty(DisplayPresence.HEADLESS_PROPERTY, "true");
             }
-            commandLine.accept(passedOn(arguments));
+            runCommandLine(commandLine, passedOn(arguments), err, exit);
             return;
         }
         DisplayPresence.Answer answer = display.get();
         if (!answer.present()) {
             err.println(NO_WINDOW + "no display (" + answer.inWords() + ")");
-            commandLine.accept(new String[0]);
+            runCommandLine(commandLine, new String[0], err, exit);
             return;
         }
         Optional<String> refusal = machine.apply(MachineLock.Kind.CONTROL_PANEL);
@@ -129,9 +129,24 @@ public final class EntryPoint {
             }
             case NO_WINDOW -> {
                 err.println(NO_WINDOW + opening.line());
-                commandLine.accept(new String[0]);
+                runCommandLine(commandLine, new String[0], err, exit);
             }
             case CLOSED -> exit.accept(0);
+        }
+    }
+
+    /**
+     * Hands the arguments to the command line. A folder beside the jar it cannot write is thrown as Spring starts,
+     * before its logging is configured, so a log line would be dropped: its one line goes on standard error as it
+     * stands, and the exit is 1 (ADR-397 §3).
+     */
+    private static void runCommandLine(Consumer<String[]> commandLine, String[] arguments, PrintStream err,
+                                       IntConsumer exit) {
+        try {
+            commandLine.accept(arguments);
+        } catch (BesideTheJarUnwritableException refused) {
+            err.println(refused.getMessage());
+            exit.accept(REFUSED);
         }
     }
 }
