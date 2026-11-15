@@ -23,6 +23,14 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,7 +41,8 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
 
 /**
  * The folder beside the jar (ADR-397): which folder it is (§1); a file missing there written from the jar's shipped
- * copy, and never over a file there, {@code application-local.yaml} never (§3); a folder that cannot be written refusing
+ * copy, and never over a file there, {@code application-local.yaml} never, two starts preparing one folder at once
+ * both going on and leaving the shipped copy and no {@code .part} file (§3); a folder that cannot be written refusing
  * the start (§3); Spring reading {@code application.yaml} and {@code application-local.yaml} there, and a location
  * named on the command line, as a system property or in the environment read in their place (§4); each file that
  * differs from its shipped copy named by its keys, the shipped copy written beside it as {@code <name>.new} and the
@@ -72,6 +81,12 @@ class BesideTheJarTest {
 
     /** What each property the Spring tests read is said to be where nothing names it. */
     private static final String NOTHING = "(nothing)";
+
+    /** How a file being written beside the jar ends, before it is moved into place (§3). */
+    private static final String WHILE_IT_IS_WRITTEN = ".part";
+
+    /** How many fresh folders two starts prepare at once, so that a clash between them is met rather than missed. */
+    private static final int FOLDERS_TWO_STARTS_PREPARE_AT_ONCE = 50;
 
     @TempDir
     Path besideTheJar;
@@ -126,6 +141,58 @@ class BesideTheJarTest {
         claim("and the operator's " + theOperators.size() + " files hold what the operator wrote, untouched",
                 () -> assertThat(theOperators).allSatisfy(name -> assertThat(besideTheJar.resolve(name))
                         .hasContent(THE_OPERATORS_OWN)));
+    }
+
+    @Test
+    @Story("The configuration lies beside the jar")
+    @DisplayName("Two starts preparing one folder at once both go on, and leave every file the jar's own copy, byte for byte, and no .part file")
+    void twoStartsPreparingOneFolderAtOnceLeaveEveryFileTheShippedCopyAndNoPartFile() throws Exception {
+        List<String> expected = TheShippedCopy.namesInTheRepository();
+        List<String> refused = new ArrayList<>();
+        List<String> said = new ArrayList<>();
+        List<String> notTheJarsCopy = new ArrayList<>();
+        List<Path> leftBehind = new ArrayList<>();
+        ExecutorService twoStarts = Executors.newFixedThreadPool(2);
+        try {
+            for (int time = 1; time <= FOLDERS_TWO_STARTS_PREPARE_AT_ONCE; time++) {
+                Path folder = Files.createDirectories(besideTheJar.resolve("folder " + time));
+                // Each start counts itself in and waits for the other, so both prepare the folder at the same moment.
+                CountDownLatch together = new CountDownLatch(2);
+                Callable<List<String>> aStart = () -> {
+                    together.countDown();
+                    together.await();
+                    return new BesideTheJar(folder).prepare();
+                };
+                List<Future<List<String>>> starts = List.of(twoStarts.submit(aStart), twoStarts.submit(aStart));
+                for (Future<List<String>> start : starts) {
+                    try {
+                        for (String line : start.get(1, TimeUnit.MINUTES)) {
+                            said.add(folder.getFileName() + ": " + line);
+                        }
+                    } catch (ExecutionException thrown) {
+                        refused.add(folder.getFileName() + ": " + thrown.getCause());
+                    } catch (TimeoutException neverEnded) {
+                        refused.add(folder.getFileName() + ": a start that did not end within a minute");
+                    }
+                }
+                for (String name : differingFromTheJarsCopy(folder, expected, "")) {
+                    notTheJarsCopy.add(folder.getFileName() + ": " + name);
+                }
+                leftBehind.addAll(filesEndingIn(folder, WHILE_IT_IS_WRITTEN));
+            }
+        } finally {
+            twoStarts.shutdownNow();
+        }
+
+        claim("in " + FOLDERS_TWO_STARTS_PREPARE_AT_ONCE + " fresh folders each prepared by two starts at once, neither"
+                        + " start is refused",
+                () -> assertThat(refused).as("the starts refused, by folder, with what they threw").isEmpty());
+        claim("every file the jar keeps beside itself is its own copy, byte for byte, in every folder",
+                () -> assertThat(notTheJarsCopy).as("the files missing or not the jar's own copy, by folder").isEmpty());
+        claim("no file being written is left behind under a name ending " + WHILE_IT_IS_WRITTEN,
+                () -> assertThat(leftBehind).as("the files left ending " + WHILE_IT_IS_WRITTEN).isEmpty());
+        claim("and neither start finds a file that differs from the jar's own, so neither says a line",
+                () -> assertThat(said).as("the lines said, by folder").isEmpty());
     }
 
     @Test
@@ -424,16 +491,27 @@ class BesideTheJarTest {
 
     /** The files below the folder beside the jar whose names end in {@code suffix}. */
     private List<Path> filesEndingIn(String suffix) throws IOException {
-        try (Stream<Path> paths = Files.walk(besideTheJar)) {
+        return filesEndingIn(besideTheJar, suffix);
+    }
+
+    /** The files below {@code folder} whose names end in {@code suffix}. */
+    private static List<Path> filesEndingIn(Path folder, String suffix) throws IOException {
+        try (Stream<Path> paths = Files.walk(folder)) {
             return paths.filter(path -> path.getFileName().toString().endsWith(suffix)).toList();
         }
     }
 
     /** The names, of those given, whose file beside the jar, its name followed by {@code suffix}, is not the jar's copy. */
     private List<String> differingFromTheJarsCopy(List<String> names, String suffix) throws IOException {
+        return differingFromTheJarsCopy(besideTheJar, names, suffix);
+    }
+
+    /** The names, of those given, whose file in {@code folder}, its name followed by {@code suffix}, is not the jar's copy. */
+    private static List<String> differingFromTheJarsCopy(Path folder, List<String> names, String suffix)
+            throws IOException {
         List<String> differing = new ArrayList<>();
         for (String name : names) {
-            Path file = besideTheJar.resolve(name + suffix);
+            Path file = folder.resolve(name + suffix);
             if (!Files.isRegularFile(file) || !Arrays.equals(Files.readAllBytes(file), theJarsCopy(name))) {
                 differing.add(name + suffix);
             }
