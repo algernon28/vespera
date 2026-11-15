@@ -263,6 +263,10 @@ _Avoid_: mutex, pidfile
 The operating system's lock `vespera run` takes on a file named for its corpus root, outside the archive and every working directory, held until its process ends, so a second invocation walking the same corpus root is refused whatever working directory it names (ADR-279). The same corpus root is the same directory once its spelling, its case and any junction on the way are resolved; a root inside another is a different one.
 _Avoid_: root mutex, archive lock (nothing is written into the archive)
 
+**Machine lock**:
+The operating system's lock on `machine.lock`, in the folder the corpus-root locks lie in, taken before anything else by a control panel and by `vespera run`, `vespera label` and `vespera publish`, and held until its process ends, so that one Vespera runs on a machine at a time and none stops the sidecars another is using (ADR-391). The control panel's own child is let through, its parent being the holder, and holds `machine-child.lock` while it runs. `vespera serve` takes none.
+_Avoid_: mutex, pidfile, single-instance lock
+
 **Invocation account**:
 The one file an invocation that started the job wrote for a hosted model to read, in the working directory's `logs` folder (ADR-270): each step and how it ended, durations, counts, progress lines, and a failed step's exception types, built from typed values and an allow-list (ADR-198). No invocation writes it: the invocation report's copy, `logs/report-<invocation>.json`, replaces it, and the class that wrote it hands the counts to the report (ADR-362 §4). A file an earlier version wrote stays where it lies, and nothing reads it.
 _Avoid_: run summary, summary

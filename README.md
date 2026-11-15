@@ -366,6 +366,8 @@ When `compose.yaml` has changed since you started the sidecars, for example afte
 
 ## Starting the control panel
 
+One Vespera runs on a machine at a time. While a control panel is open, or a `vespera run`, `vespera label` or `vespera publish` is running, a second control panel does not open and those commands started anywhere else stop at once, before they write anything, with a line beginning `another Vespera is running on this machine` that names the one running. This keeps one from stopping the sidecars another is using. The commands the control panel starts itself are not affected, and neither is `vespera serve`.
+
 The control panel is a window of the jar itself, which runs the same commands one at a time, each as a command of the same jar started with the Java that started the window. Start the jar with no argument, or double-click it, and the window opens; from the root of this repository:
 
 ```
