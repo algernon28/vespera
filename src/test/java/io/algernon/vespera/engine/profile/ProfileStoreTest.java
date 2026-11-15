@@ -227,5 +227,6 @@ class ProfileStoreTest {
             Map.entry("confluenceSpaceKey", "DOCS"),
             Map.entry("confluenceFolderId", "123456789"),
             Map.entry("confluenceFolderTitle", "Hand-overs"),
-            Map.entry("confluenceEmail", "operator@example.org"));
+            Map.entry("confluenceEmail", "operator@example.org"),
+            Map.entry("confluenceRootTitle", "Hand-overs {language}"));
 }

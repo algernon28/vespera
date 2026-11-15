@@ -50,8 +50,16 @@ final class ConfluenceSite {
     private final String parentId;
     private final String parentTitle;
     private final String authorization;
+    private final String rootTitle;
+    private final boolean rootTitleFromTheShell;
 
-    private ConfluenceSite(URI site, String spaceKey, String parentId, String parentTitle, String authorization) {
+    /** The environment variable the root page's title is read from, before the profile's (ADR-398 §2). */
+    static final String ROOT_TITLE_VARIABLE = "VESPERA_CONFLUENCE_ROOT_TITLE";
+
+    private ConfluenceSite(URI site, String spaceKey, String parentId, String parentTitle, String authorization,
+            String rootTitle, boolean rootTitleFromTheShell) {
+        this.rootTitle = rootTitle;
+        this.rootTitleFromTheShell = rootTitleFromTheShell;
         this.site = site;
         this.spaceKey = spaceKey;
         this.parentId = parentId;
@@ -162,10 +170,13 @@ final class ConfluenceSite {
                             + " Correct it in the control panel's Profile window, and publish again."
                     : "vespera publish sent nothing: VESPERA_CONFLUENCE_BASE_URL" + notASite);
         }
+        String shellsRootTitle = blankToNull(environment.apply(ROOT_TITLE_VARIABLE));
+        String rootTitle = shellsRootTitle != null ? shellsRootTitle : blankToNull(profile.rootTitle());
         String basic = Base64.getEncoder().encodeToString((user + ":" + token).getBytes(StandardCharsets.UTF_8));
         return new Read.Given(new ConfluenceSite(
                 site.get(), spaceKey.strip(), blankToNull(parentId) == null ? null : parentId.strip(),
-                blankToNull(parentTitle) == null ? null : parentTitle.strip(), "Basic " + basic));
+                blankToNull(parentTitle) == null ? null : parentTitle.strip(), "Basic " + basic, rootTitle,
+                shellsRootTitle != null));
     }
 
     /** {@code https://<host>[:port]}, the only origin requests go to, or empty where the address is refused. */
@@ -214,6 +225,16 @@ final class ConfluenceSite {
     /** The parent's title where it is named by title, otherwise {@code null}. */
     String parentTitle() {
         return parentTitle;
+    }
+
+    /** The root page's title as the shell or else the profile states it, not blank; {@code null} where neither does. */
+    String rootTitle() {
+        return rootTitle;
+    }
+
+    /** Whether {@link #rootTitle()} is the shell's, not the profile's. */
+    boolean rootTitleFromTheShell() {
+        return rootTitleFromTheShell;
     }
 
     /** The {@code Authorization} header's value: Basic, of the email and the token. */

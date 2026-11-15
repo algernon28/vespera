@@ -30,11 +30,11 @@ public final class ProfileKeys {
     }
 
     /**
-     * The five keys saying where a publish sends the Confluence rendering, in the record's order (ADR-359 §1): the one
-     * list of them a test may hold, as {@link #everyKey()} is of every key.
+     * The six keys saying where and how a publish sends the Confluence rendering, in the record's order (ADR-359 §1,
+     * ADR-398 §1): the one list of them a test may hold, as {@link #everyKey()} is of every key.
      */
     public static final List<String> CONFLUENCE_KEYS = List.of("confluenceBaseUrl", "confluenceSpaceKey",
-            "confluenceFolderId", "confluenceFolderTitle", "confluenceEmail");
+            "confluenceFolderId", "confluenceFolderTitle", "confluenceEmail", "confluenceRootTitle");
 
     /** Every key the deliverable's index states: every key but {@link #CONFLUENCE_KEYS}, in the record's order (ADR-359 §7). */
     public static List<String> everyKeyTheIndexStates() {
