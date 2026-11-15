@@ -48,7 +48,7 @@ const ENGINE = MAIN + "/engine";
 const PUBLISH = MAIN + "/publish";
 const TEST = "src/test/java";
 const POM = "pom.xml";
-const APPLICATION_YAML = "src/main/resources/application.yaml";
+const APPLICATION_YAML = "src/main/beside-the-jar/application.yaml";
 const COMPOSE = "compose.yaml";
 const COMMANDS = ENGINE + "/pipeline/VesperaCommand.java";
 /**

@@ -10,12 +10,16 @@ import io.algernon.vespera.engine.pipeline.TemporaryFilesInTheWorkingDirectory;
 import io.algernon.vespera.engine.pipeline.WorkingDirectoryInUseRefusal;
 import io.algernon.vespera.engine.pipeline.WorkingDirectoryLock;
 import io.algernon.vespera.engine.pipeline.WorkingDirectoryPreparer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ConfigurableApplicationContext;
 
 @SpringBootApplication
 public class VesperaApplication {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(VesperaApplication.class);
 
     public static void main(String[] args) {
         SpringApplication application = new SpringApplication(VesperaApplication.class);
@@ -56,7 +60,7 @@ public class VesperaApplication {
             // Already said in one line by the refusal; its exit code is all that is left to deliver.
             for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
                 if (cause instanceof BesideTheJarUnwritableException refused) {
-                    System.err.println(refused.getMessage());
+                    LOGGER.error("{}", refused.getMessage());
                     System.exit(1);
                     return;
                 }
