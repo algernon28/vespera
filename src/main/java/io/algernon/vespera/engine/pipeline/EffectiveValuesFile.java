@@ -141,6 +141,7 @@ final class EffectiveValuesFile {
         address(values, "vespera.docling.base-url", SidecarStartSettings.DEFAULT_DOCLING);
         address(values, "spring.ai.ollama.base-url", SidecarStartSettings.DEFAULT_OLLAMA);
         labelModel(values);
+        namingModel(values);
         return values;
     }
 
@@ -158,6 +159,25 @@ final class EffectiveValuesFile {
             }
         }
         values.put(LABEL_MODEL, new String[] {THE_CODES_LABEL_MODEL, "code"});
+    }
+
+    /**
+     * The naming model as {@link NamingModel} resolves it (ADR-403 section 10): {@code vespera.naming.model} where
+     * configuration names it, else {@code spring.ai.ollama.chat.options.model}, each with the source of the layer that
+     * named it, else {@value #THE_CODES_LABEL_MODEL} with the source {@code code}. A value bound blank is left out,
+     * its source with it, and the chat model is not said in its place: no invocation would name it.
+     */
+    private void namingModel(Map<String, String[]> values) {
+        for (String property : new String[] {NamingModel.KEY, CHAT_MODEL}) {
+            String value = environment.getProperty(property);
+            if (value != null) {
+                if (!value.isBlank()) {
+                    values.put(NamingModel.KEY, new String[] {value, sourceOf(property)});
+                }
+                return;
+            }
+        }
+        values.put(NamingModel.KEY, new String[] {NamingModel.THE_CODES_DEFAULT, "code"});
     }
 
     /**

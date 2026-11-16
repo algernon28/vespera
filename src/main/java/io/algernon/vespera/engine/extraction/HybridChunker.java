@@ -68,6 +68,14 @@ public class HybridChunker {
     }
 
     /**
+     * The chunks stored for {@code contentHash} under this chunker and {@code rule}, in order, read from the chunk
+     * cache and never cut: none where nothing was stored (ADR-403 section 4).
+     */
+    public List<Chunk> stored(String contentHash, ChunkingRule rule) {
+        return cache.get(contentHash, CHUNKER_IDENTITY, rule.identity().value());
+    }
+
+    /**
      * How many chunks each of {@code contentHashes} has stored under this chunker and {@code rule}, asked a page
      * of hashes to a statement (ADR-244, ADR-245); a hash with none stored is absent.
      */

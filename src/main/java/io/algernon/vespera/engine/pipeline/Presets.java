@@ -63,6 +63,14 @@ class Presets {
     }
 
     /**
+     * The model that names the topics, as configuration resolves it (ADR-403 section 2); a blank value stops the
+     * invocation, naming {@code vespera.naming.model}.
+     */
+    String namingModel() {
+        return NamingModel.of(environment);
+    }
+
+    /**
      * The line for the first value of §9's table, in its order, that no run can be made under, else empty. The
      * configured resolution is not read where {@code profile} holds a finite number above 0 for it, which then names
      * the run in its place; every other preset is checked whichever stage the invocation would reach.

@@ -16,6 +16,8 @@ import io.algernon.vespera.engine.similarity.MinHashParameters;
 import io.algernon.vespera.engine.similarity.RedundancyThresholds;
 import io.algernon.vespera.engine.similarity.ShingleParameters;
 import io.algernon.vespera.engine.synthesis.ClusterSynthesis;
+import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
+import io.algernon.vespera.engine.synthesis.TopicNaming;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.OptionalDouble;
@@ -536,9 +538,26 @@ class StageRuns {
         return ollamaClient.artefactOf(embeddingModelName).equals(minted);
     }
 
+    /** The language the topics are named in and the deliverable is written in (ADR-321 section 1, ADR-403 section 3). */
+    DeliverableLanguage deliverableLanguage() {
+        return languageOfTheDeliverable.language();
+    }
+
+    /**
+     * The model the arrangement step names the topics under (ADR-403 section 2).
+     *
+     * @throws NoNamingModelNamedException where the value is blank
+     */
+    String namingModelName() {
+        return presets.namingModel();
+    }
+
     /** Stage 6a's run, minted the first time this is called in this invocation. */
     RunId arrangement() {
         if (arrangement == null) {
+            // The two values only this run reads, resolved where it is minted, before any call (ADR-403 sections 2, 3).
+            String namingModel = namingModelName();
+            DeliverableLanguage language = languageOfTheDeliverable.language();
             RunId scoringRunId = embeddingScoring();
             WalkId walk = runMint.finishedWalk(canonicalRoot, "the documents can be arranged");
             long standingRemovals = ledger.verdicts().verdictsUnder(scoringRunId);
@@ -547,7 +566,15 @@ class StageRuns {
                     new ArrangementConfigConsumed(
                             canonicalRoot.toString(),
                             scoringRunId.value(),
-                            standingRemovals == 0 ? null : standingRemovals),
+                            standingRemovals == 0 ? null : standingRemovals,
+                            namingModel,
+                            ollamaClient.artefactOf(namingModel).digest(),
+                            TopicNaming.NAMING_WINDOW,
+                            TopicNaming.NAME_REPLY_ALLOWANCE,
+                            ClusterSynthesis.KEEP_A_TOO_LONG_QUESTIONS_HEAD,
+                            TopicNaming.NAMING_TEMPERATURE,
+                            TopicNaming.NAMING_SEED,
+                            language.code()),
                     walk,
                     Optional.of(scoringRunId));
         }
@@ -661,7 +688,17 @@ class StageRuns {
     private record ArrangementConfigConsumed(
             String corpusRoot,
             String scoringRunId,
-            @JsonInclude(JsonInclude.Include.NON_NULL) Long standingRemovals) {}
+            @JsonInclude(JsonInclude.Include.NON_NULL) Long standingRemovals,
+            // ADR-403 section 3, after standingRemovals, each always written: the model that names the topics and the
+            // options its calls send, and the language the names are written in.
+            String namingModel,
+            String namingModelDigest,
+            int namingContextWindow,
+            int namingReplyAllowance,
+            int namingNumKeep,
+            double namingTemperature,
+            int namingSeed,
+            String deliverableLanguage) {}
 
     /**
      * Stage 6b's own {@code ConfigConsumed}, extended once from the run class this replaces.

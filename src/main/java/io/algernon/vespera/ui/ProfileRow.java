@@ -672,6 +672,12 @@ final class ProfileRow {
         return warnings;
     }
 
+    /** The line of a model in use and where it came from, in ADR-377 section 4's words; the value alone where it has none. */
+    static String modelInUseOf(EffectiveValues.Value said) {
+        String source = SOURCES_IN_WORDS.get(said.source());
+        return "In use: " + said.value() + (source == null ? "" : ", from " + source) + ".";
+    }
+
     /** The line of the value in use where the profile names none, its source in plain words (ADR-377 §4). */
     static String inUseOf(EffectiveValues.Value said) {
         String source = SOURCES_IN_WORDS.get(said.source());

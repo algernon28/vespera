@@ -65,6 +65,8 @@ final class Cockpit {
     private final SelectableText.Line where = SelectableText.line("");
     private final SelectableText.Line child = SelectableText.line("");
     private final SelectableText.Line databaseSize = SelectableText.line("");
+    /** The model that names the topics, as the jar said it would use it: shown, never set (ADR-403 section 10). */
+    private final SelectableText.Line namingModel = SelectableText.line("");
     private final SelectableText.Wrapping outcome = SelectableText.wrapping("");
     private final Button run = new Button("Run");
     private final Button stop = new Button("Stop");
@@ -154,6 +156,7 @@ final class Cockpit {
         root.setLeft(sidebarPane());
         root.setCenter(mainPane());
         loadFiles();
+        showNamingModel();
         showCommandLines();
         showBadges();
         refresh();
@@ -597,6 +600,7 @@ final class Cockpit {
         });
         working.input.textProperty().addListener((observed, was, now) -> {
             where();
+            showNamingModel();
             reports.closeTabs();
             // the rows drawn for another working directory start as they first do (ADR-377 section 3)
             List.of(profileOpen, seedOpen, wantedOpen).forEach(ProfileRow.OpenKeys::forget);
@@ -821,9 +825,31 @@ final class Cockpit {
         hint.getStyleClass().add("small");
         VBox pane = new VBox(SelectableText.line("Converter's image"), images, image.input, image.startingLine, hint,
                 fieldBox(converter, "Converter's address", false), fieldBox(ollama, "Ollama's address", false),
-                fieldBox(model, "Label model", false));
+                fieldBox(model, "Label model", false), namingModelPart());
         pane.getStyleClass().add("section");
         return pane;
+    }
+
+    /**
+     * The heading <i>Naming model</i> and one line saying the model the working directory's file names and where it
+     * came from. It is no field: the naming model enters the arrangement run's identity, so it is no launch value
+     * (ADR-403 section 10).
+     */
+    private Node namingModelPart() {
+        namingModel.setId("in-use-vespera.naming.model");
+        SelectableText.Line heading = SelectableText.line("Naming model");
+        heading.getStyleClass().add("field-name");
+        VBox part = tight(heading, namingModel);
+        part.getStyleClass().add("field");
+        return part;
+    }
+
+    /** Reads the file again, for the working directory chosen now, and says the naming model it names. */
+    private void showNamingModel() {
+        Optional<EffectiveValues.Value> said = state.effectiveValues(folders.workingDirectory())
+                .flatMap(values -> values.named("vespera.naming.model"));
+        namingModel.setText(said.map(ProfileRow::modelInUseOf).orElse(
+                "The jar has not said yet what it would use; run an invocation to see it."));
     }
 
     private Node seedPane() {
@@ -1105,6 +1131,7 @@ final class Cockpit {
         if (ending.isPresent() && ending.get() != wantedFor) {
             wantedFor = ending.get();
             readTheRowsAgain();
+            showNamingModel();
             Map<String, Boolean> written = folders.writtenReports();
             profile.showReports(written);
             wanted.showReports(written);
