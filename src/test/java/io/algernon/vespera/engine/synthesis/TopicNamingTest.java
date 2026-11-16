@@ -29,6 +29,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.ollama.api.OllamaChatOptions;
+import org.springframework.ai.ollama.api.ThinkOption;
 import org.springframework.ai.retry.NonTransientAiException;
 import org.springframework.ai.retry.TransientAiException;
 import tools.jackson.databind.JsonNode;
@@ -96,9 +97,12 @@ class TopicNamingTest {
 
     private static final String A_NAME = "Irrigazione e diritti sull'acqua";
 
+    /** U+00A0, a blank character that {@code String.strip} and {@code String.isBlank} do not take for one. */
+    private static final String NO_BREAK_SPACE = " ";
+
     @Test
     @Story("A topic is named the same way every run")
-    @DisplayName("The call names the model and sends the window, the answer's allowance, temperature 0, seed 1 and a shape of one field")
+    @DisplayName("The call names the model, asks for no thinking, and sends the window, the answer's allowance, temperature 0, seed 1 and a shape of one field")
     void asksAtTemperatureZeroWithSeedOneUnderAShapeOfOneField() {
         ScriptedModel model = new ScriptedModel(prompt -> answered(object(A_NAME)));
 
@@ -114,11 +118,13 @@ class TopicNamingTest {
                     assertThat(TopicNaming.SEED).isEqualTo(SEED_ONE);
                 });
         claim(
-                "one call was made, naming the model, and sending a window of " + WINDOW + " tokens, an allowance of "
+                "one call was made, naming the model, asking it not to think first, and sending a window of " + WINDOW
+                        + " tokens, an allowance of "
                         + ANSWER_ALLOWANCE + ", all of a too-long question that fits kept, temperature 0, seed 1, and a"
                         + " shape requiring the one field name",
                 () -> assertThat(model.options()).singleElement().satisfies(options -> {
                     assertThat(options.getModel()).isEqualTo(MODEL_NAME);
+                    assertThat(options.getThinkOption()).isEqualTo(ThinkOption.ThinkBoolean.DISABLED);
                     assertThat(options.getNumCtx()).isEqualTo(WINDOW);
                     assertThat(options.getNumPredict()).isEqualTo(ANSWER_ALLOWANCE);
                     assertThat(options.getNumKeep()).isEqualTo(KEEP_ALL_THAT_FITS);
@@ -156,6 +162,32 @@ class TopicNamingTest {
     }
 
     @Test
+    @Story("A topic is named from the passages most typical of it")
+    @DisplayName("Passages coming to exactly 1,500 words are all sent, and so is one passage of exactly 1,500 words")
+    void sendsPassagesThatComeToExactlyTheBudget() {
+        NamingPassage firstOfSevenHundred = new NamingPassage("The first passage of seven hundred words.", 700);
+        NamingPassage secondOfSevenHundred = new NamingPassage("The second passage of seven hundred words.", 700);
+        NamingPassage ofOneHundred = new NamingPassage("A passage of one hundred words.", 100);
+        NamingPassage ofTheWholeBudget = new NamingPassage("A passage as long as the budget.", BUDGET);
+        ScriptedModel threePassages = new ScriptedModel(prompt -> answered(object(A_NAME)));
+        ScriptedModel onePassage = new ScriptedModel(prompt -> answered(object(A_NAME)));
+
+        nameFrom(threePassages, new TopicNameCall(
+                List.of(firstOfSevenHundred, secondOfSevenHundred, ofOneHundred), A_TITLED_SEED));
+        nameFrom(onePassage, new TopicNameCall(List.of(ofTheWholeBudget), A_TITLED_SEED));
+
+        claim(
+                "passages of 700, 700 and 100 words, " + BUDGET + " in all, are all sent: the last fits what is left"
+                        + " exactly",
+                () -> assertThat(threePassages.questions()).containsExactly(TopicNameQuestion.of(
+                        List.of(firstOfSevenHundred, secondOfSevenHundred, ofOneHundred), DeliverableLanguage.ENGLISH)));
+        claim(
+                "and one passage of exactly " + BUDGET + " words is sent, not passed over as longer than the budget",
+                () -> assertThat(onePassage.questions()).containsExactly(
+                        TopicNameQuestion.of(List.of(ofTheWholeBudget), DeliverableLanguage.ENGLISH)));
+    }
+
+    @Test
     @Story("A topic the model cannot name is named after its strongest seed")
     @DisplayName("A topic none of whose passages fits the budget asks nothing, and its strongest seed's title stands in")
     void aTopicNoPassageOfWhichFitsAsksNothing() {
@@ -173,15 +205,24 @@ class TopicNamingTest {
 
     @Test
     @Story("The name the model writes is used as it wrote it")
-    @DisplayName("A name with blanks around it is used without them, and nothing else of it is changed")
+    @DisplayName("A name with blanks around it is used without them, no-break spaces and line breaks among them, and nothing else of it is changed")
     void keepsAUsableNameAsWrittenBarTheBlanksAroundIt() {
-        ScriptedModel model = new ScriptedModel(prompt -> answered(object("  " + A_NAME + "  ")));
+        ScriptedModel spaces = new ScriptedModel(prompt -> answered(object("  " + A_NAME + "  ")));
+        ScriptedModel noBreakSpaces = new ScriptedModel(prompt -> answered(object(NO_BREAK_SPACE + A_NAME + NO_BREAK_SPACE)));
+        ScriptedModel lineBreaks = new ScriptedModel(
+                prompt -> answered("{\"name\":\"\\n" + A_NAME + "\\r\\n\"}"));
+        TopicName theModels = new TopicName(A_NAME, TopicNameSource.GENERATION_MODEL, Optional.empty());
 
         claim(
-                "the name is the model's, the blanks around it set aside, its apostrophe kept, with no reason to stand"
+                "the name is the model's, the spaces around it set aside, its apostrophe kept, with no reason to stand"
                         + " anything in",
-                () -> assertThat(nameFrom(model, TWO_PASSAGES))
-                        .isEqualTo(new TopicName(A_NAME, TopicNameSource.MODEL, Optional.empty())));
+                () -> assertThat(nameFrom(spaces, TWO_PASSAGES)).isEqualTo(theModels));
+        claim(
+                "no-break spaces around it are set aside as blanks too",
+                () -> assertThat(nameFrom(noBreakSpaces, TWO_PASSAGES)).isEqualTo(theModels));
+        claim(
+                "and so are line breaks before and after it, which put no break inside the name",
+                () -> assertThat(nameFrom(lineBreaks, TWO_PASSAGES)).isEqualTo(theModels));
     }
 
     @Test
@@ -196,7 +237,7 @@ class TopicNamingTest {
         claim(
                 "a name of " + WORDS_USED + " words is used as the model's",
                 () -> assertThat(nameFrom(new ScriptedModel(prompt -> answered(object(sixteenWords))), TWO_PASSAGES))
-                        .isEqualTo(new TopicName(sixteenWords, TopicNameSource.MODEL, Optional.empty())));
+                        .isEqualTo(new TopicName(sixteenWords, TopicNameSource.GENERATION_MODEL, Optional.empty())));
         claim(
                 "and one of a word more is not: the seed's title stands in, the name having too many words",
                 () -> assertThat(nameFrom(new ScriptedModel(prompt -> answered(object(seventeenWords))), TWO_PASSAGES))
@@ -223,9 +264,16 @@ class TopicNamingTest {
         return Stream.of(
                 new Unusable("a blank name", prompt -> answered(object("   ")), NameFallbackReason.BLANK),
                 new Unusable(
-                        "a name on two lines",
-                        prompt -> answered("{\"name\":\"Irrigazione\\ne diritti\"}"),
-                        NameFallbackReason.NOT_ONE_LINE),
+                        "a name of no-break spaces alone",
+                        prompt -> answered(object(NO_BREAK_SPACE + NO_BREAK_SPACE)),
+                        NameFallbackReason.BLANK),
+                brokenBy("a line feed", "\\n"),
+                brokenBy("a carriage return", "\\r"),
+                brokenBy("a next line, U+0085", "\\u0085"),
+                brokenBy("a line separator, U+2028", "\\u2028"),
+                brokenBy("a paragraph separator, U+2029", "\\u2029"),
+                brokenBy("a vertical tab", "\\u000b"),
+                brokenBy("a form feed", "\\u000c"),
                 new Unusable("an answer that is no object", prompt -> answered(A_NAME), NameFallbackReason.OUT_OF_SHAPE),
                 new Unusable(
                         "an object with no name in it",
@@ -244,17 +292,34 @@ class TopicNamingTest {
                         prompt -> answer(object(A_NAME), "stop", THE_WINDOWS_LAST_TOKEN),
                         NameFallbackReason.PAST_THE_WINDOW),
                 new Unusable(
-                        "a question refused as longer than the window",
+                        "a question the runner refused as longer than the window",
                         prompt -> {
                             throw new NonTransientAiException("HTTP 400 - {\"error\":\"request (9000 tokens) exceeds"
                                     + " the available context size (" + WINDOW + " tokens), try increasing it\"}");
                         },
+                        NameFallbackReason.PAST_THE_WINDOW),
+                new Unusable(
+                        "a question the engine refused as longer than the window",
+                        prompt -> {
+                            throw new NonTransientAiException("HTTP 400 - {\"error\":\"the prompt is longer than the"
+                                    + " context length currently available to the model\"}");
+                        },
                         NameFallbackReason.PAST_THE_WINDOW));
+    }
+
+    /**
+     * A name with {@code jsonEscape}, a line break as JSON escapes it, between its words: the answer is not one line.
+     */
+    private static Unusable brokenBy(String what, String jsonEscape) {
+        return new Unusable(
+                "a name broken by " + what,
+                prompt -> answered("{\"name\":\"Irrigazione" + jsonEscape + "e diritti\"}"),
+                NameFallbackReason.NOT_ONE_LINE);
     }
 
     @Test
     @Story("A topic the model cannot name is named after its strongest seed")
-    @DisplayName("With no title, the seed's filename stem stands in, and with no stem, its path")
+    @DisplayName("With no title, or a blank one, the seed's filename stem stands in, and with no stem, its path")
     void withNoTitleTheFilenameStemAndThenThePathStandIn() {
         String pathWithNoStem = "manuali/.pdf";
 
@@ -266,6 +331,12 @@ class TopicNamingTest {
         claim(
                 "so is a seed whose title is blank",
                 () -> assertThat(blankAnswerStoodInFor(new StrongestSeed(THE_SEEDS_PATH, Optional.of("  "))))
+                        .isEqualTo(new TopicName(
+                                "Manuale impianti", TopicNameSource.SEED_FILENAME_STEM, Optional.of(NameFallbackReason.BLANK))));
+        claim(
+                "so is a seed whose title is no-break spaces alone, which are blank too",
+                () -> assertThat(blankAnswerStoodInFor(
+                                new StrongestSeed(THE_SEEDS_PATH, Optional.of(NO_BREAK_SPACE + NO_BREAK_SPACE))))
                         .isEqualTo(new TopicName(
                                 "Manuale impianti", TopicNameSource.SEED_FILENAME_STEM, Optional.of(NameFallbackReason.BLANK))));
         claim(
