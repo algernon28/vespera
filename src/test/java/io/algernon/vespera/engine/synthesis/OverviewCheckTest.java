@@ -31,17 +31,17 @@ class OverviewCheckTest {
      * The numbers a call over a topic of five clusters sent, the third and fourth unwritten: the gaps are where a
      * number within the topic was not sent.
      */
-    private static final SortedSet<Integer> GROUPS_ONE_TWO_AND_FIVE_SENT = new TreeSet<>(List.of(1, 2, 5));
+    private static final SortedSet<Integer> CLUSTERS_ONE_TWO_AND_FIVE_SENT = new TreeSet<>(List.of(1, 2, 5));
 
     @Test
     @Story("A topic's overview cites only groups it was given, in every sentence")
     @DisplayName("Writing whose every sentence cites a group it was given passes")
-    void writingWhoseEverySentenceCitesAGroupSentPasses() {
+    void writingWhoseEverySentenceCitesAClusterSentPasses() {
         String writing = "The groups share a harvest [1][2]. The last adds its cost [5].";
 
         claim(
                 "two sentences citing only groups 1, 2 and 5, all of them sent, are not turned down",
-                () -> assertThat(OverviewCheck.faultIn(writing, GROUPS_ONE_TWO_AND_FIVE_SENT)).isEmpty());
+                () -> assertThat(OverviewCheck.faultIn(writing, CLUSTERS_ONE_TWO_AND_FIVE_SENT)).isEmpty());
     }
 
     @Test
@@ -53,7 +53,7 @@ class OverviewCheckTest {
         claim(
                 "the second of three sentences cites nothing, and the writing is turned down for its citations,"
                         + " naming that sentence and the three",
-                () -> assertThat(OverviewCheck.faultIn(writing, GROUPS_ONE_TWO_AND_FIVE_SENT))
+                () -> assertThat(OverviewCheck.faultIn(writing, CLUSTERS_ONE_TWO_AND_FIVE_SENT))
                         .contains(new ClusterFault(
                                 ClusterFaultKind.CITATION_NOT_IN_RANGE, "sentence 2 of 3 cites no group")));
     }
@@ -67,7 +67,7 @@ class OverviewCheckTest {
         claim(
                 "group 4 lies within the topic's five but was not sent, so citing it turns the writing down,"
                         + " naming the number and the groups sent",
-                () -> assertThat(OverviewCheck.faultIn(writing, GROUPS_ONE_TWO_AND_FIVE_SENT))
+                () -> assertThat(OverviewCheck.faultIn(writing, CLUSTERS_ONE_TWO_AND_FIVE_SENT))
                         .contains(new ClusterFault(
                                 ClusterFaultKind.CITATION_NOT_IN_RANGE, "citation [4] against groups 1, 2, 5 sent")));
     }
@@ -75,13 +75,13 @@ class OverviewCheckTest {
     @Test
     @Story("A topic's overview cites only groups it was given, in every sentence")
     @DisplayName("A number past every group of the topic turns the writing down")
-    void aNumberPastEveryGroupIsTurnedDown() {
+    void aNumberPastEveryClusterIsTurnedDown() {
         String writing = "The groups share a harvest [1]. A ninth adds its cost [9].";
 
         claim(
                 "group 9 is past the topic's five, so citing it turns the writing down, naming the number and the"
                         + " groups sent",
-                () -> assertThat(OverviewCheck.faultIn(writing, GROUPS_ONE_TWO_AND_FIVE_SENT))
+                () -> assertThat(OverviewCheck.faultIn(writing, CLUSTERS_ONE_TWO_AND_FIVE_SENT))
                         .contains(new ClusterFault(
                                 ClusterFaultKind.CITATION_NOT_IN_RANGE, "citation [9] against groups 1, 2, 5 sent")));
     }

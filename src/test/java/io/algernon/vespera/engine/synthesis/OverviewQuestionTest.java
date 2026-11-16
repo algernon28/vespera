@@ -54,7 +54,7 @@ class OverviewQuestionTest {
     private static final int WORDS_THE_RESERVE_HOLDS = 128;
 
     /** Clusters 1, 3 and 4 of a topic of four, the second unwritten; each writing cites documents of its own. */
-    private static final List<OverviewSource> GROUPS_ONE_THREE_AND_FOUR = List.of(
+    private static final List<OverviewSource> CLUSTERS_ONE_THREE_AND_FOUR = List.of(
             new OverviewSource(1, "Filters and their schedule", "The consortium cleans its filters each quarter [1][2]."),
             new OverviewSource(3, "What repairs cost", "Repairs cost more than inspections [4], as two reports say [1]."),
             new OverviewSource(4, "Turns of abstraction", "Each farm draws water in its turn [3]."));
@@ -62,9 +62,9 @@ class OverviewQuestionTest {
     @Test
     @Story("A topic's overview reads what was written on its groups")
     @DisplayName("Each written group is sent under its own number and title, its own citations taken out")
-    void sendsEachWrittenGroupUnderItsOwnNumberWithItsCitationsTakenOut() {
+    void sendsEachWrittenClusterUnderItsOwnNumberWithItsCitationsTakenOut() {
         List<String> paragraphs =
-                paragraphsOf(OverviewQuestion.first(TOPIC_NAME, GROUPS_ONE_THREE_AND_FOUR, DeliverableLanguage.ENGLISH));
+                paragraphsOf(OverviewQuestion.first(TOPIC_NAME, CLUSTERS_ONE_THREE_AND_FOUR, DeliverableLanguage.ENGLISH));
 
         claim(
                 "groups 1, 3 and 4 are sent in that order, each as its number in brackets, its title, then its"
@@ -92,9 +92,9 @@ class OverviewQuestionTest {
     @DisplayName("The second question is the first with one fixed paragraph before its last")
     void theSecondQuestionIsTheFirstWithOneParagraphBeforeTheLast() {
         List<String> first =
-                paragraphsOf(OverviewQuestion.first(TOPIC_NAME, GROUPS_ONE_THREE_AND_FOUR, DeliverableLanguage.ITALIAN));
+                paragraphsOf(OverviewQuestion.first(TOPIC_NAME, CLUSTERS_ONE_THREE_AND_FOUR, DeliverableLanguage.ITALIAN));
         List<String> second =
-                paragraphsOf(OverviewQuestion.second(TOPIC_NAME, GROUPS_ONE_THREE_AND_FOUR, DeliverableLanguage.ITALIAN));
+                paragraphsOf(OverviewQuestion.second(TOPIC_NAME, CLUSTERS_ONE_THREE_AND_FOUR, DeliverableLanguage.ITALIAN));
         List<String> firstWithTheParagraph = new ArrayList<>(first);
         firstWithTheParagraph.add(first.size() - 1, SECOND_ASKING_ON_RECORD);
 
@@ -112,7 +112,7 @@ class OverviewQuestionTest {
     @DisplayName("The question asks for at most 150 words, and names the answer's one field and the language last")
     void asksForAtMostTheWordLimitAndNamesTheLanguageLast() {
         List<String> paragraphs =
-                paragraphsOf(OverviewQuestion.first(TOPIC_NAME, GROUPS_ONE_THREE_AND_FOUR, DeliverableLanguage.ITALIAN));
+                paragraphsOf(OverviewQuestion.first(TOPIC_NAME, CLUSTERS_ONE_THREE_AND_FOUR, DeliverableLanguage.ITALIAN));
 
         claim(
                 "the word limit is the record's 150",
@@ -152,11 +152,11 @@ class OverviewQuestionTest {
     @Test
     @Story("A topic's overview is short")
     @DisplayName("What the longer question says after the last group fits the reserve kept for instructions")
-    void whatFollowsTheLastGroupStaysInsideTheReserve() {
+    void whatFollowsTheLastClusterStaysInsideTheReserve() {
         List<String> paragraphs =
-                paragraphsOf(OverviewQuestion.second(TOPIC_NAME, GROUPS_ONE_THREE_AND_FOUR, DeliverableLanguage.ITALIAN));
-        int lastGroup = paragraphs.indexOf("[4] Turns of abstraction Each farm draws water in its turn.");
-        int wordsAfter = paragraphs.subList(lastGroup + 1, paragraphs.size()).stream()
+                paragraphsOf(OverviewQuestion.second(TOPIC_NAME, CLUSTERS_ONE_THREE_AND_FOUR, DeliverableLanguage.ITALIAN));
+        int lastCluster = paragraphs.indexOf("[4] Turns of abstraction Each farm draws water in its turn.");
+        int wordsAfter = paragraphs.subList(lastCluster + 1, paragraphs.size()).stream()
                 .mapToInt(paragraph -> paragraph.split(" ").length)
                 .sum();
 

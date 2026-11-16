@@ -45,7 +45,7 @@ class TopicOverviewSynthesisTest {
     private static final String TOPIC_NAME = "Irrigation and water rights";
 
     /** Clusters 1 and 3 of a topic of three, the second unwritten. */
-    private static final OverviewCall GROUPS_ONE_AND_THREE = new OverviewCall(
+    private static final OverviewCall CLUSTERS_ONE_AND_THREE = new OverviewCall(
             TOPIC_NAME,
             List.of(
                     new OverviewSource(1, "Filters and their schedule", "The consortium cleans its filters each quarter."),
@@ -64,7 +64,7 @@ class TopicOverviewSynthesisTest {
     /** An answer that is no JSON object, which the imposed shape turns down. */
     private static final String NOT_AN_OBJECT = "The groups share a schedule [1].";
 
-    /** The two numbers {@link #GROUPS_ONE_AND_THREE} sends. */
+    /** The two numbers {@link #CLUSTERS_ONE_AND_THREE} sends. */
     private static final List<Integer> ONE_AND_THREE = List.of(1, 3);
 
     private static final int ASKED_ONCE = 1;
@@ -93,8 +93,8 @@ class TopicOverviewSynthesisTest {
                         + " again with the fixed paragraph, and the first by the first question",
                 () -> assertThat(model.answeringQuestions())
                         .containsExactly(
-                                OverviewQuestion.first(TOPIC_NAME, GROUPS_ONE_AND_THREE.written(), DeliverableLanguage.ENGLISH),
-                                OverviewQuestion.second(TOPIC_NAME, GROUPS_ONE_AND_THREE.written(), DeliverableLanguage.ENGLISH)));
+                                OverviewQuestion.first(TOPIC_NAME, CLUSTERS_ONE_AND_THREE.written(), DeliverableLanguage.ENGLISH),
+                                OverviewQuestion.second(TOPIC_NAME, CLUSTERS_ONE_AND_THREE.written(), DeliverableLanguage.ENGLISH)));
     }
 
     @Test
@@ -174,7 +174,7 @@ class TopicOverviewSynthesisTest {
     @Test
     @Story("A topic's overview reads what was written on its groups")
     @DisplayName("A topic none of whose groups was written asks the model nothing")
-    void aTopicWithNoWrittenGroupAsksNothing() {
+    void aTopicWithNoWrittenClusterAsksNothing() {
         ScriptedChatModel model = new ScriptedChatModel(object(CITED));
 
         TopicOverviewOutcome outcome = new TopicOverviewSynthesis(model)
@@ -191,7 +191,7 @@ class TopicOverviewSynthesisTest {
 
     private static TopicOverviewOutcome overviewFrom(ChatModel model) {
         return new TopicOverviewSynthesis(model)
-                .overviewFor(GROUPS_ONE_AND_THREE, MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW, DeliverableLanguage.ENGLISH);
+                .overviewFor(CLUSTERS_ONE_AND_THREE, MODEL_NAME, ClusterSynthesis.CONTEXT_WINDOW, DeliverableLanguage.ENGLISH);
     }
 
     /** {@code writing} as the one-field object the call imposes. */
