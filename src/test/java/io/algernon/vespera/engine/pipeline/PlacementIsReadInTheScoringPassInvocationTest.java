@@ -47,9 +47,11 @@ import org.springframework.test.context.DynamicPropertySource;
  * built. Each line the application logs is kept, in order, with how many calls {@link EmbeddingScriptedBeans}'
  * embedding double had answered when it was logged.
  *
- * <p>Two tests set the seeds' passages apart: a seed's text holding {@value #SLUICES} embeds along one axis, and one
- * holding {@value #PUMPS} along another, a tenth of the way towards the first, so that the passages of each word are
- * one topic and the two are two. Every seed is one short paragraph, one chunk, one passage.
+ * <p>Two tests set the seeds' passages apart: {@link SeedScriptedExtractionBeans} converts each of its files on sluices
+ * and on pumps to a text of its own, so that each seed is a content and a passage of its own; a text holding {@value
+ * #SLUICES} embeds along one axis, and one holding {@value #PUMPS} along another, a tenth of the way towards the first,
+ * so that the passages of each word are one topic and the two are two. Every other file converts to one text, which
+ * embeds to the vector of ones.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -165,9 +167,10 @@ class PlacementIsReadInTheScoringPassInvocationTest {
     @Story("A topic too narrow for the top level is not a topic")
     @DisplayName("Survivors are placed under the topics that stand, and under none the breadth floor dropped")
     void placesUnderTheTopicsThatStandAlone(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document on " + PUMPS + " of " + root.getFileName());
-        seedsOn(seeds, SLUICES, 4);
-        seedsOn(seeds, PUMPS, 2);
+        Files.writeString(
+                root.resolve(SeedScriptedExtractionBeans.A_DOCUMENT_ON_PUMPS), "a corpus document of " + root.getFileName());
+        seedsOf(seeds, SeedScriptedExtractionBeans.ON_SLUICES.subList(0, 4));
+        seedsOf(seeds, SeedScriptedExtractionBeans.ON_PUMPS.subList(0, 2));
         EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
@@ -192,8 +195,8 @@ class PlacementIsReadInTheScoringPassInvocationTest {
     void stopsBeforeScoringWhereNoTopicStands(@TempDir Path root, @TempDir Path seeds, CapturedOutput output)
             throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document of " + root.getFileName());
-        seedsOn(seeds, SLUICES, 3);
-        seedsOn(seeds, PUMPS, 3);
+        seedsOf(seeds, SeedScriptedExtractionBeans.ON_SLUICES.subList(0, 3));
+        seedsOf(seeds, SeedScriptedExtractionBeans.ON_PUMPS.subList(0, 3));
         EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
@@ -232,12 +235,13 @@ class PlacementIsReadInTheScoringPassInvocationTest {
                 + " stand, the placement held and not yet stored (#832)";
     }
 
-    /** {@code count} seeds of one chunk each, whose text holds {@code word} and names the folder, so no other test wrote it. */
-    private static void seedsOn(Path seeds, String word, int count) throws IOException {
-        for (int seed = 1; seed <= count; seed++) {
-            Files.writeString(
-                    seeds.resolve(word + "-" + seed + ".txt"),
-                    "a seed document on " + word + ", the " + seed + " of " + seeds.getFileName());
+    /**
+     * A seed of each of {@code names}, one chunk each, whose conversion is a text of its own holding the word its name
+     * does; its bytes name the folder, so that no other test wrote them.
+     */
+    private static void seedsOf(Path seeds, List<String> names) throws IOException {
+        for (String name : names) {
+            Files.writeString(seeds.resolve(name), "a seed document " + name + " of " + seeds.getFileName());
         }
     }
 
