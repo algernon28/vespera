@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-392](0392-vespera-finds-no-translation-sets-the-translation-step-its-verdict-its-report-and-its-two-profile-keys-go.md).** Of §2: `translationSimilarityFloor` and `preferredLanguages` are no keys of the profile, and leave the row of the keys named one at a time where they hold something nothing can be read from. The rest of this record stands.
 
+> **Partly amended — see [ADR-404](0404-the-values-wanted-are-read-from-the-working-directory-shown-as-the-window-opens-another-is-chosen-or-an-invocation-ends.md).** Of §4: the control panel reads the file of the working directory shown as the window opens, as another working directory is chosen, as its own child ends whatever its exit code, and as another process's hold of that directory ends, no longer only after its child ended with 0. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Amends**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the files that are the control panel's whole contract with the jar gain `next-invocation.properties` (§1). It carries a note at its head. The rest of §3 stands: the control panel still links no class of the jar.

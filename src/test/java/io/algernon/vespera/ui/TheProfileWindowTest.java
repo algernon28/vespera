@@ -926,8 +926,6 @@ class TheProfileWindowTest {
     @DisplayName("Once the next invocation wants a value, the Profile section and the open profile window's title both say it needs a value")
     void theSectionAndTheWindowsTitleCarryTheBadge(@TempDir Path folder) throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
-        Files.writeString(working.resolve(NextInvocation.FILE_NAME),
-                "invocation=run\nwants=boilerplateDocumentFrequencyFloor\nanswer=false\n", StandardCharsets.UTF_8);
         ControlPanelState state = WindowForTests.aState(folder, EndingJar.runtime());
         state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(), working.toString(),
                 "", "", "", "", "", ""));
@@ -941,6 +939,9 @@ class TheProfileWindowTest {
             Stage profile = window.profileWindow();
             sectionBefore = window.read(TheProfileWindowTest::sectionTitle);
             windowBefore = HeadlessToolkit.onTheToolkit(profile::getTitle);
+            // written once the window is open, which reads the working directory's file as it opens (ADR-404 section 1)
+            Files.writeString(working.resolve(NextInvocation.FILE_NAME),
+                    "invocation=run\nwants=boilerplateDocumentFrequencyFloor\nanswer=false\n", StandardCharsets.UTF_8);
             Optional<String> refusal = state.start(ControlPanelState.Start.RUN, new ArrayList<>());
             assumeThat(refusal).as("the child that ends at once is started").isEmpty();
             boolean wanted = window.awaiting(
