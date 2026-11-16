@@ -23,12 +23,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.system.CapturedOutput;
-import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -55,7 +52,6 @@ import org.springframework.test.context.DynamicPropertySource;
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
-@ExtendWith(OutputCaptureExtension.class)
 @Epic("Relevance")
 @Feature("Topics")
 @Issue("828")
@@ -149,7 +145,7 @@ class PlacementIsReadInTheScoringPassInvocationTest {
 
     @Test
     @Story("Placement reads the similarities the score already takes")
-    @DisplayName("Survivors are placed in the scoring pass, after the topics are found and as each is scored, with no"
+    @DisplayName("Documents are placed in the scoring pass, after the topics are found and as each is scored, with no"
             + " call to the embedder")
     void isReadFromTheScorersOwnCosinesWithNoEmbeddingCall(@TempDir Path root, @TempDir Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document of " + root.getFileName());
@@ -172,7 +168,7 @@ class PlacementIsReadInTheScoringPassInvocationTest {
 
     @Test
     @Story("A topic too narrow for the top level is not a topic")
-    @DisplayName("Survivors are placed under the topics that stand, and under none the breadth floor dropped")
+    @DisplayName("Documents are placed under the topics that stand, and under none the breadth floor dropped")
     void placesUnderTheTopicsThatStandAlone(@TempDir Path root, @TempDir Path seeds) throws IOException {
         Files.writeString(
                 root.resolve(SeedScriptedExtractionBeans.A_DOCUMENT_ON_PUMPS), "a corpus document of " + root.getFileName());
@@ -199,8 +195,7 @@ class PlacementIsReadInTheScoringPassInvocationTest {
     @Story("A topic too narrow for the top level is not a topic")
     @DisplayName("Where no topic stands at the breadth floor, the scoring stops before any document is scored, saying"
             + " the floor and the largest topic's share")
-    void stopsBeforeScoringWhereNoTopicStands(@TempDir Path root, @TempDir Path seeds, CapturedOutput output)
-            throws IOException {
+    void stopsBeforeScoringWhereNoTopicStands(@TempDir Path root, @TempDir Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document of " + root.getFileName());
         seedsOf(seeds, SeedScriptedExtractionBeans.ON_SLUICES.subList(0, 3));
         seedsOf(seeds, SeedScriptedExtractionBeans.ON_PUMPS.subList(0, 3));
@@ -215,7 +210,7 @@ class PlacementIsReadInTheScoringPassInvocationTest {
         claim("the invocation fails", () -> assertThat(cli.getExitCode()).isNotZero());
         claim("and says, in one line, that no topic stands at the floor of " + THE_FLOOR + ", the two topics found each"
                         + " holding three of the six passages",
-                () -> assertThat(output.getAll().lines()).contains(theStop));
+                () -> assertThat(timeline.logged()).extracting(Logged::line).contains(theStop));
         claim("no survivor was scored or placed: the step did not reach the line counting survivors",
                 () -> assertThat(timeline.logged())
                         .noneMatch(entry -> entry.line().startsWith("Stage 5d (relevance scoring, corpus survivors)")));

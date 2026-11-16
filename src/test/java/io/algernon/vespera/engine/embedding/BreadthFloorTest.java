@@ -119,11 +119,11 @@ class BreadthFloorTest {
     void noTopicStandingIsRefusedNamingTheFloorAndTheLargestShare() {
         claim("at a floor of " + OVER_EVERY_TOPIC + " none of the four topics stands, and the refusal names the floor,"
                         + " the four topics found, and the widest of them, five of the ten passages, a share of 0.5",
-                () -> assertThat(java.util.Optional.<String>empty())
+                () -> assertThat(new BreadthFloor(OVER_EVERY_TOPIC).refusal(FOUND, seeds(Map.of())))
                         .contains("no topic stands at a breadth floor of 0.6, the largest of the 4 topics found holding"
                                 + " 5 of the 10 seed passages, a share of 0.5"));
         claim("at the fixture's floor of " + FLOOR + ", where two topics stand, there is no refusal",
-                () -> assertThat(java.util.Optional.<String>empty()).isEmpty());
+                () -> assertThat(new BreadthFloor(FLOOR).refusal(FOUND, seeds(Map.of()))).isEmpty());
     }
 
     /**
