@@ -1146,7 +1146,11 @@ final class Cockpit {
      */
     private void readNextWhereAForeignHoldEnded(ControlPanelState.Holders holders) {
         Optional<Path> shown = workingDirectory();
-        if (holders.workingDirectory().isPresent() && shown.isPresent()) {
+        // the window's own child writes its pid into the holder line: its hold is no foreign one (ADR-404 section 5)
+        Optional<Long> ownChild = state.watchedChild().map(ControlPanelState.Watched::pid);
+        boolean foreign = holders.workingDirectory().isPresent()
+                && state.watchedHolder(shown).filter(held -> !ownChild.equals(Optional.of(held.pid()))).isPresent();
+        if (foreign && shown.isPresent()) {
             foreignHoldSeenOn = shown;
             return;
         }

@@ -27,7 +27,7 @@ final class WantedValues {
 
     /**
      * {@code say} is the outcome line, {@code openReport} opens a report, {@code reload} runs after a Save has written,
-     * {@code rowsDrawn} after rows have been drawn, and {@code open} holds the keys whose rows are open.
+     * {@code rowsDrawn} after every reading, one that draws no row included, and {@code open} holds the keys whose rows are open.
      */
     WantedValues(ControlPanelState state, Dialogs dialogs, WorkingFolders folders, Consumer<String> say,
             Consumer<String> openReport, Runnable reload, Runnable rowsDrawn, ProfileRow.OpenKeys open) {
