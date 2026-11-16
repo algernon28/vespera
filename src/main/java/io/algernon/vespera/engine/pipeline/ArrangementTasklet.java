@@ -43,6 +43,12 @@ import io.algernon.vespera.engine.synthesis.LabelledCluster;
 import io.algernon.vespera.engine.synthesis.LeadDocument;
 import io.algernon.vespera.engine.synthesis.Partition;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
+import io.algernon.vespera.engine.embedding.UnusableSeed;
+import io.algernon.vespera.engine.ledger.ListedPages;
+import io.algernon.vespera.engine.ledger.OccurrencePath;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.io.Writer;
@@ -130,7 +136,7 @@ class ArrangementTasklet implements Tasklet {
     private final TopicNaming topicNaming;
     private final HybridChunker hybridChunker;
     private final RelevanceDistribution relevanceDistribution;
-    private final SeedPassages seedPassages;
+    private final UnusableSeeds unusableSeeds;
     private final RecordedClosingLines recordedClosingLines;
 
     /** The topics' names, as the head of the step made them: held, for #832 stores them (ADR-403 section 1). */
@@ -158,7 +164,7 @@ class ArrangementTasklet implements Tasklet {
         this.topicNaming = new TopicNaming(chatModel);
         this.hybridChunker = hybridChunker;
         this.relevanceDistribution = relevanceDistribution;
-        this.seedPassages = new SeedPassages(ledger, hybridChunker, unusableSeeds, jdbcTemplate);
+        this.unusableSeeds = unusableSeeds;
         this.recordedClosingLines = recordedClosingLines;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
@@ -258,6 +264,65 @@ class ArrangementTasklet implements Tasklet {
     }
 
     /**
+     * Every usable seed's own content hash, read once from the key seed extraction recorded under the
+     * measurement run (ADR-206 section 3), and how many chunks the chunker cut it into, so {@link
+     * RelevanceScoring} never has to touch a file. Which seeds that leaves out is {@code embedding}'s
+     * rule (ADR-231 section 2a), not this method's.
+     */
+    private Map<OccurrenceId, SeedChunks> seedContentHashes(SeedGate.SeedWalk seedWalk, RunId measurementRun) {
+        Set<OccurrenceId> allSeeds = TimedStatement.of(
+                STAGE, "reading", "read", "the seed walk's occurrences", () -> {
+                    Set<OccurrenceId> ids = new HashSet<>();
+                    for (OccurrenceId id : ledger.occurrences().occurrencesOf(seedWalk.walkId())) {
+                        ids.add(id);
+                    }
+                    return ids;
+                });
+        Set<OccurrenceId> unusable = TimedStatement.of(STAGE, "reading", "read", "the unusable seeds", () -> unusableSeeds.forRun(measurementRun))
+                .stream()
+                .map(UnusableSeed::occurrenceId)
+                .collect(Collectors.toSet());
+        allSeeds.removeAll(unusable);
+
+        // Asked a page of seeds to a statement, the keys and then their chunk counts (ADR-245), and counted as
+        // each page is read, so that the counter moves while the reads are made (ADR-246).
+        StageProgress read =
+                StageProgress.over("Stage 6a (arrangement, seed cache keys read)", allSeeds.size());
+        Map<OccurrenceId, SeedChunks> contentHashes = new LinkedHashMap<>();
+        ListedPages.each(allSeeds, page -> {
+            Map<OccurrenceId, String> keys = cacheKeys.requireForOccurrences(page, measurementRun);
+            Map<String, Integer> chunkCounts =
+                    hybridChunker.chunkCounts(new HashSet<>(keys.values()), ChunkingRule.DEFAULT);
+            for (OccurrenceId seedOccurrenceId : page) {
+                String contentHash = keys.get(seedOccurrenceId);
+                contentHashes.put(
+                        seedOccurrenceId, new SeedChunks(contentHash, chunkCounts.getOrDefault(contentHash, 0)));
+                read.itemDone();
+            }
+        });
+        return contentHashes;
+    }
+
+    /**
+     * The seeds' vectors by each seed's path in the seed walk, for ADR-399's topics: no embedding call and no read of
+     * its own beyond the paths. A seed with no resident vector has no passage.
+     */
+    private Map<String, SeedVectors> seedVectorsByPath(
+            Map<OccurrenceId, SeedChunks> seedContentHashes,
+            Map<OccurrenceId, List<float[]>> residentSeedVectors) {
+        Map<OccurrenceId, OccurrencePath> paths = ledger.occurrences().pathsOf(residentSeedVectors.keySet());
+        Map<String, SeedVectors> bySeedPath = new LinkedHashMap<>();
+        for (Map.Entry<OccurrenceId, List<float[]>> seed : residentSeedVectors.entrySet()) {
+            OccurrencePath path = paths.get(seed.getKey());
+            SeedChunks chunks = seedContentHashes.get(seed.getKey());
+            if (path != null && chunks != null) {
+                bySeedPath.put(path.value(), new SeedVectors(chunks.contentHash(), seed.getValue()));
+            }
+        }
+        return bySeedPath;
+    }
+
+    /**
      * Stops the step on a naming model Ollama does not serve on this machine, and says why, as generation's stop
      * does: nothing is asked and no run is minted (ADR-403 section 1).
      */
@@ -284,7 +349,7 @@ class ArrangementTasklet implements Tasklet {
         DeliverableLanguage language = stageRuns.deliverableLanguage();
         RunId measurementRun = stageRuns.seedMeasurement();
         Map<OccurrenceId, SeedChunks> seedContentHashes =
-                seedPassages.contentHashes(preamble.seedWalk().orElseThrow(), measurementRun, STAGE);
+                seedContentHashes(preamble.seedWalk().orElseThrow(), measurementRun);
         Optional<String> identity = relevanceDistribution.embedderIdentityFor(
                 preamble.modelName().orElseThrow(), stageRuns.embeddingModelArtefact());
         Map<OccurrenceId, List<float[]>> resident = identity.isEmpty()
@@ -295,7 +360,7 @@ class ArrangementTasklet implements Tasklet {
                         ChunkingRule.DEFAULT.identity().value(),
                         identity.get(),
                         ScoringProgress.NONE);
-        Map<String, SeedVectors> bySeedPath = seedPassages.vectorsByPath(seedContentHashes, resident);
+        Map<String, SeedVectors> bySeedPath = seedVectorsByPath(seedContentHashes, resident);
         List<Topic> found =
                 TopicInference.over(bySeedPath, stageRuns.topicNeighbours(), stageRuns.topicResolution());
         List<Topic> topics =

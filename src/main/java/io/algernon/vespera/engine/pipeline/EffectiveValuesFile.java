@@ -162,22 +162,22 @@ final class EffectiveValuesFile {
     }
 
     /**
-     * The naming model as {@link NamingModel} resolves it (ADR-403 section 10): {@code vespera.naming.model} where
+     * The naming model as {@link Presets#namingModel} resolves it (ADR-403 section 10): {@code vespera.naming.model} where
      * configuration names it, else {@code spring.ai.ollama.chat.options.model}, each with the source of the layer that
      * named it, else {@value #THE_CODES_LABEL_MODEL} with the source {@code code}. A value bound blank is left out,
      * its source with it, and the chat model is not said in its place: no invocation would name it.
      */
     private void namingModel(Map<String, String[]> values) {
-        for (String property : new String[] {NamingModel.KEY, CHAT_MODEL}) {
+        for (String property : new String[] {Presets.NAMING_MODEL, CHAT_MODEL}) {
             String value = environment.getProperty(property);
             if (value != null) {
                 if (!value.isBlank()) {
-                    values.put(NamingModel.KEY, new String[] {value, sourceOf(property)});
+                    values.put(Presets.NAMING_MODEL, new String[] {value, sourceOf(property)});
                 }
                 return;
             }
         }
-        values.put(NamingModel.KEY, new String[] {NamingModel.THE_CODES_DEFAULT, "code"});
+        values.put(Presets.NAMING_MODEL, new String[] {Presets.THE_CODES_NAMING_MODEL, "code"});
     }
 
     /**
