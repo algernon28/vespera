@@ -2913,6 +2913,16 @@ public final class Adr {
     public static final String THE_WINNING_TOPIC_IS_THE_CENTROID_ITS_CHUNKS_ARE_NEAREST_ON_AVERAGE = FILE
             + "0400-a-survivor-goes-to-the-topic-its-chunks-are-nearest-on-average-and-is-linked-from-one-15-per-cent-of-them-are-nearest.md";
 
+    /**
+     * ADR-401 -- a topic stands where its share of every passage feeding the topics, a copy of an earlier seed adding
+     * none, is at least the breadth floor, a share alone shipped at 0.005 as the preset {@code
+     * vespera.topics.breadth-floor} with no profile key; a topic under it is dropped and its passages feed no topic; a
+     * seed none of whose passages lies in a topic that stands is listed in seed-path order, with any later seed of its
+     * content; the floor enters the embedding-scoring run where it is not 0.005 (amends ADR-330 §8 and §9).
+     */
+    public static final String A_TOPIC_UNDER_THE_BREADTH_FLOOR_IS_DROPPED = FILE
+            + "0401-a-topic-holding-under-half-of-one-percent-of-the-seed-passages-is-dropped-and-a-seed-feeding-none-is-listed.md";
+
     private Adr() {
     }
 }

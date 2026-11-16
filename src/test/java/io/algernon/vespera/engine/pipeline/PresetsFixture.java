@@ -13,8 +13,8 @@ final class PresetsFixture {
     private PresetsFixture() {}
 
     /**
-     * An environment naming the nineteen, the two of the topics (ADR-399) and then the see-also share (ADR-400) last, for
-     * a test to name another over one of them.
+     * An environment naming the twenty, the two of the topics (ADR-399), the breadth floor (ADR-401) and then the
+     * see-also share (ADR-400) last, for a test to name another over one of them.
      */
     static MockEnvironment shippedEnvironment() {
         return new MockEnvironment()
@@ -36,6 +36,7 @@ final class PresetsFixture {
                 .withProperty("vespera.relevance.sample.per-band", "12")
                 .withProperty("vespera.topics.resolution", "1.0")
                 .withProperty("vespera.topics.neighbours", "10")
+                .withProperty("vespera.topics.breadth-floor", "0.005")
                 .withProperty("vespera.topics.see-also-share", "0.15");
     }
 
