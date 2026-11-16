@@ -126,8 +126,10 @@
 // double quotes, no $' $" $( ${ or $[ outside quotes, no unpaired quote, no backslash before a line
 // break, no here-string, no here-document whose delimiter is not quoted), the guard does not read for paths:
 // the literal argument of git's -m and --message after commit, tag, merge, stash push or a bare stash (and -m ending a
-// cluster of letters that take nothing there), of gh's --jq, -q and --body after api or a subcommand of
-// issue or pr that has them, where no option before it takes it as its value and no word before it is
+// cluster of letters that take nothing there), of gh's --jq, -q, --body and -b after api or a subcommand of
+// issue or pr that has them, and of --comment and -c after issue close, issue reopen, pr close and pr
+// reopen (ADR-405, docs/adr/0405, which amends ADR-351 section 1), each only where the command's table has
+// it take an argument, where no option before it takes it as its value and no word before it is
 // an option the command's table does not have or one the shell may split or make an option, and
 // of grep's -e and --regexp, each read in the words Bash gives the program, with no redirect, its
 // target or the descriptor number before it among them; the next word or
@@ -1096,7 +1098,8 @@ const GIT_SUBCOMMANDS = new Map([
   }],
 ]);
 const STASH_PUSH = "push";
-// gh's commands whose --jq, -q and --body take text (ADR-351 section 1), by their path after gh, each with
+// gh's commands whose --jq, -q, --body, -b, --comment or -c take text (ADR-351 section 1, ADR-405 section
+// 1), by their path after gh, each with
 // its options as pflag reads them: the short letters that take no argument (none) and that take the rest
 // of the word or the next (args), and the long names, each read only written whole (exact). Every option
 // that takes an argument takes the next word whatever it is, --jq and --body among them. After any other
@@ -1127,9 +1130,18 @@ const GH_COMMANDS = new Map([
   ["issue view", GH_VIEW],
   ["issue list", ghRepoCommand("w", "aAqlLmSst", "web", "app assignee author jq json label limit mention milestone search state template type")],
   ["issue status", GH_STATUS],
+  // The commands that close or reopen an issue or a pull request, whose -c and --comment post a comment
+  // (ADR-405 section 1).
+  ["issue close", ghRepoCommand("", "cr", "", "comment duplicate-of reason")],
+  ["issue reopen", ghRepoCommand("", "c", "", "comment")],
+  ["pr close", ghRepoCommand("d", "c", "delete-branch", "comment")],
+  ["pr reopen", ghRepoCommand("", "c", "", "comment")],
 ]);
-// The flags whose argument is text and no file: --jq, its letter -q, and --body.
-const GH_TEXT_FLAGS = new Set(["jq", "q", "body"]);
+// The flags whose argument is text and no file: --jq and its letter -q, --body and its letter -b, and
+// --comment and its letter -c (ADR-405 section 1). Each gives text only where the command's table has it
+// take an argument: pr review's --comment and pr view's -c take none, and the word after them is read.
+const GH_TEXT_FLAGS = new Set(["jq", "q", "body", "b", "comment", "c"]);
+const givesText = (option, spec) => GH_TEXT_FLAGS.has(option.flag) && (option.kind === "short" || spec.long.get(option.flag) > 0);
 
 // The programs whose pattern or program is the first operand where no option gives it (ADR-351 section 2),
 // as they read their options: the short letters that take no argument (none), that take the rest of the
@@ -1272,7 +1284,7 @@ function textSpans(segmentWords) {
         const w = words[k + v];
         if (w) { const value = wordText(w); if (!value.complete || value.splits) return spans; }
       }
-      if (GH_TEXT_FLAGS.has(option.flag)) {
+      if (givesText(option, spec)) {
         if (option.takes) skip(words[k + 1]);
         else if (option.eq > 0 && words[k].raw.startsWith(text.slice(0, option.eq + 1))) skip(words[k], words[k].start + option.eq + 1);
       }
