@@ -115,6 +115,14 @@ vespera:
       # How many documents the relevance report asks about from each band (ADR-088, ADR-330), a whole number from 1:
       # five bands of twelve are the sixty of one sitting. It enters the embedding-scoring run where it is not 12.
       per-band: 12
+  topics:
+    # How many nearest neighbours each seed passage keeps in the graph the topics are found in (ADR-399, ADR-330), a
+    # whole number from 1. Apart from clustering's, which stands for clusters, and with no profile key: how many topics
+    # there are is never the operator's to set. It enters the embedding-scoring run where it is not 10.
+    neighbours: 10
+    # The modularity resolution of the topics' communities (ADR-399, ADR-330), a finite number above 0, higher finding
+    # more topics. No profile key, for the same reason. It enters the embedding-scoring run where it is not 1.0.
+    resolution: 1.0
 
 spring:
   # Spring's banner is logged, at INFO on the application's own logger, and not printed outside logback, so that it

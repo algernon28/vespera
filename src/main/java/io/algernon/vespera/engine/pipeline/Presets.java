@@ -12,7 +12,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
- * The sixteen presets of ADR-330 §9, as configuration names them, resolved where a run is minted and handed on: the
+ * The eighteen presets of ADR-330 §9, as ADR-399 amends it, as configuration names them, resolved where a run is minted and handed on: the
  * technical choices that were constants of {@code extraction}, {@code similarity} and {@code embedding}, now shipped in
  * {@code application.yaml} and overridden by Spring's own layers for a machine. It holds the profile's {@code
  * clusterResolution} over the first, where that can be acted on.
@@ -49,6 +49,8 @@ class Presets {
     static final String TOP_SIMILARITIES = "vespera.relevance.top-similarities";
     static final String BANDS_IN_THE_SAMPLE = "vespera.relevance.sample.bands";
     static final String DOCUMENTS_FROM_EACH_BAND = "vespera.relevance.sample.per-band";
+    static final String TOPIC_NEIGHBOURS = "vespera.topics.neighbours";
+    static final String TOPIC_RESOLUTION = "vespera.topics.resolution";
 
     private static final String A_WHOLE_NUMBER = ": a whole number from 1 to 2147483647";
 
@@ -77,6 +79,8 @@ class Presets {
             topSimilarities();
             sampleBands();
             sampledPerBand();
+            topicNeighbours();
+            topicResolution();
             return Optional.empty();
         } catch (PresetRefusedException refused) {
             return Optional.of(refused.getMessage());
@@ -202,6 +206,25 @@ class Presets {
     /** How many documents each band is asked for. */
     int sampledPerBand() {
         return wholeNumber(DOCUMENTS_FROM_EACH_BAND);
+    }
+
+    /** How many nearest neighbours each seed passage keeps in the graph the topics are found in (ADR-399). */
+    int topicNeighbours() {
+        return wholeNumber(TOPIC_NEIGHBOURS);
+    }
+
+    /** The modularity resolution of the topics' communities (ADR-399). */
+    double topicResolution() {
+        String raw = text(TOPIC_RESOLUTION);
+        try {
+            double resolution = Double.parseDouble(raw.trim());
+            if (Double.isFinite(resolution) && resolution > 0) {
+                return resolution;
+            }
+        } catch (NumberFormatException notANumber) {
+            // refused below
+        }
+        throw new PresetRefusedException(TOPIC_RESOLUTION + " is " + raw + ": a number above 0");
     }
 
     private int wholeNumber(String key) {
