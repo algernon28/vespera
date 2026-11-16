@@ -1,5 +1,7 @@
 # ADR-396 — Topics inferred from the seed set's passages replace seed partitions, and a survivor is placed apart from its score
 
+> **Partly amended — see [ADR-406](0406-a-topic-of-300-survivors-or-more-is-divided-into-subtopics-its-own-communities-and-its-clusters-are-found-within-each.md).** Of §3: a topic of at least `vespera.clustering.subtopic-floor` survivors, 300 as shipped, whose survivors form two communities or more, has subtopics, the level between it and its clusters: they are the communities clustering finds over the whole topic, and its clusters are found within each subtopic, over that subtopic's survivors alone. Subtopics go by their survivors, most first. Of §10: the level's term is *subtopic*. The rest of §3, and of this record, stands.
+
 > **Partly amended — see [ADR-399](0399-topics-are-modularity-communities-over-a-ten-neighbour-graph-of-the-seed-passages-keyed-by-their-first-passage.md).** Of §8's table: what the stable topic key is, is ADR-399's, the seed path and chunk index of a topic's first passage in §9's order; #832 keeps the table it is stored in and the run it is written under.
 
 > **Partly amended — see [ADR-402](0402-a-topics-overview-cites-its-written-clusters-by-number-in-every-sentence-and-a-citation-fault-is-asked-once-more.md).** Of §8's table: the topic overview's row is settled there: what it reads, the numbers it cites and the check, its 150 words, the two questions, the placeholders and their Italian, and the shape of its rows, whose tables stay #832's.
