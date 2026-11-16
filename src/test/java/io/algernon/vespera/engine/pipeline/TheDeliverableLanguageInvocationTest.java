@@ -29,7 +29,8 @@ import org.springframework.test.context.DynamicPropertySource;
 /**
  * The deliverable's language end to end (ADR-321 §1, §2, §4, §6): the profile's {@code deliverableLanguage} reaches
  * the question every cluster is asked, the generation run's identity, and every page the run draws; changing it is a
- * generation run of its own; and a language the deliverable cannot be drawn in stops before anything is asked.
+ * generation run of its own, over an arrangement approved again (ADR-403 §3); and a language the deliverable cannot be
+ * drawn in stops before anything is asked.
  *
  * <p>The scripted model answers whatever it is asked in the words it was scripted with, so what is claimed of the
  * writing is what it was asked for, never what it wrote. The report says <em>group</em> where the code says cluster
@@ -44,6 +45,9 @@ class TheDeliverableLanguageInvocationTest {
 
     /** What the profile says for an Italian deliverable. */
     private static final String ITALIAN = "it";
+
+    /** The language an empty key means, as the arrangement and generation runs record it. */
+    private static final String ENGLISH = "en";
 
     /** A language code the deliverable has no fixed words for. */
     private static final String A_LANGUAGE_IT_CANNOT_BE_DRAWN_IN = "fr";
@@ -76,11 +80,11 @@ class TheDeliverableLanguageInvocationTest {
     void aChangedLanguageIsWorkOfItsOwn(@TempDir Path root, @TempDir Path seeds) throws IOException {
         aCorpusUpToTheApprovedArrangement(root, seeds);
         setTheLanguageTo(ITALIAN);
-        cli.run("run", root.toString());
+        runApprovingTheArrangementIn(root, ITALIAN);
         setTheLanguageTo(null);
         GenerationScriptedBeans.forgetScriptedAnswers();
 
-        cli.run("run", root.toString());
+        runApprovingTheArrangementIn(root, ENGLISH);
         List<String> runs = generationRuns(root);
 
         claim("the invocation after the change reports success", () -> assertThat(cli.getExitCode()).isZero());
@@ -116,6 +120,34 @@ class TheDeliverableLanguageInvocationTest {
         profileStore.save(ProfileFixture.profileFrom(profileStore.load())
                 .arrangementApproved(ArrangementGate.shortNameOf(theLatestArrangement(root)), "read by this test")
                 .build());
+    }
+
+    /**
+     * One invocation over {@code root} after the language changed to {@code language}, which stops at the arrangement
+     * gate, the arrangement in that language approved, and the invocation that writes the groups.
+     *
+     * <p>Two invocations and not one because the language is a member of the arrangement run's identity (ADR-403 §3):
+     * a change of language mints another arrangement, which the approval given for the first does not name. Back to
+     * English, the arrangement is the first one again, found rather than minted, so it is picked out by the language
+     * it records and not as the latest; the approval names the Italian one by then, so it too is approved again.
+     */
+    private void runApprovingTheArrangementIn(Path root, String language) {
+        cli.run("run", root.toString());
+        profileStore.save(ProfileFixture.profileFrom(profileStore.load())
+                .arrangementApproved(ArrangementGate.shortNameOf(theArrangementIn(root, language)), "read by this test")
+                .build());
+        cli.run("run", root.toString());
+    }
+
+    /** The one arrangement over {@code root} whose recorded settings name {@code language}. */
+    private RunId theArrangementIn(Path root, String language) {
+        return new RunId(jdbcTemplate.queryForObject(
+                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id"
+                        + " WHERE r.stage = ? AND w.root = ? AND r.config_consumed LIKE ?",
+                String.class,
+                "arrangement",
+                Walk.canonicalRoot(root).toString(),
+                "%,\"deliverableLanguage\":\"" + language + "\"}"));
     }
 
     /** Writes {@code deliverableLanguage}, leaving every other key as it was. */
