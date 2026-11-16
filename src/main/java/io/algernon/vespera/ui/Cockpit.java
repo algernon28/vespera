@@ -132,6 +132,7 @@ final class Cockpit {
     private boolean wasShown;
     private Timeline timeline;
     private Ending wantedFor;
+    private Optional<Path> foreignHoldSeenOn = Optional.empty();
 
     Cockpit(ControlPanelState state, Dialogs dialogs) {
         this.state = state;
@@ -153,6 +154,7 @@ final class Cockpit {
         this.profileWindow = new ProfileWindow(profile, root, dialogs);
         root.setLeft(sidebarPane());
         root.setCenter(mainPane());
+        readNext();
         loadFiles();
         showCommandLines();
         showBadges();
@@ -601,6 +603,8 @@ final class Cockpit {
             // the rows drawn for another working directory start as they first do (ADR-377 section 3)
             List.of(profileOpen, seedOpen, wantedOpen).forEach(ProfileRow.OpenKeys::forget);
             settleTheEditBeforeLoading();
+            // the rows are the new directory's own, drawn before loadFiles() loads them (ADR-404 section 2)
+            readNext();
             loadFiles();
         });
         VBox pane = new VBox(fieldBox(corpus, "Corpus root", true), workingDirectoryBox(working),
@@ -1110,10 +1114,10 @@ final class Cockpit {
             wanted.showReports(written);
             seedRow.showReports(written);
             reports.draw();
-            if (ending.get().howItEnded() == HowItEnded.ENDED) {
-                readNext();
-            }
+            // however the child ended (ADR-404 section 5)
+            readNext();
         }
+        readNextWhereAForeignHoldEnded(holders);
         preflight.draw();
         wasShown = wasShown || showing;
     }
@@ -1135,6 +1139,23 @@ final class Cockpit {
         Optional<String> line = ended == closedAs && closingOfItsReport != null
                 ? Optional.of(closingOfItsReport) : ended.lastLine();
         return state.childCommand() + ": " + how + line.map(each -> " (" + each + ")").orElse("");
+    }
+
+    /**
+     * Reads the file on the tick where a foreign hold seen on the working directory shown is gone (ADR-404 section 5).
+     */
+    private void readNextWhereAForeignHoldEnded(ControlPanelState.Holders holders) {
+        Optional<Path> shown = workingDirectory();
+        if (holders.workingDirectory().isPresent() && shown.isPresent()) {
+            foreignHoldSeenOn = shown;
+            return;
+        }
+        Optional<Path> seen = foreignHoldSeenOn;
+        foreignHoldSeenOn = Optional.empty();
+        if (seen.isPresent() && shown.isPresent()
+                && ControlPanelState.namesTheSameFolder(seen.get().toString(), shown.get().toString())) {
+            readNext();
+        }
     }
 
     private void readNext() {

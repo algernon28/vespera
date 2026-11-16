@@ -90,6 +90,7 @@ final class WantedValues {
         titles.clear();
         arrangementOffered = next.flatMap(NextInvocation::arrangement);
         if (next.isEmpty() || next.get().wants().isEmpty()) {
+            rowsDrawn.run();
             return;
         }
         Map<ProfileKey, ProfileEdit.Stated> stated = Map.of();
