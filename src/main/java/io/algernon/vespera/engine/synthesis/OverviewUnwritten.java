@@ -16,7 +16,7 @@ public enum OverviewUnwritten {
     /** The answer could not be read into the shape the call imposed. */
     FAULT_SCHEMA_VIOLATION,
     /**
-     * A sentence of the answer cited no group, or the answer cited one the call did not send, both times it was asked.
+     * A sentence of the answer cited no cluster, or the answer cited one the call did not send, both times it was asked.
      */
     FAULT_CITATION_NOT_IN_RANGE,
     /** No cluster of the topic has a synthesis doc. */

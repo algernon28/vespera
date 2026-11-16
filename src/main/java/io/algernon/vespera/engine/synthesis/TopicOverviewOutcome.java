@@ -18,7 +18,7 @@ public sealed interface TopicOverviewOutcome {
      * The overview was turned down and stands so under its run.
      *
      * @param fault the last answer's fault
-     * @param asked how many answers were asked for: 0 where no group's writing fitted the room, else 1 or 2
+     * @param asked how many answers were asked for: 0 where every written cluster was passed over for the room, else 1 or 2
      */
     record TurnedDown(ClusterFault fault, int asked) implements TopicOverviewOutcome {}
 

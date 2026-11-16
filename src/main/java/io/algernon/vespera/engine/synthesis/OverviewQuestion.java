@@ -42,7 +42,7 @@ public final class OverviewQuestion {
     private static String question(
             String topicName, List<OverviewSource> sources, DeliverableLanguage language, boolean second) {
         int sent = sources.size();
-        String groups = sources.stream()
+        String written = sources.stream()
                 .map(source -> "[" + source.number() + "] " + source.title() + "\n"
                         + A_CITATION_OF_ITS_OWN.matcher(source.writing()).replaceAll(""))
                 .collect(Collectors.joining("\n\n"));
@@ -51,7 +51,7 @@ public final class OverviewQuestion {
                 + " of its groups.\n\n"
                 + "The topic is called \"" + topicName + "\".\n\n"
                 + "What was written on each group follows below, under the number to cite it by.\n\n"
-                + groups + "\n\n"
+                + written + "\n\n"
                 + "That is all " + sent + " group(s). Write the overview in at most " + WORD_LIMIT + " words: say what"
                 + " the groups cover together, how they relate and where they differ. Do not describe them one by one."
                 + " End every sentence with the bracketed number of each group it draws on, written in square brackets"
