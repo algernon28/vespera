@@ -20,7 +20,7 @@ public enum OverviewUnwritten {
      */
     FAULT_CITATION_NOT_IN_RANGE,
     /** No cluster of the topic has a synthesis doc. */
-    NOTHING_WRITTEN_OVER_ANY_GROUP,
+    NOTHING_WRITTEN_OVER_ANY_CLUSTER,
     /** The step stopped before it reached the topic. */
     NOT_REACHED;
 

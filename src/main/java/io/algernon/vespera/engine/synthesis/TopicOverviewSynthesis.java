@@ -22,9 +22,10 @@ import tools.jackson.databind.json.JsonMapper;
  * call's ({@link ClusterSynthesis}).
  *
  * <p>Injects {@link ChatModel} and nothing of this project's, as {@link ClusterSynthesis} does. What is sent is found
- * as a cluster's documents are (ADR-166): proposed in number order at the word estimate, then counted by the serving
- * engine on the second question, the longer, and the longest leading run it counts inside the room is what both calls
- * send.
+ * as a cluster's documents are (ADR-166): proposed in number order at the word estimate, a source too long for the
+ * room passed over, then counted by the serving engine on the second question, the longer, and the longest leading run
+ * it counts inside the room is what both calls send; where none fits, the first is dropped and the proposal made again
+ * (ADR-402 sections 1, 2 and 7).
  */
 @Component
 public class TopicOverviewSynthesis {
@@ -57,8 +58,8 @@ public class TopicOverviewSynthesis {
 
     /**
      * The outcome of asking for the overview of {@code call}'s topic from {@code modelName}: nothing to send, and no
-     * call of any kind, where no cluster is written; a turned-down overview with no answer asked for where not even the
-     * first cluster's writing fits the room; otherwise the first answer's, or, where that was turned down for its
+     * call of any kind, where no cluster is written; a turned-down overview with no answer asked for where no cluster's
+     * writing fits the room by the engine's own count; otherwise the first answer's, or, where that was turned down for its
      * citations, the second's.
      */
     public TopicOverviewOutcome overviewFor(
@@ -66,12 +67,15 @@ public class TopicOverviewSynthesis {
         if (call.written().isEmpty()) {
             return new TopicOverviewOutcome.NothingToSend();
         }
-        List<OverviewSource> sent = sentAfterCounting(call, modelName, contextWindow, language);
-        if (sent.isEmpty()) {
+        List<OverviewSource> sent;
+        try {
+            sent = sentAfterCounting(call, modelName, contextWindow, language);
+        } catch (NoClusterFits noneFits) {
             return new TopicOverviewOutcome.TurnedDown(
                     new ClusterFault(
                             ClusterFaultKind.PROMPT_EVALUATION_CEILING,
-                            "no cluster's writing fits the window by the serving engine's own count"),
+                            "no cluster's writing fits the window by the serving engine's own count -- the last"
+                                    + " question counted: " + noneFits.engineSaid),
                     0);
         }
         TreeSet<Integer> numbersSent = new TreeSet<>();
@@ -99,38 +103,70 @@ public class TopicOverviewSynthesis {
     }
 
     /**
-     * The longest leading run of the proposal the serving engine counts inside the room, found by halving as {@link
-     * ClusterSynthesis} finds a cluster's (ADR-166); empty where not even the first cluster's writing fits.
+     * The longest leading run of the proposal the serving engine counts inside the room, found as {@link
+     * ClusterSynthesis} finds a cluster's (ADR-166, ADR-402 section 2): the whole proposal is counted, then halved. Where
+     * not even the first cluster's writing fits alone, it is dropped and the proposal is made again from the rest.
+     *
+     * @throws NoClusterFits where every cluster's writing has been passed over, carrying what the engine said of the
+     *     last question it counted
      */
     private List<OverviewSource> sentAfterCounting(
             OverviewCall call, String modelName, int contextWindow, DeliverableLanguage language) {
-        List<OverviewSource> proposed = proposal(call.written(), contextWindow);
-        if (proposed.isEmpty()) {
-            return proposed;
-        }
-        if (fits(call, proposed, modelName, contextWindow, language)) {
-            return proposed;
-        }
-        int low = 0;
-        int high = proposed.size();
-        while (high - low > 1) {
-            int mid = (low + high) / 2;
-            if (fits(call, proposed.subList(0, mid), modelName, contextWindow, language)) {
-                low = mid;
-            } else {
-                high = mid;
+        List<OverviewSource> remaining = call.written();
+        String lastCounted = null;
+        while (true) {
+            List<OverviewSource> proposed = proposal(remaining, contextWindow);
+            if (proposed.isEmpty()) {
+                throw new NoClusterFits(lastCounted == null ? "no cluster's writing was ever counted" : lastCounted);
             }
+            Counted whole = fits(call, proposed, modelName, contextWindow, language);
+            lastCounted = whole.detail();
+            if (whole.fits()) {
+                return proposed;
+            }
+            int low = 0;
+            int high = proposed.size();
+            while (high - low > 1) {
+                int mid = (low + high) / 2;
+                Counted outcome = fits(call, proposed.subList(0, mid), modelName, contextWindow, language);
+                lastCounted = outcome.detail();
+                if (outcome.fits()) {
+                    low = mid;
+                } else {
+                    high = mid;
+                }
+            }
+            if (low > 0) {
+                return proposed.subList(0, low);
+            }
+            OverviewSource passedOver = proposed.get(0);
+            remaining = remaining.stream().filter(source -> source != passedOver).toList();
         }
-        return proposed.subList(0, low);
     }
 
-    /** The leading run of {@code written} the word estimate finds room for. */
+    /** Where every cluster's writing was passed over; never leaves this class. */
+    private static final class NoClusterFits extends RuntimeException {
+        private final String engineSaid;
+
+        NoClusterFits(String engineSaid) {
+            super(engineSaid, null, false, false);
+            this.engineSaid = engineSaid;
+        }
+    }
+
+    /**
+     * The proposal from {@code written}, by the word estimate, in number order: a source whose title and writing are
+     * more words than the room is passed over, and the fill stops at the first source that does not fit what is left.
+     */
     private static List<OverviewSource> proposal(List<OverviewSource> written, int contextWindow) {
         int room = ClusterSynthesis.roomForDocumentsIn(contextWindow);
         List<OverviewSource> proposed = new ArrayList<>();
         int spent = 0;
         for (OverviewSource source : written) {
             int words = wordsIn(source.title()) + wordsIn(source.writing());
+            if (words > room) {
+                continue;
+            }
             if (spent + words > room) {
                 break;
             }
@@ -146,10 +182,11 @@ public class TopicOverviewSynthesis {
     }
 
     /**
-     * Whether the engine counts the second question, the longer, inside the room, by a call asking for one token of
-     * answer; an absent count fits (ADR-123), and a refusal on length does not.
+     * Counts the second question, the longer, by a call asking for one token of answer: whether it is inside the room,
+     * and what the engine said, its count or its refusal's text. An absent count fits (ADR-123), and a refusal on
+     * length does not.
      */
-    private boolean fits(
+    private Counted fits(
             OverviewCall call,
             List<OverviewSource> documents,
             String modelName,
@@ -160,15 +197,18 @@ public class TopicOverviewSynthesis {
                 optionsFor(modelName, contextWindow, ONE_TOKEN_OF_ANSWER));
         try {
             ChatResponse response = chatModel.call(prompt);
-            return response.getMetadata().getUsage().getPromptTokens()
-                    <= contextWindow - ClusterSynthesis.REPLY_ALLOWANCE;
+            int reported = response.getMetadata().getUsage().getPromptTokens();
+            return new Counted(reported <= contextWindow - ClusterSynthesis.REPLY_ALLOWANCE, String.valueOf(reported));
         } catch (NonTransientAiException refused) {
             if (!ClusterSynthesis.isRefusedAsPastTheWindow(refused)) {
                 throw refused;
             }
-            return false;
+            return new Counted(false, refused.getMessage());
         }
     }
+
+    /** What one counting call found: whether the question fits the room, and what the engine said of it. */
+    private record Counted(boolean fits, String detail) {}
 
     /**
      * One answering call, and its checks in a cluster's order; the writing as it came back, or a {@link

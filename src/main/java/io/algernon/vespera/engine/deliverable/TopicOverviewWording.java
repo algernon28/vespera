@@ -43,7 +43,7 @@ public final class TopicOverviewWording {
                     + " come back in the shape it was asked for, so it was not used.";
             case FAULT_PROMPT_EVALUATION_CEILING -> "No overview was written for this topic: what was written on its"
                     + " groups came to more than the writing model was given room to read at once.";
-            case NOTHING_WRITTEN_OVER_ANY_GROUP -> "No overview was written for this topic: nothing was written over"
+            case NOTHING_WRITTEN_OVER_ANY_CLUSTER -> "No overview was written for this topic: nothing was written over"
                     + " any of its groups.";
             case NOT_REACHED -> "No overview has been written for this topic yet: writing stopped before it reached"
                     + " this topic. Running the same command again carries the writing on.";
@@ -62,7 +62,7 @@ public final class TopicOverviewWording {
                     + " modello di scrittura non è tornata nella forma richiesta, quindi non è stata usata.";
             case FAULT_PROMPT_EVALUATION_CEILING -> "Per questo argomento non è stata scritta alcuna panoramica: i testi"
                     + " dei suoi gruppi superavano quanto il modello di scrittura aveva spazio per leggere in una volta.";
-            case NOTHING_WRITTEN_OVER_ANY_GROUP -> "Per questo argomento non è stata scritta alcuna panoramica: su"
+            case NOTHING_WRITTEN_OVER_ANY_CLUSTER -> "Per questo argomento non è stata scritta alcuna panoramica: su"
                     + " nessuno dei suoi gruppi è stato scritto nulla.";
             case NOT_REACHED -> "Per questo argomento non è ancora stata scritta una panoramica: la scrittura si è"
                     + " fermata prima di arrivare a questo argomento. Eseguire di nuovo lo stesso comando fa proseguire"

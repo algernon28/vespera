@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -62,5 +63,32 @@ public record BreadthFloor(double share) {
             }
         }
         return new StandingTopics(List.copyOf(standing), List.copyOf(feedingNone));
+    }
+
+    /**
+     * Empty where a topic of {@code found} stands; otherwise ADR-401 section 1's line from <em>no topic stands</em> to
+     * the share, naming the floor, the topics found, and the largest of them (the first of the most passages), the
+     * passages counted as {@link #of} counts them. Where none was found the largest holds 0 passages, a share of 0.0.
+     */
+    public Optional<String> refusal(List<Topic> found, Map<String, SeedVectors> bySeedPath) {
+        if (!of(found, bySeedPath).topics().isEmpty()) {
+            return Optional.empty();
+        }
+        long total = 0;
+        Set<String> contents = new HashSet<>();
+        for (String path : bySeedPath.keySet().stream().sorted(SeedPassage::comparePaths).toList()) {
+            SeedVectors seed = bySeedPath.get(path);
+            if (contents.add(seed.contentHash())) {
+                total += seed.chunkVectors().size();
+            }
+        }
+        long largest = 0;
+        for (Topic topic : found) {
+            largest = Math.max(largest, topic.passages().size());
+        }
+        double largestShare = total == 0 ? 0.0 : (double) largest / total;
+        return Optional.of("no topic stands at a breadth floor of " + share + ", the largest of the " + found.size()
+                + " topics found holding " + largest + " of the " + total + " seed passages, a share of "
+                + largestShare);
     }
 }

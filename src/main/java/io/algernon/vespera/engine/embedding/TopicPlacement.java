@@ -38,11 +38,15 @@ public final class TopicPlacement {
      * Placement under {@code topics}, whatever order they are handed over in, each topic's denominator taken from the
      * vectors of {@code bySeedPath}.
      *
-     * @throws IllegalArgumentException for a share not above 0 and at most 1
+     * @throws IllegalArgumentException for no topics, there being none to place under, and for a share not above 0 and
+     *     at most 1
      */
     public static TopicPlacement of(List<Topic> topics, Map<String, SeedVectors> bySeedPath, double seeAlsoShare) {
         if (!(seeAlsoShare > 0 && seeAlsoShare <= 1)) {
             throw new IllegalArgumentException("a see-also share is a number above 0 and at most 1, not " + seeAlsoShare);
+        }
+        if (topics.isEmpty()) {
+            throw new IllegalArgumentException("placement is under the topics that stand, and none was handed over");
         }
         List<Topic> byKey = new ArrayList<>(topics);
         byKey.sort(Comparator.comparing(topic -> topic.key().firstPassage()));
@@ -77,6 +81,11 @@ public final class TopicPlacement {
         return new TopicPlacement(List.copyOf(byKey), denominators, seeAlsoShare);
     }
 
+    /** How many topics a survivor is placed under. */
+    public int topicCount() {
+        return byKey.size();
+    }
+
     /** A tally for one survivor of {@code chunks} chunks. */
     public Tally forSurvivor(int chunks) {
         return new Tally(chunks);
@@ -105,9 +114,6 @@ public final class TopicPlacement {
         /** The survivor's winning topic and the other topics it fits. */
         public Placement placement() {
             int topics = byKey.size();
-            if (topics == 0) {
-                return new Placement(null, List.of());
-            }
             int chunks = sums.length;
             double[] total = new double[topics];
             int[] nearestChunks = new int[topics];
