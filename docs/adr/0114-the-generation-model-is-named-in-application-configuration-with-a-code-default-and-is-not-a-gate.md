@@ -1,5 +1,7 @@
 # ADR-114 — The generation model is named in application configuration with a code default, overridable in the profile, and is not a gate
 
+> **Partly amended — see [ADR-403](0403-the-generation-model-names-each-topic-at-the-head-of-the-arrangement-and-the-strongest-seeds-title-stands-in.md).** The generation model names the topics at the head of the arrangement, and its name and digest enter the arrangement run's identity: a change of model, or of the weights served under its name, mints a new arrangement run, approved again unless `arrangementApproved` holds `auto`, so the Consequences' *"Changing the generation model does not spend the arrangement approval"* no longer holds; and the two stops of *Unset is the default* are met where the arrangement run is minted, before generation's. The rest of this record stands.
+
 - **Date**: 2026-09-14
 - **Status**: accepted
 - **Settles what [ADR-108](0108-6b-sends-one-exemplar-first-call-per-cluster-and-verifies-every-response.md) and [ADR-110](0110-pipeline-hands-synthesis-its-inputs-so-the-module-rule-gains-no-second-exception.md) left unsaid**: both make the model name part of the generator identity, and neither says where the name comes from. This record settles it.

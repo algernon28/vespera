@@ -8,6 +8,8 @@
 
 > **Partly amended — see [ADR-392](0392-vespera-finds-no-translation-sets-the-translation-step-its-verdict-its-report-and-its-two-profile-keys-go.md).** Of §1: `deliverableLanguage` is two letters of ISO 639-1, `preferredLanguages` being no key; and of the alternatives it refuses, the first of `preferredLanguages` names a key that no longer exists. The rest of this record stands.
 
+> **Partly amended — see [ADR-403](0403-the-generation-model-names-each-topic-at-the-head-of-the-arrangement-and-the-strongest-seeds-title-stands-in.md).** Of §1: `deliverableLanguage` joins the arrangement run's identity as well as generation's, the topics being named in it at the head of the arrangement, so a change of language arranges again over the same scoring run; and an answer that names no language stops the invocation where the arrangement run is minted. The rest of this record stands.
+
 - **Date**: 2026-10-22
 - **Status**: accepted on 2026-10-22.
 - **Decided**: by the operator, who decided that what the deliverable shows its readers is in Italian: the fixed words Vespera writes on its pages, the title and the writing of each cluster, which the local model writes in Italian itself and nothing translates afterwards, and every page title Vespera or the model makes; and that the question states the shape of the answer it imposes. Whether the HTML tree follows the Confluence rendering, whether the language is a value or fixed, the Italian words, the language the instruction is written in and the wording of the shape are decided under delegation.

@@ -2903,6 +2903,16 @@ public final class Adr {
     public static final String TOPICS_ARE_COMMUNITIES_OF_THE_SEED_PASSAGES = FILE
             + "0399-topics-are-modularity-communities-over-a-ten-neighbour-graph-of-the-seed-passages-keyed-by-their-first-passage.md";
 
+    /**
+     * ADR-403 -- the generation model names each topic at the head of the arrangement step, under the arrangement run,
+     * whose identity gains the model, its digest, the options sent and the deliverable language; it is sent the topic's
+     * passages nearest its centroid first, up to 1,500 words, at temperature 0 and seed 1; a name is used where it is
+     * one line of at most 16 words, and otherwise the strongest contributing seed's Docling title, filename stem or path
+     * stands in (amends ADR-114, ADR-321 §1 and ADR-396).
+     */
+    public static final String THE_GENERATION_MODEL_NAMES_EACH_TOPIC = FILE
+            + "0403-the-generation-model-names-each-topic-at-the-head-of-the-arrangement-and-the-strongest-seeds-title-stands-in.md";
+
     private Adr() {
     }
 }

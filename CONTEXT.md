@@ -150,6 +150,10 @@ _Avoid_: seed partition (retired: a topic is no one seed's), bucket, category, t
 The one topic a survivor is placed under: where it is arranged, clustered and copied, once (ADR-280, ADR-396). Chosen by a placement step of its own, apart from the relevance score, whose provenance stays the winning seed (ADR-020). Every survivor has one, a survivor no topic fits well taking its nearest (ADR-105); each other topic it fits carries a link to it, and no second copy.
 _Avoid_: best topic, assigned topic, home topic, primary topic, the winning seed's topic (a seed may feed several topics, or none)
 
+**Topic name**:
+What a topic is called at the 6a gate and in the deliverable: written by the generation model at the head of stage 6a, in the deliverable language, from the topic's passages nearest its centroid (ADR-403). Where the model's answer cannot be used, the Docling title of the topic's strongest contributing seed, the seed feeding the most of its passages, stands in, or else that seed's filename stem, or else its path. Stored under the arrangement run and never asked for again under it. A rendering, never the topic's identity, which is its key: two topics may carry one name.
+_Avoid_: topic label (a label is derived, and the model writes this), topic title (a title is 6b's, written over a cluster)
+
 **Seed partition**:
 Retired by ADR-396, which put the topic in its place. It was all file occurrences sharing a winning seed: the top level of the arrangement and the unit clustering ran within, one for each seed that won a survivor. No name of ours added from ADR-396 on says it, but to name its retirement. The names of ours that still say partition, as `partition_order` and the `seed_partition` column of `documents.csv`, name the code that still holds them, and each is settled by the child of map [#822](https://github.com/algernon28/vespera/issues/822) that rebuilds that code.
 _Avoid_: bucket, category
