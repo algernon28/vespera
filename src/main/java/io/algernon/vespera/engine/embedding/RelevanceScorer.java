@@ -34,6 +34,30 @@ class RelevanceScorer {
             List<float[]> survivorChunkVectors,
             Map<OccurrenceId, List<float[]>> seedVectorsBySeed,
             int topSimilarities) {
+        return score(survivorChunkVectors, seedVectorsBySeed, topSimilarities, PassageCosines.NONE);
+    }
+
+    /**
+     * Each cosine the scoring takes between a survivor chunk and a seed chunk, handed on as it is taken (ADR-400
+     * section 5).
+     */
+    @FunctionalInterface
+    interface PassageCosines {
+
+        PassageCosines NONE = (survivorChunk, seed, seedChunk, cosine) -> {};
+
+        void accept(int survivorChunk, OccurrenceId seed, int seedChunk, double cosine);
+    }
+
+    /**
+     * As {@link #score(List, Map, int)}, handing {@code cosines} each cosine the score takes, once: placement reads
+     * them and no second cosine of any pair is taken (ADR-400 section 5).
+     */
+    RelevanceScore score(
+            List<float[]> survivorChunkVectors,
+            Map<OccurrenceId, List<float[]>> seedVectorsBySeed,
+            int topSimilarities,
+            PassageCosines cosines) {
         if (topSimilarities < 1) {
             throw new IllegalArgumentException("a score is the mean of at least one similarity, not " + topSimilarities);
         }
@@ -46,7 +70,8 @@ class RelevanceScorer {
         double bestMean = Double.NEGATIVE_INFINITY;
         OccurrenceId winningSeed = null;
         for (Map.Entry<OccurrenceId, List<float[]>> seed : seedVectorsBySeed.entrySet()) {
-            double mean = topKMeanSimilarity(survivorChunkVectors, seed.getValue(), topSimilarities);
+            double mean = topKMeanSimilarity(
+                    survivorChunkVectors, seed.getValue(), topSimilarities, seed.getKey(), cosines);
             if (mean > bestMean) {
                 bestMean = mean;
                 winningSeed = seed.getKey();
@@ -62,11 +87,17 @@ class RelevanceScorer {
      * seedChunkVectors.size()} works out to.
      */
     private static double topKMeanSimilarity(
-            List<float[]> survivorChunkVectors, List<float[]> seedChunkVectors, int topSimilarities) {
+            List<float[]> survivorChunkVectors,
+            List<float[]> seedChunkVectors,
+            int topSimilarities,
+            OccurrenceId seed,
+            PassageCosines cosines) {
         PriorityQueue<Double> lowestOfTheTop = new PriorityQueue<>(Math.min(topSimilarities, 1024));
-        for (float[] survivorVector : survivorChunkVectors) {
-            for (float[] seedVector : seedChunkVectors) {
-                double similarity = cosineSimilarity(survivorVector, seedVector);
+        for (int survivorChunk = 0; survivorChunk < survivorChunkVectors.size(); survivorChunk++) {
+            float[] survivorVector = survivorChunkVectors.get(survivorChunk);
+            for (int seedChunk = 0; seedChunk < seedChunkVectors.size(); seedChunk++) {
+                double similarity = cosineSimilarity(survivorVector, seedChunkVectors.get(seedChunk));
+                cosines.accept(survivorChunk, seed, seedChunk, similarity);
                 if (lowestOfTheTop.size() < topSimilarities) {
                     lowestOfTheTop.add(similarity);
                 } else if (similarity > lowestOfTheTop.peek()) {
