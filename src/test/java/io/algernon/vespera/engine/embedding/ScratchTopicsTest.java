@@ -9,10 +9,10 @@ class ScratchTopicsTest {
         Map<String, SeedVectors> m = new LinkedHashMap<>();
         for (int i = 1; i <= 4; i++) m.put("on-sluices-" + i + ".txt", new SeedVectors("s" + i, List.of(new float[] {1,0,0,0,0,0,0,0})));
         for (int i = 1; i <= 2; i++) m.put("on-pumps-" + i + ".txt", new SeedVectors("p" + i, List.of(new float[] {0.1f,1,0,0,0,0,0,0})));
-        System.out.println("TOPICS42 " + TopicInference.over(m, 10, 1.0).size());
+        for (int k=1;k<=4;k++) System.out.println("TOPICS42 k"+k+" " + TopicInference.over(m, k, 1.0).stream().map(t->t.passages().size()).toList());
         Map<String, SeedVectors> n = new LinkedHashMap<>();
         for (int i = 1; i <= 3; i++) n.put("on-sluices-" + i + ".txt", new SeedVectors("s" + i, List.of(new float[] {1,0,0,0,0,0,0,0})));
         for (int i = 1; i <= 3; i++) n.put("on-pumps-" + i + ".txt", new SeedVectors("p" + i, List.of(new float[] {0.1f,1,0,0,0,0,0,0})));
-        System.out.println("TOPICS33 " + TopicInference.over(n, 10, 1.0).size());
+        for (int k=1;k<=4;k++) System.out.println("TOPICS33 k"+k+" " + TopicInference.over(n, k, 1.0).stream().map(t->t.passages().size()).toList());
     }
 }
