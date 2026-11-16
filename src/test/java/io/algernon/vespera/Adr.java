@@ -2903,6 +2903,16 @@ public final class Adr {
     public static final String TOPICS_ARE_COMMUNITIES_OF_THE_SEED_PASSAGES = FILE
             + "0399-topics-are-modularity-communities-over-a-ten-neighbour-graph-of-the-seed-passages-keyed-by-their-first-passage.md";
 
+    /**
+     * ADR-404 -- the control panel's rows of what the next invocation wants are the working directory shown's own, drawn
+     * from one reading of its {@code next-invocation.properties}: as the window opens, as another working directory is
+     * chosen, as the window's own child ends however it ended, and as another process's hold of the directory shown
+     * ends; no file, or one that cannot be read, draws no row; the arrangement offered is that file's; no line names the
+     * invocation the rows came from (amends ADR-294 section 4 and ADR-377 section 1).
+     */
+    public static final String THE_VALUES_WANTED_ARE_READ_FROM_THE_WORKING_DIRECTORY_SHOWN = FILE
+            + "0404-the-values-wanted-are-read-from-the-working-directory-shown-as-the-window-opens-another-is-chosen-or-an-invocation-ends.md";
+
     private Adr() {
     }
 }
