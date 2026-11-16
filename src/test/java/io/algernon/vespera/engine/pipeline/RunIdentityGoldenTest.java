@@ -321,16 +321,27 @@ class RunIdentityGoldenTest {
 
     @Test
     @Story("A stage's piece of work is identified by exactly what identified it before")
-    @DisplayName("Arrangement is identified by the corpus root and the scoring it arranged")
+    @DisplayName("Arrangement is identified by the corpus root, the scoring it arranged, the naming model's identity and the pages' language")
     @Issue("353")
     @Link(name = "ADR-222", url = Adr.A_STAGE_NAMES_PIPELINE_ONLY_WHILE_PIPELINE_HOLDS_A_RULE_OF_IT, type = "adr")
+    @Link(name = "ADR-403", url = Adr.TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT, type = "adr")
     void arrangement() {
         Map<String, Object> run = theRunOf("arrangement");
 
         claim(
-                "the settings it records are the corpus root, then the id of the scoring it arranged",
+                "the settings it records are the corpus root, the id of the scoring it arranged, the model the"
+                        + " topics are named by, the shipped qwen3:8b where the machine names no other, whatever"
+                        + " writing model the profile names, the weights the serving runtime reported under that"
+                        + " name, the 4096-token window a name is asked in, the 64 tokens left the name, -1 for how"
+                        + " much of a question too long for the window to keep, a temperature of 0, a seed of 1,"
+                        + " and en, the language the names are written in where the profile names none",
                 () -> assertThat(run.get("config_consumed")).isEqualTo(
-                        "{\"corpusRoot\":\"%s\",\"scoringRunId\":\"%s\"}"
+                        ("{\"corpusRoot\":\"%s\",\"scoringRunId\":\"%s\","
+                                        + "\"namingModel\":\"qwen3:8b\","
+                                        + "\"namingModelDigest\":\"" + EmbeddingScriptedBeans.DIGEST + "\","
+                                        + "\"namingContextWindow\":4096,\"namingReplyAllowance\":64,"
+                                        + "\"namingNumKeep\":-1,\"namingTemperature\":0.0,\"namingSeed\":1,"
+                                        + "\"deliverableLanguage\":\"en\"}")
                                 .formatted(inJson(Walk.canonicalRoot(root)), theIdOf("embedding-scoring"))));
         claim(
                 "and its code version is the synthesis module's, then extraction's, then embedding's, and"
