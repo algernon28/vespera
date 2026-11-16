@@ -79,7 +79,7 @@ Means over the 24 sets. On a survivor of one chunk the two centroid functions ar
 
 where *p̂* is a passage's vector divided by its length. The denominator is one number per topic, taken once from the resident seed vectors before the first survivor is scored.
 
-**The winning topic is the topic of the highest score**, among the topics that stand once #827's breadth floor has been applied. Every scored document has one: the arrangement is total (ADR-105), and a document no topic fits well takes the one it is nearest to. Two topics of equal score are decided for the one whose key comes first (ADR-399 §5), and never by a topic's name or ordinal.
+**The winning topic is the topic of the highest score**, among the topics that stand once #827's breadth floor has been applied. Every scored document has one: the arrangement is total (ADR-105), and a document no topic fits well takes the one it is nearest to. Where no topic stands, no document is scored: the relevance-scoring step stops before the first, in one line naming the floor and the largest topic's share ([ADR-401](0401-a-topic-holding-under-half-of-one-percent-of-the-seed-passages-is-dropped-and-a-seed-feeding-none-is-listed.md) §1). Two topics of equal score are decided for the one whose key comes first (ADR-399 §5), and never by a topic's name or ordinal.
 
 - **A passage that lies in no topic counts toward none**: a passage of a seed of an earlier seed's content, which feeds no passage (ADR-399 §1), and a passage of a topic under the breadth floor. Its cosines are still taken for relevance (ADR-020).
 - **The score at a topic places, and is not a relevance score.** It is on another scale from ADR-020's, and no floor, label or report reads it.
@@ -115,9 +115,9 @@ It is a preset under ADR-330 §8, beside ADR-399's two. It has no profile key, a
 
 ### 6. What the implementation owes
 
-- In `embedding`: `Placement(TopicKey winningTopic, List<TopicKey> seeAlso)`, the topics a survivor fits in the order of their keys; `TopicPlacement.of(List<Topic> topics, Map<String, SeedVectors> bySeedPath, double seeAlsoShare)`, taking each topic's denominator from the vectors; `TopicPlacement.forSurvivor(int chunks)`, returning a `TopicPlacement.Tally` that takes `add(int survivorChunk, SeedPassage passage, double cosine)` for each pair and gives `placement()`. The tally reads cosines alone, so that no survivor vector reaches it.
+- In `embedding`: `Placement(TopicKey winningTopic, List<TopicKey> seeAlso)`, the topics a survivor fits in the order of their keys, its winning topic never `null`; `TopicPlacement.of(List<Topic> topics, Map<String, SeedVectors> bySeedPath, double seeAlsoShare)`, taking each topic's denominator from the vectors and refusing an empty list of topics with an `IllegalArgumentException`, and its `topicCount()`, how many topics it places under; `TopicPlacement.forSurvivor(int chunks)`, returning a `TopicPlacement.Tally` that takes `add(int survivorChunk, SeedPassage passage, double cosine)` for each pair and gives `placement()`. The tally reads cosines alone, so that no survivor vector reaches it.
 - In `embedding`, the scoring pass: `RelevanceScorer` hands each cosine it takes to the survivor's tally, a seed's occurrence mapped to its path for the `SeedPassage`, and `RelevanceScoring.scoreAndRecord` returns or records the placement beside the score, where #832 says.
-- In `pipeline`: `Presets.seeAlsoShare()`, its refusal in `Presets.refusal`, the member of the scoring run's configuration, and `TopicPlacement.of` built at the head of `RelevanceScoringTasklet`, after the topics.
+- In `pipeline`: `Presets.seeAlsoShare()`, its refusal in `Presets.refusal`, the member of the scoring run's configuration, and `TopicPlacement.of` built at the head of `RelevanceScoringTasklet`, after the topics, over the topics that stand (ADR-401 §5). Until #832 stores placement, the step says what it placed in one line after the survivors are scored, its second number read off the placement built: `Stage 5d (relevance scoring) placed <n> survivor(s) under the <t> topic(s) that stand, the placement held and not yet stored (#832)`.
 - `application.yaml` gains the preset under `vespera.topics`, with its comment; the control panel shows it read-only, as ADR-330 §12 shows a preset with no profile key.
 
 ## Alternatives refused
@@ -153,13 +153,18 @@ It is a preset under ADR-330 §8, beside ADR-399's two. It has no profile key, a
 | `TheSeeAlsoSharePresetTest.shipsTheMeasuredValue` | `application.yaml` names a share of 0.15 (§4) |
 | `TheSeeAlsoSharePresetTest.refusesValuesNoRunCanBeMadeUnder` | a share of 0 and a share of 1.5 are refused, each in its line (§4) |
 | `TheSeeAlsoShareNamesTheScoringRunInvocationTest.theShareEntersTheScoringRun` | a machine naming a share of 0.3 gets a scoring run whose configuration names it (§5) |
+| `TopicPlacementTest.refusesToPlaceUnderNoTopic` | placement over no topic is refused (§1, §6) |
+| `RelevanceScorerTest.handsOnEveryCosineItTakesOnceAndScoresAsBefore` | two survivor chunks against three seed chunks hand on six cosines, one for each pair, each with its chunk, seed and seed chunk, and the score is the one handing on none gives (§5) |
+| `PlacementIsReadInTheScoringPassTest.placesTheSurvivorFromTheCosinesTheScoreTakes` | `RelevanceScoring.scoreAndRecord`, handed a placement and the seeds' paths, returns the placement the stored vectors' cosines give and records the score it records handed none (§1, §2, §5) |
+| `…placesUnderTheTopicsThatStandAlone` | built over the topics the breadth floor lets stand, it places a survivor nearest a dropped topic under the standing one whose key comes first (§1) |
+| `PlacementIsReadInTheScoringPassInvocationTest.isReadFromTheScorersOwnCosinesWithNoEmbeddingCall` | the step says it found the topics, scored the one survivor and placed it under the one topic, in that order, and the embedder answered no call from the step's first line to the last of these (§5) |
+| `…placesUnderTheTopicsThatStandAlone` | of two topics found, one stands, and the one survivor, nearest the other, is placed under the one topic placement was built over (§1, §5) |
 
-`RunIdentityGoldenTest` holds, unchanged, that at the shipped value no member is written. That placement is read in the scoring pass from the cosines the scorer takes, with no embedding call, is held by the test the implementation adds beside `RelevanceScoringTasklet`'s.
+`RunIdentityGoldenTest` holds, unchanged, that at the shipped value no member is written.
 
 ## What this does not decide
 
 - **Where the winning topic and the topics a survivor fits are stored**, and how a re-run discards them: #832.
 - **What a topic's page shows of its links**, and in what order: [#833](https://github.com/algernon28/vespera/issues/833).
-- **What becomes of placement if the breadth floor leaves no topic standing**: #827.
 - **Whether the clusters within a topic read the survivors it is linked from**: they do not under ADR-396 §3, which clusters a topic's placed survivors alone, and [#831](https://github.com/algernon28/vespera/issues/831) may ask again.
 - **How the share behaves on survivors of tens of chunks**, and under the shipped 8B embedder, which nothing here measured.

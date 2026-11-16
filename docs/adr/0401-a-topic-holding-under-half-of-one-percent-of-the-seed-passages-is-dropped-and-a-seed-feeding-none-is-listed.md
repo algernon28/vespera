@@ -4,7 +4,7 @@
 - **Status**: accepted on 2026-11-16.
 - **Decided**: by the operator, in map [#822](https://github.com/algernon28/vespera/issues/822), as [ADR-396](0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md) §1 records it: that a topic's breadth is its share of all seed passages, that a topic under a measured floor on it is no topic, its passages feeding none, that a seed all of whose passages fall under the floor feeds no topic and is reported, and that the floor ships as a preset with no profile key. Under the operator's delegation, in [#827](https://github.com/algernon28/vespera/issues/827): the floor's value (§2), that it is a share alone and no count of passages (§3), how a topic at exactly the floor and the passages it is a share of are read (§1), which seeds are listed and in what order (§4), and which run the value enters (§5).
 - **Amends**: [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md) §8 and §9, whose tables of presets gain a row, `vespera.topics.breadth-floor`, whose table of refusals gains its line, and whose table of the members a run's configuration gains gains `topicBreadthFloor` (§2, §5). It carries a note at its head.
-- **Keeps**: ADR-396 §1's breadth and what falls under the floor, which this record gives a value and does not change; [ADR-399](0399-topics-are-modularity-communities-over-a-ten-neighbour-graph-of-the-seed-passages-keyed-by-their-first-passage.md)'s method, its two presets and its §1, a seed of an earlier seed's content feeding no passage, which §1 and §4 read; ADR-020's score, which no topic and no floor enters; [ADR-105](0105-stage-6a-names-the-arrangement-stage-5-already-built-and-unattributed-is-struck.md), every survivor placed, which placement ([#828](https://github.com/algernon28/vespera/issues/828)) keeps over the topics that stand.
+- **Keeps**: ADR-396 §1's breadth and what falls under the floor, which this record gives a value and does not change; [ADR-399](0399-topics-are-modularity-communities-over-a-ten-neighbour-graph-of-the-seed-passages-keyed-by-their-first-passage.md)'s method, its two presets and its §1, a seed of an earlier seed's content feeding no passage, which §1 and §4 read; ADR-020's score, which no topic and no floor enters; [ADR-105](0105-stage-6a-names-the-arrangement-stage-5-already-built-and-unattributed-is-struck.md), every survivor placed, which placement ([#828](https://github.com/algernon28/vespera/issues/828)) keeps over the topics that stand, and §1 keeps where none stands by scoring nothing; [ADR-231](0231-the-embedding-step-stops-unrecorded-where-the-embedding-model-was-pulled-while-it-ran-and-scoring-refuses-a-seed-whose-chunks-have-no-vector.md) §1's shape of a stop that is the operator's to read (§1).
 - **Rests on**: the measurements below, on public text and local models only ([ADR-264](0264-the-private-paths-guard-refuses-only-what-reads-or-writes-outside-the-allow-list-and-a-working-directory-is-open-as-the-place-it-lies-in.md)).
 - **Settles**: [#827](https://github.com/algernon28/vespera/issues/827).
 
@@ -80,6 +80,12 @@ What a count drops lies in sets of under 500 passages, where a topic of 4 to 10 
 
 **A topic stands where its passages, divided by every passage that feeds the topics, are at least the floor**, the quotient taken as a `double`. A topic under it is dropped: its passages feed no topic, and are given to none that stands. The passages a topic's breadth is a share of are those ADR-399 §1 visits, one seed of each content: a seed of the content of a seed before it in ADR-399 §4's order adds none, so that a copy neither widens nor narrows any topic. The topics that stand keep the order of their keys.
 
+**Where no topic stands, the relevance-scoring step stops before it scores a survivor**, so that no survivor is scored with no topic to be placed under and ADR-105's every survivor placed holds. It stops as ADR-231 §1 stops the embedding step: one line at error level, the step failed, no exception thrown, no completion recorded, and the job ends there. The line names the floor and the share of the largest topic found, the one of most passages:
+
+> stage 5's relevance-scoring step stopped: no topic stands at a breadth floor of `<floor>`, the largest of the `<n>` topics found holding `<p>` of the `<total>` seed passages, a share of `<share>`. Nothing was scored and the step is not recorded as finished.
+
+`<floor>` and `<share>` are written as Java writes a `double`, the share being `<p>` divided by `<total>`, the passages of §1. The floor is a preset of the machine's (§2), and the same run stops the same way each time it is asked again; a machine naming a floor at or below the largest share is another run (§5).
+
 ### 2. The floor is half of one percent, a preset
 
 | Preset | Ships | Profile key |
@@ -104,8 +110,8 @@ It is a preset under ADR-330 §8, *every candidate is a preset*, as ADR-396 §1 
 
 ### 6. What the implementation owes
 
-- In `embedding`: `BreadthFloor(double share)`, its `of(List<Topic> found, Map<String, SeedVectors> bySeedPath)` returning `StandingTopics(List<Topic> topics, List<String> seedsFeedingNoTopic)`, the topics that stand in the order found and the seeds listed by §4, a seed's content read from its `SeedVectors` as `TopicInference.over` reads it.
-- In `pipeline`: `Presets.topicBreadthFloor()` and its refusal in `Presets.refusal`, after the topics' two presets; the member of the scoring run's configuration; and the call after `TopicInference.over` in `RelevanceScoringTasklet`, its topics the ones that stand.
+- In `embedding`: `BreadthFloor(double share)`, its `of(List<Topic> found, Map<String, SeedVectors> bySeedPath)` returning `StandingTopics(List<Topic> topics, List<String> seedsFeedingNoTopic)`, the topics that stand in the order found and the seeds listed by §4, a seed's content read from its `SeedVectors` as `TopicInference.over` reads it; and its `refusal(List<Topic> found, Map<String, SeedVectors> bySeedPath)`, an `Optional<String>`, empty where a topic of `found` stands and otherwise §1's line from *no topic stands* to the share, the passages counted as `of` counts them.
+- In `pipeline`: `Presets.topicBreadthFloor()` and its refusal in `Presets.refusal`, after the topics' two presets; the member of the scoring run's configuration; and the call after `TopicInference.over` in `RelevanceScoringTasklet`, its topics the ones that stand, and, where `BreadthFloor.refusal` is not empty, §1's stop before the survivors are counted, its line recorded through `RecordedClosingLines` as `EmbeddingScoringTasklet` records ADR-231's.
 - `application.yaml` gains `vespera.topics.breadth-floor: 0.005` under `vespera.topics`, with its comment; the control panel shows it read-only, as ADR-330 §12 shows a preset with no profile key.
 
 ## Alternatives refused
@@ -122,7 +128,7 @@ It is a preset under ADR-330 §8, *every candidate is a preset*, as ADR-396 §1 
 - **At the shipped value the floor drops nothing below a few thousand passages**, and above them, the fragments of subjects that stand elsewhere: measured, at most one topic a set and 0.47% of its passages.
 - **A topic of fewer than 0.5% of the seed passages is dropped, whatever subject it holds**, fewer than 28 passages in a set of 5,500, and the survivors it would have taken are placed under the topics that stand (#828). Its seeds are listed where none of their passages lies in a topic that stands.
 - **A seed is listed though its subject stands** where all its passages lie in a fragment the floor drops: once in 131 sets under Qwen.
-- **Where a machine's floor exceeds the share of every topic found, no topic stands** and every seed is listed. At the shipped value one topic always stands while the inference finds 200 or fewer; it found 2 to 20.
+- **Where a machine's floor exceeds the share of every topic found, no topic stands**, and the relevance-scoring step stops in one line naming the floor and the largest share, scoring nothing (§1). At the shipped value one topic always stands while the inference finds 200 or fewer; it found 2 to 20.
 - **ADR-330 carries a note *"Partly amended — see ADR-401"*** at its head.
 - **Run ids**: the embedding-scoring stage's run id moves with the code that builds this record, as ADR-396 §12 says of the children that build it; at the shipped value no member is written. The walk, stages 1 to 4 and seed measurement do not move.
 
@@ -133,14 +139,18 @@ It is a preset under ADR-330 §8, *every candidate is a preset*, as ADR-396 §1 
 | `BreadthFloorTest.aTopicUnderTheFloorIsDroppedAndOneAtItStands` | of four topics of five, three, one and one passages in ten, at a floor of three tenths the first two stand, the second at exactly the floor, in the order found; at 0 all four stand (§1) |
 | `BreadthFloorTest.aSeedAllOfWhosePassagesFallUnderTheFloorFeedsNoTopic` | the seed whose one passage lies in a dropped topic is listed; one with a passage dropped and one in a topic that stands is not (§4) |
 | `BreadthFloorTest.aSeedOfTheContentOfAnEarlierOneFeedsWhatThatOneFeeds` | a later seed of the listed seed's content is listed after it, one of a standing seed's content is not, and the copies add no passage: the topic at the floor still stands (§1, §4) |
+| `BreadthFloorTest.noTopicStandingIsRefusedNamingTheFloorAndTheLargestShare` | at a floor of 0.6 over four topics, the widest five of ten passages, the refusal names the floor, the four topics, five of ten and 0.5; at three tenths there is none (§1) |
+| `pipeline.PlacementIsReadInTheScoringPassInvocationTest.stopsBeforeScoringWhereNoTopicStands` | two topics of three passages in six at a floor of 0.6: the invocation fails, logs §1's line whole, reaches no survivor, and records no score and no completion under its scoring run (§1) |
+| `…placesUnderTheTopicsThatStandAlone` | two topics of four and two passages in six at a floor of 0.6: one kept, the two seeds of the other feeding none, and the one survivor, on the dropped topic's subject, placed under the one topic placement was built over (§1, §5) |
+| `embedding.PlacementIsReadInTheScoringPassTest.placesUnderTheTopicsThatStandAlone` | placement built over what the floor lets stand places a survivor nearest the dropped topic under the standing topic whose key comes first, linked from none (§1) |
 | `TheBreadthFloorPresetTest.shipsTheMeasuredValue` | `application.yaml` names a breadth floor of 0.005 (§2) |
 | `TheBreadthFloorPresetTest.refusesValuesNoRunCanBeMadeUnder` | 1, -0.01 and NaN are refused, each in its line, and 0 is not (§2) |
 | `TheBreadthFloorNamesTheScoringRunInvocationTest.theFloorEntersTheScoringRun` | a machine naming 7 neighbours and a floor of 0.02 gets a scoring run whose configuration names both, the floor after the neighbours (§5) |
 
-`RunIdentityGoldenTest` holds, unchanged, that at the shipped value no member is written. That the topics placement and the reports read are the ones that stand is held by the test the implementation adds beside `RelevanceScoringTasklet`'s.
+`RunIdentityGoldenTest` holds, unchanged, that at the shipped value no member is written. That the reports read the topics that stand is held by the tests #832 and #834 add with the tables they read.
 
 ## What this does not decide
 
-- **Where a survivor whose nearest topic was dropped is placed**, and what placement does where no topic stands: #828.
+- **Where a survivor whose nearest topic was dropped is placed**: #828.
 - **Where the topics that stand and the seeds listed are stored**, and the report that shows them: #832 and #834.
 - **The floor for the shipped 8B embedder, for seeds of long documents of many sections, and for seed sets past 5,512 passages**, none of which was measured.
