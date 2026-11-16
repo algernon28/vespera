@@ -85,4 +85,24 @@ class OverviewCheckTest {
                         .contains(new ClusterFault(
                                 ClusterFaultKind.CITATION_NOT_IN_RANGE, "citation [9] against groups 1, 2, 5 sent")));
     }
+
+    @Test
+    @Story("A topic's overview cites only groups it was given, in every sentence")
+    @DisplayName("Of two faults, the one in the earlier sentence is the one the writing is turned down for")
+    void theFirstFaultInSentenceOrderIsTheOneNamed() {
+        String uncitedFirst = "The groups share a harvest. A ninth adds its cost [9].";
+        String outOfRangeFirst = "A ninth adds its cost [9]. The groups share a harvest.";
+
+        claim(
+                "where the first of two sentences cites nothing and the second cites group 9, not sent, the writing is"
+                        + " turned down for the first sentence",
+                () -> assertThat(OverviewCheck.faultIn(uncitedFirst, CLUSTERS_ONE_TWO_AND_FIVE_SENT))
+                        .contains(new ClusterFault(
+                                ClusterFaultKind.CITATION_NOT_IN_RANGE, "sentence 1 of 2 cites no group")));
+        claim(
+                "where the first cites group 9 and the second cites nothing, it is turned down for group 9",
+                () -> assertThat(OverviewCheck.faultIn(outOfRangeFirst, CLUSTERS_ONE_TWO_AND_FIVE_SENT))
+                        .contains(new ClusterFault(
+                                ClusterFaultKind.CITATION_NOT_IN_RANGE, "citation [9] against groups 1, 2, 5 sent")));
+    }
 }
