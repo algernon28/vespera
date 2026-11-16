@@ -12,7 +12,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
- * The sixteen presets of ADR-330 §9, as configuration names them, resolved where a run is minted and handed on: the
+ * The eighteen presets of ADR-330 §9, as ADR-399 amends it, as configuration names them, resolved where a run is minted and handed on: the
  * technical choices that were constants of {@code extraction}, {@code similarity} and {@code embedding}, now shipped in
  * {@code application.yaml} and overridden by Spring's own layers for a machine. It holds the profile's {@code
  * clusterResolution} over the first, where that can be acted on.

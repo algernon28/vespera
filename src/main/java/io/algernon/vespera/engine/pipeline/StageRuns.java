@@ -58,7 +58,7 @@ import org.springframework.stereotype.Component;
  * run is minted, never when this holder is built. The scoring run's three are then kept, and handed to
  * the steps after it, which read what the run names and not the profile again (ADR-228, ADR-117).
  *
- * <p>The sixteen presets of ADR-330 section 9 are read the same way: each run reads its own through {@link Presets}
+ * <p>The eighteen presets of ADR-330 section 9, as ADR-399 amends it, are read the same way: each run reads its own through {@link Presets}
  * as it is minted, writes into its configuration the ones that differ from what every earlier run was minted under, and
  * hands them on through the accessors below, so the number that names the run is the number that works.
  */
@@ -67,7 +67,7 @@ import org.springframework.stereotype.Component;
 class StageRuns {
 
     /*
-     * What every run was minted under before the sixteen presets of ADR-330 section 9 existed. They are held here and
+     * What every run was minted under before the eighteen presets of ADR-330 section 9, as ADR-399 amends it, existed. They are held here and
      * not read from what ships: a preset shipped at another value later is written, so that it cannot be taken for a
      * run of the earlier one, and the configuration text of a run at these values is what it was
      * (RunIdentityGoldenTest). A member of a run's configuration is left out where the value resolved is one of these.

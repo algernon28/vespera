@@ -37,7 +37,7 @@ import org.springframework.core.env.PropertySource;
  * <p>{@code vespera run} and {@code vespera label} write it once the working-directory lock is held and past the last
  * refusal of their start, before their first step; {@code vespera publish} writes none. It is written whole to a
  * {@code .part} file and moved over the target, and one that cannot be written is logged at WARN and fails nothing. It
- * is never deleted. The sixteen presets of ADR-330 §9 are on the list, the resolution under the profile's own name,
+ * is never deleted. The eighteen presets of ADR-330 §9, as ADR-399 amends it, are on the list, the resolution under the profile's own name,
  * {@code clusterResolution}.
  */
 final class EffectiveValuesFile {
