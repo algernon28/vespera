@@ -2903,6 +2903,16 @@ public final class Adr {
     public static final String TOPICS_ARE_COMMUNITIES_OF_THE_SEED_PASSAGES = FILE
             + "0399-topics-are-modularity-communities-over-a-ten-neighbour-graph-of-the-seed-passages-keyed-by-their-first-passage.md";
 
+    /**
+     * ADR-405 -- in a Bash command the private-paths guard reads as no path the argument of gh's {@code -b}, the
+     * letter of {@code --body}, and of the {@code -c} and {@code --comment} of {@code issue close}, {@code issue
+     * reopen}, {@code pr close} and {@code pr reopen}, each where the command's table has it take an argument; it
+     * keeps ADR-196's drive of one letter ({@code m:m.group}, {@code A:} in prose elsewhere), ADR-217's name made
+     * only of spaces, and the reading of a {@code sed} program and of a script's source (amends ADR-351 §1).
+     */
+    public static final String THE_GUARD_READS_A_GH_COMMENT_AS_NO_PATH = FILE
+            + "0405-the-private-paths-guard-reads-a-gh-comment-as-no-path-and-keeps-the-drive-of-one-letter-and-the-name-of-spaces.md";
+
     private Adr() {
     }
 }
