@@ -2871,6 +2871,18 @@ public final class Adr {
             + "0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md";
 
     /**
+     * ADR-397 -- the YAML configuration lies in the folder beside the jar: {@code application.yaml}, the operator's
+     * optional {@code application-local.yaml}, {@code compose.yaml}, {@code compose.gpu.yaml} and the {@code docker/}
+     * build context; the jar carries nothing Spring reads, only a shipped copy of each under {@code beside-the-jar/}, which
+     * it writes where a file is missing and as {@code <name>.new} beside one that differs, saying which keys differ in
+     * its log and the control panel and never writing over the operator's file; {@code --spring.config.location} still
+     * moves where Spring reads; a value of {@code application.yaml} is {@code shipped} only at the shipped copy's value
+     * (amends ADR-323 §2 and §4, ADR-330 §1, ADR-334 §11 and ADR-344 §3).
+     */
+    public static final String THE_YAML_CONFIGURATION_LIES_BESIDE_THE_JAR = FILE
+            + "0397-the-yaml-configuration-lies-beside-the-jar-and-the-jar-writes-its-shipped-copy-where-a-file-is-missing.md";
+
+    /**
      * ADR-398 -- the profile's {@code confluenceRootTitle}, read on the command line from {@code
      * VESPERA_CONFLUENCE_ROOT_TITLE} alone, the shell's first, gives the title a publish sends the root page under:
      * folded, blank being {@code Vespera_{language}}, {@code {language}} replaced by the language's code and, where it is

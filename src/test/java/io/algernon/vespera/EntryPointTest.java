@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.tngtech.archunit.core.domain.Dependency;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
+import io.algernon.vespera.engine.pipeline.BesideTheJarUnwritableException;
 import io.algernon.vespera.engine.pipeline.DisplayPresence;
 import io.algernon.vespera.ui.ControlPanel;
 import io.qameta.allure.Epic;
@@ -16,6 +17,8 @@ import io.qameta.allure.Story;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -24,6 +27,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -163,5 +167,35 @@ class EntryPointTest {
                         + "java.lang.IllegalStateException)"));
         claim("no window is tried, and the command line answers with no argument",
                 () -> assertThat(List.of(did.windowsTried(), did.commandLines().size())).containsExactly(0, 1));
+    }
+
+    @Test
+    @Story("The configuration lies beside the jar")
+    @DisplayName("A command line refused for a folder beside the jar it cannot write says the refusal's one line on standard error and exits 1")
+    @Issue("836")
+    @Link(name = "ADR-397", url = Adr.THE_YAML_CONFIGURATION_LIES_BESIDE_THE_JAR, type = "adr")
+    void aFolderBesideTheJarThatCannotBeWrittenIsSaidOnStandardErrorAndExitsOne(@TempDir Path besideTheJar) {
+        BesideTheJarUnwritableException refusal = new BesideTheJarUnwritableException("application.yaml", besideTheJar,
+                new AccessDeniedException(besideTheJar.resolve("application.yaml").toString()));
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        List<Integer> exits = new ArrayList<>();
+
+        Throwable escaped = org.assertj.core.api.Assertions.catchThrowable(() -> EntryPoint.start(
+                new String[] {"run", "a corpus root of this test's"}, () -> {
+                    throw new AssertionError("a start of the command line asks for no display");
+                }, kind -> java.util.Optional.empty(), () -> {
+                    throw new AssertionError("a start of the command line opens no window");
+                }, passed -> {
+                    throw refusal;
+                }, new PrintStream(err, true, StandardCharsets.UTF_8), exits::add));
+        String said = err.toString(StandardCharsets.UTF_8);
+
+        claim("the refusal does not escape the start as a stack trace",
+                () -> assertThat(escaped).as("what escaped the start").isNull());
+        claim("standard error holds exactly the refusal's one line, naming the file and the folder beside the jar",
+                () -> assertThat(said.lines().toList()).as("the lines said on standard error")
+                        .containsExactly(refusal.getMessage()));
+        claim("and the process exits 1, once", () -> assertThat(exits).as("the exit codes asked for")
+                .containsExactly(1));
     }
 }

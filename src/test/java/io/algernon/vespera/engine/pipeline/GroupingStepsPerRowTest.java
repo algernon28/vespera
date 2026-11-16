@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.TheShippedCopy;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -167,7 +168,7 @@ class GroupingStepsPerRowTest {
     /** The shipped datasource URL, pointed at this test's own directory. */
     private String shippedUrl() {
         YamlPropertiesFactoryBean yaml = new YamlPropertiesFactoryBean();
-        yaml.setResources(new ClassPathResource("application.yaml"));
+        yaml.setResources(TheShippedCopy.of("application.yaml"));
         yaml.afterPropertiesSet();
         return String.valueOf(yaml.getObject().get("spring.datasource.url"))
                 .replace(WORKING_DIRECTORY_PLACEHOLDER, workingDirectory.toString().replace('\\', '/'));

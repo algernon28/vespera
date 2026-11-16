@@ -636,6 +636,7 @@ final class Cockpit {
         workingDirectoryBrowse.setId("working-directory-browse");
         workingDirectoryRemove.setId("working-directory-remove");
         List<Path> rows = state.workingDirectories().rows();
+        state.besideTheJarLines().forEach(line -> log.log(System.Logger.Level.WARNING, line));
         state.workingDirectoryLines().forEach(line -> log.log(System.Logger.Level.WARNING, line));
         state.sendWorkingDirectoryLinesTo(line -> log.log(System.Logger.Level.WARNING, line));
         workingDirectoryList.setItems(FXCollections.observableArrayList(rows));

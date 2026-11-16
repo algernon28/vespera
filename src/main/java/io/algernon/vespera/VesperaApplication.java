@@ -1,5 +1,7 @@
 package io.algernon.vespera;
 
+import io.algernon.vespera.engine.pipeline.BesideTheJar;
+import io.algernon.vespera.engine.pipeline.BesideTheJarUnwritableException;
 import io.algernon.vespera.engine.pipeline.CorpusRootLock;
 import io.algernon.vespera.engine.pipeline.MisshapenProfileRefusal;
 import io.algernon.vespera.engine.pipeline.ProfileShapeCheck;
@@ -26,7 +28,13 @@ public class VesperaApplication {
         // files to the working directory, once, before any connection pool exists and after the others, so
         // that a start they refuse opens no connection to SQLite and changes nothing of the process's
         // (ADR-211 section 12). None declares an order: each hears the event in the order it is added here.
+        // The folder beside the jar comes first (ADR-397 section 3): it hears that a start has begun, before Spring
+        // prepares its environment, and writes what is missing there before any configuration is read. Spring is
+        // pointed at the two files there among its default properties, the lowest of its sources (section 4).
+        BesideTheJar besideTheJar = BesideTheJar.ofThisApplication();
+        besideTheJar.pointSpringAt(application);
         application.addListeners(
+                besideTheJar,
                 new WorkingDirectoryPreparer(),
                 new WorkingDirectoryLock(),
                 new ProfileShapeCheck(),
@@ -45,7 +53,11 @@ public class VesperaApplication {
         try {
             context = application.run(args);
         } catch (RuntimeException failure) {
-            // Already said in one line by the refusal; its exit code is all that is left to deliver.
+            // A folder beside the jar that cannot be written is thrown before logging is configured, so a log line
+            // would be dropped: it goes on, and the entry point says its line on standard error and exits 1 (ADR-397 §3).
+            if (failure instanceof BesideTheJarUnwritableException) {
+                throw failure;
+            }
             if (MisshapenProfileRefusal.refuses(failure)) {
                 System.exit(MisshapenProfileRefusal.EXIT_CODE);
                 return;
