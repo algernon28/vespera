@@ -2903,6 +2903,16 @@ public final class Adr {
     public static final String TOPICS_ARE_COMMUNITIES_OF_THE_SEED_PASSAGES = FILE
             + "0399-topics-are-modularity-communities-over-a-ten-neighbour-graph-of-the-seed-passages-keyed-by-their-first-passage.md";
 
+    /**
+     * ADR-400 -- a survivor's winning topic is the topic whose centroid its chunks are nearest to on average, read off
+     * the cosines the relevance score takes and divided by one length per topic, ties to the first key, every scored
+     * document placed; it fits each other topic at least 15% of its chunks are nearest to, the preset
+     * {@code vespera.topics.see-also-share}, with no cap; placement is read in the relevance-scoring pass and the share
+     * enters the embedding-scoring run where it is not 0.15 (amends ADR-330 §8 and §9).
+     */
+    public static final String THE_WINNING_TOPIC_IS_THE_CENTROID_ITS_CHUNKS_ARE_NEAREST_ON_AVERAGE = FILE
+            + "0400-a-survivor-goes-to-the-topic-its-chunks-are-nearest-on-average-and-is-linked-from-one-15-per-cent-of-them-are-nearest.md";
+
     private Adr() {
     }
 }
