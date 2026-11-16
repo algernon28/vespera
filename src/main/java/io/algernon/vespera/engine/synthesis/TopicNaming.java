@@ -32,6 +32,7 @@ public final class TopicNaming {
     /** The answer's allowance, in tokens. */
     public static final int REPLY_ALLOWANCE = 64;
 
+    /** The temperature sent: 0, the operator's, so that the same question draws the same answer (ADR-403 section 4). */
     public static final double TEMPERATURE = 0.0;
 
     /** The seed sent: a code constant, 1 rather than 0 so that no reading of nought as unset drops it. */
@@ -98,8 +99,8 @@ public final class TopicNaming {
         if (written.isEmpty()) {
             return standIn(call.strongestSeed(), NameFallbackReason.OUT_OF_SHAPE);
         }
-        String name = written.get().strip();
-        if (name.isEmpty()) {
+        String name = withoutBlanksAround(written.get());
+        if (isBlank(name)) {
             return standIn(call.strongestSeed(), NameFallbackReason.BLANK);
         }
         if (holdsALineBreak(name)) {
@@ -108,7 +109,7 @@ public final class TopicNaming {
         if (wordsIn(name) > WORDS_ACCEPTED) {
             return standIn(call.strongestSeed(), NameFallbackReason.TOO_MANY_WORDS);
         }
-        return new TopicName(name, TopicNameSource.MODEL, Optional.empty());
+        return new TopicName(name, TopicNameSource.GENERATION_MODEL, Optional.empty());
     }
 
     /** The passages sent: in order, one longer than the budget passed over, the first not fitting what is left ending the fill. */
@@ -162,8 +163,39 @@ public final class TopicNaming {
         return Optional.of(name.asString());
     }
 
+    /** A blank character (ADR-403 section 6): one for which {@code isWhitespace} or {@code isSpaceChar} holds. */
+    private static boolean blank(char c) {
+        return Character.isWhitespace(c) || Character.isSpaceChar(c);
+    }
+
+    /** Whether every character of {@code text} is blank, an empty one included. */
+    private static boolean isBlank(String text) {
+        return text.chars().allMatch(c -> blank((char) c));
+    }
+
+    /** {@code text} with the blank characters before its first character that is not blank and after its last set aside. */
+    private static String withoutBlanksAround(String text) {
+        int from = 0;
+        int to = text.length();
+        while (from < to && blank(text.charAt(from))) {
+            from++;
+        }
+        while (to > from && blank(text.charAt(to - 1))) {
+            to--;
+        }
+        return text.substring(from, to);
+    }
+
+    /** LF, VT, FF, CR, NEL, LINE SEPARATOR and PARAGRAPH SEPARATOR: Unicode's mandatory breaks (ADR-403 section 6). */
     private static boolean holdsALineBreak(String name) {
-        return name.chars().anyMatch(c -> c == '\n' || c == '\r' || c == '\u0085' || c == ' ' || c == ' ');
+        return name.chars()
+                .anyMatch(c -> c == '\n'
+                        || c == '\u000B'
+                        || c == '\u000C'
+                        || c == '\r'
+                        || c == '\u0085'
+                        || c == ' '
+                        || c == ' ');
     }
 
     /** Runs of characters none of which is blank. */
@@ -171,12 +203,11 @@ public final class TopicNaming {
         int words = 0;
         boolean inWord = false;
         for (int i = 0; i < name.length(); i++) {
-            char c = name.charAt(i);
-            boolean blank = Character.isWhitespace(c) || Character.isSpaceChar(c);
-            if (!blank && !inWord) {
+            boolean isBlank = blank(name.charAt(i));
+            if (!isBlank && !inWord) {
                 words++;
             }
-            inWord = !blank;
+            inWord = !isBlank;
         }
         return words;
     }
@@ -191,12 +222,12 @@ public final class TopicNaming {
     /** The first of the seed's title, its filename stem and its path that is not blank (ADR-403 section 7). */
     private static TopicName standIn(StrongestSeed seed, NameFallbackReason reason) {
         Optional<NameFallbackReason> why = Optional.of(reason);
-        Optional<String> title = seed.doclingTitle().filter(t -> !t.isBlank());
+        Optional<String> title = seed.doclingTitle().filter(t -> !isBlank(t));
         if (title.isPresent()) {
             return new TopicName(title.get(), TopicNameSource.SEED_TITLE, why);
         }
         String stem = FilenameStem.of(seed.seedPath());
-        if (!stem.isBlank()) {
+        if (!isBlank(stem)) {
             return new TopicName(stem, TopicNameSource.SEED_FILENAME_STEM, why);
         }
         return new TopicName(seed.seedPath(), TopicNameSource.SEED_PATH, why);
