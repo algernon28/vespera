@@ -62,6 +62,9 @@ class PlacementIsReadInTheScoringPassInvocationTest {
     /** The logger every operator-facing line in this application is written through. */
     private static final String APPLICATION_LOGGER = "io.algernon.vespera";
 
+    /** The logger a recorded closing line is written through, which does not pass its lines up to the application's. */
+    private static final String OPERATOR_LOGGER = "io.algernon.vespera.operator";
+
     /** What every line of the relevance-scoring step opens with, its counters' labels included. */
     private static final String THE_STEP = "Stage 5d (relevance scoring";
 
@@ -125,6 +128,9 @@ class PlacementIsReadInTheScoringPassInvocationTest {
     private Timeline timeline;
     private ch.qos.logback.classic.Logger applicationLogger;
 
+    /** The operator logger, holding the timeline while a test runs. */
+    private ch.qos.logback.classic.Logger operatorLogger;
+
     @BeforeEach
     void keepTheTimeline() {
         EmbeddingScriptedBeans.servesEveryModel();
@@ -134,11 +140,14 @@ class PlacementIsReadInTheScoringPassInvocationTest {
         timeline.start();
         applicationLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(APPLICATION_LOGGER);
         applicationLogger.addAppender(timeline);
+        operatorLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(OPERATOR_LOGGER);
+        operatorLogger.addAppender(timeline);
     }
 
     @AfterEach
     void releaseTheTimeline() {
         applicationLogger.detachAppender(timeline);
+        operatorLogger.detachAppender(timeline);
         timeline.stop();
         EmbeddingScriptedBeans.servesEveryModel();
     }
