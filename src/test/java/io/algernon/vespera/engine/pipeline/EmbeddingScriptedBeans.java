@@ -5,7 +5,9 @@ import io.algernon.vespera.engine.embedding.OllamaClient;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.Embedding;
@@ -143,6 +145,25 @@ class EmbeddingScriptedBeans {
         editWhenFirstShown = edit;
     }
 
+    /**
+     * The vectors a text embeds to where it holds a word a test has scripted, the first such word in the order scripted;
+     * every other text embeds to the vector of ones. Held statically for the reason {@link #NEVER_PULLED} is.
+     */
+    private static final Map<String, float[]> VECTOR_OF_TEXT_HOLDING = new LinkedHashMap<>();
+
+    /**
+     * Scripts this fixture's runtime as embedding any text holding {@code word} to {@code vector}, of {@link
+     * #DIMENSION} components, so that a test can set passages apart. A vector is stored by its text's content, so a
+     * test scripting one names files whose bytes no other test wrote.
+     */
+    static void embedsTextHolding(String word, float... vector) {
+        if (vector.length != DIMENSION) {
+            throw new IllegalArgumentException("a vector of this runtime has " + DIMENSION + " components, not "
+                    + vector.length);
+        }
+        VECTOR_OF_TEXT_HOLDING.put(word, vector.clone());
+    }
+
     /** The weight dtype this fixture's runtime reports now: {@link #DTYPE} until a test says otherwise. */
     private static String dtypeServed = DTYPE;
 
@@ -225,6 +246,7 @@ class EmbeddingScriptedBeans {
         callsBeforeTheEdit = NO_PULL_PART_WAY;
         editWhileEmbedding = () -> {};
         editWhenFirstShown = () -> {};
+        VECTOR_OF_TEXT_HOLDING.clear();
     }
 
     @Bean
@@ -272,7 +294,10 @@ class EmbeddingScriptedBeans {
         };
     }
 
-    /** Embeds any text to the same fixed-length vector of ones, never refusing, and counts each call. */
+    /**
+     * Embeds any text to the same fixed-length vector of ones, or to the vector scripted for a word it holds, never
+     * refusing, and counts each call.
+     */
     private static final class FixedDimensionEmbeddingModel implements EmbeddingModel {
 
         private final int dimension;
@@ -293,8 +318,16 @@ class EmbeddingScriptedBeans {
             if (embeddingCallsMade == callsBeforeTheEdit) {
                 editWhileEmbedding.run();
             }
-            float[] vector = new float[dimension];
-            Arrays.fill(vector, 1f);
+            String text = String.join(" ", request.getInstructions());
+            float[] vector = VECTOR_OF_TEXT_HOLDING.entrySet().stream()
+                    .filter(scripted -> text.contains(scripted.getKey()))
+                    .map(scripted -> scripted.getValue().clone())
+                    .findFirst()
+                    .orElseGet(() -> {
+                        float[] ones = new float[dimension];
+                        Arrays.fill(ones, 1f);
+                        return ones;
+                    });
             return new EmbeddingResponse(List.of(new Embedding(vector, 0)), new EmbeddingResponseMetadata());
         }
 

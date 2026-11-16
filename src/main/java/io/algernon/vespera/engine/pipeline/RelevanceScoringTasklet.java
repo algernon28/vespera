@@ -1,12 +1,16 @@
 package io.algernon.vespera.engine.pipeline;
 
+import io.algernon.vespera.engine.embedding.BreadthFloor;
+import io.algernon.vespera.engine.embedding.Placement;
 import io.algernon.vespera.engine.embedding.RelevanceDistribution;
 import io.algernon.vespera.engine.embedding.RelevanceScoring;
 import io.algernon.vespera.engine.embedding.ScoringProgress;
 import io.algernon.vespera.engine.embedding.SeedChunks;
 import io.algernon.vespera.engine.embedding.SeedVectors;
+import io.algernon.vespera.engine.embedding.StandingTopics;
 import io.algernon.vespera.engine.embedding.Topic;
 import io.algernon.vespera.engine.embedding.TopicInference;
+import io.algernon.vespera.engine.embedding.TopicPlacement;
 import io.algernon.vespera.engine.embedding.UnusableSeed;
 import io.algernon.vespera.engine.embedding.UnusableSeeds;
 import io.algernon.vespera.engine.extraction.ChunkingRule;
@@ -24,12 +28,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
+import org.springframework.batch.core.step.StepExecution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -69,6 +77,7 @@ class RelevanceScoringTasklet implements Tasklet {
     private final RelevanceDistribution relevanceDistribution;
     private final UnusableSeeds unusableSeeds;
     private final ExtractionCacheKeys cacheKeys;
+    private final RecordedClosingLines recordedClosingLines;
 
     RelevanceScoringTasklet(
             SeedGate seedGate,
@@ -79,7 +88,9 @@ class RelevanceScoringTasklet implements Tasklet {
             RelevanceScoring relevanceScoring,
             RelevanceDistribution relevanceDistribution,
             UnusableSeeds unusableSeeds,
-            JdbcTemplate jdbcTemplate) {
+            JdbcTemplate jdbcTemplate,
+            RecordedClosingLines recordedClosingLines) {
+        this.recordedClosingLines = recordedClosingLines;
         this.relevanceDistribution = relevanceDistribution;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
@@ -152,9 +163,37 @@ class RelevanceScoringTasklet implements Tasklet {
                     }
 
                     // The topics are found at the head of the step, from the vectors already resident, before the
-                    // first survivor is scored (ADR-399 section 6). Where they are stored is #832's: not yet.
-                    List<Topic> topics = topicsOf(seedContentHashes, residentSeedVectors);
-                    LOG.info("Stage 5d (relevance scoring) found {} topic(s) across the seeds' passages", topics.size());
+                    // first survivor is scored (ADR-399 section 6), and the breadth floor is applied to them before
+                    // any survivor is placed (ADR-401 section 5). Where they are stored is #832's: not yet.
+                    Map<String, SeedVectors> bySeedPath = seedVectorsByPath(seedContentHashes, residentSeedVectors);
+                    List<Topic> found = TopicInference.over(
+                            bySeedPath, stageRuns.topicNeighbours(), stageRuns.topicResolution());
+                    StandingTopics standing = new BreadthFloor(stageRuns.topicBreadthFloor()).of(found, bySeedPath);
+                    List<Topic> topics = standing.topics();
+                    LOG.info("Stage 5d (relevance scoring) found {} topic(s) across the seeds' passages", found.size());
+                    LOG.info(
+                            "Stage 5d (relevance scoring) kept {} of them standing at a breadth floor of {}; {} seed(s)"
+                                    + " feed no topic",
+                            topics.size(),
+                            stageRuns.topicBreadthFloor(),
+                            standing.seedsFeedingNoTopic().size());
+                    Optional<String> refusal =
+                            new BreadthFloor(stageRuns.topicBreadthFloor()).refusal(found, bySeedPath);
+                    if (refusal.isPresent()) {
+                        // ADR-401 section 1: stop as ADR-231 section 1 stops the embedding step, before any survivor is
+                        // counted, scored or placed.
+                        String line = "stage 5's relevance-scoring step stopped: " + refusal.get()
+                                + ". Nothing was scored and the step is not recorded as finished.";
+                        StepExecution stepExecution = chunkContext.getStepContext().getStepExecution();
+                        recordedClosingLines.record(stepExecution, line);
+                        stepExecution.setStatus(BatchStatus.FAILED);
+                        contribution.setExitStatus(ExitStatus.FAILED.addExitDescription(line));
+                        return false;
+                    }
+                    // Placement is read in the pass from the cosines the scorer takes (ADR-400 section 5): the
+                    // denominators are taken once here, from the resident vectors.
+                    TopicPlacement placement = TopicPlacement.of(topics, bySeedPath, stageRuns.seeAlsoShare());
+                    Map<OccurrenceId, String> seedPaths = pathsOfResidentSeeds(residentSeedVectors);
 
                     // Counted, and then gone through a page at a time: no set of the corpus survivors is held
                     // (ADR-211 section 6). Nothing this step writes is a verdict, so no page still to come
@@ -171,6 +210,7 @@ class RelevanceScoringTasklet implements Tasklet {
                             scoring.value(),
                             survivorCount,
                             residentSeedVectors.size());
+                    AtomicLong placed = new AtomicLong();
                     StageProgress scored =
                             StageProgress.over("Stage 5d (relevance scoring, corpus survivors)", survivorCount);
                     // Scored a page of survivors at a time, the ledger's own pages, each page's keys and chunk
@@ -186,7 +226,15 @@ class RelevanceScoringTasklet implements Tasklet {
                             // The number the scoring run was minted under, so the score that is recorded is the one
                             // the run is named by (ADR-330 section 9, ADR-117).
                             topSimilarities,
+                            placement,
+                            seedPaths,
+                            placed,
                             scored));
+                    LOG.info(
+                            "Stage 5d (relevance scoring) placed {} survivor(s) under the {} topic(s) that stand, the"
+                                    + " placement held and not yet stored (#832)",
+                            placed.get(),
+                            placement.topicCount());
                     LOG.info("Stage 5d (relevance scoring) finished under scoring run {}", scoring.value());
                     return true;
                 });
@@ -207,13 +255,16 @@ class RelevanceScoringTasklet implements Tasklet {
             String embedderIdentity,
             Map<OccurrenceId, List<float[]>> residentSeedVectors,
             int topSimilarities,
+            TopicPlacement topicPlacement,
+            Map<OccurrenceId, String> seedPaths,
+            AtomicLong placed,
             StageProgress scored) {
         Map<OccurrenceId, String> contentHashes = cacheKeys.requireForOccurrences(page, extractionRun);
         Map<String, Integer> chunkCounts =
                 hybridChunker.chunkCounts(new HashSet<>(contentHashes.values()), ChunkingRule.DEFAULT);
         for (OccurrenceId occurrenceId : page) {
             String contentHash = contentHashes.get(occurrenceId);
-            relevanceScoring.scoreAndRecord(
+            Placement placement = relevanceScoring.scoreAndRecord(
                     occurrenceId,
                     scoring,
                     contentHash,
@@ -222,7 +273,12 @@ class RelevanceScoringTasklet implements Tasklet {
                     chunkingRuleIdentity,
                     embedderIdentity,
                     residentSeedVectors,
-                    topSimilarities);
+                    topSimilarities,
+                    topicPlacement,
+                    seedPaths);
+            if (placement != null) {
+                placed.incrementAndGet();
+            }
             scored.itemDone();
         }
     }
@@ -268,10 +324,10 @@ class RelevanceScoringTasklet implements Tasklet {
     }
 
     /**
-     * The topics of the seed set, from the resident vectors and each seed's path in the seed walk (ADR-399): no
-     * embedding call and no read of its own beyond the paths. A seed with no resident vector has no passage.
+     * The seeds' vectors by each seed's path in the seed walk, for ADR-399's topics: no embedding call and no read of
+     * its own beyond the paths. A seed with no resident vector has no passage.
      */
-    private List<Topic> topicsOf(
+    private Map<String, SeedVectors> seedVectorsByPath(
             Map<OccurrenceId, SeedChunks> seedContentHashes,
             Map<OccurrenceId, List<float[]>> residentSeedVectors) {
         Map<OccurrenceId, OccurrencePath> paths = ledger.occurrences().pathsOf(residentSeedVectors.keySet());
@@ -283,7 +339,15 @@ class RelevanceScoringTasklet implements Tasklet {
                 bySeedPath.put(path.value(), new SeedVectors(chunks.contentHash(), seed.getValue()));
             }
         }
-        return TopicInference.over(bySeedPath, stageRuns.topicNeighbours(), stageRuns.topicResolution());
+        return bySeedPath;
+    }
+
+    /** Each resident seed occurrence's path, for the passage a cosine to one of its chunks is of. */
+    private Map<OccurrenceId, String> pathsOfResidentSeeds(Map<OccurrenceId, List<float[]>> residentSeedVectors) {
+        Map<OccurrenceId, String> byOccurrence = new LinkedHashMap<>();
+        ledger.occurrences().pathsOf(residentSeedVectors.keySet())
+                .forEach((occurrence, path) -> byOccurrence.put(occurrence, path.value()));
+        return byOccurrence;
     }
 
     /** {@code embedding} tells this stage the seeds' total and each seed read; this stage owns the line. */

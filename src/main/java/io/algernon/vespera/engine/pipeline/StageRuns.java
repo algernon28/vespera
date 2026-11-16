@@ -58,19 +58,21 @@ import org.springframework.stereotype.Component;
  * run is minted, never when this holder is built. The scoring run's three are then kept, and handed to
  * the steps after it, which read what the run names and not the profile again (ADR-228, ADR-117).
  *
- * <p>The eighteen presets of ADR-330 section 9, as ADR-399 amends it, are read the same way: each run reads its own through {@link Presets}
- * as it is minted, writes into its configuration the ones that differ from what every earlier run was minted under, and
- * hands them on through the accessors below, so the number that names the run is the number that works.
+ * <p>The twenty presets of ADR-330 section 9, as ADR-399, ADR-400 and ADR-401 amend it, are read the same way: each run
+ * reads its own through {@link Presets} as it is minted, writes into its configuration the ones that differ from what
+ * every earlier run was minted under, and hands them on through the accessors below, so the number that names the run
+ * is the number that works.
  */
 @Component
 @JobScope
 class StageRuns {
 
     /*
-     * What every run was minted under before the eighteen presets of ADR-330 section 9, as ADR-399 amends it, existed. They are held here and
-     * not read from what ships: a preset shipped at another value later is written, so that it cannot be taken for a
-     * run of the earlier one, and the configuration text of a run at these values is what it was
-     * (RunIdentityGoldenTest). A member of a run's configuration is left out where the value resolved is one of these.
+     * What every run was minted under before the twenty presets of ADR-330 section 9, as ADR-399, ADR-400 and ADR-401
+     * amend it, existed. They are held here and not read from what ships: a preset shipped at another value later is
+     * written, so that it cannot be taken for a run of the earlier one, and the configuration text of a run at these
+     * values is what it was (RunIdentityGoldenTest). A member of a run's configuration is left out where the value
+     * resolved is one of these.
      */
     private static final double RESOLUTION_EVERY_EARLIER_RUN = 1.0;
     private static final int GRAPH_K_EVERY_EARLIER_RUN = 15;
@@ -79,6 +81,8 @@ class StageRuns {
     private static final int PER_BAND_EVERY_EARLIER_RUN = 12;
     private static final double TOPIC_RESOLUTION_EVERY_EARLIER_RUN = 1.0;
     private static final int TOPIC_K_EVERY_EARLIER_RUN = 10;
+    private static final double TOPIC_BREADTH_FLOOR_EVERY_EARLIER_RUN = 0.005;
+    private static final double SEE_ALSO_SHARE_EVERY_EARLIER_RUN = 0.15;
     private static final int TIMEOUTS_IN_A_ROW_EVERY_EARLIER_RUN = 3;
     private static final String SHINGLE_IDENTITY_EVERY_EARLIER_RUN = "word:5";
     private static final String MINHASH_IDENTITY_EVERY_EARLIER_RUN =
@@ -119,6 +123,8 @@ class StageRuns {
     private int sampledPerBand;
     private double topicResolution;
     private int topicNeighbours;
+    private double topicBreadthFloor;
+    private double seeAlsoShare;
     private RunId seedMeasurement;
     private RunId embeddingScoring;
     private String embeddingModelName;
@@ -260,7 +266,8 @@ class StageRuns {
                             "the content-redundancy run must not be minted while the gate is closed"));
             WalkId walk = runMint.finishedWalk(canonicalRoot, "stage 4");
             RunId contentCensusRunId = upstream(StageModules.CONTENT_CENSUS);
-            // The signature's numbers and the cuts, read as the run is minted and kept for the steps (ADR-330 section 9).
+            // The signature's numbers and the cuts, read as the run is minted and kept for the steps (ADR-330
+            // section 9).
             MinHashParameters permutations = presets.minHash();
             RedundancyThresholds cuts = presets.redundancyThresholds();
             contentRedundancy = runMint.mint(
@@ -372,6 +379,8 @@ class StageRuns {
         int perBand = presets.sampledPerBand();
         double topicResolutionValue = presets.topicResolution();
         int topicNeighboursValue = presets.topicNeighbours();
+        double topicBreadthFloorValue = presets.topicBreadthFloor();
+        double seeAlsoShareValue = presets.seeAlsoShare();
         // The artefact is read once, here, beside the floor (ADR-228).
         ModelArtefact artefact = ollamaClient.artefactOf(modelName);
         WalkId walk = runMint.finishedWalk(canonicalRoot, "stage 5");
@@ -390,7 +399,9 @@ class StageRuns {
                         bands == BANDS_EVERY_EARLIER_RUN ? null : bands,
                         perBand == PER_BAND_EVERY_EARLIER_RUN ? null : perBand,
                         topicResolutionValue == TOPIC_RESOLUTION_EVERY_EARLIER_RUN ? null : topicResolutionValue,
-                        topicNeighboursValue == TOPIC_K_EVERY_EARLIER_RUN ? null : topicNeighboursValue),
+                        topicNeighboursValue == TOPIC_K_EVERY_EARLIER_RUN ? null : topicNeighboursValue,
+                        topicBreadthFloorValue == TOPIC_BREADTH_FLOOR_EVERY_EARLIER_RUN ? null : topicBreadthFloorValue,
+                        seeAlsoShareValue == SEE_ALSO_SHARE_EVERY_EARLIER_RUN ? null : seeAlsoShareValue),
                 walk,
                 Optional.of(measurementRunId));
         this.clusterResolution = resolution;
@@ -400,6 +411,8 @@ class StageRuns {
         this.sampledPerBand = perBand;
         this.topicResolution = topicResolutionValue;
         this.topicNeighbours = topicNeighboursValue;
+        this.topicBreadthFloor = topicBreadthFloorValue;
+        this.seeAlsoShare = seeAlsoShareValue;
         embeddingModelName = modelName;
         embeddingModelArtefact = artefact;
         this.relevanceScoreFloor = relevanceScoreFloor;
@@ -416,10 +429,10 @@ class StageRuns {
     }
 
     /**
-     * The embedding model's name a step's gate reads (ADR-084): the profile's, else the configured default
-     * (ADR-298), until the scoring run is minted in this invocation, and the name it was minted under from then on, without minting it. A model cleared
-     * or renamed in the profile after the mint is read by the next run, not by the later steps of this one
-     * (ADR-228 section 2, ADR-117).
+     * The embedding model's name a step's gate reads (ADR-084): the profile's, else the configured default (ADR-298),
+     * until the scoring run is minted in this invocation, and the name it was minted under from then on, without
+     * minting it. A model cleared or renamed in the profile after the mint is read by the next run, not by the later
+     * steps of this one (ADR-228 section 2, ADR-117).
      */
     Optional<String> embeddingModelNamed() {
         return embeddingScoring == null ? embeddingModelGate.modelName() : Optional.of(embeddingModelName);
@@ -443,7 +456,9 @@ class StageRuns {
         return clusterResolution;
     }
 
-    /** The neighbours of each document the scoring run was minted under, which mints that run if it has not yet been. */
+    /**
+     * The neighbours of each document the scoring run was minted under, which mints that run if it has not yet been.
+     */
     int clusterNeighbours() {
         embeddingScoring();
         return clusterNeighbours;
@@ -474,6 +489,21 @@ class StageRuns {
     int topicNeighbours() {
         embeddingScoring();
         return topicNeighbours;
+    }
+
+    /** The share of the seed passages a topic must hold to stand, as the scoring run was minted (ADR-401). */
+    double topicBreadthFloor() {
+        embeddingScoring();
+        return topicBreadthFloor;
+    }
+
+    /**
+     * The share of a survivor's chunks a topic must be nearest to for it to fit it, as the scoring run was minted
+     * (ADR-400).
+     */
+    double seeAlsoShare() {
+        embeddingScoring();
+        return seeAlsoShare;
     }
 
     /** The documents each band is asked for, as the scoring run was minted. */
@@ -585,8 +615,8 @@ class StageRuns {
     private record ContentCensusConfigConsumed(String root, String extractionRunId) {}
 
     /**
-     * Stage 4's own {@code ConfigConsumed}, extended by the two presets of ADR-330 section 9, each written only where it
-     * is not what every run before the presets was minted under.
+     * Stage 4's own {@code ConfigConsumed}, extended by the two presets of ADR-330 section 9, each written only where
+     * it is not what every run before the presets was minted under.
      */
     private record ContentRedundancyConfigConsumed(
             String root,
@@ -616,7 +646,11 @@ class StageRuns {
             @JsonInclude(JsonInclude.Include.NON_NULL) Integer sampledPerBand,
             // ADR-399: the topics' two numbers, after sampledPerBand, each written only where it is not what ships.
             @JsonInclude(JsonInclude.Include.NON_NULL) Double topicResolution,
-            @JsonInclude(JsonInclude.Include.NON_NULL) Integer topicNeighbours) {}
+            @JsonInclude(JsonInclude.Include.NON_NULL) Integer topicNeighbours,
+            // ADR-401 and ADR-400: the breadth floor and then the see-also share, after the topics' two numbers, each
+            // written only where it is not what ships.
+            @JsonInclude(JsonInclude.Include.NON_NULL) Double topicBreadthFloor,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Double seeAlsoShare) {}
 
     /**
      * Stage 6a's own {@code ConfigConsumed}, extended once (ADR-230 section 3). {@code standingRemovals}

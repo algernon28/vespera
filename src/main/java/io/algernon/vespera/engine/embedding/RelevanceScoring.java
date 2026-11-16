@@ -198,6 +198,39 @@ public class RelevanceScoring {
             String embedderIdentity,
             Map<OccurrenceId, List<float[]>> residentSeedVectors,
             int topSimilarities) {
+        scoreAndRecord(
+                occurrenceId,
+                runId,
+                contentHash,
+                chunkCount,
+                chunkerIdentity,
+                chunkingRuleIdentity,
+                embedderIdentity,
+                residentSeedVectors,
+                topSimilarities,
+                null,
+                Map.of());
+    }
+
+    /**
+     * As the method above, and placing the survivor as it scores it (ADR-400 section 5): each cosine the score takes
+     * goes to a tally of {@code topicPlacement}, a seed's occurrence mapped to its path by {@code seedPaths} for the
+     * passage it is of, and the placement is returned for the caller to hold; where it is stored is #832's. A seed
+     * absent from {@code seedPaths} has no passage in a topic. With no {@code topicPlacement} nothing is placed and
+     * {@code null} is returned.
+     */
+    public Placement scoreAndRecord(
+            OccurrenceId occurrenceId,
+            RunId runId,
+            String contentHash,
+            int chunkCount,
+            String chunkerIdentity,
+            String chunkingRuleIdentity,
+            String embedderIdentity,
+            Map<OccurrenceId, List<float[]>> residentSeedVectors,
+            int topSimilarities,
+            TopicPlacement topicPlacement,
+            Map<OccurrenceId, String> seedPaths) {
         List<float[]> survivorChunkVectors =
                 vectorCache.vectorsFor(contentHash, chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
         if (survivorChunkVectors.isEmpty() || survivorChunkVectors.size() < chunkCount) {
@@ -212,7 +245,18 @@ public class RelevanceScoring {
                             + " corpus survivor has a chunk -- either no stage ever examined this occurrence,"
                             + " or another pull of the embedding model wrote its vectors");
         }
-        RelevanceScore score = scorer.score(survivorChunkVectors, residentSeedVectors, topSimilarities);
+        TopicPlacement.Tally tally =
+                topicPlacement == null ? null : topicPlacement.forSurvivor(survivorChunkVectors.size());
+        RelevanceScorer.PassageCosines cosines = tally == null
+                ? RelevanceScorer.PassageCosines.NONE
+                : (survivorChunk, seed, seedChunk, cosine) -> {
+                    String path = seedPaths.get(seed);
+                    if (path != null) {
+                        tally.add(survivorChunk, new SeedPassage(path, seedChunk), cosine);
+                    }
+                };
+        RelevanceScore score = scorer.score(survivorChunkVectors, residentSeedVectors, topSimilarities, cosines);
         scoreCache.record(occurrenceId, runId, score);
+        return tally == null ? null : tally.placement();
     }
 }

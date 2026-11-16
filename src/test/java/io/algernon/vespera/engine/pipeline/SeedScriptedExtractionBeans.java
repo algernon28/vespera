@@ -167,6 +167,30 @@ class SeedScriptedExtractionBeans {
     }
 
     /**
+     * Files whose conversions are each a text of its own holding the word {@code sluices} (ADR-400, ADR-401): seeds of
+     * contents apart, whose passages a test may have {@link EmbeddingScriptedBeans#embedsTextHolding} set apart from
+     * others. Every other file converts to one text, so that its seeds are of one content and feed one passage.
+     */
+    static final List<String> ON_SLUICES = numbered("on-sluices-", 4);
+
+    /** As {@link #ON_SLUICES}, each holding the word {@code pumps}. */
+    static final List<String> ON_PUMPS = numbered("on-pumps-", 3);
+
+    /** A corpus file whose conversion holds the word {@code pumps}, and is none of {@link #ON_PUMPS}'. */
+    static final String A_DOCUMENT_ON_PUMPS = "a-document-on-pumps.txt";
+
+    private static List<String> numbered(String stem, int count) {
+        return IntStream.rangeClosed(1, count).mapToObj(n -> stem + n + ".txt").toList();
+    }
+
+    /** A successful conversion of one sentence of body text under the title, holding {@code sentence}. */
+    private static String withText(String sentence) {
+        return "{\"document\":{\"json_content\":{\"texts\":["
+                + "{\"text\":\"" + STUBBED_TITLE + "\",\"label\":\"title\"},"
+                + "{\"text\":\"" + sentence + "\"}]}}}";
+    }
+
+    /**
      * The title every document this fixture converts carries, so that a caller naming a cluster after a
      * document's own title has one to find (ADR-106).
      */
@@ -216,6 +240,9 @@ class SeedScriptedExtractionBeans {
                 .answering(REPORTED_TIMEOUT, failing(FailureCategory.TIMEOUT, REPORTED_TIMEOUT_MESSAGE))
                 .beforeHashing(MOVED_AWAY_WHEN_READ, SeedScriptedExtractionBeans::moveAwayIfArmed);
         REFUSED_ONE_AFTER_ANOTHER.forEach(name -> extractor.answering(name, refused()));
+        ON_SLUICES.forEach(name -> extractor.answering(name, response(withText("a note on sluices, " + name))));
+        ON_PUMPS.forEach(name -> extractor.answering(name, response(withText("a note on pumps, " + name))));
+        extractor.answering(A_DOCUMENT_ON_PUMPS, response(withText("a document on pumps, " + A_DOCUMENT_ON_PUMPS)));
         return extractor.otherwiseAnswering(response(WITH_TEXT));
     }
 

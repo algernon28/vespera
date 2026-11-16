@@ -406,7 +406,7 @@ public class ClusterSynthesis {
     }
 
     /** Whether {@code refused} is the serving engine turning a prompt down as longer than the window. */
-    private static boolean isRefusedAsPastTheWindow(NonTransientAiException refused) {
+    static boolean isRefusedAsPastTheWindow(NonTransientAiException refused) {
         String message = refused.getMessage();
         return message != null
                 && (message.contains(RUNNER_REFUSES_PAST_THE_WINDOW)
@@ -437,7 +437,7 @@ public class ClusterSynthesis {
      * {@code 0}, {@code 0} is below every window, and a call whose token telemetry is missing is not
      * faulted for the ceiling — the safe direction, chosen rather than inherited.
      */
-    private static void checkPromptEvaluationCeiling(ChatResponse response, int contextWindow) {
+    static void checkPromptEvaluationCeiling(ChatResponse response, int contextWindow) {
         int promptTokens = response.getMetadata().getUsage().getPromptTokens();
         int ceiling = contextWindow - 1;
         if (promptTokens >= ceiling) {
@@ -462,7 +462,7 @@ public class ClusterSynthesis {
      * already names <em>what came back could not be read into the shape the call imposed</em>, and
      * nothing at all is the limiting case of it rather than a different case.
      */
-    private static Generation answerIn(ChatResponse response) {
+    static Generation answerIn(ChatResponse response) {
         Generation answer = response.getResult();
         if (answer == null) {
             throw new ClusterFaultException(new ClusterFault(
@@ -476,7 +476,7 @@ public class ClusterSynthesis {
      * done_reason: "length"} arrives looking exactly like a finished answer, ending mid-sentence with
      * nothing saying it was cut off.
      */
-    private static void checkAnswerDidNotRunOutOfRoom(Generation answer, ChatResponse response) {
+    static void checkAnswerDidNotRunOutOfRoom(Generation answer, ChatResponse response) {
         String finishReason = answer.getMetadata().getFinishReason();
         if (FINISH_REASON_LENGTH.equals(finishReason)) {
             Integer completionTokens = response.getMetadata().getUsage().getCompletionTokens();
@@ -567,7 +567,7 @@ public class ClusterSynthesis {
      * turned-down answer's writing is never reached by anything that stores it, and a believed one is
      * returned exactly as {@link #parseAnswer} read it, down to trailing blank space (ADR-109).
      */
-    private static void checkNoTrailingBrace(String prose) {
+    static void checkNoTrailingBrace(String prose) {
         String withoutTrailingBlank = prose.stripTrailing();
         if (!withoutTrailingBlank.endsWith("}")) {
             return;
@@ -624,7 +624,7 @@ public class ClusterSynthesis {
      * the model actually wrote — a reason built from an invented number is one nobody could search
      * the writing for and find.
      */
-    private static int asOrdinal(String digits) {
+    static int asOrdinal(String digits) {
         try {
             return Integer.parseInt(digits);
         } catch (NumberFormatException tooLargeToPointAtAnything) {

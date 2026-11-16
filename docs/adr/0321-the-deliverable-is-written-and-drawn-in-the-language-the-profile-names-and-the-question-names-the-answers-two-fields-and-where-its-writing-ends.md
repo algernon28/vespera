@@ -8,6 +8,8 @@
 
 > **Partly amended — see [ADR-392](0392-vespera-finds-no-translation-sets-the-translation-step-its-verdict-its-report-and-its-two-profile-keys-go.md).** Of §1: `deliverableLanguage` is two letters of ISO 639-1, `preferredLanguages` being no key; and of the alternatives it refuses, the first of `preferredLanguages` names a key that no longer exists. The rest of this record stands.
 
+> **Partly amended — see [ADR-402](0402-a-topics-overview-cites-its-written-clusters-by-number-in-every-sentence-and-a-citation-fault-is-asked-once-more.md).** §4's table gains the seven sentences a topic's page carries where no overview was written, or beneath one written over fewer clusters than the topic has, in English and Italian. The rest of this record stands.
+
 - **Date**: 2026-10-22
 - **Status**: accepted on 2026-10-22.
 - **Decided**: by the operator, who decided that what the deliverable shows its readers is in Italian: the fixed words Vespera writes on its pages, the title and the writing of each cluster, which the local model writes in Italian itself and nothing translates afterwards, and every page title Vespera or the model makes; and that the question states the shape of the answer it imposes. Whether the HTML tree follows the Confluence rendering, whether the language is a value or fixed, the Italian words, the language the instruction is written in and the wording of the shape are decided under delegation.

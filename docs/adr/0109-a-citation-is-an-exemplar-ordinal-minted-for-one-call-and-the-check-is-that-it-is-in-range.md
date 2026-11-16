@@ -1,5 +1,7 @@
 # ADR-109 — A citation is an exemplar ordinal minted for one call, and the check is that it is in range
 
+> **Partly amended — see [ADR-402](0402-a-topics-overview-cites-its-written-clusters-by-number-in-every-sentence-and-a-citation-fault-is-asked-once-more.md).** For a topic's overview only: every sentence carries a citation, every citation is a number the call sent, and an answer turned down by this check is asked for once more, by a second question with one fixed paragraph added. A cluster's synthesis doc is checked as this record says.
+
 - **Date**: 2026-09-12
 - **Status**: accepted
 - **Amends**: [ADR-026](0026-generated-content-verified-mechanically-and-by-human-review.md) — its mechanical check is made concrete here, and its human review is relocated, because the consolidation gate that record named no longer exists.
