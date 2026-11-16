@@ -2923,6 +2923,17 @@ public final class Adr {
     public static final String A_TOPIC_UNDER_THE_BREADTH_FLOOR_IS_DROPPED = FILE
             + "0401-a-topic-holding-under-half-of-one-percent-of-the-seed-passages-is-dropped-and-a-seed-feeding-none-is-listed.md";
 
+    /**
+     * ADR-402 -- a topic's overview is one call over the writing of its written clusters, each under its number among
+     * the topic's clusters, their own citations taken out; every sentence cites, and every citation is a number sent;
+     * a sentence ends before a capital, not after initials or a title; at most 150 words, temperature 0 and seed 1, one
+     * field; a citation fault is asked once more with one fixed paragraph, other faults not; a placeholder sentence per
+     * case in English and Italian; asked once its clusters are settled, never by a repair pass (amends ADR-109, ADR-111,
+     * ADR-319 section 2 and ADR-321 section 4).
+     */
+    public static final String A_TOPICS_OVERVIEW_CITES_ITS_WRITTEN_CLUSTERS = FILE
+            + "0402-a-topics-overview-cites-its-written-clusters-by-number-in-every-sentence-and-a-citation-fault-is-asked-once-more.md";
+
     private Adr() {
     }
 }
