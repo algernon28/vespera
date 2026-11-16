@@ -35,9 +35,10 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * The rows of what the next invocation wants are the working directory shown's own (ADR-404): read from that
  * directory's {@code next-invocation.properties} as the window opens (§1), as another working directory is chosen
- * (§1, §2), as the window's own child ends however it ended (§5) and as another process's hold of the directory shown
- * ends (§5); a directory with no file, or one that cannot be read, draws no row; and the arrangement offered is the
- * one the directory's own file names (§3).
+ * (§1, §2), as the window's own child ends, stopped or failed or refused among the ways (§5), and as another process's
+ * hold of the directory shown ends (§5); a directory with no file, or one that cannot be read, draws no row, and the
+ * Profile section's badge goes with the last row (§1); and the arrangement offered is the one the directory's own file
+ * names (§3).
  *
  * <p>Each test shows the window as the control panel shows it, on the Headless platform (ADR-342 §6), with dialogs the
  * test answers, and with the machine's folder one under the test's folder, so that no test reads the folder the tests
@@ -70,6 +71,7 @@ class TheValuesWantedFollowTheWorkingDirectoryTest {
 
     /** The Profile section's title with no value wanted, and with one. */
     private static final String PROFILE = "Profile";
+    private static final String PROFILE_NEEDING_A_VALUE = "Profile (needs a value)";
 
     /** What the row of the approval reads where no row of it is drawn. */
     private static final String NO_ROW = "no row";
@@ -184,29 +186,88 @@ class TheValuesWantedFollowTheWorkingDirectoryTest {
 
     @Test
     @Story("The values Vespera's next start wants belong to the working directory shown")
-    @DisplayName("When the window's own command ends, however it ended, the window shows what the working directory's file then wants")
-    void theWindowsOwnChildEndingAnyWayReadsTheFile(@TempDir Path folder) throws Exception {
-        Path working = Files.createDirectories(folder.resolve("working"));
-        ControlPanelState state = aStateOver(folder, SleepingJar.runtime());
-        state.hold(launchValues(folder, working));
+    @DisplayName("When the window's own command is stopped, or fails or is refused, the window shows what the working directory's file then wants")
+    void theWindowsOwnChildStoppedOrFailedReadsTheFile(@TempDir Path folder) throws Exception {
+        Path stoppedIn = Files.createDirectories(folder.resolve("stopped").resolve("working"));
+        ControlPanelState stopping = aStateOver(folder.resolve("stopped"), SleepingJar.runtime());
+        stopping.hold(launchValues(folder.resolve("stopped"), stoppedIn));
+        Path refusedIn = Files.createDirectories(folder.resolve("refused").resolve("working"));
+        ControlPanelState refusing = aStateOver(folder.resolve("refused"), PrintingJars.refusing());
+        refusing.hold(launchValues(folder.resolve("refused"), refusedIn));
 
+        // no invocation of the jar writes the file and then is stopped, fails or is refused: the file stands for
+        // whatever the working directory holds as the child ends, which is what the window reads
         List<String> afterItWasStopped;
-        try (WindowForTests window = WindowForTests.shown(state)) {
-            assumeThat(state.start(ControlPanelState.Start.RUN, new ArrayList<>()))
+        try (WindowForTests window = WindowForTests.shown(stopping)) {
+            assumeThat(stopping.start(ControlPanelState.Start.RUN, new ArrayList<>()))
                     .as("the sleeping child is started").isEmpty();
-            // no invocation of the jar writes the file and is then stopped: the file stands for whatever the working
-            // directory holds as the child ends, which is what the window reads
-            wants(working, THE_SECONDS);
-            state.stop();
-            assumeThat(state.ending().map(Ending::howItEnded)).as("the child ended as stopped")
+            wants(stoppedIn, THE_SECONDS);
+            stopping.stop();
+            assumeThat(stopping.ending().map(Ending::howItEnded)).as("the child ended as stopped")
                     .contains(HowItEnded.STOPPED);
             afterItWasStopped = window.awaiting(TheValuesWantedFollowTheWorkingDirectoryTest::keysDrawn,
                     List.of(THE_SECONDS.key())::equals);
         }
+        List<String> afterItWasRefused;
+        try (WindowForTests window = WindowForTests.shown(refusing)) {
+            // written once the window is open on no file, and read by nothing until the child ends
+            wants(refusedIn, THE_SECONDS);
+            assumeThat(refusing.start(ControlPanelState.Start.RUN, new ArrayList<>()))
+                    .as("the refused child is started").isEmpty();
+            assumeThat(WindowForTests.within(() -> refusing.ending().isPresent())).as("the refused child ended")
+                    .isTrue();
+            assumeThat(refusing.ending().map(Ending::howItEnded)).as("the child ended as failed or refused")
+                    .contains(HowItEnded.FAILED_OR_REFUSED);
+            afterItWasRefused = window.awaiting(TheValuesWantedFollowTheWorkingDirectoryTest::keysDrawn,
+                    List.of(THE_SECONDS.key())::equals);
+        }
 
-        claim("the window having opened on no file, once its child is stopped, ending with no exit code of 0, the one"
-                        + " row drawn is for the value the file then holds",
+        claim("the window having opened on no file, once its child is stopped, the one row drawn is for the value the"
+                        + " file then holds",
                 () -> assertThat(afterItWasStopped).containsExactly(THE_SECONDS.key()));
+        claim("and once its child has failed or been refused, ending with an exit code other than 0, the same",
+                () -> assertThat(afterItWasRefused).containsExactly(THE_SECONDS.key()));
+    }
+
+    @Test
+    @Story("The values Vespera's next start wants belong to the working directory shown")
+    @DisplayName("A command of the window's own that ends leaving the working directory no file takes away the values shown and the Profile section's needs a value")
+    void aChildThatLeavesNoFileTakesTheRowsAndTheBadgeAway(@TempDir Path folder) throws Exception {
+        Path working = Files.createDirectories(folder.resolve("working"));
+        wants(working, THE_SECONDS);
+        ControlPanelState state = aStateOver(folder, SleepingJar.runtime());
+        state.hold(launchValues(folder, working));
+
+        List<String> asItOpened;
+        String profileAsItOpened;
+        List<String> afterItWasStopped;
+        String profileAfterItWasStopped;
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            asItOpened = window.read(TheValuesWantedFollowTheWorkingDirectoryTest::keysDrawn);
+            profileAsItOpened = window.read(root -> WindowForTests.section(root, "profile").getText());
+            assumeThat(state.start(ControlPanelState.Start.RUN, new ArrayList<>()))
+                    .as("the sleeping child is started").isEmpty();
+            // as an invocation of the jar deletes it once it holds the working directory
+            Files.delete(working.resolve(NextInvocation.FILE_NAME));
+            state.stop();
+            assumeThat(state.ending().map(Ending::howItEnded)).as("the child ended as stopped")
+                    .contains(HowItEnded.STOPPED);
+            afterItWasStopped = window.awaiting(TheValuesWantedFollowTheWorkingDirectoryTest::keysDrawn,
+                    List::isEmpty);
+            profileAfterItWasStopped = window.awaiting(root -> WindowForTests.section(root, "profile").getText(),
+                    PROFILE::equals);
+        }
+
+        claim("as the window opens, the one row drawn is for the value the file wants, and the Profile section says a"
+                        + " value is needed",
+                () -> {
+                    assertThat(asItOpened).containsExactly(THE_SECONDS.key());
+                    assertThat(profileAsItOpened).isEqualTo(PROFILE_NEEDING_A_VALUE);
+                });
+        claim("once the child is stopped with the file gone, no row is drawn",
+                () -> assertThat(afterItWasStopped).isEmpty());
+        claim("and the Profile section is titled Profile alone, no longer saying a value is needed",
+                () -> assertThat(profileAfterItWasStopped).isEqualTo(PROFILE));
     }
 
     @Test
