@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-319](0319-a-cluster-whose-answer-is-turned-down-the-last-two-times-it-is-asked-stands-without-writing-and-the-generation-step-finishes-with-it.md).** The repair pass re-attempts every cluster carrying a `cluster_fault` row while the generation step is unfinished. A cluster whose answer is turned down the last two times it is asked, by a check on what the answer wrote, carries a repeated fault, and once every fault standing is one and nothing is unsendable the step records completion and the cluster stands without writing under its run. The repair call, the breaker and the rest of this record stand.
 
+> **Partly amended — see [ADR-402](0402-a-topics-overview-cites-its-written-clusters-by-number-in-every-sentence-and-a-citation-fault-is-asked-once-more.md).** No repair pass asks a topic's overview again: it is asked once, or twice where its citations were turned down, and a turned-down one stands under its run. The repair pass over clusters stands.
+
 - **Date**: 2026-09-12
 - **Status**: accepted
 - **Amends**: [ADR-109](0109-a-citation-is-an-exemplar-ordinal-minted-for-one-call-and-the-check-is-that-it-is-in-range.md) — its *"nothing is **retried**"*, narrowed to **within one invocation**. Its **`Not stripped`** bullet is untouched and stands whole — that clause uses the word *repaired* for deleting an offending citation marker, which nothing here does. The section below says what changes and what does not.

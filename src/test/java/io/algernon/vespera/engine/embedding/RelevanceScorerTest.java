@@ -12,6 +12,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -72,6 +73,47 @@ class RelevanceScorerTest {
                         + " than silently returning a score against nothing",
                 () -> assertThatThrownBy(() -> scorer.score(survivorChunks, Map.of(), TOP_THREE))
                         .isInstanceOf(IllegalStateException.class));
+    }
+
+    /** One cosine handed on by the scorer, its value rounded to six places so that a float's last digits do not count. */
+    private record Taken(int survivorChunk, OccurrenceId seed, int seedChunk, double cosine) {
+
+        Taken {
+            cosine = Math.round(cosine * 1e6) / 1e6;
+        }
+    }
+
+    @Test
+    @Issue("828")
+    @Link(name = "ADR-400", url = Adr.THE_WINNING_TOPIC_IS_THE_CENTROID_ITS_CHUNKS_ARE_NEAREST_ON_AVERAGE, type = "adr")
+    @Story("Placement reads the similarities the score already takes")
+    @DisplayName("Scoring hands on each similarity it takes, once for each pair of a document's piece and a seed's piece,"
+            + " and scores as it does handing on none")
+    void handsOnEveryCosineItTakesOnceAndScoresAsBefore() {
+        List<float[]> seedA = List.of(unit(0.90f), unit(0.20f));
+        List<float[]> seedB = List.of(unit(0.50f));
+        Map<OccurrenceId, List<float[]>> seeds = Map.of(SEED_A, seedA, SEED_B, seedB);
+        List<float[]> survivorChunks = List.of(axisAligned(), axisAligned());
+        List<Taken> taken = new ArrayList<>();
+
+        RelevanceScore handingOn = scorer.score(survivorChunks, seeds, TOP_THREE,
+                (survivorChunk, seed, seedChunk, cosine) -> taken.add(new Taken(survivorChunk, seed, seedChunk, cosine)));
+
+        claim(
+                "each of the document's 2 pieces is taken against each of the seeds' 3 pieces once, 6 similarities in"
+                        + " all, each handed on with the piece of the document, the seed and the piece of the seed it"
+                        + " is between and the similarity the fixture gives that pair",
+                () -> assertThat(taken)
+                        .containsExactlyInAnyOrder(
+                                new Taken(0, SEED_A, 0, 0.90),
+                                new Taken(0, SEED_A, 1, 0.20),
+                                new Taken(0, SEED_B, 0, 0.50),
+                                new Taken(1, SEED_A, 0, 0.90),
+                                new Taken(1, SEED_A, 1, 0.20),
+                                new Taken(1, SEED_B, 0, 0.50)));
+        claim(
+                "the score and the winning seed are the ones scoring gives handing on nothing",
+                () -> assertThat(handingOn).isEqualTo(scorer.score(survivorChunks, seeds, TOP_THREE)));
     }
 
     /**

@@ -30,8 +30,8 @@ import org.springframework.mock.env.MockEnvironment;
  * bound's nearest value is allowed, which those cannot show since a run must then be made under it. What it resolves is
  * what configuration names, and the profile's {@code clusterResolution} over it where that can be read.
  *
- * <p>Each row names one value over the shipped eighteen, the sixteen of §9's table and the two of the topics ADR-399 adds
- * to it, so the line it gives is that value's alone. The order among several refused is that of the table, as {@code a
+ * <p>Each row names one value over the shipped twenty, the sixteen of §9's table, the two of the topics ADR-399 adds to
+ * it, the breadth floor of ADR-401 and the see-also share of ADR-400, so the line it gives is that value's alone. The order among several refused is that of the table, as {@code a
  * sample of 0} over the shipped hits shows.
  */
 @Epic("Pipeline")
@@ -79,7 +79,7 @@ class PresetsTest {
      * One value of §9's table no run can be made under for each check that refuses it: the near-duplicate cut at 0,
      * bands times rows that are not the permutations, a score of no similarities, an OCR preset of {@code auto}, a seed
      * past what a long holds, timeouts past 4, and more hits than the shipped sample of 32. Each row names its values over
-     * the shipped eighteen, so the line it gives is that value's alone.
+     * the shipped twenty, so the line it gives is that value's alone.
      */
     static Stream<Arguments> oneValueNoRunCanBeMadeUnder() {
         return Stream.of(
@@ -130,7 +130,7 @@ class PresetsTest {
     void whatShipsIsAllowed() throws IOException {
         Presets presets = theShippedFile();
 
-        claim("the eighteen values application.yaml holds are ones a run can be made under",
+        claim("the twenty values application.yaml holds are ones a run can be made under",
                 () -> assertThat(presets.refusal(NOTHING_NAMED)).isEmpty());
     }
 

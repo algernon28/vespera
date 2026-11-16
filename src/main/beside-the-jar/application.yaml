@@ -123,6 +123,14 @@ vespera:
     # The modularity resolution of the topics' communities (ADR-399, ADR-330), a finite number above 0, higher finding
     # more topics. No profile key, for the same reason. It enters the embedding-scoring run where it is not 1.0.
     resolution: 1.0
+    # The share of all the seed passages a topic must hold to stand (ADR-401, ADR-330), a number from 0 and below 1: a
+    # topic under it is dropped and its passages feed no topic. No profile key, for the same reason. It enters the
+    # embedding-scoring run where it is not 0.005.
+    breadth-floor: 0.005
+    # The share of a survivor's chunks a topic must be nearest to for the survivor to be linked from it (ADR-400,
+    # ADR-330), a number above 0 and at most 1. No profile key, for the same reason. It enters the embedding-scoring
+    # run where it is not 0.15.
+    see-also-share: 0.15
 
 spring:
   # Spring's banner is logged, at INFO on the application's own logger, and not printed outside logback, so that it

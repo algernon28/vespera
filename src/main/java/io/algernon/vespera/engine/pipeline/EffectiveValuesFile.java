@@ -37,8 +37,8 @@ import org.springframework.core.env.PropertySource;
  * <p>{@code vespera run} and {@code vespera label} write it once the working-directory lock is held and past the last
  * refusal of their start, before their first step; {@code vespera publish} writes none. It is written whole to a
  * {@code .part} file and moved over the target, and one that cannot be written is logged at WARN and fails nothing. It
- * is never deleted. The eighteen presets of ADR-330 §9, as ADR-399 amends it, are on the list, the resolution under the profile's own name,
- * {@code clusterResolution}.
+ * is never deleted. The twenty presets of ADR-330 §9, as ADR-399, ADR-400 and
+ * ADR-401 amend it, are on the list, the resolution under the profile's own name, {@code clusterResolution}.
  */
 final class EffectiveValuesFile {
 
@@ -67,7 +67,8 @@ final class EffectiveValuesFile {
         SidecarStartSettings.WAIT_AT_MOST_PROPERTY,
         "vespera.progress-interval",
         // The presets of ADR-330 §9, in the order of its table: the neighbours first, then the fourteen from the OCR
-        // preset to the sample's number from each band. The resolution is said under the profile's own name, above.
+        // preset to the sample's number from each band, then the topics' presets (ADR-399, ADR-401, ADR-400). The
+        // resolution is said under the profile's own name, above.
         Presets.NEIGHBOURS_OF_A_DOCUMENT,
         Presets.OCR_PRESET,
         Presets.TIMEOUTS_IN_A_ROW,
@@ -84,7 +85,9 @@ final class EffectiveValuesFile {
         Presets.BANDS_IN_THE_SAMPLE,
         Presets.DOCUMENTS_FROM_EACH_BAND,
         Presets.TOPIC_NEIGHBOURS,
-        Presets.TOPIC_RESOLUTION
+        Presets.TOPIC_RESOLUTION,
+        Presets.TOPIC_BREADTH_FLOOR,
+        Presets.SEE_ALSO_SHARE
     };
 
     private final Environment environment;
@@ -208,7 +211,8 @@ final class EffectiveValuesFile {
      * variable, a system property or any other source a process is given, {@code environment}.
      */
     private String sourceOf(String property) {
-        // ADR-397 §7: a value of a file named application.yaml is shipped only at the value the jar's shipped copy holds.
+        // ADR-397 §7: a value of a file named application.yaml is shipped only at the value the jar's shipped copy
+        // holds.
         if (!(environment instanceof ConfigurableEnvironment configurable)) {
             return "code";
         }
@@ -225,7 +229,10 @@ final class EffectiveValuesFile {
         return "code";
     }
 
-    /** Whether a config resource's source name names a file called {@code application.yaml} (or {@code .yml}), wherever it lies. */
+    /**
+     * Whether a config resource's source name names a file called {@code application.yaml} (or {@code .yml}), wherever
+     * it lies.
+     */
     private static boolean isApplicationYaml(String sourceName) {
         int via = sourceName.indexOf("' via location");
         String resource = (via < 0 ? sourceName : sourceName.substring(0, via)).toLowerCase(java.util.Locale.ROOT);
