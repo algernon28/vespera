@@ -2,6 +2,7 @@ package io.algernon.vespera.engine.embedding;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -161,6 +162,16 @@ class TopicPlacementTest {
                 () -> assertThat(placement).isEqualTo(new Placement(
                         sixTopics.get(0).key(),
                         sixTopics.subList(1, 6).stream().map(Topic::key).toList())));
+    }
+
+    @Test
+    @Story("A survivor is placed under one topic")
+    @DisplayName("Placement over no topic at all is refused, so that every document scored has a topic to go to")
+    void refusesToPlaceUnderNoTopic() {
+        claim("building placement over an empty list of topics is refused: the scoring stops before it where no topic"
+                        + " stands, and no document is ever left without a topic",
+                () -> assertThatThrownBy(() -> TopicPlacement.of(List.of(), TWO_SEEDS, SHARE))
+                        .isInstanceOf(IllegalArgumentException.class));
     }
 
     /** Places a survivor of {@code chunks} as the scoring pass would: every pair's cosine handed to its tally. */

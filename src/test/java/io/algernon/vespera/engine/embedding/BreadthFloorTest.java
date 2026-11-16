@@ -109,6 +109,23 @@ class BreadthFloorTest {
                 () -> assertThat(standing.topics()).containsExactly(FIVE_OF_TEN, THREE_OF_TEN));
     }
 
+    /** A floor over the share of every topic of the fixture's: the widest holds five passages of ten. */
+    private static final double OVER_EVERY_TOPIC = 0.6;
+
+    @Test
+    @Story("A topic too narrow for the top level is not a topic")
+    @DisplayName("Where no topic stands at the breadth floor, the scoring is refused in one line naming the floor and the"
+            + " widest topic's share")
+    void noTopicStandingIsRefusedNamingTheFloorAndTheLargestShare() {
+        claim("at a floor of " + OVER_EVERY_TOPIC + " none of the four topics stands, and the refusal names the floor,"
+                        + " the four topics found, and the widest of them, five of the ten passages, a share of 0.5",
+                () -> assertThat(new BreadthFloor(OVER_EVERY_TOPIC).refusal(FOUND, seeds(Map.of())))
+                        .contains("no topic stands at a breadth floor of 0.6, the largest of the 4 topics found holding"
+                                + " 5 of the 10 seed passages, a share of 0.5"));
+        claim("at the fixture's floor of " + FLOOR + ", where two topics stand, there is no refusal",
+                () -> assertThat(new BreadthFloor(FLOOR).refusal(FOUND, seeds(Map.of()))).isEmpty());
+    }
+
     /**
      * The fixture's five seeds, each with its own content and as many chunk vectors as it has passages, and {@code
      * copies}, each path mapped to the content of the seed it copies and holding that seed's chunk count. The vectors
