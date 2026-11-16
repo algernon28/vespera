@@ -33,7 +33,7 @@ import org.springframework.stereotype.Component;
 @Component
 class Presets {
 
-    /** The naming model's own key, the chat model it falls back to, and the model the code holds (ADR-403 section 2). */
+    /** The naming model's own key, the chat model it falls back to, and the model the code holds (ADR-407 section 2). */
     static final String NAMING_MODEL = "vespera.naming.model";
     static final String CHAT_MODEL = "spring.ai.ollama.chat.options.model";
     static final String THE_CODES_NAMING_MODEL = "qwen3:8b";
@@ -68,7 +68,7 @@ class Presets {
     }
 
     /**
-     * The model that names the topics, as configuration resolves it (ADR-403 section 2); a blank value stops the
+     * The model that names the topics, as configuration resolves it (ADR-407 section 2); a blank value stops the
      * invocation, naming {@code vespera.naming.model}.
      */
     String namingModel() {

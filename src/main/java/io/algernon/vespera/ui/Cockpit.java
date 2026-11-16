@@ -65,7 +65,7 @@ final class Cockpit {
     private final SelectableText.Line where = SelectableText.line("");
     private final SelectableText.Line child = SelectableText.line("");
     private final SelectableText.Line databaseSize = SelectableText.line("");
-    /** The model that names the topics, as the jar said it would use it: shown, never set (ADR-403 section 10). */
+    /** The model that names the topics, as the jar said it would use it: shown, never set (ADR-407 section 10). */
     private final SelectableText.Line namingModel = SelectableText.line("");
     private final SelectableText.Wrapping outcome = SelectableText.wrapping("");
     private final Button run = new Button("Run");
@@ -837,7 +837,7 @@ final class Cockpit {
     /**
      * The heading <i>Naming model</i> and one line saying the model the working directory's file names and where it
      * came from. It is no field: the naming model enters the arrangement run's identity, so it is no launch value
-     * (ADR-403 section 10).
+     * (ADR-407 section 10).
      */
     private Node namingModelPart() {
         namingModel.setId("in-use-vespera.naming.model");

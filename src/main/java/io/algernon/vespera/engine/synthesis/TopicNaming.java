@@ -16,7 +16,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * The call that names the topics (ADR-403 sections 4 to 8): one call to the naming model for each topic, from the
+ * The call that names the topics (ADR-407 sections 4 to 8): one call to the naming model for each topic, from the
  * topic's strongest passages, whole, filled under a budget of {@link #WORD_BUDGET} words, at temperature 0 and a fixed
  * seed, thinking off, under a schema of one field. Every answer is checked in section 6's order; one turned down gives
  * the topic its fallback name and stops nothing. A serving engine that gives no answer at all is no answer to turn
@@ -27,7 +27,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Component
 public class TopicNaming {
 
-    /** {@code num_ctx} of a naming call (ADR-403 section 3). */
+    /** {@code num_ctx} of a naming call (ADR-407 section 3). */
     public static final int NAMING_WINDOW = 4096;
 
     /** {@code num_predict} of a naming call: the tokens it leaves a name. */

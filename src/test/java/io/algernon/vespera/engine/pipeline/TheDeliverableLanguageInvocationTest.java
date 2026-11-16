@@ -29,7 +29,7 @@ import org.springframework.test.context.DynamicPropertySource;
 /**
  * The deliverable's language end to end (ADR-321 §1, §2, §4, §6): the profile's {@code deliverableLanguage} reaches
  * the question every cluster is asked, the generation run's identity, and every page the run draws; changing it is a
- * generation run of its own, over an arrangement approved again (ADR-403 §3); and a language the deliverable cannot be
+ * generation run of its own, over an arrangement approved again (ADR-407 §3); and a language the deliverable cannot be
  * drawn in stops before anything is asked.
  *
  * <p>The scripted model answers whatever it is asked in the words it was scripted with, so what is claimed of the
@@ -126,7 +126,7 @@ class TheDeliverableLanguageInvocationTest {
      * One invocation over {@code root} after the language changed to {@code language}, which stops at the arrangement
      * gate, the arrangement in that language approved, and the invocation that writes the groups.
      *
-     * <p>Two invocations and not one because the language is a member of the arrangement run's identity (ADR-403 §3):
+     * <p>Two invocations and not one because the language is a member of the arrangement run's identity (ADR-407 §3):
      * a change of language mints another arrangement, which the approval given for the first does not name. Back to
      * English, the arrangement is the first one again, found rather than minted, so it is picked out by the language
      * it records and not as the latest; the approval names the Italian one by then, so it too is approved again.

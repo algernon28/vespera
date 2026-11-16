@@ -36,7 +36,7 @@ import org.springframework.ai.retry.NonTransientAiException;
 import org.springframework.web.client.ResourceAccessException;
 
 /**
- * The call that names the topics before the arrangement gate (ADR-403 §4 to §8), against a scripted model.
+ * The call that names the topics before the arrangement gate (ADR-407 §4 to §8), against a scripted model.
  *
  * <p>One call a topic, to the naming model, at temperature 0 and a fixed seed, thinking off, under a one-field
  * schema: the topic's passages strongest first, whole, filled under a word budget, then the instruction in English,
@@ -49,7 +49,7 @@ import org.springframework.web.client.ResourceAccessException;
 @Epic("Arrangement")
 @Feature("Topic names")
 @Issue("829")
-@Link(name = "ADR-403", url = Adr.TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT, type = "adr")
+@Link(name = "ADR-407", url = Adr.TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT, type = "adr")
 class TopicNamingTest {
 
     /** The model the call names: a name of the test's own. */

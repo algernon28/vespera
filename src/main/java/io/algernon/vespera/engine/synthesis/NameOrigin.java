@@ -1,6 +1,6 @@
 package io.algernon.vespera.engine.synthesis;
 
-/** Where a topic's name came from (ADR-403 sections 6 to 8). */
+/** Where a topic's name came from (ADR-407 sections 6 to 8). */
 public enum NameOrigin {
     /** The model wrote it at the first asking. */
     WRITTEN,

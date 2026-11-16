@@ -26,7 +26,7 @@ import org.springframework.mock.env.MockEnvironment;
 
 /**
  * {@code effective-values.properties} names the model that names the topics, {@code vespera.naming.model}, as the
- * arrangement step resolves it (ADR-403 §2, §10): its own key where configuration names it, else
+ * arrangement step resolves it (ADR-407 §2, §10): its own key where configuration names it, else
  * {@code spring.ai.ollama.chat.options.model}, each with the source of the layer that named it, else {@code qwen3:8b}
  * from {@code code}; and where it is bound blank, nothing, not the chat model said in its place, since a blank naming
  * model stops the invocation and no invocation uses the chat model for it. The file is read back as the control panel
@@ -38,7 +38,7 @@ import org.springframework.mock.env.MockEnvironment;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("829")
-@Link(name = "ADR-403", url = Adr.TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT, type = "adr")
+@Link(name = "ADR-407", url = Adr.TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT, type = "adr")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
 class TheEffectiveValuesNameTheNamingModelTest {
 

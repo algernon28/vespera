@@ -3,7 +3,7 @@ package io.algernon.vespera.engine.synthesis;
 import java.util.Optional;
 
 /**
- * The name a topic takes where the model's is turned down (ADR-403 section 7): the Docling title of its strongest
+ * The name a topic takes where the model's is turned down (ADR-407 section 7): the Docling title of its strongest
  * contributing seed, then that seed's filename stem, then the topic's place among the topics in key order, in the
  * deliverable language. A title and a stem are the seed's own words and are not translated.
  */

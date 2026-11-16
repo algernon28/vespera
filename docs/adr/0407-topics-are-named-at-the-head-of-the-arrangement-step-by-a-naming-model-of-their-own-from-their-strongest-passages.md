@@ -1,4 +1,4 @@
-# ADR-403 — Topics are named at the head of the arrangement step by a naming model of their own, from their strongest passages
+# ADR-407 — Topics are named at the head of the arrangement step by a naming model of their own, from their strongest passages
 
 - **Date**: 2026-11-16
 - **Status**: accepted on 2026-11-16.
@@ -188,7 +188,7 @@ The arrangement page shows each topic's name, and each part's of the level betwe
 - **The same question does not always draw the same name.** Asked afresh it did, 20 times of 20; asked again while the engine reused the first question's cached evaluation, it differed by a word or two in 3 of 30 (Measured). A name is therefore read back under its run and never asked again (§1); a new arrangement run may name a topic a little otherwise.
 - **A topic whose name was turned down shows its seed's title** at the gate and in the deliverable; ADR-396's Consequences already say the gate is never without a name.
 - **The operator sees the naming model in use in the Services section, and changes it only in a machine's own configuration**, by hand (§10). A change there mints a new arrangement, as above.
-- **ADR-321, ADR-329 and ADR-330 carry a note *"Partly amended — see ADR-403"*** at their heads.
+- **ADR-321, ADR-329 and ADR-330 carry a note *"Partly amended — see ADR-407"*** at their heads.
 - **`CONTEXT.md`** gains **Topic name**, and **Deliverable language** says the arrangement run's identity names it too.
 - **Run ids**: the arrangement and generation runs move with the code that builds this record, as ADR-396 §12 says of its children. The walk, stages 1 to 4, seed measurement and the embedding-scoring run do not move.
 

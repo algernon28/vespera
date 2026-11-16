@@ -162,7 +162,7 @@ final class EffectiveValuesFile {
     }
 
     /**
-     * The naming model as {@link Presets#namingModel} resolves it (ADR-403 section 10): {@code vespera.naming.model} where
+     * The naming model as {@link Presets#namingModel} resolves it (ADR-407 section 10): {@code vespera.naming.model} where
      * configuration names it, else {@code spring.ai.ollama.chat.options.model}, each with the source of the layer that
      * named it, else {@value #THE_CODES_LABEL_MODEL} with the source {@code code}. A value bound blank is left out,
      * its source with it, and the chat model is not said in its place: no invocation would name it.

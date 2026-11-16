@@ -15,14 +15,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The name a topic takes where the model's is turned down (ADR-403 §7): the Docling title of its strongest
+ * The name a topic takes where the model's is turned down (ADR-407 §7): the Docling title of its strongest
  * contributing seed, then that seed's filename stem, then the topic's place among the topics in key order, in the
  * deliverable language. A seed's title and stem are its own words, and are never translated.
  */
 @Epic("Arrangement")
 @Feature("Topic names")
 @Issue("829")
-@Link(name = "ADR-403", url = Adr.TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT, type = "adr")
+@Link(name = "ADR-407", url = Adr.TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT, type = "adr")
 class TopicFallbackNameTest {
 
     /** The strongest contributing seed's path relative to the seed folder. */

@@ -8,7 +8,7 @@
 
 > **Partly amended — see [ADR-384](0384-whether-the-models-run-locally-or-in-the-cloud-is-the-profiles-to-say-local-by-default-and-cloud-refused-at-the-start.md).** Of §3: a model Ollama does not serve is pulled whatever its name, the clause *the name does not end in `cloud`* gone, and what is asked before and after the pull is whether Ollama serves the model, `/api/show` answering 2xx or 404, its body unread. The rest stands.
 
-> **Partly amended — see [ADR-403](0403-topics-are-named-at-the-head-of-the-arrangement-step-by-a-naming-model-of-their-own-from-their-strongest-passages.md).** The arrangement step pulls the naming model, `vespera.naming.model` else the shipped generation default, as the generation step pulls the generation model, under the same check and switch. The rest of this record stands.
+> **Partly amended — see [ADR-407](0407-topics-are-named-at-the-head-of-the-arrangement-step-by-a-naming-model-of-their-own-from-their-strongest-passages.md).** The arrangement step pulls the naming model, `vespera.naming.model` else the shipped generation default, as the generation step pulls the generation model, under the same check and switch. The rest of this record stands.
 
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.

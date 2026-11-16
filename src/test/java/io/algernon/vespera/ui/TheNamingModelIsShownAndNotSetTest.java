@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The model that names the topics is shown in the Services section and not set there (ADR-403 §10): beneath the label
+ * The model that names the topics is shown in the Services section and not set there (ADR-407 §10): beneath the label
  * model's field, the heading <i>Naming model</i> and one line of selectable text, {@code in-use-vespera.naming.model},
  * saying the value {@code effective-values.properties} names and where it came from in ADR-377 §4's words, or that the
  * jar has not said yet; and no field holding {@code vespera.naming.model}, since it is no launch value.
@@ -33,7 +33,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("829")
-@Link(name = "ADR-403", url = Adr.TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT, type = "adr")
+@Link(name = "ADR-407", url = Adr.TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT, type = "adr")
 class TheNamingModelIsShownAndNotSetTest {
 
     /** The property, which no field of the window may hold as its id. */

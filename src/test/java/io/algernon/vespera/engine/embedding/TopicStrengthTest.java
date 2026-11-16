@@ -15,7 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Which of a topic's passages a name is asked from first, and which seed a name falls back to (ADR-403 §4, §7).
+ * Which of a topic's passages a name is asked from first, and which seed a name falls back to (ADR-407 §4, §7).
  *
  * <p>A passage's strength is the cosine of its vector to the topic's centroid, the mean of its passages' vectors each
  * taken to unit length; the strongest is sent first, two of equal strength in the order of ADR-399 §4. The fixture is
@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
 @Epic("Arrangement")
 @Feature("Topic names")
 @Issue("829")
-@Link(name = "ADR-403", url = Adr.TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT, type = "adr")
+@Link(name = "ADR-407", url = Adr.TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT, type = "adr")
 class TopicStrengthTest {
 
     private static final SeedPassage A0 = new SeedPassage("a.md", 0);

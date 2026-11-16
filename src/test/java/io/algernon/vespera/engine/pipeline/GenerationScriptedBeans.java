@@ -80,8 +80,8 @@ class GenerationScriptedBeans {
     private static final int A_COUNT_INSIDE_EVERY_ROOM = 1;
 
     /**
-     * The words every name this fixture's model gives a topic begins with (ADR-403 §5), the number of the naming call
-     * after them, so that no two topics are given one name and none is asked again for it (ADR-403 §8).
+     * The words every name this fixture's model gives a topic begins with (ADR-407 §5), the number of the naming call
+     * after them, so that no two topics are given one name and none is asked again for it (ADR-407 §8).
      */
     static final String TOPIC_NAME_PREFIX = "Scripted Topic";
 
@@ -174,7 +174,7 @@ class GenerationScriptedBeans {
         return countingCallsMade;
     }
 
-    /** How many naming calls (ADR-403 §1) the model has been put since the scripts were last dropped. */
+    /** How many naming calls (ADR-407 §1) the model has been put since the scripts were last dropped. */
     private static int namingCallsMade;
 
     /** How many naming calls have been made since the count was last dropped. */
@@ -223,9 +223,9 @@ class GenerationScriptedBeans {
      * question the writing is asked for. A scripted {@link ScriptedAnswer#havingRead} therefore reaches
      * the check on the answer, as it always has, and not the count before it.
      *
-     * <p><b>A naming call</b> (ADR-403 §1, §5) — {@link TopicNaming#NAME_REPLY_ALLOWANCE} tokens asked for, {@link
+     * <p><b>A naming call</b> (ADR-407 §1, §5) — {@link TopicNaming#NAME_REPLY_ALLOWANCE} tokens asked for, {@link
      * TopicNaming#NAMING_SEED} sent, and a schema of the one field {@code name} — is answered with a name every check
-     * of ADR-403 §6 passes, one no earlier call was given, and is kept out of the same three for the same reason: it is
+     * of ADR-407 §6 passes, one no earlier call was given, and is kept out of the same three for the same reason: it is
      * asked at the head of the arrangement step, one per topic, and no claim that counts the writing is about it. All
      * three marks are read, not the allowance alone, because the overview of a topic (ADR-396 §7) sends the same seed
      * and a test may set a writing allowance of any size. A refusal scripted by {@link #refuseEvery} reaches it as it
@@ -274,7 +274,7 @@ class GenerationScriptedBeans {
 
     /**
      * Whether {@code options} are a naming call's: its allowance, its seed, and a schema asking for {@code name} and
-     * nothing else (ADR-403 §3, §5).
+     * nothing else (ADR-407 §3, §5).
      */
     private static boolean isANamingCall(OllamaChatOptions options) {
         return Integer.valueOf(TopicNaming.NAME_REPLY_ALLOWANCE).equals(options.getNumPredict())
@@ -295,7 +295,7 @@ class GenerationScriptedBeans {
 
     /**
      * An answer to the {@code number}th naming call: one short line in the shape asked, stopped having finished, its
-     * question read well inside the naming window — a name ADR-403 §6 keeps.
+     * question read well inside the naming window — a name ADR-407 §6 keeps.
      */
     private static ChatResponse aNameFor(int number) {
         return new ChatResponse(

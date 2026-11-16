@@ -324,7 +324,7 @@ class RunIdentityGoldenTest {
     @DisplayName("Arrangement is identified by the corpus root, the scoring it arranged, the naming model's identity and the pages' language")
     @Issue("353")
     @Link(name = "ADR-222", url = Adr.A_STAGE_NAMES_PIPELINE_ONLY_WHILE_PIPELINE_HOLDS_A_RULE_OF_IT, type = "adr")
-    @Link(name = "ADR-403", url = Adr.TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT, type = "adr")
+    @Link(name = "ADR-407", url = Adr.TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT, type = "adr")
     void arrangement() {
         Map<String, Object> run = theRunOf("arrangement");
 

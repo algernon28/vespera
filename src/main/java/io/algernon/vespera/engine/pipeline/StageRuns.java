@@ -538,13 +538,13 @@ class StageRuns {
         return ollamaClient.artefactOf(embeddingModelName).equals(minted);
     }
 
-    /** The language the topics are named in and the deliverable is written in (ADR-321 section 1, ADR-403 section 3). */
+    /** The language the topics are named in and the deliverable is written in (ADR-321 section 1, ADR-407 section 3). */
     DeliverableLanguage deliverableLanguage() {
         return languageOfTheDeliverable.language();
     }
 
     /**
-     * The model the arrangement step names the topics under (ADR-403 section 2).
+     * The model the arrangement step names the topics under (ADR-407 section 2).
      *
      * @throws NoNamingModelNamedException where the value is blank
      */
@@ -555,7 +555,7 @@ class StageRuns {
     /** Stage 6a's run, minted the first time this is called in this invocation. */
     RunId arrangement() {
         if (arrangement == null) {
-            // The two values only this run reads, resolved where it is minted, before any call (ADR-403 sections 2, 3).
+            // The two values only this run reads, resolved where it is minted, before any call (ADR-407 sections 2, 3).
             String namingModel = namingModelName();
             DeliverableLanguage language = languageOfTheDeliverable.language();
             RunId scoringRunId = embeddingScoring();
@@ -689,7 +689,7 @@ class StageRuns {
             String corpusRoot,
             String scoringRunId,
             @JsonInclude(JsonInclude.Include.NON_NULL) Long standingRemovals,
-            // ADR-403 section 3, after standingRemovals, each always written: the model that names the topics and the
+            // ADR-407 section 3, after standingRemovals, each always written: the model that names the topics and the
             // options its calls send, and the language the names are written in.
             String namingModel,
             String namingModelDigest,

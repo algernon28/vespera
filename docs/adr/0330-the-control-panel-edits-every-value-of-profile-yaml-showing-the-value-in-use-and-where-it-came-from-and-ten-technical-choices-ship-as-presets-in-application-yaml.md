@@ -1,6 +1,6 @@
 # ADR-330 — The control panel edits every value of `profile.yaml`, showing the value in use and where it came from, and ten technical choices ship as presets in `application.yaml`
 
-> **Partly amended — see [ADR-403](0403-topics-are-named-at-the-head-of-the-arrangement-step-by-a-naming-model-of-their-own-from-their-strongest-passages.md).** Of §1: the file gains `vespera.naming.model`, the model that names the topics, written always and left out where bound blank. The rest of this record stands.
+> **Partly amended — see [ADR-407](0407-topics-are-named-at-the-head-of-the-arrangement-step-by-a-naming-model-of-their-own-from-their-strongest-passages.md).** Of §1: the file gains `vespera.naming.model`, the model that names the topics, written always and left out where bound blank. The rest of this record stands.
 
 > **Partly amended — see [ADR-401](0401-a-topic-holding-under-half-of-one-percent-of-the-seed-passages-is-dropped-and-a-seed-feeding-none-is-listed.md).** Of §8 and §9: a preset joins, `vespera.topics.breadth-floor` at `0.005`, the share of the seed passages a topic must hold to stand, with no profile key; refused where it is not a number from 0 and below 1; it enters the embedding-scoring run, as `topicBreadthFloor` after `topicNeighbours`, where it is not that value; with ADR-400's see-also share, §9's table holds twenty keys where §14 counts sixteen.
 

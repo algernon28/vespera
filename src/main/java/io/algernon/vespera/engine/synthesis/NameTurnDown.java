@@ -1,6 +1,6 @@
 package io.algernon.vespera.engine.synthesis;
 
-/** Why an answer was turned down and the topic took its fallback name (ADR-403 section 6). */
+/** Why an answer was turned down and the topic took its fallback name (ADR-407 section 6). */
 public enum NameTurnDown {
     NOTHING_SENT,
     QUESTION_CUT,

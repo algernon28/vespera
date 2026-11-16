@@ -10,7 +10,7 @@ import java.util.Map;
 public record Topic(TopicKey key, List<SeedPassage> passages) {
 
     /**
-     * The topic's passages, strongest first (ADR-403 section 4): by the cosine of each passage's vector to the
+     * The topic's passages, strongest first (ADR-407 section 4): by the cosine of each passage's vector to the
      * topic's centroid, the mean of its passages' vectors each taken to unit length, two of equal cosine in {@link
      * SeedPassage}'s order (ADR-399 section 4).
      *
@@ -41,7 +41,7 @@ public record Topic(TopicKey key, List<SeedPassage> passages) {
 
     /**
      * The seed feeding the topic the most passages, two feeding as many taken in the order of ADR-399 section 4
-     * (ADR-403 section 7).
+     * (ADR-407 section 7).
      */
     public String strongestContributingSeed() {
         Map<String, Integer> fed = new HashMap<>();

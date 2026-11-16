@@ -139,7 +139,7 @@ class ArrangementTasklet implements Tasklet {
     private final UnusableSeeds unusableSeeds;
     private final RecordedClosingLines recordedClosingLines;
 
-    /** The topics' names, as the head of the step made them: held, for #832 stores them (ADR-403 section 1). */
+    /** The topics' names, as the head of the step made them: held, for #832 stores them (ADR-407 section 1). */
     private List<GivenName> topicNames = List.of();
 
     ArrangementTasklet(
@@ -219,7 +219,7 @@ class ArrangementTasklet implements Tasklet {
         StageProgress gathered = StageProgress.over("Stage 6a (arrangement, members gathered)", members);
 
         // The naming model is pulled where Ollama does not serve it, once the gates are open and before the run is
-        // resolved, as generation pulls its own (ADR-403 section 1, ADR-329). A blank value stops the invocation
+        // resolved, as generation pulls its own (ADR-407 section 1, ADR-329). A blank value stops the invocation
         // here, naming vespera.naming.model, where the run would be minted (section 2).
         String namingModel = stageRuns.namingModelName();
         Optional<String> refusal = modelPull.refusalOf(STAGE, namingModel);
@@ -247,7 +247,7 @@ class ArrangementTasklet implements Tasklet {
                 },
                 () -> clusters.discardForRun(arrangement),
                 () -> {
-                    // The topics are named first, before anything is ordered, labelled or recorded (ADR-403 section 1).
+                    // The topics are named first, before anything is ordered, labelled or recorded (ADR-407 section 1).
                     topicNames = nameTheTopics(preamble, namingModel);
                     List<OccurrenceId> seeds = Arrangement.inOrder(memberCounts, seedPaths);
                     int clustersArranged =
@@ -324,7 +324,7 @@ class ArrangementTasklet implements Tasklet {
 
     /**
      * Stops the step on a naming model Ollama does not serve on this machine, and says why, as generation's stop
-     * does: nothing is asked and no run is minted (ADR-403 section 1).
+     * does: nothing is asked and no run is minted (ADR-407 section 1).
      */
     private void stopOnANamingModelNotServedHere(
             StepContribution contribution, ChunkContext chunkContext, String modelName, String refusal) {
@@ -341,7 +341,7 @@ class ArrangementTasklet implements Tasklet {
     }
 
     /**
-     * The topics the scoring step found, each named from its strongest passages (ADR-403 sections 4 to 8): the same
+     * The topics the scoring step found, each named from its strongest passages (ADR-407 sections 4 to 8): the same
      * topics, found again from the same stored vectors, with the same breadth floor applied, in key order. The
      * passages' texts are read from the chunk cache. A serving engine that gives no answer fails the step.
      */
