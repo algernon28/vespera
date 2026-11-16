@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.TheShippedCopy;
 import io.algernon.vespera.engine.profile.Profile;
 import io.algernon.vespera.engine.profile.ProfileFixture;
 import io.qameta.allure.Epic;
@@ -16,7 +17,6 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.env.YamlPropertySourceLoader;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.mock.env.MockEnvironment;
 
 /**
@@ -47,7 +47,7 @@ class TheBreadthFloorPresetTest {
     void shipsTheMeasuredValue() throws IOException {
         MockEnvironment environment = new MockEnvironment();
         new YamlPropertySourceLoader()
-                .load("the shipped file", new ClassPathResource("application.yaml"))
+                .load("the shipped file", TheShippedCopy.of("application.yaml"))
                 .forEach(environment.getPropertySources()::addLast);
 
         claim("application.yaml names a breadth floor of half of one percent of the seed passages",
