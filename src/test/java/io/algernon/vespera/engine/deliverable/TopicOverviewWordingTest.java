@@ -44,7 +44,7 @@ class TopicOverviewWordingTest {
             OverviewUnwritten.FAULT_PROMPT_EVALUATION_CEILING,
             "No overview was written for this topic: what was written on its groups came to more than the writing model"
                     + " was given room to read at once.",
-            OverviewUnwritten.NOTHING_WRITTEN_OVER_ANY_CLUSTER,
+            OverviewUnwritten.NOTHING_WRITTEN_OVER_ANY_GROUP,
             "No overview was written for this topic: nothing was written over any of its groups.",
             OverviewUnwritten.NOT_REACHED,
             "No overview has been written for this topic yet: writing stopped before it reached this topic. Running the"
@@ -65,7 +65,7 @@ class TopicOverviewWordingTest {
             OverviewUnwritten.FAULT_PROMPT_EVALUATION_CEILING,
             "Per questo argomento non è stata scritta alcuna panoramica: i testi dei suoi gruppi superavano quanto il"
                     + " modello di scrittura aveva spazio per leggere in una volta.",
-            OverviewUnwritten.NOTHING_WRITTEN_OVER_ANY_CLUSTER,
+            OverviewUnwritten.NOTHING_WRITTEN_OVER_ANY_GROUP,
             "Per questo argomento non è stata scritta alcuna panoramica: su nessuno dei suoi gruppi è stato scritto"
                     + " nulla.",
             OverviewUnwritten.NOT_REACHED,
