@@ -40,7 +40,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * is applied, and under no topic the floor dropped; and where no topic stands the step stops in one line, naming the
  * floor and the largest topic's share, before any survivor is scored. A sibling of {@link
  * TheTopicsAreFoundAtTheHeadOfRelevanceScoringInvocationTest}, on its fixture, with this machine's floor at {@value
- * #THE_FLOOR}.
+ * #THE_FLOOR} and its neighbours for the topics at {@value #TWO_NEIGHBOURS}.
  *
  * <p>Nothing stores a placement yet, that being #832's, so what is read is the step's own lines: how many topics it
  * found, how many stand, and how many survivors it placed under how many topics, the last counted off the placement it
@@ -72,6 +72,12 @@ class PlacementIsReadInTheScoringPassInvocationTest {
     /** This machine's breadth floor: a topic of two thirds of the passages stands, one of a half does not. */
     private static final double THE_FLOOR = 0.6;
 
+    /**
+     * This machine's neighbours for the topics: two, so that each passage's neighbours are passages of its own word,
+     * where a seed set of six passages and the shipped ten would make one graph of every pair, and one topic.
+     */
+    private static final int TWO_NEIGHBOURS = 2;
+
     /** A word whose text embeds along the first axis. */
     private static final String SLUICES = "sluices";
 
@@ -88,6 +94,7 @@ class PlacementIsReadInTheScoringPassInvocationTest {
     static void thisMachinesValues(DynamicPropertyRegistry registry) {
         registry.add("vespera.working-dir", workingDirectory::toString);
         registry.add("vespera.topics.breadth-floor", () -> String.valueOf(THE_FLOOR));
+        registry.add("vespera.topics.neighbours", () -> String.valueOf(TWO_NEIGHBOURS));
     }
 
     @Autowired
