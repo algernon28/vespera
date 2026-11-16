@@ -32,7 +32,7 @@
 // docs/adr/0405 amends docs/adr/0351 section 1: gh's -b, and the -c and --comment of issue close, issue
 // reopen, pr close and pr reopen, give text and no path where the command's table has them take an
 // argument; it keeps the drive of one letter, the name made only of spaces, and the reading of a sed program
-// and of a script's source. The C81 to C84 cases are held to it.
+// and of a script's source. The C81 to C85 cases are held to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -2089,7 +2089,7 @@ cases.push(
   ["C836", "gh issue close --comment of a command substitution that reads a file outside the allow list", "Bash", { command: 'gh issue close 5 --comment "$(cat ../outside/doc.txt)"' }, REFUSED],
   ["C837", "gh issue close --comment whose text names the allow list, which the text rule still reads", "Bash", { command: "gh issue close 5 --comment 'See .claude/allowed-paths.txt.'" }, REFUSED],
   ["C838", "gh issue close -r, whose reason is no text the record names, holding one letter and a colon", "Bash", { command: "gh issue close 5 -r 'A: x'" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
-  ["C839", "gh close of an issue by an alias of gh's, whose --comment is not taken out", "Bash", { command: "gh close 5 --comment '../outside/doc.txt'" }, REFUSED],
+  ["C839", "gh close, a path the table does not hold, whose --comment is not taken out", "Bash", { command: "gh close 5 --comment '../outside/doc.txt'" }, REFUSED],
 );
 
 /* C84. docs/adr/0405 sections 2 to 4: the shapes of issue #765 the record keeps refused. A drive of one
@@ -2107,6 +2107,12 @@ cases.push(
   ["C849", "sed whose program reads a file outside the allow list by r", "Bash", { command: "sed '/^x/r ../outside/doc.txt' README.md" }, REFUSED],
   ["C850", "node -e whose source reads a file outside the allow list", "Bash", { command: "node -e \"require('fs').readFileSync('../outside/doc.txt')\"" }, REFUSED],
   ["C851", "python -c whose source opens a file on a drive no allowed root is on", "Bash", { command: `python -c "open('${NO_DRIVE}').read()"` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+);
+
+/* C85. docs/adr/0405 section 1: a flag of a text flag's name that takes no argument gives no text, written
+   with an = too. pr review's --comment takes none, so its value after = is read as before. */
+cases.push(
+  ["C852", "gh pr review --comment=, whose --comment takes no argument, of a climb out of the checkout", "Bash", { command: "gh pr review 5 --comment=../outside/doc.txt" }, REFUSED],
 );
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {
