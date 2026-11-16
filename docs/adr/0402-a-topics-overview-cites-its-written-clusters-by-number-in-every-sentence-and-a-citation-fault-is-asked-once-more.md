@@ -52,15 +52,16 @@ At the default window of 8,192 tokens, less the answer's 1,024 and about 210 for
 
 - **Each writing's own citations are taken out** before it is sent: every `[n]` ADR-109's notation reads, with the blanks before it. They point at documents of one cluster, and sent as they stand they would be read, and cited, as numbers of clusters. The answer is never edited (ADR-109's *"not stripped"*): what is taken out is the input's.
 - **A cluster with no synthesis doc is not sent**, and its number is shown nowhere in the question. Its page still lists its documents, but the call read nothing of it, so a sentence citing it would cite what was never read.
-- **What fits is found as a cluster's documents are** (ADR-108, ADR-166): proposed in number order at the word estimate until the room runs out, then counted by the serving engine, and what is sent is the longest leading run it counts inside the room. The count is of the second question's wording (§4), the longer, and both calls send what it found, so the second never sends less than the first and the numbers the check reads are the same in both.
+- **What fits is found as a cluster's documents are** (ADR-108, ADR-166): proposed in number order at the word estimate, a cluster whose title and writing are more words than the room holds passed over and the fill stopping at the first cluster that does not fit what is left; then counted by the serving engine, the proposal whole and, where it is counted past the room, by halving, and what is sent is as many of the proposal, in number order, as the engine counts inside the room. A cluster whose writing the engine counts past the room on its own, as the first of a proposal, is passed over and a new proposal made from the clusters left, as a cluster's call passes over a document too large for it (`ClusterSynthesis`). The count is of the second question's wording (§4), the longer, and both calls send what it found, so the second never sends less than the first and the numbers the check reads are the same in both.
 - **No written cluster, no call.** A topic none of whose clusters has a synthesis doc has nothing to read, and its page says so (§5).
-- **A topic whose written clusters do not all fit** is still written over the leading run that does, and its page discloses it (§5), as ADR-108 has a cluster too large for one call written over its closest documents and say so.
+- **A topic whose written clusters do not all fit** is still written over those that do, and its page discloses it (§5), as ADR-108 has a cluster too large for one call written over its closest documents and say so.
+- **A topic is turned down for the room only where every written cluster was passed over**: nothing is left to send, no answer is asked for, and the fault is recorded as §7 says.
 
 ### 2. The numbers, the check, and what a sentence is
 
 **A cluster's number is its place among the topic's clusters**, 1 to the topic's cluster count, in the order the arrangement lists them, through the level between a topic and its clusters where the topic has one ([#831](https://github.com/algernon28/vespera/issues/831)). It is the number a reader of the topic's page finds the cluster at, so one numbering serves the question, the check and the reader, as ADR-109 has it for a cluster; where clusters are unwritten the numbers sent have gaps.
 
-**The check, in full: every sentence of the answer's writing carries at least one citation, and every citation is a number the call sent.** The second clause is ADR-109's, *"the ordinal is one Vespera minted"*: `1 ≤ n ≤` the cluster count holds of every number sent, and a number in that range the call did not send, an unwritten cluster's or one past the room, is turned down as one past the count is. Both turn the answer down as `CITATION_NOT_IN_RANGE`; no kind is added.
+**The check, in full: every sentence of the answer's writing carries at least one citation, and every citation is a number the call sent.** The second clause is ADR-109's, *"the ordinal is one Vespera minted"*: `1 ≤ n ≤` the cluster count holds of every number sent, and a number in that range the call did not send, an unwritten cluster's or one passed over for the room, is turned down as one past the count is. Both turn the answer down as `CITATION_NOT_IN_RANGE`; no kind is added.
 
 **A sentence ends** at `.`, `!`, `?` or `…`, with any closing quotation marks or bracket after it, followed by a blank and then a capital letter, a quotation mark, `(` or `[`, or by the end of the writing (R2, Measured). It does not end there:
 
@@ -138,7 +139,9 @@ The first row is the placeholder the operator asked for, *"Failed to generate an
 
 - **an overview**: the writing, and whether it was believed at the first question or the second;
 - **what it was written over**: one row for each number the call sent, naming the cluster at that number, so that the disclosure of §5 and each citation's link are read and not worked out again, as ADR-133's `call_exemplar` keeps a cluster's;
-- **an overview fault**: its kind, one of `ClusterFaultKind`'s four, closed as ADR-111 closes them, with no fifth, a sentence citing nothing being `CITATION_NOT_IN_RANGE` as uncited writing is for a cluster; its detail, the number that failed, as *"sentence 3 of 6 cites no group"* or *"citation [4] against groups 1, 2, 5 sent"*; and how many answers were asked for: 0 where no group's writing fitted the room and no answer was asked for, otherwise 1 or 2.
+- **an overview fault**: its kind, one of `ClusterFaultKind`'s four, closed as ADR-111 closes them, with no fifth: a sentence citing nothing is `CITATION_NOT_IN_RANGE`, as uncited writing is for a cluster, and a topic every written cluster of which was passed over for the room (§1) is `PROMPT_EVALUATION_CEILING`, as a cluster none of whose documents fits is (ADR-166 §4); its detail; and how many answers were asked for: 0 where every written cluster was passed over and no answer was asked for, otherwise 1 or 2.
+  - **The detail of a citation fault is the first fault in sentence order**: the sentences are read in order, and a sentence's citations in order, and the first sentence citing nothing or the first citation the call did not send, whichever is met first, is the one named, as *"sentence 3 of 6 cites no group"* or *"citation [4] against groups 1, 2, 5 sent"*.
+  - **The detail of a topic every written cluster of which was passed over** carries what the serving engine said of the last question counted, its count or its refusal word for word, as `ClusterSynthesis` carries a cluster's: *"no cluster's writing fits the window by the serving engine's own count -- the last question counted: 7800"*; where every cluster's writing was larger than the room by the word estimate and no question was counted, the count's place reads *"no cluster's writing was ever counted"*.
 
 A topic carries a row in the first or the third, never both; no row in either is a topic not reached, or one with no written cluster, which the clusters' rows tell apart. Like `cluster_fault`, the third is no verdict: nothing is removed for it (ADR-111). Unlike `cluster_fault`, no row of it is deleted on success, since nothing asks it again (§6).
 
@@ -191,21 +194,27 @@ A topic carries a row in the first or the third, never both; no row in either is
 | `…aCitationAfterTheFullStopBelongsToTheSentenceBefore` | `"… harvest. [2] The …"` puts `[2]` in the first sentence (§2) |
 | `…doesNotEndAfterLettersEachFollowedByAFullStopAnInitialOrATitle` | *U.S.*, *S.p.A.*, *J.*, *Dott.* and *L'ing.* before a capital end no sentence (§2) |
 | `…doesNotEndBeforeADigitOrALowerCaseLetter` | *art. 5*, *3.5* and *e.g. wheat* end no sentence (§2) |
-| `synthesis.OverviewCheckTest.writingWhoseEverySentenceCitesAGroupSentPasses` | no fault (§2) |
+| `synthesis.OverviewCheckTest.writingWhoseEverySentenceCitesAClusterSentPasses` | no fault (§2) |
 | `…aSentenceCitingNothingIsTurnedDown` | `CITATION_NOT_IN_RANGE`, *"sentence 2 of 3 cites no group"* (§2, §7) |
 | `…aNumberWithinTheTopicButNotSentIsTurnedDown` | groups 1, 2 and 5 sent, `[4]` cited: `CITATION_NOT_IN_RANGE`, *"citation [4] against groups 1, 2, 5 sent"* (§2, §7) |
-| `…aNumberPastEveryGroupIsTurnedDown` | the same, for `[9]` (§2) |
-| `synthesis.OverviewQuestionTest.sendsEachWrittenGroupUnderItsOwnNumberWithItsCitationsTakenOut` | groups 1, 3 and 4 sent under those numbers, titled, their writing's `[n]` gone with the blank before it, no `[2]` anywhere (§1, §2) |
+| `…aNumberPastEveryClusterIsTurnedDown` | the same, for `[9]` (§2) |
+| `…theFirstFaultInSentenceOrderIsTheOneNamed` | a first sentence citing nothing and a second citing `[9]` name the first; the two the other way round name `[9]` (§7) |
+| `synthesis.OverviewQuestionTest.sendsEachWrittenClusterUnderItsOwnNumberWithItsCitationsTakenOut` | groups 1, 3 and 4 sent under those numbers, titled, their writing's `[n]` gone with the blank before it, no `[2]` anywhere (§1, §2) |
 | `…theSecondQuestionIsTheFirstWithOneParagraphBeforeTheLast` | the second is the first with `SECOND_ASKING` and a blank line inserted before its last paragraph, word for word as §4 gives it (§4) |
 | `…asksForAtMostTheWordLimitAndNamesTheLanguageLast` | `WORD_LIMIT` is 150, the question asks for at most 150 words, and ends naming `prose` and *Italian* (§3, §4) |
 | `…theExampleShowsOnlyNumbersSent` | groups 2, 5 and 7 sent: `[2] or [5][7]`; groups 3 and 6: `[3] or [3][6]`; group 4: `[4]` (§4) |
-| `…whatFollowsTheLastGroupStaysInsideTheReserve` | the second question's words after the last group's writing are at most 128, 256 tokens at 2.0 (§4) |
+| `…whatFollowsTheLastClusterStaysInsideTheReserve` | the second question's words after the last group's writing are at most 128, 256 tokens at 2.0 (§4) |
 | `synthesis.TopicOverviewSynthesisTest.aCitationFaultIsAskedOnceMoreAndTheSecondAnswerBelieved` | an uncited first answer, then a cited one: written, asked twice, the second question carrying `SECOND_ASKING` (§4) |
 | `…turnedDownTwiceIsTheSecondAnswersFaultAfterTwoAnswers` | two uncited answers: turned down with the second's fault, asked twice, and no third answer asked for (§4, §6) |
 | `…anAnswerOutOfShapeIsNotAskedAgain` | an answer not in the shape asked for: turned down as `SCHEMA_VIOLATION`, asked once (§4) |
 | `…aCitedFirstAnswerIsAskedOnce` | written, asked once (§4) |
 | `…everyAnswerIsAskedAtTemperatureZeroWithTheSeedAndOneField` | each answering call sends temperature 0, seed 1, and a schema requiring `prose` alone (§3) |
-| `…aTopicWithNoWrittenGroupAsksNothing` | nothing to send, and no call made (§1) |
+| `…aTopicWithNoWrittenClusterAsksNothing` | nothing to send, and no call made (§1) |
+| `synthesis.TopicOverviewRoomTest.aClusterTheEngineCountsPastTheRoomIsPassedOverAndTheRestSent` | clusters 1 to 3, the first counted past the room alone: written over 2 and 3, asked once, the question sending 2 and 3 (§1) |
+| `…aClusterLongerThanTheRoomByTheEstimateIsPassedOverBeforeAnyCount` | the first cluster's title and writing over the 3,456 words the estimate has room for: written over 2 and 3, and no question counted or asked holds the first (§1) |
+| `…noClusterFittingTheRoomTurnsTheTopicDownWithTheLastCount` | two clusters each counted past the room alone: turned down as `PROMPT_EVALUATION_CEILING`, asked 0 times, the detail giving the last count, the second's (§1, §7) |
+| `…noClusterCountedTurnsTheTopicDownSayingSo` | two clusters each over the estimate's room: turned down as `PROMPT_EVALUATION_CEILING`, asked 0 times, the detail saying no cluster's writing was ever counted, and no call made (§1, §7) |
+| `…aRunThatFitsInPartIsSentByBothQuestions` | three clusters past the room together and two inside it: both questions send 1 and 2, the overview written over 1 and 2 of 3, the first count being of the second question over all three (§1, §4, §5) |
 | `deliverable.TopicOverviewWordingTest.theCodeSaysWhatTheRecordSays` | each of §5's sentences, English and Italian, word for word, the six cases being the record's and each fault kind reading as its case (§5) |
 | `…everySentenceKeepsTheRulesOfAPageWithNothingWritten` | each says topic or *argomento* and never cluster, none of the six refused words as a word, and is one line with nothing markup could be made of (§5) |
 | `TheVocabularyNamesTheTopicOverviewTest.topicOverviewIsATerm` | `CONTEXT.md` has a Topic overview entry whose `_Avoid_` line refuses *summary* (Consequences) |
