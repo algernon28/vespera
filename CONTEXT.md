@@ -353,6 +353,10 @@ _Avoid_: template, default config, bundled config
 A generated document that makes a set of survivors coherent by connecting them. Not a per-document summary — summarising each survivor separately reproduces the heap with an extra layer.
 _Avoid_: summary, digest, abstract
 
+**Topic overview**:
+The short writing stage 6b puts at the head of a topic's page: one call for each topic over the synthesis docs of its written clusters, every sentence citing a cluster by its number among the topic's clusters, and every number one the call sent (ADR-396, ADR-402). Synthesis over synthesis, accepted for a topic alone; nothing of the kind sits above the topics (ADR-113). Turned down for its citations, it is asked once more by a question with one fixed paragraph added; turned down then, or by another check, the topic's page carries a sentence in its place and the fault is recorded against the topic, and no repair pass asks it again.
+_Avoid_: summary, digest, abstract, introduction, topic synthesis doc (a synthesis doc reads documents, and an overview reads synthesis docs)
+
 **Arrangement**:
 The shape stage 6a gives the survivors: topics at the top, each survivor under its winning topic, and clusters beneath them within each topic, with at most one level between the two where a topic is crowded (ADR-396). An order over survivors, never a copy of them — a document is arranged where it belongs, not moved there. Ordered in both senses: the levels are a structure, and each level is also a sequence, chosen rather than inherited from the filesystem. The sequence is part of what the operator approves at the gate, so nothing downstream re-sorts it; the topics, the level between a topic and its clusters, and their names are shown there read-only, as topic › that level › clusters, and are neither approved nor edited. Code is not arranged: it is not a survivor, and is held in code sets instead (ADR-284), which the deliverable copies whole under `code/` (ADR-296).
 _Avoid_: page tree, hierarchy, taxonomy (the topics are inferred from the seed set's passages, not a taxonomy anyone names; the arrangement is the shape they and the clusters give the survivors)

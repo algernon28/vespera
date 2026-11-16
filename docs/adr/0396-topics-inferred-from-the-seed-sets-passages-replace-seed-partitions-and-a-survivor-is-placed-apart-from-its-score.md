@@ -2,6 +2,8 @@
 
 > **Partly amended — see [ADR-399](0399-topics-are-modularity-communities-over-a-ten-neighbour-graph-of-the-seed-passages-keyed-by-their-first-passage.md).** Of §8's table: what the stable topic key is, is ADR-399's, the seed path and chunk index of a topic's first passage in §9's order; #832 keeps the table it is stored in and the run it is written under.
 
+> **Partly amended — see [ADR-402](0402-a-topics-overview-cites-its-written-clusters-by-number-in-every-sentence-and-a-citation-fault-is-asked-once-more.md).** Of §8's table: the topic overview's row is settled there: what it reads, the numbers it cites and the check, its 150 words, the two questions, the placeholders and their Italian, and the shape of its rows, whose tables stay #832's.
+
 > **Partly amended — see [ADR-403](0403-the-generation-model-names-each-topic-at-the-head-of-the-arrangement-and-the-strongest-seeds-title-stands-in.md).** §8's row for #829 is settled there: the generation model names each topic at the head of the arrangement, under the arrangement run, from the passages nearest the topic's centroid, its strongest contributing seed being the seed feeding the most passages. Of *What this does not decide*: the deliverable language enters the arrangement run's identity, and no run's before it.
 
 - **Date**: 2026-11-15

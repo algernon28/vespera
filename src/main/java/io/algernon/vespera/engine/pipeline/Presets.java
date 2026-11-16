@@ -12,15 +12,15 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
- * The eighteen presets of ADR-330 §9, as ADR-399 amends it, as configuration names them, resolved where a run is minted and handed on: the
- * technical choices that were constants of {@code extraction}, {@code similarity} and {@code embedding}, now shipped in
- * {@code application.yaml} and overridden by Spring's own layers for a machine. It holds the profile's {@code
- * clusterResolution} over the first, where that can be acted on.
+ * The twenty presets of ADR-330 §9, as ADR-399, ADR-400 and ADR-401 amend it, as configuration names them, resolved
+ * where a run is minted and handed on: the technical choices that were constants of {@code extraction}, {@code
+ * similarity} and {@code embedding}, now shipped in {@code application.yaml} and overridden by Spring's own layers for
+ * a machine. It holds the profile's {@code clusterResolution} over the first, where that can be acted on.
  *
  * <p>It decides nothing a stage writes: {@link StageRuns} reads what it resolves as each run is minted, writes it into
- * that run's configuration where it differs from what every earlier run was minted under, and hands it to the steps that
- * use it, so the number that names the run is the number that works (ADR-117). It is a class of {@code pipeline} that
- * resolves, as {@code EmbeddingModelGate} resolves the model, and it holds no rule.
+ * that run's configuration where it differs from what every earlier run was minted under, and hands it to the steps
+ * that use it, so the number that names the run is the number that works (ADR-117). It is a class of {@code pipeline}
+ * that resolves, as {@code EmbeddingModelGate} resolves the model, and it holds no rule.
  *
  * <p><b>It reads lazily, and a bad value does not stop the context.</b> Nothing is parsed when it is built and nothing
  * is injected as a number: {@code vespera label} and {@code vespera publish} run under the same context and read no
@@ -51,6 +51,8 @@ class Presets {
     static final String DOCUMENTS_FROM_EACH_BAND = "vespera.relevance.sample.per-band";
     static final String TOPIC_NEIGHBOURS = "vespera.topics.neighbours";
     static final String TOPIC_RESOLUTION = "vespera.topics.resolution";
+    static final String TOPIC_BREADTH_FLOOR = "vespera.topics.breadth-floor";
+    static final String SEE_ALSO_SHARE = "vespera.topics.see-also-share";
 
     private static final String A_WHOLE_NUMBER = ": a whole number from 1 to 2147483647";
 
@@ -62,8 +64,8 @@ class Presets {
 
     /**
      * The line for the first value of §9's table, in its order, that no run can be made under, else empty. The
-     * configured resolution is not read where {@code profile} holds a finite number above 0 for it, which then names the
-     * run in its place; every other preset is checked whichever stage the invocation would reach.
+     * configured resolution is not read where {@code profile} holds a finite number above 0 for it, which then names
+     * the run in its place; every other preset is checked whichever stage the invocation would reach.
      */
     Optional<String> refusal(Profile profile) {
         try {
@@ -81,6 +83,8 @@ class Presets {
             sampledPerBand();
             topicNeighbours();
             topicResolution();
+            topicBreadthFloor();
+            seeAlsoShare();
             return Optional.empty();
         } catch (PresetRefusedException refused) {
             return Optional.of(refused.getMessage());
@@ -225,6 +229,25 @@ class Presets {
             // refused below
         }
         throw new PresetRefusedException(TOPIC_RESOLUTION + " is " + raw + ": a number above 0");
+    }
+
+    /** The share of the seed passages a topic must hold to stand (ADR-401). */
+    double topicBreadthFloor() {
+        String raw = text(TOPIC_BREADTH_FLOOR);
+        try {
+            double floor = Double.parseDouble(raw.trim());
+            if (floor >= 0 && floor < 1) {
+                return floor;
+            }
+        } catch (NumberFormatException notANumber) {
+            // refused below
+        }
+        throw new PresetRefusedException(TOPIC_BREADTH_FLOOR + " is " + raw + ": a number from 0 and below 1");
+    }
+
+    /** The share of a survivor's chunks a topic must be nearest to for the survivor to fit it (ADR-400). */
+    double seeAlsoShare() {
+        return cut(SEE_ALSO_SHARE);
     }
 
     private int wholeNumber(String key) {

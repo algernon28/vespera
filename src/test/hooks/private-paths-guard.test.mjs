@@ -29,6 +29,10 @@
 // trusts is run in Bash, every program the guard trusts replaced by a function that records the
 // arguments Bash gives it, and the guard's reading, which it exports as bashReading, is compared with
 // them. C792 to C803 are the forms it amends docs/adr/0351 sections 1 and 2 by.
+// docs/adr/0405 amends docs/adr/0351 section 1: gh's -b, and the -c and --comment of issue close, issue
+// reopen, pr close and pr reopen, give text and no path where the command's table has them take an
+// argument; it keeps the drive of one letter, the name made only of spaces, and the reading of a sed program
+// and of a script's source. The C81 to C85 cases are held to it.
 //
 //   node --test src/test/hooks/private-paths-guard.test.mjs
 //
@@ -2043,6 +2047,72 @@ cases.push(
   ["C525", "cd to a folder of the checkout, then git commit -m whose message holds \\| and a word that begins with a slash", "Bash", { command: 'cd src && git commit -m "Split at \\| and keep /: as written"' }, ALLOWED],
   ["C526", "git stash push -m, whose message holds a word that begins with a slash", "Bash", { command: 'git stash push -m "keep /: as written"' }, ALLOWED],
   ["C527", "time -p and --, then grep whose pattern is an alternation of two one-letter keys", "Bash", { command: "time -p -- grep -n 'x: \\|y: ' README.md" }, ALLOWED],
+);
+
+/* C81. docs/adr/0405 section 1 amends docs/adr/0351 section 1: gh's -b, the letter of --body, and the -c and
+   --comment of issue close, issue reopen, pr close and pr reopen give gh text, which it posts and opens no
+   file by, so their argument is not read as a path. C811 is the command issue #765 adds: on Windows its
+   "A:" and "B:" were read as drives of one letter. C811 to C815 were refused on Windows before this
+   record, and C816 and C817 everywhere, each for its comment's or body's text read as a path. */
+cases.push(
+  ["C811", "gh issue close --comment whose prose holds one letter, a colon and a space", "Bash", { command: 'gh issue close 765 --repo algernon28/vespera --comment "Done on main. Part A: ADR-370 and part B: the rest."' }, ALLOWED],
+  ["C812", "gh pr close -c whose prose holds one letter, a colon and a space", "Bash", { command: "gh pr close 5 -c 'Part A: superseded.'" }, ALLOWED],
+  ["C813", "gh issue reopen --comment= whose prose holds one letter and a colon", "Bash", { command: "gh issue reopen 5 --comment='A: reopened.'" }, ALLOWED],
+  ["C814", "gh pr reopen -R and its repository, then -c whose prose holds one letter, a colon and a space", "Bash", { command: 'gh pr reopen 5 -R o/r -c "Part A: reopened."' }, ALLOWED],
+  ["C815", "gh issue comment -b, the letter of --body, whose prose holds one letter, a colon and a space", "Bash", { command: 'gh issue comment 5 -b "Part A: done."' }, ALLOWED],
+  ["C816", "gh issue close --comment whose prose names a climb out of the checkout", "Bash", { command: 'gh issue close 5 --comment "Compare it with ../outside/doc.txt."' }, ALLOWED],
+  ["C817", "gh pr create -b whose prose names a climb out of the checkout", "Bash", { command: "gh pr create --title t -b 'Refs ../outside/doc.txt'" }, ALLOWED],
+);
+
+/* C82. docs/adr/0405 sections 2 and 3: what issue #765 asks that the guard already reads as no path it
+   refuses, held so it stays so. A regex literal in a single-quoted grep pattern or awk program (docs/adr/0351
+   section 2; C502 is the awk one); a lone slash and two stars, or a star and a slash, in a script's source or
+   an echo, where no space stands between it and a separator or the string's edge; and the way around the drive
+   of one letter in a lambda, a parameter of more letters than one. */
+cases.push(
+  ["C821", "grep whose single-quoted pattern is a regex literal of seven > and a space", "Bash", { command: "grep -c '/^>>>>>>> /' README.md" }, ALLOWED],
+  ["C822", "python -c whose source holds a comment block, its /** and */ each on a line of its own", "Bash", { command: "python -c \"s = '''\n/**\n * A comment.\n */\n'''\"" }, ALLOWED],
+  ["C823", "node -e whose source is a lone /**", "Bash", { command: 'node -e "/**"' }, ALLOWED],
+  ["C824", "echo of a lone */", "Bash", { command: "echo '*/'" }, ALLOWED],
+  ["C825", "node -e whose source holds a regex literal of seven > and a space", "Bash", { command: "node -e \"x.replace(/^>>>>>>> /, '')\"" }, ALLOWED],
+  ["C826", "python -c whose lambda's parameter has two letters, so no drive heads it", "Bash", { command: 'python -c "f = lambda mo: mo.group(0)"' }, ALLOWED],
+);
+
+/* C83. docs/adr/0405 section 1: only the flags the record names give text, and only where the command's
+   table has them take an argument; everything else is read as before. */
+cases.push(
+  ["C831", "gh pr review --comment, which takes no argument, then a file outside the allow list", "Bash", { command: "gh pr review 5 --comment '../outside/doc.txt'" }, REFUSED],
+  ["C832", "gh pr view -c, which takes no argument, then a file outside the allow list", "Bash", { command: "gh pr view 5 -c '../outside/doc.txt'" }, REFUSED],
+  ["C833", "gh issue close -R, which takes --comment as its value, then a file outside the allow list", "Bash", { command: "gh issue close 5 -R --comment ../outside/doc.txt" }, REFUSED],
+  ["C834", "gh issue close --duplicate-of, which gives no text, of a climb out of the checkout", "Bash", { command: "gh issue close 5 --duplicate-of ../outside/doc.txt" }, REFUSED],
+  ["C835", "gh issue close --comment, then a file outside the allow list after its text", "Bash", { command: "gh issue close 5 --comment 'done' ../outside/doc.txt" }, REFUSED],
+  ["C836", "gh issue close --comment of a command substitution that reads a file outside the allow list", "Bash", { command: 'gh issue close 5 --comment "$(cat ../outside/doc.txt)"' }, REFUSED],
+  ["C837", "gh issue close --comment whose text names the allow list, which the text rule still reads", "Bash", { command: "gh issue close 5 --comment 'See .claude/allowed-paths.txt.'" }, REFUSED],
+  ["C838", "gh issue close -r, whose reason is no text the record names, holding one letter and a colon", "Bash", { command: "gh issue close 5 -r 'A: x'" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["C839", "gh close, a path the table does not hold, whose --comment is not taken out", "Bash", { command: "gh close 5 --comment '../outside/doc.txt'" }, REFUSED],
+);
+
+/* C84. docs/adr/0405 sections 2 to 4: the shapes of issue #765 the record keeps refused. A drive of one
+   letter heads a token wherever the guard reads one, a name made only of spaces is refused on Windows, a sed
+   program and a script's source are read, and so is prose in a command that is not gh's or in PowerShell. */
+cases.push(
+  ["C841", "python -c whose lambda is written m:m.group, a name in drive M's current folder", "Bash", { command: "python -c \"import re; print(re.sub('a', lambda m:m.group(0), 'a'))\"" }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["C842", "python -c whose lambda is written m: m.group, m: being drive M's current folder", "Bash", { command: 'python -c "f = lambda m: m.group(0)"' }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["C843", "echo of prose that holds one letter, a colon and a space", "Bash", { command: 'echo "Done on main. Part A: ADR-370."' }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["C844", "gh issue close --comment whose prose holds one letter, a colon and a space, in PowerShell", "PowerShell", { command: 'gh issue close 5 --comment "Part A: done."' }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+  ["C845", "gh issue close --comment whose prose names a climb out of the checkout, in PowerShell", "PowerShell", { command: 'gh issue close 5 --comment "Compare it with ../outside/doc.txt."' }, REFUSED],
+  ["C846", "echo of a /** with a space before it at the head of a quoted string", "Bash", { command: 'echo " /** "' }, REFUSED, { windows: NOT_SPACES_ELSEWHERE }],
+  ["C847", "echo of a */ with a space after it at the end of a quoted string", "Bash", { command: "echo 'x */ '" }, REFUSED, { windows: NOT_SPACES_ELSEWHERE }],
+  ["C848", "sed whose program prints the lines of seven > and a space, its /p read as Git Bash's drive P", "Bash", { command: "sed -n '/^>>>>>>> /p' README.md" }, REFUSED, { windows: ONLY_WINDOWS.gitBash }],
+  ["C849", "sed whose program reads a file outside the allow list by r", "Bash", { command: "sed '/^x/r ../outside/doc.txt' README.md" }, REFUSED],
+  ["C850", "node -e whose source reads a file outside the allow list", "Bash", { command: "node -e \"require('fs').readFileSync('../outside/doc.txt')\"" }, REFUSED],
+  ["C851", "python -c whose source opens a file on a drive no allowed root is on", "Bash", { command: `python -c "open('${NO_DRIVE}').read()"` }, REFUSED, { windows: ONLY_WINDOWS.drive }],
+);
+
+/* C85. docs/adr/0405 section 1: a flag of a text flag's name that takes no argument gives no text, written
+   with an = too. pr review's --comment takes none, so its value after = is read as before. */
+cases.push(
+  ["C852", "gh pr review --comment=, whose --comment takes no argument, of a climb out of the checkout", "Bash", { command: "gh pr review 5 --comment=../outside/doc.txt" }, REFUSED],
 );
 
 for (const [id, what, tool, input, expected, options = {}] of cases) {

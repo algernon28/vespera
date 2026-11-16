@@ -2904,6 +2904,37 @@ public final class Adr {
             + "0399-topics-are-modularity-communities-over-a-ten-neighbour-graph-of-the-seed-passages-keyed-by-their-first-passage.md";
 
     /**
+     * ADR-400 -- a survivor's winning topic is the topic whose centroid its chunks are nearest to on average, read off
+     * the cosines the relevance score takes and divided by one length per topic, ties to the first key, every scored
+     * document placed; it fits each other topic at least 15% of its chunks are nearest to, the preset
+     * {@code vespera.topics.see-also-share}, with no cap; placement is read in the relevance-scoring pass and the share
+     * enters the embedding-scoring run where it is not 0.15 (amends ADR-330 §8 and §9).
+     */
+    public static final String THE_WINNING_TOPIC_IS_THE_CENTROID_ITS_CHUNKS_ARE_NEAREST_ON_AVERAGE = FILE
+            + "0400-a-survivor-goes-to-the-topic-its-chunks-are-nearest-on-average-and-is-linked-from-one-15-per-cent-of-them-are-nearest.md";
+
+    /**
+     * ADR-401 -- a topic stands where its share of every passage feeding the topics, a copy of an earlier seed adding
+     * none, is at least the breadth floor, a share alone shipped at 0.005 as the preset {@code
+     * vespera.topics.breadth-floor} with no profile key; a topic under it is dropped and its passages feed no topic; a
+     * seed none of whose passages lies in a topic that stands is listed in seed-path order, with any later seed of its
+     * content; the floor enters the embedding-scoring run where it is not 0.005 (amends ADR-330 §8 and §9).
+     */
+    public static final String A_TOPIC_UNDER_THE_BREADTH_FLOOR_IS_DROPPED = FILE
+            + "0401-a-topic-holding-under-half-of-one-percent-of-the-seed-passages-is-dropped-and-a-seed-feeding-none-is-listed.md";
+
+    /**
+     * ADR-402 -- a topic's overview is one call over the writing of its written clusters, each under its number among
+     * the topic's clusters, their own citations taken out; every sentence cites, and every citation is a number sent;
+     * a sentence ends before a capital, not after initials or a title; at most 150 words, temperature 0 and seed 1, one
+     * field; a citation fault is asked once more with one fixed paragraph, other faults not; a placeholder sentence per
+     * case in English and Italian; asked once its clusters are settled, never by a repair pass (amends ADR-109, ADR-111,
+     * ADR-319 section 2 and ADR-321 section 4).
+     */
+    public static final String A_TOPICS_OVERVIEW_CITES_ITS_WRITTEN_CLUSTERS = FILE
+            + "0402-a-topics-overview-cites-its-written-clusters-by-number-in-every-sentence-and-a-citation-fault-is-asked-once-more.md";
+
+    /**
      * ADR-403 -- the generation model names each topic at the head of the arrangement step, under the arrangement run,
      * whose identity gains the model, its digest, the options sent and the deliverable language; it is sent the topic's
      * passages nearest its centroid first, up to 1,500 words, at temperature 0 and seed 1; a name is used where it is
@@ -2912,6 +2943,16 @@ public final class Adr {
      */
     public static final String THE_GENERATION_MODEL_NAMES_EACH_TOPIC = FILE
             + "0403-the-generation-model-names-each-topic-at-the-head-of-the-arrangement-and-the-strongest-seeds-title-stands-in.md";
+
+    /**
+     * ADR-405 -- in a Bash command the private-paths guard reads as no path the argument of gh's {@code -b}, the
+     * letter of {@code --body}, and of the {@code -c} and {@code --comment} of {@code issue close}, {@code issue
+     * reopen}, {@code pr close} and {@code pr reopen}, each where the command's table has it take an argument; it
+     * keeps ADR-196's drive of one letter ({@code m:m.group}, {@code A:} in prose elsewhere), ADR-217's name made
+     * only of spaces, and the reading of a {@code sed} program and of a script's source (amends ADR-351 §1).
+     */
+    public static final String THE_GUARD_READS_A_GH_COMMENT_AS_NO_PATH = FILE
+            + "0405-the-private-paths-guard-reads-a-gh-comment-as-no-path-and-keeps-the-drive-of-one-letter-and-the-name-of-spaces.md";
 
     private Adr() {
     }
