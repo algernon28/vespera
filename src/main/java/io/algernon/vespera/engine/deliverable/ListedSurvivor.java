@@ -4,6 +4,7 @@ import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.OccurrencePath;
 import io.algernon.vespera.engine.synthesis.ClusterSlot;
 import io.algernon.vespera.engine.synthesis.TopicKey;
+import java.util.Optional;
 import java.util.OptionalInt;
 
 /**
@@ -37,7 +38,7 @@ public record ListedSurvivor(
         OccurrenceId occurrence,
         OccurrencePath path,
         String contentHash,
-        OccurrenceId winningSeed,
+        Optional<OccurrenceId> winningSeed,
         TopicKey topic,
         String topicName,
         OptionalInt subtopic,
@@ -58,7 +59,7 @@ public record ListedSurvivor(
             OccurrenceId occurrence,
             OccurrencePath path,
             String contentHash,
-            OccurrenceId winningSeed,
+            Optional<OccurrenceId> winningSeed,
             TopicKey topic,
             String topicName,
             OptionalInt subtopic,

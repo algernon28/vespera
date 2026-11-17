@@ -350,7 +350,8 @@ class GenerationTasklet implements Tasklet {
                                 String topicName = topicNames
                                         .ofTopic(arrangement, topic)
                                         .map(GivenName::name)
-                                        .orElse(topic.shown());
+                                        .orElseThrow(() -> new IllegalStateException("no name is recorded for topic "
+                                                + topic.shown() + " under arrangement " + arrangement.value()));
                                 return new ClusterMaterial(topicName, ClusterExemplars.gathered(
                                         held.getOrDefault(ClusterSlot.of(recorded), List.of()).stream()
                                                 .map(DocumentCluster::occurrenceId)
@@ -487,7 +488,8 @@ class GenerationTasklet implements Tasklet {
             String topicName = topicNames
                     .ofTopic(arrangement, topic)
                     .map(GivenName::name)
-                    .orElse(topic.shown());
+                    .orElseThrow(() -> new IllegalStateException("no name is recorded for topic "
+                            + topic.shown() + " under arrangement " + arrangement.value()));
             TopicOverviewOutcome outcome = topicOverviewSynthesis.overviewFor(
                     new OverviewCall(topicName, written), modelName, contextWindow, language);
             if (outcome instanceof TopicOverviewOutcome.Written overview) {
@@ -1199,7 +1201,7 @@ class GenerationTasklet implements Tasklet {
                     member.occurrenceId(),
                     path,
                     contentKeys.get(member.occurrenceId()),
-                    winningSeeds.get(member.occurrenceId()),
+                    Optional.ofNullable(winningSeeds.get(member.occurrenceId())),
                     topic,
                     topicNameOf.apply(topic),
                     member.subtopic(),

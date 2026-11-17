@@ -3,9 +3,11 @@ package io.algernon.vespera.engine.deliverable;
 import io.algernon.vespera.engine.synthesis.ArrangedCluster;
 import io.algernon.vespera.engine.synthesis.ClusterSlot;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
+import io.algernon.vespera.engine.synthesis.TopicKey;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -45,7 +47,7 @@ final class ManifestCsv {
     static void write(Appendable csv, ArrangedSurvivors source, DeliverableProgress progress, Copies copies)
             throws IOException {
         csv.append(HEADER).append('\n');
-        Map<ClusterSlot, Integer> sequence = sequencePlaces(source);
+        Map<SubtopicKey, Integer> sequence = sequenceOffsets(source);
         try {
             source.eachPageOfSurvivorsForTheManifest(page -> {
                 Set<ClusterSlot> clusters = new LinkedHashSet<>();
@@ -66,25 +68,41 @@ final class ManifestCsv {
     }
 
     /**
-     * The place in its topic's one sequence of each cluster of a crowded topic, the number its folder carries
-     * (ADR-409 section 10), so that the listing tells the topic's clusters apart as the tree does; a topic with no
+     * For each subtopic of a crowded topic, how many of the topic's clusters lie before it in the topic's one
+     * sequence (ADR-409 section 10). A row's place in that sequence, the number its cluster's folder carries, is
+     * this offset plus the cluster's order within its subtopic, so that the listing tells the topic's clusters apart
+     * as the tree does. One number is held for each subtopic and a topic is read at a time; a topic with no
      * subtopics has none here and its rows keep the places the arrangement stored.
      */
-    private static Map<ClusterSlot, Integer> sequencePlaces(ArrangedSurvivors source) {
-        Map<ClusterSlot, Integer> places = new java.util.HashMap<>();
+    private static Map<SubtopicKey, Integer> sequenceOffsets(ArrangedSurvivors source) {
+        Map<SubtopicKey, Integer> offsets = new java.util.HashMap<>();
         for (ListedTopic topic : source.topics()) {
-            for (RecordedCluster recorded : Deliverable.inOneSequence(source.clustersOf(topic))) {
-                if (recorded.cluster().subtopic().isPresent()) {
-                    places.put(ClusterSlot.of(recorded), recorded.cluster().clusterOrder());
+            List<RecordedCluster> sequence = Deliverable.inOneSequence(source.clustersOf(topic));
+            for (int place = 0; place < sequence.size(); place++) {
+                ArrangedCluster cluster = sequence.get(place).cluster();
+                if (cluster.subtopic().isPresent()) {
+                    offsets.putIfAbsent(new SubtopicKey(cluster.topic(), cluster.subtopic().getAsInt()), place);
                 }
             }
         }
-        return places;
+        return offsets;
+    }
+
+    private record SubtopicKey(TopicKey topic, int subtopic) {}
+
+    /** The survivor's place in its topic's one sequence where its topic is crowded, otherwise {@code stored}. */
+    private static int placeInSequence(
+            Map<SubtopicKey, Integer> offsets, ListedSurvivor survivor, ArrangedCluster cluster, int stored) {
+        if (survivor.subtopic().isEmpty()) {
+            return stored;
+        }
+        Integer offset = offsets.get(new SubtopicKey(survivor.topic(), survivor.subtopic().getAsInt()));
+        return offset == null ? stored : offset + cluster.clusterOrder();
     }
 
     private static void append(
             Appendable csv, ListedSurvivor survivor, Map<ClusterSlot, ArrangedCluster> places,
-            Map<ClusterSlot, Integer> sequence, CopyOutcome outcome, Copies copies)
+            Map<SubtopicKey, Integer> sequence, CopyOutcome outcome, Copies copies)
             throws IOException {
         ArrangedCluster cluster = Optional.ofNullable(places.get(survivor.slot()))
                 .orElseThrow(() ->
@@ -103,17 +121,18 @@ final class ManifestCsv {
                 .append(',')
                 .append(survivor.contentHash())
                 .append(',')
-                .append(String.valueOf(survivor.winningSeed().value()))
+                // A member with no score on record has no winning seed on record (ADR-226): its cell is empty.
+                .append(survivor.winningSeed().map(seed -> String.valueOf(seed.value())).orElse(""))
                 .append(',')
                 .append(String.valueOf(survivor.score()))
                 .append(',')
                 .append(cell(survivor.topicName()))
                 .append(',')
-                .append(String.valueOf(sequence.getOrDefault(survivor.slot(), survivor.clusterOrdinal())))
+                .append(String.valueOf(placeInSequence(sequence, survivor, cluster, survivor.clusterOrdinal())))
                 .append(',')
                 .append(String.valueOf(cluster.topicOrder()))
                 .append(',')
-                .append(String.valueOf(sequence.getOrDefault(survivor.slot(), cluster.clusterOrder())))
+                .append(String.valueOf(placeInSequence(sequence, survivor, cluster, cluster.clusterOrder())))
                 .append(',')
                 .append(outcome == CopyOutcome.COPIED ? cell(copies.pathOf(survivor)) : "")
                 .append(',')

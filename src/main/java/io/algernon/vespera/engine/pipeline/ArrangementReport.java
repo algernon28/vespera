@@ -239,18 +239,21 @@ final class ArrangementReport {
     /** The page's name in {@code Reports.ALL}, and its JSON's without the ending (ADR-362 section 9). */
     static final String NAME = StepNames.ARRANGEMENT;
 
+    /** The format of {@code arrangement.json} (ADR-409 section 7), raised by a change that removes, renames or retypes a field. */
+    static final int FORMAT = 2;
+
     private static final List<AnalysisReportJson.Column> COLUMNS = List.of(
             new AnalysisReportJson.Column("group", "Group", "text"),
             new AnalysisReportJson.Column("documents", "Documents", "count"),
             new AnalysisReportJson.Column("namedAfter", "Named after", "path"));
 
     /**
-     * What the page shows, as JSON (ADR-362 section 9), begun: the sections that stand before the first partition,
-     * the approval name among them. Written beside the page, a partition at a time, and ended by {@link #closeJson}.
+     * What the page shows, as JSON (ADR-362 section 9), begun: the sections that stand before the first topic,
+     * the approval name among them. Written beside the page, a topic at a time, and ended by {@link #closeJson}.
      */
     static AnalysisReportJson openJson(Writer json, String approvalName, String corpusRoot, Instant writtenAt)
             throws IOException {
-        AnalysisReportJson report = AnalysisReportJson.begin(json, NAME, TITLE, writtenAt);
+        AnalysisReportJson report = AnalysisReportJson.begin(json, FORMAT, NAME, TITLE, writtenAt);
         report.section(
                 "overview",
                 TITLE,
