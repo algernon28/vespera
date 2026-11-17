@@ -1,4 +1,4 @@
-# ADR-411 — ADR-399, ADR-400 and ADR-401 move seed measurement, ADR-406's code is `TopicDivision` alone, and its floor is not shown in the control panel
+# ADR-411 — ADR-399, ADR-400 and ADR-401 move seed measurement, ADR-406's code touches `embedding` in `TopicDivision` alone, and its floor is not shown in the control panel
 
 - **Date**: 2026-11-17
 - **Status**: accepted on 2026-11-17.
