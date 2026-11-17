@@ -120,10 +120,13 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         try (WindowForTests window = WindowForTests.shown(state)) {
             Optional<String> refusal = state.start(ControlPanelState.Start.RUN, new ArrayList<>());
             assumeThat(refusal).as("the child that ends at once is started").isEmpty();
+            // the wanted rows are drawn as the window opens (ADR-404 §1), so only the ending says the child has ended
+            assumeThat(WindowForTests.within(() -> state.ending().isPresent()))
+                    .as("the child that ends at once has ended").isTrue();
             boolean drawn = window.awaiting(
                     root -> HeadlessToolkit.nodeWithId(root, "wanted-row-boilerplateDocumentFrequencyFloor").isPresent(),
                     Boolean::booleanValue);
-            assumeThat(drawn).as("the wanted value's row is drawn once the invocation has ended").isTrue();
+            assumeThat(drawn).as("the wanted value's row is drawn").isTrue();
             reached = new ArrayList<>(window.read(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl));
             // the profile's form lies in a window of its own, walked from its root as the window is (ADR-389 §7),
             // every profile row opened, so that the walk reaches the texts behind each toggle

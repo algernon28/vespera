@@ -375,10 +375,13 @@ class TheProfileRowIsOneLineTest {
         try (WindowForTests window = WindowForTests.shown(state)) {
             assumeThat(state.start(ControlPanelState.Start.RUN, new ArrayList<>()))
                     .as("the child that ends at once is started").isEmpty();
+            // the wanted rows are drawn as the window opens (ADR-404 §1), so only the ending says the child has ended
+            assumeThat(WindowForTests.within(() -> state.ending().isPresent()))
+                    .as("the child that ends at once has ended").isTrue();
             boolean drawn = window.awaiting(
                     root -> HeadlessToolkit.nodeWithId(root, "wanted-row-" + A_FLOOR.key()).isPresent(),
                     Boolean::booleanValue);
-            assumeThat(drawn).as("the wanted value's row is drawn once the invocation has ended").isTrue();
+            assumeThat(drawn).as("the wanted value's row is drawn").isTrue();
             window.act(root -> {
                 TitledPane section = WindowForTests.node(root, "seed-folder", TitledPane.class);
                 section.setAnimated(false);

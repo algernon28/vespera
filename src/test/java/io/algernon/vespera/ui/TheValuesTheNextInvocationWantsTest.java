@@ -62,16 +62,22 @@ class TheValuesTheNextInvocationWantsTest {
         Stated first;
         Stated second;
         String[] tooltip = new String[1];
+        String[] firstOutcome = new String[1];
         String[] outcome = new String[1];
         try (WindowForTests window = WindowForTests.shown(state)) {
             assumeThat(state.start(ControlPanelState.Start.RUN, new ArrayList<>()))
                     .as("the child that ends at once is started").isEmpty();
+            // the wanted rows are drawn as the window opens (ADR-404 §1), so only the ending says the window's own
+            // child no longer runs, and a Save pressed before it writes nothing (ADR-295 §1; issue #869)
+            assumeThat(WindowForTests.within(() -> state.ending().isPresent()))
+                    .as("the child that ends at once has ended").isTrue();
             boolean drawn = window.awaiting(root -> HeadlessToolkit.nodeWithId(root, id).isPresent(),
                     Boolean::booleanValue);
-            assumeThat(drawn).as("the wanted value's row is drawn once the invocation has ended").isTrue();
+            assumeThat(drawn).as("the wanted value's row is drawn").isTrue();
             window.act(root -> {
                 WindowForTests.node(root, id, Spinner.class).getEditor().setText("0.5");
                 WindowForTests.node(root, "wanted-save", Button.class).fire();
+                firstOutcome[0] = WindowForTests.node(root, "outcome", TextInputControl.class).getText();
             });
             first = savedIn(working);
             window.act(root -> {
@@ -86,6 +92,8 @@ class TheValuesTheNextInvocationWantsTest {
 
         claim("the first Save writes the value with the filled-in words",
                 () -> assertThat(first).isEqualTo(new Stated("0.5", FILLED_IN)));
+        claim("and says it saved it",
+                () -> assertThat(firstOutcome[0]).startsWith(WANTED.key() + " saved in "));
         claim("the row, loaded again, has its title's tooltip end by saying the value was set in the control panel",
                 () -> assertThat(tooltip[0]).endsWith("\n\nWhere this value came from: " + FILLED_IN));
         claim("the second Save writes the second value",
