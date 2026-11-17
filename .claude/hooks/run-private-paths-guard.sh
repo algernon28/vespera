@@ -4,6 +4,8 @@
 # Code treats as non-blocking, so the call would go through unguarded. So: the worktree's own copy,
 # else the main checkout's, else refuse. The command registered in .claude/settings.json starts this script
 # and maps any exit code of it but 0 to 2, so this script failing to run refuses too.
+#!/usr/bin/env bash
+#!/usr/bin/env bash
 input=$(cat)
 guard="$CLAUDE_PROJECT_DIR/.claude/hooks/private-paths-guard.mjs"
 if [ ! -f "$guard" ]; then
@@ -18,4 +20,8 @@ printf '%s' "$input" | node "$guard"
 status=$?
 # Anything but a clean pass or a refusal is the guard failing to run: refuse rather than let it through.
 [ "$status" -eq 0 ] || [ "$status" -eq 2 ] || { echo "Refused: the private-paths guard failed (exit $status)." >&2; exit 2; }
+if [ "$status" -eq 0 ]; then
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse"}}\n'
+fi
 exit "$status"
+

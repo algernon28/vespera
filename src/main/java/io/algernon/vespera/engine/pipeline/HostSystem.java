@@ -33,6 +33,16 @@ enum HostSystem {
         return inTheEngine(wslDistribution, List.of("docker", "version", "--format", "{{.Server.Version}}"));
     }
 
+    /** The check for Compose, {@code docker compose version}, inside WSL on Windows (ADR-410 §1). */
+    List<String> composeCheck(String wslDistribution) {
+        return inTheEngine(wslDistribution, List.of("docker", "compose", "version"));
+    }
+
+    /** The check for buildx, {@code docker buildx version}, inside WSL on Windows (ADR-410 §1). */
+    List<String> buildxCheck(String wslDistribution) {
+        return inTheEngine(wslDistribution, List.of("docker", "buildx", "version"));
+    }
+
     /** The one command that starts the engine (ADR-390 §2). */
     List<String> engineStart(String wslDistribution) {
         return switch (this) {
