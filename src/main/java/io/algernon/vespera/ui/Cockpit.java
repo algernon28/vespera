@@ -203,8 +203,9 @@ final class Cockpit {
         publishTo.getStyleClass().add("spaced-row");
         actions.getChildren().addAll(run, stop, shutDownDocker, publishTo);
         actions.getStyleClass().add("actions");
-        SelectableText.Wrapping recordWords = SelectableText.wrapping("You answered in relevance-labels.yaml, and this saves those answers"
-                + " for the next Run.");
+        SelectableText.Wrapping recordWords = SelectableText.wrapping("Press this after you have answered the documents in relevance-labels.yaml, in the working"
+                + " directory, by setting each one's relevant to true or false. It saves your answers; it reads no"
+                + " document and answers nothing itself. Then press Run.");
         SelectableText.Wrapping autoWords = SelectableText.wrapping("");
         autoWords.setId("label-auto-words");
         fields.get("vespera.label.model").input.textProperty().addListener(
