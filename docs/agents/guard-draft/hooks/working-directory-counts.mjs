@@ -235,13 +235,15 @@ function countRecords(db) {
   for (const row of rows("SELECT run_id, category, COUNT(*) AS n FROM extraction_fault GROUP BY run_id, category")) {
     add("extraction-faults", [["run", runId(row.run_id)], ["category", failureCategory(row.category)]], row.n);
   }
-  for (const row of rows("SELECT run_id, COUNT(*) AS n FROM cluster GROUP BY run_id")) {
+  // The cluster tables keyed by a topic (docs/adr/0409 section 3). A database an earlier build wrote keeps cluster,
+  // synthesis_doc and cluster_fault, and their rows are not counted: no statement names them (ADR-409 section 11).
+  for (const row of rows("SELECT run_id, COUNT(*) AS n FROM arranged_cluster GROUP BY run_id")) {
     add("clusters", [["run", runId(row.run_id)]], row.n);
   }
-  for (const row of rows("SELECT run_id, COUNT(*) AS n FROM synthesis_doc GROUP BY run_id")) {
+  for (const row of rows("SELECT run_id, COUNT(*) AS n FROM cluster_synthesis_doc GROUP BY run_id")) {
     add("synthesis-docs", [["run", runId(row.run_id)]], row.n);
   }
-  for (const row of rows("SELECT run_id, kind, COUNT(*) AS n FROM cluster_fault GROUP BY run_id, kind")) {
+  for (const row of rows("SELECT run_id, kind, COUNT(*) AS n FROM standing_cluster_fault GROUP BY run_id, kind")) {
     add("cluster-faults", [["run", runId(row.run_id)], ["kind", clusterFaultKind(row.kind)]], row.n);
   }
 }

@@ -115,7 +115,7 @@ class TheDeliverableLanguageInvocationTest {
                 () -> assertThat(runs).hasSize(TWO_GENERATION_RUNS).doesNotHaveDuplicates());
         claim(
                 "the second records English, the language an empty key means",
-                () -> assertThat(settingsOf(runs.getLast())).endsWith(",\"deliverableLanguage\":\"en\"}"));
+                () -> assertThat(settingsOf(runs.getLast())).contains(",\"deliverableLanguage\":\"en\","));
         claim(
                 "and every group was asked for again, in English",
                 () -> assertThat(GenerationScriptedBeans.promptsSent()).isNotEmpty().allSatisfy(question ->
