@@ -539,7 +539,7 @@ public final class Deliverable {
      * folders are numbered and padded over the topic's clusters (ADR-409 section 10); a topic with no subtopics keeps the
      * places the arrangement stored.
      */
-    private static List<RecordedCluster> inOneSequence(List<RecordedCluster> clusters) {
+    static List<RecordedCluster> inOneSequence(List<RecordedCluster> clusters) {
         if (clusters.stream().noneMatch(recorded -> recorded.cluster().subtopic().isPresent())) {
             return clusters;
         }

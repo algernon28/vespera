@@ -346,7 +346,12 @@ class GenerationTasklet implements Tasklet {
                                     heldFor[0] = topic;
                                 }
                                 // Each member's score is read by its key as the member is reached (ADR-223 section 5).
-                                return new ClusterMaterial(topic.seedPath(), ClusterExemplars.gathered(
+                                // The question names the topic by the name recorded for it, never by its seed (ADR-409 section 6).
+                                String topicName = topicNames
+                                        .ofTopic(arrangement, topic)
+                                        .map(GivenName::name)
+                                        .orElse(topic.shown());
+                                return new ClusterMaterial(topicName, ClusterExemplars.gathered(
                                         held.getOrDefault(ClusterSlot.of(recorded), List.of()).stream()
                                                 .map(DocumentCluster::occurrenceId)
                                                 .toList(),

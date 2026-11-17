@@ -805,7 +805,7 @@ public class ClusterSynthesis {
         return """
                 Write one connected piece over a group of %d document(s) from an archive.
 
-                The group is called "%s", and it sits under the seed document "%s".
+                The group is called "%s", and it sits under the topic "%s".
 
                 Each document opens below under the number to cite it by.
 

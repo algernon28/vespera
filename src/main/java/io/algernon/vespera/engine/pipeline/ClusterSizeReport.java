@@ -28,34 +28,31 @@ final class ClusterSizeReport {
     static final String NAME = "cluster-sizes";
 
     /** The format of {@code cluster-sizes.json}, raised by a change that removes, renames or retypes a field. */
-    static final int FORMAT = 1;
+    static final int FORMAT = 2;
 
     /** The page's title and first heading, and its JSON's {@code title} (ADR-377 §5). */
     private static final String TITLE = "Group sizes";
 
     private static final String INTRO =
-            "Each document was matched to one exemplar, and the"
-            + " documents matched to the same exemplar were then grouped among themselves"
-            + " by how alike they are. Nobody said how many groups to look for: the groups"
-            + " are whatever the documents turned out to form, and this page is what they"
-            + " turned out to be. Nothing here was removed, merged or renamed.";
+            "Each document was placed under one topic, and the documents placed under the same topic were then"
+            + " grouped among themselves by how alike they are, within each of its subtopics where a crowded topic"
+            + " is divided. Nobody said how many groups to look for: the groups are whatever the documents turned"
+            + " out to form, and this page is what they turned out to be. Nothing here was removed, merged or"
+            + " renamed. Each topic's row names it by the seed document its first passage is in, and that"
+            + " passage's number, counted from 0.";
 
     private static final String NONE =
-            "No document was matched to an exemplar, so there was nothing"
-            + " to group.";
+            "No document was placed under a topic, so there was nothing to group.";
 
     private static final String GROUPS_OF_ONE =
-            "<em>Groups of one</em> is the number to look at first. A"
-            + " document alone in its group is a real answer rather than a mistake: it"
-            + " means the exemplar collected that document on its own merits and not"
-            + " because it belongs with the others. An exemplar whose documents are nearly"
-            + " all alone is telling you something about the exemplar, and no amount of"
-            + " regrouping would change it.";
+            "<em>Groups of one</em> is the number to look at first. A document alone in its group is a real answer"
+            + " rather than a mistake: it means the document was placed under the topic on its own merits and not"
+            + " because it belongs with the others. A topic whose documents are nearly all alone is telling you"
+            + " something about the topic, and no amount of regrouping would change it.";
 
     private static final String MIDDLE =
-            "The <em>middle group</em> sits halfway up the sizes,"
-            + " which says more than an average would: one group holding most of an"
-            + " exemplar's documents pulls an average upwards and leaves the impression of"
+            "The <em>middle group</em> sits halfway up the sizes, which says more than an average would: one group"
+            + " holding most of a topic's documents pulls an average upwards and leaves the impression of"
             + " evenly-sized groups that are not there.";
 
     private static final String LINKS =
@@ -68,7 +65,7 @@ final class ClusterSizeReport {
 
     private static final String STRONGEST =
             "<b>That is why the strongest link is worth reading"
-            + " first.</b> If even it is low, the documents in that exemplar's groups were"
+            + " first.</b> If even it is low, the documents in that topic's groups were"
             + " put together for want of anything better and not because they resemble one"
             + " another, and the groups will read as lists of unrelated documents under one"
             + " heading. Where the weakest link is already high, the documents genuinely"
@@ -78,7 +75,7 @@ final class ClusterSizeReport {
             + " whoever has read the documents.";
 
     private static final String ONE_DOCUMENT =
-            "An exemplar with one document has no link at all, shown"
+            "A topic with one document has no link at all, shown"
             + " as <code>&mdash;</code>: there is no pair for a number to describe.";
 
     private static final String CANNOT_SEE =
@@ -145,7 +142,7 @@ final class ClusterSizeReport {
         List<AnalysisReportJson.Section> sections = new ArrayList<>();
         if (partitions.isEmpty()) {
             intro.add(plain(NONE));
-            sections.add(new AnalysisReportJson.Section("partitions", TITLE, intro, null, null));
+            sections.add(new AnalysisReportJson.Section("topics", TITLE, intro, null, null));
             return new AnalysisReportJson.Document(FORMAT, NAME, TITLE, writtenAt, headline(partitions), sections);
         }
         List<List<Object>> rows = new ArrayList<>();
@@ -163,7 +160,7 @@ final class ClusterSizeReport {
             rows.add(row);
         }
         List<AnalysisReportJson.Column> columns = List.of(
-                new AnalysisReportJson.Column("exemplar", "Exemplar", "path"),
+                new AnalysisReportJson.Column("topic", "Topic", "text"),
                 new AnalysisReportJson.Column("documents", "Documents", "count"),
                 new AnalysisReportJson.Column("groups", "Groups", "count"),
                 new AnalysisReportJson.Column("largest-group", "Largest group", "count"),
@@ -173,7 +170,7 @@ final class ClusterSizeReport {
                 new AnalysisReportJson.Column("middle-link", "Middle link", "number"),
                 new AnalysisReportJson.Column("strongest-link", "Strongest link", "number"));
         sections.add(new AnalysisReportJson.Section(
-                "partitions", TITLE, intro, null, new AnalysisReportJson.Table(columns, rows)));
+                "topics", TITLE, intro, null, new AnalysisReportJson.Table(columns, rows)));
         sections.add(new AnalysisReportJson.Section(
                 "how-to-read",
                 "How to read this",
@@ -185,10 +182,10 @@ final class ClusterSizeReport {
         return new AnalysisReportJson.Document(FORMAT, NAME, TITLE, writtenAt, headline(partitions), sections);
     }
 
-    /** The numbers the page states first: what the exemplars' partitions came to between them. */
+    /** The numbers the page states first: what the topics came to between them. */
     private static List<AnalysisReportJson.Figure> headline(List<Topic> partitions) {
         return List.of(
-                new AnalysisReportJson.Figure("partitions", "Exemplars grouped", (long) partitions.size(), "count"),
+                new AnalysisReportJson.Figure("topics", "Topics grouped", (long) partitions.size(), "count"),
                 new AnalysisReportJson.Figure(
                         "documents", "Documents grouped",
                         partitions.stream().mapToLong(Topic::documentCount).sum(), "count"),
@@ -223,7 +220,7 @@ final class ClusterSizeReport {
         }
 
         String headers = ReportPage.headerRow(
-                "Exemplar", "Documents", "Groups", "Largest group", "Middle group", "Groups of one",
+                "Topic", "Documents", "Groups", "Largest group", "Middle group", "Groups of one",
                 "Weakest link", "Middle link", "Strongest link");
         StringBuilder rows = new StringBuilder();
         for (Topic partition : partitions) {

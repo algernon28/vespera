@@ -2,6 +2,7 @@ package io.algernon.vespera.engine.deliverable;
 
 import io.algernon.vespera.engine.synthesis.ArrangedCluster;
 import io.algernon.vespera.engine.synthesis.ClusterSlot;
+import io.algernon.vespera.engine.synthesis.RecordedCluster;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.LinkedHashSet;
@@ -44,6 +45,7 @@ final class ManifestCsv {
     static void write(Appendable csv, ArrangedSurvivors source, DeliverableProgress progress, Copies copies)
             throws IOException {
         csv.append(HEADER).append('\n');
+        Map<ClusterSlot, Integer> sequence = sequencePlaces(source);
         try {
             source.eachPageOfSurvivorsForTheManifest(page -> {
                 Set<ClusterSlot> clusters = new LinkedHashSet<>();
@@ -51,7 +53,7 @@ final class ManifestCsv {
                 Map<ClusterSlot, ArrangedCluster> places = clusters.isEmpty() ? Map.of() : source.placesOf(clusters);
                 for (ListedSurvivor survivor : page) {
                     try {
-                        append(csv, survivor, places, copies.outcomeOf(survivor), copies);
+                        append(csv, survivor, places, sequence, copies.outcomeOf(survivor), copies);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -63,9 +65,26 @@ final class ManifestCsv {
         }
     }
 
+    /**
+     * The place in its topic's one sequence of each cluster of a crowded topic, the number its folder carries
+     * (ADR-409 section 10), so that the listing tells the topic's clusters apart as the tree does; a topic with no
+     * subtopics has none here and its rows keep the places the arrangement stored.
+     */
+    private static Map<ClusterSlot, Integer> sequencePlaces(ArrangedSurvivors source) {
+        Map<ClusterSlot, Integer> places = new java.util.HashMap<>();
+        for (ListedTopic topic : source.topics()) {
+            for (RecordedCluster recorded : Deliverable.inOneSequence(source.clustersOf(topic))) {
+                if (recorded.cluster().subtopic().isPresent()) {
+                    places.put(ClusterSlot.of(recorded), recorded.cluster().clusterOrder());
+                }
+            }
+        }
+        return places;
+    }
+
     private static void append(
-            Appendable csv, ListedSurvivor survivor, Map<ClusterSlot, ArrangedCluster> places, CopyOutcome outcome,
-            Copies copies)
+            Appendable csv, ListedSurvivor survivor, Map<ClusterSlot, ArrangedCluster> places,
+            Map<ClusterSlot, Integer> sequence, CopyOutcome outcome, Copies copies)
             throws IOException {
         ArrangedCluster cluster = Optional.ofNullable(places.get(survivor.slot()))
                 .orElseThrow(() ->
@@ -90,11 +109,11 @@ final class ManifestCsv {
                 .append(',')
                 .append(cell(survivor.topicName()))
                 .append(',')
-                .append(String.valueOf(survivor.clusterOrdinal()))
+                .append(String.valueOf(sequence.getOrDefault(survivor.slot(), survivor.clusterOrdinal())))
                 .append(',')
                 .append(String.valueOf(cluster.topicOrder()))
                 .append(',')
-                .append(String.valueOf(cluster.clusterOrder()))
+                .append(String.valueOf(sequence.getOrDefault(survivor.slot(), cluster.clusterOrder())))
                 .append(',')
                 .append(outcome == CopyOutcome.COPIED ? cell(copies.pathOf(survivor)) : "")
                 .append(',')
