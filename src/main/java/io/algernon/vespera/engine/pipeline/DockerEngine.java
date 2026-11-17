@@ -12,7 +12,8 @@ import java.util.Optional;
  *
  * <p>It is built over {@link SidecarStarter}, with {@link HostSystem#current()}, the runner of real processes on
  * {@code java.io.tmpdir} and the health that asks over HTTP, as {@link SidecarStarter#forTheApplication} builds them;
- * its lines are ADR-323 §8's and ADR-390 §6's. Its log lines go where this process sends them, its console.
+ * its lines are ADR-323 §8's, ADR-390 §6's and ADR-410 §3's. Its log lines go where this process sends them,
+ * its console.
  */
 public final class DockerEngine {
 
@@ -42,10 +43,11 @@ public final class DockerEngine {
     }
 
     /**
-     * Makes the engine answer where it does not, a base URL on another machine doing nothing; no sidecar is asked and no
-     * {@code up} is run.
+     * Makes the engine answer where it does not, a base URL on another machine doing nothing; once it answers, asks the
+     * docker client for Compose and buildx (ADR-410 §2). No sidecar is asked and no {@code up} is run.
      *
-     * @return the refusal's line; empty where it answers or nothing was to be done
+     * @return the refusal's line; empty where the engine answers and both are installed, or where
+     *     nothing was to be done
      */
     public Optional<String> startTheEngine(URI doclingBaseUrl, URI ollamaBaseUrl) {
         try {
