@@ -82,8 +82,7 @@ class Presets {
             return THE_CODES_NAMING_MODEL;
         }
         if (named.isBlank()) {
-            throw new IllegalStateException("no naming model is named: " + key + " is blank, so " + NAMING_MODEL
-                    + " names no model to compose the arrangement run's identity around");
+            throw new NoNamingModelNamedException(key);
         }
         return named.strip();
     }

@@ -9,8 +9,6 @@ import io.algernon.vespera.engine.embedding.SeedPassage;
 import io.algernon.vespera.engine.embedding.SeedVectors;
 import io.algernon.vespera.engine.embedding.Topic;
 import io.algernon.vespera.engine.embedding.UnusableSeeds;
-import org.springframework.ai.chat.model.ChatModel;
-import io.algernon.vespera.engine.embedding.TopicInference;
 import io.algernon.vespera.engine.extraction.Chunk;
 import io.algernon.vespera.engine.extraction.ChunkingRule;
 import io.algernon.vespera.engine.extraction.HybridChunker;
@@ -43,12 +41,8 @@ import io.algernon.vespera.engine.synthesis.LabelledCluster;
 import io.algernon.vespera.engine.synthesis.LeadDocument;
 import io.algernon.vespera.engine.synthesis.Partition;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
-import io.algernon.vespera.engine.embedding.UnusableSeed;
-import io.algernon.vespera.engine.ledger.ListedPages;
-import io.algernon.vespera.engine.ledger.OccurrencePath;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.io.Writer;
@@ -139,8 +133,8 @@ class ArrangementTasklet implements Tasklet {
     private final UnusableSeeds unusableSeeds;
     private final RecordedClosingLines recordedClosingLines;
 
-    /** The topics' names, as the head of the step made them: held, for #832 stores them (ADR-407 section 1). */
-    private List<GivenName> topicNames = List.of();
+    /** Where each topic's name is logged, apart from the operator lines (ADR-407 section 9). */
+    private static final Logger NAMES = LoggerFactory.getLogger(ArrangementTasklet.class.getName() + ".names");
 
     ArrangementTasklet(
             SeedGate seedGate,
@@ -153,7 +147,7 @@ class ArrangementTasklet implements Tasklet {
             JdbcTemplate jdbcTemplate,
             DocumentTitles documentTitles,
             ModelPull modelPull,
-            ChatModel chatModel,
+            TopicNaming topicNaming,
             UnusableSeeds unusableSeeds,
             HybridChunker hybridChunker,
             RelevanceDistribution relevanceDistribution,
@@ -161,7 +155,7 @@ class ArrangementTasklet implements Tasklet {
             @Value("#{jobParameters['root']}") Path root,
             @Value("${vespera.working-dir}") Path workingDirectory) {
         this.modelPull = modelPull;
-        this.topicNaming = new TopicNaming(chatModel);
+        this.topicNaming = topicNaming;
         this.hybridChunker = hybridChunker;
         this.relevanceDistribution = relevanceDistribution;
         this.unusableSeeds = unusableSeeds;
@@ -221,6 +215,8 @@ class ArrangementTasklet implements Tasklet {
         // The naming model is pulled where Ollama does not serve it, once the gates are open and before the run is
         // resolved, as generation pulls its own (ADR-407 section 1, ADR-329). A blank value stops the invocation
         // here, naming vespera.naming.model, where the run would be minted (section 2).
+        // The language is read first, so that a value that is no language stops the invocation before the pull.
+        DeliverableLanguage language = stageRuns.deliverableLanguage();
         String namingModel = stageRuns.namingModelName();
         Optional<String> refusal = modelPull.refusalOf(STAGE, namingModel);
         if (refusal.isPresent()) {
@@ -248,7 +244,7 @@ class ArrangementTasklet implements Tasklet {
                 () -> clusters.discardForRun(arrangement),
                 () -> {
                     // The topics are named first, before anything is ordered, labelled or recorded (ADR-407 section 1).
-                    topicNames = nameTheTopics(preamble, namingModel);
+                    nameTheTopics(preamble, namingModel, language);
                     List<OccurrenceId> seeds = Arrangement.inOrder(memberCounts, seedPaths);
                     int clustersArranged =
                             writePage(scoring, arrangement, seeds, seedPaths, scoresRead, gathered, true);
@@ -261,65 +257,6 @@ class ArrangementTasklet implements Tasklet {
                             members);
                     return true;
                 });
-    }
-
-    /**
-     * Every usable seed's own content hash, read once from the key seed extraction recorded under the
-     * measurement run (ADR-206 section 3), and how many chunks the chunker cut it into, so {@link
-     * RelevanceScoring} never has to touch a file. Which seeds that leaves out is {@code embedding}'s
-     * rule (ADR-231 section 2a), not this method's.
-     */
-    private Map<OccurrenceId, SeedChunks> seedContentHashes(SeedGate.SeedWalk seedWalk, RunId measurementRun) {
-        Set<OccurrenceId> allSeeds = TimedStatement.of(
-                STAGE, "reading", "read", "the seed walk's occurrences", () -> {
-                    Set<OccurrenceId> ids = new HashSet<>();
-                    for (OccurrenceId id : ledger.occurrences().occurrencesOf(seedWalk.walkId())) {
-                        ids.add(id);
-                    }
-                    return ids;
-                });
-        Set<OccurrenceId> unusable = TimedStatement.of(STAGE, "reading", "read", "the unusable seeds", () -> unusableSeeds.forRun(measurementRun))
-                .stream()
-                .map(UnusableSeed::occurrenceId)
-                .collect(Collectors.toSet());
-        allSeeds.removeAll(unusable);
-
-        // Asked a page of seeds to a statement, the keys and then their chunk counts (ADR-245), and counted as
-        // each page is read, so that the counter moves while the reads are made (ADR-246).
-        StageProgress read =
-                StageProgress.over("Stage 6a (arrangement, seed cache keys read)", allSeeds.size());
-        Map<OccurrenceId, SeedChunks> contentHashes = new LinkedHashMap<>();
-        ListedPages.each(allSeeds, page -> {
-            Map<OccurrenceId, String> keys = cacheKeys.requireForOccurrences(page, measurementRun);
-            Map<String, Integer> chunkCounts =
-                    hybridChunker.chunkCounts(new HashSet<>(keys.values()), ChunkingRule.DEFAULT);
-            for (OccurrenceId seedOccurrenceId : page) {
-                String contentHash = keys.get(seedOccurrenceId);
-                contentHashes.put(
-                        seedOccurrenceId, new SeedChunks(contentHash, chunkCounts.getOrDefault(contentHash, 0)));
-                read.itemDone();
-            }
-        });
-        return contentHashes;
-    }
-
-    /**
-     * The seeds' vectors by each seed's path in the seed walk, for ADR-399's topics: no embedding call and no read of
-     * its own beyond the paths. A seed with no resident vector has no passage.
-     */
-    private Map<String, SeedVectors> seedVectorsByPath(
-            Map<OccurrenceId, SeedChunks> seedContentHashes,
-            Map<OccurrenceId, List<float[]>> residentSeedVectors) {
-        Map<OccurrenceId, OccurrencePath> paths = ledger.occurrences().pathsOf(residentSeedVectors.keySet());
-        Map<String, SeedVectors> bySeedPath = new LinkedHashMap<>();
-        for (Map.Entry<OccurrenceId, List<float[]>> seed : residentSeedVectors.entrySet()) {
-            OccurrencePath path = paths.get(seed.getKey());
-            SeedChunks chunks = seedContentHashes.get(seed.getKey());
-            if (path != null && chunks != null) {
-                bySeedPath.put(path.value(), new SeedVectors(chunks.contentHash(), seed.getValue()));
-            }
-        }
-        return bySeedPath;
     }
 
     /**
@@ -345,24 +282,32 @@ class ArrangementTasklet implements Tasklet {
      * topics, found again from the same stored vectors, with the same breadth floor applied, in key order. The
      * passages' texts are read from the chunk cache. A serving engine that gives no answer fails the step.
      */
-    private List<GivenName> nameTheTopics(StageFiveGates.Preamble preamble, String namingModel) {
-        DeliverableLanguage language = stageRuns.deliverableLanguage();
+    private void nameTheTopics(
+            StageFiveGates.Preamble preamble, String namingModel, DeliverableLanguage language) {
         RunId measurementRun = stageRuns.seedMeasurement();
         Map<OccurrenceId, SeedChunks> seedContentHashes =
-                seedContentHashes(preamble.seedWalk().orElseThrow(), measurementRun);
-        Optional<String> identity = relevanceDistribution.embedderIdentityFor(
-                preamble.modelName().orElseThrow(), stageRuns.embeddingModelArtefact());
-        Map<OccurrenceId, List<float[]>> resident = identity.isEmpty()
-                ? Map.of()
-                : relevanceScoring.residentSeedVectors(
-                        seedContentHashes,
-                        hybridChunker.identity(),
-                        ChunkingRule.DEFAULT.identity().value(),
-                        identity.get(),
-                        ScoringProgress.NONE);
-        Map<String, SeedVectors> bySeedPath = seedVectorsByPath(seedContentHashes, resident);
-        List<Topic> found =
-                TopicInference.over(bySeedPath, stageRuns.topicNeighbours(), stageRuns.topicResolution());
+                TaskletSteps.seedContentHashes(
+                        STAGE,
+                        "Stage 6a (arrangement, seed cache keys read)",
+                        preamble.seedWalk().orElseThrow(),
+                        measurementRun,
+                        ledger,
+                        unusableSeeds,
+                        cacheKeys,
+                        hybridChunker);
+        String identity = relevanceDistribution
+                .embedderIdentityFor(preamble.modelName().orElseThrow(), stageRuns.embeddingModelArtefact())
+                .orElseThrow(() -> new IllegalStateException(
+                        "no embedder identity answers for " + preamble.modelName().orElseThrow()
+                                + ", so no topic can be found to name"));
+        Map<OccurrenceId, List<float[]>> resident = relevanceScoring.residentSeedVectors(
+                seedContentHashes,
+                hybridChunker.identity(),
+                ChunkingRule.DEFAULT.identity().value(),
+                identity,
+                ScoringProgress.NONE);
+        Map<String, SeedVectors> bySeedPath = TaskletSteps.seedVectorsByPath(ledger, seedContentHashes, resident);
+        List<Topic> found = TaskletSteps.topicsFound(stageRuns, bySeedPath);
         List<Topic> topics =
                 new BreadthFloor(stageRuns.topicBreadthFloor()).of(found, bySeedPath).topics();
 
@@ -375,9 +320,12 @@ class ArrangementTasklet implements Tasklet {
                 String contentHash = bySeedPath.get(passage.seedPath()).contentHash();
                 List<Chunk> chunks = chunksOfContent.computeIfAbsent(
                         contentHash, hash -> hybridChunker.stored(hash, ChunkingRule.DEFAULT));
-                if (passage.chunkIndex() < chunks.size()) {
-                    texts.add(chunks.get(passage.chunkIndex()).text());
+                if (passage.chunkIndex() >= chunks.size()) {
+                    throw new IllegalStateException("the chunk " + passage.chunkIndex() + " of seed "
+                            + passage.seedPath() + " (content hash " + contentHash
+                            + ") is not stored in the chunk cache, so the topic cannot be named from it");
                 }
+                texts.add(chunks.get(passage.chunkIndex()).text());
             }
             String seedPath = topic.strongestContributingSeed();
             Optional<String> title = documentTitles.forContentHash(bySeedPath.get(seedPath).contentHash());
@@ -387,13 +335,27 @@ class ArrangementTasklet implements Tasklet {
         long written = given.stream().filter(name -> name.origin() != NameOrigin.FALLBACK).count();
         LOG.info(
                 "The arrangement step named {} topic(s) under {}: {} written by {}, {} by the strongest seed's own"
-                        + " words; the names are held and not yet stored (#832)",
+                        + " words; the names are logged and not yet stored (#832)",
                 given.size(),
                 namingModel,
                 written,
                 namingModel,
                 given.size() - written);
-        return given;
+        for (int place = 0; place < topics.size(); place++) {
+            SeedPassage first = topics.get(place).key().firstPassage();
+            GivenName name = given.get(place);
+            NAMES.info(
+                    "{} topic {} chunk {} named \"{}\" ({})",
+                    STAGE,
+                    first.seedPath(),
+                    first.chunkIndex(),
+                    name.name(),
+                    switch (name.origin()) {
+                        case WRITTEN -> "written";
+                        case WRITTEN_WHEN_ASKED_AGAIN -> "asked again";
+                        case FALLBACK -> "fallback";
+                    });
+        }
     }
 
     /**

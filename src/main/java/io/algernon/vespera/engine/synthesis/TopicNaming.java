@@ -207,8 +207,8 @@ public class TopicNaming {
     }
 
     private static int wordsIn(String text) {
-        String stripped = text.strip();
-        return stripped.isEmpty() ? 0 : stripped.split("\\s+").length;
+        String trimmed = text.trim();
+        return trimmed.isEmpty() ? 0 : trimmed.split("\\s+").length;
     }
 
     /** One answer: the name it held, or why it was turned down. */

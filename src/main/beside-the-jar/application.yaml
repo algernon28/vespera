@@ -27,7 +27,7 @@ vespera:
     # its models.
     wait-at-most: 180s
   models:
-    # Whether stage 5's scoring step and the generation step have Ollama pull a model it does not serve, through
+    # Whether stage 5's scoring step, the arrangement step and the generation step have Ollama pull a model it does not serve, through
     # /api/pull, before they send it anything (ADR-329). A model Ollama already serves is never pulled. Set false
     # (VESPERA_MODELS_PULL=false) to pull by hand. An application property and no profile value: it says how this
     # machine is connected, not what has been judged about a corpus.
