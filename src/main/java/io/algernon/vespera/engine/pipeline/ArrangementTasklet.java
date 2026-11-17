@@ -288,7 +288,7 @@ class ArrangementTasklet implements Tasklet {
         Map<OccurrenceId, SeedChunks> seedContentHashes =
                 TaskletSteps.seedContentHashes(
                         STAGE,
-                        "Stage 6a (arrangement, seed cache keys read)",
+                        seeds -> StageProgress.over("Stage 6a (arrangement, seed cache keys read)", seeds),
                         preamble.seedWalk().orElseThrow(),
                         measurementRun,
                         ledger,

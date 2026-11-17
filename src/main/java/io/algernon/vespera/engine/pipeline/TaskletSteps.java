@@ -162,11 +162,11 @@ final class TaskletSteps {
      * measurement run (ADR-206 section 3), and how many chunks the chunker cut it into, so {@code RelevanceScoring}
      * never has to touch a file. Which seeds that leaves out is {@code embedding}'s rule (ADR-231 section 2a), not
      * this method's. Shared by the two steps that read the seeds' vectors back (stage 5d and 6a), each naming its
-     * own statements and counter.
+     * own statements, and its own counter by {@code counterOver}, so that the label stays literal where it is spelled.
      */
     static Map<OccurrenceId, SeedChunks> seedContentHashes(
             String stage,
-            String counter,
+            java.util.function.LongFunction<StageProgress> counterOver,
             SeedGate.SeedWalk seedWalk,
             RunId measurementRun,
             Ledger ledger,
@@ -190,7 +190,7 @@ final class TaskletSteps {
 
         // Asked a page of seeds to a statement, the keys and then their chunk counts (ADR-245), and counted as
         // each page is read, so that the counter moves while the reads are made (ADR-246).
-        StageProgress read = StageProgress.over(counter, allSeeds.size());
+        StageProgress read = counterOver.apply(allSeeds.size());
         Map<OccurrenceId, SeedChunks> contentHashes = new LinkedHashMap<>();
         ListedPages.each(allSeeds, page -> {
             Map<OccurrenceId, String> keys = cacheKeys.requireForOccurrences(page, measurementRun);

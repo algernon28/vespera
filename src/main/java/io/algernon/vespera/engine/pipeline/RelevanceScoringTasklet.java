@@ -129,7 +129,7 @@ class RelevanceScoringTasklet implements Tasklet {
 
                     Map<OccurrenceId, SeedChunks> seedContentHashes = TaskletSteps.seedContentHashes(
                             STAGE,
-                            "Stage 5d (relevance scoring, seed cache keys read)",
+                            seeds -> StageProgress.over("Stage 5d (relevance scoring, seed cache keys read)", seeds),
                             seedWalk,
                             measurementRun,
                             ledger,
