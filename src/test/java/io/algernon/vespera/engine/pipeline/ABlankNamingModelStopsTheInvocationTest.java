@@ -48,6 +48,13 @@ class ABlankNamingModelStopsTheInvocationTest {
     /** The key a machine names the naming model under, which the stop names. */
     private static final String THE_KEY = "vespera.naming.model";
 
+    /**
+     * The line {@code NoNamingModelNamedException} stops the invocation with, the key bound blank being the one it
+     * names (ADR-407 §2): matched whole, so that a mention of the key anywhere else does not stand in for it.
+     */
+    private static final String THE_STOP = "no naming model is named: " + THE_KEY + " is blank, so " + THE_KEY
+            + " names no model to compose the arrangement run's identity around";
+
     @TempDir
     static Path workingDirectory;
 
@@ -87,8 +94,8 @@ class ABlankNamingModelStopsTheInvocationTest {
 
         claim("the invocation ends non-zero: a machine that names no model to name the topics by is misconfigured",
                 () -> assertThat(cli.getExitCode()).isNotZero());
-        claim("what it says names the key, " + THE_KEY + ", that is blank",
-                () -> assertThat(said).contains(THE_KEY));
+        claim("what it says is the stop's own line, naming the key, " + THE_KEY + ", that is blank",
+                () -> assertThat(said.lines()).anySatisfy(line -> assertThat(line).contains(THE_STOP)));
         claim("the scoring before the arrangement was done in this invocation, so it stopped at the arrangement",
                 () -> assertThat(runsOver(root, "embedding-scoring")).hasSize(1));
         claim("no topic was asked for its name", () -> assertThat(GenerationScriptedBeans.namingCallsMade()).isZero());

@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.corpus.Walk;
+import io.algernon.vespera.engine.profile.ProfileFixture;
 import io.algernon.vespera.engine.profile.ProfileStore;
+import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -81,6 +83,12 @@ class TheTopicsAreNamedAtTheArrangementStepInvocationTest {
      */
     private static final Pattern A_NAME_LINE = Pattern.compile(
             "^\\d{2}:\\d{2}:\\d{2}\\.\\d{3} (\\S+)\\s+\\[[^\\]]*\\] \\S+ - (Stage 6a \\(arrangement\\) topic .*)$");
+
+    /** A language other than the one an empty key means, saved part-way through the arrangement step. */
+    private static final String ITALIAN = "it";
+
+    /** The arrangement run's language member, read out of its recorded settings. */
+    private static final Pattern THE_RECORDED_LANGUAGE = Pattern.compile("\"deliverableLanguage\":\"([^\"]*)\"");
 
     private static final StubOllama OLLAMA = StubOllama.started();
 
@@ -229,6 +237,33 @@ class TheTopicsAreNamedAtTheArrangementStepInvocationTest {
         claim("and no arrangement was recorded", () -> assertThat(runsOver(root, "arrangement")).isEmpty());
     }
 
+    @Test
+    @Story("The topics are named in the language the arrangement records")
+    @DisplayName("A language saved while the naming model is checked does not part the language the topics are asked in from the one the arrangement records")
+    void theTopicsAreAskedInTheLanguageTheArrangementRecords(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCorpusUpToTheArrangement(root, seeds);
+        // saved as the arrangement step checks the naming model: after the step began, before the arrangement run is
+        // minted and before any topic is named, as an operator saving the profile part-way through the invocation
+        EmbeddingScriptedBeans.whenAskedAbout(THE_NAMING_MODEL, () -> profileStore.save(
+                ProfileFixture.profileFrom(profileStore.load())
+                        .deliverableLanguage(ITALIAN, "saved by this test while the naming model is checked")
+                        .build()));
+
+        cli.run("run", root.toString());
+        List<String> arrangements = runsOver(root, "arrangement");
+
+        claim("the invocation reports success, stopping at the arrangement's approval",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim("one arrangement was recorded", () -> assertThat(arrangements).hasSize(1));
+        String recorded = recordedLanguageOf(arrangements.getFirst());
+        claim("and the one topic was asked for its name in the language that arrangement records, " + recorded
+                        + ": the names it records are written in it (ADR-407 section 3)",
+                () -> assertThat(GenerationScriptedBeans.namingQuestionsSent()).singleElement().satisfies(question ->
+                        assertThat(question).endsWith("Write it in "
+                                + DeliverableLanguage.ofCode(recorded).orElseThrow().englishName() + ".")));
+    }
+
     /** One corpus document and one seed, {@link #THE_SEED}, with every gate before the arrangement's approval open. */
     private void aCorpusUpToTheArrangement(Path root, Path seeds) throws IOException {
         Files.writeString(root.resolve("corpus.txt"), "a corpus document");
@@ -243,6 +278,14 @@ class TheTopicsAreNamedAtTheArrangementStepInvocationTest {
                 .filter(Matcher::matches)
                 .map(matched -> new String[] {matched.group(1), matched.group(2)})
                 .toList();
+    }
+
+    /** The language code {@code run}'s recorded settings name as its {@code deliverableLanguage} member. */
+    private String recordedLanguageOf(String run) {
+        Matcher member = THE_RECORDED_LANGUAGE.matcher(
+                jdbcTemplate.queryForObject("SELECT config_consumed FROM run WHERE id = ?", String.class, run));
+        assertThat(member.find()).as("the arrangement's settings name a deliverableLanguage").isTrue();
+        return member.group(1);
     }
 
     private List<String> runsOver(Path root, String stage) {
