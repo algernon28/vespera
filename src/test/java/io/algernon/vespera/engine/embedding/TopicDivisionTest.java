@@ -2,6 +2,7 @@ package io.algernon.vespera.engine.embedding;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.algernon.vespera.Adr;
 import io.qameta.allure.Epic;
@@ -96,6 +97,15 @@ class TopicDivisionTest {
                 () -> assertThat(division.hasSubtopics()).isFalse());
         claim("and are one cluster",
                 () -> assertThat(division.clusterOf()).containsOnly(0));
+    }
+
+    @Test
+    @Story("A crowded topic gets one level more, and no other does")
+    @DisplayName("A floor of no survivors is refused, a topic holding at least one survivor to be divided")
+    void aFloorUnderOneIsRefused() {
+        claim("a floor of 0 throws, as the preset's refusal would have stopped the invocation before it",
+                () -> assertThatThrownBy(() -> TopicDivision.of(meanVectors(TOPIC), NEIGHBOURS, RESOLUTION, 0, BLOCK))
+                        .isInstanceOf(IllegalArgumentException.class));
     }
 
     @Test

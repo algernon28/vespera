@@ -4,7 +4,7 @@
 - **Status**: accepted on 2026-11-16.
 - **Decided**: by the operator, in map [#822](https://github.com/algernon28/vespera/issues/822), as [ADR-396](0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md) §3 records it: that a crowded topic gets at most one level between it and its clusters, and that the tree is kept as shallow as the document count allows. By the operator, in [#831](https://github.com/algernon28/vespera/issues/831): that the local model names that level as it names a topic, and that the 6a gate shows it read-only (ADR-396 §3, §5; ADR-407 §4, §7, §8). Under the operator's delegation, in #831 and in ADR-396 §8 and §10: when a topic is crowded (§1), how the level forms (§2), its order (§4) and its term (§6); and, with them, where the step runs and which run its number enters (§5).
 - **Amends**: ADR-396 §3, its *"Stage 5's clustering (ADR-087) runs over the survivors of one winning topic"*: in a topic that has subtopics it runs over the survivors of each subtopic, and once over the whole topic to find the subtopics (§2). It carries a note at its head.
-- **Amends**: [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md) §8 and §9, whose table of presets gains `vespera.clustering.subtopic-floor`, whose table of refusals gains its line, and whose table of the members a run's configuration gains gains `subtopicFloor` (§5). It carries a note at its head.
+- **Amends**: [ADR-330](0330-the-control-panel-edits-every-value-of-profile-yaml-showing-the-value-in-use-and-where-it-came-from-and-ten-technical-choices-ship-as-presets-in-application-yaml.md) §8 and §9, whose table of presets gains `vespera.clustering.subtopic-floor` and whose table of refusals gains its line; its table of the members a run's configuration gains gains `subtopicFloor` only when #832 wires the floor into the clustering step, and until then no member is written (§5). It carries a note at its head.
 - **Keeps**: [ADR-087](0087-clusters-are-modularity-communities-over-a-k-nearest-neighbour-graph-built-in-blocks.md)'s graph and communities, `NearestNeighbourGraph` and `Communities` unchanged, at clustering's neighbours and resolution, over the survivors' mean vectors, in blocks, visited in the order the clustering step visits them, and a cluster of one a cluster (§2); [ADR-085](0085-vectors-live-in-sqlite-and-the-pairwise-matrix-is-never-materialised.md)'s memory contract (§5); [ADR-112](0112-the-arrangement-is-ordered-by-partition-size-and-cluster-mean-score-and-the-path-carries-the-order.md)'s order of the clusters, now within a subtopic where there is one (§4); ADR-396 §4's order of the topics, which §4 follows one level down; [ADR-105](0105-stage-6a-names-the-arrangement-stage-5-already-built-and-unattributed-is-struck.md)'s total arrangement, every survivor in one cluster (§2).
 - **Rests on**: the measurements below, on public text and local models only ([ADR-264](0264-the-private-paths-guard-refuses-only-what-reads-or-writes-outside-the-allow-list-and-a-working-directory-is-open-as-the-place-it-lies-in.md)).
 - **Settles**: [#831](https://github.com/algernon28/vespera/issues/831).
@@ -52,7 +52,7 @@ A synthesis call reads what fits the shipped window of 8,192 tokens (ADR-108, `C
 
 - **Louvain's levels divide nothing that needs dividing.** Over a ten-neighbour graph its last pass merges little: in the topics of 3,000 survivors and more the level before the last held 13 to 23 communities where the last held 10 to 14, so up to 84% of the parts held one cluster, and the largest cluster stayed as large as the flat one. Its first level left one community of 339 to 1,167 survivors in the topics of 3,000 and more.
 - **A resolution under 1.0 makes fewer, larger parts** and larger clusters within them, and agrees less with the subjects at 300 to 1,000 survivors; at 5,592, 0.75 agreed a little better (0.703 / 0.666 against 0.652 / 0.650). It is a number of its own, measured on one truth.
-- **The topic's own communities as the parts** keep the topic's page as it would be without the level, entry for entry, and bring the median cluster to 44.5 and 59 at 5,592, from 293.5 and 418.
+- **The topic's own communities as the parts** keep on the topic's page the communities it would list without the level, as subtopics and in another order (§2), and bring the median cluster to 44.5 and 59 at 5,592, from 293.5 and 418.
 
 With the topic's own communities as its subtopics, through the shipped classes, on the 121 topics:
 
@@ -78,6 +78,8 @@ With the topic's own communities as its subtopics, through the shipped classes, 
 
 **A topic has subtopics where at least `vespera.clustering.subtopic-floor` survivors are placed under it**, 300 as shipped, **and its survivors form two communities or more** at clustering's neighbours and resolution (§2). The survivors counted are those clustering reads for the topic: its placed survivors that stand under the run (ADR-396 §3). A topic under the floor, or whose survivors form one community, has no subtopics, and its clusters are found over it whole, as ADR-396 §3 has them.
 
+**The floor is measured on topics, and applies to a topic's placed survivors alone**: once [#832](https://github.com/algernon28/vespera/issues/832) moves the clustering step onto topics and clusters within each (§5). **It never applies to a seed partition.** The clustering step still clusters seed partitions until then (`ClusteringTasklet`, `clustering.partitions(scoring)`), whose survivors are not what the floor was measured on, and it divides none of them.
+
 300 is the smallest count measured at which every topic, of every kind and under both embedders, had a median cluster of more than 32 survivors when clustered whole: more than the 16 to 32 entries a level of links reads best at, and more than a synthesis call reads at the shipped window, 15 to 39 of the probe's articles. Under the floor a topic's clusters are mostly small enough to be read whole, and the level would add a page to every path for nothing; at the floor, its subtopics brought every topic measured back to a median cluster of 21 or fewer, and to 38 or fewer up to 1,000 survivors. The topic's page of clusters, which the issue asked to measure against, never needed it: it listed 2 to 14 at every size.
 
 ### 2. A crowded topic's subtopics are its communities, and its clusters are found within each
@@ -86,7 +88,7 @@ With the topic's own communities as its subtopics, through the shipped classes, 
 
 - **Every survivor lies in one subtopic and one cluster** of it (ADR-105). A subtopic whose survivors form one community is one cluster, and is still a subtopic: every cluster of a crowded topic lies one level down, so that the topic's page lists subtopics alone.
 - **A subtopic's survivors are visited in the order the topic's are**, the clustering step's (ADR-087), and its clusters are numbered from 0 within it, in the order of first appearance, as `Communities` numbers them. A subtopic is numbered within its topic the same way.
-- **The topic's page shows what it would show without the level**: the same communities, as subtopics. A topic crossing the floor keeps its entries and gains clusters beneath each.
+- **The topic's page lists the same communities either side of the floor, but not the same entries.** Under the floor they are its clusters, in ADR-112's order, each with its 6b synthesis (ADR-108). At the floor and above they are its subtopics, in §4's order by size, against ADR-112's rule; a subtopic has no 6b synthesis of its own, its clusters beneath it having theirs; and the numbers [ADR-402](0402-a-topics-overview-cites-its-written-clusters-by-number-in-every-sentence-and-a-citation-fault-is-asked-once-more.md)'s overview cites its clusters by change, since they count the clusters within the subtopics (§4). **A topic crossing the floor re-orders what the operator approves at the 6a gate.**
 
 ### 3. What is refused
 
@@ -101,7 +103,13 @@ With the topic's own communities as its subtopics, through the shipped classes, 
 
 ### 5. Where it runs, and which run the floor names
 
-**The subtopics are found by the clustering step**, stage 5f, under the embedding-scoring run, where the topic's clusters are found: once a topic's surviving members are read, they are divided by §1 and §2 before the next topic is read. No step is added. The topic's members are held as they are now (ADR-211 §5); each subtopic's graph is built over the members of that subtopic in ADR-087's blocks, one subtopic at a time, so nothing held grows beyond a number per survivor (ADR-085, ADR-220).
+**The subtopics are found by the clustering step**, stage 5f, under the embedding-scoring run, where the topic's clusters are found, once #832 has that step cluster topics: once a topic's surviving members are read, they are divided by §1 and §2 before the next topic is read. No step is added.
+
+**Until #832, the division is not wired into the clustering step, and nothing stored changes.** The step still clusters each seed partition whole, and its rows are keyed `(run_id, winning_seed_occurrence_id, cluster_ordinal)` (`schema.sql`, the `cluster` table, ADR-105). A division recorded in them now would store each subtopic as one cluster, its ordinal the community the whole pass found, byte-identical to the rows before; or, numbered within each subtopic, would merge clusters of different subtopics under one ordinal. Either would move the run id for nothing. So until #832 moves clustering onto topics and stores the subtopic beside the cluster:
+
+- **What lands is** this record, `TopicDivision` and its tests (§7), and the preset below, shipped, refused when invalid and read by no step.
+- **No step reads the floor**, no run's configuration names it, no run id moves for it (Consequences), and the rows the step writes are those it wrote before.
+- **The smaller clusters of §1 and the seventh more of clustering's time** land with #832, not before. The topic's members are held as they are now (ADR-211 §5); each subtopic's graph is built over the members of that subtopic in ADR-087's blocks, one subtopic at a time, so nothing held grows beyond a number per survivor (ADR-085, ADR-220).
 
 | Preset | Ships | Profile key |
 | --- | --- | --- |
@@ -109,7 +117,7 @@ With the topic's own communities as its subtopics, through the shipped classes, 
 
 It is a preset under ADR-330 §8, beside clustering's two, with no profile key: how the arrangement divides is not the operator's to set (ADR-396 §1, §3), and a machine may name another value. A value no run can be made under stops the invocation in one line, as ADR-330 §9 refuses every preset's: `vespera.clustering.subtopic-floor is <value>: a whole number from 1 to 2147483647`. At 1, every topic of two communities or more has subtopics.
 
-**The floor enters the embedding-scoring run's identity** as the member `subtopicFloor`, a whole number, appended to its configuration after the members before it, `@JsonInclude(NON_NULL)` and written only where the value resolved is not `300`, as ADR-330 §9 writes every preset's. At the shipped value no member is written, so its configuration's text stays what `RunIdentityGoldenTest` holds.
+**Once #832 wires it, the floor enters the embedding-scoring run's identity** as the member `subtopicFloor`, a whole number, appended to its configuration after the members before it, `@JsonInclude(NON_NULL)` and written only where the value resolved is not `300`, as ADR-330 §9 writes every preset's. At the shipped value no member is written, so its configuration's text stays what `RunIdentityGoldenTest` holds. **Until then no member is written at any value**: a number no step reads decides nothing a run did, and naming it would mint another run for the same work.
 
 **What must be stored**, for each clustered survivor under the embedding-scoring run: its subtopic's number within its topic, where its topic has subtopics, beside its cluster's number, now within that subtopic. The table, its key and how a re-run discards it are [#832](https://github.com/algernon28/vespera/issues/832)'s.
 
@@ -119,25 +127,36 @@ It is a preset under ADR-330 §8, beside clustering's two, with no profile key: 
 
 `CONTEXT.md` gains a **Subtopic** entry, its `_Avoid_` line opening with *sub-group*, the word map #822 called it by. **Topic**, **Cluster** and **Arrangement** say that a crowded topic's clusters lie within its subtopics.
 
-Where a subtopic's name falls back to its place (ADR-407 §7), it is `Subtopic n` in English and `Sottoargomento n` in Italian, `n` being its place among its topic's subtopics in §4's order, counted from 1, as a topic's is `Topic n` and `Argomento n`. The vector ADR-407 §4 sends a subtopic's survivors' leading chunks in the order of is each survivor's mean vector, as §2 forms subtopics over.
+Where a subtopic's name falls back to its place (ADR-407 §7), it is `Subtopic n` in English and `Sottoargomento n` in Italian, `n` being its place among its topic's subtopics in §4's order, counted from 1, as a topic's is `Topic n` and `Argomento n`. The vector ADR-407 §4 sends a subtopic's survivors' leading chunks in the order of is each survivor's mean vector, as §2 forms subtopics over. **Subtopic naming, and with it `Subtopic n` and `Sottoargomento n`, lands with #832**: until a subtopic is stored, there is none for the arrangement step to name.
 
 ### 7. What the implementation owes
 
-- In `embedding`: `TopicDivision(List<Integer> subtopicOf, List<Integer> clusterOf)`, `subtopicOf` empty where the topic has no subtopics and `clusterOf` numbered within the subtopic where it has; its `hasSubtopics()`; its `subtopicsInOrder()`, §4's order of the subtopics' numbers, empty where there are none; and `TopicDivision.of(NearestNeighbourGraph.MeanVectors topic, int neighbours, double resolution, int subtopicFloor, int blockSize)`, building one graph over the topic and one over each subtopic, the subtopic's mean vectors read as a view of the topic's in its order. `Clustering.clusterAndRecord` divides each topic through it and records the subtopic where #832 says.
-- In `pipeline`: `Presets.subtopicFloor()` and its refusal in `Presets.refusal`, after clustering's two; the member of the scoring run's configuration; `PresetsFixture` naming the shipped value; and the floor handed to the clustering step.
-- `application.yaml` gains `vespera.clustering.subtopic-floor: 300` under `vespera.clustering`, with its comment; the control panel shows it read-only, as ADR-330 §12 shows a preset with no profile key.
-- ADR-407's naming of subtopics (§4, §7, §8), when it is built: the third fallback's word, and the subtopics named in §4's order.
+**Now**, until #832:
+
+- In `embedding`: `TopicDivision(List<Integer> subtopicOf, List<Integer> clusterOf)`, `subtopicOf` empty where the topic has no subtopics and `clusterOf` numbered within the subtopic where it has; its `hasSubtopics()`; its `subtopicsInOrder()`, §4's order of the subtopics' numbers, empty where there are none; and `TopicDivision.of(NearestNeighbourGraph.MeanVectors topic, int neighbours, double resolution, int subtopicFloor, int blockSize)`, building one graph over the topic and one over each subtopic, the subtopic's mean vectors read as a view of the topic's in its order, and refusing a floor under 1 with an `IllegalArgumentException`. Nothing calls it but its tests: `Clustering.clusterAndRecord` builds one graph over each seed partition and records its communities, as it did before #831, and takes no floor.
+- In `pipeline`: `Presets.subtopicFloor()` and its refusal in `Presets.refusal`, after clustering's two; the key on `EffectiveValuesFile`'s list; and `PresetsFixture` naming the shipped value. `StageRuns` reads no floor and its scoring run's configuration gains no member, and `ClusteringTasklet` hands no floor to the step.
+- `application.yaml` gains `vespera.clustering.subtopic-floor: 300` under `vespera.clustering`, its comment saying that no step reads it until #832 and that it then enters the embedding-scoring run where it is not 300; the control panel shows it read-only, as ADR-330 §12 shows a preset with no profile key.
+
+**What #832 owes**, with the topics it moves clustering onto:
+
+- **The wiring**: the clustering step divides each topic's placed survivors through `TopicDivision` (§1, §2), a topic at a time, one subtopic's graph at a time (§5), and never a seed partition.
+- **The stored subtopic**: each clustered survivor's subtopic within its topic, where its topic has one, and its cluster numbered within that subtopic, in the table and under the key #832 gives them, a re-run discarding them as #832 says.
+- **The identity member**: `StageRuns` resolves the floor where the scoring run is minted and appends `subtopicFloor` to that run's configuration, `@JsonInclude(NON_NULL)`, written only where it is not 300 (§5), and hands it to the step.
+- **Subtopic naming**: ADR-407's naming of subtopics (§4, §7, §8), the third fallback's word `Subtopic n` and `Sottoargomento n` (§6), and the subtopics named in §4's order.
+- **The tests** the Tests section lists as owed.
+- **The runs that move when the wiring lands.** Every crowded topic's rows change, and with them the work of the runs after it. By code version (ADR-058), the commit touching `embedding` moves **seed measurement** and **embedding scoring**, whose versions name `embedding` and `extraction`, and the **arrangement** and **generation**, whose versions name `synthesis`, `extraction` and `embedding` (`StageModules`). By configuration, a machine naming a floor other than 300 mints another embedding-scoring run, and the arrangement and generation over it. **Byte-level reduction**, **extraction**, **content census** and **content redundancy** do not move with it, nor does the walk.
 
 ## Consequences
 
-- **A topic of 300 survivors or more is three levels deep**, topic › subtopic › cluster, and its clusters are found within its subtopics. On the probe's topics that held their median cluster at 11.5 to 21 survivors at 300, and at 20 to 38 at 1,000, where clustering the whole topic gave 36 to 80 and 71 to 170.
-- **A topic's page lists the same entries either side of the floor**: its communities, as clusters under it, as subtopics at it and above.
+- **Until #832, nothing stored changes**: the clustering step writes the rows it wrote before, the floor is shipped and refused when invalid but read by no step, and no run's configuration names it (§5). What follows here holds once #832 wires the division.
+- **A topic of 300 survivors or more is three levels deep**, topic › subtopic › cluster, and its clusters are found within its subtopics. On the probe's topics that held their median cluster at 11.5 to 21 survivors at 300, and at 20 to 38 at 1,000, where clustering the whole topic gave 36 to 80 and 71 to 170. These gains land with #832.
+- **A topic's page lists the same communities either side of the floor, in another order and as another kind of entry** (§2): its clusters in ADR-112's order under it, each with a 6b synthesis; its subtopics by size at it and above, with no synthesis of their own, and ADR-402's citation numbers changed with them. Crossing the floor re-orders what is approved at the 6a gate.
 - **A crowded topic has more clusters, and so more synthesis calls**: four to seven times as many (at 1,000 survivors the probe's topics went from 5–12 clusters to 25–46), each reading what fits the window as before.
 - **Clusters still grow with very large topics**: the median reached 44.5 to 51 at 5,592, as a tree held to three levels must. ADR-108's synthesis written from the highest-scoring of a cluster's documents, saying so, still answers it.
 - **A subtopic of one cluster occurs**, in 1% to 9% of the subtopics measured below 2,000 survivors; its page lists that one cluster.
-- **Clustering a crowded topic costs a seventh more**, and no model call.
+- **Clustering a crowded topic costs a seventh more**, and no model call, from #832 on.
 - **ADR-330 and ADR-396 carry a note *"Partly amended — see ADR-406"*** at their heads.
-- **Run ids**: the embedding-scoring stage's run id moves with the code that builds this record, as ADR-396 §12 says of its children, and the arrangement's and generation's with it. At the shipped value no member is written.
+- **Run ids**: until #832 no run id moves for what this record decides, since no member is written at any value and no stored row changes. A run's code version still moves with any commit touching the modules `StageModules` names for its stage (ADR-058), and this record's code touches `embedding`: `TopicDivision.java`, and taking the division back out of `Clustering`. So, as ADR-407 says of its own code, those commits move **seed measurement**, whose version `StageModules` puts over `embedding` and `extraction`, **embedding scoring**, the **arrangement** and **generation**, for work that comes out the same. **Byte-level reduction**, **extraction**, **content census** and **content redundancy**, whose versions name no `embedding`, do not move, nor does the walk; ADR-396 §12's *"seed measurement do not move"* does not hold of this child, as ADR-407's note says of every child touching `embedding`. The runs that move when the wiring lands are §7's.
 
 ## Tests
 
@@ -147,14 +166,17 @@ Where a subtopic's name falls back to its place (ADR-407 §7), it is `Subtopic n
 | `…aTopicAtTheFloorHasItsCommunitiesAsSubtopics` | at a floor of ten, the subtopics are those communities, numbered as `Communities` numbers them (§1, §2) |
 | `…clustersAreFoundWithinEachSubtopic` | the second subtopic's six survivors, clustered alone, divide into two where the pass over the whole topic kept them one, numbered within it; the first's four stay one cluster and one subtopic (§2) |
 | `…aTopicOfOneCommunityHasNoSubtopics` | five survivors of one community at a floor of one have no subtopics (§1) |
+| `…aFloorUnderOneIsRefused` | a floor of 0 throws an `IllegalArgumentException`, a topic holding at least one survivor to be divided (§5) |
 | `…subtopicsGoByTheirSurvivorsMostFirst` | subtopics of 1, 2, 3 and 2 survivors go 2, 1, 3, 0 (§4) |
 | `…aTopicWithNoSubtopicsListsNone` | a topic under the floor has no order of subtopics (§4) |
 | `pipeline.TheSubtopicFloorPresetTest.shipsTheMeasuredValue` | `application.yaml` names a floor of 300 (§5) |
 | `pipeline.TheSubtopicFloorPresetTest.refusesValuesNoRunCanBeMadeUnder` | 0 and 2.5 are refused, each in its line, and 1 is not (§5) |
+| `pipeline.TheSubtopicFloorNamesNoRunYetInvocationTest.noMemberIsWrittenBeforeTheStepReadsTheFloor` | a machine naming a floor of 1 gets a scoring run whose configuration names no `subtopicFloor` (§5), until #832 |
+| `pipeline.RunIdentityGoldenTest.embeddingScoring` | the scoring run's configuration, literal, with no `subtopicFloor` member (§5) |
 | `TheVocabularyNamesTheSubtopicTest.subtopicIsATerm` | `CONTEXT.md` has a Subtopic entry whose `_Avoid_` line opens with sub-group and names group (§6) |
 | `TheVocabularyNamesTheSubtopicTest.noAvoidLineRejectsSubtopic` | no `_Avoid_` line rejects subtopic (§6) |
 
-`RunIdentityGoldenTest` holds, unchanged, that at the shipped value no member is written. The member written where the floor is not 300, the step's division of each topic, and the fallback's word are held by the tests the implementation adds beside `TheClusteringPresetsInvocationTest`, `ClusteringInvocationTest`, and beside the test of ADR-407's fallback name.
+**Owed by #832, and not written now**: that a floor other than 300 writes `subtopicFloor` into the scoring run, beside `TheClusteringPresetsInvocationTest`, replacing `TheSubtopicFloorNamesNoRunYetInvocationTest`; that the clustering step divides each topic and stores the subtopic, beside `ClusteringInvocationTest`; and subtopic naming and the fallback's word, `Subtopic n` and `Sottoargomento n`, beside the test of ADR-407's fallback name.
 
 ## What this does not decide
 
