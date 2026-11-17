@@ -134,17 +134,21 @@ class SidecarStartTest {
 
     @Test
     @Story("Vespera never recreates, stops or removes a sidecar")
-    @DisplayName("With the engine down, each system runs exactly the engine check, its one start, the wait's checks and an up that builds and recreates nothing")
+    @DisplayName("With the engine down, each system runs exactly the engine check, its one start, the wait's checks, the checks for compose and buildx and an up that builds and recreates nothing")
     @Issue("816")
+    @Link(name = "ADR-410", url = Adr.A_MISSING_DOCKER_COMPOSE_OR_BUILDX_IS_NAMED_BEFORE_UP, type = "adr")
     void theEngineIsStartedByItsSystemsOneCommandThenUpRecreatesNothing() {
         List<String> wslCheck = concat(IN_WSL, ScriptedDocker.ENGINE_CHECK);
         Map<HostSystem, List<List<String>>> expected = new java.util.LinkedHashMap<>();
         expected.put(HostSystem.LINUX, List.of(ScriptedDocker.ENGINE_CHECK, SYSTEMCTL_START,
-                ScriptedDocker.ENGINE_CHECK, ScriptedDocker.ENGINE_CHECK, up(COMPOSE_FILE)));
+                ScriptedDocker.ENGINE_CHECK, ScriptedDocker.ENGINE_CHECK,
+                ScriptedDocker.COMPOSE_CHECK, ScriptedDocker.BUILDX_CHECK, up(COMPOSE_FILE)));
         expected.put(HostSystem.MAC, List.of(ScriptedDocker.ENGINE_CHECK, COLIMA_START,
-                ScriptedDocker.ENGINE_CHECK, ScriptedDocker.ENGINE_CHECK, up(COMPOSE_FILE)));
+                ScriptedDocker.ENGINE_CHECK, ScriptedDocker.ENGINE_CHECK,
+                ScriptedDocker.COMPOSE_CHECK, ScriptedDocker.BUILDX_CHECK, up(COMPOSE_FILE)));
         expected.put(HostSystem.WINDOWS, List.of(wslCheck, concat(IN_WSL, List.of("systemctl", "start", "docker")),
                 wslCheck, wslCheck,
+                concat(IN_WSL, ScriptedDocker.COMPOSE_CHECK), concat(IN_WSL, ScriptedDocker.BUILDX_CHECK),
                 concat(List.of("wsl", "-u", "root", "--cd", REPOSITORY.toString(), "--exec"),
                         List.of("docker", "compose", "-p", "vespera", "-f", "compose.yaml",
                                 "up", "-d", "--build", "--no-recreate"))));
@@ -163,21 +167,23 @@ class SidecarStartTest {
             claim("on " + host + ", the sidecars were started", () -> assertThat(outcome)
                     .isEqualTo(SidecarStarter.Outcome.STARTED));
             claim("and the commands run were, in order and whole, the engine check, the system's one start, the "
-                            + ENGINE_CHECKS_FAILED + " checks of the wait for the engine, the last answering, and an up"
-                            + " with --build and --no-recreate; none of Docker Desktop, and no second start",
+                            + ENGINE_CHECKS_FAILED + " checks of the wait for the engine, the last answering, the check"
+                            + " for compose and the check for buildx, and an up with --build and --no-recreate; none of"
+                            + " Docker Desktop, and no second start",
                     () -> assertThat(docker.commands()).containsExactlyElementsOf(system.getValue()));
-            claim("and the engine check was given " + ENGINE_CHECK_LIMIT.toSeconds() + " seconds each time and the"
-                            + " start the " + WAIT_AT_MOST.toSeconds() + " second(s) every wait of these tests is"
-                            + " bounded by",
-                    () -> assertThat(docker.limits()).containsExactly(
-                            ENGINE_CHECK_LIMIT, WAIT_AT_MOST, ENGINE_CHECK_LIMIT, ENGINE_CHECK_LIMIT));
+            claim("and the engine check and the checks for compose and buildx were given " + ENGINE_CHECK_LIMIT.toSeconds()
+                            + " seconds each time and the start the " + WAIT_AT_MOST.toSeconds() + " second(s) every"
+                            + " wait of these tests is bounded by",
+                    () -> assertThat(docker.limits()).containsExactly(ENGINE_CHECK_LIMIT, WAIT_AT_MOST,
+                            ENGINE_CHECK_LIMIT, ENGINE_CHECK_LIMIT, ENGINE_CHECK_LIMIT, ENGINE_CHECK_LIMIT));
         }
     }
 
     @Test
     @Story("The control panel starts the Docker engine as its window opens")
-    @DisplayName("The control panel's start makes the engine answer and asks no sidecar, and starts nothing where the sidecars are on another machine")
+    @DisplayName("The control panel's start makes the engine answer, checks for compose and buildx, and asks no sidecar, and starts nothing where the sidecars are on another machine")
     @Issue("816")
+    @Link(name = "ADR-410", url = Adr.A_MISSING_DOCKER_COMPOSE_OR_BUILDX_IS_NAMED_BEFORE_UP, type = "adr")
     void theControlPanelsStartStartsTheEngineAloneAndAsksNoSidecar() {
         ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
         ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
@@ -187,10 +193,11 @@ class SidecarStartTest {
                 .ensureTheEngineRuns();
 
         claim("the engine was started", () -> assertThat(outcome).isEqualTo(SidecarStarter.Outcome.ENGINE_STARTED));
-        claim("and the commands were the engine check, the service's start and the " + ENGINE_CHECKS_FAILED
-                        + " checks of the wait, and no up",
+        claim("and the commands were the engine check, the service's start, the " + ENGINE_CHECKS_FAILED
+                        + " checks of the wait, the check for compose and the check for buildx, and no up",
                 () -> assertThat(docker.commands()).containsExactly(ScriptedDocker.ENGINE_CHECK, SYSTEMCTL_START,
-                        ScriptedDocker.ENGINE_CHECK, ScriptedDocker.ENGINE_CHECK));
+                        ScriptedDocker.ENGINE_CHECK, ScriptedDocker.ENGINE_CHECK,
+                        ScriptedDocker.COMPOSE_CHECK, ScriptedDocker.BUILDX_CHECK));
         claim("and no sidecar was asked anything", () -> assertThat(health.questionsAsked()).isZero());
 
         ScriptedDocker elsewhere = ScriptedDocker.engineAnsweringAfter(ScriptedDocker.NEVER);

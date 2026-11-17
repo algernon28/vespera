@@ -20,11 +20,22 @@ import java.util.function.Consumer;
  * <p>A command ending in {@link #ENGINE_CHECK} is the engine check, run as it is or inside a WSL distribution through
  * {@code wsl} (ADR-390 §1); not installed, {@code wsl} is as missing as {@code docker} is. Each command's limit is
  * recorded beside it, {@link #limits}.
+ *
+ * <p>A command ending in {@link #COMPOSE_CHECK} or {@link #BUILDX_CHECK}, as it is or inside {@code wsl}, answers exit 0
+ * with the version Ubuntu 24.04's packages print, unless {@link #withoutCompose} or {@link #withoutBuildx} took that
+ * one away, when it answers as the {@code docker} client answers a command it has no plugin for (ADR-410, Measured);
+ * a script {@link #answering} sets for the whole command comes first.
  */
 final class ScriptedDocker implements ProcessRunner {
 
     /** The command that asks whether the Docker engine answers. */
     static final List<String> ENGINE_CHECK = List.of("docker", "version", "--format", "{{.Server.Version}}");
+
+    /** The command that asks whether the {@code docker} client has Compose (ADR-410 §1). */
+    static final List<String> COMPOSE_CHECK = List.of("docker", "compose", "version");
+
+    /** The command that asks whether the {@code docker} client has buildx (ADR-410 §1). */
+    static final List<String> BUILDX_CHECK = List.of("docker", "buildx", "version");
 
     /** An engine check count no test reaches: the engine never answers. */
     static final int NEVER = Integer.MAX_VALUE;
@@ -35,6 +46,8 @@ final class ScriptedDocker implements ProcessRunner {
     private final java.util.Set<List<String>> unlaunchable = new java.util.HashSet<>();
     private final Map<List<String>, CommandOutputFileException> outputFileFailures = new HashMap<>();
     private boolean installed = true;
+    private boolean composeInstalled = true;
+    private boolean buildxInstalled = true;
     private int engineAnswersAfter;
     private int otherCommandsExit = 1;
     private int engineChecks;
@@ -58,6 +71,18 @@ final class ScriptedDocker implements ProcessRunner {
         ScriptedDocker docker = new ScriptedDocker();
         docker.engineAnswersAfter = checks;
         return docker;
+    }
+
+    /** The {@code docker} client has no Compose, as Ubuntu's {@code docker.io} has none without {@code docker-compose-v2}. */
+    ScriptedDocker withoutCompose() {
+        composeInstalled = false;
+        return this;
+    }
+
+    /** The {@code docker} client has no buildx, as Ubuntu's {@code docker.io} has none without {@code docker-buildx}. */
+    ScriptedDocker withoutBuildx() {
+        buildxInstalled = false;
+        return this;
     }
 
     ScriptedDocker answering(List<String> command, int exitCode, String output) {
@@ -109,8 +134,18 @@ final class ScriptedDocker implements ProcessRunner {
 
     /** Whether {@code command} is the engine check, run as it is or inside {@code wsl}. */
     static boolean isTheEngineCheck(List<String> command) {
-        return command.size() >= ENGINE_CHECK.size()
-                && command.subList(command.size() - ENGINE_CHECK.size(), command.size()).equals(ENGINE_CHECK);
+        return endsWith(command, ENGINE_CHECK);
+    }
+
+    private static boolean endsWith(List<String> command, List<String> tail) {
+        return command.size() >= tail.size()
+                && command.subList(command.size() - tail.size(), command.size()).equals(tail);
+    }
+
+    /** How the {@code docker} client answers {@code docker <subcommand> version} with no plugin for it (ADR-410). */
+    private static ProcessOutcome unknownToTheClient(String subcommand) {
+        return new ProcessOutcome(1, "docker: unknown command: docker " + subcommand + "\n\n"
+                + "Run 'docker --help' for more information\n");
     }
 
     @Override
@@ -130,6 +165,16 @@ final class ScriptedDocker implements ProcessRunner {
                     ? new ProcessOutcome(0, "29.9.1\n")
                     : new ProcessOutcome(1, "Cannot connect to the Docker daemon at unix:///var/run/docker.sock."
                             + " Is the docker daemon running?\n");
+        }
+        if (!scripted.containsKey(command) && endsWith(command, COMPOSE_CHECK)) {
+            return composeInstalled
+                    ? new ProcessOutcome(0, "Docker Compose version 2.40.3+ds1-0ubuntu1~24.04.1\n")
+                    : unknownToTheClient("compose");
+        }
+        if (!scripted.containsKey(command) && endsWith(command, BUILDX_CHECK)) {
+            return buildxInstalled
+                    ? new ProcessOutcome(0, "github.com/docker/buildx 0.30.1 0.30.1-0ubuntu1~24.04.1\n")
+                    : unknownToTheClient("buildx");
         }
         return scripted.getOrDefault(command, new ProcessOutcome(otherCommandsExit, ""));
     }
