@@ -2,7 +2,6 @@ package io.algernon.vespera;
 
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -279,21 +278,83 @@ class TheTopicLedgerTablesTest {
     @Story("The topics and what is arranged under them are on record")
     @DisplayName("A subtopic below none, a fallback name with no reason and a written name with one are refused")
     void aSubtopicBelowNoneAndAFallbackWithNoTurnDownAreRefused() throws SQLException {
-        insert("INSERT INTO cluster_member VALUES (1, 'a run', 'seed.txt', 0, -1, 0)");
-        insert("INSERT INTO topic_name VALUES ('a run', 'seed.txt', 0, 'A name', 'FALLBACK', 'EMPTY')");
-        insert("INSERT INTO topic_name VALUES ('a run', 'other.txt', 0, 'Another name', 'WRITTEN', NULL)");
+        Map<String, String> aRowAtASubtopic = new LinkedHashMap<>();
+        aRowAtASubtopic.put("cluster_member",
+                "INSERT INTO cluster_member VALUES (1, 'a run at subtopic %1$d', 'seed.txt', 0, %1$d, 0)");
+        aRowAtASubtopic.put("arranged_cluster",
+                "INSERT INTO arranged_cluster VALUES ('a run at subtopic %1$d', 'seed.txt', 0, %1$d, 0, 'A label', 1, 1, 0, 1)");
+        aRowAtASubtopic.put("cluster_synthesis_doc",
+                "INSERT INTO cluster_synthesis_doc VALUES ('a run at subtopic %1$d', 'seed.txt', 0, %1$d, 0, 'A title', 'Prose')");
+        aRowAtASubtopic.put("cluster_call_exemplar",
+                "INSERT INTO cluster_call_exemplar VALUES ('a run at subtopic %1$d', 'seed.txt', 0, %1$d, 0, 1, 1)");
+        aRowAtASubtopic.put("standing_cluster_fault",
+                "INSERT INTO standing_cluster_fault VALUES ('a run at subtopic %1$d', 'seed.txt', 0, %1$d, 0, 'SCHEMA_VIOLATION', 'A detail')");
+        aRowAtASubtopic.put("topic_overview_source",
+                "INSERT INTO topic_overview_source VALUES ('a run at subtopic %1$d', 'seed.txt', 0, 1, %1$d, 0)");
 
-        claim("a member of a topic with no subtopics, -1, is kept, and a subtopic of -2 is refused by the table's check",
-                () -> assertThatThrownBy(() -> insert("INSERT INTO cluster_member VALUES (2, 'a run', 'seed.txt', 0, -2, 0)"))
-                        .hasMessageContaining("CHECK constraint failed"));
-        claim("a name that fell back is kept with the reason it fell back, and refused with none",
-                () -> assertThatThrownBy(() -> insert(
-                                "INSERT INTO topic_name VALUES ('a run', 'third.txt', 0, 'A name', 'FALLBACK', NULL)"))
-                        .hasMessageContaining("CHECK constraint failed"));
-        claim("a name the model wrote is kept with no reason, and refused with one",
-                () -> assertThatThrownBy(() -> insert(
-                                "INSERT INTO topic_name VALUES ('a run', 'fourth.txt', 0, 'A name', 'WRITTEN', 'EMPTY')"))
-                        .hasMessageContaining("CHECK constraint failed"));
+        Map<String, List<String>> atNoneAndBelow = new LinkedHashMap<>();
+        for (Map.Entry<String, String> table : aRowAtASubtopic.entrySet()) {
+            atNoneAndBelow.put(table.getKey(), List.of(
+                    "-1 " + keptOrRefused(table.getValue().formatted(-1)),
+                    "-2 " + keptOrRefused(table.getValue().formatted(-2))));
+        }
+        List<String> aSubtopicsName = List.of(
+                "0 " + keptOrRefused("INSERT INTO subtopic_name VALUES ('a run', 'seed.txt', 0, 0, 'A name', 'WRITTEN', NULL)"),
+                "-1 " + keptOrRefused("INSERT INTO subtopic_name VALUES ('a run', 'seed.txt', 0, -1, 'A name', 'WRITTEN', NULL)"));
+        Map<String, List<String>> namesByOriginAndTurnDown = new LinkedHashMap<>();
+        namesByOriginAndTurnDown.put("topic_name", List.of(
+                "fallback, a turn-down " + keptOrRefused(
+                        "INSERT INTO topic_name VALUES ('a run', 'first.txt', 0, 'A name', 'FALLBACK', 'EMPTY')"),
+                "fallback, none " + keptOrRefused(
+                        "INSERT INTO topic_name VALUES ('a run', 'second.txt', 0, 'A name', 'FALLBACK', NULL)"),
+                "written, none " + keptOrRefused(
+                        "INSERT INTO topic_name VALUES ('a run', 'third.txt', 0, 'A name', 'WRITTEN', NULL)"),
+                "written, a turn-down " + keptOrRefused(
+                        "INSERT INTO topic_name VALUES ('a run', 'fourth.txt', 0, 'A name', 'WRITTEN', 'EMPTY')")));
+        namesByOriginAndTurnDown.put("subtopic_name", List.of(
+                "fallback, a turn-down " + keptOrRefused(
+                        "INSERT INTO subtopic_name VALUES ('a run', 'first.txt', 0, 0, 'A name', 'FALLBACK', 'EMPTY')"),
+                "fallback, none " + keptOrRefused(
+                        "INSERT INTO subtopic_name VALUES ('a run', 'second.txt', 0, 0, 'A name', 'FALLBACK', NULL)"),
+                "written, none " + keptOrRefused(
+                        "INSERT INTO subtopic_name VALUES ('a run', 'third.txt', 0, 0, 'A name', 'WRITTEN', NULL)"),
+                "written, a turn-down " + keptOrRefused(
+                        "INSERT INTO subtopic_name VALUES ('a run', 'fourth.txt', 0, 0, 'A name', 'WRITTEN', 'EMPTY')")));
+
+        claim("on each of the six tables a cluster's subtopic is kept in, the five of the clusters and the overview's"
+                        + " sources, a cluster of a topic with no subtopics, -1, is kept, and a subtopic of -2 is refused by"
+                        + " the table's check",
+                () -> assertThat(atNoneAndBelow).containsOnlyKeys(aRowAtASubtopic.keySet())
+                        .allSatisfy((table, outcomes) -> assertThat(outcomes)
+                                .as("what %s does with a subtopic of -1 and of -2", table)
+                                .containsExactly("-1 kept", "-2 refused")));
+        claim("a subtopic's name is kept for a subtopic that exists, 0, and refused for none, -1",
+                () -> assertThat(aSubtopicsName).containsExactly("0 kept", "-1 refused"));
+        claim("on both tables of names, a name that fell back is kept with the reason it fell back and refused with none,"
+                        + " and a name the model wrote is kept with no reason and refused with one",
+                () -> assertThat(namesByOriginAndTurnDown).allSatisfy((table, outcomes) -> assertThat(outcomes)
+                        .as("what %s does with each origin, with and without a turn-down", table)
+                        .containsExactly(
+                                "fallback, a turn-down kept",
+                                "fallback, none refused",
+                                "written, none kept",
+                                "written, a turn-down refused")));
+    }
+
+    /**
+     * {@code kept} where the table takes the row, {@code refused} where its check refuses it; any other failure, a
+     * table or a column the schema lacks among them, is the statement's own and is thrown.
+     */
+    private static String keptOrRefused(String statement) throws SQLException {
+        try {
+            insert(statement);
+            return "kept";
+        } catch (SQLException refusal) {
+            if (String.valueOf(refusal.getMessage()).contains("CHECK constraint failed")) {
+                return "refused";
+            }
+            throw refusal;
+        }
     }
 
     @Test

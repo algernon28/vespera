@@ -3,6 +3,10 @@ package io.algernon.vespera.engine.pipeline;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.corpus.Walk;
 import io.algernon.vespera.engine.profile.ProfileStore;
@@ -15,17 +19,21 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * A topic's name is recorded under the arrangement run as it is given, with where it came from and, where it fell
@@ -38,6 +46,10 @@ import org.springframework.test.context.DynamicPropertySource;
  * PlacementIsReadInTheScoringPassInvocationTest} makes them: three seeds on pumps and three on sluices, each word's
  * text embedding along an axis of its own, at this machine's {@value #TWO_NEIGHBOURS} neighbours for the topics; the
  * topic on pumps has the key that comes first, and is named first.
+ *
+ * <p>What the page shows, its JSON shows (ADR-409 §7): one section a topic, whose {@code id} is {@code topic-} and its
+ * place and whose {@code title} is its recorded name. The closing line a stopped step records is read off the operator
+ * logger, where the step's listener logs it (ADR-364 §4).
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -71,8 +83,18 @@ class TopicNamesAreStoredAndShownInvocationTest {
             + " used: the model's answer was empty. The name above stands in for it, taken from the seed feeding the"
             + " topic the most passages, or from the topic's place where that seed gives none.</p>\n";
 
+    /** The words of {@link #A_FALLBACK_FOR_AN_EMPTY_ANSWER} without its markup, as the JSON's text holds them. */
+    private static final String THE_FALLBACKS_WORDS = "The naming model's name for this topic was not used: the model's"
+            + " answer was empty. The name above stands in for it, taken from the seed feeding the topic the most"
+            + " passages, or from the topic's place where that seed gives none.";
+
+    /** The line of counts of a topic holding the one corpus document in one group. */
+    private static final String ONE_DOCUMENT_IN_ONE_GROUP = "1 document(s) in 1 group(s).";
+
     /** What the serving engine answers a question it refuses with, which says nothing of the question's length. */
     private static final String A_REFUSAL = "the serving engine is busy";
+
+    private static final JsonMapper JSON = JsonMapper.builder().build();
 
     @TempDir
     static Path workingDirectory;
@@ -91,6 +113,21 @@ class TopicNamesAreStoredAndShownInvocationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    private ListAppender<ILoggingEvent> operatorLines;
+
+    @BeforeEach
+    void hearTheOperatorLines() {
+        operatorLines = new ListAppender<>();
+        operatorLines.start();
+        ((Logger) LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).addAppender(operatorLines);
+    }
+
+    @AfterEach
+    void stopHearingThem() {
+        ((Logger) LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(operatorLines);
+        operatorLines.stop();
+    }
 
     @BeforeEach
     @AfterEach
@@ -135,6 +172,30 @@ class TopicNamesAreStoredAndShownInvocationTest {
 
     @Test
     @Story("The topics and their names are shown at the approval, to read and not to change")
+    @DisplayName("The approval page's JSON has one section for the topic, titled by the name kept for it")
+    void theArrangementsJsonHasOneSectionATopicTitledByItsName(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        oneSeedOfOnePassage(root, seeds);
+
+        cli.run("run", root.toString());
+        JsonNode json = theJson();
+
+        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim("after what the page says and what it asks, the JSON has one section, topic-1, for the one topic, and no"
+                        + " section named for a seed",
+                () -> assertThat(sectionsOf(json))
+                        .extracting(section -> section.substring(0, section.indexOf(':')))
+                        .containsExactly("overview", "approval", "topic-1"));
+        claim("the topic's section is titled by the name the model gave it, and holds its line of counts and its one"
+                        + " group, as the page does",
+                () -> assertThat(sectionsOf(json)).contains("topic-1: " + THE_FIRST_NAME + " "
+                        + List.of(ONE_DOCUMENT_IN_ONE_GROUP) + " table of 1 row(s)"));
+        claim("and its headline counts the topics, one, before the groups and the documents",
+                () -> assertThat(headlineOf(json)).containsExactly(
+                        "topics Topics 1", "clusters Groups 1", "documents Documents 1"));
+    }
+
+    @Test
+    @Story("The topics and their names are shown at the approval, to read and not to change")
     @DisplayName("A name that fell back is kept with the reason, and the page says under it why the model's was not used")
     void aFallbackNameIsStoredWithItsTurnDownAndMarkedOnThePage(@TempDir Path root, @TempDir Path seeds)
             throws IOException {
@@ -152,6 +213,10 @@ class TopicNamesAreStoredAndShownInvocationTest {
                         + " not used because its answer was empty, and where the name shown comes from",
                 () -> assertThat(page).contains(
                         "<h2>" + SeedScriptedExtractionBeans.STUBBED_TITLE + "</h2>\n" + A_FALLBACK_FOR_AN_EMPTY_ANSWER));
+        claim("and the JSON's section for the topic is titled by that name, its text the paragraph's words and then its"
+                        + " line of counts, as the page has them",
+                () -> assertThat(sectionsOf(theJson())).contains("topic-1: " + SeedScriptedExtractionBeans.STUBBED_TITLE
+                        + " " + List.of(THE_FALLBACKS_WORDS, ONE_DOCUMENT_IN_ONE_GROUP) + " table of 1 row(s)"));
     }
 
     @Test
@@ -171,6 +236,7 @@ class TopicNamesAreStoredAndShownInvocationTest {
 
         cli.run("run", root.toString());
         int stopped = cli.getExitCode();
+        List<ILoggingEvent> saidAtTheStop = List.copyOf(operatorLines.list);
         String arrangement = theArrangementOf(root);
         List<String> namedBeforeTheStop = namesUnder(arrangement);
         int askedBeforeTheStop = GenerationScriptedBeans.namingQuestionsSent().size();
@@ -182,6 +248,15 @@ class TopicNamesAreStoredAndShownInvocationTest {
 
         claim("the first invocation failed, the engine refusing the question about the topic on sluices",
                 () -> assertThat(stopped).isNotZero());
+        claim("its closing line, at ERROR, names the topic on sluices by its key as the line of a name given writes it,"
+                        + " gives the engine's refusal word for word, and says the names given are kept and the next"
+                        + " invocation asks only for the rest",
+                () -> assertThat(saidAtTheStop)
+                        .filteredOn(event -> event.getLevel() == Level.ERROR)
+                        .extracting(ILoggingEvent::getFormattedMessage)
+                        .contains("the arrangement step stopped: the naming model gave no answer for topic "
+                                + onSluices.getFirst() + " chunk 0 -- " + A_REFUSAL + "; the names given before it are"
+                                + " kept, and the next invocation asks only for the rest"));
         claim("by then the topic on pumps, whose key comes first, had been named and its name kept, and the one on"
                         + " sluices had not",
                 () -> assertThat(namedBeforeTheStop).containsExactly(onPumpsKey + " " + THE_FIRST_NAME + " WRITTEN none"));
@@ -226,5 +301,43 @@ class TopicNamesAreStoredAndShownInvocationTest {
 
     private static String thePage() throws IOException {
         return Files.readString(workingDirectory.resolve(ArrangementTasklet.ARRANGEMENT_FILE_NAME), StandardCharsets.UTF_8);
+    }
+
+    private static JsonNode theJson() throws IOException {
+        return JSON.readTree(Files.readString(
+                workingDirectory.resolve(ArrangementTasklet.ARRANGEMENT_JSON_FILE_NAME), StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Each section of an analysis report's JSON, in order, as {@code id: title [text, ...]} and then {@code table of n
+     * row(s)}, or {@code no table} where the section has none.
+     */
+    static List<String> sectionsOf(JsonNode json) {
+        List<String> sections = new ArrayList<>();
+        JsonNode all = json.get("sections");
+        for (int at = 0; at < all.size(); at++) {
+            JsonNode section = all.get(at);
+            List<String> text = new ArrayList<>();
+            JsonNode lines = section.get("text");
+            for (int line = 0; lines != null && line < lines.size(); line++) {
+                text.add(lines.get(line).asString());
+            }
+            JsonNode table = section.get("table");
+            sections.add(section.get("id").asString() + ": " + section.get("title").asString() + " " + text
+                    + (table == null || table.isNull() ? " no table" : " table of " + table.get("rows").size() + " row(s)"));
+        }
+        return sections;
+    }
+
+    /** The figures of an analysis report's JSON headline, in order, as {@code key label value}. */
+    static List<String> headlineOf(JsonNode json) {
+        List<String> figures = new ArrayList<>();
+        JsonNode headline = json.get("headline");
+        for (int at = 0; at < headline.size(); at++) {
+            JsonNode figure = headline.get(at);
+            figures.add(figure.get("key").asString() + " " + figure.get("label").asString() + " "
+                    + figure.get("value").toString());
+        }
+        return figures;
     }
 }

@@ -171,6 +171,19 @@ class GenerationScriptedBeans {
         refusing = question -> false;
         refusalText = "";
         namingAnswer = null;
+        overviewWriting = null;
+    }
+
+    /** The writing every overview is answered with, in place of one citing the first cluster sent; none until a test says otherwise. */
+    private static String overviewWriting;
+
+    /**
+     * Answers every overview call with {@code writing} as its prose, in the shape asked, until the scripts are next
+     * dropped: so a test can have an overview turned down by ADR-402's check, a writing citing no group being one
+     * turned down as {@code CITATION_NOT_IN_RANGE} at both askings.
+     */
+    static void writesEveryOverviewAs(String writing) {
+        overviewWriting = writing;
     }
 
     /** The text every naming call is answered with, in place of a numbered name; none until a test says otherwise. */
@@ -272,12 +285,24 @@ class GenerationScriptedBeans {
      * the check on the answer, as it always has, and not the count before it.
      *
      * <p><b>A naming call</b> (ADR-407 §1, §5) — {@link TopicNaming#NAME_REPLY_ALLOWANCE} tokens asked for, {@link
-     * TopicNaming#NAMING_SEED} sent, and a schema of the one field {@code name} — is answered with a name every check
-     * of ADR-407 §6 passes, one no earlier call was given, and is kept out of the same three for the same reason: it is
-     * asked at the head of the arrangement step, one per topic, and no claim that counts the writing is about it. All
-     * three marks are read, not the allowance alone, because the overview of a topic (ADR-396 §7) sends the same seed
-     * and a test may set a writing allowance of any size. A refusal scripted by {@link #refuseEvery} reaches it as it
-     * reaches every call, since an engine refuses a question and not a kind of call.
+     * TopicNaming#NAMING_SEED} sent, and a schema of the one field {@code name} — is answered, unless {@link
+     * #namesEveryTopicWith} scripted a body for every one, with a name every check of ADR-407 §6 passes, {@link
+     * #TOPIC_NAME_PREFIX} and the number of the naming call, so one no earlier call was given. It is counted by {@link
+     * #namingCallsMade()} and its question kept by {@link #namingQuestionsSent()}, and is kept out of the three above for
+     * the same reason: it is asked at the head of the arrangement step, one a topic and one a subtopic, and no claim that
+     * counts the writing is about it. All three marks are read, not the allowance alone, because the overview of a
+     * topic (ADR-396 §7) sends the same seed and a test may set a writing allowance of any size.
+     *
+     * <p><b>An overview call</b> (ADR-402 §3) — {@link TopicOverviewSynthesis#SEED} sent and a schema of the one field
+     * {@code prose} — is kept out of the three above, and out of {@link #countingCallsMade()}, whether it is the counting
+     * call before the overview or the overview's own: the counting call is answered at a count inside every window, and
+     * the overview's own call, its question kept by {@link #overviewQuestionsSent()}, with {@link #OVERVIEW_WRITING}
+     * and a citation of the first cluster the question sent, a writing ADR-402's check believes, unless {@link
+     * #writesEveryOverviewAs} scripted the writing for every one. An answer scripted by {@link #answerFor} answers
+     * neither.
+     *
+     * <p>A refusal scripted by {@link #refuseEvery} reaches every call of every kind, before any of the above, since an
+     * engine refuses a question and not a kind of call.
      */
     @Bean
     ChatModel chatModel() {
@@ -356,14 +381,15 @@ class GenerationScriptedBeans {
 
     /**
      * An overview citing the first cluster its question sent, in the shape asked, stopped having finished: one ADR-402
-     * §2's check believes.
+     * §2's check believes. Where {@link #writesEveryOverviewAs} scripted a writing, that writing alone, in the same shape.
      */
     private static ChatResponse anOverviewOf(String question) {
         Matcher first = A_CLUSTER_SENT.matcher(question);
         String cited = first.find() ? " [" + first.group(1) + "]" : "";
+        String prose = overviewWriting != null ? overviewWriting : OVERVIEW_WRITING + cited;
         return new ChatResponse(
                 List.of(new Generation(
-                        new AssistantMessage("{\"prose\":\"" + OVERVIEW_WRITING + cited + "\"}"),
+                        new AssistantMessage("{\"prose\":\"" + prose + "\"}"),
                         ChatGenerationMetadata.builder()
                                 .finishReason(STOPPED_HAVING_FINISHED)
                                 .build())),

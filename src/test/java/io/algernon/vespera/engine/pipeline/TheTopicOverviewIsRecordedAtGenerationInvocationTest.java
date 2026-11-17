@@ -15,6 +15,7 @@ import io.qameta.allure.Story;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +37,11 @@ import org.springframework.test.context.DynamicPropertySource;
  * is one cluster, numbered 0, in a topic with no subtopics, -1. This fixture's model writes the cluster as it writes
  * every one, and the overview as {@link GenerationScriptedBeans#OVERVIEW_WRITING} followed by the number of the first
  * cluster its question sends, a writing the overview's check believes.
+ *
+ * <p>An overview is asked once under its run, or twice, and never again: a topic with a row in {@code topic_overview}
+ * or in {@code topic_overview_fault} is not asked again, and has a row in one, never both (ADR-409 §4, §5, §9). Where
+ * the model is made to write {@link GenerationScriptedBeans#OVERVIEW_WRITING} alone, its one sentence cites no group,
+ * which ADR-402 §7 turns down as {@code CITATION_NOT_IN_RANGE} and asks once more.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -104,6 +110,77 @@ class TheTopicOverviewIsRecordedAtGenerationInvocationTest {
                         .containsExactly(THE_TOPIC + " number 1 is subtopic -1 cluster 0"));
         claim("and no fault is kept for the topic",
                 () -> assertThat(rows("SELECT kind FROM topic_overview_fault WHERE run_id = ?", generation)).isEmpty());
+    }
+
+    @Test
+    @Story("Each topic gets a short overview of its groups")
+    @DisplayName("Another invocation that arrives at the same writing run asks for no overview again")
+    void aLaterInvocationAtTheSameGenerationRunAsksNoOverviewAgain(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        anApprovedArrangement(root, seeds);
+        cli.run("run", root.toString());
+        String generation = runOf(root, "generation");
+        List<String> overviewKept = theOverviewAndItsSources(generation);
+        GenerationScriptedBeans.forgetScriptedAnswers();
+
+        cli.run("run", root.toString());
+
+        claim("the later invocation reports success, arriving at the same generation run",
+                () -> {
+                    assertThat(cli.getExitCode()).isZero();
+                    assertThat(runOf(root, "generation")).isEqualTo(generation);
+                });
+        claim("it sent no overview question: the topic's overview is kept under the run, and the step was recorded"
+                        + " finished once every topic had a row",
+                () -> assertThat(GenerationScriptedBeans.overviewQuestionsSent()).isEmpty());
+        claim("and the one overview and its one source stand as the first invocation kept them",
+                () -> assertThat(theOverviewAndItsSources(generation))
+                        .containsExactlyElementsOf(overviewKept)
+                        .hasSize(2));
+    }
+
+    @Test
+    @Story("Each topic gets a short overview of its groups")
+    @DisplayName("An overview turned down at both askings is kept as a fault, with nothing written for it")
+    void aTurnedDownOverviewLeavesItsFaultAndNothingElse(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        anApprovedArrangement(root, seeds);
+        GenerationScriptedBeans.writesEveryOverviewAs(GenerationScriptedBeans.OVERVIEW_WRITING);
+
+        cli.run("run", root.toString());
+        String generation = runOf(root, "generation");
+
+        claim("the invocation reports success: a turned-down overview is no verdict, and stops nothing",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim("the overview was asked twice, a writing citing no group being asked once more",
+                () -> assertThat(GenerationScriptedBeans.overviewQuestionsSent()).hasSize(2));
+        claim("one fault is kept for the topic under the generation run: a sentence citing nothing, the first such"
+                        + " sentence named, after two answers asked for",
+                () -> assertThat(rows("SELECT topic_seed_path || ' ' || topic_chunk_index || ' ' || kind || ' asked '"
+                                + " || asked || ': ' || detail FROM topic_overview_fault WHERE run_id = ?", generation))
+                        .containsExactly(THE_TOPIC + " CITATION_NOT_IN_RANGE asked 2: sentence 1 of 1 cites no group"));
+        claim("and no overview, nor any number it was written over, is kept for the topic: a topic has an overview or"
+                        + " a fault, never both",
+                () -> assertThat(theOverviewAndItsSources(generation)).isEmpty());
+    }
+
+    /** One corpus document and one seed of one passage, run to the approval, and the arrangement approved. */
+    private void anApprovedArrangement(Path root, Path seeds) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document of " + root.getFileName());
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document of " + seeds.getFileName());
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        cli.run("run", root.toString());
+        EveryGateOpen.approve(profileStore, ArrangementGate.shortNameOf(new RunId(runOf(root, "arrangement"))), GENERATION_MODEL);
+    }
+
+    /** The rows of {@code topic_overview} and of {@code topic_overview_source} under {@code generation}, each as text. */
+    private List<String> theOverviewAndItsSources(String generation) {
+        List<String> kept = new ArrayList<>(rows("SELECT 'overview ' || topic_seed_path || ' '"
+                + " || topic_chunk_index || ' asked ' || asked || ': ' || writing FROM topic_overview WHERE run_id = ?",
+                generation));
+        kept.addAll(rows("SELECT 'source ' || topic_seed_path || ' ' || topic_chunk_index || ' number ' || number"
+                + " || ' is subtopic ' || subtopic_ordinal || ' cluster ' || cluster_ordinal"
+                + " FROM topic_overview_source WHERE run_id = ? ORDER BY number", generation));
+        return kept;
     }
 
     private List<String> rows(String query, String run) {

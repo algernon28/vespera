@@ -27,6 +27,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.util.StringUtils;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * A crowded topic's subtopics are named at the head of the arrangement step after the topics, each from its own
@@ -65,6 +67,8 @@ class SubtopicsAreNamedAndShownInvocationTest {
     private static final String A_FALLBACK_FOR_AN_EMPTY_ANSWER = "<p>The naming model's name for this subtopic was not"
             + " used: the model's answer was empty. The name above stands in for it, taken from the document most like"
             + " the rest of the subtopic, or from the subtopic's place where that document gives none.</p>\n";
+
+    private static final JsonMapper JSON = JsonMapper.builder().build();
 
     @TempDir
     static Path workingDirectory;
@@ -137,6 +141,43 @@ class SubtopicsAreNamedAndShownInvocationTest {
         claim("the page heads the topic with its name, and beneath it each of the three subtopics with its own, a"
                         + " level down, in the subtopics' order",
                 () -> assertThat(places).doesNotContain(-1).isSorted());
+    }
+
+    @Test
+    @Story("The topics and their names are shown at the approval, to read and not to change")
+    @DisplayName("The approval page's JSON has a section for the topic and one for each of its subtopics, each titled by its name")
+    void theArrangementsJsonHasOneSectionForTheTopicAndOneForEachSubtopic(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        aCrowdedTopic(root, seeds);
+
+        cli.run("run", root.toString());
+        JsonNode json = JSON.readTree(Files.readString(
+                workingDirectory.resolve(ArrangementTasklet.ARRANGEMENT_JSON_FILE_NAME), StandardCharsets.UTF_8));
+        String oneDocumentInOneGroup = List.of("1 document(s) in 1 group(s).") + " table of 1 row(s)";
+
+        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim("after what the page says and what it asks, the JSON has a section for the topic, titled by its name and"
+                        + " holding no line of counts and no table, these being its subtopics'; then one for each"
+                        + " subtopic, in the subtopics' order, titled by its name and holding its line of counts and its"
+                        + " one group",
+                () -> assertThat(TopicNamesAreStoredAndShownInvocationTest.sectionsOf(json))
+                        .filteredOn(section -> section.startsWith("topic-"))
+                        .containsExactly(
+                                "topic-1: " + GenerationScriptedBeans.TOPIC_NAME_PREFIX + " 1 [] no table",
+                                "topic-1-subtopic-1: " + GenerationScriptedBeans.TOPIC_NAME_PREFIX + " 2 "
+                                        + oneDocumentInOneGroup,
+                                "topic-1-subtopic-2: " + GenerationScriptedBeans.TOPIC_NAME_PREFIX + " 3 "
+                                        + oneDocumentInOneGroup,
+                                "topic-1-subtopic-3: " + GenerationScriptedBeans.TOPIC_NAME_PREFIX + " 4 "
+                                        + oneDocumentInOneGroup));
+        claim("and no other section follows what the page says and what it asks",
+                () -> assertThat(TopicNamesAreStoredAndShownInvocationTest.sectionsOf(json))
+                        .extracting(section -> section.substring(0, section.indexOf(':')))
+                        .containsExactly("overview", "approval", "topic-1", "topic-1-subtopic-1", "topic-1-subtopic-2",
+                                "topic-1-subtopic-3"));
+        claim("its headline counts one topic, three groups and three documents",
+                () -> assertThat(TopicNamesAreStoredAndShownInvocationTest.headlineOf(json)).containsExactly(
+                        "topics Topics 1", "clusters Groups " + THE_FLOOR, "documents Documents " + THE_FLOOR));
     }
 
     @Test
