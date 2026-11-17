@@ -3,9 +3,14 @@ package io.algernon.vespera.engine.embedding;
 import io.algernon.vespera.engine.ledger.KeysetPages;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.RunId;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.OptionalInt;
 import java.util.function.Consumer;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -14,9 +19,10 @@ import org.springframework.stereotype.Component;
  * {@code embedding}'s record of which cluster each survivor landed in (ADR-087), behind this class
  * and nothing else querying the table (ADR-041).
  *
- * <p><b>One row per survivor, and a cluster is the set of rows carrying its identity</b> — the run,
- * the winning seed and the ordinal. A cluster row of its own would be a second place the truth
- * lived, which membership would then have to be kept in step with.
+ * <p><b>One row per survivor, and a cluster is the set of rows carrying its identity</b> — the run, the topic, the
+ * subtopic and the ordinal (ADR-409 section 3). A cluster row of its own would be a second place the truth
+ * lived, which membership would then have to be kept in step with. A topic with no subtopics is written with a
+ * subtopic of {@value #NO_SUBTOPIC}, and read back as an empty {@link OptionalInt}.
  *
  * <p>Rows are keyed by occurrence and run: clustering is derived under a configuration, so a re-run
  * writes its own row set (ADR-077) rather than overwriting an earlier one. That is the ordinary rule
@@ -28,20 +34,25 @@ import org.springframework.stereotype.Component;
 @Component
 public class DocumentClusters {
 
+    /** How a row writes that its topic has no subtopics (ADR-409 section 3). */
+    static final int NO_SUBTOPIC = -1;
+
     private final JdbcTemplate jdbcTemplate;
 
     public DocumentClusters(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    /** Records that {@code occurrenceId} landed in cluster {@code ordinal} of its seed's partition. */
-    public void record(RunId runId, OccurrenceId occurrenceId, OccurrenceId winningSeed, int ordinal) {
+    /** Records that {@code occurrenceId} landed in cluster {@code ordinal} of {@code subtopic} of {@code topic}. */
+    public void record(RunId runId, OccurrenceId occurrenceId, TopicKey topic, OptionalInt subtopic, int ordinal) {
         jdbcTemplate.update(
-                "INSERT INTO document_cluster (occurrence_id, run_id, winning_seed_occurrence_id,"
-                        + " cluster_ordinal) VALUES (?, ?, ?, ?)",
+                "INSERT INTO cluster_member (occurrence_id, run_id, topic_seed_path, topic_chunk_index,"
+                        + " subtopic_ordinal, cluster_ordinal) VALUES (?, ?, ?, ?, ?, ?)",
                 occurrenceId.value(),
                 runId.value(),
-                winningSeed.value(),
+                topic.firstPassage().seedPath(),
+                topic.firstPassage().chunkIndex(),
+                subtopic.orElse(NO_SUBTOPIC),
                 ordinal);
     }
 
@@ -51,38 +62,62 @@ public class DocumentClusters {
      * clustering done again under a run whose completion is recorded.
      */
     public void discardForRun(RunId runId) {
-        jdbcTemplate.update("DELETE FROM document_cluster WHERE run_id = ?", runId.value());
+        jdbcTemplate.update("DELETE FROM cluster_member WHERE run_id = ?", runId.value());
     }
 
     /**
-     * How many survivors {@code winningSeed}'s partition holds under {@code runId}: a count the database makes,
-     * reading no column of any row (ADR-223 section 3). A seed with none has no partition.
+     * How many survivors {@code topic} holds under {@code runId}: a count the database makes, reading no column of
+     * any row (ADR-223 section 3). A topic with none has no row.
      */
-    public int sizeOf(RunId runId, OccurrenceId winningSeed) {
+    public int sizeOf(RunId runId, TopicKey topic) {
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM document_cluster WHERE run_id = ? AND winning_seed_occurrence_id = ?",
+                "SELECT COUNT(*) FROM cluster_member WHERE run_id = ? AND topic_seed_path = ? AND topic_chunk_index = ?",
                 Integer.class,
                 runId.value(),
-                winningSeed.value());
+                topic.firstPassage().seedPath(),
+                topic.firstPassage().chunkIndex());
         return count == null ? 0 : count;
     }
 
     /**
-     * The membership of {@code winningSeed}'s partition under {@code runId}, in occurrence order: read unordered
-     * and put in order on the heap, so that nothing is sorted by the database (ADR-223 section 3). The order
-     * matters to a caller: a cluster's average closeness is a sum taken in it, and the document a cluster is
-     * named after is the first of equal scores.
+     * The topics that hold a clustered survivor under {@code runId}, each with how many it holds, in key order (ADR-409
+     * sections 12, 13): one row a topic, grouped on the index of the run and the topic, which is read in the order of
+     * the key and sorts nothing.
      */
-    public List<DocumentCluster> membersOf(RunId runId, OccurrenceId winningSeed) {
+    public Map<TopicKey, Integer> sizesOfTopics(RunId runId) {
+        Map<TopicKey, Integer> counted = new LinkedHashMap<>();
+        jdbcTemplate.query(
+                "SELECT topic_seed_path, topic_chunk_index, COUNT(*) AS members FROM cluster_member"
+                        + " WHERE run_id = ? GROUP BY topic_seed_path, topic_chunk_index",
+                resultSet -> {
+                    counted.put(topicOf(resultSet), resultSet.getInt("members"));
+                },
+                runId.value());
+        List<TopicKey> inKeyOrder = new ArrayList<>(counted.keySet());
+        inKeyOrder.sort(Comparator.comparing(TopicKey::firstPassage));
+        Map<TopicKey, Integer> sizes = new LinkedHashMap<>();
+        inKeyOrder.forEach(topic -> sizes.put(topic, counted.get(topic)));
+        return sizes;
+    }
+
+    /**
+     * The membership of {@code topic} under {@code runId}, in occurrence order: read unordered and put in order on
+     * the heap, so that nothing is sorted by the database (ADR-223 section 3). The order matters to a caller: a
+     * cluster's average closeness is a sum taken in it, and the document a cluster is named after is the first of
+     * equal scores.
+     */
+    public List<DocumentCluster> membersOf(RunId runId, TopicKey topic) {
         List<DocumentCluster> members = new ArrayList<>(jdbcTemplate.query(
-                "SELECT occurrence_id, cluster_ordinal FROM document_cluster"
-                        + " WHERE run_id = ? AND winning_seed_occurrence_id = ?",
+                "SELECT occurrence_id, subtopic_ordinal, cluster_ordinal FROM cluster_member"
+                        + " WHERE run_id = ? AND topic_seed_path = ? AND topic_chunk_index = ?",
                 (resultSet, rowNumber) -> new DocumentCluster(
                         new OccurrenceId(resultSet.getLong("occurrence_id")),
-                        winningSeed,
+                        topic,
+                        subtopicOf(resultSet),
                         resultSet.getInt("cluster_ordinal")),
                 runId.value(),
-                winningSeed.value()));
+                topic.firstPassage().seedPath(),
+                topic.firstPassage().chunkIndex()));
         members.sort(Comparator.comparingLong((DocumentCluster member) -> member.occurrenceId().value()));
         return members;
     }
@@ -96,27 +131,40 @@ public class DocumentClusters {
     public void eachPage(RunId runId, Consumer<List<DocumentCluster>> page) {
         new KeysetPages<DocumentCluster>(
                         jdbcTemplate,
-                        "SELECT occurrence_id, winning_seed_occurrence_id, cluster_ordinal FROM document_cluster"
-                                + " WHERE occurrence_id > ? AND +run_id = ? ORDER BY occurrence_id",
+                        "SELECT occurrence_id, topic_seed_path, topic_chunk_index, subtopic_ordinal, cluster_ordinal"
+                                + " FROM cluster_member WHERE occurrence_id > ? AND +run_id = ? ORDER BY occurrence_id",
                         List.of(Long.MIN_VALUE, runId.value()),
                         last -> List.of(last.occurrenceId().value(), runId.value()),
                         (resultSet, rowNumber) -> new DocumentCluster(
                                 new OccurrenceId(resultSet.getLong("occurrence_id")),
-                                new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
+                                topicOf(resultSet),
+                                subtopicOf(resultSet),
                                 resultSet.getInt("cluster_ordinal")))
                 .eachPage(page);
     }
 
     /**
-     * How large each cluster in one seed's partition is, in ordinal order — the spread a reader needs
-     * to see whether one cluster swallowed the partition or it broke into singletons.
+     * How large each cluster in {@code topic} is, in subtopic and then cluster order — the spread a reader needs to
+     * see whether one cluster swallowed the topic or it broke into singletons.
      */
-    public List<Integer> sizesFor(RunId runId, OccurrenceId winningSeed) {
+    public List<Integer> sizesFor(RunId runId, TopicKey topic) {
         return jdbcTemplate.query(
-                "SELECT COUNT(*) AS members FROM document_cluster WHERE run_id = ?"
-                        + " AND winning_seed_occurrence_id = ? GROUP BY cluster_ordinal ORDER BY cluster_ordinal",
+                "SELECT COUNT(*) AS members FROM cluster_member WHERE run_id = ? AND topic_seed_path = ?"
+                        + " AND topic_chunk_index = ? GROUP BY subtopic_ordinal, cluster_ordinal"
+                        + " ORDER BY subtopic_ordinal, cluster_ordinal",
                 (resultSet, rowNumber) -> resultSet.getInt("members"),
                 runId.value(),
-                winningSeed.value());
+                topic.firstPassage().seedPath(),
+                topic.firstPassage().chunkIndex());
+    }
+
+    private static TopicKey topicOf(ResultSet resultSet) throws SQLException {
+        return new TopicKey(
+                new SeedPassage(resultSet.getString("topic_seed_path"), resultSet.getInt("topic_chunk_index")));
+    }
+
+    private static OptionalInt subtopicOf(ResultSet resultSet) throws SQLException {
+        int subtopic = resultSet.getInt("subtopic_ordinal");
+        return subtopic == NO_SUBTOPIC ? OptionalInt.empty() : OptionalInt.of(subtopic);
     }
 }

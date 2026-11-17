@@ -16,29 +16,29 @@ import java.util.function.Supplier;
 import java.util.function.LongSupplier;
 
 /**
- * What {@link Deliverable#writeTo} asks of the arrangement, a seed partition at a time (ADR-223 section 6), so
- * that the tree is written without any class holding every cluster or every survivor of the run. {@code
+ * What {@link Deliverable#writeTo} asks of the arrangement, a topic at a time (ADR-223 section 6, ADR-409 section 13),
+ * so that the tree is written without any class holding every cluster or every survivor of the run. {@code
  * pipeline} answers it from the ledger and the other capability modules with {@link #reading}; this module
  * names none of them (ADR-110).
  *
- * <p>Every answer is of one partition, one cluster or one page of survivors, and none is kept: the writer asks
- * again where it needs a value again. Whoever answers a page or a partition of survivors reads what each needs a
+ * <p>Every answer is of one topic, one cluster or one page of survivors, and none is kept: the writer asks
+ * again where it needs a value again. Whoever answers a page or a topic of survivors reads what each needs a
  * page at a time and not one survivor at a time (ADR-240), and the places of a page's clusters are asked together
  * (ADR-241).
  */
 public interface ArrangedSurvivors {
 
-    /** One row for each seed partition, in the order the arrangement stores them (ADR-112). */
-    List<ListedPartition> partitions();
+    /** One row for each topic, in the order the arrangement stores them (ADR-112). */
+    List<ListedTopic> topics();
 
-    /** How many survivors the arrangement arranges, in all its partitions. */
+    /** How many survivors the arrangement arranges, in all its topics. */
     long survivorCount();
 
-    /** The partition's clusters, in stored order. */
-    List<RecordedCluster> clustersOf(ListedPartition partition);
+    /** The topic's clusters, in stored order: subtopic by subtopic, each subtopic's in cluster order (ADR-409 section 3). */
+    List<RecordedCluster> clustersOf(ListedTopic topic);
 
-    /** The partition's survivors, in occurrence order. */
-    List<ListedSurvivor> survivorsOf(ListedPartition partition);
+    /** The topic's survivors, in occurrence order. */
+    List<ListedSurvivor> survivorsOf(ListedTopic topic);
 
     /** The writing over {@code cluster} with what its call sent in citation order, or empty where there is none. */
     Optional<SynthesisDoc> writtenOver(ClusterSlot cluster);
@@ -66,10 +66,10 @@ public interface ArrangedSurvivors {
 
     /** A source whose every answer is the function it was given for it. */
     static ArrangedSurvivors reading(
-            Supplier<List<ListedPartition>> partitions,
+            Supplier<List<ListedTopic>> topics,
             LongSupplier survivorCount,
-            Function<ListedPartition, List<RecordedCluster>> clustersOf,
-            Function<ListedPartition, List<ListedSurvivor>> survivorsOf,
+            Function<ListedTopic, List<RecordedCluster>> clustersOf,
+            Function<ListedTopic, List<ListedSurvivor>> survivorsOf,
             Function<ClusterSlot, Optional<SynthesisDoc>> writtenOver,
             Function<ClusterSlot, Optional<Unwritten>> whyUnwritten,
             Function<Set<ClusterSlot>, Map<ClusterSlot, ArrangedCluster>> placesOf,
@@ -89,8 +89,8 @@ public interface ArrangedSurvivors {
             }
 
             @Override
-            public List<ListedPartition> partitions() {
-                return partitions.get();
+            public List<ListedTopic> topics() {
+                return topics.get();
             }
 
             @Override
@@ -99,13 +99,13 @@ public interface ArrangedSurvivors {
             }
 
             @Override
-            public List<RecordedCluster> clustersOf(ListedPartition partition) {
-                return clustersOf.apply(partition);
+            public List<RecordedCluster> clustersOf(ListedTopic topic) {
+                return clustersOf.apply(topic);
             }
 
             @Override
-            public List<ListedSurvivor> survivorsOf(ListedPartition partition) {
-                return survivorsOf.apply(partition);
+            public List<ListedSurvivor> survivorsOf(ListedTopic topic) {
+                return survivorsOf.apply(topic);
             }
 
             @Override

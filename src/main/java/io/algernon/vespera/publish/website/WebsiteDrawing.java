@@ -8,11 +8,10 @@ import io.algernon.vespera.engine.deliverable.Entries;
 import io.algernon.vespera.engine.deliverable.FixedWords;
 import io.algernon.vespera.engine.deliverable.Html;
 import io.algernon.vespera.engine.deliverable.IndexPage;
-import io.algernon.vespera.engine.deliverable.ListedPartition;
+import io.algernon.vespera.engine.deliverable.ListedTopic;
 import io.algernon.vespera.engine.deliverable.ListedSurvivor;
 import io.algernon.vespera.engine.ledger.ReplacingMove;
 import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
-import io.algernon.vespera.engine.synthesis.FilenameStem;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
 import io.algernon.vespera.engine.synthesis.SynthesisDoc;
 import io.algernon.vespera.engine.synthesis.Unwritten;
@@ -118,14 +117,14 @@ final class WebsiteDrawing implements Drawing {
         search.append("globalThis.VESPERA_SEARCH_INDEX = [\n");
     }
 
-    /** Starts a seed partition's heading and table in the index, and its folder, named as the HTML tree's. */
+    /** Starts a topic's heading and table in the index, and its folder, named as the HTML tree's (ADR-409 section 10). */
     @Override
-    public void partitionStarted(ListedPartition partition, int partitionCount) throws IOException {
-        partitionFolder = IndexPage.partitionDirectoryName(partition, partitionCount);
-        partitionName = FilenameStem.of(partition.seedPath());
+    public void topicStarted(ListedTopic topic, int topicCount) throws IOException {
+        partitionFolder = IndexPage.topicDirectoryName(topic, topicCount);
+        partitionName = topic.name();
         Files.createDirectories(directory.resolve(partitionFolder));
         written.add(DIRECTORY_NAME + "/" + partitionFolder);
-        index.append("<h2>").append(Html.escape(partition.seedPath())).append("</h2>\n<table>\n")
+        index.append("<h2>").append(Html.escape(topic.name())).append("</h2>\n<table>\n")
                 .append(FixedWords.clusterTableHeadRow(language));
     }
 
@@ -137,10 +136,10 @@ final class WebsiteDrawing implements Drawing {
      */
     @Override
     public Entries entriesOf(
-            ListedPartition partition, RecordedCluster recorded, List<ListedSurvivor> members, Path clusterFolder,
+            ListedTopic topic, RecordedCluster recorded, List<ListedSurvivor> members, Path clusterFolder,
             Copies copies)
             throws IOException {
-        String folderPath = clusterFolderPath(partition, recorded);
+        String folderPath = clusterFolderPath(topic, recorded);
         Path folder = directory.resolve(folderPath);
         Files.createDirectories(folder);
         written.add(DIRECTORY_NAME + "/" + folderPath);
@@ -153,7 +152,7 @@ final class WebsiteDrawing implements Drawing {
      */
     @Override
     public void clusterDrawn(
-            ListedPartition partition,
+            ListedTopic topic,
             RecordedCluster recorded,
             Optional<SynthesisDoc> doc,
             Unwritten why,
@@ -165,7 +164,7 @@ final class WebsiteDrawing implements Drawing {
         // The entries this drawing's own entriesOf returned (ADR-333 §2).
         WebsiteEntries entries = (WebsiteEntries) handedBack;
         entries.close();
-        String folderPath = clusterFolderPath(partition, recorded);
+        String folderPath = clusterFolderPath(topic, recorded);
         Path folder = directory.resolve(folderPath);
         int pages = breaks.map(ClusterPage.PageBreaks::pages).orElse(1);
         for (int page = 1; page <= pages; page++) {
@@ -214,7 +213,7 @@ final class WebsiteDrawing implements Drawing {
 
     /** Closes the table of the seed partition just drawn. */
     @Override
-    public void partitionEnded() throws IOException {
+    public void topicEnded() throws IOException {
         index.append("</table>\n");
     }
 
@@ -259,8 +258,8 @@ final class WebsiteDrawing implements Drawing {
         rest.close();
     }
 
-    private String clusterFolderPath(ListedPartition partition, RecordedCluster recorded) {
-        return partitionFolder + "/" + IndexPage.clusterFolderName(recorded, IndexPage.widthOf(partition.clusterCount()));
+    private String clusterFolderPath(ListedTopic topic, RecordedCluster recorded) {
+        return partitionFolder + "/" + IndexPage.clusterFolderName(recorded, IndexPage.widthOf(topic.clusterCount()));
     }
 
     /** Moves the {@code .part} of {@code name} into place and lists it. */

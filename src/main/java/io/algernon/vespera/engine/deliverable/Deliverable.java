@@ -1,6 +1,7 @@
 package io.algernon.vespera.engine.deliverable;
 
 import io.algernon.vespera.engine.ledger.ReplacingMove;
+import io.algernon.vespera.engine.synthesis.ArrangedCluster;
 import io.algernon.vespera.engine.synthesis.ClusterSlot;
 import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
@@ -55,7 +56,7 @@ import java.util.stream.Stream;
  *
  * <p><b>The order is rendered, never re-derived.</b> {@code ArrangedSurvivors} answers already in the order
  * the operator approved (ADR-112), and neither level here is sorted again — a partition's position
- * comes from its own {@code partitionOrder}, and a cluster's from its own {@code clusterOrder}.
+ * comes from its own {@code topicOrder}, and a cluster's from its own {@code clusterOrder}.
  *
  * <p><b>Each cluster's page is written an entry at a time to {@code index.html.part} in its folder and
  * moved over its place before the next</b> (ADR-286 §2, §3), its pictures inlined and no picture file written; a move
@@ -149,9 +150,9 @@ public final class Deliverable {
      * digests under ADR-149 §1(a)/(b) and ADR-150 §3(c)/(d), and again, as each entry is written, to
      * inline the pictures that pass it (ADR-286 §2).
      *
-     * <p>The partitions are asked for before anything is made or reported, so a partition {@link
-     * ListedPartition} refuses leaves nothing written. The marker is written in place before the first copy
-     * (ADR-276 §3), so a drawing stopped partway leaves a root the next one of the same run accepts. A partition's
+     * <p>The topics are asked for before anything is made or reported, so a topic {@link
+     * ListedTopic} refuses leaves nothing written. The marker is written in place before the first copy
+     * (ADR-276 §3), so a drawing stopped partway leaves a root the next one of the same run accepts. A topic's
      * copies are made before its pages are written (ADR-274 §2.2), so each page states what stands. A cluster
      * nothing was written over has its page say why
      * where {@code source} gives a reason (ADR-174); only the cluster's own page changes, the index cell and
@@ -161,7 +162,7 @@ public final class Deliverable {
      * @param root where the tree is drawn: the working directory's {@code deliverable/} folder, or the folder the
      *     operator named (ADR-276 §1)
      * @param provenance what produced the tree, stated so {@code index.html} needs no database beside it
-     * @param source the arrangement, its writing and its survivors, a seed partition at a time
+     * @param source the arrangement, its writing and its survivors, a topic at a time
      * @param pictures where a survivor's pictures come from, {@link SurvivorPictures#none()} to write
      *     the tree this class wrote before it knew about pictures
      * @return {@code root.treeOf(workingDirectory, provenance.runId())}
@@ -348,7 +349,7 @@ public final class Deliverable {
             ReplacingMove moves,
             LongSupplier usableSpace) {
         Path tree = root.treeOf(workingDirectory, provenance.runId());
-        List<ListedPartition> partitions = source.partitions();
+        List<ListedTopic> topics = source.topics();
         try {
             Files.createDirectories(tree);
             DeliverableRoot.markTree(tree, workingDirectory, provenance.runId());
@@ -377,7 +378,7 @@ public final class Deliverable {
                 pluginFolders = drawings.names();
                 Path indexPart =
                         writeIndexAndClusterPages(
-                                tree, provenance, partitions, source, entryPictures, copies, written, filesLeft, moves,
+                                tree, provenance, topics, source, entryPictures, copies, written, filesLeft, moves,
                                 progress, ceiling, sizes, drawings,
                                 index -> listingPart[0] =
                                         codeCopies.draw(code, index, written, source.language()));
@@ -422,7 +423,7 @@ public final class Deliverable {
     private static Path writeIndexAndClusterPages(
             Path tree,
             DeliverableProvenance provenance,
-            List<ListedPartition> partitions,
+            List<ListedTopic> topics,
             ArrangedSurvivors source,
             EntryPictures pictures,
             Copies copies,
@@ -435,11 +436,11 @@ public final class Deliverable {
             PluginDrawings drawings,
             TheCode theCode)
             throws IOException {
-        // The three totals, announced before the loop over partitions. An entry carries a document exactly
+        // The three totals, announced before the loop over topics. An entry carries a document exactly
         // where a survivor of its cluster is listed, so the entries with a document are the survivors the
         // arrangement arranges (ADR-192 section 5, ADR-223 section 6).
-        progress.toWritePartitions(partitions.size());
-        progress.toDrawClusters(partitions.stream().mapToLong(ListedPartition::clusterCount).sum());
+        progress.toWritePartitions(topics.size());
+        progress.toDrawClusters(topics.stream().mapToLong(ListedTopic::clusterCount).sum());
         progress.toWriteMembershipEntries(source.survivorCount());
 
         boolean writingFinished = source.writingFinished();
@@ -447,44 +448,44 @@ public final class Deliverable {
         Path indexPart = tree.resolve(INDEX_FILE_NAME + PART_SUFFIX);
         try (Writer index = Files.newBufferedWriter(indexPart, StandardCharsets.UTF_8)) {
             IndexPage.open(index, provenance, language);
-            for (ListedPartition partition : partitions) {
-                List<RecordedCluster> clusters = source.clustersOf(partition);
-                List<ListedSurvivor> survivors = source.survivorsOf(partition);
+            for (ListedTopic topic : topics) {
+                List<RecordedCluster> clusters = inOneSequence(source.clustersOf(topic));
+                List<ListedSurvivor> survivors = source.survivorsOf(topic);
                 Map<ClusterSlot, List<ListedSurvivor>> membersByCluster = new HashMap<>();
                 for (ListedSurvivor survivor : survivors) {
                     membersByCluster.computeIfAbsent(survivor.slot(), key -> new ArrayList<>()).add(survivor);
                 }
-                String partitionName = IndexPage.partitionDirectoryName(partition, partitions.size());
-                Path partitionDir = tree.resolve(partitionName);
-                Files.createDirectories(partitionDir);
-                written.add(partitionName);
-                int clusterWidth = IndexPage.widthOf(partition.clusterCount());
-                // The partition's copies are made before its pages, so each page states what stands (ADR-274 §2.2); a
+                String topicName = IndexPage.topicDirectoryName(topic, topics.size());
+                Path topicDir = tree.resolve(topicName);
+                Files.createDirectories(topicDir);
+                written.add(topicName);
+                int clusterWidth = IndexPage.widthOf(topic.clusterCount());
+                // The topic's copies are made before its pages, so each page states what stands (ADR-274 §2.2); a
                 // cluster's names are worked out from its members before its first copy (ADR-280 §2) and let go after
                 // it: what stays is a folder for the cluster and a name for each copy a collision changed (see
                 // Copies). No picture is held past its entry (ADR-286 §2).
                 for (RecordedCluster recorded : clusters) {
                     String clusterName = IndexPage.clusterFolderName(recorded, clusterWidth);
-                    written.add(partitionName + "/" + clusterName);
-                    Path clusterFolder = partitionDir.resolve(clusterName);
+                    written.add(topicName + "/" + clusterName);
+                    Path clusterFolder = topicDir.resolve(clusterName);
                     Files.createDirectories(clusterFolder);
                     List<ListedSurvivor> members =
                             membersByCluster.getOrDefault(ClusterSlot.of(recorded), List.of());
                     copies.copyAll(clusterFolder, members);
                 }
-                IndexPage.partitionHeading(index, partition, language);
-                drawings.partitionStarted(partition, partitions.size());
+                IndexPage.topicHeading(index, topic, language);
+                drawings.topicStarted(topic, topics.size());
                 for (RecordedCluster recorded : clusters) {
                     ClusterSlot slot = ClusterSlot.of(recorded);
                     // One read of the cluster's synthesis doc serves its page and its row of the index (ADR-241).
                     Optional<SynthesisDoc> doc = source.writtenOver(slot);
-                    Path clusterFolder = partitionDir.resolve(IndexPage.clusterFolderName(recorded, clusterWidth));
+                    Path clusterFolder = topicDir.resolve(IndexPage.clusterFolderName(recorded, clusterWidth));
                     List<ListedSurvivor> members = membersByCluster.getOrDefault(slot, List.of());
                     SynthesisDoc writing = doc.orElse(null);
                     Unwritten why = doc.isEmpty() ? source.whyUnwritten(slot).orElse(null) : null;
                     Path pagePart = clusterFolder.resolve(CLUSTER_PAGE_NAME + PART_SUFFIX);
                     EntryEnds ends = new EntryEnds(ceiling instanceof ClusterPageCeiling.Bytes);
-                    Entries entries = drawings.entriesOf(partition, recorded, members, clusterFolder, copies);
+                    Entries entries = drawings.entriesOf(topic, recorded, members, clusterFolder, copies);
                     try (OutputStream page = Files.newOutputStream(pagePart); entries) {
                         ClusterPage.write(
                                 page, recorded, writing, why, members, clusterFolder, copies, pictures, progress, ends,
@@ -516,21 +517,48 @@ public final class Deliverable {
                                 ((ClusterPageCeiling.Bytes) ceiling).bytes(), writingFinished, language);
                     }
                     drawings.clusterDrawn(
-                            partition, recorded, doc, why, ClusterPage.numbered(writing, members).size(), breaks, entries,
+                            topic, recorded, doc, why, ClusterPage.numbered(writing, members).size(), breaks, entries,
                             writingFinished);
                     sizes.drawn(onePageSize, ends.count(), pageCount, pagesOver);
                     filesLeft[0] += filesLeftIn(clusterFolder, members, copies, pageCount);
                     progress.clusterDrawn();
-                    IndexPage.clusterRow(index, partition, partitions.size(), recorded, doc, language);
+                    IndexPage.clusterRow(index, topic, topics.size(), recorded, doc, language);
                 }
-                IndexPage.partitionEnd(index);
-                drawings.partitionEnded();
+                IndexPage.topicEnd(index);
+                drawings.topicEnded();
                 progress.partitionWritten();
             }
             theCode.drawn(index);
             IndexPage.close(index);
         }
         return indexPart;
+    }
+
+    /**
+     * A crowded topic's clusters in one sequence, subtopic by subtopic, each numbered by its place in it, so that their
+     * folders are numbered and padded over the topic's clusters (ADR-409 section 10); a topic with no subtopics keeps the
+     * places the arrangement stored.
+     */
+    private static List<RecordedCluster> inOneSequence(List<RecordedCluster> clusters) {
+        if (clusters.stream().noneMatch(recorded -> recorded.cluster().subtopic().isPresent())) {
+            return clusters;
+        }
+        List<RecordedCluster> sequence = new ArrayList<>();
+        for (int place = 0; place < clusters.size(); place++) {
+            RecordedCluster recorded = clusters.get(place);
+            ArrangedCluster stored = recorded.cluster();
+            sequence.add(new RecordedCluster(
+                    new ArrangedCluster(
+                            stored.topic(),
+                            stored.subtopic(),
+                            stored.ordinal(),
+                            stored.documentCount(),
+                            stored.topicOrder(),
+                            stored.subtopicOrder(),
+                            place + 1),
+                    recorded.label()));
+        }
+        return List.copyOf(sequence);
     }
 
     /**

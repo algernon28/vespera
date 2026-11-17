@@ -75,8 +75,9 @@ final class ManifestCsv {
                         // numbers in a file built to be loaded straight into a table (ADR-104) -- the one
                         // shape of wrong this manifest exists to prevent.
                         new IllegalArgumentException("survivor " + survivor.occurrence().value()
-                                + " names cluster " + survivor.clusterOrdinal() + " of seed "
-                                + survivor.winningSeed().value() + ", which the arrangement does not carry"));
+                                + " names cluster " + survivor.clusterOrdinal() + " of topic "
+                                + survivor.topic().seedPath() + " chunk " + survivor.topic().chunkIndex()
+                                + ", which the arrangement does not carry"));
         csv.append(String.valueOf(survivor.occurrence().value()))
                 .append(',')
                 .append(cell(survivor.path().value()))
@@ -87,11 +88,11 @@ final class ManifestCsv {
                 .append(',')
                 .append(String.valueOf(survivor.score()))
                 .append(',')
-                .append(cell(survivor.seedPath()))
+                .append(cell(survivor.topicName()))
                 .append(',')
                 .append(String.valueOf(survivor.clusterOrdinal()))
                 .append(',')
-                .append(String.valueOf(cluster.partitionOrder()))
+                .append(String.valueOf(cluster.topicOrder()))
                 .append(',')
                 .append(String.valueOf(cluster.clusterOrder()))
                 .append(',')

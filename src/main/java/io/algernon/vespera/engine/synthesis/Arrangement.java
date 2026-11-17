@@ -1,19 +1,19 @@
 package io.algernon.vespera.engine.synthesis;
 
-import io.algernon.vespera.engine.ledger.OccurrenceId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 
 /**
- * The sequence stage 6a gives the arrangement (ADR-112).
+ * The sequence stage 6a gives the arrangement (ADR-112, ADR-396 section 4, ADR-406 section 4, ADR-409 section 3).
  *
- * <p>Two levels, two rules, because they are not the same comparison. ADR-020's score is a maximum
+ * <p>Three levels, and the rules differ because they are not the same comparison. ADR-020's score is a maximum
  * over (survivor chunk, seed chunk) pairs, so a longer seed document draws its top three from a
- * larger sample and scores higher against everything. Within a partition the scores share a seed and
- * compare soundly; across partitions they would rank the operator's own seed documents by length.
+ * larger sample and scores higher against everything. Within a topic the clusters compare soundly; across topics
+ * they are ordered by how much of the archive sits under them and never by a score.
  *
  * <p>What comes out is rendered and never re-derived. ADR-107 has the operator approve a specific
  * arrangement named by its run id, so an arrangement that re-sorted where it is read would mean the
@@ -25,9 +25,9 @@ public final class Arrangement {
      * Clusters run in two tiers — every cluster of several documents, then every cluster of one —
      * each tier closest-to-the-seed first, ties broken on the ordinal.
      *
-     * <p>Two tiers rather than one flat rule, because under a flat rule the partition's single best
+     * <p>Two tiers rather than one flat rule, because under a flat rule the topic's single best
      * document, alone in a cluster of its own, outranks every substantial cluster beneath it.
-     * {@code ClusterSizeReport} exists because "a partition that is 40% one-document clusters" is a
+     * {@code ClusterSizeReport} exists because "a topic that is 40% one-document clusters" is a
      * measured outcome rather than a hypothetical, and a hundred of those ahead of the real material
      * is a deliverable nobody reads.
      *
@@ -50,8 +50,9 @@ public final class Arrangement {
     }
 
     /**
-     * The documents the previous stage clustered, gathered into the seeds and clusters this class then
-     * orders — in the order they were offered, since nothing here decides an order.
+     * The documents the previous stage clustered under one topic, gathered into the clusters this class then orders:
+     * one {@link TopicClusters} for each subtopic the documents lie in, in the order the subtopics first appear, or
+     * one for the topic where it has none — in the order they were offered, since nothing here decides an order.
      *
      * <p><b>The arrangement covers every document or it is not an arrangement.</b> A document that was
      * clustered without being scored cannot be placed, because the order of the clusters is computed
@@ -59,52 +60,74 @@ public final class Arrangement {
      * miscellaneous bucket for whatever could not be placed would render that gap as a section of the
      * finished work, indistinguishable from a real one to whoever reads it.
      */
-    public static List<Partition> partitionsOf(List<ClusteredDocument> documents) {
-        Map<OccurrenceId, String> seedPaths = new LinkedHashMap<>();
-        Map<OccurrenceId, Map<Integer, List<Double>>> bySeedThenOrdinal = new LinkedHashMap<>();
+    public static List<TopicClusters> clustersOf(List<ClusteredDocument> documents) {
+        Map<TopicKey, Map<OptionalInt, Map<Integer, List<Double>>>> byTopicThenSubtopicThenOrdinal =
+                new LinkedHashMap<>();
         for (ClusteredDocument document : documents) {
             if (document.score() == null) {
                 throw new IllegalStateException("occurrence " + document.occurrence().value()
                         + " was clustered but carries no relevance score, so the arrangement is not total");
             }
-            seedPaths.putIfAbsent(document.winningSeed(), document.seedPath());
-            bySeedThenOrdinal
-                    .computeIfAbsent(document.winningSeed(), seed -> new LinkedHashMap<>())
+            byTopicThenSubtopicThenOrdinal
+                    .computeIfAbsent(document.topic(), topic -> new LinkedHashMap<>())
+                    .computeIfAbsent(document.subtopic(), subtopic -> new LinkedHashMap<>())
                     .computeIfAbsent(document.clusterOrdinal(), ordinal -> new ArrayList<>())
                     .add(document.score());
         }
-        List<Partition> partitions = new ArrayList<>();
-        bySeedThenOrdinal.forEach((seed, byOrdinal) -> partitions.add(new Partition(
-                seed,
-                seedPaths.get(seed),
-                byOrdinal.entrySet().stream()
-                        .map(entry -> new Cluster(entry.getKey(), entry.getValue()))
-                        .toList())));
-        return List.copyOf(partitions);
+        List<TopicClusters> gathered = new ArrayList<>();
+        byTopicThenSubtopicThenOrdinal.forEach((topic, bySubtopic) -> bySubtopic.forEach((subtopic, byOrdinal) ->
+                gathered.add(new TopicClusters(
+                        topic,
+                        subtopic,
+                        byOrdinal.entrySet().stream()
+                                .map(entry -> new Cluster(entry.getKey(), entry.getValue()))
+                                .toList()))));
+        return List.copyOf(gathered);
     }
 
     /**
-     * The seeds of {@code memberCounts} in the order their partitions run (ADR-112, ADR-223 section 3): the
-     * partition with the most documents first, ties on the seed's own path in {@code seedPaths}. Nothing of any
-     * document under a seed is needed, only how many there are.
+     * The topics of {@code memberCounts} in the order they run (ADR-112, ADR-396 section 4, ADR-223 section 3): the
+     * topic with the most documents placed under it first, ties on the topic's key as ADR-399 section 4 compares it.
+     * Nothing of any document under a topic is needed, only how many there are.
      */
-    public static List<OccurrenceId> inOrder(Map<OccurrenceId, Integer> memberCounts, Map<OccurrenceId, String> seedPaths) {
+    public static List<TopicKey> topicsInOrder(Map<TopicKey, Integer> memberCounts) {
         return memberCounts.keySet().stream()
-                .sorted(Comparator.comparingInt((OccurrenceId seed) -> memberCounts.get(seed))
+                .sorted(Comparator.comparingInt((TopicKey topic) -> memberCounts.get(topic))
                         .reversed()
-                        .thenComparing(seedPaths::get))
+                        .thenComparing(Comparator.naturalOrder()))
                 .toList();
     }
 
-    /** Every cluster of {@code partition}, each carrying the place this rule gives it under {@code partitionOrder}. */
-    public static List<ArrangedCluster> order(Partition partition, int partitionOrder) {
+    /**
+     * The subtopics of {@code survivorCounts}, by their numbers, in the order they run within their topic (ADR-406
+     * section 4): the subtopic with the most survivors first, two of as many by their number.
+     */
+    public static List<Integer> subtopicsInOrder(Map<Integer, Integer> survivorCounts) {
+        return survivorCounts.keySet().stream()
+                .sorted(Comparator.comparingInt((Integer subtopic) -> survivorCounts.get(subtopic))
+                        .reversed()
+                        .thenComparing(Comparator.naturalOrder()))
+                .toList();
+    }
+
+    /**
+     * Every cluster of {@code topic}, each carrying the place this rule gives it under {@code topicOrder} and, for the
+     * subtopic it is of, {@code subtopicOrder} ({@code 0} where the topic has none).
+     */
+    public static List<ArrangedCluster> order(TopicClusters topic, int topicOrder, int subtopicOrder) {
         List<Cluster> clustersInOrder =
-                partition.clusters().stream().sorted(SUBSTANTIAL_FIRST_THEN_CLOSEST).toList();
+                topic.clusters().stream().sorted(SUBSTANTIAL_FIRST_THEN_CLOSEST).toList();
         List<ArrangedCluster> arranged = new ArrayList<>();
         for (int cluster = 0; cluster < clustersInOrder.size(); cluster++) {
             Cluster member = clustersInOrder.get(cluster);
             arranged.add(new ArrangedCluster(
-                    partition.seed(), member.ordinal(), member.documentCount(), partitionOrder, cluster + 1));
+                    topic.topic(),
+                    topic.subtopic(),
+                    member.ordinal(),
+                    member.documentCount(),
+                    topicOrder,
+                    subtopicOrder,
+                    cluster + 1));
         }
         return List.copyOf(arranged);
     }

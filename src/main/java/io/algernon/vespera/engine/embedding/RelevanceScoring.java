@@ -25,11 +25,20 @@ public class RelevanceScoring {
     private final VectorCache vectorCache;
     private final RelevanceScorer scorer;
     private final RelevanceScoreCache scoreCache;
+    private final Placements placements;
+    private final Topics topics;
 
-    RelevanceScoring(VectorCache vectorCache, RelevanceScorer scorer, RelevanceScoreCache scoreCache) {
+    RelevanceScoring(
+            VectorCache vectorCache,
+            RelevanceScorer scorer,
+            RelevanceScoreCache scoreCache,
+            Placements placements,
+            Topics topics) {
         this.vectorCache = vectorCache;
         this.scorer = scorer;
         this.scoreCache = scoreCache;
+        this.placements = placements;
+        this.topics = topics;
     }
 
     /**
@@ -142,11 +151,28 @@ public class RelevanceScoring {
     }
 
     /**
-     * The seeds that won at least one survivor under {@code runId}, in occurrence order: one seed partition
-     * each (ADR-045), the read stage 5f and stage 6a both start from (ADR-223 section 3).
+     * Keeps the topics that stand, their passages and the seeds feeding none under {@code runId} (ADR-409 section 5):
+     * called once the breadth floor is applied and before the first survivor is scored.
      */
-    public List<OccurrenceId> winningSeeds(RunId runId) {
-        return scoreCache.winningSeeds(runId);
+    public void recordTopics(RunId runId, StandingTopics standing) {
+        topics.record(runId, standing);
+    }
+
+    /**
+     * The seed each of {@code occurrences} scored highest against under {@code runId} (ADR-020), the provenance of its
+     * score, which the manifest states. An occurrence with no score row is absent from the result.
+     */
+    public Map<OccurrenceId, OccurrenceId> winningSeedsFor(RunId runId, Collection<OccurrenceId> occurrences) {
+        Map<OccurrenceId, OccurrenceId> seeds = new LinkedHashMap<>();
+        scoreCache.forOccurrences(occurrences, runId, (page, found) -> {
+            for (OccurrenceId occurrence : page) {
+                RelevanceScore score = found.get(occurrence);
+                if (score != null) {
+                    seeds.put(occurrence, score.winningSeedOccurrenceId());
+                }
+            }
+        });
+        return seeds;
     }
 
     /** How many occurrences {@code runId} scored strictly below {@code floor} (ADR-220 section 5). */
@@ -164,10 +190,13 @@ public class RelevanceScoring {
     }
 
     /**
-     * Deletes every score recorded under {@code runId} — the discard half of ADR-115/ADR-116, for a
-     * step whose completion under this run is not recorded.
+     * Deletes every score recorded under {@code runId}, and the topics, the placements and the seeds feeding no topic
+     * the step wrote with them (ADR-409 section 5) — the discard half of ADR-115/ADR-116, for a step whose completion
+     * under this run is not recorded.
      */
     public void discardForRun(RunId runId) {
+        placements.discardForRun(runId);
+        topics.discardForRun(runId);
         scoreCache.discardForRun(runId);
     }
 
@@ -215,7 +244,7 @@ public class RelevanceScoring {
     /**
      * As the method above, and placing the survivor as it scores it (ADR-400 section 5): each cosine the score takes
      * goes to a tally of {@code topicPlacement}, a seed's occurrence mapped to its path by {@code seedPaths} for the
-     * passage it is of, and the placement is returned for the caller to hold; where it is stored is #832's. A seed
+     * passage it is of, and the placement is recorded beside the score under the same key and returned (ADR-409 section 2). A seed
      * absent from {@code seedPaths} has no passage in a topic. With no {@code topicPlacement} nothing is placed and
      * {@code null} is returned.
      */
@@ -257,6 +286,11 @@ public class RelevanceScoring {
                 };
         RelevanceScore score = scorer.score(survivorChunkVectors, residentSeedVectors, topSimilarities, cosines);
         scoreCache.record(occurrenceId, runId, score);
-        return tally == null ? null : tally.placement();
+        if (tally == null) {
+            return null;
+        }
+        Placement placement = tally.placement();
+        placements.record(occurrenceId, runId, placement);
+        return placement;
     }
 }

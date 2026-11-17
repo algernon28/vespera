@@ -1,6 +1,5 @@
 package io.algernon.vespera.engine.synthesis;
 
-import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.RunId;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -49,13 +48,15 @@ public class ClusterFaults {
      * recording of a finished step, which ignores a repeat because one row already says everything a
      * second would.
      */
-    public void record(RunId runId, OccurrenceId winningSeed, int clusterOrdinal, ClusterFault fault) {
+    public void record(RunId runId, ClusterSlot cluster, ClusterFault fault) {
         jdbcTemplate.update(
-                "INSERT OR REPLACE INTO cluster_fault (run_id, winning_seed_occurrence_id,"
-                        + " cluster_ordinal, kind, detail) VALUES (?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO standing_cluster_fault (run_id, topic_seed_path, topic_chunk_index,"
+                        + " subtopic_ordinal, cluster_ordinal, kind, detail) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 runId.value(),
-                winningSeed.value(),
-                clusterOrdinal,
+                cluster.topic().seedPath(),
+                cluster.topic().chunkIndex(),
+                Subtopic.inRow(cluster.subtopic()),
+                cluster.clusterOrdinal(),
                 fault.kind().name(),
                 fault.detail());
     }
@@ -77,26 +78,30 @@ public class ClusterFaults {
      * <p>A no-op when no fault stands against the cluster — the ordinary case, since most clusters
      * never fault at all.
      */
-    public void delete(RunId runId, OccurrenceId winningSeed, int clusterOrdinal) {
+    public void delete(RunId runId, ClusterSlot cluster) {
         jdbcTemplate.update(
-                "DELETE FROM cluster_fault WHERE run_id = ? AND winning_seed_occurrence_id = ? AND"
-                        + " cluster_ordinal = ?",
+                "DELETE FROM standing_cluster_fault WHERE run_id = ? AND topic_seed_path = ? AND"
+                        + " topic_chunk_index = ? AND subtopic_ordinal = ? AND cluster_ordinal = ?",
                 runId.value(),
-                winningSeed.value(),
-                clusterOrdinal);
+                cluster.topic().seedPath(),
+                cluster.topic().chunkIndex(),
+                Subtopic.inRow(cluster.subtopic()),
+                cluster.clusterOrdinal());
     }
 
     /** The fault standing against one cluster under {@code runId}, read by its key, or empty where none stands. */
-    public Optional<ClusterFault> forCluster(RunId runId, OccurrenceId winningSeed, int clusterOrdinal) {
+    public Optional<ClusterFault> forCluster(RunId runId, ClusterSlot cluster) {
         return jdbcTemplate
                 .query(
-                        "SELECT kind, detail FROM cluster_fault WHERE run_id = ? AND winning_seed_occurrence_id = ?"
-                                + " AND cluster_ordinal = ?",
+                        "SELECT kind, detail FROM standing_cluster_fault WHERE run_id = ? AND topic_seed_path = ?"
+                                + " AND topic_chunk_index = ? AND subtopic_ordinal = ? AND cluster_ordinal = ?",
                         (resultSet, rowNumber) -> new ClusterFault(
                                 ClusterFaultKind.valueOf(resultSet.getString("kind")), resultSet.getString("detail")),
                         runId.value(),
-                        winningSeed.value(),
-                        clusterOrdinal)
+                        cluster.topic().seedPath(),
+                        cluster.topic().chunkIndex(),
+                        Subtopic.inRow(cluster.subtopic()),
+                        cluster.clusterOrdinal())
                 .stream()
                 .findFirst();
     }
@@ -104,7 +109,7 @@ public class ClusterFaults {
     /** How many cluster faults are recorded under {@code runId}. A count the database makes, reading no column of any row (ADR-220 section 7). */
     public int countForRun(RunId runId) {
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM cluster_fault WHERE run_id = ?", Integer.class, runId.value());
+                "SELECT COUNT(*) FROM standing_cluster_fault WHERE run_id = ?", Integer.class, runId.value());
         return count == null ? 0 : count;
     }
 }

@@ -93,21 +93,21 @@ final class ClusterSizeReport {
     private ClusterSizeReport() {}
 
     /**
-     * One seed partition's clusters, as the five numbers the page shows of them (ADR-223 section 2): the page
-     * keeps a row for each partition and not the size of each cluster.
+     * One topic's clusters, as the five numbers the page shows of them (ADR-223 section 2, ADR-409 section 8): the page
+     * keeps a row for each topic, taken over its clusters across its subtopics, and not the size of each cluster.
      *
-     * @param seedPath the seed whose partition this is, named as a reader would recognise it
+     * @param key the topic, by its key as ADR-407 section 9's lines write it, {@code <path> chunk <i>}
      * @param documentCount how many documents its clusters hold between them
      * @param clusterCount how many clusters it holds
      * @param largest how many documents its largest cluster holds
      * @param median how many documents its middle cluster by size holds
      * @param singletons how many clusters hold exactly one document — the count that decides whether a tree
      *     is worth building
-     * @param spread how alike the documents on the kept links were, or empty where the partition
+     * @param spread how alike the documents on the kept links were over the whole topic, or empty where the topic
      *     holds one document and so has no link to measure (ADR-096)
      */
-    record Partition(
-            String seedPath,
+    record Topic(
+            String key,
             int documentCount,
             int clusterCount,
             int largest,
@@ -116,16 +116,16 @@ final class ClusterSizeReport {
             Optional<RetainedEdgeSpread> spread) {
 
         /**
-         * The row for a partition whose clusters hold {@code sizes}, in ordinal order. The middle cluster by
-         * size says more about the spread than a mean does: one cluster holding most of a partition drags a
+         * The row for a topic whose clusters hold {@code sizes}, in subtopic and cluster order. The middle cluster by
+         * size says more about the spread than a mean does: one cluster holding most of a topic drags a
          * mean up and leaves the reader thinking the pages are evenly sized; of two middle sizes it is the
          * upper.
          */
-        static Partition of(String seedPath, List<Integer> sizes, Optional<RetainedEdgeSpread> spread) {
+        static Topic of(String seedPath, int chunkIndex, List<Integer> sizes, Optional<RetainedEdgeSpread> spread) {
             List<Integer> ascending = new ArrayList<>(sizes);
             ascending.sort(Integer::compareTo);
-            return new Partition(
-                    seedPath,
+            return new Topic(
+                    seedPath + " chunk " + chunkIndex,
                     sizes.stream().mapToInt(Integer::intValue).sum(),
                     sizes.size(),
                     sizes.stream().mapToInt(Integer::intValue).max().orElse(0),
@@ -136,11 +136,11 @@ final class ClusterSizeReport {
     }
 
     /**
-     * What the page shows, as {@code cluster-sizes.json} holds it (ADR-362 section 9): the same partitions, the same
+     * What the page shows, as {@code cluster-sizes.json} holds it (ADR-362 section 9): the same topics, the same
      * numbers, in the same order, and the paragraphs the page reads, stripped of their markup. A link the page shows
      * as a dash is {@code null}, and one it shows to two places is those two places.
      */
-    static AnalysisReportJson.Document document(List<Partition> partitions, Instant writtenAt) {
+    static AnalysisReportJson.Document document(List<Topic> partitions, Instant writtenAt) {
         List<String> intro = new ArrayList<>(List.of(plain(INTRO)));
         List<AnalysisReportJson.Section> sections = new ArrayList<>();
         if (partitions.isEmpty()) {
@@ -149,9 +149,9 @@ final class ClusterSizeReport {
             return new AnalysisReportJson.Document(FORMAT, NAME, TITLE, writtenAt, headline(partitions), sections);
         }
         List<List<Object>> rows = new ArrayList<>();
-        for (Partition partition : partitions) {
+        for (Topic partition : partitions) {
             List<Object> row = new ArrayList<>();
-            row.add(partition.seedPath());
+            row.add(partition.key());
             row.add((long) partition.documentCount());
             row.add((long) partition.clusterCount());
             row.add((long) partition.largest());
@@ -186,18 +186,18 @@ final class ClusterSizeReport {
     }
 
     /** The numbers the page states first: what the exemplars' partitions came to between them. */
-    private static List<AnalysisReportJson.Figure> headline(List<Partition> partitions) {
+    private static List<AnalysisReportJson.Figure> headline(List<Topic> partitions) {
         return List.of(
                 new AnalysisReportJson.Figure("partitions", "Exemplars grouped", (long) partitions.size(), "count"),
                 new AnalysisReportJson.Figure(
                         "documents", "Documents grouped",
-                        partitions.stream().mapToLong(Partition::documentCount).sum(), "count"),
+                        partitions.stream().mapToLong(Topic::documentCount).sum(), "count"),
                 new AnalysisReportJson.Figure(
                         "groups", "Groups",
-                        partitions.stream().mapToLong(Partition::clusterCount).sum(), "count"),
+                        partitions.stream().mapToLong(Topic::clusterCount).sum(), "count"),
                 new AnalysisReportJson.Figure(
                         "groups-of-one", "Groups of one",
-                        partitions.stream().mapToLong(Partition::singletons).sum(), "count"));
+                        partitions.stream().mapToLong(Topic::singletons).sum(), "count"));
     }
 
     /** A resemblance as the page shows it, to two places, or {@code null} where it shows a dash. */
@@ -210,7 +210,7 @@ final class ClusterSizeReport {
         return html.replaceAll("<[^>]*>", "").replace("&mdash;", "\u2014");
     }
 
-    static String render(List<Partition> partitions) {
+    static String render(List<Topic> partitions) {
         StringBuilder body = new StringBuilder();
         body.append(ReportPage.heading(1, TITLE))
                 .append(ReportPage.paragraph(INTRO));
@@ -226,9 +226,9 @@ final class ClusterSizeReport {
                 "Exemplar", "Documents", "Groups", "Largest group", "Middle group", "Groups of one",
                 "Weakest link", "Middle link", "Strongest link");
         StringBuilder rows = new StringBuilder();
-        for (Partition partition : partitions) {
+        for (Topic partition : partitions) {
             rows.append(ReportPage.row(
-                    ReportPage.textCell(partition.seedPath()),
+                    ReportPage.textCell(partition.key()),
                     ReportPage.numberCell(partition.documentCount()),
                     ReportPage.numberCell(partition.clusterCount()),
                     ReportPage.numberCell(partition.largest()),

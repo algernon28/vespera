@@ -167,7 +167,8 @@ class RelevanceScoringTasklet implements Tasklet {
 
                     // The topics are found at the head of the step, from the vectors already resident, before the
                     // first survivor is scored (ADR-399 section 6), and the breadth floor is applied to them before
-                    // any survivor is placed (ADR-401 section 5). Where they are stored is #832's: not yet.
+                    // any survivor is placed (ADR-401 section 5); the topics that stand are kept under the scoring run
+                    // once the floor is applied, and before the first survivor is scored (ADR-409 section 5).
                     Map<String, SeedVectors> bySeedPath =
                             TaskletSteps.seedVectorsByPath(ledger, seedContentHashes, residentSeedVectors);
                     List<Topic> found = TaskletSteps.topicsFound(stageRuns, bySeedPath);
@@ -193,6 +194,7 @@ class RelevanceScoringTasklet implements Tasklet {
                         contribution.setExitStatus(ExitStatus.FAILED.addExitDescription(line));
                         return false;
                     }
+                    relevanceScoring.recordTopics(scoring, standing);
                     // Placement is read in the pass from the cosines the scorer takes (ADR-400 section 5): the
                     // denominators are taken once here, from the resident vectors.
                     TopicPlacement placement = TopicPlacement.of(topics, bySeedPath, stageRuns.seeAlsoShare());
@@ -234,8 +236,7 @@ class RelevanceScoringTasklet implements Tasklet {
                             placed,
                             scored));
                     LOG.info(
-                            "Stage 5d (relevance scoring) placed {} survivor(s) under the {} topic(s) that stand, the"
-                                    + " placement held and not yet stored (#832)",
+                            "Stage 5d (relevance scoring) placed {} survivor(s) under the {} topic(s) that stand",
                             placed.get(),
                             placement.topicCount());
                     LOG.info("Stage 5d (relevance scoring) finished under scoring run {}", scoring.value());

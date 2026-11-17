@@ -47,38 +47,6 @@ class RelevanceScoreCache {
     }
 
     /**
-     * The seeds that won at least one survivor under {@code runId}, in occurrence order — one seed
-     * partition each (ADR-045).
-     *
-     * <p>A seed nothing chose has no row and therefore no partition, rather than an empty one: a
-     * partition is the set of documents a seed won, so a seed that won nothing is absent from this
-     * list for the same reason a cluster with no members has no rows.
-     */
-    List<OccurrenceId> winningSeeds(RunId runId) {
-        return jdbcTemplate.query(
-                "SELECT DISTINCT winning_seed_occurrence_id FROM relevance_score WHERE run_id = ?"
-                        + " ORDER BY winning_seed_occurrence_id",
-                (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("winning_seed_occurrence_id")),
-                runId.value());
-    }
-
-    /**
-     * The survivors {@code winningSeed} won under {@code runId}, in occurrence order.
-     *
-     * <p>The order is the whole point of naming it here: ADR-087 fixes occurrence-id order as the one
-     * clustering visits documents in, and an order the database chose freely would make the ordinals
-     * an artefact of the query plan rather than a property of the corpus.
-     */
-    List<OccurrenceId> partitionMembers(RunId runId, OccurrenceId winningSeed) {
-        return jdbcTemplate.query(
-                "SELECT occurrence_id FROM relevance_score WHERE run_id = ?"
-                        + " AND winning_seed_occurrence_id = ? ORDER BY occurrence_id",
-                (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("occurrence_id")),
-                runId.value(),
-                winningSeed.value());
-    }
-
-    /**
      * How many occurrences {@code runId} scored strictly below {@code floor}.
      *
      * <p>Strictly below: a document scoring exactly the floor survives it. The profile calls the key

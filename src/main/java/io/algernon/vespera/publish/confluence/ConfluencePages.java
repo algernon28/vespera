@@ -8,11 +8,10 @@ import io.algernon.vespera.engine.deliverable.Entries;
 import io.algernon.vespera.engine.deliverable.FixedWords;
 import io.algernon.vespera.engine.deliverable.Html;
 import io.algernon.vespera.engine.deliverable.IndexPage;
-import io.algernon.vespera.engine.deliverable.ListedPartition;
+import io.algernon.vespera.engine.deliverable.ListedTopic;
 import io.algernon.vespera.engine.deliverable.ListedSurvivor;
 import io.algernon.vespera.engine.ledger.ReplacingMove;
 import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
-import io.algernon.vespera.engine.synthesis.FilenameStem;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
 import io.algernon.vespera.engine.synthesis.SynthesisDoc;
 import io.algernon.vespera.engine.synthesis.Unwritten;
@@ -120,14 +119,14 @@ final class ConfluencePages implements Drawing {
                 + "</ac:link-body></ac:link>";
     }
 
-    /** Starts a seed partition's page: its folder, named as the HTML tree's (ADR-312 §1). */
+    /** Starts a topic's page: its folder, named as the HTML tree's (ADR-312 §1, ADR-409 section 10). */
     @Override
-    public void partitionStarted(ListedPartition partition, int partitionCount) throws IOException {
-        String place = IndexPage.pad(partition.partitionOrder(), IndexPage.widthOf(partitionCount));
-        partitionFolder = IndexPage.partitionDirectoryName(partition, partitionCount);
-        partitionKey = language.code() + ":" + partition.partitionOrder();
+    public void topicStarted(ListedTopic topic, int topicCount) throws IOException {
+        String place = IndexPage.pad(topic.topicOrder(), IndexPage.widthOf(topicCount));
+        partitionFolder = IndexPage.topicDirectoryName(topic, topicCount);
+        partitionKey = language.code() + ":" + topic.topicOrder();
         partitionPlace = place;
-        partitionTitle = ConfluenceTitles.partition(FilenameStem.of(partition.seedPath()), place, language);
+        partitionTitle = ConfluenceTitles.partition(topic.name(), place, language);
         Files.createDirectories(directory.resolve(partitionFolder));
         written.add(DIRECTORY_NAME + "/" + partitionFolder);
         partitionRows.setLength(0);
@@ -142,10 +141,10 @@ final class ConfluencePages implements Drawing {
      */
     @Override
     public Entries entriesOf(
-            ListedPartition partition, RecordedCluster recorded, List<ListedSurvivor> members, Path clusterFolder,
+            ListedTopic topic, RecordedCluster recorded, List<ListedSurvivor> members, Path clusterFolder,
             Copies copies)
             throws IOException {
-        String folderPath = partitionFolder + "/" + IndexPage.clusterFolderName(recorded, IndexPage.widthOf(partition.clusterCount()));
+        String folderPath = partitionFolder + "/" + IndexPage.clusterFolderName(recorded, IndexPage.widthOf(topic.clusterCount()));
         Path folder = directory.resolve(folderPath);
         Files.createDirectories(folder);
         written.add(DIRECTORY_NAME + "/" + folderPath);
@@ -158,7 +157,7 @@ final class ConfluencePages implements Drawing {
      */
     @Override
     public void clusterDrawn(
-            ListedPartition partition,
+            ListedTopic topic,
             RecordedCluster recorded,
             Optional<SynthesisDoc> doc,
             Unwritten why,
@@ -170,7 +169,7 @@ final class ConfluencePages implements Drawing {
         // The entries this drawing's own entriesOf returned (ADR-333 §2).
         ConfluenceEntries entries = (ConfluenceEntries) handedBack;
         entries.close();
-        int clusterWidth = IndexPage.widthOf(partition.clusterCount());
+        int clusterWidth = IndexPage.widthOf(topic.clusterCount());
         String folderPath = partitionFolder + "/" + IndexPage.clusterFolderName(recorded, clusterWidth);
         Path folder = directory.resolve(folderPath);
         String place = partitionPlace + "."
@@ -214,7 +213,7 @@ final class ConfluencePages implements Drawing {
      * then lists the seed partition's page and its clusters' pages, parents first (ADR-316 §2).
      */
     @Override
-    public void partitionEnded() throws IOException {
+    public void topicEnded() throws IOException {
         String table = "<table><tbody>\n" + FixedWords.clusterTableHeadRow(language) + partitionRows
                 + "</tbody></table>\n";
         Path part = directory.resolve(partitionFolder).resolve(BODY_NAME + Deliverable.PART_SUFFIX);
