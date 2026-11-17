@@ -55,7 +55,8 @@ import tools.jackson.databind.json.JsonMapper;
  * has succeeded; it never fails the invocation (ADR-265 section 4).
  *
  * <p>It also builds and writes each stage's chart, {@code chart-stage-<stage>.json} beside the report, from the same
- * readings (ADR-382 section 4 to 7).
+ * readings (ADR-382 section 4 to 7, as ADR-412 amends them: the census's chart is kept under the walk walked until the
+ * census hands the job its walk, and a new key empties no other stage's chart).
  *
  * <p>It holds no rule: it decides no verdict, cache key, cluster or text of the deliverable.
  */
@@ -857,15 +858,15 @@ final class JobSampler implements JobExecutionListener {
         KeptChart chart = keptChart(stage);
         boolean handOver = false;
         if (stage.runStages().isEmpty()) {
-            if (runs.corpusWalk().isEmpty()) {
+            if (key.isEmpty()) {
                 beforeTheHandOver(stage, chart, runs, executions, states, last, now, nowRecorded, nowDiscarded);
                 return;
             }
             handOver = !censusHandedOver && walkWalked.get() != null;
-            censusHandedOver = true;
             if (handOver) {
                 handTheWalkOver(stage, chart, key.get(WALK_KEY));
             }
+            censusHandedOver = true;
         }
         boolean fresh = !key.entrySet().stream().allMatch(named -> named.getValue().equals(chart.key.get(named.getKey())));
         if (!fresh && chart.finishedAt != null) {
@@ -954,6 +955,7 @@ final class JobSampler implements JobExecutionListener {
         }
         for (Held held : heldSamples) {
             chart.points.add(new Point(secondOf(chart, held.at()), held.done(), new long[0]));
+            thin(chart);
         }
         heldSamples.clear();
     }
@@ -1023,6 +1025,11 @@ final class JobSampler implements JobExecutionListener {
             kinds[i] = Math.max(0, before + recordedHere - discardedHere);
         }
         chart.points.add(new Point(seconds, done, kinds));
+        thin(chart);
+    }
+
+    /** Thins a chart passing {@link #MOST_SAMPLES} to every other point, oldest first (ADR-382 section 5, ADR-412 section 1). */
+    private static void thin(KeptChart chart) {
         if (chart.points.size() > MOST_SAMPLES) {
             List<Point> kept = new ArrayList<>();
             for (int i = 0; i < chart.points.size(); i += 2) {
