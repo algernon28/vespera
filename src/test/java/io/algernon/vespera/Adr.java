@@ -2973,6 +2973,14 @@ public final class Adr {
     public static final String TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT = FILE
             + "0407-topics-are-named-at-the-head-of-the-arrangement-step-by-a-naming-model-of-their-own-from-their-strongest-passages.md";
 
+    /**
+     * ADR-408 -- the naming model is one of the models {@code modelsRunOn} speaks for, beside the embedding, generation
+     * and label models, and the start of {@code vespera run} refuses for it as for the others, still reading no model's
+     * name; the arrangement step refuses it only where Ollama does not serve it (amends ADR-375 §2 and ADR-384 §1).
+     */
+    public static final String THE_NAMING_MODEL_IS_ONE_OF_THE_MODELS_MODELS_RUN_ON_SPEAKS_FOR = FILE
+            + "0408-the-naming-model-is-one-of-the-models-modelsrunon-speaks-for-and-the-start-of-vespera-run-refuses-for-it-too.md";
+
     private Adr() {
     }
 }
