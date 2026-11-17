@@ -1,7 +1,25 @@
 package io.algernon.vespera.engine.pipeline;
 
+import io.algernon.vespera.engine.embedding.SeedChunks;
+import io.algernon.vespera.engine.embedding.SeedVectors;
+import io.algernon.vespera.engine.embedding.Topic;
+import io.algernon.vespera.engine.embedding.TopicInference;
+import io.algernon.vespera.engine.embedding.UnusableSeed;
+import io.algernon.vespera.engine.embedding.UnusableSeeds;
+import io.algernon.vespera.engine.extraction.ChunkingRule;
+import io.algernon.vespera.engine.extraction.ExtractionCacheKeys;
+import io.algernon.vespera.engine.extraction.HybridChunker;
 import io.algernon.vespera.engine.ledger.Ledger;
+import io.algernon.vespera.engine.ledger.ListedPages;
+import io.algernon.vespera.engine.ledger.OccurrenceId;
+import io.algernon.vespera.engine.ledger.OccurrencePath;
 import io.algernon.vespera.engine.ledger.RunId;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.batch.core.listener.StepExecutionListener;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
@@ -137,5 +155,79 @@ final class TaskletSteps {
             ledger.runs().finishStep(run, step);
         }
         return RepeatStatus.FINISHED;
+    }
+
+    /**
+     * Every usable seed's own content hash, read once from the key seed extraction recorded under the
+     * measurement run (ADR-206 section 3), and how many chunks the chunker cut it into, so {@code RelevanceScoring}
+     * never has to touch a file. Which seeds that leaves out is {@code embedding}'s rule (ADR-231 section 2a), not
+     * this method's. Shared by the two steps that read the seeds' vectors back (stage 5d and 6a), each naming its
+     * own statements, and its own counter by {@code counterOver}, so that the label stays literal where it is spelled.
+     */
+    static Map<OccurrenceId, SeedChunks> seedContentHashes(
+            String stage,
+            java.util.function.LongFunction<StageProgress> counterOver,
+            SeedGate.SeedWalk seedWalk,
+            RunId measurementRun,
+            Ledger ledger,
+            UnusableSeeds unusableSeeds,
+            ExtractionCacheKeys cacheKeys,
+            HybridChunker hybridChunker) {
+        Set<OccurrenceId> allSeeds = TimedStatement.of(
+                stage, "reading", "read", "the seed walk's occurrences", () -> {
+                    Set<OccurrenceId> ids = new HashSet<>();
+                    for (OccurrenceId id : ledger.occurrences().occurrencesOf(seedWalk.walkId())) {
+                        ids.add(id);
+                    }
+                    return ids;
+                });
+        Set<OccurrenceId> unusable = TimedStatement.of(
+                        stage, "reading", "read", "the unusable seeds", () -> unusableSeeds.forRun(measurementRun))
+                .stream()
+                .map(UnusableSeed::occurrenceId)
+                .collect(Collectors.toSet());
+        allSeeds.removeAll(unusable);
+
+        // Asked a page of seeds to a statement, the keys and then their chunk counts (ADR-245), and counted as
+        // each page is read, so that the counter moves while the reads are made (ADR-246).
+        StageProgress read = counterOver.apply(allSeeds.size());
+        Map<OccurrenceId, SeedChunks> contentHashes = new LinkedHashMap<>();
+        ListedPages.each(allSeeds, page -> {
+            Map<OccurrenceId, String> keys = cacheKeys.requireForOccurrences(page, measurementRun);
+            Map<String, Integer> chunkCounts =
+                    hybridChunker.chunkCounts(new HashSet<>(keys.values()), ChunkingRule.DEFAULT);
+            for (OccurrenceId seedOccurrenceId : page) {
+                String contentHash = keys.get(seedOccurrenceId);
+                contentHashes.put(
+                        seedOccurrenceId, new SeedChunks(contentHash, chunkCounts.getOrDefault(contentHash, 0)));
+                read.itemDone();
+            }
+        });
+        return contentHashes;
+    }
+
+    /**
+     * The seeds' vectors by each seed's path in the seed walk, for ADR-399's topics: no embedding call and no read of
+     * its own beyond the paths. A seed with no resident vector has no passage.
+     */
+    static Map<String, SeedVectors> seedVectorsByPath(
+            Ledger ledger,
+            Map<OccurrenceId, SeedChunks> seedContentHashes,
+            Map<OccurrenceId, List<float[]>> residentSeedVectors) {
+        Map<OccurrenceId, OccurrencePath> paths = ledger.occurrences().pathsOf(residentSeedVectors.keySet());
+        Map<String, SeedVectors> bySeedPath = new LinkedHashMap<>();
+        for (Map.Entry<OccurrenceId, List<float[]>> seed : residentSeedVectors.entrySet()) {
+            OccurrencePath path = paths.get(seed.getKey());
+            SeedChunks chunks = seedContentHashes.get(seed.getKey());
+            if (path != null && chunks != null) {
+                bySeedPath.put(path.value(), new SeedVectors(chunks.contentHash(), seed.getValue()));
+            }
+        }
+        return bySeedPath;
+    }
+
+    /** The topics the seeds' passages fall into, found as the scoring step finds them (ADR-399). */
+    static List<Topic> topicsFound(StageRuns stageRuns, Map<String, SeedVectors> bySeedPath) {
+        return TopicInference.over(bySeedPath, stageRuns.topicNeighbours(), stageRuns.topicResolution());
     }
 }

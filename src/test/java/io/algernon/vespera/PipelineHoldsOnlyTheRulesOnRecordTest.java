@@ -166,6 +166,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-294: writes and deletes what NextAction gives for the control panel, and decides none of it.
             "NextInvocationFile",
             "NoGenerationModelNamedException",
+            // ADR-407 section 2: the stop on a naming model bound blank, as NoGenerationModelNamedException is for a
+            // generation model; it names a key, and decides no verdict, cache key, cluster or text of the deliverable.
+            "NoNamingModelNamedException",
             "NoUpstreamRunException",
             "OccurrenceReader",
             "PendingConversions",

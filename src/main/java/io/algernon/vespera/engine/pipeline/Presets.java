@@ -33,6 +33,11 @@ import org.springframework.stereotype.Component;
 @Component
 class Presets {
 
+    /** The naming model's own key, the chat model it falls back to, and the model the code holds (ADR-407 section 2). */
+    static final String NAMING_MODEL = "vespera.naming.model";
+    static final String CHAT_MODEL = "spring.ai.ollama.chat.options.model";
+    static final String THE_CODES_NAMING_MODEL = "qwen3:8b";
+
     static final String RESOLUTION = "vespera.clustering.resolution";
     static final String NEIGHBOURS_OF_A_DOCUMENT = "vespera.clustering.neighbours";
     static final String OCR_PRESET = "vespera.docling.ocr-preset";
@@ -60,6 +65,26 @@ class Presets {
 
     Presets(Environment environment) {
         this.environment = environment;
+    }
+
+    /**
+     * The model that names the topics, as configuration resolves it (ADR-407 section 2); a blank value stops the
+     * invocation, naming {@code vespera.naming.model}.
+     */
+    String namingModel() {
+        String named = environment.getProperty(NAMING_MODEL);
+        String key = NAMING_MODEL;
+        if (named == null) {
+            named = environment.getProperty(CHAT_MODEL);
+            key = CHAT_MODEL;
+        }
+        if (named == null) {
+            return THE_CODES_NAMING_MODEL;
+        }
+        if (named.isBlank()) {
+            throw new NoNamingModelNamedException(key);
+        }
+        return named.strip();
     }
 
     /**

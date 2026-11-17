@@ -1,6 +1,26 @@
 package io.algernon.vespera.engine.pipeline;
 
 import io.algernon.vespera.engine.corpus.Walk;
+import io.algernon.vespera.engine.embedding.BreadthFloor;
+import io.algernon.vespera.engine.embedding.RelevanceDistribution;
+import io.algernon.vespera.engine.embedding.ScoringProgress;
+import io.algernon.vespera.engine.embedding.SeedChunks;
+import io.algernon.vespera.engine.embedding.SeedPassage;
+import io.algernon.vespera.engine.embedding.SeedVectors;
+import io.algernon.vespera.engine.embedding.Topic;
+import io.algernon.vespera.engine.embedding.UnusableSeeds;
+import io.algernon.vespera.engine.extraction.Chunk;
+import io.algernon.vespera.engine.extraction.ChunkingRule;
+import io.algernon.vespera.engine.extraction.HybridChunker;
+import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
+import io.algernon.vespera.engine.synthesis.GivenName;
+import io.algernon.vespera.engine.synthesis.NameCall;
+import io.algernon.vespera.engine.synthesis.NameOrigin;
+import io.algernon.vespera.engine.synthesis.TopicFallbackName;
+import io.algernon.vespera.engine.synthesis.TopicNaming;
+import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.ExitStatus;
+import org.springframework.batch.core.step.StepExecution;
 import io.algernon.vespera.engine.extraction.DocumentTitles;
 import io.algernon.vespera.engine.extraction.ExtractionCacheKeys;
 import io.algernon.vespera.engine.embedding.DocumentCluster;
@@ -21,6 +41,8 @@ import io.algernon.vespera.engine.synthesis.LabelledCluster;
 import io.algernon.vespera.engine.synthesis.LeadDocument;
 import io.algernon.vespera.engine.synthesis.Partition;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
+import java.util.HashSet;
+import java.util.Set;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.io.Writer;
@@ -104,6 +126,15 @@ class ArrangementTasklet implements Tasklet {
     private final DocumentTitles documentTitles;
     private final Path root;
     private final Path workingDirectory;
+    private final ModelPull modelPull;
+    private final TopicNaming topicNaming;
+    private final HybridChunker hybridChunker;
+    private final RelevanceDistribution relevanceDistribution;
+    private final UnusableSeeds unusableSeeds;
+    private final RecordedClosingLines recordedClosingLines;
+
+    /** Where each topic's name is logged, apart from the operator lines (ADR-407 section 9). */
+    private static final Logger NAMES = LoggerFactory.getLogger(ArrangementTasklet.class.getName() + ".names");
 
     ArrangementTasklet(
             SeedGate seedGate,
@@ -115,8 +146,20 @@ class ArrangementTasklet implements Tasklet {
             Ledger ledger,
             JdbcTemplate jdbcTemplate,
             DocumentTitles documentTitles,
+            ModelPull modelPull,
+            TopicNaming topicNaming,
+            UnusableSeeds unusableSeeds,
+            HybridChunker hybridChunker,
+            RelevanceDistribution relevanceDistribution,
+            RecordedClosingLines recordedClosingLines,
             @Value("#{jobParameters['root']}") Path root,
             @Value("${vespera.working-dir}") Path workingDirectory) {
+        this.modelPull = modelPull;
+        this.topicNaming = topicNaming;
+        this.hybridChunker = hybridChunker;
+        this.relevanceDistribution = relevanceDistribution;
+        this.unusableSeeds = unusableSeeds;
+        this.recordedClosingLines = recordedClosingLines;
         this.seedGate = seedGate;
         this.usableSeedGate = usableSeedGate;
         this.stageRuns = stageRuns;
@@ -169,6 +212,18 @@ class ArrangementTasklet implements Tasklet {
         StageProgress scoresRead = StageProgress.over("Stage 6a (arrangement, scores read)", members);
         StageProgress gathered = StageProgress.over("Stage 6a (arrangement, members gathered)", members);
 
+        // The naming model is pulled where Ollama does not serve it, once the gates are open and before the run is
+        // resolved, as generation pulls its own (ADR-407 section 1, ADR-329). A blank value stops the invocation
+        // here, naming vespera.naming.model, where the run would be minted (section 2).
+        // The language is read first, so that a value that is no language stops the invocation before the pull.
+        DeliverableLanguage language = stageRuns.deliverableLanguage();
+        String namingModel = stageRuns.namingModelName();
+        Optional<String> refusal = modelPull.refusalOf(STAGE, namingModel);
+        if (refusal.isPresent()) {
+            stopOnANamingModelNotServedHere(contribution, chunkContext, namingModel, refusal.get());
+            return RepeatStatus.FINISHED;
+        }
+
         RunId arrangement = stageRuns.arrangement();
 
         // The page an approval copies its name off is written every time this invocation arrives at an
@@ -188,6 +243,8 @@ class ArrangementTasklet implements Tasklet {
                 },
                 () -> clusters.discardForRun(arrangement),
                 () -> {
+                    // The topics are named first, before anything is ordered, labelled or recorded (ADR-407 section 1).
+                    nameTheTopics(preamble, namingModel, language);
                     List<OccurrenceId> seeds = Arrangement.inOrder(memberCounts, seedPaths);
                     int clustersArranged =
                             writePage(scoring, arrangement, seeds, seedPaths, scoresRead, gathered, true);
@@ -200,6 +257,104 @@ class ArrangementTasklet implements Tasklet {
                             members);
                     return true;
                 });
+    }
+
+    /**
+     * Stops the step on a naming model Ollama does not serve on this machine, and says why, as generation's stop
+     * does: nothing is asked and no run is minted (ADR-407 section 1).
+     */
+    private void stopOnANamingModelNotServedHere(
+            StepContribution contribution, ChunkContext chunkContext, String modelName, String refusal) {
+        StepExecution stepExecution = chunkContext.getStepContext().getStepExecution();
+        recordedClosingLines.record(
+                stepExecution,
+                OperatorLines.format(
+                        "the arrangement step stopped: the naming model {} was refused, so no topic was named and"
+                                + " no run was minted -- {}",
+                        modelName,
+                        refusal));
+        stepExecution.setStatus(BatchStatus.FAILED);
+        contribution.setExitStatus(ExitStatus.FAILED.addExitDescription(refusal));
+    }
+
+    /**
+     * The topics the scoring step found, each named from its strongest passages (ADR-407 sections 4 to 8): the same
+     * topics, found again from the same stored vectors, with the same breadth floor applied, in key order. The
+     * passages' texts are read from the chunk cache. A serving engine that gives no answer fails the step.
+     */
+    private void nameTheTopics(
+            StageFiveGates.Preamble preamble, String namingModel, DeliverableLanguage language) {
+        RunId measurementRun = stageRuns.seedMeasurement();
+        Map<OccurrenceId, SeedChunks> seedContentHashes =
+                TaskletSteps.seedContentHashes(
+                        STAGE,
+                        seeds -> StageProgress.over("Stage 6a (arrangement, seed cache keys read)", seeds),
+                        preamble.seedWalk().orElseThrow(),
+                        measurementRun,
+                        ledger,
+                        unusableSeeds,
+                        cacheKeys,
+                        hybridChunker);
+        String identity = relevanceDistribution
+                .embedderIdentityFor(preamble.modelName().orElseThrow(), stageRuns.embeddingModelArtefact())
+                .orElseThrow(() -> new IllegalStateException(
+                        "no embedder identity answers for " + preamble.modelName().orElseThrow()
+                                + ", so no topic can be found to name"));
+        Map<OccurrenceId, List<float[]>> resident = relevanceScoring.residentSeedVectors(
+                seedContentHashes,
+                hybridChunker.identity(),
+                ChunkingRule.DEFAULT.identity().value(),
+                identity,
+                ScoringProgress.NONE);
+        Map<String, SeedVectors> bySeedPath = TaskletSteps.seedVectorsByPath(ledger, seedContentHashes, resident);
+        List<Topic> found = TaskletSteps.topicsFound(stageRuns, bySeedPath);
+        List<Topic> topics =
+                new BreadthFloor(stageRuns.topicBreadthFloor()).of(found, bySeedPath).topics();
+
+        Map<String, List<Chunk>> chunksOfContent = new HashMap<>();
+        List<NameCall> calls = new ArrayList<>();
+        for (int place = 1; place <= topics.size(); place++) {
+            Topic topic = topics.get(place - 1);
+            List<String> texts = new ArrayList<>();
+            for (SeedPassage passage : topic.passagesStrongestFirst(bySeedPath)) {
+                String contentHash = bySeedPath.get(passage.seedPath()).contentHash();
+                List<Chunk> chunks = chunksOfContent.computeIfAbsent(
+                        contentHash, hash -> hybridChunker.stored(hash, ChunkingRule.DEFAULT));
+                if (passage.chunkIndex() >= chunks.size()) {
+                    throw new IllegalStateException("the chunk " + passage.chunkIndex() + " of seed "
+                            + passage.seedPath() + " (content hash " + contentHash
+                            + ") is not stored in the chunk cache, so the topic cannot be named from it");
+                }
+                texts.add(chunks.get(passage.chunkIndex()).text());
+            }
+            String seedPath = topic.strongestContributingSeed();
+            Optional<String> title = documentTitles.forContentHash(bySeedPath.get(seedPath).contentHash());
+            calls.add(new NameCall(texts, TopicFallbackName.of(title, seedPath, place, language)));
+        }
+        List<GivenName> given = topicNaming.nameSiblings(calls, namingModel, language);
+        long written = given.stream().filter(name -> name.origin() != NameOrigin.FALLBACK).count();
+        LOG.info(
+                "The arrangement step named {} topic(s) under {}: {} written, {} fell back; the names are logged and"
+                        + " not yet stored (#832)",
+                given.size(),
+                namingModel,
+                written,
+                given.size() - written);
+        for (int place = 0; place < topics.size(); place++) {
+            SeedPassage first = topics.get(place).key().firstPassage();
+            GivenName name = given.get(place);
+            NAMES.info(
+                    "{} topic {} chunk {} named \"{}\" ({})",
+                    STAGE,
+                    first.seedPath(),
+                    first.chunkIndex(),
+                    name.name(),
+                    switch (name.origin()) {
+                        case WRITTEN -> "written";
+                        case WRITTEN_WHEN_ASKED_AGAIN -> "asked again";
+                        case FALLBACK -> "fallback";
+                    });
+        }
     }
 
     /**

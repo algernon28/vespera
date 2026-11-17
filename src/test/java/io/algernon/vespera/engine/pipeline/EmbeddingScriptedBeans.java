@@ -4,6 +4,7 @@ import io.algernon.vespera.engine.embedding.ModelArtefact;
 import io.algernon.vespera.engine.embedding.OllamaClient;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -145,6 +146,18 @@ class EmbeddingScriptedBeans {
         editWhenFirstShown = edit;
     }
 
+    /** What is done the first time {@code /api/show} is asked about each name a test scripted it for. */
+    private static final Map<String, Runnable> EDIT_WHEN_ASKED_ABOUT = new HashMap<>();
+
+    /**
+     * Scripts {@code edit} to be done the first time {@code /api/show} is asked about {@code modelName} since the scripts
+     * were last dropped, before it answers: a change made at the step that checks that model, as the arrangement step
+     * checks the naming model before it names a topic (ADR-407 section 1), and at no other step.
+     */
+    static void whenAskedAbout(String modelName, Runnable edit) {
+        EDIT_WHEN_ASKED_ABOUT.put(modelName, edit);
+    }
+
     /**
      * The vectors a text embeds to where it holds a word a test has scripted, the first such word in the order scripted;
      * every other text embeds to the vector of ones. Held statically for the reason {@link #NEVER_PULLED} is.
@@ -246,6 +259,7 @@ class EmbeddingScriptedBeans {
         callsBeforeTheEdit = NO_PULL_PART_WAY;
         editWhileEmbedding = () -> {};
         editWhenFirstShown = () -> {};
+        EDIT_WHEN_ASKED_ABOUT.clear();
         VECTOR_OF_TEXT_HOLDING.clear();
     }
 
@@ -285,6 +299,10 @@ class EmbeddingScriptedBeans {
                 Runnable edit = editWhenFirstShown;
                 editWhenFirstShown = () -> {};
                 edit.run();
+                Runnable editForTheName = EDIT_WHEN_ASKED_ABOUT.remove(modelName);
+                if (editForTheName != null) {
+                    editForTheName.run();
+                }
                 if (UNANSWERED.contains(modelName)) {
                     throw new IllegalStateException("the runtime answered /api/show for " + modelName
                             + " with a server error");

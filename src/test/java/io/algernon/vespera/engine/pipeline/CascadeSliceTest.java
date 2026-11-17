@@ -34,6 +34,7 @@ import io.algernon.vespera.engine.synthesis.ClusterGeneration;
 import io.algernon.vespera.engine.synthesis.ClusterSynthesis;
 import io.algernon.vespera.engine.synthesis.Clusters;
 import io.algernon.vespera.engine.synthesis.SynthesisDocs;
+import io.algernon.vespera.engine.synthesis.TopicNaming;
 import io.algernon.vespera.publish.website.WebsitePlugin;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -191,6 +192,8 @@ import org.springframework.transaction.annotation.Transactional;
     GenerationContextWindow.class,
     GenerationScriptedBeans.class,
     ClusterSynthesis.class,
+    // The call that names the topics at the head of the arrangement step (ADR-407).
+    TopicNaming.class,
     SynthesisDocs.class,
     // The loop over the clusters, and the faults it records, are beans GenerationTasklet is handed (ADR-190).
     ClusterGeneration.class,

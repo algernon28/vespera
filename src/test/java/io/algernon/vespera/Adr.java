@@ -2954,6 +2954,16 @@ public final class Adr {
     public static final String THE_GUARD_READS_A_GH_COMMENT_AS_NO_PATH = FILE
             + "0405-the-private-paths-guard-reads-a-gh-comment-as-no-path-and-keeps-the-drive-of-one-letter-and-the-name-of-spaces.md";
 
+    /**
+     * ADR-407 -- the topics, and the level between a topic and its clusters, are named at the head of the arrangement
+     * step by a naming model of their own, at temperature 0 and a fixed seed, from their strongest passages under a
+     * word budget, in the deliverable language, which with the call's identity enters the arrangement run; a name the
+     * checks turn down falls back to the strongest contributing seed's title, and a name an earlier topic took is asked
+     * for once more (amends ADR-321 §1 and ADR-329).
+     */
+    public static final String TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT = FILE
+            + "0407-topics-are-named-at-the-head-of-the-arrangement-step-by-a-naming-model-of-their-own-from-their-strongest-passages.md";
+
     private Adr() {
     }
 }

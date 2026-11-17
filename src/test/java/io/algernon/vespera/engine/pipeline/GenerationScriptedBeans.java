@@ -1,5 +1,6 @@
 package io.algernon.vespera.engine.pipeline;
 
+import io.algernon.vespera.engine.synthesis.TopicNaming;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,6 +17,8 @@ import org.springframework.ai.ollama.api.OllamaChatOptions;
 import org.springframework.ai.retry.NonTransientAiException;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * {@link EmbeddingScriptedBeans}' sibling one stage along (#180, #183): a generating model that
@@ -75,6 +78,15 @@ class GenerationScriptedBeans {
      * CountedBeforeItIsAnsweredTest}.
      */
     private static final int A_COUNT_INSIDE_EVERY_ROOM = 1;
+
+    /**
+     * The words every name this fixture's model gives a topic begins with (ADR-407 §5), the number of the naming call
+     * after them, so that no two topics are given one name and none is asked again for it (ADR-407 §8).
+     */
+    static final String TOPIC_NAME_PREFIX = "Scripted Topic";
+
+    /** Reads a call's schema, to tell a naming call by the one field it asks for. */
+    private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
     /** The text of a response that carries no answer at all: there is none, because there is no answer. */
     private static final String NO_BODY = null;
@@ -147,6 +159,9 @@ class GenerationScriptedBeans {
         BY_LABEL.clear();
         callsMade = 0;
         countingCallsMade = 0;
+        namingCallsMade = 0;
+        NAMING_QUESTIONS_SENT.clear();
+        NAMING_MODELS_ASKED.clear();
         PROMPTS_SENT.clear();
         duringEachCall = () -> {};
         refusing = question -> false;
@@ -159,6 +174,30 @@ class GenerationScriptedBeans {
     /** How many counting calls have been made since the count was last dropped. */
     static int countingCallsMade() {
         return countingCallsMade;
+    }
+
+    /** How many naming calls (ADR-407 §1) the model has been put since the scripts were last dropped. */
+    private static int namingCallsMade;
+
+    /** How many naming calls have been made since the count was last dropped. */
+    static int namingCallsMade() {
+        return namingCallsMade;
+    }
+
+    /** The text of every naming question, in the order asked, since the scripts were last dropped. */
+    private static final List<String> NAMING_QUESTIONS_SENT = new ArrayList<>();
+
+    /** The model every naming call named, in the order asked, since the scripts were last dropped. */
+    private static final List<String> NAMING_MODELS_ASKED = new ArrayList<>();
+
+    /** Every naming question asked since the scripts were last dropped, so a test can read what a topic was named from. */
+    static List<String> namingQuestionsSent() {
+        return List.copyOf(NAMING_QUESTIONS_SENT);
+    }
+
+    /** The model each naming call named since the scripts were last dropped, in the order asked. */
+    static List<String> namingModelsAsked() {
+        return List.copyOf(NAMING_MODELS_ASKED);
     }
 
     /**
@@ -201,6 +240,14 @@ class GenerationScriptedBeans {
      * duringEachCall}: every claim in this package that counts calls or reads a question is about the
      * question the writing is asked for. A scripted {@link ScriptedAnswer#havingRead} therefore reaches
      * the check on the answer, as it always has, and not the count before it.
+     *
+     * <p><b>A naming call</b> (ADR-407 §1, §5) — {@link TopicNaming#NAME_REPLY_ALLOWANCE} tokens asked for, {@link
+     * TopicNaming#NAMING_SEED} sent, and a schema of the one field {@code name} — is answered with a name every check
+     * of ADR-407 §6 passes, one no earlier call was given, and is kept out of the same three for the same reason: it is
+     * asked at the head of the arrangement step, one per topic, and no claim that counts the writing is about it. All
+     * three marks are read, not the allowance alone, because the overview of a topic (ADR-396 §7) sends the same seed
+     * and a test may set a writing allowance of any size. A refusal scripted by {@link #refuseEvery} reaches it as it
+     * reaches every call, since an engine refuses a question and not a kind of call.
      */
     @Bean
     ChatModel chatModel() {
@@ -213,7 +260,14 @@ class GenerationScriptedBeans {
                     .map(Map.Entry::getValue)
                     .findFirst()
                     .orElseGet(() -> ScriptedAnswer.saying(GENERATED_TITLE, GENERATED_PROSE));
-            Integer numPredict = ((OllamaChatOptions) prompt.getOptions()).getNumPredict();
+            OllamaChatOptions options = (OllamaChatOptions) prompt.getOptions();
+            if (isANamingCall(options)) {
+                namingCallsMade++;
+                NAMING_QUESTIONS_SENT.add(prompt.getContents());
+                NAMING_MODELS_ASKED.add(options.getModel());
+                return aNameFor(namingCallsMade);
+            }
+            Integer numPredict = options.getNumPredict();
             if (numPredict != null && numPredict == ONE_TOKEN) {
                 countingCallsMade++;
                 return new ChatResponse(
@@ -236,6 +290,43 @@ class GenerationScriptedBeans {
                                     .build())),
                     metadataOf(answer));
         };
+    }
+
+    /**
+     * Whether {@code options} are a naming call's: its allowance, its seed, and a schema asking for {@code name} and
+     * nothing else (ADR-407 §3, §5).
+     */
+    private static boolean isANamingCall(OllamaChatOptions options) {
+        return Integer.valueOf(TopicNaming.NAME_REPLY_ALLOWANCE).equals(options.getNumPredict())
+                && Integer.valueOf(TopicNaming.NAMING_SEED).equals(options.getSeed())
+                && asksForTheNameAlone(options.getOutputSchema());
+    }
+
+    private static boolean asksForTheNameAlone(String schema) {
+        if (schema == null) {
+            return false;
+        }
+        JsonNode properties = JSON_MAPPER.readTree(schema).get("properties");
+        return properties != null
+                && properties.isObject()
+                && properties.size() == 1
+                && properties.has("name");
+    }
+
+    /**
+     * An answer to the {@code number}th naming call: one short line in the shape asked, stopped having finished, its
+     * question read well inside the naming window — a name ADR-407 §6 keeps.
+     */
+    private static ChatResponse aNameFor(int number) {
+        return new ChatResponse(
+                List.of(new Generation(
+                        new AssistantMessage("{\"name\":\"" + TOPIC_NAME_PREFIX + " " + number + "\"}"),
+                        ChatGenerationMetadata.builder()
+                                .finishReason(STOPPED_HAVING_FINISHED)
+                                .build())),
+                ChatResponseMetadata.builder()
+                        .usage(new DefaultUsage(AN_UNREMARKABLE_PROMPT_COUNT, ONE_TOKEN))
+                        .build());
     }
 
     /**

@@ -147,7 +147,6 @@ class GenerationTasklet implements Tasklet {
     private final StageRuns stageRuns;
     private final GenerationModel generationModel;
     private final GenerationContextWindow generationContextWindow;
-    private final LanguageOfTheDeliverable languageOfTheDeliverable;
     private final Clusters clusters;
     private final DocumentClusters documentClusters;
     private final RelevanceScoring relevanceScoring;
@@ -197,7 +196,6 @@ class GenerationTasklet implements Tasklet {
         this.stageRuns = stageRuns;
         this.generationModel = generationModel;
         this.generationContextWindow = generationContextWindow;
-        this.languageOfTheDeliverable = new LanguageOfTheDeliverable(profileStore);
         this.clusters = clusters;
         this.documentClusters = documentClusters;
         this.relevanceScoring = relevanceScoring;
@@ -337,7 +335,7 @@ class GenerationTasklet implements Tasklet {
                             },
                             modelName,
                             contextWindow,
-                            languageOfTheDeliverable.language(),
+                            stageRuns.deliverableLanguage(),
                             progress);
 
                     // The step acts on the outcome (ADR-190): the walk, the stop and the completion
@@ -932,7 +930,7 @@ class GenerationTasklet implements Tasklet {
                         EmbeddingStatement.ARRANGED_OCCURRENCES_FOR_THE_MANIFEST,
                         reads, survivorCount, scoring, extractionRun, page),
                 writingFinished,
-                languageOfTheDeliverable.language());
+                stageRuns.deliverableLanguage());
         return Deliverable.writeTo(
                 workingDirectory,
                 deliverableRoot,

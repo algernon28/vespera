@@ -8,6 +8,8 @@
 
 > **Partly amended — see [ADR-392](0392-vespera-finds-no-translation-sets-the-translation-step-its-verdict-its-report-and-its-two-profile-keys-go.md).** Of §1: `deliverableLanguage` is two letters of ISO 639-1, `preferredLanguages` being no key; and of the alternatives it refuses, the first of `preferredLanguages` names a key that no longer exists. The rest of this record stands.
 
+> **Partly amended — see [ADR-407](0407-topics-are-named-at-the-head-of-the-arrangement-step-by-a-naming-model-of-their-own-from-their-strongest-passages.md).** Of §1: `deliverableLanguage` joins the arrangement run's identity too, the topic names being written in it before the gate, and a value that is no language stops the invocation where the arrangement run is minted. The generation run keeps its member. The rest of this record stands.
+
 > **Partly amended — see [ADR-402](0402-a-topics-overview-cites-its-written-clusters-by-number-in-every-sentence-and-a-citation-fault-is-asked-once-more.md).** §4's table gains the seven sentences a topic's page carries where no overview was written, or beneath one written over fewer clusters than the topic has, in English and Italian. The rest of this record stands.
 
 - **Date**: 2026-10-22
