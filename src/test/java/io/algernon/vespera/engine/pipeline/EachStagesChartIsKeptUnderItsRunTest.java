@@ -118,6 +118,15 @@ class EachStagesChartIsKeptUnderItsRunTest {
     /** When the census ends, in seconds after the job's start. */
     private static final long CENSUS_ENDS = 25;
 
+    /** The most points a chart keeps: one more thins it to every other one, oldest first. */
+    private static final int MOST_POINTS = 256;
+
+    /** The readings a census makes, one a second, before it hands the job its walk: more than a chart keeps. */
+    private static final int READINGS_HELD = 300;
+
+    /** The entries the census's line says before each of those readings, times the reading's place from 1. */
+    private static final long ENTRIES_A_READING = 1_000;
+
     /** How far the test moves the sampler's clock on between two of its readings, in seconds. */
     private static final long BETWEEN_READINGS = 10;
 
@@ -406,6 +415,54 @@ class EachStagesChartIsKeptUnderItsRunTest {
                                         continuedAt + BETWEEN_READINGS),
                                 List.of(FIRST_DONE_IN_THE_FILE, LAST_DONE_IN_THE_FILE,
                                         (double) WALKED_AT_THE_LAST_LINE, (double) WALKED_AT_THE_LAST_LINE))))));
+    }
+
+    @Test
+    @Story("The window shows how each stage has gone")
+    @DisplayName("More samples held than a chart keeps are thinned to every other one, oldest first, as they are handed over")
+    @Issue("861")
+    @Link(name = "ADR-412", url = Adr.STAGE_0S_CHART_IS_KEPT_UNDER_THE_WALK_THE_CENSUS_KEEPS, type = "adr")
+    void moreThan256SamplesHeldAreThinnedAsTheyAreHandedOver() throws IOException {
+        Path file = workingDirectory.resolve("chart-stage-0.json");
+
+        // no chart yet: the census says a line before each of 300 readings, one a second, each held; then it hands the
+        // job the walk it walked and fails, and the reading after that takes no sample of its own
+        MovingClock clock = new MovingClock();
+        JobSampler sampler = aSampler(new AtomicReference<>(Map.of()), noRunsListed(), clock);
+        JobExecution job = aJob();
+        sampler.beforeJob(job);
+        StepExecution census = censusOf(job);
+        for (int reading = 0; reading < READINGS_HELD; reading++) {
+            censusSays(ENTRIES_A_READING * (reading + 1), THE_WALK_DISCARDED);
+            readsOnce(sampler);
+            clock.moveOn(1);
+        }
+        new InvocationRuns(job.getExecutionContext()).recordCorpusWalk(new WalkId(THE_WALK_DISCARDED));
+        ended(census, BatchStatus.FAILED, CENSUS_ENDS);
+        readsOnce(sampler);
+        Chart handedOver = Chart.in(file);
+        job.setStatus(BatchStatus.FAILED);
+        sampler.afterJob(job);
+
+        // added one at a time: the 257th point thins the chart to the 129 at even seconds 0 to 256, after which the 43
+        // held at seconds 257 to 299 are added whole, 172 points in all
+        List<Double> seconds = new ArrayList<>();
+        List<Double> done = new ArrayList<>();
+        for (int second = 0; second < READINGS_HELD; second += second < MOST_POINTS ? 2 : 1) {
+            seconds.add((double) second);
+            done.add((double) ENTRIES_A_READING * (second + 1));
+        }
+        claim("the 300 samples held are kept as a chart taking them one at a time keeps them, at most 256 points: every"
+                        + " other one from second 0 to 256, then each from 257 to 299, 172 in all, each with the entries"
+                        + " its reading's line said",
+                () -> {
+                    assertThat(handedOver).isNotNull();
+                    assertThat(handedOver.lines()).hasSize(1);
+                    assertThat(handedOver.lines().getFirst().seconds()).hasSizeLessThanOrEqualTo(MOST_POINTS);
+                    assertThat(handedOver).isEqualTo(new Chart(
+                            Map.of("walk", String.valueOf(THE_WALK_DISCARDED)), null,
+                            List.of(new Line("done", seconds, done))));
+                });
     }
 
     @Test
