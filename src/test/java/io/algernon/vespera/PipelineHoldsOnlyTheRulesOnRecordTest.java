@@ -522,10 +522,11 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "deliverable.ListedCodeFile",
                             "deliverable.ListedCodeSet",
                             "deliverable.ListedCodeSets",
-                            "deliverable.ListedPartition",
                             "deliverable.ListedPicture",
                             "deliverable.ListedPicturePlace",
                             "deliverable.ListedSurvivor",
+                            // ADR-409 section 10: a topic stands where a seed partition stood until #833.
+                            "deliverable.ListedTopic",
                             "deliverable.NamedValue",
                             // ADR-333 §1: the plugin beans, handed to Deliverable.writeTo unread.
                             "deliverable.Plugin",
@@ -535,7 +536,7 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "profile.Profile",
                             "profile.ProfileStore",
                             "synthesis.ArrangedCluster",
-                            "synthesis.ArrangedPartition",
+                            "synthesis.ArrangedTopic",
                             "synthesis.ClusterExemplars",
                             "synthesis.ClusterFault",
                             "synthesis.ClusterFaultKind",
@@ -554,6 +555,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "synthesis.RecordedCluster",
                             "synthesis.SynthesisDocs",
                             "synthesis.SynthesisStatement",
+                            // ADR-409 section 1: the topic key, handed to synthesis as values.
+                            "synthesis.TopicKey",
                             "synthesis.Unwritten")),
             Map.entry(
                     "ArrangementTasklet",
@@ -574,8 +577,10 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             "synthesis.DocumentTitle",
                             "synthesis.LabelledCluster",
                             "synthesis.LeadDocument",
-                            "synthesis.Partition",
-                            "synthesis.RecordedCluster")),
+                            "synthesis.RecordedCluster",
+                            // ADR-409 section 3: a topic's clusters, or a subtopic's, offered to Arrangement.
+                            "synthesis.TopicClusters",
+                            "synthesis.TopicKey")),
             Map.entry("ArrangementGate", Set.of("profile.Profile", "profile.ProfileStore", "profile.TextValue")));
 
     @Test

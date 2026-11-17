@@ -7,8 +7,10 @@ import io.algernon.vespera.engine.synthesis.ArrangedCluster;
 import io.algernon.vespera.engine.synthesis.ClusterLabel;
 import io.algernon.vespera.engine.synthesis.ClusterSlot;
 import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
+import io.algernon.vespera.engine.synthesis.FilenameStem;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
 import io.algernon.vespera.engine.synthesis.SynthesisDoc;
+import io.algernon.vespera.engine.synthesis.TopicKey;
 import io.algernon.vespera.engine.synthesis.Unwritten;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -24,6 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
@@ -33,10 +36,11 @@ import javax.imageio.ImageIO;
  * An arrangement, its writing and its survivors held as lists, answering {@link ArrangedSurvivors} from them, and
  * what the tests of the tree read back out of what was written (ADR-274).
  *
- * <p>{@code src/main} reads one seed partition at a time and holds no such lists (ADR-223). A test's arrangement is a
- * handful of clusters, so it may hold all of it. A partition is the clusters sharing a winning seed, in the order
- * listed, its seed's path the one the first listed survivor of that seed carries; the survivors come in the order
- * listed.
+ * <p>{@code src/main} reads one topic at a time and holds no such lists (ADR-223, ADR-409 section 13). A test's
+ * arrangement is a handful of clusters, so it may hold all of it. A topic is the clusters sharing a topic key, in the
+ * order listed, its name the one the first listed survivor under it carries; the survivors come in the order listed.
+ * These fixtures put the survivors a seed won under one undivided topic of that seed's ({@link #topicOf}), named by the
+ * seed's filename stem ({@link #topicNameOf}).
  *
  * <p>Public, with what a plugin's tests draw with, since the Confluence rendering's tests moved into {@code
  * confluence} with the rendering (ADR-333 §1) and draw the same fixtures through {@code Deliverable}'s public door.
@@ -77,13 +81,13 @@ public final class ListedTree {
         }
         Consumer<Consumer<List<ListedSurvivor>>> everySurvivorInOnePage = page -> page.accept(List.copyOf(survivors));
         return ArrangedSurvivors.reading(
-                () -> partitionsOf(arrangement, survivors),
+                () -> topicsOf(arrangement, survivors),
                 survivors::size,
-                partition -> arrangement.stream()
-                        .filter(recorded -> recorded.cluster().winningSeed().equals(partition.winningSeed()))
+                topic -> arrangement.stream()
+                        .filter(recorded -> recorded.cluster().topic().equals(topic.topic()))
                         .toList(),
-                partition -> survivors.stream()
-                        .filter(survivor -> survivor.winningSeed().equals(partition.winningSeed()))
+                topic -> survivors.stream()
+                        .filter(survivor -> survivor.topic().equals(topic.topic()))
                         .toList(),
                 cluster -> Optional.ofNullable(written.get(cluster)),
                 cluster -> Optional.ofNullable(unwritten.get(cluster)),
@@ -229,21 +233,57 @@ public final class ListedTree {
         return new DeliverableProvenance(RUN_ID, WALK, corpusRoot.toString(), List.of(new NamedValue("seedFolder", "seeds")));
     }
 
-    /** One cluster of {@code seed}'s partition, placed first among the partitions. */
-    public static RecordedCluster cluster(OccurrenceId seed, int ordinal, String label, int clusterOrder, int documentCount) {
-        return new RecordedCluster(new ArrangedCluster(seed, ordinal, documentCount, 1, clusterOrder), new ClusterLabel(label));
+    /**
+     * The topic these fixtures put every survivor won by {@code seed} under: one topic for each winning seed, undivided,
+     * keyed by a path no seed has, so that a rendering that named a topic's folder or heading from its key and not its
+     * name is told apart (ADR-409 sections 1 and 10).
+     */
+    public static TopicKey topicOf(OccurrenceId seed) {
+        return new TopicKey("topic-of-seed-" + seed.value(), 0);
     }
 
-    /** One survivor of {@code seed}'s partition, in the cluster of {@code ordinal}. */
+    /**
+     * The name these fixtures give the topic a survivor of {@code seedPath}'s seed is under: the seed's filename stem,
+     * as a topic's name falls back to it (ADR-407 section 7), so that the folders drawn are named as the seed's
+     * partition's were.
+     */
+    public static String topicNameOf(String seedPath) {
+        return FilenameStem.of(seedPath);
+    }
+
+    /** One cluster of the topic of {@code seed}, placed first among the topics, its topic undivided. */
+    public static RecordedCluster cluster(OccurrenceId seed, int ordinal, String label, int clusterOrder, int documentCount) {
+        return new RecordedCluster(
+                new ArrangedCluster(topicOf(seed), OptionalInt.empty(), ordinal, documentCount, 1, 0, clusterOrder),
+                new ClusterLabel(label));
+    }
+
+    /**
+     * One survivor won by {@code seed}, placed under its topic, named from {@code seedPath}, in the cluster of {@code
+     * ordinal}.
+     */
     public static ListedSurvivor survivor(
             long occurrence, String path, String contentHash, OccurrenceId seed, String seedPath, int ordinal, double score) {
         return new ListedSurvivor(
-                new OccurrenceId(occurrence), new OccurrencePath(path), contentHash, seed, seedPath, ordinal, score);
+                new OccurrenceId(occurrence),
+                new OccurrencePath(path),
+                contentHash,
+                seed,
+                topicOf(seed),
+                topicNameOf(seedPath),
+                OptionalInt.empty(),
+                ordinal,
+                score);
     }
 
     /** The key a cluster is asked for by. */
     public static ClusterSlot slotOf(RecordedCluster recorded) {
-        return new ClusterSlot(recorded.cluster().winningSeed(), recorded.cluster().ordinal());
+        return ClusterSlot.of(recorded);
+    }
+
+    /** The key of the cluster of {@code ordinal} under the topic of {@code seed}. */
+    public static ClusterSlot slotOf(OccurrenceId seed, int ordinal) {
+        return new ClusterSlot(topicOf(seed), OptionalInt.empty(), ordinal);
     }
 
     /** The writing over a cluster, its call having sent {@code sent} in citation order. */
@@ -359,18 +399,22 @@ public final class ListedTree {
         return cells;
     }
 
-    private static List<ListedPartition> partitionsOf(List<RecordedCluster> arrangement, List<ListedSurvivor> survivors) {
-        Map<OccurrenceId, String> seedPaths = new LinkedHashMap<>();
+    /**
+     * One row for each topic the arrangement names, in the order its first cluster is listed, named as the first listed
+     * survivor under it names it. A topic no survivor names has no name, and {@link ListedTopic} refuses it.
+     */
+    static List<ListedTopic> topicsOf(List<RecordedCluster> arrangement, List<ListedSurvivor> survivors) {
+        Map<TopicKey, String> names = new LinkedHashMap<>();
         for (ListedSurvivor survivor : survivors) {
-            seedPaths.putIfAbsent(survivor.winningSeed(), survivor.seedPath());
+            names.putIfAbsent(survivor.topic(), survivor.topicName());
         }
-        Map<OccurrenceId, List<RecordedCluster>> bySeed = new LinkedHashMap<>();
+        Map<TopicKey, List<RecordedCluster>> byTopic = new LinkedHashMap<>();
         for (RecordedCluster recorded : arrangement) {
-            bySeed.computeIfAbsent(recorded.cluster().winningSeed(), seed -> new ArrayList<>()).add(recorded);
+            byTopic.computeIfAbsent(recorded.cluster().topic(), topic -> new ArrayList<>()).add(recorded);
         }
-        List<ListedPartition> partitions = new ArrayList<>();
-        bySeed.forEach((seed, clusters) -> partitions.add(new ListedPartition(
-                seed, seedPaths.get(seed), clusters.getFirst().cluster().partitionOrder(), clusters.size())));
-        return partitions;
+        List<ListedTopic> topics = new ArrayList<>();
+        byTopic.forEach((topic, clusters) -> topics.add(new ListedTopic(
+                topic, names.get(topic), clusters.getFirst().cluster().topicOrder(), clusters.size())));
+        return topics;
     }
 }

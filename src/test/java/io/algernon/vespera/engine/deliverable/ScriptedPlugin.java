@@ -18,8 +18,8 @@ import java.util.function.Consumer;
  * that fails (ADR-333 §11).
  *
  * <p>Each call is written down as {@code <name>:<call>}, the call being one of {@value #DRAWING}, {@value
- * #PARTITION_STARTED}, {@value #ENTRIES_OF}, {@value #START}, {@value #COPY_SHOWN}, {@value #PICTURE}, {@value
- * #NOT_SHOWN}, {@value #END}, {@value #ENTRIES_CLOSED}, {@value #CLUSTER_DRAWN}, {@value #PARTITION_ENDED}, {@value
+ * #TOPIC_STARTED}, {@value #ENTRIES_OF}, {@value #START}, {@value #COPY_SHOWN}, {@value #PICTURE}, {@value
+ * #NOT_SHOWN}, {@value #END}, {@value #ENTRIES_CLOSED}, {@value #CLUSTER_DRAWN}, {@value #TOPIC_ENDED}, {@value
  * #FINISH} or {@value #CLOSE}, followed where it has them by what it was handed, in words of the test's.
  *
  * <p>It writes beneath its own folder alone, adding that folder to {@code written} as ADR-312 §4 asks of a plugin,
@@ -30,7 +30,7 @@ import java.util.function.Consumer;
 public final class ScriptedPlugin implements Plugin {
 
     public static final String DRAWING = "drawing";
-    public static final String PARTITION_STARTED = "partitionStarted";
+    public static final String TOPIC_STARTED = "topicStarted";
     public static final String ENTRIES_OF = "entriesOf";
     public static final String START = "start";
     public static final String COPY_SHOWN = "copyShown";
@@ -39,7 +39,7 @@ public final class ScriptedPlugin implements Plugin {
     public static final String END = "end";
     public static final String ENTRIES_CLOSED = "entries.close";
     public static final String CLUSTER_DRAWN = "clusterDrawn";
-    public static final String PARTITION_ENDED = "partitionEnded";
+    public static final String TOPIC_ENDED = "topicEnded";
     public static final String FINISH = "finish";
     public static final String CLOSE = "close";
 
@@ -160,13 +160,13 @@ public final class ScriptedPlugin implements Plugin {
         }
 
         @Override
-        public void partitionStarted(ListedPartition partition, int partitionCount) throws IOException {
-            heard(PARTITION_STARTED, PARTITION_STARTED + " " + partition.partitionOrder() + "/" + partitionCount);
+        public void topicStarted(ListedTopic topic, int topicCount) throws IOException {
+            heard(TOPIC_STARTED, TOPIC_STARTED + " " + topic.topicOrder() + "/" + topicCount);
         }
 
         @Override
         public Entries entriesOf(
-                ListedPartition partition, RecordedCluster recorded, List<ListedSurvivor> members, Path clusterFolder,
+                ListedTopic topic, RecordedCluster recorded, List<ListedSurvivor> members, Path clusterFolder,
                 Copies copies) throws IOException {
             heard(ENTRIES_OF, ENTRIES_OF + " " + recorded.cluster().clusterOrder() + " of " + members.size());
             return new ScriptedEntries(recorded.cluster().clusterOrder());
@@ -174,7 +174,7 @@ public final class ScriptedPlugin implements Plugin {
 
         @Override
         public void clusterDrawn(
-                ListedPartition partition, RecordedCluster recorded, Optional<SynthesisDoc> doc, Unwritten why,
+                ListedTopic topic, RecordedCluster recorded, Optional<SynthesisDoc> doc, Unwritten why,
                 int entryCount, Optional<ClusterPage.PageBreaks> breaks, Entries entries, boolean writingFinished)
                 throws IOException {
             boolean its = entries instanceof ScriptedEntries mine && mine.cluster == recorded.cluster().clusterOrder();
@@ -183,8 +183,8 @@ public final class ScriptedPlugin implements Plugin {
         }
 
         @Override
-        public void partitionEnded() throws IOException {
-            heard(PARTITION_ENDED, PARTITION_ENDED);
+        public void topicEnded() throws IOException {
+            heard(TOPIC_ENDED, TOPIC_ENDED);
         }
 
         @Override

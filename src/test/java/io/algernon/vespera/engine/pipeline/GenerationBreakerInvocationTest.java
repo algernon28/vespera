@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -438,8 +439,9 @@ class GenerationBreakerInvocationTest {
      * which is a cluster that quietly becomes sendable — and whether it does depends on the order a
      * filesystem hands its entries back, so it passed on NTFS and failed on Linux.
      *
-     * <p><b>Every placed document is given the cluster rows' winning seed</b>, so membership and
-     * arrangement agree on the key the step reads them by, and the order is the cluster order alone.
+     * <p><b>Every placed document is given the cluster rows' topic, undivided</b>, so membership and
+     * arrangement agree on the key the step reads them by (ADR-409 section 3), and the order is the cluster order
+     * alone.
      *
      * <p>The cluster at {@code theClusterHoldingNothing} is given its document like every other, so the
      * arrangement stays total and its page can be drawn from it (ADR-112, ADR-154 §2). What leaves it
@@ -456,7 +458,7 @@ class GenerationBreakerInvocationTest {
         // Scoped to this method's own walk, for the reason the javadoc above gives: the run may carry
         // another walk's membership as well, and those documents are not this method's to arrange.
         List<Long> documents = jdbcTemplate.queryForList(
-                "SELECT dc.occurrence_id FROM document_cluster dc"
+                "SELECT dc.occurrence_id FROM cluster_member dc"
                         + " JOIN file_occurrence fo ON fo.id = dc.occurrence_id"
                         + " JOIN walk w ON w.id = fo.walk_id"
                         + " WHERE dc.run_id = ? AND w.root = ? ORDER BY dc.occurrence_id",
@@ -467,41 +469,45 @@ class GenerationBreakerInvocationTest {
             throw new IllegalStateException("this fixture needs " + clusters + " documents in the"
                     + " arrangement to make " + clusters + " groups, and this walk produced " + documents.size());
         }
-        Long winningSeed = jdbcTemplate.queryForObject(
-                "SELECT winning_seed_occurrence_id FROM document_cluster WHERE run_id = ? AND occurrence_id = ?",
-                Long.class,
+        Map<String, Object> topic = jdbcTemplate.queryForMap(
+                "SELECT topic_seed_path, topic_chunk_index FROM cluster_member WHERE run_id = ? AND occurrence_id = ?",
                 scoring,
                 documents.getFirst());
+        Object topicSeedPath = topic.get("topic_seed_path");
+        Object topicChunkIndex = topic.get("topic_chunk_index");
         // Out of the arrangement entirely: no cluster is arranged at this ordinal, so anything left here
         // is unreachable rather than quietly part of a cluster.
         //
         // This changes no outcome today and no test notices its removal -- another walk's documents are
-        // already invisible to the step, because the two lines above key this arrangement to a winning
-        // seed only this walk's documents carry. It is kept because that invisibility is a property of
+        // already invisible to the step, because the two lines above key this arrangement to a topic only
+        // this walk's documents are placed under. It is kept because that invisibility is a property of
         // the seed folders happening to differ per test, where this is the fixture saying outright that
         // it arranges these documents and no others -- which is the thing that was not true before.
         jdbcTemplate.update(
-                "UPDATE document_cluster SET cluster_ordinal = ? WHERE run_id = ?", clusters, scoring);
+                "UPDATE cluster_member SET cluster_ordinal = ? WHERE run_id = ?", clusters, scoring);
         for (int cluster = 0; cluster < clusters; cluster++) {
             jdbcTemplate.update(
-                    "UPDATE document_cluster SET cluster_ordinal = ?, winning_seed_occurrence_id = ?"
-                            + " WHERE run_id = ? AND occurrence_id = ?",
+                    "UPDATE cluster_member SET cluster_ordinal = ?, topic_seed_path = ?, topic_chunk_index = ?,"
+                            + " subtopic_ordinal = -1 WHERE run_id = ? AND occurrence_id = ?",
                     cluster,
-                    winningSeed,
+                    topicSeedPath,
+                    topicChunkIndex,
                     scoring,
                     documents.get(cluster));
         }
-        jdbcTemplate.update("DELETE FROM cluster WHERE run_id = ?", arrangement.value());
+        jdbcTemplate.update("DELETE FROM arranged_cluster WHERE run_id = ?", arrangement.value());
         for (int cluster = 0; cluster < clusters; cluster++) {
             jdbcTemplate.update(
-                    "INSERT INTO cluster (run_id, winning_seed_occurrence_id, cluster_ordinal, label,"
-                            + " document_count, partition_order, cluster_order) VALUES (?, ?, ?, ?, ?, 0, ?)",
+                    "INSERT INTO arranged_cluster (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal,"
+                            + " cluster_ordinal, label, document_count, topic_order, subtopic_order, cluster_order)"
+                            + " VALUES (?, ?, ?, -1, ?, ?, ?, 1, 0, ?)",
                     arrangement.value(),
-                    winningSeed,
+                    topicSeedPath,
+                    topicChunkIndex,
                     cluster,
                     CLUSTER_NAMES.get(cluster),
                     1,
-                    cluster);
+                    cluster + 1);
         }
         if (theClusterHoldingNothing != EVERY_CLUSTER_HOLDS_A_DOCUMENT) {
             ConversionOffTheRecordFixture.takenOffTheRecord(

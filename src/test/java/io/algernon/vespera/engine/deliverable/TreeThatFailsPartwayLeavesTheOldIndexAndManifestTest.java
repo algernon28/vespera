@@ -95,13 +95,13 @@ class TreeThatFailsPartwayLeavesTheOldIndexAndManifestTest {
         ArrangedSurvivors whole =
                 ListedArrangement.of(ThreePartitions.arrangement(), List.of(), ThreePartitions.survivors(), Map.of());
         return ArrangedSurvivors.reading(
-                whole::partitions,
+                whole::topics,
                 whole::survivorCount,
-                partition -> {
-                    if (partition.partitionOrder() == THE_SECOND_PARTITION) {
+                topic -> {
+                    if (topic.topicOrder() == THE_SECOND_PARTITION) {
                         throw new IllegalStateException(WHAT_THE_READ_SAID);
                     }
-                    return whole.clustersOf(partition);
+                    return whole.clustersOf(topic);
                 },
                 whole::survivorsOf,
                 whole::writtenOver,

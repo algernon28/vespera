@@ -30,8 +30,10 @@ import org.junit.jupiter.api.Test;
  *
  * <p>A method that reads a whole run cannot be called by {@code src/main} once it is not there, which is a
  * shorter thing to hold than every caller's text. What replaced each is held where it can be exercised: a
- * partition's rows and a cluster's by key in {@code synthesis.PartitionsOfAnArrangementTest} and {@code
- * synthesis.AClusterIsAskedForByItsKeyTest}.
+ * topic's rows and a cluster's by key in {@code synthesis.PartitionsOfAnArrangementTest} and {@code
+ * synthesis.AClusterIsAskedForByItsKeyTest}. Since ADR-409 the tables are {@code cluster_member}, {@code
+ * arranged_cluster}, {@code cluster_synthesis_doc} and {@code standing_cluster_fault}, read through the same four
+ * classes, and stages 5f, 6a and 6b go through one topic at a time (ADR-409 section 13).
  *
  * <p><b>By reflection, and by name where a type is not public</b>, so that this class compiles against the
  * tree as it stood before ADR-223 was built, where every claim here fails.
@@ -57,7 +59,7 @@ class NoClassOfTheLastThreeStagesReadsAWholeRunTest {
             Class<?> row = tableAndRow.get(1);
             claim(
                     table.getSimpleName() + " has no read of everything one run recorded: no way in asked for a run"
-                            + " alone hands back its rows together, which are asked for one exemplar's documents at"
+                            + " alone hands back its rows together, which are asked for one topic's documents at"
                             + " a time, a page at a time, or one group at a time by its key",
                     () -> assertThat(Arrays.stream(table.getDeclaredMethods())
                                     .filter(method -> Arrays.equals(method.getParameterTypes(), new Class<?>[] {RunId.class}))

@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -108,6 +109,9 @@ class ClusterGenerationTest {
 
     /** The seed every cluster here sits under, by path, as the material handed to the loop names it. */
     private static final String SEED_PATH = "seeds/safety.docx";
+
+    /** The topic every cluster here lies in, undivided, keyed by that seed's first passage (ADR-409 section 1). */
+    private static final TopicKey THE_TOPIC = new TopicKey(SEED_PATH, 0);
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -276,11 +280,12 @@ class ClusterGenerationTest {
                 });
     }
 
-    /** {@code count} clusters of one partition, at ordinals 0 to count - 1, in that order. */
+    /** {@code count} clusters of one undivided topic, at ordinals 0 to count - 1, in that order. */
     private List<RecordedCluster> clusters(int count) {
         return IntStream.range(0, count)
                 .mapToObj(ordinal -> new RecordedCluster(
-                        new ArrangedCluster(seed, ordinal, 1, 1, ordinal + 1), new ClusterLabel(label(ordinal))))
+                        new ArrangedCluster(THE_TOPIC, OptionalInt.empty(), ordinal, 1, 1, 0, ordinal + 1),
+                        new ClusterLabel(label(ordinal))))
                 .toList();
     }
 
@@ -292,7 +297,9 @@ class ClusterGenerationTest {
     /** A synthesis doc an earlier invocation of this run already wrote over cluster {@code ordinal}. */
     private void alreadyWritten(int ordinal) {
         synthesisDocs.record(
-                run, seed, ordinal, new SynthesisDoc("Written before", "Written before [1].", List.of(document(ordinal))));
+                run,
+                new ClusterSlot(THE_TOPIC, OptionalInt.empty(), ordinal),
+                new SynthesisDoc("Written before", "Written before [1].", List.of(document(ordinal))));
     }
 
     /** One document of cluster {@code ordinal}, opening with {@code words} words. */

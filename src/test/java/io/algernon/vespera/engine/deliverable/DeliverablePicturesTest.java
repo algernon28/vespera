@@ -5,9 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
-import io.algernon.vespera.engine.ledger.OccurrencePath;
-import io.algernon.vespera.engine.synthesis.ArrangedCluster;
-import io.algernon.vespera.engine.synthesis.ClusterLabel;
 import io.algernon.vespera.engine.synthesis.ListedDoc;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
 import io.algernon.vespera.engine.synthesis.SynthesisDoc;
@@ -77,10 +74,10 @@ class DeliverablePicturesTest {
     /** The walk the run read. */
     private static final long WALK = 7L;
 
-    /** The seed whose partition every cluster below sits in. */
+    /** The seed that won every survivor below, whose topic every cluster lies in ({@link ListedTree#topicOf}). */
     private static final OccurrenceId THE_SEED = new OccurrenceId(1);
 
-    /** The seed document's own filename, which is what the partition directory is named from. */
+    /** The seed document's own filename, whose stem names the topic, and so the topic's directory. */
     private static final String SEED_PATH = "seeds/Industrial Safety Standards.docx";
 
     /** The one partition directory these fixtures write. */
@@ -253,7 +250,7 @@ class DeliverablePicturesTest {
             List<ListedSurvivor> members,
             Map<OccurrenceId, List<ListedPicture>> pictures) {
         List<ListedDoc> written =
-                doc == null ? List.of() : List.of(new ListedDoc(THE_SEED, FIRST_ORDINAL, doc));
+                doc == null ? List.of() : List.of(new ListedDoc(ListedTree.slotOf(THE_SEED, FIRST_ORDINAL), doc));
         return write(
                 workingDirectory,
                 List.of(cluster(FIRST_ORDINAL, members.size(), FIRST_PLACE, THE_LABEL)),
@@ -292,9 +289,7 @@ class DeliverablePicturesTest {
     }
 
     private static RecordedCluster cluster(int ordinal, int documentCount, int clusterOrder, String label) {
-        return new RecordedCluster(
-                new ArrangedCluster(THE_SEED, ordinal, documentCount, FIRST_PLACE, clusterOrder),
-                new ClusterLabel(label));
+        return ListedTree.cluster(THE_SEED, ordinal, label, clusterOrder, documentCount);
     }
 
     /** What produced the tree, over an archive beside the working directory and not on this machine. */
@@ -364,13 +359,6 @@ class DeliverablePicturesTest {
     }
 
     private static ListedSurvivor aMemberOf(long occurrence, String path, double score, int ordinal) {
-        return new ListedSurvivor(
-                new OccurrenceId(occurrence),
-                new OccurrencePath(path),
-                "hash-" + occurrence,
-                THE_SEED,
-                SEED_PATH,
-                ordinal,
-                score);
+        return ListedTree.survivor(occurrence, path, "hash-" + occurrence, THE_SEED, SEED_PATH, ordinal, score);
     }
 }

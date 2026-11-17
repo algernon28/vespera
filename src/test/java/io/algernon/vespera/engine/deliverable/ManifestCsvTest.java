@@ -5,9 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
-import io.algernon.vespera.engine.ledger.OccurrencePath;
-import io.algernon.vespera.engine.synthesis.ArrangedCluster;
-import io.algernon.vespera.engine.synthesis.ClusterLabel;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -38,10 +35,10 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
 class ManifestCsvTest {
 
-    /** The seed whose partition every cluster below sits in. */
+    /** The seed that won every survivor below, whose topic every cluster below lies in. */
     private static final OccurrenceId THE_SEED = new OccurrenceId(1);
 
-    /** The seed's own path, carrying an ampersand and brackets that the CSV leaves alone. */
+    /** The seed's own path, carrying an ampersand and brackets, which names the topic. */
     private static final String SEED_PATH = "seeds/Fire & Safety [2019].docx";
 
     /** The two clusters' identities, and the order 6a placed them in. */
@@ -97,23 +94,14 @@ class ManifestCsvTest {
                 () -> assertThat(manifest).contains("\n14,reports/=a.pdf,"));
     }
 
-    /** Two clusters in one partition, 6a's first and second. */
+    /** Two clusters in one topic, 6a's first and second. */
     private static List<RecordedCluster> anArrangement() {
         return List.of(
-                new RecordedCluster(
-                        new ArrangedCluster(THE_SEED, FIRST_ORDINAL, 3, 1, 1), new ClusterLabel("Fire Suppression")),
-                new RecordedCluster(
-                        new ArrangedCluster(THE_SEED, SECOND_ORDINAL, 2, 1, 2), new ClusterLabel("Sprinklers")));
+                ListedTree.cluster(THE_SEED, FIRST_ORDINAL, "Fire Suppression", 1, 3),
+                ListedTree.cluster(THE_SEED, SECOND_ORDINAL, "Sprinklers", 2, 2));
     }
 
     private static ListedSurvivor survivor(long occurrence, String path, int clusterOrdinal, double score) {
-        return new ListedSurvivor(
-                new OccurrenceId(occurrence),
-                new OccurrencePath(path),
-                "h" + occurrence,
-                THE_SEED,
-                SEED_PATH,
-                clusterOrdinal,
-                score);
+        return ListedTree.survivor(occurrence, path, "h" + occurrence, THE_SEED, SEED_PATH, clusterOrdinal, score);
     }
 }

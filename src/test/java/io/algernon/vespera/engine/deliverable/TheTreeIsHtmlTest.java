@@ -60,13 +60,13 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
 class TheTreeIsHtmlTest {
 
-    /** The seed every cluster here sits under. */
+    /** The seed that won every survivor here, whose topic every cluster lies in. */
     private static final OccurrenceId THE_SEED = new OccurrenceId(1);
 
-    /** Its path, whose stem names the partition's folder. */
+    /** Its path, whose stem names the topic, and so the topic's folder (ADR-409 section 10). */
     private static final String SEED_PATH = "seeds/Fire Safety.docx";
 
-    /** The partition's folder: its place, 1 of 1, and its seed's stem as a slug. */
+    /** The topic's folder: its place, 1 of 1, and its name as a slug. */
     private static final String PARTITION_FOLDER = "1-fire-safety";
 
     /** The cluster written over, placed first. */
@@ -184,7 +184,7 @@ class TheTreeIsHtmlTest {
 
     @Test
     @Story("Nothing a document or the model wrote is read as markup")
-    @DisplayName("A name, a heading, a path, a seed and a picture's caption carrying markup are shown as text, in text and in attributes")
+    @DisplayName("A name, a heading, a path, a topic's name and a picture's caption carrying markup are shown as text, in text and in attributes")
     void escapesEveryValueInTextAndInAttributes(@TempDir Path base) throws IOException {
         String seedPath = "seeds/Seed " + FIVE_HOSTILE + ".docx";
         RecordedCluster hostile = cluster(THE_SEED, 0, "Label " + FIVE_HOSTILE, 1, 1);
@@ -207,7 +207,7 @@ class TheTreeIsHtmlTest {
         String page = Files.readString(theOnePageUnder(tree), StandardCharsets.UTF_8);
 
         claim(
-                "the index shows the label, the heading the model wrote and the seed's path with each of the five"
+                "the index shows the label, the heading the model wrote and the topic's name with each of the five"
                         + " characters written as its entity",
                 () -> assertThat(index).contains("Label " + FIVE_ESCAPED, "Title " + FIVE_ESCAPED, "Seed " + FIVE_ESCAPED));
         claim(
@@ -350,23 +350,23 @@ class TheTreeIsHtmlTest {
             Path folder = context.tree().resolve(name);
             return new Drawing() {
                 @Override
-                public void partitionStarted(ListedPartition partition, int partitionCount) {}
+                public void topicStarted(ListedTopic topic, int topicCount) {}
 
                 @Override
                 public Entries entriesOf(
-                        ListedPartition partition, RecordedCluster recorded, List<ListedSurvivor> members,
+                        ListedTopic topic, RecordedCluster recorded, List<ListedSurvivor> members,
                         Path clusterFolder, Copies copies) {
                     return Entries.NONE;
                 }
 
                 @Override
                 public void clusterDrawn(
-                        ListedPartition partition, RecordedCluster recorded, Optional<SynthesisDoc> doc, Unwritten why,
+                        ListedTopic topic, RecordedCluster recorded, Optional<SynthesisDoc> doc, Unwritten why,
                         int entryCount, Optional<ClusterPage.PageBreaks> breaks, Entries entries,
                         boolean writingFinished) {}
 
                 @Override
-                public void partitionEnded() {}
+                public void topicEnded() {}
 
                 @Override
                 public void finish(Path manifest) throws IOException {

@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
-import io.algernon.vespera.engine.ledger.OccurrencePath;
 import io.algernon.vespera.engine.synthesis.SynthesisDoc;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -97,13 +96,6 @@ class ClusterPageTest {
     }
 
     private static ListedSurvivor member(long occurrence, String path, double score) {
-        return new ListedSurvivor(
-                new OccurrenceId(occurrence),
-                new OccurrencePath(path),
-                sha256Of(bytesOf(path)),
-                THE_SEED,
-                SEED_PATH,
-                0,
-                score);
+        return ListedTree.survivor(occurrence, path, sha256Of(bytesOf(path)), THE_SEED, SEED_PATH, 0, score);
     }
 }

@@ -26,17 +26,18 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * One seed partition, clustered end to end over the stored vectors (ADR-087, ADR-045): the graph, the
- * communities and the rows, composed the way stage 5's own step composes them.
+ * One topic, clustered end to end over the stored vectors (ADR-087, ADR-045, ADR-409 section 8): the graph, the
+ * communities and the rows, composed the way stage 5's own step composes them. The topic is under the subtopic
+ * floor, so it is clustered whole, as a seed partition was.
  *
  * <p><b>The count is never supplied.</b> The fixtures below say how the documents resemble each
- * other and nothing says how many clusters to find — which is the property that lets a partition of
+ * other and nothing says how many clusters to find — which is the property that lets a topic of
  * eleven documents and one of eleven thousand share this code path.
  *
  * <p><b>Clusters of twenty, not of three.</b> k is fifteen and there is no edge similarity floor, so in
- * a partition of a dozen documents every document keeps every other and the graph is complete
+ * a topic of a dozen documents every document keeps every other and the graph is complete
  * whatever the vectors say. A fixture small enough to check by hand would therefore check nothing:
- * the structure only becomes visible once each cluster is larger than k, which is what these partitions
+ * the structure only becomes visible once each cluster is larger than k, which is what these topics
  * are sized for.
  */
 @JdbcTest
@@ -48,6 +49,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-087", url = Adr.CLUSTERS_ARE_MODULARITY_COMMUNITIES, type = "adr")
 @Link(name = "ADR-045", url = Adr.CLUSTERING_RUNS_WITHIN_EACH_SEED_PARTITION, type = "adr")
 @Link(name = "ADR-096", url = Adr.K_RETAINS_NEIGHBOURS_REGARDLESS_OF_DISTANCE, type = "adr")
+@Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
 class ClusteringTest {
 
     /** The number of neighbours the application ships (vespera.clustering.neighbours). */
@@ -66,6 +68,15 @@ class ClusteringTest {
     /** Larger than k, so which documents a document keeps says something about the vectors. */
     private static final int CLUSTER_SIZE = 20;
 
+    /**
+     * The subtopic floor the application ships (vespera.clustering.subtopic-floor): far above the forty documents
+     * clustered here, so the topic is not divided and its clusters are found over it whole (ADR-406 section 1).
+     */
+    private static final int SUBTOPIC_FLOOR = 300;
+
+    /** The topic every document here is placed under (ADR-409 section 1). */
+    private static final TopicKey THE_TOPIC = new TopicKey(new SeedPassage("exemplar.pdf", 0));
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -83,11 +94,12 @@ class ClusteringTest {
         partition.putAll(insertCluster(walkId, run, seed, "unalike", 1));
 
         clustering.clusterAndRecord(
-                run, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS, RESOLUTION);
+                run, THE_TOPIC, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS,
+                RESOLUTION, SUBTOPIC_FLOOR);
 
         Map<OccurrenceId, Integer> ordinals = ordinalsOf(clusters, run);
         claim(
-                "every one of the " + partition.size() + " documents in the partition carries a cluster,"
+                "every one of the " + partition.size() + " documents in the topic carries a cluster,"
                         + " so membership is total: a survivor with no cluster is a hole in the page tree"
                         + " above it",
                 () -> assertThat(ordinals.keySet()).containsExactlyInAnyOrderElementsOf(partition.keySet()));
@@ -98,8 +110,8 @@ class ClusteringTest {
         claim(
                 "the two groups came out as two clusters, and nothing was told there were two: the count"
                         + " is a property of how the documents resemble each other, which is what lets a"
-                        + " partition of eleven and one of eleven thousand share this code path",
-                () -> assertThat(clusters.sizesFor(run, seed)).containsExactly(CLUSTER_SIZE, CLUSTER_SIZE));
+                        + " topic of eleven and one of eleven thousand share this code path",
+                () -> assertThat(clusters.sizesFor(run, THE_TOPIC)).containsExactly(CLUSTER_SIZE, CLUSTER_SIZE));
         claim(
                 "and the documents of one group are together rather than split across the two clusters,"
                         + " so the grouping followed the vectors and not the order the rows arrived in",
@@ -108,7 +120,7 @@ class ClusteringTest {
 
     @Test
     @Story("The same corpus always produces the same clusters")
-    @DisplayName("Clustering the same partition twice gives every document the same cluster ordinal")
+    @DisplayName("Clustering the same topic twice gives every document the same cluster ordinal")
     void isDeterministicAcrossRuns() {
         Clustering clustering = ClusteringBeans.real(jdbcTemplate);
         DocumentClusters clusters = new DocumentClusters(jdbcTemplate);
@@ -121,8 +133,12 @@ class ClusteringTest {
         partition.putAll(insertCluster(walkId, first, seed, "unalike", 1));
         partition.keySet().forEach(member -> insertScore(second, member, seed));
 
-        clustering.clusterAndRecord(first, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS, RESOLUTION);
-        clustering.clusterAndRecord(second, seed, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS, RESOLUTION);
+        clustering.clusterAndRecord(
+                first, THE_TOPIC, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS,
+                RESOLUTION, SUBTOPIC_FLOOR);
+        clustering.clusterAndRecord(
+                second, THE_TOPIC, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS,
+                RESOLUTION, SUBTOPIC_FLOOR);
 
         claim(
                 "every document landed on the same ordinal both times, not merely in the same company:"
