@@ -2981,6 +2981,17 @@ public final class Adr {
     public static final String THE_NAMING_MODEL_IS_ONE_OF_THE_MODELS_MODELS_RUN_ON_SPEAKS_FOR = FILE
             + "0408-the-naming-model-is-one-of-the-models-modelsrunon-speaks-for-and-the-start-of-vespera-run-refuses-for-it-too.md";
 
+    /**
+     * ADR-412 -- stage 0's chart is kept under the walk the census hands the job, and a new key empties no other
+     * stage's chart: before the hand-over the census's samples are those of the walk its lines name, written only over
+     * a file that names that walk or none; at the hand-over a file frozen under the walk handed is left as it is, one
+     * not frozen continued, and any other started afresh holding the walk walked's points; the census's count done is
+     * what its lines said of the walk walked; a stage's new key writes no other stage's file (amends ADR-382 §5, §7,
+     * Consequences and Known limits).
+     */
+    public static final String STAGE_0S_CHART_IS_KEPT_UNDER_THE_WALK_THE_CENSUS_KEEPS = FILE
+            + "0412-stage-0s-chart-is-kept-under-the-walk-the-census-keeps-and-a-new-key-empties-no-other-stages-chart.md";
+
     private Adr() {
     }
 }
