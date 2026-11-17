@@ -139,6 +139,7 @@ public class SidecarStarter {
                 return Outcome.ALREADY_ANSWERING;
             }
             makeTheEngineAnswer();
+            checkComposeAndBuildx();
             bringUp(withTheGpuFile);
             waitForBoth();
             return Outcome.STARTED;
@@ -165,7 +166,9 @@ public class SidecarStarter {
             return Outcome.ON_ANOTHER_MACHINE;
         }
         try (SidecarLock lock = takeTheLock()) {
-            return makeTheEngineAnswer() ? Outcome.ENGINE_STARTED : Outcome.ENGINE_ANSWERING;
+            boolean started = makeTheEngineAnswer();
+            checkComposeAndBuildx();
+            return started ? Outcome.ENGINE_STARTED : Outcome.ENGINE_ANSWERING;
         }
     }
 
@@ -280,6 +283,27 @@ public class SidecarStarter {
 
     private boolean engineAnswers() {
         List<String> check = host.engineCheck(settings.wslDistribution());
+        try {
+            return runner.run(check, COMMAND_LIMIT).exitCode() == 0;
+        } catch (CommandOutputFileException unusable) {
+            throw new CommandOutputFileUnusableException(unusable);
+        } catch (IOException cannotStart) {
+            throw new DockerIsNotInstalledException(host.engineProgram());
+        }
+    }
+
+    /** Asks for Compose, then buildx, whatever the first answered; refuses naming what is missing (ADR-410 §1, §2). */
+    private void checkComposeAndBuildx() {
+        boolean composeMissing = !installed(host.composeCheck(settings.wslDistribution()));
+        boolean buildxMissing = !installed(host.buildxCheck(settings.wslDistribution()));
+        if (composeMissing || buildxMissing) {
+            throw new ComposeOrBuildxIsNotInstalledException(
+                    host, settings.wslDistribution(), composeMissing, buildxMissing);
+        }
+    }
+
+    /** Exit 0 is installed; any other exit, a command killed at its limit included, is not (ADR-410 §1). */
+    private boolean installed(List<String> check) {
         try {
             return runner.run(check, COMMAND_LIMIT).exitCode() == 0;
         } catch (CommandOutputFileException unusable) {
