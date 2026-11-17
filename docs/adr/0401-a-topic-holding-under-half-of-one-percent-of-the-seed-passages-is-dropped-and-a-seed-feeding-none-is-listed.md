@@ -1,6 +1,6 @@
 # ADR-401 — A topic holding under half of one percent of the seed passages is dropped, and a seed feeding none is listed
 
-> **Partly amended — see [ADR-411](0411-adr-399-to-401-move-seed-measurement-and-adr-406s-floor-is-not-shown-in-the-control-panel.md).** Of Consequences, its *Run ids*: the code that builds this record touches `embedding`, so it moves seed measurement as well as embedding scoring, the arrangement and generation (ADR-058, `StageModules`); *"The walk, stages 1 to 4 and seed measurement do not move"* reads *"The walk and stages 1 to 4 do not move"*. Of its Amends line: *"gains gains"* reads *"gains"*. The rest of this record stands.
+> **Partly amended — see [ADR-411](0411-adr-399-to-401-move-seed-measurement-and-adr-406s-floor-is-not-shown-in-the-control-panel.md).** Of Consequences, its *Run ids*: the code that builds this record touches `embedding`, so it moves seed measurement as well as embedding scoring, the arrangement and generation (ADR-058, `StageModules`); *"The walk, stages 1 to 4 and seed measurement do not move"* reads *"The walk and stages 1 to 4 do not move"*. Of its Amends line: *"table of the members a run's configuration gains gains"* reads *"table of the members of a run's configuration gains"*. The rest of this record stands.
 
 - **Date**: 2026-11-16
 - **Status**: accepted on 2026-11-16.
