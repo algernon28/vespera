@@ -11,9 +11,10 @@ import java.util.List;
  * which is what leaves the call itself testable with no database under it.
  *
  * @param label what stage 6a named the cluster, which is what the call tells the model it is reading
- * @param seedPath the seed document whose partition the cluster sits in, named so the model knows what
- *     the cluster is a cluster of
+ * @param topicName the recorded name of the topic the cluster lies in (ADR-409 section 9), which the question
+ *     says the group sits under, so the model knows what the cluster is a cluster of; a subtopic
+ *     cluster is asked under its topic's name, not its subtopic's
  * @param exemplars the documents to write from, in any order: the call sends them in the order the
  *     scores give them, rather than the order they arrive in
  */
-public record ClusterCall(String label, String seedPath, List<Exemplar> exemplars) {}
+public record ClusterCall(String label, String topicName, List<Exemplar> exemplars) {}

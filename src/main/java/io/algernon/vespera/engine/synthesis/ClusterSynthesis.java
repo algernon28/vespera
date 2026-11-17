@@ -772,7 +772,7 @@ public class ClusterSynthesis {
      * of record rows sat between it and the point where the model starts writing, and the model
      * either copied the records back until it ran out of room or finished citing nothing. Moved
      * after the documents, the same request passed 15 calls of 15. The opening keeps the count, the
-     * label, the seed document, and the line saying each document opens below under the number to
+     * label, the topic's name, and the line saying each document opens below under the number to
      * cite it by; the documents follow under their ordinals, exactly as ADR-108 and ADR-133 send
      * them.
      *
@@ -823,7 +823,7 @@ public class ClusterSynthesis {
                 .formatted(
                         inScoreOrder.size(),
                         call.label(),
-                        call.seedPath(),
+                        call.topicName(),
                         exemplars,
                         inScoreOrder.size(),
                         WORD_LIMIT,

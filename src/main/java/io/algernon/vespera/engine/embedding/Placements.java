@@ -4,9 +4,7 @@ import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.RunId;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -82,21 +80,5 @@ public class Placements {
                 runId.value(),
                 topic.firstPassage().seedPath(),
                 topic.firstPassage().chunkIndex());
-    }
-
-    /** How many documents {@code runId} placed under each topic, in key order: a count the database makes. */
-    public Map<TopicKey, Integer> countsPerTopic(RunId runId) {
-        Map<TopicKey, Integer> counted = new LinkedHashMap<>();
-        jdbcTemplate.query(
-                "SELECT topic_seed_path, topic_chunk_index, COUNT(*) AS members FROM winning_topic WHERE run_id = ?"
-                        + " GROUP BY topic_seed_path, topic_chunk_index",
-                resultSet -> {
-                    counted.put(
-                            new TopicKey(new SeedPassage(
-                                    resultSet.getString("topic_seed_path"), resultSet.getInt("topic_chunk_index"))),
-                            resultSet.getInt("members"));
-                },
-                runId.value());
-        return counted;
     }
 }

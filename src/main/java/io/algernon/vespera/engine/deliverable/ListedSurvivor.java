@@ -12,14 +12,12 @@ import java.util.OptionalInt;
  * gathered here as a plain value so {@link Deliverable} needs no capability module this ticket did
  * not already name (ADR-110).
  *
- * <p><b>Two names for the seed, deliberately kept apart.</b> {@code winningSeed} is the seed's own
- * identity — the same value {@code document_cluster.winning_seed_occurrence_id} carries — and is
- * what the manifest's {@code winning_seed} column states, parallel to {@code occurrence_id} naming
- * this survivor's own identity. {@code seedPath} is the seed's own path, relative to the seed
- * folder rather than the archive (ADR-112) — the name an operator gave it by putting it in the seed
- * folder, and the same string {@link Deliverable} slugs to name the seed partition's directory — and
- * is what the manifest's {@code seed_partition} column states, parallel to {@code path} naming this
- * survivor's own place in the archive.
+ * <p><b>Two names, deliberately kept apart.</b> {@code winningSeed} is the identity of the seed this
+ * survivor scored highest against, and is what the manifest's {@code winning_seed} column states,
+ * parallel to {@code occurrence_id} naming this survivor's own identity. {@code topic} is the key of
+ * the topic it is placed under and {@code topicName} that topic's recorded name, which the manifest's
+ * {@code seed_partition} column states until #835 renames it (ADR-409 section 10); the topic's first
+ * passage may lie in a seed other than the winning one.
  *
  * @param occurrence this survivor's own identity
  * @param path this survivor's own root-relative path

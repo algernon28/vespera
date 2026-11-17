@@ -1169,7 +1169,7 @@ class GenerationTasklet implements Tasklet {
 
     /**
      * Some of the arrangement's survivors, as {@code documents.csv} carries them (ADR-104, ADR-112):
-     * gathered from {@code document_cluster}, the ledger's own facts, the content hash {@code extraction}
+     * gathered from {@code cluster_member}, the ledger's own facts, the content hash {@code extraction}
      * recorded for each (ADR-206) and the scores read for them, each listed through
      * {@link ListedSurvivor#of}, which decides what one with no score on record shows (ADR-226).
      *

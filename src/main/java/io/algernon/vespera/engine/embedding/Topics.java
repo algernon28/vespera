@@ -82,14 +82,6 @@ public class Topics {
         return List.copyOf(topics);
     }
 
-    /** The seeds {@code runId} found feeding no topic that stands, in the order of ADR-399 section 4's paths. */
-    public List<String> seedsFeedingNoTopic(RunId runId) {
-        return jdbcTemplate.query(
-                "SELECT seed_path FROM seed_feeding_no_topic WHERE run_id = ? ORDER BY seed_path",
-                (resultSet, rowNumber) -> resultSet.getString("seed_path"),
-                runId.value());
-    }
-
     /**
      * Deletes every row recorded under {@code runId}, the discard half of ADR-115 and ADR-116, with the step's other
      * rows (ADR-409 section 5).

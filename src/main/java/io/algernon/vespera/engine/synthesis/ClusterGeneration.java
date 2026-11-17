@@ -89,7 +89,7 @@ public class ClusterGeneration {
             SynthesisDoc doc;
             try {
                 doc = clusterSynthesis.docFor(
-                        new ClusterCall(recorded.label().value(), material.seedPath(), material.exemplars()),
+                        new ClusterCall(recorded.label().value(), material.topicName(), material.exemplars()),
                         modelName,
                         contextWindow,
                         language);
