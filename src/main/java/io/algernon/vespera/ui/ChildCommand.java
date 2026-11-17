@@ -37,9 +37,9 @@ public final class ChildCommand {
                     "The working directory field, made absolute; also the child's current directory. Where the field is"
                             + " empty, the folder the jar would use on this machine is passed (ADR-345 §1)."),
             new Argument("label", "auto", "label-auto",
-                    "Passed by Let the local model answer; Record my answers passes none."),
+                    "Passed by Auto Label; Save my labels passes none."),
             new Argument("label", "<file>", "",
-                    "Never passed: the window answers the questions in the Inclusions tab, by folder (ADR-334 §6), in"
+                    "Never passed: the window sets the labels in the Inclusions tab, by folder (ADR-334 §6), in"
                             + " the working directory's label file, which label reads where no file is named; the"
                             + " command line keeps it (ADR-377)."),
             new Argument("label", "db-dir", "vespera.working-dir", "As for run."),

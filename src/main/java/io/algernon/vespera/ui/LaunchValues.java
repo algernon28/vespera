@@ -94,7 +94,7 @@ public record LaunchValues(String corpusRoot, String workingDirectory, String de
             case DOCLING_IMAGE -> "The image the converter runs from. The two offered are the ones this build knows.";
             case DOCLING_BASE_URL -> "Where the converter answers.";
             case OLLAMA_BASE_URL -> "Where the local models answer.";
-            case LABEL_MODEL -> "The local model that answers the questions when you ask it to.";
+            case LABEL_MODEL -> "The local model that sets the labels when you press Auto Label.";
             default -> "";
         };
     }
