@@ -8,6 +8,7 @@ import io.algernon.vespera.engine.corpus.Walk;
 import io.algernon.vespera.engine.ledger.RunId;
 import io.algernon.vespera.engine.profile.ProfileFixture;
 import io.algernon.vespera.engine.profile.ProfileStore;
+import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
@@ -16,7 +17,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,8 +37,10 @@ import org.springframework.test.context.DynamicPropertySource;
 /**
  * The deliverable's language end to end (ADR-321 §1, §2, §4, §6): the profile's {@code deliverableLanguage} reaches
  * the question every cluster is asked, the generation run's identity, and every page the run draws; changing it is a
- * generation run of its own, over an arrangement approved again (ADR-407 §3); and a language the deliverable cannot be
- * drawn in stops where the arrangement run would be minted, before any topic is named (ADR-407 §3).
+ * generation run of its own, over an arrangement approved again (ADR-407 §3); the language the invocation kept is the
+ * one the generation run records and writes in, whatever is saved part-way through (ADR-407 §3); and a language the
+ * deliverable cannot be drawn in stops where the arrangement run would be minted, before any topic is named (ADR-407
+ * §3).
  *
  * <p>The scripted model answers whatever it is asked in the words it was scripted with, so what is claimed of the
  * writing is what it was asked for, never what it wrote. The report says <em>group</em> where the code says cluster
@@ -60,6 +67,15 @@ class TheDeliverableLanguageInvocationTest {
 
     /** What two languages of the same arrangement are worth: two generation runs. */
     private static final int TWO_GENERATION_RUNS = 2;
+
+    /**
+     * The model the groups are written under, named in the profile so that the one step that checks it is the writing
+     * step's: the topics' naming model is the shipped default, another name, checked at the arrangement step.
+     */
+    private static final String THE_WRITING_MODEL = "a-named-writing-model:8b";
+
+    /** A run's language member, read out of its recorded settings. */
+    private static final Pattern THE_RECORDED_LANGUAGE = Pattern.compile("\"deliverableLanguage\":\"([^\"]*)\"");
 
     @TempDir
     static Path workingDirectory;
@@ -144,9 +160,67 @@ class TheDeliverableLanguageInvocationTest {
                 () -> assertThat(runsOf(root, "arrangement")).isEmpty());
     }
 
+    /**
+     * The language read once in an invocation and kept feeds 6b's writing as it feeds the arrangement (ADR-407 §3,
+     * ADR-321 §1): with {@code arrangementApproved} {@value ArrangementGate#AUTOMATIC}, a language saved after the
+     * arrangement run is minted and before any cluster is asked about does not part the language the generation run
+     * records from the one every cluster is asked for in and every page is drawn in.
+     */
+    @Test
+    @Story("The deliverable is in the language the profile names")
+    @DisplayName("A language saved while the writing model is checked does not part the language the groups are asked for and drawn in from the one the writing records")
+    @Link(name = "ADR-407", url = Adr.TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT, type = "adr")
+    void theClustersAreWrittenInTheLanguageTheGenerationRecords(@TempDir Path root, @TempDir Path seeds)
+            throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(root.resolve("another-corpus-document.txt"), "a second corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        EveryGateOpen.approve(profileStore, ArrangementGate.AUTOMATIC, THE_WRITING_MODEL);
+        // saved as the writing step checks its model: after the arrangement was recorded and its topics named, before
+        // the writing is recorded and before any group is asked about, as an operator saving the profile part-way
+        // through the invocation
+        EmbeddingScriptedBeans.whenAskedAbout(THE_WRITING_MODEL, () -> setTheLanguageTo(ITALIAN));
+
+        cli.run("run", root.toString());
+        List<String> runs = generationRuns(root);
+
+        claim("the invocation reports success, approving the arrangement unread and writing the groups",
+                () -> assertThat(cli.getExitCode()).isZero());
+        claim("the writing was recorded once", () -> assertThat(runs).hasSize(1));
+        DeliverableLanguage recorded = DeliverableLanguage.ofCode(recordedLanguageOf(runs.getFirst())).orElseThrow();
+        claim(
+                "every group was asked for in the language that writing records, " + recorded.englishName()
+                        + ": the pages it stands behind are in it",
+                () -> assertThat(GenerationScriptedBeans.promptsSent()).isNotEmpty().allSatisfy(question ->
+                        assertThat(question).contains("Write both in " + recorded.englishName() + ".")));
+        claim(
+                "and every page the writing drew names that language, " + recorded.code(),
+                () -> assertThat(pagesOf(workingDirectory.resolve("deliverable").resolve(runs.getFirst())))
+                        .isNotEmpty()
+                        .allSatisfy(page -> assertThat(Files.readString(page))
+                                .startsWith("<!DOCTYPE html>\n<html lang=\"" + recorded.code() + "\">\n")));
+    }
+
+    @BeforeEach
     @AfterEach
     void forgetWhatWasScripted() {
         GenerationScriptedBeans.forgetScriptedAnswers();
+        EmbeddingScriptedBeans.servesEveryModel();
+    }
+
+    /** Every HTML page under {@code tree}. */
+    private static List<Path> pagesOf(Path tree) throws IOException {
+        try (Stream<Path> files = Files.walk(tree)) {
+            return files.filter(file -> file.getFileName().toString().endsWith(".html")).sorted().toList();
+        }
+    }
+
+    /** The language code {@code run}'s recorded settings name as its {@code deliverableLanguage} member. */
+    private String recordedLanguageOf(String run) {
+        Matcher member = THE_RECORDED_LANGUAGE.matcher(settingsOf(run));
+        assertThat(member.find()).as("the writing's settings name a deliverableLanguage").isTrue();
+        return member.group(1);
     }
 
     /**
