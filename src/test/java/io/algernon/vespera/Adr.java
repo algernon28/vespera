@@ -3014,6 +3014,15 @@ public final class Adr {
     public static final String STAGE_0S_CHART_IS_KEPT_UNDER_THE_WALK_THE_CENSUS_KEEPS = FILE
             + "0412-stage-0s-chart-is-kept-under-the-walk-the-census-keeps-and-a-new-key-empties-no-other-stages-chart.md";
 
+    /**
+     * ADR-413 -- the two label commands leave the action card for a Labels section of the sidebar, after Seed folder,
+     * named Save my labels and Auto Label, each with its caption, and starting {@code vespera label} and {@code vespera
+     * label --auto} as before; every text of the control panel's windows that called a relevance label an answer says
+     * label (amends ADR-344 §1 and §5, ADR-377 §4 and §10, ADR-389 §1 and ADR-393 §5).
+     */
+    public static final String THE_LABEL_COMMANDS_ARE_A_LABELS_SECTION_OF_THE_SIDEBAR = FILE
+            + "0413-save-my-labels-and-auto-label-are-a-labels-section-of-the-sidebar-and-the-window-calls-no-label-an-answer.md";
+
     private Adr() {
     }
 }

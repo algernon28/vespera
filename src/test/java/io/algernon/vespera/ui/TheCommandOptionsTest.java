@@ -20,8 +20,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * What Command options passes to the commands the window starts (ADR-344 §4, as ADR-377 §10 leaves it): the five presets
- * and nothing else, so Record my answers names no label file, and {@code vespera label} reads the working directory's,
- * which the Inclusions tab answers by folder (ADR-334 §6).
+ * and nothing else, so Save my labels (ADR-413) names no label file, and {@code vespera label} reads the working
+ * directory's, whose labels the Inclusions tab sets by folder (ADR-334 §6).
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -30,18 +30,18 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")
 class TheCommandOptionsTest {
 
-    /** The one preset Record my answers is passed, of the five: how often the report is rewritten. */
+    /** The one preset Save my labels is passed, of the five: how often the report is rewritten. */
     private static final String A_PRESET = "vespera.progress-interval";
 
     private static final String ITS_VALUE = "PT5S";
 
-    /** The method that passed a label file to Record my answers, which ADR-377 §10 removes. */
+    /** The method that passed a label file to the label command, which ADR-377 §10 removes. */
     private static final String THE_LABEL_FILES_METHOD = "withLabelFile";
 
     @Test
     @Story("Every option of the jar's commands is set from the control panel or said not to be")
-    @DisplayName("Record my answers is started with the working directory and the presets passed, and no label file")
-    void recordMyAnswersIsGivenNoLabelFile(@TempDir Path workingDirectory) {
+    @DisplayName("Save my labels is started with the working directory and the presets passed, and no label file")
+    void saveMyLabelsIsGivenNoLabelFile(@TempDir Path workingDirectory) {
         LaunchValues values = new LaunchValues("", workingDirectory.toString(), "", "", "", "", "", "");
         ControlPanelState.Plan plan = new ControlPanelState.Plan(values, values, Map.of(A_PRESET, ITS_VALUE));
         ChildCommand command = ControlPanelState.commandOf(
