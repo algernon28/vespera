@@ -2992,6 +2992,17 @@ public final class Adr {
             + "0410-a-missing-docker-compose-or-buildx-is-named-with-the-command-that-installs-it-before-up.md";
 
     /**
+     * ADR-411 -- the code that builds ADR-399, ADR-400 and ADR-401 touches {@code embedding}, so it moves seed
+     * measurement as well as embedding scoring, the arrangement and generation; ADR-406's code touches {@code
+     * embedding} in {@code TopicDivision} alone; the control panel does not show the topics' presets or the subtopic
+     * floor, the showing of every preset with no profile key that ADR-330 section 12 and ADR-344 section 4 promise
+     * being left to #855; and four "table of the members a run's configuration gains gains" read "table of the
+     * members of a run's configuration gains".
+     */
+    public static final String THE_TOPICS_CODE_MOVES_SEED_MEASUREMENT = FILE
+            + "0411-adr-399-to-401-move-seed-measurement-and-adr-406s-floor-is-not-shown-in-the-control-panel.md";
+
+    /**
      * ADR-412 -- stage 0's chart is kept under the walk the census hands the job, and a new key empties no other
      * stage's chart: before the hand-over the census's samples are those of the walk its lines name, written only over
      * a file that names that walk or none; at the hand-over a file frozen under the walk handed is left as it is, one
