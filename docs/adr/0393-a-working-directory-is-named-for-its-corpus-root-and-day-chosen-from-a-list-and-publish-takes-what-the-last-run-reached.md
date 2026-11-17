@@ -1,5 +1,7 @@
 # ADR-393 — A working directory is named for its corpus root and day, chosen from a list, and publish takes what the last run reached
 
+> **Partly amended — see [ADR-413](0413-save-my-labels-and-auto-label-are-a-labels-section-of-the-sidebar-and-the-window-calls-no-label-an-answer.md).** Of §5: a row's next value reads `labels to save`, in place of `answers to record`, where `answer` is true. The rest of this record stands.
+
 - **Date**: 2026-11-14
 - **Status**: accepted on 2026-11-14.
 - **Decided**: by the operator on 2026-11-14: that the readable name belongs to the working directory and is its folder's name, with no new term (§1); its form, `<corpus root's folder name>_<yyyyMMdd>`, the local date, `-2` and on for a second the same day, stored as the folder's name alone and renamed by renaming the folder (§2); that the corpus root proposes the name once, as the folder is added, and a working directory named for another root is warned of and not refused (§3); that the choice of what to resume is made in the control panel alone, from a list kept beside the launch values, each row read from that folder's report, the folders not chosen kept, each resumed under its own `profile.yaml` (§4 to §6); that a publish delivers what the working directory's last `vespera run` arrived at, and a finished rendering alone (§7). What a section adds beneath its ruling is what building it needs.

@@ -207,6 +207,33 @@ class TheProfileTextsTest {
                         .containsPattern(A_TIME_OUT)));
     }
 
+    /** A form of the word answer, as a whole word in any case, which no text of a row calls a relevance label. */
+    private static final Pattern AN_ANSWER =
+            Pattern.compile("(?<![\\w-])answer(?:s|ed|ing)?(?![\\w-])", Pattern.CASE_INSENSITIVE);
+
+    /** The name of the button that saves the labels set in the label file. */
+    private static final String SAVE_MY_LABELS = "Save my labels";
+
+    /** ADR-413 §3: a row's texts say label where they said answer, and name the button by its name. */
+    @Test
+    @Story("Each value's row explains it in plain words")
+    @DisplayName("No text of a row calls a relevance label an answer, and the button that saves the labels is named Save my labels")
+    @Issue("857")
+    @Link(name = "ADR-413", url = Adr.THE_LABEL_COMMANDS_ARE_A_LABELS_SECTION_OF_THE_SIDEBAR, type = "adr")
+    void noTextOfARowCallsALabelAnAnswer() {
+        claim("no title, short description, tooltip, cost line, warning or line of the value in use says answer,"
+                        + " answers, answered or answering",
+                () -> assertThat(everyTextOfARow()).allSatisfy(text -> assertThat(text).doesNotContainPattern(AN_ANSWER)));
+        claim("and a warning of the seed folder, and the tooltips of the comparing model and the relevance cut-off,"
+                        + " each of which speaks of the labels saved, name the button " + SAVE_MY_LABELS
+                        + ", so that rows that never speak of the labels cannot pass the claim above",
+                () -> {
+                    assertThat(ProfileRow.warningsOf(ProfileKey.SEED_FOLDER)).anyMatch(warning -> warning.contains(SAVE_MY_LABELS));
+                    assertThat(List.of(ProfileKey.EMBEDDING_MODEL.tooltip(), ProfileKey.RELEVANCE_SCORE_FLOOR.tooltip()))
+                            .allSatisfy(text -> assertThat(text).contains(SAVE_MY_LABELS));
+                });
+    }
+
     /** Every title, short description, tooltip, cost line, warning, and line of the value in use for each source. */
     private static List<String> everyTextOfARow() {
         List<String> texts = new ArrayList<>();

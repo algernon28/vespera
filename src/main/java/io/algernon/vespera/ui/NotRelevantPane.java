@@ -52,8 +52,8 @@ final class NotRelevantPane {
         remove.setId("not-relevant-remove");
         remove.setOnAction(event -> changeNotRelevant(false, notRelevantList.getSelectionModel().getSelectedItem()));
         notRelevantOutcome.setId("not-relevant-outcome");
-        SelectableText.Wrapping words = SelectableText.wrapping("Folders not relevant are still read: the relevance questions below them are"
-                + " answered not relevant, and no run changes.");
+        SelectableText.Wrapping words = SelectableText.wrapping("Folders not relevant are still read: the documents of relevance-labels.yaml below them are"
+                + " labelled not relevant, and no run changes.");
         VBox pane = new VBox(SelectableText.line("Folders not relevant"), words, notRelevantList,
                 row(notRelevantFolder, browse, add, remove), notRelevantOutcome);
         pane.getStyleClass().add("section");
@@ -145,9 +145,9 @@ final class NotRelevantPane {
         Path file = folder.get().resolve(NotRelevantFolders.FILE_NAME);
         draw();
         notRelevantOutcome.setText(answered[0]
-                ? "the folders not relevant are saved in " + file + ", and the " + counts[0] + " questions answered: "
+                ? "the folders not relevant are saved in " + file + ", and the " + counts[0] + " documents of relevance-labels.yaml labelled: "
                         + counts[1] + " not relevant, " + (counts[0] - counts[1]) + " relevant"
-                : "the folders not relevant are saved in " + file + "; there are no questions to answer yet");
+                : "the folders not relevant are saved in " + file + "; relevance-labels.yaml holds no document to label yet");
     }
 
     /**
