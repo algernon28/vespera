@@ -208,6 +208,37 @@ class AMissingComposeOrBuildxIsNamedBeforeUpTest {
                         ScriptedDocker.ENGINE_CHECK, ScriptedDocker.COMPOSE_CHECK));
     }
 
+    @Test
+    @Story("A missing docker compose or buildx is named before the sidecars are started")
+    @DisplayName("A check whose program cannot be started refuses the start as Docker not installed, naming the engine check's program, and nothing is run after it")
+    void aCheckWhoseProgramCannotBeStartedIsDockerNotInstalled() {
+        List<Case> cases = List.of(
+                new Case("on Linux", HostSystem.LINUX, THE_DEFAULT_DISTRIBUTION, ScriptedDocker::engineRunning,
+                        List.of(), ""),
+                new Case("on Windows", HostSystem.WINDOWS, THE_DEFAULT_DISTRIBUTION, ScriptedDocker::engineRunning,
+                        IN_THE_DEFAULT_DISTRIBUTION, ""));
+
+        for (Case one : cases) {
+            List<String> composeCheck = concat(one.prefix(), ScriptedDocker.COMPOSE_CHECK);
+            String program = concat(one.prefix(), ScriptedDocker.ENGINE_CHECK).getFirst();
+            ScriptedDocker docker = one.docker().get().cannotLaunch(composeCheck, "Cannot run program \"" + program
+                    + "\": error=2, No such file or directory");
+
+            Throwable refused = catchThrowable(() -> starter(one, docker).ensureRunning());
+
+            claim(one.what() + ", the check for compose, its program not starting, refuses the start as Docker not"
+                            + " installed, in the line naming " + program + ", whole, and not as compose missing",
+                    () -> assertThat(refused)
+                            .isInstanceOf(DockerIsNotInstalledException.class)
+                            .hasMessage("Vespera cannot start Docker: no " + program + " command was found. Install"
+                                    + " Docker Engine -- in a WSL 2 distribution on Windows, with Colima on macOS, as"
+                                    + " the docker service on Linux -- and run the same command again."));
+            claim("and the commands run were the engine check and the check for compose: no check for buildx and no up",
+                    () -> assertThat(docker.commands()).containsExactly(
+                            concat(one.prefix(), ScriptedDocker.ENGINE_CHECK), composeCheck));
+        }
+    }
+
     private SidecarStarter starter(Case one, ScriptedDocker docker) {
         SidecarStartSettings settings =
                 new SidecarStartSettings(DOCLING_HERE, OLLAMA_HERE, cpuImage, WAIT_AT_MOST, one.distribution());

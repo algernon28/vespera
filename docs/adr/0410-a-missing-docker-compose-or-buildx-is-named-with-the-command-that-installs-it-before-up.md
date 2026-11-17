@@ -66,13 +66,13 @@ Each is run as ADR-390 §1 runs the engine check: inside the distribution on Win
 
 In ADR-323 §3's order, between step 6 and step 7: the engine made to answer, then the check for Compose, then the check for buildx, then `up`. Both are run whatever the first answered, so one line names both where both are missing. Both run under `sidecars.lock`, taken at step 5, as every command of a start does.
 
-So neither runs where the start ends before step 6: a base URL on another machine (step 2), both sidecars answering (step 3, or step 5 under the lock), an image no compose file builds (step 4), or Docker not installed, which the engine check finds first. A machine whose sidecars answer never meets them.
+So neither runs where the start ends before step 6: a base URL on another machine (step 2), both sidecars answering (step 3, or step 5 under the lock), an image no compose file builds (step 4), or Docker not installed, which the engine check finds first. A `vespera run` or `vespera label --auto` on a machine whose sidecars answer never meets them; the control panel's start, which asks no sidecar, does.
 
 **The control panel's start** (`startTheEngine`, ADR-390 §4) runs the same two, under the same lock, once the engine answers: a start of the engine with no Compose still leaves the next `vespera run` unable to start the sidecars, and the window says so as it opens rather than at that run's start. Where one is missing, its line is the refusal's, shown where ADR-390 §5 shows one.
 
 **Not the stops.** The shut-down and the window's stop of the sidecars (ADR-390 §3) run neither: they stop what is running, and are unchanged.
 
-**Why after the engine.** The engine check is what says whether there is a `docker`, or a `wsl`, at all, and it keeps its line for that; a check of a plugin before it would answer for a client that is not there. Under the lock, a start that waits for another finds the sidecars answering and runs neither.
+**Why after the engine.** The engine check is what says whether there is a `docker`, or a `wsl`, at all, and it keeps its line for that; a check of a plugin before it would answer for a client that is not there. Under the lock, a start of the sidecars that waits for another finds the sidecars answering and runs neither.
 
 **Why every start.** The operator installs what the line names and runs the same command again; a remembered answer would need a file of its own and would outlive the next change to the distribution. Two commands under a second each, only where Vespera is about to start something.
 
@@ -143,6 +143,7 @@ On macOS, with Compose missing:
 | `pipeline.AMissingComposeOrBuildxIsNamedBeforeUpTest.aMissingComposeOrBuildxRefusesTheStartBeforeUpInOneLineSayingHowToInstallIt` | §1 to §3: on Windows with a distribution named and with the default one, on Linux and on macOS, with Compose, buildx or both missing, and with the check for Compose killed at its limit, the start of the sidecars is refused in §3's line, whole, after exactly the engine check and both checks, and no `up` |
 | `pipeline.AMissingComposeOrBuildxIsNamedBeforeUpTest.theControlPanelsStartRefusesInTheSameLine` | §2: the control panel's start of the engine runs both checks inside the distribution named and refuses in the same line |
 | `pipeline.AMissingComposeOrBuildxIsNamedBeforeUpTest.aCheckWhoseOutputFileFailsRefusesInThatFilesLineAndRunsNothingAfter` | §1: the check for Compose's output file failing refuses in ADR-326's line, whole, and no check for buildx or `up` follows |
+| `pipeline.AMissingComposeOrBuildxIsNamedBeforeUpTest.aCheckWhoseProgramCannotBeStartedIsDockerNotInstalled` | §1: on Linux and on Windows, the check for Compose's program not starting refuses as Docker not installed, in ADR-390 §6's line, whole, naming `docker` or `wsl`, and no check for buildx or `up` follows |
 
 Amended:
 
