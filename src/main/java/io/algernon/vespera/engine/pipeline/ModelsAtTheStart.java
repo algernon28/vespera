@@ -10,9 +10,14 @@ import org.springframework.stereotype.Component;
 
 /**
  * The refusal at the start of {@code vespera run} and of {@code vespera label --auto} of a profile whose
- * {@code modelsRunOn} is not {@code local} (ADR-384 §1 to §3).
+ * {@code modelsRunOn} is not {@code local} (ADR-384 §1 to §3; ADR-408 §1, §2).
  *
- * <p>It reads the one key and nothing else: no model's name is read and Ollama is asked nothing. Unset or blank is
+ * <p>The key speaks for every model Vespera sends a document's text to: the embedding model, the generation model, the
+ * naming model and the labeller's. {@code vespera run} refuses for the first three through it, and
+ * {@code vespera label --auto} for the labeller's.
+ *
+ * <p>It reads the one key and nothing else: no model's name is read, the naming model's among them, and Ollama is
+ * asked nothing. Unset or blank is
  * local, as is {@code local} in any case with the blanks around it ignored; {@code cloud} is not supported yet, and any
  * other value names neither. A profile that cannot be read refuses nothing here and is left to the job's own refusal.
  */
