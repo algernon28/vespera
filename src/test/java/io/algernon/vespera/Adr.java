@@ -2981,6 +2981,15 @@ public final class Adr {
     public static final String THE_NAMING_MODEL_IS_ONE_OF_THE_MODELS_MODELS_RUN_ON_SPEAKS_FOR = FILE
             + "0408-the-naming-model-is-one-of-the-models-modelsrunon-speaks-for-and-the-start-of-vespera-run-refuses-for-it-too.md";
 
+    /**
+     * ADR-411 -- the code that builds ADR-399, ADR-400 and ADR-401 touches {@code embedding}, so it moves seed
+     * measurement as well as embedding scoring, the arrangement and generation; ADR-406's code touches {@code
+     * embedding} in {@code TopicDivision} alone; the control panel does not show the subtopic floor, ADR-330 section
+     * 12's showing of every preset with no profile key being left to #855; and four "gains gains" read "gains".
+     */
+    public static final String THE_TOPICS_CODE_MOVES_SEED_MEASUREMENT = FILE
+            + "0411-adr-399-to-401-move-seed-measurement-and-adr-406s-floor-is-not-shown-in-the-control-panel.md";
+
     private Adr() {
     }
 }
