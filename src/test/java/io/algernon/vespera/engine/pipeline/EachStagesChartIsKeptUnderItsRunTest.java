@@ -211,9 +211,7 @@ class EachStagesChartIsKeptUnderItsRunTest {
     @DisplayName("A new run of a stage starts its chart afresh and leaves the charts of the other stages as they were")
     @Issue("861")
     @Link(name = "ADR-412", url = Adr.STAGE_0S_CHART_IS_KEPT_UNDER_THE_WALK_THE_CENSUS_KEEPS, type = "adr")
-    // The name is the one ADR-382's Tests give it, kept so that record's note stays true; since ADR-412 §3 the charts
-    // after the stage are left as they were, which its display name and claims say.
-    void aNewRunStartsTheStagesChartAfreshAndEmptiesTheChartsAfterIt() throws IOException {
+    void aNewRunStartsTheStagesChartAfreshAndLeavesTheOtherStagesChartsAsTheyWere() throws IOException {
         Path stage1 = workingDirectory.resolve("chart-stage-1.json");
         Path stage2 = workingDirectory.resolve("chart-stage-2.json");
         Path stage3 = workingDirectory.resolve("chart-stage-3.json");
