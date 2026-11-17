@@ -55,7 +55,7 @@ import tools.jackson.databind.json.JsonMapper;
  * has succeeded; it never fails the invocation (ADR-265 section 4).
  *
  * <p>It also builds and writes each stage's chart, {@code chart-stage-<stage>.json} beside the report, from the same
- * readings (ADR-382 section 4 to 7), under {@link StageCharts}.
+ * readings (ADR-382 section 4 to 7).
  *
  * <p>It holds no rule: it decides no verdict, cache key, cluster or text of the deliverable.
  */
