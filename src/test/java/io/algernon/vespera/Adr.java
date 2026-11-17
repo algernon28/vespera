@@ -2992,6 +2992,27 @@ public final class Adr {
     public static final String TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC = FILE
             + "0409-topics-placement-names-overviews-and-clusters-within-topics-are-kept-in-new-tables-keyed-by-a-topics-first-passage.md";
 
+    /**
+     * ADR-410 -- once the Docker engine answers, and before {@code up}, under {@code sidecars.lock}, {@code docker
+     * compose version} and {@code docker buildx version} are run, inside the WSL distribution on Windows, each killed
+     * after 30 s; one not exiting 0 refuses the start of the sidecars and the control panel's start of the engine in
+     * one line naming what is missing, where, and the command that installs it on that system (amends ADR-323 §3 and
+     * §8 and ADR-390 §2, §4 and §6).
+     */
+    public static final String A_MISSING_DOCKER_COMPOSE_OR_BUILDX_IS_NAMED_BEFORE_UP = FILE
+            + "0410-a-missing-docker-compose-or-buildx-is-named-with-the-command-that-installs-it-before-up.md";
+
+    /**
+     * ADR-411 -- the code that builds ADR-399, ADR-400 and ADR-401 touches {@code embedding}, so it moves seed
+     * measurement as well as embedding scoring, the arrangement and generation; ADR-406's code touches {@code
+     * embedding} in {@code TopicDivision} alone; the control panel does not show the topics' presets or the subtopic
+     * floor, the showing of every preset with no profile key that ADR-330 section 12 and ADR-344 section 4 promise
+     * being left to #855; and four "table of the members a run's configuration gains gains" read "table of the
+     * members of a run's configuration gains".
+     */
+    public static final String THE_TOPICS_CODE_MOVES_SEED_MEASUREMENT = FILE
+            + "0411-adr-399-to-401-move-seed-measurement-and-adr-406s-floor-is-not-shown-in-the-control-panel.md";
+
     private Adr() {
     }
 }

@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalInt;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -69,7 +70,7 @@ class PartitionNoSurvivorNamesStopsTheWriterTest {
                 new OccurrenceId(10),
                 new OccurrencePath("reports/document-10.docx"),
                 "hash-10",
-                new OccurrenceId(1),
+                Optional.of(new OccurrenceId(1)),
                 THE_NAMED_TOPIC,
                 "First Seed",
                 OptionalInt.empty(),

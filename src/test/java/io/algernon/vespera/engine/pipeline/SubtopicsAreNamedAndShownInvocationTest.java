@@ -233,8 +233,9 @@ class SubtopicsAreNamedAndShownInvocationTest {
     @Test
     @Story("The topics and their names are shown at the approval, to read and not to change")
     @DisplayName("The approval page's JSON has a section for the topic and one for each of its subtopics, each titled by its name")
-    void theArrangementsJsonHasOneSectionForTheTopicAndOneForEachSubtopic() {
+    void theArrangementsJsonHasOneSectionForTheTopicAndOneForEachSubtopic() throws IOException {
         Crowded crowded = crowded();
+        JsonNode schema = TopicNamesAreStoredAndShownInvocationTest.theSchema();
         JsonNode json = crowded.json();
         String oneDocumentInOneGroup = List.of("1 document(s) in 1 group(s).") + " table of 1 row(s)";
 
@@ -261,6 +262,12 @@ class SubtopicsAreNamedAndShownInvocationTest {
         claim("its headline counts one topic, three groups and three documents",
                 () -> assertThat(TopicNamesAreStoredAndShownInvocationTest.headlineOf(json)).containsExactly(
                         "topics Topics 1", "clusters Groups " + THREE_SUBTOPICS, "documents Documents " + THREE_DOCUMENTS));
+        claim("the JSON is written in the format its published schema is of",
+                () -> assertThat(json.get("format").asLong())
+                        .as("arrangement.json's format against arrangement.schema.json's const")
+                        .isEqualTo(schema.get("properties").get("format").get("const").asLong()));
+        claim("and the JSON follows that schema, the divided topic's section with a null table among the rest",
+                () -> assertThat(SchemaWalker.problems(json, schema)).isEmpty());
     }
 
     @Test

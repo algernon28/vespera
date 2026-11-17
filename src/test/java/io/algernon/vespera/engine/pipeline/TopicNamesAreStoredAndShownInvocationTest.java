@@ -126,6 +126,9 @@ class TopicNamesAreStoredAndShownInvocationTest {
     /** The one corpus document of the one-topic arrangement, by its path beneath the root. */
     private static final String THE_CORPUS_DOCUMENT = "corpus.txt";
 
+    /** The schema {@code arrangement.json} is published under (ADR-362 §9, ADR-409 §7). */
+    private static final Path ARRANGEMENT_SCHEMA = Path.of("docs", "report", "arrangement.schema.json");
+
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     @TempDir
@@ -241,9 +244,17 @@ class TopicNamesAreStoredAndShownInvocationTest {
                         + " group, as the page does",
                 () -> assertThat(sectionsOf(json)).contains("topic-1: " + THE_FIRST_NAME + " "
                         + List.of(ONE_DOCUMENT_IN_ONE_GROUP) + " table of 1 row(s)"));
-        claim("and its headline counts the topics, one, before the groups and the documents",
+        claim("its headline counts the topics, one, before the groups and the documents",
                 () -> assertThat(headlineOf(json)).containsExactly(
                         "topics Topics 1", "clusters Groups 1", "documents Documents 1"));
+        JsonNode schema = theSchema();
+        claim("the JSON is written in the format its published schema is of, the one sections named for topics began",
+                () -> assertThat(json.get("format").asLong())
+                        .as("arrangement.json's format against arrangement.schema.json's const")
+                        .isEqualTo(schema.get("properties").get("format").get("const").asLong()));
+        claim("and the JSON follows that schema: every field it requires, none it does not name, each of its type and"
+                        + " among the values it allows",
+                () -> assertThat(SchemaWalker.problems(json, schema)).isEmpty());
     }
 
     @Test
@@ -479,6 +490,11 @@ class TopicNamesAreStoredAndShownInvocationTest {
     private static JsonNode theJson() throws IOException {
         return JSON.readTree(Files.readString(
                 workingDirectory.resolve(ArrangementTasklet.ARRANGEMENT_JSON_FILE_NAME), StandardCharsets.UTF_8));
+    }
+
+    /** {@code docs/report/arrangement.schema.json}, the schema {@code arrangement.json} is published under (ADR-362 §9). */
+    static JsonNode theSchema() throws IOException {
+        return JSON.readTree(Files.readString(ARRANGEMENT_SCHEMA, StandardCharsets.UTF_8));
     }
 
     /**

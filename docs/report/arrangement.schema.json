@@ -1,10 +1,10 @@
 {
   "type": "object",
-  "description": "The arrangement report, arrangement.json (ADR-362 section 9), format 1: what arrangement.html shows.",
+  "description": "The arrangement report, arrangement.json (ADR-362 section 9), format 2: what arrangement.html shows, one section a topic and one a subtopic since ADR-409 section 7.",
   "properties": {
     "format": {
-      "const": 1,
-      "description": "The report's own format, from 1; raised by a change that removes, renames or retypes a field."
+      "const": 2,
+      "description": "The report's own format, from 1; raised by a change that removes, renames or retypes a field. 2 since ADR-409 section 7 renamed the headline's partitions to topics and the sections partition-<n> to topic-<n> and topic-<n>-subtopic-<m>."
     },
     "analysisReport": {
       "const": "arrangement",
@@ -20,16 +20,16 @@
     },
     "headline": {
       "type": "array",
-      "description": "The few numbers the page states first, in order: partitions (exemplars with documents under them), clusters (groups on the page) and documents (documents in them), each a count.",
+      "description": "The few numbers the page states first, in order: topics (the topic sections, one for each topic with documents under it), clusters (groups on the page) and documents (documents in them), each a count.",
       "items": {
         "type": "object",
         "description": "One figure.",
         "properties": {
           "key": {
             "type": "string",
-            "description": "partitions, clusters or documents.",
+            "description": "topics, labelled Topics; clusters, labelled Groups; or documents, labelled Documents.",
             "enum": [
-              "partitions",
+              "topics",
               "clusters",
               "documents"
             ]
@@ -65,22 +65,22 @@
     },
     "sections": {
       "type": "array",
-      "description": "The page's parts in its order: overview and approval, then partition-<n>, one for each exemplar in the order the arrangement gives them, or nothing where nothing was arranged. A partition's table has the columns group (text), documents (count) and namedAfter (path, the lead document, absolute); the approval's text holds the name to approve as the paragraph that stands alone.",
+      "description": "The page's parts in its order: overview and approval, then topic-<n>, one for each topic in topic order, <n> its place counted from 1, each topic with subtopics followed directly by topic-<n>-subtopic-<m>, one for each of its subtopics in subtopic order, <m> its place counted from 1; or nothing where nothing was arranged. A section of a topic without subtopics, and of a subtopic, has a table of its groups with the columns group (text), documents (count) and namedAfter (path, the lead document, absolute); a section of a topic with subtopics has none, its groups being its subtopics'. The approval's text holds the name to approve as the paragraph that stands alone.",
       "items": {
         "type": "object",
         "description": "One section.",
         "properties": {
           "id": {
             "type": "string",
-            "description": "overview, approval, partition-<n> or nothing."
+            "description": "overview, approval, topic-<n>, topic-<n>-subtopic-<m> or nothing."
           },
           "title": {
             "type": "string",
-            "description": "The section's title; a partition's is its exemplar's path."
+            "description": "The section's title; a topic's and a subtopic's is the name recorded for it under the arrangement run."
           },
           "text": {
             "type": "array",
-            "description": "Its paragraphs.",
+            "description": "Its paragraphs. For a topic or a subtopic whose name fell back, the paragraph saying why the naming model's name was not used comes first; then, for a topic without subtopics and for a subtopic, its line of counts. A topic with subtopics has no line of counts.",
             "items": {
               "type": "string",
               "description": "One paragraph."
@@ -95,7 +95,7 @@
               "object",
               "null"
             ],
-            "description": "Its table; null where it holds none.",
+            "description": "Its table; null where it holds none, as a topic with subtopics does.",
             "properties": {
               "columns": {
                 "type": "array",

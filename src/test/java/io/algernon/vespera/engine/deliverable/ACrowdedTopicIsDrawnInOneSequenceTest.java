@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -111,7 +112,7 @@ class ACrowdedTopicIsDrawnInOneSequenceTest {
                         new OccurrenceId(occurrence),
                         new OccurrencePath(path),
                         "hash" + occurrence,
-                        THE_SEED,
+                        Optional.of(THE_SEED),
                         THE_TOPIC,
                         THE_TOPIC_NAME,
                         OptionalInt.of(subtopic),

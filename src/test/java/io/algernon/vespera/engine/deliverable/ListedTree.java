@@ -268,7 +268,7 @@ public final class ListedTree {
                 new OccurrenceId(occurrence),
                 new OccurrencePath(path),
                 contentHash,
-                seed,
+                Optional.of(seed),
                 topicOf(seed),
                 topicNameOf(seedPath),
                 OptionalInt.empty(),
