@@ -67,6 +67,8 @@ final class Cockpit {
     private final SelectableText.Line databaseSize = SelectableText.line("");
     /** The model that names the topics, as the jar said it would use it: shown, never set (ADR-407 section 10). */
     private final SelectableText.Line namingModel = SelectableText.line("");
+    /** The model the jar would use while the label model field stands blank (ADR-334 section 2). */
+    private final SelectableText.Line labelModel = SelectableText.line("");
     private final SelectableText.Wrapping outcome = SelectableText.wrapping("");
     private final Button run = new Button("Run");
     private final Button stop = new Button("Stop");
@@ -158,7 +160,7 @@ final class Cockpit {
         root.setCenter(mainPane());
         readNext();
         loadFiles();
-        showNamingModel();
+        showModelsInUse();
         showCommandLines();
         showBadges();
         refresh();
@@ -602,7 +604,7 @@ final class Cockpit {
         });
         working.input.textProperty().addListener((observed, was, now) -> {
             where();
-            showNamingModel();
+            showModelsInUse();
             reports.closeTabs();
             // the rows drawn for another working directory start as they first do (ADR-377 section 3)
             List.of(profileOpen, seedOpen, wantedOpen).forEach(ProfileRow.OpenKeys::forget);
@@ -829,9 +831,19 @@ final class Cockpit {
         hint.getStyleClass().add("small");
         VBox pane = new VBox(SelectableText.line("Converter's image"), images, image.input, image.startingLine, hint,
                 fieldBox(converter, "Converter's address", false), fieldBox(ollama, "Ollama's address", false),
-                fieldBox(model, "Label model", false), namingModelPart());
+                labelModelBox(model), namingModelPart());
         pane.getStyleClass().add("section");
         return pane;
+    }
+
+    /** The label model's field box, with the line saying the model in use beneath it while the field stands blank. */
+    private Node labelModelBox(LaunchField model) {
+        labelModel.setId("in-use-vespera.label.model");
+        showLabelModelLine(model.text());
+        model.input.textProperty().addListener((observed, was, now) -> showLabelModelLine(now));
+        VBox box = (VBox) fieldBox(model, "Label model", false);
+        box.getChildren().add(labelModel);
+        return box;
     }
 
     /**
@@ -848,12 +860,23 @@ final class Cockpit {
         return part;
     }
 
-    /** Reads the file again, for the working directory chosen now, and says the naming model it names. */
-    private void showNamingModel() {
-        Optional<EffectiveValues.Value> said = state.effectiveValues(folders.workingDirectory())
-                .flatMap(values -> values.named("vespera.naming.model"));
-        namingModel.setText(said.map(ProfileRow::modelInUseOf).orElse(
-                "The jar has not said yet what it would use; run an invocation to see it."));
+    /** Reads the file again, for the working directory chosen now, and says the naming model and the label model it names. */
+    private void showModelsInUse() {
+        namingModel.setText(modelInUse("vespera.naming.model"));
+        labelModel.setText(modelInUse("vespera.label.model"));
+    }
+
+    /** What the working directory's file says of the model {@code key} names, or that the jar has not said yet. */
+    private String modelInUse(String key) {
+        return state.effectiveValues(folders.workingDirectory()).flatMap(values -> values.named(key))
+                .map(ProfileRow::modelInUseOf)
+                .orElse("The jar has not said yet what it would use; run an invocation to see it.");
+    }
+
+    /** The label model's line is shown only while its field stands blank (ADR-334 section 2). */
+    private void showLabelModelLine(String typed) {
+        labelModel.setVisible(typed.isBlank());
+        labelModel.setManaged(typed.isBlank());
     }
 
     private Node seedPane() {
@@ -1135,7 +1158,7 @@ final class Cockpit {
         if (ending.isPresent() && ending.get() != wantedFor) {
             wantedFor = ending.get();
             readTheRowsAgain();
-            showNamingModel();
+            showModelsInUse();
             Map<String, Boolean> written = folders.writtenReports();
             profile.showReports(written);
             wanted.showReports(written);
