@@ -2981,6 +2981,16 @@ public final class Adr {
     public static final String THE_NAMING_MODEL_IS_ONE_OF_THE_MODELS_MODELS_RUN_ON_SPEAKS_FOR = FILE
             + "0408-the-naming-model-is-one-of-the-models-modelsrunon-speaks-for-and-the-start-of-vespera-run-refuses-for-it-too.md";
 
+    /**
+     * ADR-410 -- once the Docker engine answers, and before {@code up}, under {@code sidecars.lock}, {@code docker
+     * compose version} and {@code docker buildx version} are run, inside the WSL distribution on Windows, each killed
+     * after 30 s; one not exiting 0 refuses the start of the sidecars and the control panel's start of the engine in
+     * one line naming what is missing, where, and the command that installs it on that system (amends ADR-323 §3 and
+     * §8 and ADR-390 §2, §4 and §6).
+     */
+    public static final String A_MISSING_DOCKER_COMPOSE_OR_BUILDX_IS_NAMED_BEFORE_UP = FILE
+            + "0410-a-missing-docker-compose-or-buildx-is-named-with-the-command-that-installs-it-before-up.md";
+
     private Adr() {
     }
 }
