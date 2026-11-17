@@ -130,7 +130,7 @@ It is a preset under ADR-330 §8, *every candidate is a preset*, as ADR-396 §1 
 - **A seed is listed though its subject stands** where all its passages lie in a fragment the floor drops: once in 131 sets under Qwen.
 - **Where a machine's floor exceeds the share of every topic found, no topic stands**, and the relevance-scoring step stops in one line naming the floor and the largest share, scoring nothing (§1). At the shipped value one topic always stands while the inference finds 200 or fewer; it found 2 to 20.
 - **ADR-330 carries a note *"Partly amended — see ADR-401"*** at its head.
-- **Run ids**: the embedding-scoring stage's run id moves with the code that builds this record, as ADR-396 §12 says of the children that build it; at the shipped value no member is written. The walk, stages 1 to 4 and seed measurement do not move.
+- **Run ids**: a stage's version is the last commit touching the modules `StageModules` names for it (ADR-058), and the code that builds this record touches `embedding` (`BreadthFloor`, `StandingTopics` and `Placement`, §1, §4 and §5) and `pipeline`, which no stage's version names (ADR-222, ADR-226). So these runs move: **seed measurement** and **embedding scoring**, whose versions name `embedding` and `extraction`, and the **arrangement** and **generation**, whose versions name `synthesis`, `extraction` and `embedding`. **Byte-level reduction**, **extraction**, **content census** and **content redundancy**, whose versions name no `embedding`, do not move, nor does the walk, which has no version; ADR-396 §12's *"seed measurement do not move"* does not hold of this child, as ADR-407's note says of every child touching `embedding`. At the shipped value no member is written.
 
 ## Tests
 
