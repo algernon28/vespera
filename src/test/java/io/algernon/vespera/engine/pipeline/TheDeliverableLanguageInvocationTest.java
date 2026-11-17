@@ -19,8 +19,11 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -30,7 +33,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * The deliverable's language end to end (ADR-321 §1, §2, §4, §6): the profile's {@code deliverableLanguage} reaches
  * the question every cluster is asked, the generation run's identity, and every page the run draws; changing it is a
  * generation run of its own, over an arrangement approved again (ADR-407 §3); and a language the deliverable cannot be
- * drawn in stops before anything is asked.
+ * drawn in stops where the arrangement run would be minted, before any topic is named (ADR-407 §3).
  *
  * <p>The scripted model answers whatever it is asked in the words it was scripted with, so what is claimed of the
  * writing is what it was asked for, never what it wrote. The report says <em>group</em> where the code says cluster
@@ -38,6 +41,7 @@ import org.springframework.test.context.DynamicPropertySource;
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
+@ExtendWith(OutputCaptureExtension.class)
 @Epic("Synthesis")
 @Feature("Writing over the groups")
 @Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
@@ -100,6 +104,44 @@ class TheDeliverableLanguageInvocationTest {
                 "and every group was asked for again, in English",
                 () -> assertThat(GenerationScriptedBeans.promptsSent()).isNotEmpty().allSatisfy(question ->
                         assertThat(question).contains(WRITE_BOTH_IN_ENGLISH).doesNotContain("Italian")));
+    }
+
+    @Test
+    @Story("The deliverable is in the language the profile names")
+    @DisplayName("With a language the pages cannot be drawn in, the invocation stops before the arrangement is recorded and before any topic is named")
+    @Link(name = "ADR-407", url = Adr.TOPICS_ARE_NAMED_AT_THE_HEAD_OF_THE_ARRANGEMENT, type = "adr")
+    void aLanguageItCannotBeDrawnInStopsWhereTheArrangementIsMinted(
+            @TempDir Path root, @TempDir Path seeds, CapturedOutput output) throws IOException {
+        Files.writeString(root.resolve("corpus.txt"), "a corpus document");
+        Files.writeString(seeds.resolve("seed.txt"), "a seed document");
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        setTheLanguageTo(A_LANGUAGE_IT_CANNOT_BE_DRAWN_IN);
+        GenerationScriptedBeans.forgetScriptedAnswers();
+        int before = output.getAll().length();
+
+        cli.run("run", root.toString());
+        String said = output.getAll().substring(before);
+
+        claim(
+                "the invocation does not report success: the operator wrote a language, and naming the topics in"
+                        + " another would hand the readers one nobody chose",
+                () -> assertThat(cli.getExitCode()).isNotZero());
+        claim(
+                "it says the key, the value as written, the two languages there are, and that an empty key means"
+                        + " English",
+                () -> assertThat(said).contains("deliverableLanguage is \"" + A_LANGUAGE_IT_CANNOT_BE_DRAWN_IN
+                        + "\", which is not a language the deliverable can be drawn in; write en or it, or leave the"
+                        + " key empty to mean en"));
+        claim(
+                "the scoring before the arrangement was done in this invocation, so it stopped at the arrangement",
+                () -> assertThat(runsOf(root, "embedding-scoring")).hasSize(1));
+        claim(
+                "no topic was asked for its name and no group was asked about",
+                () -> assertThat(List.of(GenerationScriptedBeans.namingCallsMade(), GenerationScriptedBeans.callsMade()))
+                        .containsExactly(0, 0));
+        claim(
+                "and no arrangement was recorded, since there is no language to name its topics in",
+                () -> assertThat(runsOf(root, "arrangement")).isEmpty());
     }
 
     @AfterEach
@@ -165,6 +207,15 @@ class TheDeliverableLanguageInvocationTest {
     /** The arrangement the most recent invocation over {@code root} recorded. */
     private RunId theLatestArrangement(Path root) {
         return new RunsOver(jdbcTemplate, root).latest("arrangement");
+    }
+
+    /** Every run of {@code stage} over {@code root}, oldest first. */
+    private List<String> runsOf(Path root, String stage) {
+        return jdbcTemplate.queryForList(
+                "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id WHERE r.stage = ? AND w.root = ? ORDER BY r.rowid",
+                String.class,
+                stage,
+                Walk.canonicalRoot(root).toString());
     }
 
     /** Every generation run over {@code root}, oldest first, scoped to its walk as {@link GenerationInvocationTest} scopes it. */

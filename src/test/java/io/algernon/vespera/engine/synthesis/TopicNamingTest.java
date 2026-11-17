@@ -160,6 +160,21 @@ class TopicNamingTest {
                         new GivenName("Sugar crops and exports.", NameOrigin.WRITTEN, Optional.empty())));
     }
 
+    @Test
+    @Story("A name the model writes is kept")
+    @DisplayName("An answer holding a field beside the name is kept, the name read and the other field ignored")
+    void aFieldBesideTheNameIsIgnored() {
+        Scripted model = new Scripted(answer("{\"name\":\"Sugar crops\",\"why\":\"every passage is on cane\"}"));
+
+        List<GivenName> given = new TopicNaming(model).nameSiblings(
+                List.of(new NameCall(List.of(FIRST_PASSAGE), FALLBACK)), MODEL_NAME, DeliverableLanguage.ENGLISH);
+
+        claim("an object holding the string name and a second field is no answer turned down: the topic is named"
+                        + " \"Sugar crops\", as the model wrote it",
+                () -> assertThat(given).containsExactly(
+                        new GivenName("Sugar crops", NameOrigin.WRITTEN, Optional.empty())));
+    }
+
     static Stream<Arguments> turnDowns() {
         return Stream.of(
                 Arguments.of("a question cut, counted at the window less one token",
@@ -305,6 +320,36 @@ class TopicNamingTest {
                                 new GivenName("sugar market", NameOrigin.FALLBACK,
                                         Optional.of(NameTurnDown.SAME_AS_AN_EARLIER_NAME))),
                         3));
+    }
+
+    @Test
+    @Story("Topics side by side have different names")
+    @DisplayName("A name the same as an earlier topic's fallback name, case and blanks aside, is asked for once more, naming the fallback as taken")
+    void aNameTakenByAnEarlierSiblingsFallbackIsAskedForOnceMore() {
+        Scripted model = new Scripted(
+                answer("{\"name\":\"" + words(LONGEST + 1) + "\"}"),
+                answer("{\"name\":\"sugar  REPORT\"}"),
+                answer("{\"name\":\"Sugar exports\"}"));
+
+        List<GivenName> given = new TopicNaming(model).nameSiblings(
+                List.of(
+                        new NameCall(List.of(FIRST_PASSAGE), FALLBACK),
+                        new NameCall(List.of(SECOND_PASSAGE), "second")),
+                MODEL_NAME,
+                DeliverableLanguage.ENGLISH);
+
+        claim("the first topic, its name of " + (LONGEST + 1) + " words turned down, takes its fallback \"" + FALLBACK
+                        + "\"; the second, first named \"sugar  REPORT\", that fallback but for case and blanks, is"
+                        + " named by the answer to the second asking, three calls having been made",
+                () -> assertThat(List.of(given, model.asked.size())).containsExactly(
+                        List.of(
+                                new GivenName(FALLBACK, NameOrigin.FALLBACK,
+                                        Optional.of(NameTurnDown.NOT_ONE_SHORT_LINE)),
+                                new GivenName("Sugar exports", NameOrigin.WRITTEN_WHEN_ASKED_AGAIN, Optional.empty())),
+                        3));
+        claim("and the second asking names the fallback as the name taken",
+                () -> assertThat(model.asked.get(2).getContents()).contains(
+                        "Other sections are already named \"" + FALLBACK + "\"; name this one differently. Answer with"));
     }
 
     /** {@code n} words, each a short one. */

@@ -160,6 +160,8 @@ class GenerationScriptedBeans {
         callsMade = 0;
         countingCallsMade = 0;
         namingCallsMade = 0;
+        NAMING_QUESTIONS_SENT.clear();
+        NAMING_MODELS_ASKED.clear();
         PROMPTS_SENT.clear();
         duringEachCall = () -> {};
         refusing = question -> false;
@@ -180,6 +182,22 @@ class GenerationScriptedBeans {
     /** How many naming calls have been made since the count was last dropped. */
     static int namingCallsMade() {
         return namingCallsMade;
+    }
+
+    /** The text of every naming question, in the order asked, since the scripts were last dropped. */
+    private static final List<String> NAMING_QUESTIONS_SENT = new ArrayList<>();
+
+    /** The model every naming call named, in the order asked, since the scripts were last dropped. */
+    private static final List<String> NAMING_MODELS_ASKED = new ArrayList<>();
+
+    /** Every naming question asked since the scripts were last dropped, so a test can read what a topic was named from. */
+    static List<String> namingQuestionsSent() {
+        return List.copyOf(NAMING_QUESTIONS_SENT);
+    }
+
+    /** The model each naming call named since the scripts were last dropped, in the order asked. */
+    static List<String> namingModelsAsked() {
+        return List.copyOf(NAMING_MODELS_ASKED);
     }
 
     /**
@@ -245,6 +263,8 @@ class GenerationScriptedBeans {
             OllamaChatOptions options = (OllamaChatOptions) prompt.getOptions();
             if (isANamingCall(options)) {
                 namingCallsMade++;
+                NAMING_QUESTIONS_SENT.add(prompt.getContents());
+                NAMING_MODELS_ASKED.add(options.getModel());
                 return aNameFor(namingCallsMade);
             }
             Integer numPredict = options.getNumPredict();
