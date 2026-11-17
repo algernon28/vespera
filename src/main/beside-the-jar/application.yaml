@@ -73,6 +73,11 @@ vespera:
     # whole number from 1. An operational number and no judgement about a corpus, so it has no profile key. It enters
     # the embedding-scoring run where it is not 15.
     neighbours: 15
+    # How many survivors a topic must hold to be divided into subtopics (ADR-406, ADR-330), a whole number from 1: the
+    # smallest count measured at which every topic's clusters, found over it whole, held a median of more than 32
+    # documents. No profile key, for the same reason as the neighbours: how the arrangement divides is never the
+    # operator's to set. It enters the embedding-scoring run where it is not 300.
+    subtopic-floor: 300
   redundancy:
     # How many words one shingle spans (ADR-073, ADR-330), a whole number from 1. It decides what a passage shared by
     # two documents is, for stage 3's document frequency and stage 4's signatures and pairs. It enters the extraction

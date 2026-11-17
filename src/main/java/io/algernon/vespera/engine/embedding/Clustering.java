@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -40,6 +42,11 @@ public class Clustering {
      * recognise; smaller would double the passes for every halving, since the pass reads
      * ⌈N/B⌉²/2 blocks.
      */
+    private static final Logger LOG = LoggerFactory.getLogger(Clustering.class);
+
+    /** The subtopic floor as shipped (ADR-406), for a caller that names none. */
+    static final int SUBTOPIC_FLOOR_AS_SHIPPED = 300;
+
     static final int BLOCK_DOCUMENTS = 4_096;
 
     /**
@@ -152,6 +159,7 @@ public class Clustering {
                 embedderIdentity,
                 neighbours,
                 resolution,
+                SUBTOPIC_FLOOR_AS_SHIPPED,
                 ClusteringProgress.NONE);
     }
 
@@ -170,6 +178,38 @@ public class Clustering {
             int neighbours,
             double resolution,
             ClusteringProgress progress) {
+        return clusterAndRecord(
+                runId,
+                winningSeed,
+                contentHashesByOccurrence,
+                chunkerIdentity,
+                chunkingRuleIdentity,
+                embedderIdentity,
+                neighbours,
+                resolution,
+                SUBTOPIC_FLOOR_AS_SHIPPED,
+                progress);
+    }
+
+    /**
+     * As above, dividing the partition into subtopics where it holds {@code subtopicFloor} survivors or more and forms
+     * two communities or more (ADR-406). Storing each survivor's subtopic is #832's: until then the rows keep their
+     * shape, a survivor's cluster being its community over the whole topic as before, and the division is logged.
+     */
+    public Optional<RetainedEdgeSpread> clusterAndRecord(
+            RunId runId,
+            OccurrenceId winningSeed,
+            Map<OccurrenceId, String> contentHashesByOccurrence,
+            String chunkerIdentity,
+            String chunkingRuleIdentity,
+            String embedderIdentity,
+            int neighbours,
+            double resolution,
+            int subtopicFloor,
+            ClusteringProgress progress) {
+        if (subtopicFloor < 1) {
+            throw new IllegalArgumentException("a topic must hold at least one survivor to be divided, not " + subtopicFloor);
+        }
         if (neighbours < 1) {
             throw new IllegalArgumentException("a graph keeps at least one neighbour, not " + neighbours);
         }
@@ -182,13 +222,21 @@ public class Clustering {
         }
         StoredMeanVectors vectors = new StoredMeanVectors(
                 List.copyOf(contentHashesByOccurrence.values()), chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
-        NearestNeighbourGraph.Graph graph =
-                NearestNeighbourGraph.build(vectors, neighbours, blockSizeFor(vectors.dimension()), progress);
-        int[] ordinals = Communities.of(graph, resolution);
-        for (int document = 0; document < members.size(); document++) {
-            documentClusters.record(runId, members.get(document), winningSeed, ordinals[document]);
+        TopicDivision.Found found = TopicDivision.found(
+                vectors, neighbours, resolution, subtopicFloor, blockSizeFor(vectors.dimension()), progress);
+        TopicDivision division = found.division();
+        // The rows keep the shape they have: one ordinal per survivor, numbered within the topic. Where the topic has
+        // subtopics that is the subtopic's number, which is the community the whole topic's pass found, as before.
+        List<Integer> ordinals = division.hasSubtopics() ? division.subtopicOf() : division.clusterOf();
+        if (division.hasSubtopics() && LOG.isDebugEnabled()) {
+            LOG.debug("Topic {} of {} survivors divided into {} subtopics, in the order {}; their subtopics are not"
+                            + " yet stored (#832)",
+                    winningSeed, members.size(), division.subtopicsInOrder().size(), division.subtopicsInOrder());
         }
-        return RetainedEdgeSpread.over(graph);
+        for (int document = 0; document < members.size(); document++) {
+            documentClusters.record(runId, members.get(document), winningSeed, ordinals.get(document));
+        }
+        return RetainedEdgeSpread.over(found.topicGraph());
     }
 
     /**

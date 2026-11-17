@@ -70,6 +70,7 @@ final class EffectiveValuesFile {
         // preset to the sample's number from each band, then the topics' presets (ADR-399, ADR-401, ADR-400). The
         // resolution is said under the profile's own name, above.
         Presets.NEIGHBOURS_OF_A_DOCUMENT,
+        Presets.SUBTOPIC_FLOOR,
         Presets.OCR_PRESET,
         Presets.TIMEOUTS_IN_A_ROW,
         Presets.SHINGLE_WORDS,

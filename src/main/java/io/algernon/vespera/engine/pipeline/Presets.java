@@ -40,6 +40,7 @@ class Presets {
 
     static final String RESOLUTION = "vespera.clustering.resolution";
     static final String NEIGHBOURS_OF_A_DOCUMENT = "vespera.clustering.neighbours";
+    static final String SUBTOPIC_FLOOR = "vespera.clustering.subtopic-floor";
     static final String OCR_PRESET = "vespera.docling.ocr-preset";
     static final String TIMEOUTS_IN_A_ROW = "vespera.docling.timeouts-in-a-row";
     static final String SHINGLE_WORDS = "vespera.redundancy.shingle-words";
@@ -98,6 +99,7 @@ class Presets {
                 configuredResolution();
             }
             clusterNeighbours();
+            subtopicFloor();
             ocrPreset();
             timeoutsInARow();
             shingleWindow();
@@ -152,6 +154,11 @@ class Presets {
     /** How many neighbours each document of a partition keeps in the graph (ADR-087's k). */
     int clusterNeighbours() {
         return wholeNumber(NEIGHBOURS_OF_A_DOCUMENT);
+    }
+
+    /** How many survivors a topic must hold to be divided into subtopics (ADR-406 section 1). */
+    int subtopicFloor() {
+        return wholeNumber(SUBTOPIC_FLOOR);
     }
 
     /** The OCR preset every conversion names. */
