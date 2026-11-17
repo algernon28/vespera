@@ -230,7 +230,7 @@ class TopicNamesAreStoredAndShownInvocationTest {
     @Test
     @Story("The topics and their names are shown at the approval, to read and not to change")
     @DisplayName("The approval page's JSON has one section for the topic, titled by the name kept for it")
-    void theArrangementsJsonHasOneSectionATopicTitledByItsName() {
+    void theArrangementsJsonHasOneSectionATopicTitledByItsName() throws IOException {
         Arranged arranged = arranged();
         JsonNode json = arranged.json();
 
