@@ -83,30 +83,30 @@ class ClusteringTest {
     @Test
     @Story("Every survivor lands in exactly one cluster")
     @DisplayName("Two groups of documents become two clusters, and every document is in one of them")
-    void clustersAPartitionWithoutBeingToldHowManyClustersToFind() {
+    void clustersATopicWithoutBeingToldHowManyClustersToFind() {
         Clustering clustering = ClusteringBeans.real(jdbcTemplate);
         DocumentClusters clusters = new DocumentClusters(jdbcTemplate);
         long walkId = insertWalk("C:/two-groups");
         RunId run = insertRun(walkId, "clustering-test-two-groups");
         OccurrenceId seed = insertOccurrence(walkId, "seeds/exemplar.pdf");
-        Map<OccurrenceId, String> partition = new LinkedHashMap<>();
-        partition.putAll(insertCluster(walkId, run, seed, "alike", 0));
-        partition.putAll(insertCluster(walkId, run, seed, "unalike", 1));
+        Map<OccurrenceId, String> members = new LinkedHashMap<>();
+        members.putAll(insertCluster(walkId, run, seed, "alike", 0));
+        members.putAll(insertCluster(walkId, run, seed, "unalike", 1));
 
         clustering.clusterAndRecord(
-                run, THE_TOPIC, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS,
+                run, THE_TOPIC, members, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS,
                 RESOLUTION, SUBTOPIC_FLOOR);
 
         Map<OccurrenceId, Integer> ordinals = ordinalsOf(clusters, run);
         claim(
-                "every one of the " + partition.size() + " documents in the topic carries a cluster,"
+                "every one of the " + members.size() + " documents in the topic carries a cluster,"
                         + " so membership is total: a survivor with no cluster is a hole in the page tree"
                         + " above it",
-                () -> assertThat(ordinals.keySet()).containsExactlyInAnyOrderElementsOf(partition.keySet()));
+                () -> assertThat(ordinals.keySet()).containsExactlyInAnyOrderElementsOf(members.keySet()));
         claim(
                 "and each carries exactly one, so membership is disjoint -- a document lands in one"
                         + " cluster rather than being listed under several",
-                () -> assertThat(WholeRun.membership(jdbcTemplate,run)).hasSize(partition.size()));
+                () -> assertThat(WholeRun.membership(jdbcTemplate,run)).hasSize(members.size()));
         claim(
                 "the two groups came out as two clusters, and nothing was told there were two: the count"
                         + " is a property of how the documents resemble each other, which is what lets a"
@@ -128,16 +128,16 @@ class ClusteringTest {
         RunId first = insertRun(walkId, "clustering-test-first-run");
         RunId second = insertRun(walkId, "clustering-test-second-run");
         OccurrenceId seed = insertOccurrence(walkId, "seeds/exemplar.pdf");
-        Map<OccurrenceId, String> partition = new LinkedHashMap<>();
-        partition.putAll(insertCluster(walkId, first, seed, "alike", 0));
-        partition.putAll(insertCluster(walkId, first, seed, "unalike", 1));
-        partition.keySet().forEach(member -> insertScore(second, member, seed));
+        Map<OccurrenceId, String> members = new LinkedHashMap<>();
+        members.putAll(insertCluster(walkId, first, seed, "alike", 0));
+        members.putAll(insertCluster(walkId, first, seed, "unalike", 1));
+        members.keySet().forEach(member -> insertScore(second, member, seed));
 
         clustering.clusterAndRecord(
-                first, THE_TOPIC, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS,
+                first, THE_TOPIC, members, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS,
                 RESOLUTION, SUBTOPIC_FLOOR);
         clustering.clusterAndRecord(
-                second, THE_TOPIC, partition, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS,
+                second, THE_TOPIC, members, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS,
                 RESOLUTION, SUBTOPIC_FLOOR);
 
         claim(
@@ -149,7 +149,7 @@ class ClusteringTest {
         claim(
                 "and the second run wrote its own rows beside the first's rather than editing them"
                         + " (ADR-077), so what an earlier run recorded is still readable",
-                () -> assertThat(WholeRun.membership(jdbcTemplate,first)).hasSize(partition.size()));
+                () -> assertThat(WholeRun.membership(jdbcTemplate,first)).hasSize(members.size()));
     }
 
     /** Which cluster each document landed in, keyed by document so two runs can be compared. */

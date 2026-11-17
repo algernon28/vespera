@@ -9,6 +9,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.corpus.Walk;
+import io.algernon.vespera.engine.ledger.RunId;
 import io.algernon.vespera.engine.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -20,7 +21,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -49,7 +53,16 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p>What the page shows, its JSON shows (ADR-409 §7): one section a topic, whose {@code id} is {@code topic-} and its
  * place and whose {@code title} is its recorded name. The closing line a stopped step records is read off the operator
- * logger, where the step's listener logs it (ADR-364 §4).
+ * logger, where the step's listener logs it (ADR-364 §4); the line of each name given, off the application's.
+ *
+ * <p><b>The one-topic arrangement is built once for the class</b> (ADR-337 §4), since four tests read it: the first of
+ * them to run makes the invocation over {@link #theRoot}, and what it left, the names, the page and its JSON, is kept as
+ * it was read, the working directory's page being written again by every later invocation of the class. The fallback
+ * and the stopped step each make invocations of their own, over folders of their own.
+ *
+ * <p>Until #833 decides how a topic is drawn, the tree draws it where a seed partition stood, named from its recorded
+ * name (ADR-409 §10): the topic named {@code Scripted Topic 1} over {@code seed.txt} is drawn in the folder {@value
+ * #THE_TOPICS_FOLDER}, its order 1 then its name as a slug, where a seed partition's folder took the seed's stem.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -94,10 +107,50 @@ class TopicNamesAreStoredAndShownInvocationTest {
     /** What the serving engine answers a question it refuses with, which says nothing of the question's length. */
     private static final String A_REFUSAL = "the serving engine is busy";
 
+    /** The words a question asking for a name again puts before its last instruction, the name taken quoted (ADR-407 §5). */
+    private static final String THE_FIRST_NAME_TAKEN =
+            "Other sections are already named \"" + THE_FIRST_NAME + "\"; name this one differently.";
+
+    /** What every line logged for a topic's name opens with (ADR-407 §9). */
+    private static final String A_TOPICS_NAME_LINE = "Stage 6a (arrangement) topic ";
+
+    /** The logger every operator-facing line of the application is written through, the names' among them. */
+    private static final String APPLICATION_LOGGER = "io.algernon.vespera";
+
+    /** The writing model the approval names, so that the tree is drawn. */
+    private static final String GENERATION_MODEL = "a-named-writing-model:8b";
+
+    /** The folder the one topic named {@link #THE_FIRST_NAME} is drawn in: its order, 1, then its name as a slug. */
+    private static final String THE_TOPICS_FOLDER = "1-scripted-topic-1";
+
+    /** The one corpus document of the one-topic arrangement, by its path beneath the root. */
+    private static final String THE_CORPUS_DOCUMENT = "corpus.txt";
+
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     @TempDir
     static Path workingDirectory;
+
+    /** The corpus root of the one-topic arrangement the class builds once. */
+    @TempDir
+    static Path theRoot;
+
+    /** The seed folder of that arrangement. */
+    @TempDir
+    static Path theSeeds;
+
+    /**
+     * What the one-topic arrangement left, read as soon as its invocation ended.
+     *
+     * @param exitCode how the invocation ended
+     * @param arrangement the arrangement run it minted
+     * @param names the names kept under that run, as {@link #namesUnder} gives them
+     * @param page {@code arrangement.html} as it was written
+     * @param json {@code arrangement.json} as it was written
+     */
+    private record Arranged(int exitCode, String arrangement, List<String> names, String page, JsonNode json) {}
+
+    private static final Once<Arranged> arranged = new Once<>();
 
     @DynamicPropertySource
     static void thisMachinesValues(DynamicPropertyRegistry registry) {
@@ -116,17 +169,24 @@ class TopicNamesAreStoredAndShownInvocationTest {
 
     private ListAppender<ILoggingEvent> operatorLines;
 
+    private ListAppender<ILoggingEvent> applicationLines;
+
     @BeforeEach
     void hearTheOperatorLines() {
         operatorLines = new ListAppender<>();
         operatorLines.start();
         ((Logger) LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).addAppender(operatorLines);
+        applicationLines = new ListAppender<>();
+        applicationLines.start();
+        ((Logger) LoggerFactory.getLogger(APPLICATION_LOGGER)).addAppender(applicationLines);
     }
 
     @AfterEach
     void stopHearingThem() {
         ((Logger) LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(operatorLines);
         operatorLines.stop();
+        ((Logger) LoggerFactory.getLogger(APPLICATION_LOGGER)).detachAppender(applicationLines);
+        applicationLines.stop();
     }
 
     @BeforeEach
@@ -141,45 +201,37 @@ class TopicNamesAreStoredAndShownInvocationTest {
     @Test
     @Story("Each topic is named before the arrangement is shown for approval")
     @DisplayName("A topic's name is kept under the arrangement, with the model having written it")
-    void eachTopicsNameIsStoredUnderTheArrangementRunWithItsOrigin(@TempDir Path root, @TempDir Path seeds)
-            throws IOException {
-        oneSeedOfOnePassage(root, seeds);
-
-        cli.run("run", root.toString());
+    void eachTopicsNameIsStoredUnderTheArrangementRunWithItsOrigin() {
+        Arranged arranged = arranged();
 
         claim("the invocation reports success, stopping at the arrangement's approval",
-                () -> assertThat(cli.getExitCode()).isZero());
+                () -> assertThat(arranged.exitCode()).isZero());
         claim("the one topic's name is kept under the one arrangement, by the topic's key, as the model wrote it at"
                         + " the first asking, with no reason for a fallback",
-                () -> assertThat(namesUnder(theArrangementOf(root)))
-                        .containsExactly(THE_SEED + " 0 " + THE_FIRST_NAME + " WRITTEN none"));
+                () -> assertThat(arranged.names()).containsExactly(THE_SEED + " 0 " + THE_FIRST_NAME + " WRITTEN none"));
     }
 
     @Test
     @Story("The topics and their names are shown at the approval, to read and not to change")
     @DisplayName("The approval page heads each topic with the name kept for it")
-    void theArrangementPageHeadsEachTopicWithItsStoredName(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        oneSeedOfOnePassage(root, seeds);
+    void theArrangementPageHeadsEachTopicWithItsStoredName() {
+        Arranged arranged = arranged();
 
-        cli.run("run", root.toString());
-        String page = thePage();
-
-        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim("the invocation reports success", () -> assertThat(arranged.exitCode()).isZero());
         claim("the page heads the one topic with the name the model gave it, and its line of counts follows the heading"
                         + " directly, no paragraph saying the name stands in for another",
-                () -> assertThat(page).contains("<h2>" + THE_FIRST_NAME + "</h2>\n<p>1 document(s) in 1 group(s).</p>\n"));
+                () -> assertThat(arranged.page())
+                        .contains("<h2>" + THE_FIRST_NAME + "</h2>\n<p>" + ONE_DOCUMENT_IN_ONE_GROUP + "</p>\n"));
     }
 
     @Test
     @Story("The topics and their names are shown at the approval, to read and not to change")
     @DisplayName("The approval page's JSON has one section for the topic, titled by the name kept for it")
-    void theArrangementsJsonHasOneSectionATopicTitledByItsName(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        oneSeedOfOnePassage(root, seeds);
+    void theArrangementsJsonHasOneSectionATopicTitledByItsName() {
+        Arranged arranged = arranged();
+        JsonNode json = arranged.json();
 
-        cli.run("run", root.toString());
-        JsonNode json = theJson();
-
-        claim("the invocation reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim("the invocation reports success", () -> assertThat(arranged.exitCode()).isZero());
         claim("after what the page says and what it asks, the JSON has one section, topic-1, for the one topic, and no"
                         + " section named for a seed",
                 () -> assertThat(sectionsOf(json))
@@ -219,11 +271,17 @@ class TopicNamesAreStoredAndShownInvocationTest {
                         + " " + List.of(THE_FALLBACKS_WORDS, ONE_DOCUMENT_IN_ONE_GROUP) + " table of 1 row(s)"));
     }
 
+    /**
+     * The serving engine refuses every question about sluices, so the step stops once the topic on pumps, whose key
+     * comes first, is named. Before the next invocation the engine answers again, and this fixture's model numbers its
+     * names from 1 again: so its first answer to that invocation is the name kept for the topic on pumps, which counts
+     * as taken (ADR-407 §8), and the topic on sluices is asked once more, the question naming it.
+     */
     @Test
     @Story("Each topic is named before the arrangement is shown for approval")
-    @DisplayName("A name given before the step was stopped is kept, and the next invocation asks only for the names it lacks")
+    @DisplayName("A name given before the step was stopped is kept, and the next invocation asks only for the names it lacks, the kept name counting as taken")
     void aNameRecordedBeforeTheStepStoppedIsNotAskedForAgain(@TempDir Path root, @TempDir Path seeds) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document of " + root.getFileName());
+        Files.writeString(root.resolve(THE_CORPUS_DOCUMENT), "a corpus document of " + root.getFileName());
         List<String> onPumps = SeedScriptedExtractionBeans.ON_PUMPS.subList(0, 3);
         List<String> onSluices = SeedScriptedExtractionBeans.ON_SLUICES.subList(0, 3);
         for (String name : List.of(onPumps, onSluices).stream().flatMap(List::stream).toList()) {
@@ -239,12 +297,16 @@ class TopicNamesAreStoredAndShownInvocationTest {
         List<ILoggingEvent> saidAtTheStop = List.copyOf(operatorLines.list);
         String arrangement = theArrangementOf(root);
         List<String> namedBeforeTheStop = namesUnder(arrangement);
-        int askedBeforeTheStop = GenerationScriptedBeans.namingQuestionsSent().size();
-        GenerationScriptedBeans.refuseEvery(question -> false, "");
+        GenerationScriptedBeans.forgetScriptedAnswers();
+        int loggedBeforeTheNext = applicationLines.list.size();
 
         cli.run("run", root.toString());
-        List<String> askedSince = GenerationScriptedBeans.namingQuestionsSent().subList(
-                askedBeforeTheStop, GenerationScriptedBeans.namingQuestionsSent().size());
+        List<String> askedSince = GenerationScriptedBeans.namingQuestionsSent();
+        List<String> namesLoggedSince = applicationLines.list.subList(loggedBeforeTheNext, applicationLines.list.size())
+                .stream()
+                .map(ILoggingEvent::getFormattedMessage)
+                .filter(line -> line.startsWith(A_TOPICS_NAME_LINE))
+                .toList();
 
         claim("the first invocation failed, the engine refusing the question about the topic on sluices",
                 () -> assertThat(stopped).isNotZero());
@@ -265,19 +327,78 @@ class TopicNamesAreStoredAndShownInvocationTest {
                     assertThat(cli.getExitCode()).isZero();
                     assertThat(theArrangementOf(root)).isEqualTo(arrangement);
                 });
-        claim("it asked one name, the topic on sluices', and no question of it was about pumps",
-                () -> assertThat(askedSince).singleElement().satisfies(question -> assertThat(question)
-                        .contains(SLUICES)
-                        .doesNotContain(PUMPS)));
-        claim("and both names stand under the arrangement, the one kept before the stop unchanged",
+        claim("it asked nothing about the topic on pumps, and asked about the topic on sluices twice: its first answer"
+                        + " was the name kept for the topic on pumps, so the second question, and only the second, named"
+                        + " that name as taken",
+                () -> {
+                    assertThat(askedSince).hasSize(2).allSatisfy(question -> assertThat(question)
+                            .contains(SLUICES)
+                            .doesNotContain(PUMPS));
+                    assertThat(askedSince.getFirst()).doesNotContain(THE_FIRST_NAME_TAKEN);
+                    assertThat(askedSince.getLast()).contains(THE_FIRST_NAME_TAKEN);
+                });
+        claim("both names stand under the arrangement: the one kept before the stop unchanged, and the topic on sluices'"
+                        + " the model's second answer, written when asked again",
                 () -> assertThat(namesUnder(arrangement)).containsExactly(
                         onPumpsKey + " " + THE_FIRST_NAME + " WRITTEN none",
-                        onSluicesKey + " " + GenerationScriptedBeans.TOPIC_NAME_PREFIX + " 2 WRITTEN none"));
+                        onSluicesKey + " " + GenerationScriptedBeans.TOPIC_NAME_PREFIX + " 2 WRITTEN_WHEN_ASKED_AGAIN none"));
+        claim("and the next invocation logged the name it was given and not the one it read back",
+                () -> assertThat(namesLoggedSince).containsExactly(A_TOPICS_NAME_LINE + onSluices.getFirst()
+                        + " chunk 0 named \"" + GenerationScriptedBeans.TOPIC_NAME_PREFIX + " 2\" (asked again)"));
+    }
+
+    @Test
+    @Story("A topic is drawn under its name until its rendering is decided")
+    @DisplayName("The tree draws the topic in a folder named from the name kept for it, headed by that name, and the listing gives its name and place")
+    void theTreeNamesTheTopicsFolderAndHeadingByItsName() throws IOException {
+        Arranged arranged = arranged();
+        EveryGateOpen.throughStageFive(profileStore, theSeeds);
+        EveryGateOpen.approve(
+                profileStore, ArrangementGate.shortNameOf(new RunId(arranged.arrangement())), GENERATION_MODEL);
+
+        cli.run("run", theRoot.toString());
+        Path tree = workingDirectory.resolve("deliverable").resolve(theLatestGenerationOf(theRoot));
+        List<String> numberedFolders;
+        try (Stream<Path> entries = Files.list(tree)) {
+            numberedFolders = entries.filter(Files::isDirectory)
+                    .map(entry -> entry.getFileName().toString())
+                    .filter(name -> Character.isDigit(name.charAt(0)))
+                    .sorted()
+                    .toList();
+        }
+        String index = Files.readString(tree.resolve("index.html"), StandardCharsets.UTF_8);
+        Map<String, String> listed = theListingsRowOf(tree, THE_CORPUS_DOCUMENT);
+
+        claim("the invocation that writes reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim("the one topic is drawn in one numbered folder, its place, 1, then the name kept for it, and none is named"
+                        + " from the seed's file",
+                () -> assertThat(numberedFolders).containsExactly(THE_TOPICS_FOLDER));
+        claim("the index heads the topic with the name kept for it, and not with the seed's path",
+                () -> assertThat(index)
+                        .contains("<h2>" + THE_FIRST_NAME + "</h2>")
+                        .doesNotContain("<h2>" + THE_SEED + "</h2>"));
+        claim("and the listing's row for the corpus document gives, under its two columns of the old names, the"
+                        + " topic's name and its place, 1",
+                () -> assertThat(List.of(listed.get("seed_partition"), listed.get("partition_order")))
+                        .containsExactly(THE_FIRST_NAME, "1"));
+    }
+
+    /**
+     * The one-topic arrangement, made the first time a test asks for it: one corpus document and one seed of one
+     * passage, run to the approval, and what that invocation left read at once.
+     */
+    private Arranged arranged() {
+        return arranged.get(() -> {
+            oneSeedOfOnePassage(theRoot, theSeeds);
+            cli.run("run", theRoot.toString());
+            String arrangement = theArrangementOf(theRoot);
+            return new Arranged(cli.getExitCode(), arrangement, namesUnder(arrangement), thePage(), theJson());
+        });
     }
 
     /** One corpus document and one seed of one passage, every gate up to the approval open. */
     private void oneSeedOfOnePassage(Path root, Path seeds) throws IOException {
-        Files.writeString(root.resolve("corpus.txt"), "a corpus document of " + root.getFileName());
+        Files.writeString(root.resolve(THE_CORPUS_DOCUMENT), "a corpus document of " + root.getFileName());
         Files.writeString(seeds.resolve(THE_SEED), "a seed document of " + seeds.getFileName());
         EveryGateOpen.throughStageFive(profileStore, seeds);
     }
@@ -297,6 +418,58 @@ class TopicNamesAreStoredAndShownInvocationTest {
                 "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id WHERE r.stage = 'arrangement' AND w.root = ?",
                 String.class,
                 Walk.canonicalRoot(root).toString());
+    }
+
+    /** The latest generation run over {@code root}, the database serving the class. */
+    private String theLatestGenerationOf(Path root) {
+        return jdbcTemplate.queryForList(
+                        "SELECT r.id FROM run r JOIN walk w ON w.id = r.walk_id WHERE r.stage = 'generation' AND w.root = ?"
+                                + " ORDER BY r.rowid",
+                        String.class,
+                        Walk.canonicalRoot(root).toString())
+                .getLast();
+    }
+
+    /** The cells of {@code documents.csv}'s row for {@code path}, by the header's names. */
+    private static Map<String, String> theListingsRowOf(Path tree, String path) throws IOException {
+        List<String> lines = Files.readAllLines(tree.resolve("documents.csv"), StandardCharsets.UTF_8).stream()
+                .filter(line -> !line.isBlank())
+                .toList();
+        List<String> header = cellsOf(lines.getFirst());
+        for (String line : lines.subList(1, lines.size())) {
+            List<String> cells = cellsOf(line);
+            if (cells.get(header.indexOf("path")).equals(path)) {
+                Map<String, String> row = new LinkedHashMap<>();
+                for (int at = 0; at < header.size(); at++) {
+                    row.put(header.get(at), cells.get(at));
+                }
+                return row;
+            }
+        }
+        throw new IllegalStateException("documents.csv lists no row for " + path);
+    }
+
+    /** One CSV line's cells, the quotes around a cell taken off and a doubled quote read as one. */
+    private static List<String> cellsOf(String line) {
+        List<String> cells = new ArrayList<>();
+        StringBuilder cell = new StringBuilder();
+        boolean quoted = false;
+        for (int at = 0; at < line.length(); at++) {
+            char c = line.charAt(at);
+            if (c == '"' && quoted && at + 1 < line.length() && line.charAt(at + 1) == '"') {
+                cell.append('"');
+                at++;
+            } else if (c == '"') {
+                quoted = !quoted;
+            } else if (c == ',' && !quoted) {
+                cells.add(cell.toString());
+                cell.setLength(0);
+            } else {
+                cell.append(c);
+            }
+        }
+        cells.add(cell.toString());
+        return cells;
     }
 
     private static String thePage() throws IOException {

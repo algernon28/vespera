@@ -1,5 +1,7 @@
 # ADR-400 — A survivor goes to the topic its chunks are nearest on average, and is linked from one 15% of them are nearest
 
+> **Partly amended — see [ADR-409](0409-topics-placement-names-overviews-and-clusters-within-topics-are-kept-in-new-tables-keyed-by-a-topics-first-passage.md).** §6's line *"…, the placement held and not yet stored (#832)"*: the placement is stored under the embedding-scoring run, each scored document's winning topic in `winning_topic` and each other topic it fits in `see_also`, as it is scored, and the line reads `Stage 5d (relevance scoring) placed <n> survivor(s) under the <t> topic(s) that stand`. The rest of this record stands.
+
 - **Date**: 2026-11-16
 - **Status**: accepted on 2026-11-16.
 - **Decided**: by the operator, in map [#822](https://github.com/algernon28/vespera/issues/822), as [ADR-396](0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md) §2 records it: that each survivor is placed under one topic, its winning topic, and copied once; that every survivor is placed, one no topic fits well under its nearest; that every other topic it fits carries a "see also" link to it; and, in [#823](https://github.com/algernon28/vespera/issues/823), that relevance stays ADR-020's, the topics placing and not scoring. In [#828](https://github.com/algernon28/vespera/issues/828), on the measurements below: the placement function (§1), what a survivor fits (§2), that no count caps the links (§3), the preset (§4), and where and under which run the step runs (§5).

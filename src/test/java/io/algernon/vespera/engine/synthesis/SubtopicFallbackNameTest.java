@@ -9,7 +9,6 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
-import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -21,9 +20,9 @@ import org.junit.jupiter.api.Test;
  * place among its topic's subtopics, as {@code Subtopic n} in English and {@code Sottoargomento n} in Italian. A
  * survivor's title and stem are its own words, and are never translated.
  *
- * <p><b>By reflection</b>, {@code TopicFallbackName.ofSubtopic(Optional<String>, String, int, DeliverableLanguage)}
- * being looked up by its name and parameters, so that this class compiles against the tree before ADR-409 is built,
- * where every claim here fails for want of the method.
+ * <p>{@code TopicFallbackName.ofSubtopic(Optional<String> doclingTitle, String survivorPath, int place,
+ * DeliverableLanguage language)} is the method ADR-409 §6 names; {@link TopicFallbackNameTest} holds its sibling for a
+ * topic.
  */
 @Epic("Arrangement")
 @Feature("Topic names")
@@ -47,25 +46,22 @@ class SubtopicFallbackNameTest {
     @Test
     @Story("A name that fails falls back to the strongest contributing seed")
     @DisplayName("A subtopic falls back to its strongest document's own title, then its filename, then its place in the pages' language")
-    void titleThenStemThenItsPlaceInTheDeliverableLanguage() throws ReflectiveOperationException {
-        Method ofSubtopic = TopicFallbackName.class.getMethod(
-                "ofSubtopic", Optional.class, String.class, int.class, DeliverableLanguage.class);
-
+    void titleThenStemThenItsPlaceInTheDeliverableLanguage() {
         claim("with the survivor's title at hand, the subtopic is named by it, word for word, in an English deliverable",
-                () -> assertThat(ofSubtopic.invoke(
-                                null, Optional.of(SURVIVOR_TITLE), SURVIVOR_PATH, PLACE, DeliverableLanguage.ENGLISH))
+                () -> assertThat(TopicFallbackName.ofSubtopic(
+                                Optional.of(SURVIVOR_TITLE), SURVIVOR_PATH, PLACE, DeliverableLanguage.ENGLISH))
                         .isEqualTo(SURVIVOR_TITLE));
         claim("with no title, or a blank one, by the survivor's filename without its folders or its extension",
                 () -> assertThat(List.of(
-                                ofSubtopic.invoke(null, Optional.empty(), SURVIVOR_PATH, PLACE, DeliverableLanguage.ITALIAN),
-                                ofSubtopic.invoke(null, Optional.of("  "), SURVIVOR_PATH, PLACE, DeliverableLanguage.ITALIAN)))
+                                TopicFallbackName.ofSubtopic(Optional.empty(), SURVIVOR_PATH, PLACE, DeliverableLanguage.ITALIAN),
+                                TopicFallbackName.ofSubtopic(Optional.of("  "), SURVIVOR_PATH, PLACE, DeliverableLanguage.ITALIAN)))
                         .containsExactly("Verifica pompe 2019", "Verifica pompe 2019"));
         claim("with neither, by its place, 2, as Subtopic 2 in English and Sottoargomento 2 in Italian",
                 () -> assertThat(List.of(
-                                ofSubtopic.invoke(
-                                        null, Optional.empty(), NAMELESS_SURVIVOR_PATH, PLACE, DeliverableLanguage.ENGLISH),
-                                ofSubtopic.invoke(
-                                        null, Optional.empty(), NAMELESS_SURVIVOR_PATH, PLACE, DeliverableLanguage.ITALIAN)))
+                                TopicFallbackName.ofSubtopic(
+                                        Optional.empty(), NAMELESS_SURVIVOR_PATH, PLACE, DeliverableLanguage.ENGLISH),
+                                TopicFallbackName.ofSubtopic(
+                                        Optional.empty(), NAMELESS_SURVIVOR_PATH, PLACE, DeliverableLanguage.ITALIAN)))
                         .containsExactly("Subtopic 2", "Sottoargomento 2"));
     }
 }

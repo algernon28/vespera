@@ -76,7 +76,7 @@ class PartitionsOfAnArrangementTest {
      * cluster under the first topic, which no read of the first arrangement may return.
      */
     @BeforeEach
-    void twoPartitionsWrittenOutOfOrder() {
+    void twoTopicsWrittenOutOfOrder() {
         clusters = new Clusters(jdbcTemplate);
         Ledger ledger = new Ledger(jdbcTemplate);
         WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-partitions-" + System.nanoTime()));
@@ -97,7 +97,7 @@ class PartitionsOfAnArrangementTest {
     @Test
     @Story("An arrangement is read one topic at a time")
     @DisplayName("One topic's groups come back in the order the arrangement placed them, and no other topic's")
-    void onePartitionsClustersComeInStoredOrder() {
+    void oneTopicsClustersComeInStoredOrder() {
         claim(
                 "the two groups under the topic placed second come back in their stored order, which is"
                         + " neither the order they were recorded in nor the order of their numbers, each with"
