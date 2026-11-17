@@ -46,8 +46,12 @@ jobs:
       - name: Extract the Mermaid diagrams
         run: node docs/extract-diagrams.mjs "${{ runner.temp }}/diagrams"
 
+      # Exact versions, puppeteer included: mermaid-cli takes puppeteer as a peer at
+      # "^23 || ^24 || ^25", so pinning mermaid-cli alone still pulls the newest puppeteer.
+      # An unpinned install broke this job when puppeteer-core 25.18.0 was installed
+      # two minutes after it was published, before its tarball could be downloaded (npm 404).
       - name: Install mermaid-cli
-        run: npm install --no-save @mermaid-js/mermaid-cli@11
+        run: npm install --no-save @mermaid-js/mermaid-cli@11.17.1 puppeteer@25.17.0
 
       # Chromium in a container needs its sandbox disabled; nothing here is untrusted
       # input, the diagrams come from the repository itself.
