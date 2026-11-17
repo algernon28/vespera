@@ -2982,6 +2982,16 @@ public final class Adr {
             + "0408-the-naming-model-is-one-of-the-models-modelsrunon-speaks-for-and-the-start-of-vespera-run-refuses-for-it-too.md";
 
     /**
+     * ADR-410 -- once the Docker engine answers, and before {@code up}, under {@code sidecars.lock}, {@code docker
+     * compose version} and {@code docker buildx version} are run, inside the WSL distribution on Windows, each killed
+     * after 30 s; one not exiting 0 refuses the start of the sidecars and the control panel's start of the engine in
+     * one line naming what is missing, where, and the command that installs it on that system (amends ADR-323 §3 and
+     * §8 and ADR-390 §2, §4 and §6).
+     */
+    public static final String A_MISSING_DOCKER_COMPOSE_OR_BUILDX_IS_NAMED_BEFORE_UP = FILE
+            + "0410-a-missing-docker-compose-or-buildx-is-named-with-the-command-that-installs-it-before-up.md";
+
+    /**
      * ADR-412 -- stage 0's chart is kept under the walk the census hands the job, and a new key empties no other
      * stage's chart: before the hand-over the census's samples are those of the walk its lines name, written only over
      * a file that names that walk or none; at the hand-over a file frozen under the walk handed is left as it is, one

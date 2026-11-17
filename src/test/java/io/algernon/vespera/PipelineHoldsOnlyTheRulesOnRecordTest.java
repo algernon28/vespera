@@ -234,6 +234,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "DockerEngine",
             "DockerEngineDidNotStartException",
             "DockerIsNotInstalledException",
+            // ADR-410 §3: say in one line that docker compose or docker buildx is missing, and how to install it.
+            "ComposeOrBuildxIsNotInstalledException",
             "HostSystem",
             "HttpSidecarHealth",
             "NoComposeFileBuildsTheImageException",
