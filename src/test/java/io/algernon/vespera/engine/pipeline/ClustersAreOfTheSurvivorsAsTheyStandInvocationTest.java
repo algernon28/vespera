@@ -245,12 +245,12 @@ class ClustersAreOfTheSurvivorsAsTheyStandInvocationTest {
     }
 
     private long clusteredUnder(String scoring) {
-        return count("SELECT COUNT(*) FROM document_cluster WHERE run_id = ?", scoring);
+        return count("SELECT COUNT(*) FROM cluster_member WHERE run_id = ?", scoring);
     }
 
     private long removedAndClusteredUnder(String scoring) {
         return count(
-                "SELECT COUNT(*) FROM document_cluster c JOIN verdict v ON v.occurrence_id = c.occurrence_id"
+                "SELECT COUNT(*) FROM cluster_member c JOIN verdict v ON v.occurrence_id = c.occurrence_id"
                         + " AND v.run_id = c.run_id WHERE c.run_id = ? AND v.kind = 'BELOW_THRESHOLD'",
                 scoring);
     }

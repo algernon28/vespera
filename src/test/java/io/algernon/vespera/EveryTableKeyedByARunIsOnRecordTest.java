@@ -43,6 +43,7 @@ import org.springframework.util.StreamUtils;
 @Issue("481")
 @Link(name = "ADR-229", url = Adr.EVERY_RUNS_ROWS_ARE_KEPT_AND_THE_FILE_IS_NOT_MADE_SMALLER, type = "adr")
 @Link(name = "ADR-116", url = Adr.A_RUNS_COMPLETION_IS_RECORDED_PER_STEP, type = "adr")
+@Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
 class EveryTableKeyedByARunIsOnRecordTest {
 
     private static final Pattern OWNED_TABLE = Pattern.compile(
@@ -71,8 +72,9 @@ class EveryTableKeyedByARunIsOnRecordTest {
 
     /**
      * The twenty-six tables ADR-229 states the growth of, and code_set and code_set_member, which ADR-284 adds,
-     * twenty-eight, each with the module that owns it; translation_of, which ADR-271 added, schema.sql no longer
-     * creates (ADR-392 section 2).
+     * twenty-eight; translation_of, which ADR-271 added, schema.sql no longer creates (ADR-392 section 2). ADR-409
+     * section 11 takes out the five keyed by a winning seed and adds the fifteen of the topics: thirty-eight, each with
+     * the module that owns it.
      */
     private static final Map<String, String> ON_RECORD = new TreeMap<>(Map.ofEntries(
             Map.entry("run_upstream", "ledger"),
@@ -96,13 +98,23 @@ class EveryTableKeyedByARunIsOnRecordTest {
             Map.entry("unusable_seed", "embedding"),
             Map.entry("seed_corpus_comparison", "embedding"),
             Map.entry("relevance_score", "embedding"),
-            Map.entry("document_cluster", "embedding"),
             Map.entry("relevance_label", "embedding"),
             Map.entry("relevance_label_provenance", "embedding"),
-            Map.entry("cluster", "synthesis"),
-            Map.entry("synthesis_doc", "synthesis"),
-            Map.entry("call_exemplar", "synthesis"),
-            Map.entry("cluster_fault", "synthesis")));
+            Map.entry("topic", "embedding"),
+            Map.entry("topic_passage", "embedding"),
+            Map.entry("seed_feeding_no_topic", "embedding"),
+            Map.entry("winning_topic", "embedding"),
+            Map.entry("see_also", "embedding"),
+            Map.entry("cluster_member", "embedding"),
+            Map.entry("topic_name", "synthesis"),
+            Map.entry("subtopic_name", "synthesis"),
+            Map.entry("arranged_cluster", "synthesis"),
+            Map.entry("cluster_synthesis_doc", "synthesis"),
+            Map.entry("cluster_call_exemplar", "synthesis"),
+            Map.entry("standing_cluster_fault", "synthesis"),
+            Map.entry("topic_overview", "synthesis"),
+            Map.entry("topic_overview_source", "synthesis"),
+            Map.entry("topic_overview_fault", "synthesis")));
 
     /**
      * The one such table a shipped statement deletes from by something other than a run: a recorded answer's
@@ -110,13 +122,25 @@ class EveryTableKeyedByARunIsOnRecordTest {
      */
     private static final String DELETED_BY_PATH_AND_SEED_SET = "relevance_label_provenance";
 
-    /** The tables keyed by a run that no shipped statement deletes a row of. */
-    private static final Set<String> NOTHING_DELETES_FROM =
-            Set.of("shingle", "run_upstream", "finished_step", "relevance_label", "synthesis_doc");
+    /**
+     * The tables keyed by a run that no shipped statement deletes a row of: since ADR-409 sections 5 and 6, a written
+     * cluster's synthesis doc, the names given under an arrangement run, and the overviews' three tables among them.
+     */
+    private static final Set<String> NOTHING_DELETES_FROM = Set.of(
+            "shingle",
+            "run_upstream",
+            "finished_step",
+            "relevance_label",
+            "cluster_synthesis_doc",
+            "topic_name",
+            "subtopic_name",
+            "topic_overview",
+            "topic_overview_source",
+            "topic_overview_fault");
 
     @Test
     @Story("Nothing removes the rows of work done earlier")
-    @DisplayName("Every shipped delete from such a table is of the rows of one piece of work it is handed, but one by path and seed folder, and five of the tables are never deleted from")
+    @DisplayName("Every shipped delete from such a table is of the rows of one piece of work it is handed, but one by path and seed folder, and ten of the tables are never deleted from")
     void everyShippedDeleteIsOfOneRunsRows() throws IOException, ClassNotFoundException {
         Map<String, String> deletesNotOfOneRun = new TreeMap<>();
         Set<String> deletedFrom = new TreeSet<>();
@@ -144,8 +168,8 @@ class EveryTableKeyedByARunIsOnRecordTest {
                         + " takes back who gave an answer, which is by the document's path and the seed folder",
                 () -> assertThat(deletesNotOfOneRun.keySet()).containsExactly(DELETED_BY_PATH_AND_SEED_SET));
         claim(
-                "and no shipped statement deletes from the five tables named here at all, the word sequences"
-                        + " of every extraction among them",
+                "and no shipped statement deletes from the ten tables named here at all, the word sequences"
+                        + " of every extraction, the names given to topics and subtopics and the overviews among them",
                 () -> assertThat(neverDeletedFrom).containsExactlyInAnyOrderElementsOf(NOTHING_DELETES_FROM));
     }
 

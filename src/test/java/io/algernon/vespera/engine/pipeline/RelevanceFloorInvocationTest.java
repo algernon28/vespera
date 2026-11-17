@@ -209,13 +209,13 @@ class RelevanceFloorInvocationTest {
     }
 
     private long documentClusterCountFor(Path root) {
-        return count("SELECT COUNT(*) FROM document_cluster c JOIN file_occurrence f ON f.id = c.occurrence_id"
+        return count("SELECT COUNT(*) FROM cluster_member c JOIN file_occurrence f ON f.id = c.occurrence_id"
                 + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ?", walkRoot(root));
     }
 
     private long documentClusterCountFor(Path root, String runId) {
         Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM document_cluster c JOIN file_occurrence f ON f.id = c.occurrence_id"
+                "SELECT COUNT(*) FROM cluster_member c JOIN file_occurrence f ON f.id = c.occurrence_id"
                         + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ? AND c.run_id = ?",
                 Long.class,
                 walkRoot(root),

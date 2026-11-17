@@ -113,7 +113,7 @@ class AProfileEditedWhileStageFiveRunsInvocationTest {
                         + " the embedding is stopped for the profile naming no model any longer",
                 () -> assertThat(theRuns).singleElement().satisfies(run -> {
                     assertThat(countUnder("relevance_score", run)).isEqualTo(CORPUS_DOCUMENTS);
-                    assertThat(countUnder("document_cluster", run)).isEqualTo(CORPUS_DOCUMENTS);
+                    assertThat(countUnder("cluster_member", run)).isEqualTo(CORPUS_DOCUMENTS);
                 }));
     }
 

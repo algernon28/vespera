@@ -114,7 +114,7 @@ class RepeatedInvocationTest {
         claim(
                 "and each is in exactly one cluster -- the last of those four, and the one a shared"
                         + " record would have let the first answer for",
-                () -> assertThat(rowsOver(root, "document_cluster")).isEqualTo(ONE_ROW_EACH));
+                () -> assertThat(rowsOver(root, "cluster_member")).isEqualTo(ONE_ROW_EACH));
     }
 
     @Test
@@ -140,7 +140,7 @@ class RepeatedInvocationTest {
                         + ONE_ROW_EACH + " rows, neither the single row the interrupted invocation left"
                         + " nor three -- so the clustering was done afresh although everything recorded"
                         + " alongside it had finished",
-                () -> assertThat(rowsOver(root, "document_cluster")).isEqualTo(ONE_ROW_EACH));
+                () -> assertThat(rowsOver(root, "cluster_member")).isEqualTo(ONE_ROW_EACH));
         claim(
                 "and it was recorded under the same name as before, because nothing it reads had"
                         + " changed: unfinished work is carried on rather than started somewhere new",
@@ -170,8 +170,8 @@ class RepeatedInvocationTest {
         jdbcTemplate.update(
                 "DELETE FROM finished_step WHERE run_id = ? AND step = ?", scoringRun, THE_CLUSTERING_STEP);
         jdbcTemplate.update(
-                "DELETE FROM document_cluster WHERE run_id = ? AND occurrence_id ="
-                        + " (SELECT MIN(occurrence_id) FROM document_cluster WHERE run_id = ?)",
+                "DELETE FROM cluster_member WHERE run_id = ? AND occurrence_id ="
+                        + " (SELECT MIN(occurrence_id) FROM cluster_member WHERE run_id = ?)",
                 scoringRun,
                 scoringRun);
     }

@@ -2981,6 +2981,17 @@ public final class Adr {
     public static final String THE_NAMING_MODEL_IS_ONE_OF_THE_MODELS_MODELS_RUN_ON_SPEAKS_FOR = FILE
             + "0408-the-naming-model-is-one-of-the-models-modelsrunon-speaks-for-and-the-start-of-vespera-run-refuses-for-it-too.md";
 
+    /**
+     * ADR-409 -- the topics, each document's winning topic and the topics it fits, the clusters within topics and
+     * subtopics, the topics' and subtopics' names and the topics' overviews are kept in fifteen new tables keyed by a
+     * topic's first passage, the five tables keyed by a winning seed no longer created; no schema version moves; the
+     * clustering step divides each topic and {@code subtopicFloor} enters the scoring run where it is not 300; a name is
+     * kept under its run and shown at the gate read-only, a fallback marked by its turn-down (amends ADR-105, ADR-218,
+     * ADR-223, ADR-236 and ADR-229).
+     */
+    public static final String TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC = FILE
+            + "0409-topics-placement-names-overviews-and-clusters-within-topics-are-kept-in-new-tables-keyed-by-a-topics-first-passage.md";
+
     private Adr() {
     }
 }

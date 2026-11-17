@@ -107,6 +107,7 @@ import org.springframework.util.StreamUtils;
 @Link(name = "ADR-225", url = Adr.STAGE_4B_READS_ITS_CANDIDATES_A_THOUSAND_AT_A_TIME, type = "adr")
 @Link(name = "ADR-060", url = Adr.SURVIVORS_IS_AN_ITEM_READER, type = "adr")
 @Link(name = "ADR-236", url = Adr.A_PARTITIONS_READS_SEEK_ONLY_ITS_RUNS_ROWS, type = "adr")
+@Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
 class EveryStatementThatSortsIsRecordedTest {
 
     /**
@@ -188,12 +189,13 @@ class EveryStatementThatSortsIsRecordedTest {
             Map.entry("similarity.RedundancyResolution", 2),
             // Row 7: the files stage 2 could not read, by path.
             Map.entry("ledger.Verdicts", 1),
-            // Rows 10 and 11: the partitions, and the members of one. Row 9, the scores below the floor in
-            // occurrence order, is gone: 5e reads a page of them at a time by row number (ADR-220 section 5).
-            Map.entry("embedding.RelevanceScoreCache", 2),
-            // Rows 12 and 13 are gone: a partition's cluster sizes are counted in cluster order by the index
-            // on the seed, the run and the cluster (ADR-236), its members are read unordered and the run's a
-            // page at a time by the primary key (ADR-223 sections 3 and 7).
+            // Rows 10 and 11, the partitions and the members of one, are gone with the seed partitions: a topic's
+            // members are read by the index on the run, the topic and the occurrence (ADR-409 section 12). Row 9,
+            // the scores below the floor in occurrence order, is gone: 5e reads a page of them at a time by row
+            // number (ADR-220 section 5).
+            // Rows 12 and 13 are gone: a topic's cluster sizes are counted in subtopic and cluster order by the
+            // index on the run, the topic, the subtopic and the cluster (ADR-236, ADR-409), its members are read
+            // unordered and the run's a page at a time by the primary key (ADR-223 sections 3 and 7).
             // Bounded by the seed set: the unusable seeds.
             Map.entry("embedding.UnusableSeeds", 1)));
 
@@ -227,20 +229,16 @@ class EveryStatementThatSortsIsRecordedTest {
     /**
      * The indexes of {@code schema.sql} that rows 3 to 5 of ADR-218's table list, thirty-one, the one
      * ADR-236 adds to its class, and the one ADR-284 §7 builds with {@code code_set_member}, each over a table that
-     * holds no row when it is built: thirty-three, by name, the two ADR-271 §1 built with {@code translation_of}
-     * gone with it (ADR-392 §2).
+     * holds no row when it is built: thirty-three, the two ADR-271 §1 built with {@code translation_of}
+     * gone with it (ADR-392 §2). ADR-409 section 12 takes out the eight of the five tables keyed by a winning seed and
+     * adds the five of the topics' tables, each over a table new to every database: thirty, by name.
      */
     private static final List<String> SCHEMA_INDEXES_RECORDED = List.of(
-            "call_exemplar_by_occurrence_id",
-            "call_exemplar_by_winning_seed_occurrence_id",
-            "cluster_by_winning_seed_occurrence_id",
-            "cluster_fault_by_winning_seed_occurrence_id",
+            "cluster_call_exemplar_by_occurrence_id",
+            "cluster_member_by_run_topic_subtopic_and_cluster",
             "code_set_member_by_run_id",
             "content_hash_by_run_id",
             "detected_format_by_run_id",
-            "document_cluster_by_run_id",
-            "document_cluster_by_winning_seed_occurrence_id",
-            "document_cluster_by_winning_seed_run_and_cluster",
             "extraction_cache_key_by_run_id",
             "extraction_fault_by_run_id",
             "extraction_metric_by_run_id",
@@ -254,16 +252,18 @@ class EveryStatementThatSortsIsRecordedTest {
             "relevance_score_by_winning_seed_occurrence_id",
             "run_by_walk_id",
             "run_upstream_by_upstream_run_id",
+            "see_also_by_run_topic_and_occurrence",
             "shingle_by_occurrence",
             "shingle_by_run_id",
             "signature_band_by_bucket",
             "superseded_by_by_representative_occurrence_id",
             "superseded_by_by_run_id",
-            "synthesis_doc_by_winning_seed_occurrence_id",
+            "topic_passage_by_run_and_topic",
             "unusable_seed_by_run_id",
             "verdict_by_occurrence",
             "verdict_by_run_id",
-            "walk_anomaly_by_walk_id");
+            "walk_anomaly_by_walk_id",
+            "winning_topic_by_run_topic_and_occurrence");
 
     @Test
     @Story("A statement that sorts on disk is one somebody measured")

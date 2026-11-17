@@ -92,9 +92,10 @@ class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
 
     /**
      * Which stages' runs hold rows in each table keyed by a run, as the first invocation of this fixture
-     * leaves them: fourteen of the twenty-eight. The other fourteen hold no row in this fixture: the three of
-     * generation, which is not reached, and those a corpus of two texts that share every shingle, one usable
-     * seed and no answer recorded gives nothing to write to, {@code verdict} among them.
+     * leaves them: eighteen of the thirty-eight (ADR-409 section 11). The other twenty hold no row in this fixture:
+     * the six of generation, which is not reached, and those a corpus of two texts that share every shingle, one
+     * usable seed, one topic of too few documents to divide and no answer recorded gives nothing to write to, {@code
+     * verdict}, {@code see_also}, {@code seed_feeding_no_topic} and {@code subtopic_name} among them.
      */
     private static final Map<String, List<String>> THE_STAGES_WHOSE_RUNS_HOLD_ROWS = new TreeMap<>(Map.ofEntries(
             Map.entry("finished_step", THE_STAGES_REACHED),
@@ -108,9 +109,13 @@ class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
             Map.entry("shingle_corpus_size", List.of("content-census")),
             Map.entry("shingle_document_frequency", List.of("content-census")),
             Map.entry("seed_corpus_comparison", List.of("seed-measurement")),
-            Map.entry("document_cluster", List.of("embedding-scoring")),
+            Map.entry("cluster_member", List.of("embedding-scoring")),
             Map.entry("relevance_score", List.of("embedding-scoring")),
-            Map.entry("cluster", List.of("arrangement"))));
+            Map.entry("topic", List.of("embedding-scoring")),
+            Map.entry("topic_passage", List.of("embedding-scoring")),
+            Map.entry("winning_topic", List.of("embedding-scoring")),
+            Map.entry("topic_name", List.of("arrangement")),
+            Map.entry("arranged_cluster", List.of("arrangement"))));
 
     /** The opening each question put to the scripted labeller, empty where none could be read. */
     static final List<Optional<String>> OPENINGS_PUT = new CopyOnWriteArrayList<>();

@@ -171,12 +171,12 @@ Where a subtopic's name falls back to its place (ADR-407 §7), it is `Subtopic n
 | `…aTopicWithNoSubtopicsListsNone` | a topic under the floor has no order of subtopics (§4) |
 | `pipeline.TheSubtopicFloorPresetTest.shipsTheMeasuredValue` | `application.yaml` names a floor of 300 (§5) |
 | `pipeline.TheSubtopicFloorPresetTest.refusesValuesNoRunCanBeMadeUnder` | 0 and 2.5 are refused, each in its line, and 1 is not (§5) |
-| `pipeline.TheSubtopicFloorNamesNoRunYetInvocationTest.noMemberIsWrittenBeforeTheStepReadsTheFloor` | a machine naming a floor of 1 gets a scoring run whose configuration names no `subtopicFloor` (§5), until #832 |
+| `pipeline.TheSubtopicFloorNamesNoRunYetInvocationTest.noMemberIsWrittenBeforeTheStepReadsTheFloor` (retired with #832, which put `pipeline.TheSubtopicFloorNamesTheScoringRunInvocationTest` in its place) | a machine naming a floor of 1 gets a scoring run whose configuration names no `subtopicFloor` (§5), until #832 |
 | `pipeline.RunIdentityGoldenTest.embeddingScoring` | the scoring run's configuration, literal, with no `subtopicFloor` member (§5) |
 | `TheVocabularyNamesTheSubtopicTest.subtopicIsATerm` | `CONTEXT.md` has a Subtopic entry whose `_Avoid_` line opens with sub-group and names group (§6) |
 | `TheVocabularyNamesTheSubtopicTest.noAvoidLineRejectsSubtopic` | no `_Avoid_` line rejects subtopic (§6) |
 
-**Owed by #832, and not written now**: that a floor other than 300 writes `subtopicFloor` into the scoring run, beside `TheClusteringPresetsInvocationTest`, replacing `TheSubtopicFloorNamesNoRunYetInvocationTest`; that the clustering step divides each topic and stores the subtopic, beside `ClusteringInvocationTest`; and subtopic naming and the fallback's word, `Subtopic n` and `Sottoargomento n`, beside the test of ADR-407's fallback name.
+**Owed by #832, and not written now**: that a floor other than 300 writes `subtopicFloor` into the scoring run, beside `TheClusteringPresetsInvocationTest`, in place of `TheSubtopicFloorNamesNoRunYetInvocationTest`; that the clustering step divides each topic and stores the subtopic, beside `ClusteringInvocationTest`; and subtopic naming and the fallback's word, `Subtopic n` and `Sottoargomento n`, beside the test of ADR-407's fallback name.
 
 ## What this does not decide
 

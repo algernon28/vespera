@@ -157,7 +157,7 @@ class TheClusteringPresetsInvocationTest {
 
     private int clustersUnder(String scoringRun) {
         Integer clusters = jdbcTemplate.queryForObject(
-                "SELECT COUNT(DISTINCT cluster_ordinal) FROM document_cluster WHERE run_id = ?", Integer.class, scoringRun);
+                "SELECT COUNT(DISTINCT cluster_ordinal) FROM cluster_member WHERE run_id = ?", Integer.class, scoringRun);
         return clusters == null ? 0 : clusters;
     }
 }
