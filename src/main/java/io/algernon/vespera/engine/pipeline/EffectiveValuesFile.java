@@ -37,7 +37,7 @@ import org.springframework.core.env.PropertySource;
  * <p>{@code vespera run} and {@code vespera label} write it once the working-directory lock is held and past the last
  * refusal of their start, before their first step; {@code vespera publish} writes none. It is written whole to a
  * {@code .part} file and moved over the target, and one that cannot be written is logged at WARN and fails nothing. It
- * is never deleted. The twenty presets of ADR-330 §9, as ADR-399, ADR-400 and
+ * is never deleted. The twenty-one presets of ADR-330 §9, as ADR-399, ADR-400, ADR-406 and
  * ADR-401 amend it, are on the list, the resolution under the profile's own name, {@code clusterResolution}.
  */
 final class EffectiveValuesFile {
@@ -70,6 +70,7 @@ final class EffectiveValuesFile {
         // preset to the sample's number from each band, then the topics' presets (ADR-399, ADR-401, ADR-400). The
         // resolution is said under the profile's own name, above.
         Presets.NEIGHBOURS_OF_A_DOCUMENT,
+        Presets.SUBTOPIC_FLOOR,
         Presets.OCR_PRESET,
         Presets.TIMEOUTS_IN_A_ROW,
         Presets.SHINGLE_WORDS,

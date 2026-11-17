@@ -296,6 +296,8 @@ class RunIdentityGoldenTest {
     @Issue("488")
     @Link(name = "ADR-228", url = Adr.A_SCORING_RUN_NAMES_THE_EMBEDDING_MODELS_ARTEFACT_AND_READS_ONE_IDENTITY, type = "adr")
     @Link(name = "ADR-392", url = Adr.VESPERA_FINDS_NO_TRANSLATION_SETS, type = "adr")
+    @Issue("831")
+    @Link(name = "ADR-406", url = Adr.A_CROWDED_TOPIC_IS_DIVIDED_INTO_SUBTOPICS, type = "adr")
     void embeddingScoring() {
         Map<String, Object> run = theRunOf("embedding-scoring");
 
@@ -312,6 +314,10 @@ class RunIdentityGoldenTest {
                                         + "\"embeddingModelWeightDtype\":\"F16\","
                                         + "\"measurementRunId\":\"%s\",\"relevanceScoreFloor\":null}")
                                 .formatted(inJson(Walk.canonicalRoot(root)), theIdOf("seed-measurement"))));
+        claim(
+                "and it names no subtopic floor: until #832 wires the floor into the clustering step no step reads"
+                        + " it, so no run names it (ADR-406 section 5)",
+                () -> assertThat((String) run.get("config_consumed")).doesNotContain("subtopicFloor"));
         claim(
                 "and its code version is the embedding module's, then extraction's, and not the version of the"
                         + " code that runs the stages, which since the relevance floor's two rules went to"

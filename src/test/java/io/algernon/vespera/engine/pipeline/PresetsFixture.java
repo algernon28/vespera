@@ -13,13 +13,15 @@ final class PresetsFixture {
     private PresetsFixture() {}
 
     /**
-     * An environment naming the twenty, the two of the topics (ADR-399), the breadth floor (ADR-401) and then the
-     * see-also share (ADR-400) last, for a test to name another over one of them.
+     * An environment naming the twenty-one: the subtopic floor (ADR-406) after clustering's two, then the two of the
+     * topics (ADR-399), the breadth floor (ADR-401) and the see-also share (ADR-400) last, for a test to name another
+     * over one of them.
      */
     static MockEnvironment shippedEnvironment() {
         return new MockEnvironment()
                 .withProperty("vespera.clustering.resolution", "1.0")
                 .withProperty("vespera.clustering.neighbours", "15")
+                .withProperty("vespera.clustering.subtopic-floor", "300")
                 .withProperty("vespera.docling.ocr-preset", "rapidocr")
                 .withProperty("vespera.docling.timeouts-in-a-row", "3")
                 .withProperty("vespera.redundancy.shingle-words", "5")

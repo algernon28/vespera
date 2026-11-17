@@ -2955,6 +2955,15 @@ public final class Adr {
             + "0405-the-private-paths-guard-reads-a-gh-comment-as-no-path-and-keeps-the-drive-of-one-letter-and-the-name-of-spaces.md";
 
     /**
+     * ADR-406 -- a topic of at least {@code vespera.clustering.subtopic-floor} survivors, 300 as shipped, whose
+     * survivors form two communities or more, has subtopics: the communities clustering finds over the whole topic, its
+     * clusters then found within each subtopic over a graph of its own; subtopics go by their survivors, most first, and
+     * the word is subtopic (amends ADR-396 section 3 and ADR-330 sections 8 and 9).
+     */
+    public static final String A_CROWDED_TOPIC_IS_DIVIDED_INTO_SUBTOPICS = FILE
+            + "0406-a-topic-of-300-survivors-or-more-is-divided-into-subtopics-its-own-communities-and-its-clusters-are-found-within-each.md";
+
+    /**
      * ADR-407 -- the topics, and the level between a topic and its clusters, are named at the head of the arrangement
      * step by a naming model of their own, at temperature 0 and a fixed seed, from their strongest passages under a
      * word budget, in the deliverable language, which with the call's identity enters the arrangement run; a name the
