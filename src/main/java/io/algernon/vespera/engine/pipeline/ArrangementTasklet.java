@@ -334,12 +334,11 @@ class ArrangementTasklet implements Tasklet {
         List<GivenName> given = topicNaming.nameSiblings(calls, namingModel, language);
         long written = given.stream().filter(name -> name.origin() != NameOrigin.FALLBACK).count();
         LOG.info(
-                "The arrangement step named {} topic(s) under {}: {} written by {}, {} by the strongest seed's own"
-                        + " words; the names are logged and not yet stored (#832)",
+                "The arrangement step named {} topic(s) under {}: {} written, {} fell back; the names are logged and"
+                        + " not yet stored (#832)",
                 given.size(),
                 namingModel,
                 written,
-                namingModel,
                 given.size() - written);
         for (int place = 0; place < topics.size(); place++) {
             SeedPassage first = topics.get(place).key().firstPassage();

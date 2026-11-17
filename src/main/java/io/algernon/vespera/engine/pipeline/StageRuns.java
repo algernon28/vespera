@@ -133,6 +133,8 @@ class StageRuns {
     private ModelArtefact embeddingModelArtefact;
     private Double relevanceScoreFloor;
     private RunId arrangement;
+    /** The deliverable language, read once in this invocation and kept (ADR-407 section 3). */
+    private DeliverableLanguage deliverableLanguage;
     private RunId generation;
 
     StageRuns(
@@ -540,7 +542,10 @@ class StageRuns {
 
     /** The language the topics are named in and the deliverable is written in (ADR-321 section 1, ADR-407 section 3). */
     DeliverableLanguage deliverableLanguage() {
-        return languageOfTheDeliverable.language();
+        if (deliverableLanguage == null) {
+            deliverableLanguage = languageOfTheDeliverable.language();
+        }
+        return deliverableLanguage;
     }
 
     /**
@@ -557,7 +562,7 @@ class StageRuns {
         if (arrangement == null) {
             // The two values only this run reads, resolved where it is minted, before any call (ADR-407 sections 2, 3).
             String namingModel = namingModelName();
-            DeliverableLanguage language = languageOfTheDeliverable.language();
+            DeliverableLanguage language = deliverableLanguage();
             RunId scoringRunId = embeddingScoring();
             WalkId walk = runMint.finishedWalk(canonicalRoot, "the documents can be arranged");
             long standingRemovals = ledger.verdicts().verdictsUnder(scoringRunId);
@@ -619,7 +624,7 @@ class StageRuns {
                             generationContextWindow.size(),
                             ClusterSynthesis.REPLY_ALLOWANCE,
                             ClusterSynthesis.KEEP_A_TOO_LONG_QUESTIONS_HEAD,
-                            languageOfTheDeliverable.language().code()),
+                            deliverableLanguage().code()),
                     walk,
                     Optional.of(approvedArrangement));
         }
