@@ -78,7 +78,6 @@ class StageRuns {
      */
     private static final double RESOLUTION_EVERY_EARLIER_RUN = 1.0;
     private static final int GRAPH_K_EVERY_EARLIER_RUN = 15;
-    private static final int SUBTOPIC_FLOOR_EVERY_EARLIER_RUN = 300;
     private static final int SIMILARITIES_EVERY_EARLIER_RUN = 3;
     private static final int BANDS_EVERY_EARLIER_RUN = 5;
     private static final int PER_BAND_EVERY_EARLIER_RUN = 12;
@@ -121,7 +120,6 @@ class StageRuns {
     private RedundancyThresholds redundancyThresholds;
     private double clusterResolution;
     private int clusterNeighbours;
-    private int subtopicFloor;
     private int topSimilarities;
     private int sampleBands;
     private int sampledPerBand;
@@ -380,7 +378,6 @@ class StageRuns {
         // acted on, from the same load (ADR-330 section 9). They are kept to be handed to the steps that use them.
         double resolution = presets.clusterResolution(profile);
         int neighbours = presets.clusterNeighbours();
-        int subtopicFloorValue = presets.subtopicFloor();
         int similarities = presets.topSimilarities();
         int bands = presets.sampleBands();
         int perBand = presets.sampledPerBand();
@@ -408,13 +405,11 @@ class StageRuns {
                         topicResolutionValue == TOPIC_RESOLUTION_EVERY_EARLIER_RUN ? null : topicResolutionValue,
                         topicNeighboursValue == TOPIC_K_EVERY_EARLIER_RUN ? null : topicNeighboursValue,
                         topicBreadthFloorValue == TOPIC_BREADTH_FLOOR_EVERY_EARLIER_RUN ? null : topicBreadthFloorValue,
-                        seeAlsoShareValue == SEE_ALSO_SHARE_EVERY_EARLIER_RUN ? null : seeAlsoShareValue,
-                        subtopicFloorValue == SUBTOPIC_FLOOR_EVERY_EARLIER_RUN ? null : subtopicFloorValue),
+                        seeAlsoShareValue == SEE_ALSO_SHARE_EVERY_EARLIER_RUN ? null : seeAlsoShareValue),
                 walk,
                 Optional.of(measurementRunId));
         this.clusterResolution = resolution;
         this.clusterNeighbours = neighbours;
-        this.subtopicFloor = subtopicFloorValue;
         this.topSimilarities = similarities;
         this.sampleBands = bands;
         this.sampledPerBand = perBand;
@@ -463,12 +458,6 @@ class StageRuns {
     double clusterResolution() {
         embeddingScoring();
         return clusterResolution;
-    }
-
-    /** The survivors a topic must hold to be divided into subtopics, as the scoring run was minted (ADR-406). */
-    int subtopicFloor() {
-        embeddingScoring();
-        return subtopicFloor;
     }
 
     /**
@@ -693,9 +682,7 @@ class StageRuns {
             // ADR-401 and ADR-400: the breadth floor and then the see-also share, after the topics' two numbers, each
             // written only where it is not what ships.
             @JsonInclude(JsonInclude.Include.NON_NULL) Double topicBreadthFloor,
-            @JsonInclude(JsonInclude.Include.NON_NULL) Double seeAlsoShare,
-            // ADR-406: the subtopic floor, after the see-also share, written only where it is not 300.
-            @JsonInclude(JsonInclude.Include.NON_NULL) Integer subtopicFloor) {}
+            @JsonInclude(JsonInclude.Include.NON_NULL) Double seeAlsoShare) {}
 
     /**
      * Stage 6a's own {@code ConfigConsumed}, extended once (ADR-230 section 3). {@code standingRemovals}

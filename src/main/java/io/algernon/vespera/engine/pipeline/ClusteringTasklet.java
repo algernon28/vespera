@@ -121,7 +121,6 @@ class ClusteringTasklet implements Tasklet {
         RunId scoring = stageRuns.embeddingScoring();
         String modelName = stageRuns.embeddingModelName();
         int clusterNeighbours = stageRuns.clusterNeighbours();
-        int subtopicFloor = stageRuns.subtopicFloor();
         double clusterResolution = stageRuns.clusterResolution();
 
         // relevance-scoring and relevance-floor, which share this run, are not asked -- each step
@@ -211,7 +210,6 @@ class ClusteringTasklet implements Tasklet {
                                 // as the run that names it says (ADR-330 section 9, ADR-117).
                                 clusterNeighbours,
                                 clusterResolution,
-                                subtopicFloor,
                                 blocksOfPartition(partition + 1, partitions.size()));
                         // Read back rather than returned from the pass: a cluster exists as the set of
                         // rows carrying its identity, so the sizes a reader is shown are the rows, not

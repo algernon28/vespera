@@ -45,28 +45,19 @@ record TopicDivision(List<Integer> subtopicOf, List<Integer> clusterOf) {
         return List.copyOf(order);
     }
 
-    /** A division with the graph over the whole topic it was found over, whose retained edges the page reports. */
-    record Found(TopicDivision division, NearestNeighbourGraph.Graph topicGraph) {}
-
     /**
      * Divides {@code topic} at clustering's {@code neighbours} and {@code resolution}: a topic of at least {@code
      * subtopicFloor} survivors forming two communities or more has them as its subtopics, and its clusters are found
      * within each, over a graph of that subtopic's survivors alone, visited in the topic's order.
+     *
+     * @throws IllegalArgumentException for a {@code subtopicFloor} below 1
      */
     static TopicDivision of(
             NearestNeighbourGraph.MeanVectors topic, int neighbours, double resolution, int subtopicFloor, int blockSize) {
-        return found(topic, neighbours, resolution, subtopicFloor, blockSize, ClusteringProgress.NONE).division();
-    }
-
-    /** As {@link #of}, keeping the graph over the whole topic and telling {@code progress} of its pass. */
-    static Found found(
-            NearestNeighbourGraph.MeanVectors topic,
-            int neighbours,
-            double resolution,
-            int subtopicFloor,
-            int blockSize,
-            ClusteringProgress progress) {
-        NearestNeighbourGraph.Graph graph = NearestNeighbourGraph.build(topic, neighbours, blockSize, progress);
+        if (subtopicFloor < 1) {
+            throw new IllegalArgumentException("a topic must hold at least one survivor to be divided, not " + subtopicFloor);
+        }
+        NearestNeighbourGraph.Graph graph = NearestNeighbourGraph.build(topic, neighbours, blockSize, ClusteringProgress.NONE);
         int[] communities = Communities.of(graph, resolution);
         int count = communities.length;
         int subtopics = 0;
@@ -74,7 +65,7 @@ record TopicDivision(List<Integer> subtopicOf, List<Integer> clusterOf) {
             subtopics = Math.max(subtopics, community + 1);
         }
         if (count < subtopicFloor || subtopics < 2) {
-            return new Found(new TopicDivision(List.of(), boxed(communities)), graph);
+            return new TopicDivision(List.of(), boxed(communities));
         }
         List<List<Integer>> members = new ArrayList<>();
         for (int subtopic = 0; subtopic < subtopics; subtopic++) {
@@ -92,7 +83,7 @@ record TopicDivision(List<Integer> subtopicOf, List<Integer> clusterOf) {
                 clusterOf[survivors.get(place)] = clusters[place];
             }
         }
-        return new Found(new TopicDivision(boxed(communities), List.of(clusterOf)), graph);
+        return new TopicDivision(boxed(communities), List.of(clusterOf));
     }
 
     private static List<Integer> boxed(int[] numbers) {
