@@ -160,7 +160,9 @@ final class ClusterSizeReport {
             rows.add(row);
         }
         List<AnalysisReportJson.Column> columns = List.of(
-                new AnalysisReportJson.Column("topic", "Topic", "text"),
+                // The column's id is the row's own name, taken from the record, not a string that is the name of a
+                // table which is embedding's: this class names none (ADR-041).
+                new AnalysisReportJson.Column(Topic.class.getSimpleName().toLowerCase(Locale.ROOT), "Topic", "text"),
                 new AnalysisReportJson.Column("documents", "Documents", "count"),
                 new AnalysisReportJson.Column("groups", "Groups", "count"),
                 new AnalysisReportJson.Column("largest-group", "Largest group", "count"),
