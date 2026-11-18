@@ -32,8 +32,9 @@ import javafx.stage.Stage;
 /**
  * PROTOTYPE #874, throwaway, never on main. Where and how the cockpit says why an invocation stopped. A mock of the
  * cockpit's main column (header, child line, actions, the real StepsChart beside the output) on the real stylesheet,
- * fed five fake endings. Variants: today (the child line alone), A a centred card over a dimmed cockpit, B a panel in
- * the middle of the main column above the chart, C a third column between the chart and the output. ← / → or the
+ * fed five fake endings. Variants (round 2, the operator wants no reorganization): D a compact panel beneath the
+ * output in its own column, E the same beneath chart and output at full width, today the child line alone. A to C
+ * (round 1: centred card, middle panel, third column) were turned down and are left in the code unused. ← / → or the
  * bottom bar switch variant; the top bar picks the ending and the theme.
  */
 public final class Prototype874WhyItStopped extends Application {
@@ -139,9 +140,9 @@ public final class Prototype874WhyItStopped extends Application {
                             "  publish  Delivers the last drawing"),
                     0, "defect"));
 
-    private static final List<String> VARIANTS = List.of("", "A", "B", "C");
-    private static final List<String> NAMES = List.of("today: child line only", "centred card over a dimmed cockpit",
-            "panel in the middle of the column", "third column between chart and output");
+    private static final List<String> VARIANTS = List.of("D", "E", "");
+    private static final List<String> NAMES = List.of("beneath the output, its column only",
+            "beneath chart and output, full width", "today: child line only");
 
     private int variant;
     private int scenario;
@@ -274,6 +275,12 @@ public final class Prototype874WhyItStopped extends Application {
             split = new SplitPane(chartScroll, columnPanel(s, output), output);
             split.setDividerPositions(0.33, 0.62);
             selectCauseLine(output, s);
+        } else if (v.equals("D")) {
+            Node panel = beneathPanel(s);
+            VBox.setVgrow(output, Priority.ALWAYS);
+            VBox outputAndPanel = new VBox(8, output, panel);
+            split = new SplitPane(chartScroll, outputAndPanel);
+            split.setDividerPositions(0.5);
         } else {
             split = new SplitPane(chartScroll, output);
             split.setDividerPositions(0.5);
@@ -288,6 +295,9 @@ public final class Prototype874WhyItStopped extends Application {
         }
         main.getChildren().add(split);
         VBox.setVgrow(split, Priority.ALWAYS);
+        if (v.equals("E")) {
+            main.getChildren().add(beneathPanel(s));
+        }
         main.getStyleClass().add("main");
         main.setPadding(new Insets(16));
 
@@ -342,6 +352,45 @@ public final class Prototype874WhyItStopped extends Application {
         panel.setStyle("-fx-background-color: -vespera-surface; -fx-border-color: -vespera-rule;"
                 + " -fx-border-radius: 6; -fx-background-radius: 6;");
         body.setPadding(new Insets(14, 0, 14, 0));
+        return panel;
+    }
+
+    // ---- variants D and E: a compact panel beneath the output (D) or beneath chart and output (E); nothing moves
+
+    private Node beneathPanel(Scenario s) {
+        Label kind = new Label(kindWords(s).toUpperCase());
+        kind.setStyle("-fx-text-fill: " + colourOf(s) + "; -fx-font-weight: bold; -fx-font-size: 11px;");
+        Label headline = new Label(s.headline());
+        headline.setWrapText(true);
+        headline.setStyle("-fx-font-size: 15px; -fx-font-weight: bold;");
+        Label cause = new Label(s.cause());
+        cause.setWrapText(true);
+        Label facts = dim("Stopped at " + (s.step() == null ? "before any step" : stepWords(s.step())) + " · exit "
+                + s.exitCode() + " · ended 2026-11-18 " + endedAt(s));
+        facts.setWrapText(true);
+        Label toDo = new Label("What to do: " + s.toDo());
+        toDo.setWrapText(true);
+        toDo.setStyle("-fx-font-weight: bold;");
+        HBox buttons = new HBox(8);
+        if (s.action() != null) {
+            Button primary = new Button(s.action());
+            primary.setOnAction(e -> copy(s));
+            buttons.getChildren().add(primary);
+        }
+        if (s.action() == null || !s.action().equals("Copy details")) {
+            Button copy = new Button("Copy details");
+            copy.setOnAction(e -> copy(s));
+            buttons.getChildren().add(copy);
+        }
+        VBox body = new VBox(6, kind, headline, cause, facts, toDo, buttons);
+        body.setPadding(new Insets(10, 12, 10, 12));
+        HBox.setHgrow(body, Priority.ALWAYS);
+        Region stripe = new Region();
+        stripe.setMinWidth(5);
+        stripe.setStyle("-fx-background-color: " + colourOf(s) + ";");
+        HBox panel = new HBox(stripe, body);
+        panel.setMinHeight(Region.USE_PREF_SIZE);
+        panel.setStyle("-fx-background-color: -vespera-surface; -fx-border-color: -vespera-rule;");
         return panel;
     }
 
