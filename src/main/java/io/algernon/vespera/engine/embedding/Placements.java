@@ -78,7 +78,7 @@ public class Placements {
      * KeysetPages#ROWS_IN_A_PAGE} at a time in occurrence order, by the index on the run, the topic and the occurrence,
      * sorting nothing (ADR-416 section 8). Each page is handed over once its statement has finished.
      */
-    public void eachSeeAlsoPage(RunId runId, TopicKey topic, Consumer<List<OccurrenceId>> page) {
+    public void eachPageLinkedTo(RunId runId, TopicKey topic, Consumer<List<OccurrenceId>> page) {
         new KeysetPages<OccurrenceId>(
                         jdbcTemplate,
                         "SELECT occurrence_id FROM see_also WHERE run_id = ? AND topic_seed_path = ?"

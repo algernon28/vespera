@@ -145,7 +145,9 @@ final class ClusterSizeReport {
                 String seedPath, int chunkIndex, List<Subtopic> subtopics, Optional<RetainedEdgeSpread> spread) {
             List<Integer> sizes = new ArrayList<>();
             subtopics.forEach(subtopic -> sizes.addAll(subtopic.sizes()));
-            return of(seedPath, chunkIndex, sizes, subtopics, spread);
+            // The sizes are taken over once here and each subtopic is then kept without its own, so a divided
+            // topic holds eleven values a row until the page is written (ADR-416 section 8, ADR-223 section 2).
+            return of(seedPath, chunkIndex, sizes, subtopics.stream().map(Subtopic::withoutSizes).toList(), spread);
         }
 
         private static Topic of(
@@ -172,7 +174,8 @@ final class ClusterSizeReport {
      * section 5).
      *
      * @param ordinal the subtopic's number as {@code cluster_member} records it, counted from 0
-     * @param sizes how many documents each of its clusters holds
+     * @param sizes how many documents each of its clusters holds; empty once the subtopic is held inside a divided
+     *     topic, whose row has taken the numbers from them
      * @param spread how alike the documents on the links of the subtopic's own graph were, or empty where it holds one
      */
     record Subtopic(
@@ -196,6 +199,10 @@ final class ClusterSizeReport {
                     numbers.median(),
                     numbers.singletons(),
                     spread);
+        }
+
+        private Subtopic withoutSizes() {
+            return new Subtopic(ordinal, List.of(), documentCount, clusterCount, largest, median, singletons, spread);
         }
     }
 
@@ -334,7 +341,7 @@ final class ClusterSizeReport {
 
     /** A paragraph of the page as the words a reader reads: its markup taken off, its dash as a dash. */
     private static String plain(String html) {
-        return html.replaceAll("<[^>]*>", "").replace("&mdash;", "—");
+        return html.replaceAll("<[^>]*>", "").replace("&mdash;", "\u2014");
     }
 
     static String render(List<Topic> topics) {

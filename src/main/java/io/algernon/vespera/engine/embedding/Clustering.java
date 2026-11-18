@@ -166,9 +166,9 @@ public class Clustering {
     }
 
     /** The documents with a link to {@code topic} under {@code runId}, a page of 1,000 at a time (ADR-416 section 8). */
-    public void eachSeeAlsoPage(
+    public void eachPageLinkedTo(
             RunId runId, TopicKey topic, java.util.function.Consumer<List<OccurrenceId>> page) {
-        placements.eachSeeAlsoPage(runId, topic, page);
+        placements.eachPageLinkedTo(runId, topic, page);
     }
 
     /** The survivors {@code topic} holds under {@code runId}, in the order clustering visits them. */
