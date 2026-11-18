@@ -451,7 +451,7 @@ final class Cockpit {
 
     /** Stop is confirmed with the one sentence a stop is confirmed by (ADR-278 §6); the child is stopped only on the answer that goes on. */
     private void stopAfterConfirming() {
-        if (dialogs.confirm(Child.STOP_CONFIRMATION, "Stop", "Keep it running")) {
+        if (dialogs.confirm("Stop the invocation", Child.STOP_CONFIRMATION, "Stop", "Keep it running")) {
             stopTheChild();
         }
     }
@@ -477,7 +477,7 @@ final class Cockpit {
     private void shutDownDockerAfterConfirming() {
         String sentence = SHUT_DOWN_WARNING + (state.childRuns()
                 ? " The invocation running now is stopped first. " + Child.STOP_CONFIRMATION : "");
-        if (!dialogs.confirm(sentence, "Shut down Docker", "Keep Docker running")) {
+        if (!dialogs.confirm("Shut down Docker", sentence, "Shut down Docker", "Keep Docker running")) {
             return;
         }
         shuttingDown = true;
@@ -509,11 +509,12 @@ final class Cockpit {
             String refusal;
             try {
                 DockerControl.Said started = state.startDocker();
-                refusal = started.done() ? "" : started.line();
+                refusal = started.line();
             } catch (RuntimeException failed) {
                 refusal = "Docker was not started: " + failed;
             }
             if (!refusal.isEmpty()) {
+                // A refusal's line, or the line of a start that went through with one to say (ADR-421 §6).
                 String line = refusal;
                 Platform.runLater(() -> say(line));
             }

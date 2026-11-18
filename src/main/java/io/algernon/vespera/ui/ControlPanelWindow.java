@@ -66,7 +66,7 @@ public final class ControlPanelWindow extends Application {
             if (!cockpit.profileAllowsClosing()) {
                 return;
             }
-            if (cockpit.childRuns() && !dialogs.confirm(Child.STOP_CONFIRMATION, "Stop and close", "Keep the window")
+            if (cockpit.childRuns() && !dialogs.confirm("Close the control panel", Child.STOP_CONFIRMATION, "Stop and close", "Keep the window")
                     || !closing.compareAndSet(false, true)) {
                 return;
             }

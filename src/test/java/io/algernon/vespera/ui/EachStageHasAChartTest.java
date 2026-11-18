@@ -31,6 +31,11 @@ import javafx.scene.control.Labeled;
 import javafx.scene.control.ScrollBar;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextInputControl;
+import javafx.scene.control.Tooltip;
+import javafx.scene.layout.BackgroundFill;
+import javafx.scene.layout.Region;
+import javafx.scene.paint.Color;
+import javafx.scene.paint.Paint;
 import javafx.scene.shape.Shape;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.DisplayName;
@@ -103,6 +108,33 @@ class EachStageHasAChartTest {
             new Line("done", List.of(0.0, 5.0), List.of(120.0, 260.0)),
             new Line("extraction-failed", List.of(0.0, 5.0), List.of(0.0, 3.0)),
             new Line("degenerate-output", List.of(0.0, 5.0), List.of(0.0, 1.0)));
+
+    /** Stage 1's lines as a run put back leaves them (ADR-382 §7): its five kinds, one sample each at 0 s, no done. */
+    private static final List<Line> ONE_SAMPLE_EACH = List.of(
+            new Line("broken", List.of(0.0), List.of(3.0)),
+            new Line("duplicate-of", List.of(0.0), List.of(80.0)),
+            new Line("superseded-by", List.of(0.0), List.of(1.0)),
+            new Line("out-of-scope", List.of(0.0), List.of(12.0)),
+            new Line("code", List.of(0.0), List.of(1_031.0)));
+
+    /** Stage 2's lines, frozen: done and one kind of two samples each, and the other kind of one. */
+    private static final List<Line> ONE_LINE_OF_ONE_SAMPLE = List.of(
+            new Line("done", List.of(0.0, 5.0), List.of(120.0, 260.0)),
+            new Line("extraction-failed", List.of(0.0, 5.0), List.of(0.0, 3.0)),
+            new Line("degenerate-output", List.of(5.0), List.of(1.0)));
+
+    /** Stage 4's lines, not finished: done and its one kind, one sample each. */
+    private static final List<Line> NOT_FINISHED_ONE_SAMPLE_EACH = List.of(
+            new Line("done", List.of(0.0), List.of(40.0)),
+            new Line("redundant-with", List.of(0.0), List.of(2.0)));
+
+    /** A sample's hit area across, and the marker drawn inside it across, in pixels (ADR-365 §3). */
+    private static final double HIT_AREA = 24;
+
+    private static final double MARKER = 8;
+
+    /** The look-up key under which {@link Tooltip#install} keeps a node's tooltip among its properties. */
+    private static final String TOOLTIP_KEY = "javafx.scene.control.Tooltip";
 
     @TempDir
     Path folder;
@@ -212,10 +244,126 @@ class EachStageHasAChartTest {
                 });
     }
 
+    /**
+     * A line whose file holds one sample, which a line chart cannot draw as a line, is drawn as a marker (ADR-422): stage
+     * 1's chart as a run put back leaves it, frozen, five kinds of one sample each and no {@code done} (ADR-382 §7);
+     * stage 2's, frozen, two lines of two samples and one of one; and stage 4's, not finished, two lines of one sample.
+     */
+    @Test
+    @Link(name = "ADR-422", url = Adr.A_LINE_OF_ONE_SAMPLE_IS_DRAWN_AS_A_MARKER, type = "adr")
+    @Story("The window shows how each stage has gone")
+    @DisplayName("A line of one sample is drawn as a marker in its line's colour holding its value, on a finished stage's dimmed chart too, and its legend is kept")
+    void aLineOfOneSampleIsDrawnAsAMarkerFrozenOrNot() throws Exception {
+        Path working = Files.createDirectories(folder.resolve("working"));
+        Files.writeString(working.resolve("chart-stage-1.json"),
+                aStagesFile("1", "byte-level-reduction", STAGE_1_FINISHED, ONE_SAMPLE_EACH), UTF_8);
+        Files.writeString(working.resolve("chart-stage-2.json"),
+                aStagesFile("2", "extraction", STAGE_1_FINISHED, ONE_LINE_OF_ONE_SAMPLE), UTF_8);
+        Files.writeString(working.resolve("chart-stage-4.json"),
+                aStagesFile("4", "content-redundancy", null, NOT_FINISHED_ONE_SAMPLE_EACH), UTF_8);
+
+        Marked putBack;
+        Marked mixed;
+        Marked running;
+        try (WindowForTests window = WindowForTests.shown(overThe(working))) {
+            putBack = window.read(root -> marked(root, "1"));
+            mixed = window.read(root -> marked(root, "2"));
+            running = window.read(root -> marked(root, "4"));
+        }
+
+        claim("stage 1's chart is frozen, and each of its five lines, of one sample each, shows exactly one marker",
+                () -> {
+                    assertThat(putBack.frozen()).as("frozen").isTrue();
+                    assertThat(putBack.markersByLine()).as("markers shown, line by line")
+                            .containsExactly(1, 1, 1, 1, 1);
+                });
+        claim("each marker is drawn in the colour its line is drawn in, 8 px across inside a hit area 24 px across,"
+                        + " dimmed to the 0.85 its frozen lines are drawn at",
+                () -> {
+                    assertThat(putBack.markers()).extracting(Marker::fill).as("each marker's colour")
+                            .containsExactlyElementsOf(putBack.lineColours());
+                    assertThat(putBack.markers()).allSatisfy(marker -> {
+                        assertThat(marker.hitArea()).as("the hit area, px").isCloseTo(HIT_AREA, within(1e-9));
+                        assertThat(marker.across()).as("the marker, px").isCloseTo(MARKER, within(1e-9));
+                        assertThat(marker.opacity()).as("the marker's opacity").isCloseTo(DIMMED, within(1e-9));
+                    });
+                    assertThat(putBack.lineOpacities()).as("the lines' opacity")
+                            .allSatisfy(opacity -> assertThat(opacity).isCloseTo(DIMMED, within(1e-9)));
+                });
+        claim("each marker holds its line's one value alone, written as the window writes a whole count: 3, 80, 1, 12"
+                        + " and 1,031",
+                () -> assertThat(putBack.markers()).extracting(Marker::value)
+                        .containsExactly("3", "80", "1", "12", "1,031"));
+        claim("the chart keeps its legend, naming its five lines in the file's order",
+                () -> {
+                    assertThat(putBack.legendShown()).as("legend shown").isTrue();
+                    assertThat(putBack.legendNames()).containsExactlyElementsOf(
+                            ONE_SAMPLE_EACH.stream().map(Line::name).toList());
+                });
+        claim("on stage 2's frozen chart, its two lines of two samples show no marker and its line of one sample one",
+                () -> assertThat(mixed.markersByLine()).as("markers shown, line by line").containsExactly(0, 0, 1));
+        claim("on stage 4's chart, not finished, each of its two lines of one sample shows one marker",
+                () -> assertThat(running.markersByLine()).as("markers shown, line by line").containsExactly(1, 1));
+    }
+
     // ---- the window
 
     /** One line of a chart: its name, and its points' seconds and values in order. */
     private record Line(String name, List<Double> seconds, List<Double> values) {
+    }
+
+    /** What the one-sample test reads of a stage's chart: each line's markers, the first of each, and its legend. */
+    private record Marked(boolean frozen, List<Integer> markersByLine, List<Marker> markers, List<Paint> lineColours,
+            List<Double> lineOpacities, boolean legendShown, List<String> legendNames) {
+    }
+
+    /** A marker shown: its colour, its hit area's width and its drawn width, its opacity and the value it holds. */
+    private record Marker(Paint fill, double hitArea, double across, double opacity, String value) {
+    }
+
+    /** What the one-sample test reads of stage {@code stage}'s chart: a sample shows a marker where it is drawn on a colour. */
+    @SuppressWarnings("unchecked")
+    private static Marked marked(Parent root, String stage) {
+        LineChart<Number, Number> chart = WindowForTests.node(root, "stage-chart-" + stage, LineChart.class);
+        chart.applyCss();
+        List<Integer> byLine = new ArrayList<>();
+        List<Marker> markers = new ArrayList<>();
+        List<Paint> lineColours = new ArrayList<>();
+        List<Double> lineOpacities = new ArrayList<>();
+        for (int line = 0; line < chart.getData().size(); line++) {
+            String colour = "default-color" + line;
+            Shape drawn = chart.lookupAll(".chart-series-line").stream()
+                    .filter(each -> each.getStyleClass().contains(colour) && each instanceof Shape)
+                    .map(Shape.class::cast).findFirst()
+                    .orElseThrow(() -> new AssertionError("the chart draws no line " + colour));
+            lineColours.add(drawn.getStroke());
+            lineOpacities.add(drawn.getOpacity());
+            List<Marker> shown = chart.getData().get(line).getData().stream().map(XYChart.Data::getNode)
+                    .filter(Region.class::isInstance).map(Region.class::cast)
+                    .map(EachStageHasAChartTest::markerOf).filter(Objects::nonNull).toList();
+            byLine.add(shown.size());
+            if (!shown.isEmpty()) {
+                markers.add(shown.getFirst());
+            }
+        }
+        List<String> legendNames = chart.lookupAll(".chart-legend-item").stream().filter(Labeled.class::isInstance)
+                .map(each -> ((Labeled) each).getText()).toList();
+        return new Marked(chart.getStyleClass().contains("frozen"), byLine, markers, lineColours, lineOpacities,
+                chart.isLegendVisible(), legendNames);
+    }
+
+    /** The marker {@code node} shows, null where its background draws nothing: none, transparent, or inset to nothing. */
+    private static Marker markerOf(Region node) {
+        if (node.getBackground() == null || node.getBackground().getFills().isEmpty()) {
+            return null;
+        }
+        BackgroundFill fill = node.getBackground().getFills().getLast();
+        double across = node.getPrefWidth() - fill.getInsets().getLeft() - fill.getInsets().getRight();
+        if (!(fill.getFill() instanceof Color colour) || colour.getOpacity() == 0 || across <= 0) {
+            return null;
+        }
+        String value = node.getProperties().get(TOOLTIP_KEY) instanceof Tooltip tooltip ? tooltip.getText() : null;
+        return new Marker(colour, node.getPrefWidth(), across, node.getOpacity(), value);
     }
 
     /** What the layout test reads of a window drawn at one width. */

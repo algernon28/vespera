@@ -228,7 +228,7 @@ final class ProgressCharts extends ScrollPane {
                 // the chart sets a plotted node's style classes as it adds it and again as its lines change, so each
                 // node puts its own back whenever they are set; a frozen chart marks none as the latest
                 for (int i = 0; i < series.getData().size(); i++) {
-                    keepClasses(series.getData().get(i).getNode(), !frozen && i == count - 1);
+                    keepClasses(series.getData().get(i).getNode(), !frozen && i == count - 1, count == 1);
                 }
             }
             // all the lines at once: one change to the chart per reading
@@ -239,7 +239,7 @@ final class ProgressCharts extends ScrollPane {
     }
 
     /** Gives a sample's node its style classes, and gives them again whenever the chart sets its classes anew. */
-    private static void keepClasses(Node node, boolean latest) {
+    private static void keepClasses(Node node, boolean latest, boolean only) {
         Runnable put = () -> {
             List<String> classes = node.getStyleClass();
             if (!classes.contains("sample")) {
@@ -248,9 +248,13 @@ final class ProgressCharts extends ScrollPane {
             if (latest && !classes.contains("latest-sample")) {
                 classes.add("latest-sample");
             }
+            if (only && !classes.contains("only-sample")) {
+                classes.add("only-sample");
+            }
         };
         node.getStyleClass().addListener((ListChangeListener<String>) change -> {
-            if (!node.getStyleClass().contains("sample") || latest && !node.getStyleClass().contains("latest-sample")) {
+            if (!node.getStyleClass().contains("sample") || latest && !node.getStyleClass().contains("latest-sample")
+                    || only && !node.getStyleClass().contains("only-sample")) {
                 put.run();
             }
         });

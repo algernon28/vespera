@@ -2,7 +2,9 @@
  * The control panel's one stylesheet (ADR-342 section 3): every colour, size and space the window draws. No class sets
  * a style of its own. In both themes every text stands at 4.5:1 or more, and every chart line, swatch, marker and bar at
  * 3:1 or more against its plot or legend (ADR-374), a frozen chart's dimmed lines and swatches too (ADR-382): the eight
- * chart colours are this stylesheet's own series tokens, one set per theme (ADR-381).
+ * chart colours are this stylesheet's own series tokens, one set per theme (ADR-381). A button's fill under the pointer and
+ * the fills of a question's answers, the one that ends something and the one that keeps it, are tokens too, each carrying
+ * the accent's ink at 4.5:1 or more (ADR-423); the stylesheet declares no transition.
  */
 .root {
     -vespera-ink: #1e1b2e;
@@ -14,6 +16,11 @@
     -vespera-accent-ink: #ffffff;
     -vespera-bad: #b3282d;
     -vespera-faint: #5f5a78;
+    -vespera-accent-hover: #5c4fc2;
+    -vespera-ending: #9a4146;
+    -vespera-ending-hover: #a84f54;
+    -vespera-keeping: #356d4d;
+    -vespera-keeping-hover: #3e7a58;
     -vespera-series-1: #2a78d6;
     -vespera-series-2: #c8541f;
     -vespera-series-3: #15895f;
@@ -55,6 +62,11 @@
     -vespera-accent-ink: #16132b;
     -vespera-bad: #ff8f94;
     -vespera-faint: #8e8aa6;
+    -vespera-accent-hover: #c4bcff;
+    -vespera-ending: #dc9fa2;
+    -vespera-ending-hover: #e8b7b9;
+    -vespera-keeping: #98c7aa;
+    -vespera-keeping-hover: #b0d6be;
     -vespera-series-1: #3987e5;
     -vespera-series-2: #d95926;
     -vespera-series-3: #199e70;
@@ -170,8 +182,47 @@
     -fx-padding: 4px 12px 4px 12px;
 }
 
-.button:disabled {
+/* under the pointer: at once, with no transition, a lighter fill and 1.04 times the size, drawn and not laid out (ADR-423 section 4) */
+.button:hover {
+    -fx-background-color: -vespera-accent-hover;
+    -fx-scale-x: 1.04;
+    -fx-scale-y: 1.04;
+}
+
+/* the answer that ends something and the one that keeps it (ADR-423 section 2) */
+.button.answer-that-ends {
+    -fx-background-color: -vespera-ending;
+}
+
+.button.answer-that-keeps {
+    -fx-background-color: -vespera-keeping;
+}
+
+.button.answer-that-ends:hover {
+    -fx-background-color: -vespera-ending-hover;
+}
+
+.button.answer-that-keeps:hover {
+    -fx-background-color: -vespera-keeping-hover;
+}
+
+/* a disabled button does not react: its own fill, its own size */
+.button:disabled,
+.button:disabled:hover {
+    -fx-background-color: -vespera-accent;
+    -fx-scale-x: 1;
+    -fx-scale-y: 1;
     -fx-opacity: 0.45;
+}
+
+.button.answer-that-ends:disabled,
+.button.answer-that-ends:disabled:hover {
+    -fx-background-color: -vespera-ending;
+}
+
+.button.answer-that-keeps:disabled,
+.button.answer-that-keeps:disabled:hover {
+    -fx-background-color: -vespera-keeping;
 }
 
 .hyperlink {
@@ -321,7 +372,10 @@
     -fx-opacity: 0.85;
 }
 
-/* a sample is a hit area 24 px across, unseen but for each line's latest, a marker in the line's colour (ADR-365 §3) */
+/*
+ * a sample is a hit area 24 px across, unseen but for each line's latest and the only sample of a line, a marker in the
+ * line's colour (ADR-365 §3, ADR-422 §2); on a frozen chart the only sample's marker is dimmed as its lines are
+ */
 .progress-chart .chart-line-symbol.sample {
     -fx-background-color: transparent;
     -fx-background-radius: 12px;
@@ -333,7 +387,8 @@
     -fx-pref-height: 24px;
 }
 
-.progress-chart .chart-line-symbol.latest-sample {
+.progress-chart .chart-line-symbol.latest-sample,
+.progress-chart .chart-line-symbol.only-sample {
     -fx-background-radius: 4px;
     -fx-background-insets: 8px;
 }
@@ -346,6 +401,18 @@
 .progress-chart .default-color5.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-6; }
 .progress-chart .default-color6.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-7; }
 .progress-chart .default-color7.chart-line-symbol.latest-sample { -fx-background-color: -vespera-series-8; }
+.progress-chart .default-color0.chart-line-symbol.only-sample { -fx-background-color: -vespera-series-1; }
+.progress-chart .default-color1.chart-line-symbol.only-sample { -fx-background-color: -vespera-series-2; }
+.progress-chart .default-color2.chart-line-symbol.only-sample { -fx-background-color: -vespera-series-3; }
+.progress-chart .default-color3.chart-line-symbol.only-sample { -fx-background-color: -vespera-series-4; }
+.progress-chart .default-color4.chart-line-symbol.only-sample { -fx-background-color: -vespera-series-5; }
+.progress-chart .default-color5.chart-line-symbol.only-sample { -fx-background-color: -vespera-series-6; }
+.progress-chart .default-color6.chart-line-symbol.only-sample { -fx-background-color: -vespera-series-7; }
+.progress-chart .default-color7.chart-line-symbol.only-sample { -fx-background-color: -vespera-series-8; }
+
+.progress-chart.frozen .chart-line-symbol.only-sample {
+    -fx-opacity: 0.85;
+}
 
 .step {
     -fx-alignment: center-left;

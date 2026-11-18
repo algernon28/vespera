@@ -137,6 +137,13 @@ class TheControlPanelsThemeTest {
     private static final List<String> CHART_COLOURS = java.util.stream.IntStream.rangeClosed(1, SERIES)
             .mapToObj(n -> "CHART_COLOR_" + n).toList();
 
+    /**
+     * The fills a button's text, {@code -vespera-accent-ink}, stands on besides the accent (ADR-423): a button under the
+     * pointer, the answer that ends something and the one that keeps it, and each of those two under the pointer.
+     */
+    static final List<String> BUTTON_FILLS = List.of("-vespera-accent-hover", "-vespera-ending",
+            "-vespera-ending-hover", "-vespera-keeping", "-vespera-keeping-hover");
+
     /** A bar's fill, the accent, held at 3 : 1 against the bar's track and the window's ground. */
     private static final String BAR_FILL = "-vespera-accent";
 
@@ -398,6 +405,8 @@ class TheControlPanelsThemeTest {
     @Test
     @Link(name = "ADR-381", url = Adr.EVERY_VIEW_OF_THE_CONTROL_PANELS_WINDOW_FOLLOWS_ITS_THEME, type = "adr")
     @Link(name = "ADR-382", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
+    @Link(name = "ADR-423", url = Adr.A_QUESTIONS_ANSWERS_ARE_COLOURED_AND_A_BUTTON_GROWS_UNDER_THE_POINTER,
+            type = "adr")
     @Story("Every view of the window follows its theme")
     @DisplayName("Every colour of the window is one of its stylesheet's two themes' colours, and each reads at its contrast in both themes")
     void everyColourOfTheWindowIsAThemeTokenAndStandsAtItsContrastInBothThemes() throws IOException {
@@ -411,6 +420,7 @@ class TheControlPanelsThemeTest {
         Map<String, List<String>> chartColoursByTheme = new LinkedHashMap<>();
         List<String> marksBelowThreeToOne = new ArrayList<>();
         List<String> textBelowAa = new ArrayList<>();
+        List<String> buttonTextBelowAa = new ArrayList<>();
         for (Map.Entry<String, Map<String, String>> theme : themes.entrySet()) {
             Map<String, String> declared = theme.getValue();
             seriesByTheme.put(theme.getKey(), SERIES_TOKENS.stream()
@@ -430,6 +440,10 @@ class TheControlPanelsThemeTest {
                     .ifPresent(why -> textBelowAa.add(theme.getKey() + " " + why));
             below(declared, "-vespera-ink", "-vespera-rule", AA)
                     .ifPresent(why -> textBelowAa.add(theme.getKey() + " " + why));
+            for (String fill : BUTTON_FILLS) {
+                below(declared, "-vespera-accent-ink", fill, AA)
+                        .ifPresent(why -> buttonTextBelowAa.add(theme.getKey() + " " + why));
+            }
         }
 
         claim("no class of the control panel sets a colour of its own: none names javafx.scene.paint or"
@@ -461,6 +475,10 @@ class TheControlPanelsThemeTest {
                         + " accent against the accent; and the text against the rule, a row selected in a view not"
                         + " focused",
                 () -> assertThat(textBelowAa).as("the text pairs below 4.5 : 1").isEmpty());
+        claim("in the light theme and in the dark, a button's text reads at 4.5 : 1 or more on a button under the"
+                        + " pointer, on the answer that ends something and on the one that keeps it, and on each of"
+                        + " those two under the pointer",
+                () -> assertThat(buttonTextBelowAa).as("the button text pairs below 4.5 : 1").isEmpty());
     }
 
     @Test
@@ -578,7 +596,7 @@ class TheControlPanelsThemeTest {
     private static Shown askedOver(Window owner, Dialogs dialogs) {
         List<Shown> read = new ArrayList<>();
         readWhenShown(owner, read, 0);
-        dialogs.confirm("A question", "Go on", "Keep");
+        dialogs.confirm("A title", "A question", "Go on", "Keep");
         if (read.isEmpty()) {
             throw new AssertionError("no dialog showed over the window");
         }
@@ -760,7 +778,7 @@ class TheControlPanelsThemeTest {
     }
 
     /** The innermost of the fills {@code node} is drawn on, the last; null where it is drawn on none. */
-    private static Paint innermost(Node node) {
+    static Paint innermost(Node node) {
         if (!(node instanceof Region region) || region.getBackground() == null
                 || region.getBackground().getFills().isEmpty()) {
             return null;
@@ -863,7 +881,7 @@ class TheControlPanelsThemeTest {
         return written;
     }
 
-    private static String withoutComments(String stylesheet) {
+    static String withoutComments(String stylesheet) {
         return stylesheet.replaceAll("(?s)/\\*.*?\\*/", "");
     }
 
@@ -882,7 +900,7 @@ class TheControlPanelsThemeTest {
     }
 
     /** The light theme's declarations, and the dark theme's: the light ones with the dark rule's put over them. */
-    private static Map<String, Map<String, String>> themes(String stylesheet) {
+    static Map<String, Map<String, String>> themes(String stylesheet) {
         Map<String, String> light = declaredIn(LIGHT_BLOCK, stylesheet);
         Map<String, String> dark = new LinkedHashMap<>(light);
         dark.putAll(declaredIn(DARK_BLOCK, stylesheet));
@@ -893,7 +911,7 @@ class TheControlPanelsThemeTest {
     }
 
     /** The colour {@code name} comes to in {@code declared}, each name it is set to followed; empty where it comes to none. */
-    private static Optional<Color> resolved(Map<String, String> declared, String name) {
+    static Optional<Color> resolved(Map<String, String> declared, String name) {
         Set<String> followed = new HashSet<>();
         String value = name;
         while (followed.add(value) && declared.containsKey(value)) {
@@ -917,7 +935,7 @@ class TheControlPanelsThemeTest {
                 : Optional.of(fore + " on " + back + " at " + Math.round(ratio * 100) / 100.0 + " : 1");
     }
 
-    private static String stylesheet() throws IOException {
+    static String stylesheet() throws IOException {
         try (InputStream in = ControlPanelWindow.class.getResourceAsStream("control-panel.css")) {
             if (in == null) {
                 throw new AssertionError("the control panel's stylesheet is not beside its classes");

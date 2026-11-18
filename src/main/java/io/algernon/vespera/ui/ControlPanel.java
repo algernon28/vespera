@@ -55,9 +55,11 @@ public final class ControlPanel {
         StartingValues.Sources sources = readSources(besideTheJar);
         Path lockFolder = corpusRootLockFolder(System.getenv(CORPUS_ROOT_LOCK_FOLDER_VARIABLE),
                 System.getProperty("user.home"));
+        String home = System.getProperty("user.home");
+        Path profileFolder = home == null || home.isBlank() ? null : Path.of(home.strip());
         ControlPanelState state = new ControlPanelState(runtime,
                 LaunchValues.fileIn(Path.of(System.getProperty("java.io.tmpdir")), userName), lockFolder, userName,
-                DockerControl.inProcess(dockerSettings(sources, lockFolder)));
+                DockerControl.inProcess(dockerSettings(sources, lockFolder, profileFolder)));
         state.useSources(sources);
         state.useBesideTheJarLines(besideTheJarLines);
         Map<String, String> properties = new HashMap<>();
@@ -81,11 +83,12 @@ public final class ControlPanel {
      * from the sources the window's fields start from, and the corpus-root lock folder, where {@code sidecars.lock} lies
      * too.
      */
-    static DockerControl.Settings dockerSettings(StartingValues.Sources sources, Path lockFolder) {
+    static DockerControl.Settings dockerSettings(
+            StartingValues.Sources sources, Path lockFolder, Path profileFolder) {
         String distribution = StartingValues.of("vespera.sidecars.wsl-distribution", sources).value();
         String wait = StartingValues.of("vespera.sidecars.wait-at-most", sources).value();
         java.time.Duration waitAtMost = waitAtMostOf(wait);
-        return new DockerControl.Settings(distribution, waitAtMost, lockFolder, sources);
+        return new DockerControl.Settings(distribution, waitAtMost, lockFolder, profileFolder, sources);
     }
 
     /**
