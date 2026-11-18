@@ -45,7 +45,7 @@ import javafx.util.Duration;
 
 /**
  * The control panel's window as one cockpit (ADR-344 §1): Run and Stop, the job's steps as a bar each beside the
- * child's output, a chart for each stage in two rows (ADR-382), the Report and Inclusions tabs and a sidebar of eight
+ * child's output, a chart for each stage in two rows (ADR-382), the Report and Inclusions tabs and a sidebar of nine
  * sections in their order, Profile first, which opens the Profile window (ADR-389). Every part is found by its id. The cockpit reads and writes only through the {@link ControlPanelState}
  * it is given, and reads the sources its fields start from from that state (ADR-344 §3), so a cockpit a test draws
  * starts from what the test gives it. Every colour, size and space is the stylesheet's; no node here sets a style.
@@ -78,8 +78,8 @@ final class Cockpit {
     /** What this window's own child was last started as, and the ending the parent's title warning was last opened for. */
     private ControlPanelState.Start startedKind;
     private Ending warnedFor;
-    private final Button label = new Button("Record my answers");
-    private final Button labelAuto = new Button("Let the local model answer");
+    private final Button label = new Button("Save my labels");
+    private final Button labelAuto = new Button("Auto Label");
     private final HBox actions = new HBox();
     private final TextArea output = new TextArea();
     private final OutputPanel outputPanel = new OutputPanel(output);
@@ -195,23 +195,15 @@ final class Cockpit {
         labelAuto.setId("label-auto");
         run.setOnAction(event -> begin(ControlPanelState.Start.RUN, "Run"));
         publish.setOnAction(event -> begin(ControlPanelState.Start.PUBLISH, "Publish"));
-        label.setOnAction(event -> begin(ControlPanelState.Start.LABEL, "Record my answers"));
-        labelAuto.setOnAction(event -> begin(ControlPanelState.Start.LABEL_AUTO, "Let the local model answer"));
+        label.setOnAction(event -> begin(ControlPanelState.Start.LABEL, "Save my labels"));
+        labelAuto.setOnAction(event -> begin(ControlPanelState.Start.LABEL_AUTO, "Auto Label"));
         stop.setOnAction(event -> stopAfterConfirming());
         shutDownDocker.setOnAction(event -> shutDownDockerAfterConfirming());
         publishTo.setId("publish-to");
         publishTo.getStyleClass().add("spaced-row");
         actions.getChildren().addAll(run, stop, shutDownDocker, publishTo);
         actions.getStyleClass().add("actions");
-        SelectableText.Wrapping recordWords = SelectableText.wrapping("Press this after you have answered the documents in relevance-labels.yaml, in the working"
-                + " directory, by setting each one's relevant to true or false. It saves your answers; it reads no"
-                + " document and answers nothing itself. Then press Run.");
-        SelectableText.Wrapping autoWords = SelectableText.wrapping("");
-        autoWords.setId("label-auto-words");
-        fields.get("vespera.label.model").input.textProperty().addListener(
-                (observed, was, now) -> autoWords.setText(autoSentence(now)));
-        autoWords.setText(autoSentence(fields.get("vespera.label.model").text()));
-        VBox actionCard = new VBox(actions, wanted.node(), row(label, recordWords), row(labelAuto, autoWords));
+        VBox actionCard = new VBox(actions, wanted.node());
         actionCard.getStyleClass().add("card");
 
         output.setId("output");
@@ -254,9 +246,25 @@ final class Cockpit {
         outcomeOpenProfile.setManaged(names);
     }
 
+    /** The Labels section: Save my labels and Auto Label, each with its caption (ADR-413 section 1). */
+    private Node labelsPane() {
+        SelectableText.Wrapping labelWords = SelectableText.wrapping("Reads relevance-labels.yaml in the working directory,"
+                + " where each document's relevant is set to true or false, and saves those labels for the next Run."
+                + " It reads no document and sets no label itself.");
+        labelWords.setId("label-words");
+        SelectableText.Wrapping autoWords = SelectableText.wrapping("");
+        autoWords.setId("label-auto-words");
+        fields.get("vespera.label.model").input.textProperty().addListener(
+                (observed, was, now) -> autoWords.setText(autoSentence(now)));
+        autoWords.setText(autoSentence(fields.get("vespera.label.model").text()));
+        VBox pane = new VBox(label, labelWords, labelAuto, autoWords);
+        pane.getStyleClass().add("section");
+        return pane;
+    }
+
     private String autoSentence(String model) {
         return "The local model" + (model.isBlank() ? "" : ", " + model + ",")
-                + " reads the documents, answers for you and sets the cut-off, and your own answers are never replaced.";
+                + " reads the documents, sets their labels and the cut-off, and never replaces a label you set.";
     }
 
     // ---- the plan and the command lines
@@ -548,6 +556,7 @@ final class Cockpit {
         section("folders", "Folders", foldersPane());
         section("services", "Services", servicesPane());
         section("seed-folder", "Seed folder", seedPane());
+        section("labels", "Labels", labelsPane());
         section("code-sets", "Code sets", codeSets.pane());
         section("command-options", "Command options", options.pane());
         section("reports", "Reports", reports.pane());

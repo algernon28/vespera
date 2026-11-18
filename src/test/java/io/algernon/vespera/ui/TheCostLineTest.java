@@ -21,13 +21,15 @@ import org.junit.jupiter.api.Test;
 /**
  * What a row says a change costs, and the value it uses when left empty (ADR-377 §4): one sentence chosen by the earliest
  * work a change redoes, a one-line warning only where the cost applies it, and the value in use with where it comes from
- * in plain words. Each line is written out as §4's tables give it.
+ * in plain words. Each line is written out as §4's tables give it, the two warnings of the relevance labels as ADR-413
+ * §3 words them.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("802")
 @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
 @Link(name = "ADR-388", url = Adr.WHERE_THE_MODELS_RUN_IS_WORDED_UNDER_A_PROFILE_ROWS_RULES, type = "adr")
+@Link(name = "ADR-413", url = Adr.THE_LABEL_COMMANDS_ARE_A_LABELS_SECTION_OF_THE_SIDEBAR, type = "adr")
 class TheCostLineTest {
 
     /** The cost line of each earliest run, as §4's table gives it. */
@@ -62,11 +64,13 @@ class TheCostLineTest {
     private static final String APPROVAL =
             "Approval: a grouping you approved must be approved again in the Approved grouping row.";
 
-    private static final String ANSWERS_REFUSED =
-            "Answers: press Record my answers first; after the change the old answers file is refused.";
+    /** The seed folder's warning, whose change refuses the label file written before it (ADR-413 §3). */
+    private static final String LABELS_REFUSED =
+            "Labels: press Save my labels first; after the change the old relevance-labels.yaml is refused.";
 
-    private static final String ANSWERS_LOST =
-            "Answers: press Record my answers first, or unsaved answers in relevance-labels.yaml are lost.";
+    /** The warning where a new sample is drawn and the label file is not refused (ADR-413 §3). */
+    private static final String LABELS_LOST =
+            "Labels: press Save my labels first, or labels in relevance-labels.yaml not yet saved are lost.";
 
     private static final String NEW_SAMPLE =
             "New sample: Vespera picks new documents for you to judge in relevance-labels.yaml.";
@@ -106,8 +110,8 @@ class TheCostLineTest {
     @Story("Each value's row says what a change costs")
     @DisplayName("A warning stands under a value only where a change of it brings that cost")
     void aWarningStandsOnlyWhereTheCostAppliesIt() {
-        claim("each key's warnings are, in order, the approval's where the grouping is redone, the refused answers' for"
-                        + " the seed folder, the lost answers' where a new sample is drawn otherwise, and the new"
+        claim("each key's warnings are, in order, the approval's where the grouping is redone, the refused labels' for"
+                        + " the seed folder, the lost labels' where a new sample is drawn otherwise, and the new"
                         + " sample's where one is drawn, and nothing else",
                 () -> assertThat(ProfileKey.values()).allSatisfy(key -> assertThat(ProfileRow.warningsOf(key))
                         .as("%s's warnings", key.key())
@@ -137,9 +141,9 @@ class TheCostLineTest {
             warnings.add(APPROVAL);
         }
         if (cost.labelsRefused()) {
-            warnings.add(ANSWERS_REFUSED);
+            warnings.add(LABELS_REFUSED);
         } else if (cost.sampleDrawnAgain()) {
-            warnings.add(ANSWERS_LOST);
+            warnings.add(LABELS_LOST);
         }
         if (cost.sampleDrawnAgain()) {
             warnings.add(NEW_SAMPLE);

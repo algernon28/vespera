@@ -19,7 +19,7 @@ import java.util.stream.Stream;
  * What the control panel holds while its window is open (ADR-302 §2, ADR-342): the launch values, the sources the
  * window's fields start from (ADR-344 §3), the one child it started and how that child ended. The window reads and
  * changes it only through this class, and the checks that stand before an invocation starts (ADR-302 §2's lines,
- * ADR-331 §6's two among them) are made here, so that Run, Record my answers, Let the local model answer and Publish
+ * ADR-331 §6's two among them) are made here, so that Run, Save my labels, Auto Label and Publish
  * start a child by the same checks. Every write of a working directory's file goes through {@link #write}, one at a
  * time with every start (ADR-295 §1). As the control panel's process ends, {@link #endWithTheControlPanel} ends the
  * child with it (ADR-307 §1). It also holds the answers the sidecars last gave ({@link #lastChecks}).
