@@ -58,6 +58,23 @@ record TopicDivision(List<Integer> subtopicOf, List<Integer> clusterOf) {
             throw new IllegalArgumentException("a topic must hold at least one survivor to be divided, not " + subtopicFloor);
         }
         NearestNeighbourGraph.Graph graph = NearestNeighbourGraph.build(topic, neighbours, blockSize, ClusteringProgress.NONE);
+        return of(graph, topic, neighbours, resolution, subtopicFloor, blockSize);
+    }
+
+    /**
+     * As {@link #of(NearestNeighbourGraph.MeanVectors, int, double, int, int)}, over a {@code graph} of the topic
+     * already built, which the caller keeps for the spread of its edges (ADR-409 section 8).
+     */
+    static TopicDivision of(
+            NearestNeighbourGraph.Graph graph,
+            NearestNeighbourGraph.MeanVectors topic,
+            int neighbours,
+            double resolution,
+            int subtopicFloor,
+            int blockSize) {
+        if (subtopicFloor < 1) {
+            throw new IllegalArgumentException("a topic must hold at least one survivor to be divided, not " + subtopicFloor);
+        }
         int[] communities = Communities.of(graph, resolution);
         int count = communities.length;
         int subtopics = 0;

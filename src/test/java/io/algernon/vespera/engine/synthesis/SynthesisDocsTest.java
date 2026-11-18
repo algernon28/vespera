@@ -18,6 +18,7 @@ import io.qameta.allure.Story;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.OptionalInt;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +48,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Issue("180")
 @Link(name = "ADR-108", url = Adr.SIX_B_SENDS_ONE_EXEMPLAR_FIRST_CALL_PER_CLUSTER, type = "adr")
 @Link(name = "ADR-110", url = Adr.PIPELINE_HANDS_SYNTHESIS_ITS_INPUTS, type = "adr")
+@Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
 class SynthesisDocsTest {
 
     /** The title the model gave the cluster, which is what the deliverable heads the cluster with. */
@@ -56,8 +58,15 @@ class SynthesisDocsTest {
     private static final String PROSE =
             "The earliest audit [1] sets the pattern the later one [2] is measured against.";
 
-    /** Which cluster of its partition this is: its identity, which never moves. */
+    /** Which cluster of its topic this is: its identity, which never moves. */
     private static final int CLUSTER_ORDINAL = 3;
+
+    /** How a row writes that a cluster's topic has no subtopics (ADR-409 section 3). */
+    private static final int NO_SUBTOPIC_IN_A_ROW = -1;
+
+    /** The cluster written over: the one numbered {@value #CLUSTER_ORDINAL} of an undivided topic. */
+    private static final ClusterSlot THE_CLUSTER =
+            new ClusterSlot(new TopicKey("seeds/safety.docx", 0), OptionalInt.empty(), CLUSTER_ORDINAL);
 
     /**
      * The citation ordinal a stale row is written under, standing for what an invocation that died
@@ -82,24 +91,25 @@ class SynthesisDocsTest {
     @Link(name = "ADR-133", url = Adr.THE_EXEMPLARS_ONE_CALL_SENT_ARE_RECORDED, type = "adr")
     void clearsWhatAnAbandonedCallLeftUnderTheSameCluster() {
         SynthesisDocs docs = new SynthesisDocs(jdbcTemplate);
-        OccurrenceId seed = anOccurrence("seeds/safety.docx");
         OccurrenceId abandoned = anOccurrence("audits/2018.pdf");
         OccurrenceId earliest = anOccurrence("audits/2019.pdf");
         OccurrenceId later = anOccurrence("audits/2021.pdf");
-        RunId run = aRun(seed);
+        RunId run = aRun(abandoned);
         // What an invocation that died between the two statements leaves: documents recorded as sent
         // for a group that ended up carrying no writing at all. The next invocation asks about that
         // group again, because the row that would have said it was done was never written.
         jdbcTemplate.update(
-                "INSERT INTO call_exemplar (run_id, winning_seed_occurrence_id, cluster_ordinal,"
-                        + " citation_ordinal, occurrence_id) VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO cluster_call_exemplar (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal,"
+                        + " cluster_ordinal, citation_ordinal, occurrence_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 run.value(),
-                seed.value(),
+                THE_CLUSTER.topic().seedPath(),
+                THE_CLUSTER.topic().chunkIndex(),
+                NO_SUBTOPIC_IN_A_ROW,
                 CLUSTER_ORDINAL,
                 THE_FIRST_ORDINAL,
                 abandoned.value());
 
-        docs.record(run, seed, CLUSTER_ORDINAL, new SynthesisDoc(TITLE, PROSE, List.of(earliest, later)));
+        docs.record(run, THE_CLUSTER, new SynthesisDoc(TITLE, PROSE, List.of(earliest, later)));
 
         claim(
                 "the documents kept are the ones the call that stands carried, and the abandoned call's"

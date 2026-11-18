@@ -179,6 +179,22 @@ class SeedScriptedExtractionBeans {
     /** A corpus file whose conversion holds the word {@code pumps}, and is none of {@link #ON_PUMPS}'. */
     static final String A_DOCUMENT_ON_PUMPS = "a-document-on-pumps.txt";
 
+    /**
+     * A corpus file whose conversion is three parts under three headings, so that the chunker cuts a chunk of each
+     * (ADR-029): the first two hold the word {@code sluices} and the third the word {@code pumps}. Neither word is in
+     * its name, and every chunk holds one of the two words alone.
+     */
+    static final String A_DOCUMENT_IN_THREE_PARTS = "a-document-in-three-parts.txt";
+
+    /** {@link #A_DOCUMENT_IN_THREE_PARTS}' conversion: the title, two parts on sluices, then one on pumps. */
+    private static final String IN_THREE_PARTS = "{\"document\":{\"json_content\":{\"texts\":["
+            + "{\"text\":\"" + SeedScriptedExtractionBeans.STUBBED_TITLE + "\",\"label\":\"title\"},"
+            + "{\"text\":\"a note on sluices\"},"
+            + "{\"text\":\"A second part\",\"label\":\"section_header\"},"
+            + "{\"text\":\"more on sluices\"},"
+            + "{\"text\":\"A third part\",\"label\":\"section_header\"},"
+            + "{\"text\":\"a note on pumps\"}]}}}";
+
     private static List<String> numbered(String stem, int count) {
         return IntStream.rangeClosed(1, count).mapToObj(n -> stem + n + ".txt").toList();
     }
@@ -243,6 +259,7 @@ class SeedScriptedExtractionBeans {
         ON_SLUICES.forEach(name -> extractor.answering(name, response(withText("a note on sluices, " + name))));
         ON_PUMPS.forEach(name -> extractor.answering(name, response(withText("a note on pumps, " + name))));
         extractor.answering(A_DOCUMENT_ON_PUMPS, response(withText("a document on pumps, " + A_DOCUMENT_ON_PUMPS)));
+        extractor.answering(A_DOCUMENT_IN_THREE_PARTS, response(IN_THREE_PARTS));
         return extractor.otherwiseAnswering(response(WITH_TEXT));
     }
 

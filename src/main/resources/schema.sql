@@ -678,37 +678,104 @@ CREATE INDEX IF NOT EXISTS relevance_score_by_run_id ON relevance_score (run_id)
 -- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
 CREATE INDEX IF NOT EXISTS relevance_score_by_winning_seed_occurrence_id ON relevance_score (winning_seed_occurrence_id);
 
--- embedding's own table (ADR-087, ADR-045): which cluster each survivor landed in, inside the seed
--- partition its winning seed defines. A cluster has no row of its own -- it is the set of rows
--- carrying the same run, winning seed and ordinal -- so there is nothing for membership to fall out
--- of step with, and a cluster with no members simply has no rows.
---
--- Keyed by occurrence and run, which is the ordinary rule (ADR-077): clustering is derived under a
--- configuration, so a re-run writes its own row set rather than overwriting an earlier one. That is
--- the opposite of relevance_label above, whose rows are a person's answer and are never rewritten.
---
--- No cluster count is stored anywhere, because none was ever supplied: the count falls out of the
--- structure, and the ordinals here are what it fell out as.
+-- embedding's own table (ADR-409 section 2, ADR-399, ADR-401): a topic that stands at the breadth floor under
+-- one scoring run, keyed by its first passage -- the seed path and the chunk index of the passage that comes
+-- first in the visiting order (ADR-399 section 5) -- and never by an occurrence id, which is per walk, or by a
+-- name or an ordinal, which move. A topic's key compares as ADR-399 section 4 has it: SQLite's BINARY order of
+-- UTF-8 text is code-point order. A topic the floor drops has no row; the seeds left feeding none are
+-- seed_feeding_no_topic's.
 -- owner: embedding
-CREATE TABLE IF NOT EXISTS document_cluster (
+CREATE TABLE IF NOT EXISTS topic (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    seed_path TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    passage_count INTEGER NOT NULL,
+    PRIMARY KEY (run_id, seed_path, chunk_index)
+);
+
+-- embedding's own table (ADR-409 section 2): a passage of a topic that stands, and that topic. A passage lies in
+-- one topic (ADR-399 section 2), and is keyed by its seed's path and its chunk's index and never by an occurrence
+-- id alone: an occurrence id is per walk, and a seed of an earlier seed's content feeds no passage.
+-- owner: embedding
+CREATE TABLE IF NOT EXISTS topic_passage (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    seed_path TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    topic_seed_path TEXT NOT NULL,
+    topic_chunk_index INTEGER NOT NULL,
+    PRIMARY KEY (run_id, seed_path, chunk_index)
+);
+
+-- A topic's passages in visiting order, read by the run and the topic and sorting nothing (ADR-409 section 12).
+-- The table holds no row when this is first built, on a new database and on one an earlier build wrote alike.
+CREATE INDEX IF NOT EXISTS topic_passage_by_run_and_topic ON topic_passage (run_id, topic_seed_path, topic_chunk_index, seed_path, chunk_index);
+
+-- embedding's own table (ADR-409 section 2, ADR-401 section 4): a seed no topic that stands holds a passage of.
+-- owner: embedding
+CREATE TABLE IF NOT EXISTS seed_feeding_no_topic (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    seed_path TEXT NOT NULL,
+    PRIMARY KEY (run_id, seed_path)
+);
+
+-- embedding's own table (ADR-409 section 2, ADR-400): a scored document's winning topic, beside its
+-- relevance_score row and under the same key, whether the relevance floor passes it or not. No score at a topic is
+-- kept. relevance_score is unchanged: its winning seed stays the score's provenance (ADR-020, ADR-396 section 2).
+-- owner: embedding
+CREATE TABLE IF NOT EXISTS winning_topic (
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
     run_id TEXT NOT NULL REFERENCES run (id),
-    winning_seed_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    topic_seed_path TEXT NOT NULL,
+    topic_chunk_index INTEGER NOT NULL,
+    PRIMARY KEY (occurrence_id, run_id)
+);
+
+-- A topic's members in occurrence order, read, and counted, by the run and the topic and sorting nothing (ADR-409
+-- section 12). The table holds no row when this is first built.
+CREATE INDEX IF NOT EXISTS winning_topic_by_run_topic_and_occurrence ON winning_topic (run_id, topic_seed_path, topic_chunk_index, occurrence_id);
+
+-- embedding's own table (ADR-409 section 2, ADR-400 section 2): a topic other than its winning one that a
+-- document fits, a link and nothing more.
+-- owner: embedding
+CREATE TABLE IF NOT EXISTS see_also (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    topic_seed_path TEXT NOT NULL,
+    topic_chunk_index INTEGER NOT NULL,
+    PRIMARY KEY (occurrence_id, run_id, topic_seed_path, topic_chunk_index)
+);
+
+-- A topic's links in occurrence order, read by the run and the topic and sorting nothing (ADR-409 section 12). The
+-- table holds no row when this is first built.
+CREATE INDEX IF NOT EXISTS see_also_by_run_topic_and_occurrence ON see_also (run_id, topic_seed_path, topic_chunk_index, occurrence_id);
+
+-- embedding's own table (ADR-087, ADR-045, ADR-409 section 3): which cluster each survivor landed in, inside the
+-- topic it is placed under and, where that topic is crowded and divided (ADR-406), the subtopic. A cluster has no
+-- row of its own -- it is the set of rows carrying the same run, topic, subtopic and ordinal -- so there is nothing
+-- for membership to fall out of step with, and a cluster with no members simply has no rows.
+--
+-- subtopic_ordinal is the survivor's subtopic within its topic, numbered as Communities numbers it, or -1 where the
+-- topic has no subtopics; -1 and not NULL, because a key holding NULL is never violated in SQLite whatever else it
+-- holds (ADR-409 section 3). cluster_ordinal is numbered within the subtopic where there is one, else within the
+-- topic. Keyed by occurrence and run, which is the ordinary rule (ADR-077): clustering is derived under a
+-- configuration, so a re-run writes its own row set rather than overwriting an earlier one. That is the opposite of
+-- relevance_label below, whose rows are a person's answer and are never rewritten.
+-- owner: embedding
+CREATE TABLE IF NOT EXISTS cluster_member (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    topic_seed_path TEXT NOT NULL,
+    topic_chunk_index INTEGER NOT NULL,
+    subtopic_ordinal INTEGER NOT NULL CHECK (subtopic_ordinal >= -1),
     cluster_ordinal INTEGER NOT NULL,
     PRIMARY KEY (occurrence_id, run_id)
 );
 
--- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
-CREATE INDEX IF NOT EXISTS document_cluster_by_run_id ON document_cluster (run_id);
-
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
-CREATE INDEX IF NOT EXISTS document_cluster_by_winning_seed_occurrence_id ON document_cluster (winning_seed_occurrence_id);
-
--- One seed partition's memberships under one scoring run, which 5f, 6a and 6b each read: by this index the
--- reads go to that seed's rows of the run they name and not to its rows of every scoring run kept, and the
--- partition's cluster sizes are counted in cluster order, sorting nothing (ADR-236). Additive, so no module's
--- schema version moves; a database that lacks it builds it once, at start-up, as ADR-218 section 2 records.
-CREATE INDEX IF NOT EXISTS document_cluster_by_winning_seed_run_and_cluster ON document_cluster (winning_seed_occurrence_id, run_id, cluster_ordinal);
+-- One topic's memberships under one scoring run, which 5f, 6a and 6b each read: by this index the reads go to that
+-- topic's rows of the run they name and not to the rows of every scoring run kept, and a topic's cluster sizes are
+-- counted in subtopic and cluster order, sorting nothing (ADR-236, ADR-409 section 12). The table holds no row
+-- when this is first built.
+CREATE INDEX IF NOT EXISTS cluster_member_by_run_topic_subtopic_and_cluster ON cluster_member (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal, cluster_ordinal);
 
 -- embedding's own table (ADR-088, ADR-097): a person's recorded answer about one document -- relevant
 -- to this seed set, or not. Keyed by the path relative to the corpus root (ADR-051) and the seed set,
@@ -773,169 +840,237 @@ CREATE TABLE IF NOT EXISTS relevance_label_provenance (
 -- SQLite checks this foreign key by scanning without it; ADR-173 indexes every reference to file_occurrence, walk and run.
 CREATE INDEX IF NOT EXISTS relevance_label_provenance_by_run_id ON relevance_label_provenance (run_id);
 
--- synthesis's own table (ADR-105, ADR-110, ADR-112, #175): one row per cluster, which is the level
--- stage 5 left unbuilt. document_cluster above says which documents share a cluster; it says so
--- without the cluster having a row anywhere, which is what keeps membership from falling out of step
--- with itself. Stage 6a adds the thing that was missing -- a cluster as something addressable, with
--- a name and a place in an order -- and leaves membership entirely alone.
+-- synthesis's own table (ADR-105, ADR-110, ADR-112, ADR-409 section 3, #175): one row per cluster, which is the
+-- level stage 5 left unbuilt. cluster_member above says which documents share a cluster; it says so without the
+-- cluster having a row anywhere, which is what keeps membership from falling out of step with itself. Stage 6a adds
+-- the thing that was missing -- a cluster as something addressable, with a name and a place in an order -- and
+-- leaves membership entirely alone.
 --
--- Keyed by document_cluster's own vocabulary, so the join needs no translation, with run_id being
--- the 6a run. No surrogate id: stage 6a added a level to the arrangement, not a second naming
--- scheme. No column names the stage-5 run this arranges, because run_upstream already holds that.
+-- Keyed by the topic, the subtopic and the cluster's number, with run_id being the 6a run: the topic is its first
+-- passage's seed path and chunk index (ADR-409 section 1), the subtopic is -1 where the topic has none (a CHECK
+-- refuses any other negative), and the cluster is numbered within its subtopic, or within the topic. No surrogate
+-- id. No column names the stage-5 run this arranges, because run_upstream already holds that.
 --
--- No verdict is ever written because of a row here (ADR-105). Stage 6a removes nothing, so no
--- blocking kind applies; and it does not write a passing one either, which is a gap between ADR-049
--- and this code that is real, deliberate, and not closed as a side effect of the one stage in the
--- cascade that judges nothing.
+-- No verdict is ever written because of a row here (ADR-105). Stage 6a removes nothing, so no blocking kind
+-- applies; and it does not write a passing one either, which is a gap between ADR-049 and this code that is real,
+-- deliberate, and not closed as a side effect of the one stage in the cascade that judges nothing.
 --
--- label is the cluster label (ADR-106): the Docling title of the cluster's highest-scoring document,
--- falling back to that document's filename stem and then to the ordinal alone. Derived rather than
--- written, so it exists before anything is generated and points at a document a reviewer can open
--- and disagree with. It is NOT unique and a collision is not papered over with a suffix -- identity
--- is the ordinal, and two clusters led by identically-titled documents is a fact about the corpus
--- the gate should see. The generated title lives in 6b's own table, never here.
+-- label is the cluster label (ADR-106): the Docling title of the cluster's highest-scoring document, falling back
+-- to that document's filename stem and then to the ordinal alone. Derived rather than written, so it exists before
+-- anything is generated and points at a document a reviewer can open and disagree with. It is NOT unique and a
+-- collision is not papered over with a suffix -- identity is the key, and two clusters led by identically-titled
+-- documents is a fact about the corpus the gate should see. The generated title lives in 6b's own table, never here.
 --
--- document_count, partition_order and cluster_order are stored rather than derived at render time,
--- and all three for one reason (ADR-112): the operator approves a SPECIFIC arrangement, named by the
--- first twelve characters of this run's id, and everything downstream renders what was approved
--- rather than re-deriving it. A number computed again at render time is a second place for the
--- arrangement to be stated, and two statements of one arrangement is how the gate ends up approving
--- something nobody ever sees.
+-- document_count, topic_order, subtopic_order and cluster_order are stored rather than derived at render time, for
+-- one reason (ADR-112): the operator approves a SPECIFIC arrangement, named by the first twelve characters of this
+-- run's id, and everything downstream renders what was approved rather than re-deriving it. topic_order is the
+-- topic's place at the top level counted from 1, by the survivors placed under it, most first (ADR-396 section 4);
+-- subtopic_order the subtopic's place within its topic counted from 1 (ADR-406 section 4), and 0 where the topic has
+-- none; cluster_order ADR-112's rule within the subtopic, or within the topic where it has none. A topic no survivor
+-- is placed under has no row here, so no place at the top level and no folder (ADR-396 section 2).
 --
--- The two order columns are deliberately distinct from cluster_ordinal. Identity never moves; order
--- is a judgement 6a makes. Conflating them would mean a re-ordering rewrote primary keys.
+-- The three orders are deliberately distinct from cluster_ordinal. Identity never moves; order is a judgement 6a
+-- makes. Conflating them would mean a re-ordering rewrote primary keys.
 -- owner: synthesis
-CREATE TABLE IF NOT EXISTS cluster (
+CREATE TABLE IF NOT EXISTS arranged_cluster (
     run_id TEXT NOT NULL REFERENCES run (id),
-    winning_seed_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    topic_seed_path TEXT NOT NULL,
+    topic_chunk_index INTEGER NOT NULL,
+    subtopic_ordinal INTEGER NOT NULL CHECK (subtopic_ordinal >= -1),
     cluster_ordinal INTEGER NOT NULL,
     label TEXT NOT NULL,
     document_count INTEGER NOT NULL,
-    partition_order INTEGER NOT NULL,
+    topic_order INTEGER NOT NULL,
+    subtopic_order INTEGER NOT NULL,
     cluster_order INTEGER NOT NULL,
-    PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal)
+    PRIMARY KEY (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal, cluster_ordinal)
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
-CREATE INDEX IF NOT EXISTS cluster_by_winning_seed_occurrence_id ON cluster (winning_seed_occurrence_id);
-
--- synthesis's second table (ADR-108, ADR-110): what one call produced for one cluster, keyed by the
--- 6b run plus the cluster's own natural key -- document_cluster's vocabulary again, so the join
--- needs no translation, and no surrogate id for the reason the row above carries none.
+-- synthesis's second table (ADR-108, ADR-110, ADR-409 section 3): what one call produced for one cluster, keyed by
+-- the 6b run plus the cluster's own key -- cluster_member's vocabulary again, so the join needs no translation, and
+-- no surrogate id for the reason the row above carries none.
 --
--- run_id is the GENERATION run, never the arrangement's. The two are separate runs on purpose
--- (ADR-107, ADR-110): the operator approves a named 6a run, and no 6b run exists until they have.
--- Which arrangement was written over is reachable through run_upstream rather than restated here.
+-- run_id is the GENERATION run, never the arrangement's. The two are separate runs on purpose (ADR-107, ADR-110):
+-- the operator approves a named 6a run, and no 6b run exists until they have. Which arrangement was written over
+-- is reachable through run_upstream rather than restated here.
 --
--- title is the generated cluster title (ADR-106), and it does not replace the label in the row
--- above: that one is derived and 6a's, this one is written by the model that read the whole cluster.
--- A cluster with no row here shows its label instead, which is what makes the fallback exist.
+-- title is the generated cluster title (ADR-106), and it does not replace the label in the row above: that one is
+-- derived and 6a's, this one is written by the model that read the whole cluster. A cluster with no row here shows
+-- its label instead, which is what makes the fallback exist.
 --
--- prose is stored exactly as the model returned it, citation markers and all (ADR-109). The file a
--- reader opens is a RENDERING of this row rather than a copy of it -- each [n] becomes a link and
--- the membership list is composed at write time -- so text tidied on the way in would leave the
--- record and the deliverable disagreeing about what was actually said.
+-- prose is stored exactly as the model returned it, citation markers and all (ADR-109). The file a reader opens is
+-- a RENDERING of this row rather than a copy of it -- each [n] becomes a link and the membership list is composed
+-- at write time -- so text tidied on the way in would leave the record and the deliverable disagreeing about what
+-- was actually said.
 --
--- Which documents the call was written from is call_exemplar below, one row apiece, rather than a
--- count in this row (ADR-133). A count standing beside the list it counts is what let the
--- deliverable number its own list a second way and disagree with the model's, so the count is the
--- recorded list's size and is nowhere stored. The cluster's own size is document_count above, and
--- the two differing is the disclosure rather than an inconsistency (ADR-108).
+-- Which documents the call was written from is cluster_call_exemplar below, one row apiece, rather than a count in
+-- this row (ADR-133). A count standing beside the list it counts is what let the deliverable number its own list a
+-- second way and disagree with the model's, so the count is the recorded list's size and is nowhere stored. The
+-- cluster's own size is document_count above, and the two differing is the disclosure rather than an
+-- inconsistency (ADR-108).
 --
--- A cluster with a row here was written; without one it is a cluster stage 6b did not write, and
--- the deliverable keeps that hole headed by its 6a label (ADR-111). Absence alone does not say why:
--- cluster_fault below carries the reason when an answer came back and was turned down, and where no
--- call was made at all -- nothing fits the reading window -- there is no row in either table
--- (ADR-121, deliberate).
+-- A cluster with a row here was written; without one it is a cluster stage 6b did not write, and the deliverable
+-- keeps that hole headed by its 6a label (ADR-111). Absence alone does not say why: standing_cluster_fault below
+-- carries the reason when an answer came back and was turned down, and where no call was made at all -- nothing
+-- fits the reading window -- there is no row in either table (ADR-121, deliberate).
 --
--- No verdict is ever written because of a row here, for the reason the table above carries none:
--- generation removes nothing from anything.
+-- No verdict is ever written because of a row here, for the reason the table above carries none: generation
+-- removes nothing from anything.
 -- owner: synthesis
-CREATE TABLE IF NOT EXISTS synthesis_doc (
+CREATE TABLE IF NOT EXISTS cluster_synthesis_doc (
     run_id TEXT NOT NULL REFERENCES run (id),
-    winning_seed_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    topic_seed_path TEXT NOT NULL,
+    topic_chunk_index INTEGER NOT NULL,
+    subtopic_ordinal INTEGER NOT NULL CHECK (subtopic_ordinal >= -1),
     cluster_ordinal INTEGER NOT NULL,
     title TEXT NOT NULL,
     prose TEXT NOT NULL,
-    PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal)
+    PRIMARY KEY (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal, cluster_ordinal)
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
-CREATE INDEX IF NOT EXISTS synthesis_doc_by_winning_seed_occurrence_id ON synthesis_doc (winning_seed_occurrence_id);
-
--- synthesis's fourth table (ADR-108, ADR-109, ADR-133): which documents one call carried, and under
--- which number the model was shown each of them. Keyed the same, under the same GENERATION run,
--- with the citation ordinal beneath that key.
+-- synthesis's fourth table (ADR-108, ADR-109, ADR-133, ADR-409 section 3): which documents one call carried, and
+-- under which number the model was shown each of them. Keyed the same, under the same GENERATION run, with the
+-- citation ordinal beneath that key.
 --
--- A citation is an ordinal into the documents that call sent, and the documents it sent are not the
--- cluster's documents: one whose opening chunk this run cannot reach, and one larger than the whole
--- reading window, are both dropped while the call is built (ADR-108, ADR-121). Both drops are
--- ordinary rather than faults. Before this table the deliverable numbered every document of the
--- cluster in score order and the two numberings agreed only up to the first drop, so a citation
--- after one reached a document the writing was not made from -- a plausible source for a sentence
--- about something else, which is the failure ADR-026 exists to prevent, reached the other way round.
+-- A citation is an ordinal into the documents that call sent, and the documents it sent are not the cluster's
+-- documents: one whose opening chunk this run cannot reach, and one larger than the whole reading window, are both
+-- dropped while the call is built (ADR-108, ADR-121). Both drops are ordinary rather than faults. Before this table
+-- the deliverable numbered every document of the cluster in score order and the two numberings agreed only up to
+-- the first drop, so a citation after one reached a document the writing was not made from -- a plausible source for
+-- a sentence about something else, which is the failure ADR-026 exists to prevent, reached the other way round.
 --
--- Recorded rather than re-derived, because it cannot be re-derived: working out what the call could
--- reach would mean reading the archive again at write time, which ADR-104 refuses, and a cluster
--- written by an earlier invocation of this run had its call built in another process entirely
--- (ADR-111, ADR-115).
+-- Recorded rather than re-derived, because it cannot be re-derived: working out what the call could reach would
+-- mean reading the archive again at write time, which ADR-104 refuses, and a cluster written by an earlier
+-- invocation of this run had its call built in another process entirely (ADR-111, ADR-115).
 --
--- citation_ordinal is the number the model was given, counted from one within its own call, and the
--- UNIQUE below is load-bearing: one document under two ordinals would list that document twice in
--- the deliverable and shift every entry beneath it, which is this defect from the other end.
+-- citation_ordinal is the number the model was given, counted from one within its own call, and the UNIQUE below is
+-- load-bearing: one document under two ordinals would list that document twice in the deliverable and shift every
+-- entry beneath it, which is this defect from the other end. It is why a subtopic is -1 and not NULL where a topic
+-- has none (ADR-409 section 3).
 --
--- Rows are written before the synthesis_doc row above and any standing under the same key are
--- cleared first (ADR-133), because that row is what tells a later invocation the cluster is done.
+-- Rows are written before the cluster_synthesis_doc row above and any standing under the same key are cleared
+-- first (ADR-133), because that row is what tells a later invocation the cluster is done.
 -- owner: synthesis
-CREATE TABLE IF NOT EXISTS call_exemplar (
+CREATE TABLE IF NOT EXISTS cluster_call_exemplar (
     run_id TEXT NOT NULL REFERENCES run (id),
-    winning_seed_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    topic_seed_path TEXT NOT NULL,
+    topic_chunk_index INTEGER NOT NULL,
+    subtopic_ordinal INTEGER NOT NULL CHECK (subtopic_ordinal >= -1),
     cluster_ordinal INTEGER NOT NULL,
     citation_ordinal INTEGER NOT NULL,
     occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
-    PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal, citation_ordinal),
-    UNIQUE (run_id, winning_seed_occurrence_id, cluster_ordinal, occurrence_id)
+    PRIMARY KEY (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal, cluster_ordinal, citation_ordinal),
+    UNIQUE (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal, cluster_ordinal, occurrence_id)
 );
 
 -- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
-CREATE INDEX IF NOT EXISTS call_exemplar_by_winning_seed_occurrence_id ON call_exemplar (winning_seed_occurrence_id);
+CREATE INDEX IF NOT EXISTS cluster_call_exemplar_by_occurrence_id ON cluster_call_exemplar (occurrence_id);
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
-CREATE INDEX IF NOT EXISTS call_exemplar_by_occurrence_id ON call_exemplar (occurrence_id);
-
--- synthesis's third table (ADR-108, ADR-109, ADR-110, ADR-111): why a call that came back was
--- rejected, for a cluster synthesis_doc has no row for. Keyed the same, under the same GENERATION
--- run. A cluster lands in exactly one of those two tables, and never in both. A cluster turned down once is
--- asked again under the same run id by the next invocation, and the moment that later answer is
--- believed its fault row is deleted (ADR-111, #185) -- the one row in this schema removed on
--- success, and what keeps the two tables exclusive across invocations, as the generation loop's own
--- shape already does within one. A repeated turn-down replaces the row rather than inserting a
--- second, so what stands is true of the attempt that stands.
+-- synthesis's third table (ADR-108, ADR-109, ADR-110, ADR-111, ADR-409 section 3): why a call that came back was
+-- rejected, for a cluster cluster_synthesis_doc has no row for. Keyed the same, under the same GENERATION run. A
+-- cluster lands in exactly one of those two tables, and never in both. A cluster turned down once is asked again
+-- under the same run id by the next invocation, and the moment that later answer is believed its fault row is
+-- deleted (ADR-111, #185) -- the one row in this schema removed on success, and what keeps the two tables exclusive
+-- across invocations, as the generation loop's own shape already does within one. A repeated turn-down replaces
+-- the row rather than inserting a second, so what stands is true of the attempt that stands.
 --
--- Not a verdict, on the precedent of walk_anomaly (corpus) and unusable_seed (embedding): every
--- VerdictKind exists to remove a document from publication, and nothing about a cluster's documents
--- is wrong when its answer is turned down (ADR-111).
+-- Not a verdict, on the precedent of walk_anomaly (corpus) and unusable_seed (embedding): every VerdictKind exists
+-- to remove a document from publication, and nothing about a cluster's documents is wrong when its answer is
+-- turned down (ADR-111).
 --
--- kind is the closed four-value enumeration ClusterFaultKind owns: the prompt-evaluation ceiling,
--- the answer running out of room, a schema violation, and a citation outside the range the call
--- itself minted. A fifth value is a pull request carrying an ADR.
+-- kind is the closed four-value enumeration ClusterFaultKind owns: the prompt-evaluation ceiling, the answer
+-- running out of room, a schema violation, and a citation outside the range the call itself minted. A fifth value
+-- is a pull request carrying an ADR.
 --
--- detail carries the number that failed: the count against the ceiling, the length against the
--- allowance, where reading stopped, or the ordinal against the documents sent -- so accounting for a
--- cluster costs a query rather than the most expensive call this system makes, made again.
+-- detail carries the number that failed: the count against the ceiling, the length against the allowance, where
+-- reading stopped, or the ordinal against the documents sent -- so accounting for a cluster costs a query rather
+-- than the most expensive call this system makes, made again.
 --
--- A cluster nothing could be sent for earns no row here (ADR-121): that is a call never made, and
--- the four kinds above are things that happen to a call that came back. That case stays legible from
--- the absence of a row in either table, as it already was before this table existed.
+-- A cluster nothing could be sent for earns no row here (ADR-121): that is a call never made, and the four kinds
+-- above are things that happen to a call that came back. That case stays legible from the absence of a row in either
+-- table, as it already was before this table existed.
 -- owner: synthesis
-CREATE TABLE IF NOT EXISTS cluster_fault (
+CREATE TABLE IF NOT EXISTS standing_cluster_fault (
     run_id TEXT NOT NULL REFERENCES run (id),
-    winning_seed_occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    topic_seed_path TEXT NOT NULL,
+    topic_chunk_index INTEGER NOT NULL,
+    subtopic_ordinal INTEGER NOT NULL CHECK (subtopic_ordinal >= -1),
     cluster_ordinal INTEGER NOT NULL,
     kind TEXT NOT NULL,
     detail TEXT NOT NULL,
-    PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal)
+    PRIMARY KEY (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal, cluster_ordinal)
 );
 
--- SQLite checks this foreign key by scanning without it; a walk discarded under foreign_keys=on paid 4½ minutes for its absence (ADR-173).
-CREATE INDEX IF NOT EXISTS cluster_fault_by_winning_seed_occurrence_id ON cluster_fault (winning_seed_occurrence_id);
+-- synthesis's table of names (ADR-409 section 4, ADR-407, ADR-110): a topic's name under one arrangement run, kept
+-- as soon as it is given, with where it came from. origin is NameOrigin's name, WRITTEN, WRITTEN_WHEN_ASKED_AGAIN
+-- or FALLBACK, and turn_down is NameTurnDown's, one of ADR-407 section 6's seven, where the origin is FALLBACK and
+-- NULL otherwise: the CHECK holds that a row has a turn-down exactly where it fell back. A name recorded under the
+-- run is read back and never asked for again (ADR-409 section 6). Every topic that stands is named, a topic no
+-- survivor is placed under among them.
+-- owner: synthesis
+CREATE TABLE IF NOT EXISTS topic_name (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    topic_seed_path TEXT NOT NULL,
+    topic_chunk_index INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    origin TEXT NOT NULL,
+    turn_down TEXT,
+    PRIMARY KEY (run_id, topic_seed_path, topic_chunk_index),
+    CHECK ((origin = 'FALLBACK') = (turn_down IS NOT NULL))
+);
+
+-- synthesis's table of subtopic names (ADR-409 section 4), as topic_name is, one row a subtopic that exists, so its
+-- subtopic_ordinal is at least 0: -1 is no subtopic.
+-- owner: synthesis
+CREATE TABLE IF NOT EXISTS subtopic_name (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    topic_seed_path TEXT NOT NULL,
+    topic_chunk_index INTEGER NOT NULL,
+    subtopic_ordinal INTEGER NOT NULL CHECK (subtopic_ordinal >= 0),
+    name TEXT NOT NULL,
+    origin TEXT NOT NULL,
+    turn_down TEXT,
+    PRIMARY KEY (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal),
+    CHECK ((origin = 'FALLBACK') = (turn_down IS NOT NULL))
+);
+
+-- synthesis's table of overviews (ADR-409 section 4, ADR-402): what the model wrote over a topic's written
+-- clusters, under the GENERATION run. asked is the question the writing was believed at, 1 or 2. A topic has a row
+-- here or in topic_overview_fault, never both, and an overview is asked once under its run, or twice, and never
+-- again; nothing deletes from this table or the two below.
+-- owner: synthesis
+CREATE TABLE IF NOT EXISTS topic_overview (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    topic_seed_path TEXT NOT NULL,
+    topic_chunk_index INTEGER NOT NULL,
+    writing TEXT NOT NULL,
+    asked INTEGER NOT NULL CHECK (asked IN (1, 2)),
+    PRIMARY KEY (run_id, topic_seed_path, topic_chunk_index)
+);
+
+-- synthesis's table of what an overview was written over (ADR-409 section 4, ADR-402 section 7): one row for each
+-- number the call sent, naming the cluster at that number. subtopic_ordinal is -1 where the cluster's topic has no
+-- subtopics.
+-- owner: synthesis
+CREATE TABLE IF NOT EXISTS topic_overview_source (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    topic_seed_path TEXT NOT NULL,
+    topic_chunk_index INTEGER NOT NULL,
+    number INTEGER NOT NULL,
+    subtopic_ordinal INTEGER NOT NULL CHECK (subtopic_ordinal >= -1),
+    cluster_ordinal INTEGER NOT NULL,
+    PRIMARY KEY (run_id, topic_seed_path, topic_chunk_index, number)
+);
+
+-- synthesis's table of the overviews turned down (ADR-409 section 4, ADR-402 section 7): kind is ClusterFaultKind's,
+-- with ADR-402's detail, and asked is how many answers were asked for, 0, 1 or 2.
+-- owner: synthesis
+CREATE TABLE IF NOT EXISTS topic_overview_fault (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    topic_seed_path TEXT NOT NULL,
+    topic_chunk_index INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    detail TEXT NOT NULL,
+    asked INTEGER NOT NULL CHECK (asked IN (0, 1, 2)),
+    PRIMARY KEY (run_id, topic_seed_path, topic_chunk_index)
+);

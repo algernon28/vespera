@@ -18,6 +18,7 @@ import io.algernon.vespera.engine.similarity.ShingleParameters;
 import io.algernon.vespera.engine.synthesis.ClusterSynthesis;
 import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
 import io.algernon.vespera.engine.synthesis.TopicNaming;
+import io.algernon.vespera.engine.synthesis.TopicOverviewSynthesis;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.OptionalDouble;
@@ -85,6 +86,9 @@ class StageRuns {
     private static final int TOPIC_K_EVERY_EARLIER_RUN = 10;
     private static final double TOPIC_BREADTH_FLOOR_EVERY_EARLIER_RUN = 0.005;
     private static final double SEE_ALSO_SHARE_EVERY_EARLIER_RUN = 0.15;
+
+    /** The subtopic floor that ships (ADR-406 section 1), which no scoring run names. */
+    private static final int SUBTOPIC_FLOOR_EVERY_EARLIER_RUN = 300;
     private static final int TIMEOUTS_IN_A_ROW_EVERY_EARLIER_RUN = 3;
     private static final String SHINGLE_IDENTITY_EVERY_EARLIER_RUN = "word:5";
     private static final String MINHASH_IDENTITY_EVERY_EARLIER_RUN =
@@ -127,6 +131,7 @@ class StageRuns {
     private int topicNeighbours;
     private double topicBreadthFloor;
     private double seeAlsoShare;
+    private int subtopicFloor;
     private RunId seedMeasurement;
     private RunId embeddingScoring;
     private String embeddingModelName;
@@ -385,6 +390,7 @@ class StageRuns {
         int topicNeighboursValue = presets.topicNeighbours();
         double topicBreadthFloorValue = presets.topicBreadthFloor();
         double seeAlsoShareValue = presets.seeAlsoShare();
+        int subtopicFloorValue = presets.subtopicFloor();
         // The artefact is read once, here, beside the floor (ADR-228).
         ModelArtefact artefact = ollamaClient.artefactOf(modelName);
         WalkId walk = runMint.finishedWalk(canonicalRoot, "stage 5");
@@ -405,7 +411,8 @@ class StageRuns {
                         topicResolutionValue == TOPIC_RESOLUTION_EVERY_EARLIER_RUN ? null : topicResolutionValue,
                         topicNeighboursValue == TOPIC_K_EVERY_EARLIER_RUN ? null : topicNeighboursValue,
                         topicBreadthFloorValue == TOPIC_BREADTH_FLOOR_EVERY_EARLIER_RUN ? null : topicBreadthFloorValue,
-                        seeAlsoShareValue == SEE_ALSO_SHARE_EVERY_EARLIER_RUN ? null : seeAlsoShareValue),
+                        seeAlsoShareValue == SEE_ALSO_SHARE_EVERY_EARLIER_RUN ? null : seeAlsoShareValue,
+                        subtopicFloorValue == SUBTOPIC_FLOOR_EVERY_EARLIER_RUN ? null : subtopicFloorValue),
                 walk,
                 Optional.of(measurementRunId));
         this.clusterResolution = resolution;
@@ -417,6 +424,7 @@ class StageRuns {
         this.topicNeighbours = topicNeighboursValue;
         this.topicBreadthFloor = topicBreadthFloorValue;
         this.seeAlsoShare = seeAlsoShareValue;
+        this.subtopicFloor = subtopicFloorValue;
         embeddingModelName = modelName;
         embeddingModelArtefact = artefact;
         this.relevanceScoreFloor = relevanceScoreFloor;
@@ -508,6 +516,12 @@ class StageRuns {
     double seeAlsoShare() {
         embeddingScoring();
         return seeAlsoShare;
+    }
+
+    /** The survivors a topic must hold to be divided into subtopics, as the scoring run was minted (ADR-406, ADR-409 section 8). */
+    int subtopicFloor() {
+        embeddingScoring();
+        return subtopicFloor;
     }
 
     /** The documents each band is asked for, as the scoring run was minted. */
@@ -624,7 +638,9 @@ class StageRuns {
                             generationContextWindow.size(),
                             ClusterSynthesis.REPLY_ALLOWANCE,
                             ClusterSynthesis.KEEP_A_TOO_LONG_QUESTIONS_HEAD,
-                            deliverableLanguage().code()),
+                            deliverableLanguage().code(),
+                            TopicOverviewSynthesis.TEMPERATURE,
+                            TopicOverviewSynthesis.SEED),
                     walk,
                     Optional.of(approvedArrangement));
         }
@@ -682,7 +698,10 @@ class StageRuns {
             // ADR-401 and ADR-400: the breadth floor and then the see-also share, after the topics' two numbers, each
             // written only where it is not what ships.
             @JsonInclude(JsonInclude.Include.NON_NULL) Double topicBreadthFloor,
-            @JsonInclude(JsonInclude.Include.NON_NULL) Double seeAlsoShare) {}
+            @JsonInclude(JsonInclude.Include.NON_NULL) Double seeAlsoShare,
+            // ADR-406 section 5, ADR-409 section 8: the subtopic floor, after the see-also share, written only where it is
+            // not what ships, since the clustering step divides each topic at it.
+            @JsonInclude(JsonInclude.Include.NON_NULL) Integer subtopicFloor) {}
 
     /**
      * Stage 6a's own {@code ConfigConsumed}, extended once (ADR-230 section 3). {@code standingRemovals}
@@ -741,5 +760,9 @@ class StageRuns {
             int contextWindow,
             int replyAllowance,
             int numKeep,
-            String deliverableLanguage) {}
+            String deliverableLanguage,
+            // ADR-409 section 9, after deliverableLanguage, each always written: the temperature and the seed each topic's
+            // overview is asked at (ADR-396 section 9, ADR-402 sections 3 and 8).
+            double overviewTemperature,
+            int overviewSeed) {}
 }

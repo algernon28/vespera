@@ -11,10 +11,11 @@ import org.springframework.stereotype.Component;
  * Stage 6b's record of what each call produced (ADR-108, ADR-110, ADR-133), behind this class and
  * nothing else querying either of its two tables (ADR-041).
  *
- * <p><b>Two tables, written and read as one fact.</b> {@code synthesis_doc} carries what came back
- * and {@code call_exemplar} carries which documents went out under which number, because the
+ * <p><b>Two tables, written and read as one fact.</b> {@code cluster_synthesis_doc} carries what came back
+ * and {@code cluster_call_exemplar} carries which documents went out under which number, because the
  * correspondence between a citation and a document cannot be re-derived anywhere downstream
- * (ADR-133). Nothing outside this class ever sees them apart: a {@link SynthesisDoc} carries both.
+ * (ADR-133). Nothing outside this class ever sees them apart: a {@link SynthesisDoc} carries both. A cluster is
+ * named by its topic, its subtopic and its ordinal (ADR-409 section 3).
  *
  * <p><b>The answer is kept rather than written straight out.</b> Generating is the most expensive
  * call this system makes, and what a reader opens is a rendering of this row rather than a copy of it:
@@ -46,38 +47,45 @@ public class SynthesisDocs {
      * Records what one call produced for one cluster, under {@code runId}, which is the 6b run.
      *
      * <p><b>The documents it was written from land first, and anything standing under that key is
-     * cleared before they do</b> (ADR-133). The {@code synthesis_doc} row is what tells a later
+     * cleared before they do</b> (ADR-133). The {@code cluster_synthesis_doc} row is what tells a later
      * invocation the cluster is already written (ADR-111, ADR-115), so it has to be the last thing
      * to appear: an invocation that died between the two statements would otherwise leave exemplar
      * rows nothing points at, and the re-attempt that follows would collide with them. In this order
      * a half-written cluster is one nothing was written over, which is the state the next invocation
      * already knows how to finish.
      */
-    public void record(RunId runId, OccurrenceId winningSeed, int clusterOrdinal, SynthesisDoc doc) {
+    public void record(RunId runId, ClusterSlot cluster, SynthesisDoc doc) {
         jdbcTemplate.update(
-                "DELETE FROM call_exemplar WHERE run_id = ? AND winning_seed_occurrence_id = ? AND"
-                        + " cluster_ordinal = ?",
+                "DELETE FROM cluster_call_exemplar WHERE run_id = ? AND topic_seed_path = ? AND"
+                        + " topic_chunk_index = ? AND subtopic_ordinal = ? AND cluster_ordinal = ?",
                 runId.value(),
-                winningSeed.value(),
-                clusterOrdinal);
+                cluster.topic().seedPath(),
+                cluster.topic().chunkIndex(),
+                Subtopic.inRow(cluster.subtopic()),
+                cluster.clusterOrdinal());
         int citationOrdinal = 0;
         for (OccurrenceId sent : doc.sent()) {
             citationOrdinal++;
             jdbcTemplate.update(
-                    "INSERT INTO call_exemplar (run_id, winning_seed_occurrence_id, cluster_ordinal,"
-                            + " citation_ordinal, occurrence_id) VALUES (?, ?, ?, ?, ?)",
+                    "INSERT INTO cluster_call_exemplar (run_id, topic_seed_path, topic_chunk_index,"
+                            + " subtopic_ordinal, cluster_ordinal, citation_ordinal, occurrence_id)"
+                            + " VALUES (?, ?, ?, ?, ?, ?, ?)",
                     runId.value(),
-                    winningSeed.value(),
-                    clusterOrdinal,
+                    cluster.topic().seedPath(),
+                    cluster.topic().chunkIndex(),
+                    Subtopic.inRow(cluster.subtopic()),
+                    cluster.clusterOrdinal(),
                     citationOrdinal,
                     sent.value());
         }
         jdbcTemplate.update(
-                "INSERT INTO synthesis_doc (run_id, winning_seed_occurrence_id, cluster_ordinal, title,"
-                        + " prose) VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO cluster_synthesis_doc (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal,"
+                        + " cluster_ordinal, title, prose) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 runId.value(),
-                winningSeed.value(),
-                clusterOrdinal,
+                cluster.topic().seedPath(),
+                cluster.topic().chunkIndex(),
+                Subtopic.inRow(cluster.subtopic()),
+                cluster.clusterOrdinal(),
                 doc.title(),
                 doc.prose());
     }
@@ -86,14 +94,16 @@ public class SynthesisDocs {
      * Whether a synthesis doc is recorded under {@code runId} for one cluster, asked by its key (ADR-223
      * section 5): the walk learns which clusters it can walk past one at a time and reads no prose to do it.
      */
-    public boolean isWritten(RunId runId, OccurrenceId winningSeed, int clusterOrdinal) {
+    public boolean isWritten(RunId runId, ClusterSlot cluster) {
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM synthesis_doc WHERE run_id = ? AND winning_seed_occurrence_id = ? AND"
-                        + " cluster_ordinal = ?",
+                "SELECT COUNT(*) FROM cluster_synthesis_doc WHERE run_id = ? AND topic_seed_path = ? AND"
+                        + " topic_chunk_index = ? AND subtopic_ordinal = ? AND cluster_ordinal = ?",
                 Integer.class,
                 runId.value(),
-                winningSeed.value(),
-                clusterOrdinal);
+                cluster.topic().seedPath(),
+                cluster.topic().chunkIndex(),
+                Subtopic.inRow(cluster.subtopic()),
+                cluster.clusterOrdinal());
         return count != null && count > 0;
     }
 
@@ -101,36 +111,41 @@ public class SynthesisDocs {
      * The synthesis doc recorded under {@code runId} for one cluster, or empty where there is none, with which
      * documents its call carried in the order the call was given them (ADR-133), both read by their keys.
      */
-    public Optional<SynthesisDoc> forCluster(RunId runId, OccurrenceId winningSeed, int clusterOrdinal) {
+    public Optional<SynthesisDoc> forCluster(RunId runId, ClusterSlot cluster) {
         List<String[]> written = jdbcTemplate.query(
-                "SELECT title, prose FROM synthesis_doc WHERE run_id = ? AND winning_seed_occurrence_id = ?"
-                        + " AND cluster_ordinal = ?",
+                "SELECT title, prose FROM cluster_synthesis_doc WHERE run_id = ? AND topic_seed_path = ?"
+                        + " AND topic_chunk_index = ? AND subtopic_ordinal = ? AND cluster_ordinal = ?",
                 (resultSet, rowNumber) -> new String[] {resultSet.getString("title"), resultSet.getString("prose")},
                 runId.value(),
-                winningSeed.value(),
-                clusterOrdinal);
+                cluster.topic().seedPath(),
+                cluster.topic().chunkIndex(),
+                Subtopic.inRow(cluster.subtopic()),
+                cluster.clusterOrdinal());
         if (written.isEmpty()) {
             return Optional.empty();
         }
         return Optional.of(new SynthesisDoc(
-                written.getFirst()[0], written.getFirst()[1], whatTheCallSent(runId, winningSeed, clusterOrdinal)));
+                written.getFirst()[0], written.getFirst()[1], whatTheCallSent(runId, cluster)));
     }
 
     /** Which documents the call over one cluster carried, in the order it was given them (ADR-133). */
-    private List<OccurrenceId> whatTheCallSent(RunId runId, OccurrenceId winningSeed, int clusterOrdinal) {
+    private List<OccurrenceId> whatTheCallSent(RunId runId, ClusterSlot cluster) {
         return jdbcTemplate.query(
-                "SELECT occurrence_id FROM call_exemplar WHERE run_id = ? AND winning_seed_occurrence_id = ? AND"
-                        + " cluster_ordinal = ? ORDER BY citation_ordinal",
+                "SELECT occurrence_id FROM cluster_call_exemplar WHERE run_id = ? AND topic_seed_path = ? AND"
+                        + " topic_chunk_index = ? AND subtopic_ordinal = ? AND cluster_ordinal = ?"
+                        + " ORDER BY citation_ordinal",
                 (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("occurrence_id")),
                 runId.value(),
-                winningSeed.value(),
-                clusterOrdinal);
+                cluster.topic().seedPath(),
+                cluster.topic().chunkIndex(),
+                Subtopic.inRow(cluster.subtopic()),
+                cluster.clusterOrdinal());
     }
 
     /** How many synthesis docs are recorded under {@code runId}. A count the database makes, reading no column of any row (ADR-220 section 7). */
     public int countForRun(RunId runId) {
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM synthesis_doc WHERE run_id = ?", Integer.class, runId.value());
+                "SELECT COUNT(*) FROM cluster_synthesis_doc WHERE run_id = ?", Integer.class, runId.value());
         return count == null ? 0 : count;
     }
 }

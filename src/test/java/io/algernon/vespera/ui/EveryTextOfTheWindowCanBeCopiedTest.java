@@ -126,15 +126,18 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         ControlPanelState otherState = WindowForTests.aState(otherFolder, SleepingJar.runtime());
         otherState.hold(new LaunchValues(corpus.toString(), otherWorking.toString(), "", "", "", "", "", ""));
 
+        boolean ended;
         List<Node> reached;
         List<Node> reachedWhenNotInForm;
         try (WindowForTests window = WindowForTests.shown(state)) {
             Optional<String> refusal = state.start(ControlPanelState.Start.RUN, new ArrayList<>());
             assumeThat(refusal).as("the child that ends at once is started").isEmpty();
+            // the wanted rows are drawn as the window opens (ADR-404 §1), so only the ending says the child has ended
+            ended = WindowForTests.within(() -> state.ending().isPresent());
             boolean drawn = window.awaiting(
                     root -> HeadlessToolkit.nodeWithId(root, "wanted-row-boilerplateDocumentFrequencyFloor").isPresent(),
                     Boolean::booleanValue);
-            assumeThat(drawn).as("the wanted value's row is drawn once the invocation has ended").isTrue();
+            assumeThat(drawn).as("the wanted value's row is drawn").isTrue();
             reached = new ArrayList<>(window.read(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl));
             // the profile's form lies in a window of its own, walked from its root as the window is (ADR-389 §7),
             // every profile row opened, so that the walk reaches the texts behind each toggle
@@ -167,6 +170,8 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         List<String> reading = selectable.stream().filter(node -> ((TextInputControl) node).isEditable()
                 || node.isFocusTraversable()).map(Node::getId).toList();
 
+        claim("the child that ends at once has ended",
+                () -> assertThat(ended).isTrue());
         claim("the walk reaches no label whose text is not blank",
                 () -> assertThat(labelsWithWords).isEmpty());
         claim("every selectable text it reaches is a text input control that is not editable and is not reached by"

@@ -4,6 +4,7 @@ import io.algernon.vespera.engine.embedding.Clustering;
 import io.algernon.vespera.engine.embedding.ClusteringProgress;
 import io.algernon.vespera.engine.embedding.RelevanceDistribution;
 import io.algernon.vespera.engine.embedding.RetainedEdgeSpread;
+import io.algernon.vespera.engine.embedding.TopicKey;
 import io.algernon.vespera.engine.embedding.DocumentCluster;
 import io.algernon.vespera.engine.embedding.DocumentClusters;
 import io.algernon.vespera.engine.extraction.ChunkingRule;
@@ -36,12 +37,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * Stage 5's fifth step (ADR-087, #109): each seed partition's survivors clustered, under
- * the same scoring run the scores were written beneath.
+ * Stage 5's fifth step (ADR-087, #109, ADR-409 section 8): each topic's survivors divided into subtopics where the
+ * topic is crowded and clustered, under the same scoring run the scores were written beneath.
  *
- * <p><b>One partition at a time, never corpus-wide (ADR-045).</b> A partition is the set of survivors
- * one seed won, which the step before this one already recorded, so the work is bounded to N²/2
- * comparisons per partition rather than over the whole corpus — and within a partition it is bounded
+ * <p><b>One topic at a time, never corpus-wide (ADR-045).</b> A topic holds the survivors placed under it, which the
+ * step before this one already recorded, so the work is bounded to N²/2
+ * comparisons per topic rather than over the whole corpus — and within a topic it is bounded
  * again, to the two blocks of vectors {@link Clustering} streams past one another.
  *
  * <p><b>Nothing here removes anything.</b> No verdict is written, no document is left unclustered and
@@ -122,18 +123,19 @@ class ClusteringTasklet implements Tasklet {
         String modelName = stageRuns.embeddingModelName();
         int clusterNeighbours = stageRuns.clusterNeighbours();
         double clusterResolution = stageRuns.clusterResolution();
+        int subtopicFloor = stageRuns.subtopicFloor();
 
         // relevance-scoring and relevance-floor, which share this run, are not asked -- each step
         // answers only for itself. The empty-partition check sits between the finished check and the
         // discard (ADR-157 §5): the discard is at the head of work, after the check.
         TaskletSteps.StepWork formClusters =
                 () -> {
-                    List<OccurrenceId> partitions =
-                            TimedStatement.of(STAGE, "reading", "read", "the seed partitions", () -> clustering.partitions(scoring));
-                    if (partitions.isEmpty()) {
+                    List<TopicKey> topics =
+                            TimedStatement.of(STAGE, "reading", "read", "the topics", () -> clustering.topics(scoring));
+                    if (topics.isEmpty()) {
                         LOG.info(
-                                "stage 5's clustering step is gated: no survivor carries a relevance score"
-                                        + " under {}, so there is no partition to cluster. Nothing was"
+                                "stage 5's clustering step is gated: no survivor is placed under a topic"
+                                        + " under {}, so there is no topic to cluster. Nothing was"
                                         + " clustered.",
                                 scoring.value());
                         ShutGates.in(chunkContext).record(StepNames.CLUSTERING);
@@ -160,82 +162,84 @@ class ClusteringTasklet implements Tasklet {
                     String chunkingRuleIdentity = ChunkingRule.DEFAULT.identity().value();
 
                     LOG.info(
-                            "Stage 5f (clustering) starting under scoring run {}: {} seed partition(s) to"
+                            "Stage 5f (clustering) starting under scoring run {}: {} topic(s) to"
                                     + " cluster",
                             scoring.value(),
-                            partitions.size());
-                    StageProgress partitionsDone =
-                            StageProgress.over("Stage 5f (clustering, seed partitions)", partitions.size());
-                    List<ClusterSizeReport.Partition> reported = new ArrayList<>();
-                    for (int partition = 0; partition < partitions.size(); partition++) {
-                        OccurrenceId winningSeed = partitions.get(partition);
-                        String whichPartition = "partition " + (partition + 1) + " of " + partitions.size();
-                        // One partition's members at a time, held until it is clustered and let go before the
-                        // next is read (ADR-211 section 5). A document removed as below-threshold still
-                        // carries the score row that put it in a partition, and clustering it would give a
-                        // page to a document this run has just decided is not in the archive; ADR-060 keeps
-                        // the verdict join in the ledger, so the filter is a question put to it, in the order
-                        // the members came.
+                            topics.size());
+                    StageProgress topicsDone = StageProgress.over("Stage 5f (clustering, topics)", topics.size());
+                    List<ClusterSizeReport.Topic> reported = new ArrayList<>();
+                    for (int topicPlace = 0; topicPlace < topics.size(); topicPlace++) {
+                        TopicKey topic = topics.get(topicPlace);
+                        String whichTopic = "topic " + (topicPlace + 1) + " of " + topics.size();
+                        // One topic's members at a time, held until it is clustered and let go before the
+                        // next is read (ADR-211 section 5, ADR-409 section 13). A document removed as
+                        // below-threshold still carries the score row that put it under a topic, and clustering
+                        // it would give a page to a document this run has just decided is not in the archive;
+                        // ADR-060 keeps the verdict join in the ledger, so the filter is a question put to it,
+                        // in the order the members came.
                         List<OccurrenceId> read = TimedStatement.of(
                                 STAGE, "reading", "read",
-                                "the members of " + whichPartition,
-                                () -> clustering.membersOf(scoring, winningSeed));
+                                "the members of " + whichTopic,
+                                () -> clustering.membersOf(scoring, topic));
                         Set<OccurrenceId> surviving = ledger.verdicts().survivingAmong(scoring, read);
                         List<OccurrenceId> members =
                                 read.stream().filter(surviving::contains).toList();
                         if (members.isEmpty()) {
-                            // Every document this seed won was removed by the floor. A partition of
-                            // nothing is not a partition, and a heading with no page under it is not
+                            // Every document placed under this topic was removed by the floor. A topic of
+                            // nothing is not a topic to arrange, and a heading with no page under it is not
                             // worth minting. It is counted all the same: the stage has been through it.
-                            partitionsDone.itemDone();
+                            topicsDone.itemDone();
                             continue;
                         }
                         // The spread of the kept edges comes back from the pass that built the graph,
                         // because that is the only place the similarities exist: recovering them
                         // afterwards would mean the N-squared-over-two pass a second time (ADR-096).
                         // Nothing reads it but the page.
-                        int place = partition + 1;
-                        int of = partitions.size();
+                        int place = topicPlace + 1;
+                        int of = topics.size();
                         StageProgress keysRead = StageProgress.over(
-                                "Stage 5f (clustering, cache keys read, partition " + place + " of " + of + ")",
+                                "Stage 5f (clustering, cache keys read, topic " + place + " of " + of + ")",
                                 members.size());
                         Optional<RetainedEdgeSpread> spread = clustering.clusterAndRecord(
                                 scoring,
-                                winningSeed,
+                                topic,
                                 contentHashesOf(extractionRun, members, keysRead),
                                 chunkerIdentity,
                                 chunkingRuleIdentity,
                                 embedderIdentity,
-                                // The two numbers the scoring run was minted under, so the partition is divided
-                                // as the run that names it says (ADR-330 section 9, ADR-117).
+                                // The numbers the scoring run was minted under, so the topic is divided and
+                                // clustered as the run that names it says (ADR-330 section 9, ADR-409 section 8,
+                                // ADR-117).
                                 clusterNeighbours,
                                 clusterResolution,
-                                blocksOfPartition(partition + 1, partitions.size()));
+                                subtopicFloor,
+                                blocksOfTopic(place, of));
                         // Read back rather than returned from the pass: a cluster exists as the set of
                         // rows carrying its identity, so the sizes a reader is shown are the rows, not
                         // what the arithmetic meant to write.
                         // The sizes are let go once the five numbers the page shows are taken from them
                         // (ADR-223 section 2).
-                        reported.add(ClusterSizeReport.Partition.of(
-                                pathOf(winningSeed),
+                        reported.add(ClusterSizeReport.Topic.of(
+                                topic.firstPassage().seedPath(),
+                                topic.firstPassage().chunkIndex(),
                                 TimedStatement.of(
                                         STAGE, "reading", "read",
-                                        "the cluster sizes of " + whichPartition,
-                                        () -> documentClusters.sizesFor(scoring, winningSeed)),
+                                        "the cluster sizes of " + whichTopic,
+                                        () -> documentClusters.sizesFor(scoring, topic)),
                                 spread));
-                        partitionsDone.itemDone();
+                        topicsDone.itemDone();
                     }
 
                     // The JSON is moved into place before the page is written (ADR-362 section 9).
                     writeJson(ClusterSizeReport.document(reported, Clock.systemUTC().instant()));
                     write(CLUSTER_SIZES_FILE_NAME, ClusterSizeReport.render(reported));
                     LOG.info(
-                            "Stage 5f (clustering) finished under scoring run {}: {} partition(s), {}"
+                            "Stage 5f (clustering) finished under scoring run {}: {} topic(s), {}"
                                     + " document(s) in {} cluster(s)",
                             scoring.value(),
                             reported.size(),
-                            reported.stream().mapToInt(ClusterSizeReport.Partition::documentCount).sum(),
-                            reported.stream().mapToInt(ClusterSizeReport.Partition::clusterCount).sum());
+                            reported.stream().mapToInt(ClusterSizeReport.Topic::documentCount).sum(),
+                            reported.stream().mapToInt(ClusterSizeReport.Topic::clusterCount).sum());
                     return true;
                 };
 
@@ -263,21 +267,21 @@ class ClusteringTasklet implements Tasklet {
     }
 
     /**
-     * Whether, for every seed partition of {@code scoring}, the clusters are of its survivors (ADR-230
-     * section 2): no scored member that survives lacks a cluster row, and no clustered document has
+     * Whether, for every topic of {@code scoring}, the clusters are of its survivors (ADR-230
+     * section 2, ADR-409 section 8): no placed member that survives lacks a cluster row, and no clustered document has
      * stopped surviving. A document with a cluster row and no score survives and is no member, so it
-     * answers neither question and the arrangement step still stops on it. {@code true} with no partition.
+     * answers neither question and the arrangement step still stops on it. {@code true} with no topic.
      */
     private boolean clustersAreOfTheSurvivors(RunId scoring) {
-        List<OccurrenceId> partitions = TimedStatement.of(
-                STAGE, "reading", "read", "the seed partitions", () -> clustering.partitions(scoring));
-        for (OccurrenceId winningSeed : partitions) {
+        List<TopicKey> topics = TimedStatement.of(
+                STAGE, "reading", "read", "the topics", () -> clustering.topics(scoring));
+        for (TopicKey topic : topics) {
             List<OccurrenceId> read = TimedStatement.of(
-                    STAGE, "reading", "read", "the members of a partition", () -> clustering.membersOf(scoring, winningSeed));
+                    STAGE, "reading", "read", "the members of a topic", () -> clustering.membersOf(scoring, topic));
             Set<OccurrenceId> surviving = ledger.verdicts().survivingAmong(scoring, read);
             List<OccurrenceId> clustered = TimedStatement.of(
-                            STAGE, "reading", "read", "the clustered documents of a partition",
-                            () -> documentClusters.membersOf(scoring, winningSeed))
+                            STAGE, "reading", "read", "the clustered documents of a topic",
+                            () -> documentClusters.membersOf(scoring, topic))
                     .stream()
                     .map(DocumentCluster::occurrenceId)
                     .toList();
@@ -309,17 +313,17 @@ class ClusteringTasklet implements Tasklet {
     }
 
     /**
-     * What {@code embedding} tells this stage about one partition's pass over pairs of blocks: a new counter
-     * for each announcement, named for the partition's 1-based place among {@code of} (ADR-192 section 5).
+     * What {@code embedding} tells this stage about one topic's pass over pairs of blocks: a new counter
+     * for each announcement, named for the topic's 1-based place among {@code of} (ADR-192 section 5).
      */
-    private static ClusteringProgress blocksOfPartition(int place, int of) {
+    private static ClusteringProgress blocksOfTopic(int place, int of) {
         return new ClusteringProgress() {
             private StageProgress compared;
 
             @Override
             public void toCompareBlocks(long blockPairs) {
                 compared = StageProgress.over(
-                        "Stage 5f (clustering, comparison blocks, partition " + place + " of " + of + ")",
+                        "Stage 5f (clustering, comparison blocks, topic " + place + " of " + of + ")",
                         blockPairs);
             }
 
@@ -328,12 +332,6 @@ class ClusteringTasklet implements Tasklet {
                 compared.itemDone();
             }
         };
-    }
-
-    private String pathOf(OccurrenceId occurrenceId) {
-        return ledger.occurrences().factsFor(occurrenceId)
-                .map(facts -> facts.path().value())
-                .orElse("(path not recorded)");
     }
 
     private void writeJson(AnalysisReportJson.Document document) {

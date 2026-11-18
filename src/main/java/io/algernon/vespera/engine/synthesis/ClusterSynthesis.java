@@ -513,7 +513,7 @@ public class ClusterSynthesis {
      *
      * <p><b>The two ways a title fails to arrive keep different details, where the two ways writing
      * fails to arrive keep one</b> (ADR-124, ADR-125). ADR-124's test is what decides it, applied to
-     * different facts: a blank title is storable — {@code synthesis_doc.title} takes it, the row is
+     * different facts: a blank title is storable — {@code cluster_synthesis_doc.title} takes it, the row is
      * written, and ADR-111's skip means no repair pass ever reaches it again — while an absent one met
      * {@code TEXT NOT NULL} and could leave no row at all. Neither missing {@code prose} could leave
      * anything behind, which is why that pair folds and this one does not.
@@ -772,7 +772,7 @@ public class ClusterSynthesis {
      * of record rows sat between it and the point where the model starts writing, and the model
      * either copied the records back until it ran out of room or finished citing nothing. Moved
      * after the documents, the same request passed 15 calls of 15. The opening keeps the count, the
-     * label, the seed document, and the line saying each document opens below under the number to
+     * label, the topic's name, and the line saying each document opens below under the number to
      * cite it by; the documents follow under their ordinals, exactly as ADR-108 and ADR-133 send
      * them.
      *
@@ -805,7 +805,7 @@ public class ClusterSynthesis {
         return """
                 Write one connected piece over a group of %d document(s) from an archive.
 
-                The group is called "%s", and it sits under the seed document "%s".
+                The group is called "%s", and it sits under the topic "%s".
 
                 Each document opens below under the number to cite it by.
 
@@ -823,7 +823,7 @@ public class ClusterSynthesis {
                 .formatted(
                         inScoreOrder.size(),
                         call.label(),
-                        call.seedPath(),
+                        call.topicName(),
                         exemplars,
                         inScoreOrder.size(),
                         WORD_LIMIT,

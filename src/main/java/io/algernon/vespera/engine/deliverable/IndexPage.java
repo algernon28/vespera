@@ -1,7 +1,6 @@
 package io.algernon.vespera.engine.deliverable;
 
 import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
-import io.algernon.vespera.engine.synthesis.FilenameStem;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
 import io.algernon.vespera.engine.synthesis.SynthesisDoc;
 import java.io.IOException;
@@ -10,16 +9,16 @@ import java.util.Optional;
 
 /**
  * {@code index.html}, the mechanical listing at the root of every tree (ADR-103, ADR-112, ADR-122, ADR-274 §1.4), and
- * the names it and the tree beneath it give their partitions and cluster pages.
+ * the names it and the tree beneath it give their topics and cluster pages.
  *
  * <p>It is appended to as its rows come (ADR-223 section 6): {@link #open} writes what produced the tree,
- * then {@link #partitionHeading} opens one partition's table and {@link #clusterRow} appends each of its rows,
- * as the cluster's page is written from the same synthesis doc (ADR-241), {@link #partitionEnd} closes the table, and
+ * then {@link #topicHeading} opens one topic's table and {@link #clusterRow} appends each of its rows,
+ * as the cluster's page is written from the same synthesis doc (ADR-241), {@link #topicEnd} closes the table, and
  * {@link #close} the page. Nothing here holds the index whole.
  *
- * <p><b>The order is rendered, never re-derived.</b> The partitions and the clusters arrive already in the
- * order the operator approved (ADR-112), and neither level here is sorted again — a partition's position
- * comes from its own {@code partitionOrder}, and a cluster's from its own {@code clusterOrder}.
+ * <p><b>The order is rendered, never re-derived.</b> The topics and the clusters arrive already in the
+ * order the operator approved (ADR-112), and neither level here is sorted again — a topic's position
+ * comes from its own {@code topicOrder}, and a cluster's from its own {@code clusterOrder}.
  *
  * <p><b>It links to a page only where writing exists</b> (ADR-111), though the page itself is written
  * either way, so a cluster keeps its slot in the listing.
@@ -33,37 +32,38 @@ public final class IndexPage {
     static final String THE_INDEXS_PARAGRAPH = "The path column of documents.csv names each document beneath the archive"
             + " root recorded above. Each group's folder holds its page and a copy of every document listed on it,"
             + " checked against the digest taken when it was converted, and each link on a group's page leads to its"
-            + " copy; the archive root names where they were copied from. The seed_partition column is not a path"
-            + " beneath that root: it names a seed beneath the seed folder, which is a root of its own. The copy and"
+            + " copy; the archive root names where they were copied from. The seed_partition column is not a path:"
+            + " it holds the name of the topic each document is placed under, and each numbered folder beside this"
+            + " page is named after a topic and holds the folders of that topic's groups. The copy and"
             + " copy_outcome columns say which documents were copied and, of any that were not, why.";
 
     private IndexPage() {}
 
-    /** One partition's heading and the head of its table of clusters, appended to {@code index}. */
-    static void partitionHeading(Appendable index, ListedPartition partition, DeliverableLanguage language)
+    /** One topic's heading, its recorded name, and the head of its table of clusters, appended to {@code index}. */
+    static void topicHeading(Appendable index, ListedTopic topic, DeliverableLanguage language)
             throws IOException {
         index.append("<h2>")
-                .append(Html.escape(partition.seedPath()))
+                .append(Html.escape(topic.name()))
                 .append("</h2>\n<table>\n")
                 .append(FixedWords.clusterTableHeadRow(language));
     }
 
-    /** Closes the table {@link #partitionHeading} opened. */
-    static void partitionEnd(Appendable index) throws IOException {
+    /** Closes the table {@link #topicHeading} opened. */
+    static void topicEnd(Appendable index) throws IOException {
         index.append("</table>\n");
     }
 
     /**
-     * One cluster's row of its partition's table, appended to {@code index} after {@link #partitionHeading} and
+     * One cluster's row of its topic's table, appended to {@code index} after {@link #topicHeading} and
      * the rows of the clusters before it, in stored order.
      *
-     * @param partitionCount how many partitions the tree has, which pads the partition's directory name
+     * @param topicCount how many topics the tree has, which pads the topic's directory name
      * @param doc the writing over the cluster, empty where there is none
      */
     static void clusterRow(
             Appendable index,
-            ListedPartition partition,
-            int partitionCount,
+            ListedTopic topic,
+            int topicCount,
             RecordedCluster recorded,
             Optional<SynthesisDoc> doc,
             DeliverableLanguage language)
@@ -81,9 +81,9 @@ public final class IndexPage {
             return;
         }
         index.append("<tr><td><a href=\"")
-                .append(Html.escape(partitionDirectoryName(partition, partitionCount)))
+                .append(Html.escape(topicDirectoryName(topic, topicCount)))
                 .append('/')
-                .append(Html.escape(clusterFolderName(recorded, widthOf(partition.clusterCount()))))
+                .append(Html.escape(clusterFolderName(recorded, widthOf(topic.clusterCount()))))
                 .append('/')
                 .append(Deliverable.CLUSTER_PAGE_NAME)
                 .append("\">")
@@ -96,16 +96,15 @@ public final class IndexPage {
     }
 
     /**
-     * The name of a partition's directory: its position zero-padded to the width of {@code partitionCount},
-     * then its seed's filename stem as a slug (ADR-112).
+     * The name of a topic's directory: its position zero-padded to the width of {@code topicCount}, then its recorded
+     * name as a slug, as a cluster's folder is named from its label (ADR-112, ADR-409 section 10).
      */
-    public static String partitionDirectoryName(ListedPartition partition, int partitionCount) {
-        return pad(partition.partitionOrder(), widthOf(partitionCount))
-                + "-" + slug(FilenameStem.of(partition.seedPath()));
+    public static String topicDirectoryName(ListedTopic topic, int topicCount) {
+        return pad(topic.topicOrder(), widthOf(topicCount)) + "-" + slug(topic.name());
     }
 
     /**
-     * The name of a cluster's folder within its partition's directory, which holds its page and its copies: its
+     * The name of a cluster's folder within its topic's folder, which holds its page and its copies: its
      * position zero-padded to {@code clusterWidth} digits, then its label as a slug (ADR-112, ADR-280 §0).
      */
     public static String clusterFolderName(RecordedCluster recorded, int clusterWidth) {
@@ -117,7 +116,7 @@ public final class IndexPage {
         return String.valueOf(count).length();
     }
 
-    /** What produced the tree, and what its path columns resolve against: everything before the first partition. */
+    /** What produced the tree, and what its path columns resolve against: everything before the first topic. */
     static void open(Appendable index, DeliverableProvenance provenance, DeliverableLanguage language)
             throws IOException {
         index.append(Html.head(FixedWords.theDeliverable(language) + provenance.runId(), language))

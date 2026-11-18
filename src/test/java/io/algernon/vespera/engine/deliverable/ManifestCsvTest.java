@@ -6,8 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.OccurrencePath;
-import io.algernon.vespera.engine.synthesis.ArrangedCluster;
-import io.algernon.vespera.engine.synthesis.ClusterLabel;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -15,6 +13,8 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.List;
+import java.util.Optional;
+import java.util.OptionalInt;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -38,10 +38,10 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
 class ManifestCsvTest {
 
-    /** The seed whose partition every cluster below sits in. */
+    /** The seed that won every survivor below, whose topic every cluster below lies in. */
     private static final OccurrenceId THE_SEED = new OccurrenceId(1);
 
-    /** The seed's own path, carrying an ampersand and brackets that the CSV leaves alone. */
+    /** The seed's own path, carrying an ampersand and brackets, which names the topic. */
     private static final String SEED_PATH = "seeds/Fire & Safety [2019].docx";
 
     /** The two clusters' identities, and the order 6a placed them in. */
@@ -97,23 +97,61 @@ class ManifestCsvTest {
                 () -> assertThat(manifest).contains("\n14,reports/=a.pdf,"));
     }
 
-    /** Two clusters in one partition, 6a's first and second. */
+    /**
+     * A survivor's membership is by its topic, and its winning seed is read from {@code relevance_score} alone, so a
+     * survivor with no score on record has no winning seed: its {@code winning_seed} cell is empty and its {@code
+     * relevance_score} 0.0, as ADR-226 has the score (ADR-409 section 10).
+     */
+    @Test
+    @Story("A survivor with no score on record is listed with no winning seed")
+    @DisplayName("A survivor with no score on record is listed with an empty winning seed and a score of 0.0, the row written whole")
+    @Issue("832")
+    @Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
+    @Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
+    void aSurvivorWithNoScoreOnRecordIsListedWithNoWinningSeed() {
+        ListedSurvivor unscored = new ListedSurvivor(
+                new OccurrenceId(20),
+                new OccurrencePath("reports/unscored.pdf"),
+                "h20",
+                Optional.empty(),
+                ListedTree.topicOf(THE_SEED),
+                ListedTree.topicNameOf(SEED_PATH),
+                OptionalInt.empty(),
+                FIRST_ORDINAL,
+                0.0);
+        List<ListedSurvivor> survivors = List.of(survivor(10, "reports/scored.pdf", FIRST_ORDINAL, 0.9), unscored);
+
+        String manifest = ListedArrangement.manifestContents(anArrangement(), survivors);
+
+        claim(
+                "the survivor with no score on record is listed, its winning seed's cell empty and its score 0.0",
+                () -> assertThat(manifest).contains("\n20,reports/unscored.pdf,h20,,0.0,"));
+        claim(
+                "its row carries every column of the header, the empty cell holding its place",
+                () -> assertThat(rowOf(manifest, "20,").split(",", -1))
+                        .as("the cells of the unscored survivor's row")
+                        .hasSameSizeAs(manifest.substring(0, manifest.indexOf('\n')).split(",", -1)));
+        claim(
+                "and a survivor scored against a seed still names that seed",
+                () -> assertThat(manifest).contains("\n10,reports/scored.pdf,h10," + THE_SEED.value() + ",0.9,"));
+    }
+
+    /** The line of {@code manifest} that begins with {@code prefix}. */
+    private static String rowOf(String manifest, String prefix) {
+        return manifest.lines()
+                .filter(line -> line.startsWith(prefix))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("documents.csv has no row beginning " + prefix));
+    }
+
+    /** Two clusters in one topic, 6a's first and second. */
     private static List<RecordedCluster> anArrangement() {
         return List.of(
-                new RecordedCluster(
-                        new ArrangedCluster(THE_SEED, FIRST_ORDINAL, 3, 1, 1), new ClusterLabel("Fire Suppression")),
-                new RecordedCluster(
-                        new ArrangedCluster(THE_SEED, SECOND_ORDINAL, 2, 1, 2), new ClusterLabel("Sprinklers")));
+                ListedTree.cluster(THE_SEED, FIRST_ORDINAL, "Fire Suppression", 1, 3),
+                ListedTree.cluster(THE_SEED, SECOND_ORDINAL, "Sprinklers", 2, 2));
     }
 
     private static ListedSurvivor survivor(long occurrence, String path, int clusterOrdinal, double score) {
-        return new ListedSurvivor(
-                new OccurrenceId(occurrence),
-                new OccurrencePath(path),
-                "h" + occurrence,
-                THE_SEED,
-                SEED_PATH,
-                clusterOrdinal,
-                score);
+        return ListedTree.survivor(occurrence, path, "h" + occurrence, THE_SEED, SEED_PATH, clusterOrdinal, score);
     }
 }

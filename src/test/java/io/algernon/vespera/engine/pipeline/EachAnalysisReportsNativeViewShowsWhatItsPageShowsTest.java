@@ -17,6 +17,8 @@ import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.RemovedOccurrence;
 import io.algernon.vespera.engine.ledger.RunId;
 import io.algernon.vespera.engine.similarity.DocumentFrequency;
+import io.algernon.vespera.engine.synthesis.GivenName;
+import io.algernon.vespera.engine.synthesis.NameOrigin;
 import io.algernon.vespera.ui.Reports;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -153,10 +155,10 @@ class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
     }
 
     private static Written clusterSizes() throws IOException {
-        List<ClusterSizeReport.Partition> partitions =
-                List.of(ClusterSizeReport.Partition.of("seeds/one.docx", List.of(2, 1), Optional.empty()));
-        return new Written(ClusterSizeReport.render(partitions),
-                jsonOf(ClusterSizeReport.document(partitions, WRITTEN_AT)));
+        List<ClusterSizeReport.Topic> topics =
+                List.of(ClusterSizeReport.Topic.of("seeds/one.docx", 0, List.of(2, 1), Optional.empty()));
+        return new Written(ClusterSizeReport.render(topics),
+                jsonOf(ClusterSizeReport.document(topics, WRITTEN_AT)));
     }
 
     private static Written relevance() throws IOException {
@@ -170,16 +172,17 @@ class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
 
     private static Written arrangement(Path base) throws IOException {
         Path lead = Files.createDirectories(base.resolve("archive")).resolve("lead.docx");
-        ArrangementReport.Partition partition = new ArrangementReport.Partition("seeds/one.docx",
+        ArrangementReport.Topic topic = ArrangementReport.Topic.undivided(
+                new GivenName("Pump maintenance", NameOrigin.WRITTEN, Optional.empty()),
                 List.of(new ArrangementReport.Cluster("A group", 2, "lead.docx", lead.toUri().toString())));
         StringBuilder page = new StringBuilder();
         ArrangementReport.open(page, "an-approval-name", base.resolve("archive").toString());
-        ArrangementReport.partition(page, partition);
+        ArrangementReport.topic(page, topic);
         ArrangementReport.close(page, 1);
         StringWriter json = new StringWriter();
         AnalysisReportJson report =
                 ArrangementReport.openJson(json, "an-approval-name", base.resolve("archive").toString(), WRITTEN_AT);
-        ArrangementReport.partitionJson(report, 1, partition);
+        ArrangementReport.topicJson(report, 1, topic);
         ArrangementReport.closeJson(report, 1, 1, 2);
         return new Written(page.toString(), json.toString());
     }

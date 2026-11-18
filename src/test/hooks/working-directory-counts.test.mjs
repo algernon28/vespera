@@ -165,13 +165,16 @@ function fillLedger(db, { unshapedRun = false } = {}) {
   fault(1, "capacity");
   fault(3, "TIMEOUT");
   fault(4, `${MARKER}_CATEGORY`);
+  // The cluster tables are keyed by a topic, whose key is a seed's path and a chunk index (docs/adr/0409 sections 1
+  // and 3): the path is the operator's, so it carries MARKER.
+  const topic = `${MARKER}/seed.docx`;
   const cluster = (ordinal) =>
-    run("INSERT INTO cluster (run_id, winning_seed_occurrence_id, cluster_ordinal, label, document_count, partition_order, cluster_order) VALUES (?, 5, ?, ?, 2, 1, ?)", RA, ordinal, `${MARKER} title`, ordinal);
+    run("INSERT INTO arranged_cluster (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal, cluster_ordinal, label, document_count, topic_order, subtopic_order, cluster_order) VALUES (?, ?, 0, -1, ?, ?, 2, 1, 0, ?)", RA, topic, ordinal, `${MARKER} title`, ordinal);
   cluster(1);
   cluster(2);
-  run("INSERT INTO synthesis_doc (run_id, winning_seed_occurrence_id, cluster_ordinal, title, prose) VALUES (?, 5, 1, ?, ?)", RG, `${MARKER} title`, `${MARKER} prose`);
+  run("INSERT INTO cluster_synthesis_doc (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal, cluster_ordinal, title, prose) VALUES (?, ?, 0, -1, 1, ?, ?)", RG, topic, `${MARKER} title`, `${MARKER} prose`);
   const clusterFault = (ordinal, kind) =>
-    run("INSERT INTO cluster_fault (run_id, winning_seed_occurrence_id, cluster_ordinal, kind, detail) VALUES (?, 5, ?, ?, ?)", RG, ordinal, kind, `${MARKER} detail`);
+    run("INSERT INTO standing_cluster_fault (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal, cluster_ordinal, kind, detail) VALUES (?, ?, 0, -1, ?, ?, ?)", RG, topic, ordinal, kind, `${MARKER} detail`);
   clusterFault(2, "SCHEMA_VIOLATION");
   clusterFault(3, `${MARKER}_FAULT`);
   if (unshapedRun) {
@@ -335,7 +338,7 @@ test("W02 counted: every name of the code's closed lists is printed as itself an
     for (const step of STEPS) run("INSERT INTO finished_step (run_id, step) VALUES (?, ?)", first, step);
     for (const kind of VERDICT_KINDS) run("INSERT INTO verdict (occurrence_id, run_id, kind) VALUES (1, ?, ?)", first, kind);
     FAILURE_CATEGORIES.forEach((category, i) => run("INSERT INTO extraction_fault (occurrence_id, run_id, category, detail) VALUES (?, ?, ?, 'd')", i + 1, first, category));
-    CLUSTER_FAULT_KINDS.forEach((kind, i) => run("INSERT INTO cluster_fault (run_id, winning_seed_occurrence_id, cluster_ordinal, kind, detail) VALUES (?, 1, ?, ?, 'd')", first, i + 1, kind));
+    CLUSTER_FAULT_KINDS.forEach((kind, i) => run("INSERT INTO standing_cluster_fault (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal, cluster_ordinal, kind, detail) VALUES (?, 's', 0, -1, ?, ?, 'd')", first, i + 1, kind));
   });
   const first = "1".padStart(64, "0");
   const result = count([wd]);
@@ -538,6 +541,25 @@ test("W12 counted: a working directory whose path holds a space, a # and a %", (
   ended(result, COUNTED, "a working directory whose path holds a space, a # and a %");
   assert.ok(linesOf(result).includes("walk walk=1 finished=0 occurrences=0 bytes=0 entries-seen=0 directories-entered=0"), `the walk must be counted, the path being percent-encoded into the database's URI: ${result.stdout}`);
   assert.deepEqual(readdirSync(wd), ["vespera.db"], "nothing may be added beside the database");
+});
+
+test("W14 counted: the cluster tables a database an earlier build wrote still holds are not counted", () => {
+  const OLD_RUN = runId("a");
+  const wd = workingDirectory("w14", (db) => {
+    const run = (sql, ...args) => db.prepare(sql).run(...args);
+    // The three tables schema.sql created before docs/adr/0409, kept with their rows in a database an earlier build
+    // wrote (section 11), a row in each.
+    db.exec("CREATE TABLE cluster (run_id TEXT NOT NULL, winning_seed_occurrence_id INTEGER NOT NULL, cluster_ordinal INTEGER NOT NULL, label TEXT NOT NULL, document_count INTEGER NOT NULL, partition_order INTEGER NOT NULL, cluster_order INTEGER NOT NULL, PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal))");
+    db.exec("CREATE TABLE synthesis_doc (run_id TEXT NOT NULL, winning_seed_occurrence_id INTEGER NOT NULL, cluster_ordinal INTEGER NOT NULL, title TEXT NOT NULL, prose TEXT NOT NULL, PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal))");
+    db.exec("CREATE TABLE cluster_fault (run_id TEXT NOT NULL, winning_seed_occurrence_id INTEGER NOT NULL, cluster_ordinal INTEGER NOT NULL, kind TEXT NOT NULL, detail TEXT NOT NULL, PRIMARY KEY (run_id, winning_seed_occurrence_id, cluster_ordinal))");
+    run("INSERT INTO cluster (run_id, winning_seed_occurrence_id, cluster_ordinal, label, document_count, partition_order, cluster_order) VALUES (?, 5, 1, ?, 2, 1, 1)", OLD_RUN, `${MARKER} title`);
+    run("INSERT INTO synthesis_doc (run_id, winning_seed_occurrence_id, cluster_ordinal, title, prose) VALUES (?, 5, 1, ?, ?)", OLD_RUN, `${MARKER} title`, `${MARKER} prose`);
+    run("INSERT INTO cluster_fault (run_id, winning_seed_occurrence_id, cluster_ordinal, kind, detail) VALUES (?, 5, 1, 'SCHEMA_VIOLATION', ?)", OLD_RUN, `${MARKER} detail`);
+  });
+  const result = count([wd]);
+  ended(result, COUNTED, "a database holding a row in each of the three cluster tables an earlier build wrote");
+  const counted = linesOf(result).filter((line) => /^(clusters|synthesis-docs|cluster-faults) /.test(line));
+  assert.deepEqual(counted, [], `no statement names the tables schema.sql no longer creates, so none of their rows is counted (docs/adr/0409 section 11): ${result.stdout}`);
 });
 
 // A folder whose vespera.db is a symbolic link to a real database. Windows makes one only with the

@@ -11,17 +11,25 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * — are package-private, deliberately, so scoring is only ever assembled by {@code embedding}'s own
  * wiring or by a package-mate on its behalf.
  *
- * <p>Nothing here is a double: the scorer is ADR-020's real arithmetic and both caches read and write
- * the real tables of whatever {@code jdbcTemplate} the importing context provides, which for {@code
- * pipeline}'s invocation tests is the in-memory database {@code schema.sql} was applied to.
+ * <p>Since ADR-409 it also composes {@link Placements}, which records each scored document's winning topic and the
+ * topics it fits beside its score, and {@link Topics}, which holds the topics the scoring step keeps: both are
+ * discarded with the step's other rows (ADR-409 section 5).
+ *
+ * <p>Nothing here is a double: the scorer is ADR-020's real arithmetic and every table is read and written for
+ * real, in whatever {@code jdbcTemplate} the importing context provides, which for {@code pipeline}'s invocation
+ * tests is the in-memory database {@code schema.sql} was applied to.
  */
 @Configuration
 public class RelevanceScoringBeans {
 
-    /** Real scoring over {@code jdbcTemplate}'s vector and relevance-score tables. */
+    /** Real scoring over {@code jdbcTemplate}'s vector, relevance-score, placement and topic tables. */
     public static RelevanceScoring real(JdbcTemplate jdbcTemplate) {
         return new RelevanceScoring(
-                new VectorCache(jdbcTemplate), new RelevanceScorer(), new RelevanceScoreCache(jdbcTemplate));
+                new VectorCache(jdbcTemplate),
+                new RelevanceScorer(),
+                new RelevanceScoreCache(jdbcTemplate),
+                new Placements(jdbcTemplate),
+                new Topics(jdbcTemplate));
     }
 
     @Bean

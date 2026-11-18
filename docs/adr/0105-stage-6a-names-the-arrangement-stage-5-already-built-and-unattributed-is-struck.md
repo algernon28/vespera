@@ -1,5 +1,7 @@
 # ADR-105 — Stage 6a names the arrangement stage 5 already built, and `unattributed` is struck
 
+> **Partly amended — see [ADR-409](0409-topics-placement-names-overviews-and-clusters-within-topics-are-kept-in-new-tables-keyed-by-a-topics-first-passage.md).** Of *One row per cluster*: a cluster's row, `arranged_cluster` since that record, is keyed by the arrangement run, the topic's key, the subtopic and the cluster ordinal, where it was keyed by the 6a run, the winning seed and the cluster ordinal, and it carries the topic's place, the subtopic's and the cluster's within its subtopic, or within its topic where the topic has none. Stage 5's membership, `cluster_member`, is keyed by occurrence and run as `document_cluster` was, and names the topic, the subtopic and the cluster in place of the winning seed. The rest of this record stands.
+
 - **Date**: 2026-09-12
 - **Status**: accepted
 - **Amends**: [ADR-022](0022-stage-6-splits-into-arrangement-6a-then-generation-6b.md) — 6a does not build a tree, because stage 5 already built one; and its `unattributed` top-level node is struck, having no members it could ever hold. The 6a/6b split itself, and the human gate between them, are untouched.

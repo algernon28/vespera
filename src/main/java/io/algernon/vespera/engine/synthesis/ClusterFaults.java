@@ -1,6 +1,5 @@
 package io.algernon.vespera.engine.synthesis;
 
-import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.RunId;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -25,7 +24,7 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>A bean</b>, handed both to {@code GenerationTasklet}, which reads a cluster's row by its key to say why
  * the cluster went unwritten, and to {@link ClusterGeneration}, which writes them. ADR-041 holds as before: only
- * this class touches {@code cluster_fault}, and only through here (ADR-190).
+ * this class touches {@code standing_cluster_fault}, and only through here (ADR-190).
  */
 @Component
 public class ClusterFaults {
@@ -49,13 +48,15 @@ public class ClusterFaults {
      * recording of a finished step, which ignores a repeat because one row already says everything a
      * second would.
      */
-    public void record(RunId runId, OccurrenceId winningSeed, int clusterOrdinal, ClusterFault fault) {
+    public void record(RunId runId, ClusterSlot cluster, ClusterFault fault) {
         jdbcTemplate.update(
-                "INSERT OR REPLACE INTO cluster_fault (run_id, winning_seed_occurrence_id,"
-                        + " cluster_ordinal, kind, detail) VALUES (?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO standing_cluster_fault (run_id, topic_seed_path, topic_chunk_index,"
+                        + " subtopic_ordinal, cluster_ordinal, kind, detail) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 runId.value(),
-                winningSeed.value(),
-                clusterOrdinal,
+                cluster.topic().seedPath(),
+                cluster.topic().chunkIndex(),
+                Subtopic.inRow(cluster.subtopic()),
+                cluster.clusterOrdinal(),
                 fault.kind().name(),
                 fault.detail());
     }
@@ -65,38 +66,42 @@ public class ClusterFaults {
      * succeeded (ADR-111, #185).
      *
      * <p><b>The one row in this schema removed on success.</b> Every other row this module writes — a
-     * {@code synthesis_doc}, a fault recorded above — stands until the table itself is gone. A fault
+     * {@code cluster_synthesis_doc}, a fault recorded above — stands until the table itself is gone. A fault
      * is rewritten in place when a later attempt fails a different check, which is what {@link
      * #record}'s replace is for; what happens nowhere else here is a row being taken away because
      * something went right. This delete exists for exactly one reason and does not generalise: the
      * ledger must never say a cluster both failed and succeeded under one run, so once a {@code
-     * synthesis_doc} row is written for a cluster that once faulted, the fault row saying otherwise has
+     * cluster_synthesis_doc} row is written for a cluster that once faulted, the fault row saying otherwise has
      * to go with it. Read this as the narrow carve-out ADR-111 names, not as licence to delete anything
      * else in this module.
      *
      * <p>A no-op when no fault stands against the cluster — the ordinary case, since most clusters
      * never fault at all.
      */
-    public void delete(RunId runId, OccurrenceId winningSeed, int clusterOrdinal) {
+    public void delete(RunId runId, ClusterSlot cluster) {
         jdbcTemplate.update(
-                "DELETE FROM cluster_fault WHERE run_id = ? AND winning_seed_occurrence_id = ? AND"
-                        + " cluster_ordinal = ?",
+                "DELETE FROM standing_cluster_fault WHERE run_id = ? AND topic_seed_path = ? AND"
+                        + " topic_chunk_index = ? AND subtopic_ordinal = ? AND cluster_ordinal = ?",
                 runId.value(),
-                winningSeed.value(),
-                clusterOrdinal);
+                cluster.topic().seedPath(),
+                cluster.topic().chunkIndex(),
+                Subtopic.inRow(cluster.subtopic()),
+                cluster.clusterOrdinal());
     }
 
     /** The fault standing against one cluster under {@code runId}, read by its key, or empty where none stands. */
-    public Optional<ClusterFault> forCluster(RunId runId, OccurrenceId winningSeed, int clusterOrdinal) {
+    public Optional<ClusterFault> forCluster(RunId runId, ClusterSlot cluster) {
         return jdbcTemplate
                 .query(
-                        "SELECT kind, detail FROM cluster_fault WHERE run_id = ? AND winning_seed_occurrence_id = ?"
-                                + " AND cluster_ordinal = ?",
+                        "SELECT kind, detail FROM standing_cluster_fault WHERE run_id = ? AND topic_seed_path = ?"
+                                + " AND topic_chunk_index = ? AND subtopic_ordinal = ? AND cluster_ordinal = ?",
                         (resultSet, rowNumber) -> new ClusterFault(
                                 ClusterFaultKind.valueOf(resultSet.getString("kind")), resultSet.getString("detail")),
                         runId.value(),
-                        winningSeed.value(),
-                        clusterOrdinal)
+                        cluster.topic().seedPath(),
+                        cluster.topic().chunkIndex(),
+                        Subtopic.inRow(cluster.subtopic()),
+                        cluster.clusterOrdinal())
                 .stream()
                 .findFirst();
     }
@@ -104,7 +109,7 @@ public class ClusterFaults {
     /** How many cluster faults are recorded under {@code runId}. A count the database makes, reading no column of any row (ADR-220 section 7). */
     public int countForRun(RunId runId) {
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM cluster_fault WHERE run_id = ?", Integer.class, runId.value());
+                "SELECT COUNT(*) FROM standing_cluster_fault WHERE run_id = ?", Integer.class, runId.value());
         return count == null ? 0 : count;
     }
 }
