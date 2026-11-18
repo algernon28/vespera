@@ -48,11 +48,13 @@ import org.springframework.batch.core.step.StepExecution;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * The chart of each stage is kept by the job in a file of its own beside the report, under the run its stage works
- * under (ADR-382 §4 to §7): continued by a later invocation under that run, frozen once its stage has finished and
- * never written again under it, and started afresh by a new run. The census's chart is kept under the walk its lines
- * name until the census hands the job the walk it keeps, and under that walk from then on, the samples of a walk it
- * discards kept under the walk it keeps; and a new key empties no other stage's chart (ADR-412).
+ * The chart of each stage is kept by the job in a file of its own beside the report, keyed by the run its stage works
+ * under (ADR-382 §4 to §7), and drawn by one invocation alone (ADR-417): every file is written empty as the job of
+ * {@code vespera run} begins, so a stage the invocation does not reach stays empty, one it works is drawn from second 0
+ * and one it finds finished freezes holding one sample; within the invocation a chart is started once, its key written
+ * as the invocation reaches it, and frozen once. The census's chart is written as the census walks, under the walk its
+ * lines name, and kept under the walk the census hands the job, with the entries its lines said (ADR-412 §1 and §2, as
+ * ADR-417 §4 amends them).
  *
  * <p>The job's listener is driven as Spring Batch drives it, with executions built by hand on a fixed clock, as the
  * report's own tests drive it; each invocation is a listener of its own, as a new process is. The extraction, stage 2,
@@ -70,6 +72,12 @@ class EachStagesChartIsKeptUnderItsRunTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
+    /** The eight stages that have a chart, in the order the window stands them. */
+    private static final List<String> EVERY_STAGE = List.of("0", "1", "2", "3", "4", "5", "6a", "6b");
+
+    /** The format of a stage's file. */
+    private static final int FORMAT = 1;
+
     /** The extraction's run, and another one, as a changed configuration would mint. */
     private static final String THE_RUN = "aa11bb22cc33dd44ee55ff6600778899aa11bb22cc33dd44ee55ff6600778899";
 
@@ -80,23 +88,35 @@ class EachStagesChartIsKeptUnderItsRunTest {
 
     private static final String STAGE_3_RUN = "3333333333333333333333333333333333333333333333333333333333333333";
 
+    /** Stage 5's two runs: the seed-measurement run and the embedding-scoring run. */
+    private static final String SEED_MEASUREMENT_RUN = "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a";
+
+    private static final String EMBEDDING_SCORING_RUN = "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c";
+
     private static final String EXTRACTION_FAILED = "extraction-failed";
 
     private static final String DEGENERATE_OUTPUT = "degenerate-output";
+
+    private static final String BELOW_THRESHOLD = "below-threshold";
 
     /** The extraction's counter: four documents to read, the first invocation stopping after two. */
     private static final long TO_READ = 4;
 
     private static final int READ_BEFORE_THE_STOP = 2;
 
-    /** When the second invocation's extraction ends, in seconds after the job's start. */
+    /** When the extraction ends, in seconds after the job's start, where it runs and where it goes through finished. */
     private static final long EXTRACTION_ENDS = 70;
 
-    /** The interval between two readings, 300 s: a continued chart's first sample stands this far past its last. */
-    private static final double INTERVAL = NO_SCHEDULED_WRITE_MEANWHILE.toSeconds();
+    private static final long EXTRACTION_GOES_THROUGH = 11;
 
-    /** The second at which a continued chart's sample stands: its last second, 0, plus the invocation's interval. */
-    private static final double CONTINUED_AT = INTERVAL;
+    /** Seed extraction's counter, four seeds of which it says two done, and embedding scoring's, three of ten. */
+    private static final long SEEDS = 4;
+
+    private static final int SEEDS_DONE = 2;
+
+    private static final long SURVIVORS_TO_SCORE = 10;
+
+    private static final int SURVIVORS_SCORED = 3;
 
     /** The corpus root's walk the census keeps: the earlier walk, whose observation a later walk repeated. */
     private static final long THE_WALK_KEPT = 46;
@@ -122,7 +142,7 @@ class EachStagesChartIsKeptUnderItsRunTest {
     private static final int MOST_POINTS = 256;
 
     /** The readings a census makes, one a second, before it hands the job its walk: more than a chart keeps. */
-    private static final int READINGS_HELD = 300;
+    private static final int READINGS_BEFORE_THE_HAND_OVER = 300;
 
     /** The entries the census's line says before each of those readings, times the reading's place from 1. */
     private static final long ENTRIES_A_READING = 1_000;
@@ -130,24 +150,54 @@ class EachStagesChartIsKeptUnderItsRunTest {
     /** How far the test moves the sampler's clock on between two of its readings, in seconds. */
     private static final long BETWEEN_READINGS = 10;
 
-    /** The seconds and the count done of the two points a chart file written by {@link #aChartFile} holds. */
-    private static final double FIRST_SECOND_IN_THE_FILE = 0;
-
-    private static final double LAST_SECOND_IN_THE_FILE = 5;
-
-    private static final double FIRST_DONE_IN_THE_FILE = 10;
-
-    private static final double LAST_DONE_IN_THE_FILE = 20;
-
     @TempDir
     Path workingDirectory;
 
     @Test
     @Story("The window shows how each stage has gone")
-    @DisplayName("An invocation under the same run continues its stage's chart, and a chart frozen once its stage finished is left as it is")
-    void anInvocationUnderTheSameRunContinuesTheChartAndOneFinishedStaysFrozen() throws IOException {
+    @DisplayName("As the job begins, every stage's chart is written empty, whatever the working directory kept of it, and a stage the invocation does not reach stays empty")
+    @Issue("880")
+    @Link(name = "ADR-417", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
+    void everyStagesChartIsWrittenEmptyAsTheJobBegins() throws IOException {
+        Files.writeString(fileOf("0"), aFrozenFile("0", "walk", String.valueOf(THE_WALK_KEPT), null), UTF_8);
+        Files.writeString(fileOf("1"), aFrozenFile("1", "byte-level-reduction", STAGE_1_RUN, "broken"), UTF_8);
+        Files.writeString(fileOf("2"), aChartFile("2", "extraction", THE_RUN, EXTRACTION_FAILED, null), UTF_8);
+        Files.writeString(fileOf("3"), aFrozenFile("3", "content-census", STAGE_3_RUN, null), UTF_8);
         AtomicReference<Map<String, Long>> recorded = new AtomicReference<>(Map.of());
-        Path file = workingDirectory.resolve("chart-stage-2.json");
+
+        JobSampler sampler = aSampler(recorded, noRunsListed());
+        JobExecution job = aJob();
+        sampler.beforeJob(job);
+        Map<String, Object> asTheJobBegins = filesOf(EVERY_STAGE);
+
+        // the extraction then runs under a run of its own, reads one document, refuses it, and is stopped
+        StepExecution extraction = extractionUnder(job, ANOTHER_RUN);
+        says(extraction, 1);
+        recorded.set(Map.of(EXTRACTION_FAILED, 1L));
+        ended(extraction, BatchStatus.STOPPED, 20);
+        job.setStatus(BatchStatus.STOPPED);
+        sampler.afterJob(job);
+        List<String> notReached = EVERY_STAGE.stream().filter(stage -> !stage.equals("2")).toList();
+        Map<String, Object> afterTheJob = filesOf(notReached);
+
+        claim("at the job's first reading, before any step runs, each of the eight stages' files holds format 1, its"
+                        + " stage, no key, no finishing time and no line: the census's, byte-level reduction's and the content"
+                        + " census's finished charts, the extraction's unfinished one, and the four the working directory kept"
+                        + " no file of",
+                () -> assertThat(asTheJobBegins).isEqualTo(emptyFiles(EVERY_STAGE)));
+        claim("after the extraction ran and was stopped, the files of the seven stages the invocation did not reach are"
+                        + " still empty",
+                () -> assertThat(afterTheJob).isEqualTo(emptyFiles(notReached)));
+    }
+
+    @Test
+    @Story("The window shows how each stage has gone")
+    @DisplayName("Every invocation draws its stage's chart afresh under the same run, and one that finds the stage finished freezes it with one sample")
+    @Issue("880")
+    @Link(name = "ADR-417", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
+    void everyInvocationDrawsTheStagesChartAfreshAndOneFindingItFinishedFreezesItWithOneSample() throws IOException {
+        AtomicReference<Map<String, Long>> recorded = new AtomicReference<>(Map.of());
+        Path file = fileOf("2");
 
         // the first invocation: the extraction reads two of four documents, refuses one, and is stopped
         JobSampler first = aSampler(recorded, noRunsListed());
@@ -174,17 +224,16 @@ class EachStagesChartIsKeptUnderItsRunTest {
         finished.setStatus(BatchStatus.COMPLETED);
         second.afterJob(finished);
         Chart afterItFinished = Chart.in(file);
-        String frozenText = Files.isRegularFile(file) ? Files.readString(file, UTF_8) : null;
 
-        // the third, under the same run: the extraction, finished, passes through
+        // the third, under the same run: the extraction, finished, goes through, the runs reading counting its verdicts
         recorded.set(Map.of());
         JobSampler third = aSampler(recorded,
                 theRunListedWith(Map.of(EXTRACTION_FAILED, 2L, DEGENERATE_OUTPUT, 1L)));
-        JobExecution passing = aJob();
-        third.beforeJob(passing);
-        ended(extractionUnder(passing, THE_RUN), BatchStatus.COMPLETED, 11);
-        passing.setStatus(BatchStatus.COMPLETED);
-        third.afterJob(passing);
+        JobExecution goingThrough = aJob();
+        third.beforeJob(goingThrough);
+        ended(extractionUnder(goingThrough, THE_RUN), BatchStatus.COMPLETED, EXTRACTION_GOES_THROUGH);
+        goingThrough.setStatus(BatchStatus.COMPLETED);
+        third.afterJob(goingThrough);
 
         claim("the stopped invocation keeps the extraction's chart under its run, not finished, its one sample at second"
                         + " 0: two documents read, one refused, none without text",
@@ -192,125 +241,109 @@ class EachStagesChartIsKeptUnderItsRunTest {
                         new Line("done", List.of(0.0), List.of(2.0)),
                         new Line(EXTRACTION_FAILED, List.of(0.0), List.of(1.0)),
                         new Line(DEGENERATE_OUTPUT, List.of(0.0), List.of(0.0))))));
-        claim("the next invocation under the same run continues it one interval of 300 s on, its documents read 2 then"
-                        + " 4, its refusals 1 then 2 and those without text 0 then 1, and freezes it at the extraction's end",
+        claim("the next invocation under the same run draws it afresh, frozen at the extraction's end, holding its own"
+                        + " one sample at second 0: four documents read, two refused, the one recorded before counted under"
+                        + " the run, and one without text",
                 () -> assertThat(afterItFinished).isEqualTo(new Chart(Map.of("extraction", THE_RUN),
                         JOB_START.plusSeconds(EXTRACTION_ENDS).toString(), List.of(
-                        new Line("done", List.of(0.0, CONTINUED_AT), List.of(2.0, 4.0)),
-                        new Line(EXTRACTION_FAILED, List.of(0.0, CONTINUED_AT), List.of(1.0, 2.0)),
-                        new Line(DEGENERATE_OUTPUT, List.of(0.0, CONTINUED_AT), List.of(0.0, 1.0))))));
-        claim("an invocation under the same run that finds the extraction finished leaves its frozen chart as it was",
-                () -> {
-                    assertThat(file).isRegularFile();
-                    assertThat(Files.readString(file, UTF_8)).isEqualTo(frozenText);
-                });
+                        new Line("done", List.of(0.0), List.of(4.0)),
+                        new Line(EXTRACTION_FAILED, List.of(0.0), List.of(2.0)),
+                        new Line(DEGENERATE_OUTPUT, List.of(0.0), List.of(1.0))))));
+        claim("an invocation under the same run that finds the extraction finished draws it afresh too, frozen at the"
+                        + " end of that invocation's extraction, holding one sample: no count of documents read, two refused"
+                        + " and one without text, as counted under the run",
+                () -> assertThat(Chart.in(file)).isEqualTo(new Chart(Map.of("extraction", THE_RUN),
+                        JOB_START.plusSeconds(EXTRACTION_GOES_THROUGH).toString(), List.of(
+                        new Line("done", List.of(), List.of()),
+                        new Line(EXTRACTION_FAILED, List.of(0.0), List.of(2.0)),
+                        new Line(DEGENERATE_OUTPUT, List.of(0.0), List.of(1.0))))));
     }
 
     @Test
     @Story("The window shows how each stage has gone")
-    @DisplayName("A new run of a stage starts its chart afresh and leaves the charts of the other stages as they were")
-    @Issue("861")
-    @Link(name = "ADR-412", url = Adr.STAGE_0S_CHART_IS_KEPT_UNDER_THE_WALK_THE_CENSUS_KEEPS, type = "adr")
-    void aNewRunStartsTheStagesChartAfreshAndLeavesTheOtherStagesChartsAsTheyWere() throws IOException {
-        Path stage1 = workingDirectory.resolve("chart-stage-1.json");
-        Path stage2 = workingDirectory.resolve("chart-stage-2.json");
-        Path stage3 = workingDirectory.resolve("chart-stage-3.json");
-        Files.writeString(stage1, aFrozenFile("1", "byte-level-reduction", STAGE_1_RUN, "broken"), UTF_8);
-        Files.writeString(stage2, aFrozenFile("2", "extraction", THE_RUN, EXTRACTION_FAILED), UTF_8);
-        Files.writeString(stage3, aFrozenFile("3", "content-census", STAGE_3_RUN, null), UTF_8);
-        String stage1Before = Files.readString(stage1, UTF_8);
-        String stage3Before = Files.readString(stage3, UTF_8);
-        AtomicReference<Map<String, Long>> recorded = new AtomicReference<>(Map.of());
-
-        JobSampler sampler = aSampler(recorded, noRunsListed());
+    @DisplayName("Within the invocation that freezes it, a finished stage's chart is not written again")
+    @Issue("880")
+    @Link(name = "ADR-417", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
+    void withinTheInvocationThatFreezesItAStagesChartIsNotWrittenAgain() throws IOException {
+        Path file = fileOf("2");
+        MovingClock clock = new MovingClock();
+        JobSampler sampler = aSampler(new AtomicReference<>(Map.of()), noRunsListed(), clock);
         JobExecution job = aJob();
         sampler.beforeJob(job);
-        StepExecution extraction = extractionUnder(job, ANOTHER_RUN);
-        says(extraction, 1);
-        recorded.set(Map.of(EXTRACTION_FAILED, 1L));
-        ended(extraction, BatchStatus.STOPPED, 20);
-        job.setStatus(BatchStatus.STOPPED);
+        StepExecution extraction = extractionUnder(job, THE_RUN);
+        says(extraction, (int) TO_READ);
+        ended(extraction, BatchStatus.COMPLETED, EXTRACTION_ENDS);
+        readsOnce(sampler);
+        String asItFroze = Files.readString(file, UTF_8);
+
+        // the content census then runs, a reading falls while it does, and the job ends
+        new InvocationRuns(job.getExecutionContext()).record("content-census", new RunId(STAGE_3_RUN));
+        StepExecution contentCensus = aStep(job, StepNames.CONTENT_CENSUS, BatchStatus.STARTED, EXTRACTION_ENDS, null);
+        clock.moveOn(BETWEEN_READINGS);
+        readsOnce(sampler);
+        ended(contentCensus, BatchStatus.COMPLETED, EXTRACTION_ENDS + 1);
+        job.setStatus(BatchStatus.COMPLETED);
+        clock.moveOn(BETWEEN_READINGS);
         sampler.afterJob(job);
 
-        claim("the extraction's chart is started afresh under the new run, not finished, holding this invocation's one"
-                        + " sample alone: one document read and one refused",
-                () -> assertThat(Chart.in(stage2)).isEqualTo(new Chart(Map.of("extraction", ANOTHER_RUN), null, List.of(
-                        new Line("done", List.of(0.0), List.of(1.0)),
-                        new Line(EXTRACTION_FAILED, List.of(0.0), List.of(1.0)),
-                        new Line(DEGENERATE_OUTPUT, List.of(0.0), List.of(0.0))))));
-        claim("the content census's chart, a stage after it that the invocation did not reach, is left as it was, frozen"
-                        + " under its own run",
-                () -> assertThat(Files.readString(stage3, UTF_8)).isEqualTo(stage3Before));
-        claim("and byte-level reduction's chart, a stage before it, is left as it was",
-                () -> assertThat(Files.readString(stage1, UTF_8)).isEqualTo(stage1Before));
+        claim("the reading at which the extraction stands finished freezes its chart at the extraction's end",
+                () -> assertThat(Chart.of(asItFroze).finishedAt()).isEqualTo(JOB_START.plusSeconds(EXTRACTION_ENDS).toString()));
+        claim("a reading 10 s on, while the content census runs, and the job's last reading 10 s after it leave the"
+                        + " extraction's file as the freezing reading wrote it",
+                () -> assertThat(Files.readString(file, UTF_8)).isEqualTo(asItFroze));
     }
 
     @Test
     @Story("The window shows how each stage has gone")
-    @DisplayName("A walk the census discards, as one an earlier walk already recorded, leaves every finished stage's chart as it was")
-    @Issue("861")
-    @Link(name = "ADR-412", url = Adr.STAGE_0S_CHART_IS_KEPT_UNDER_THE_WALK_THE_CENSUS_KEEPS, type = "adr")
-    void aWalkTheCensusDiscardsLeavesEveryFrozenChartAsItWas() throws IOException {
-        Map<String, String> files = new LinkedHashMap<>();
-        files.put("chart-stage-0.json", aFrozenFile("0", "walk", String.valueOf(THE_WALK_KEPT), null));
-        files.put("chart-stage-1.json", aFrozenFile("1", "byte-level-reduction", STAGE_1_RUN, "broken"));
-        files.put("chart-stage-2.json", aFrozenFile("2", "extraction", THE_RUN, EXTRACTION_FAILED));
-        files.put("chart-stage-3.json", aFrozenFile("3", "content-census", STAGE_3_RUN, null));
-        for (Map.Entry<String, String> file : files.entrySet()) {
-            Files.writeString(workingDirectory.resolve(file.getKey()), file.getValue(), UTF_8);
-        }
-        Map<String, String> before = textsOf(files.keySet());
+    @DisplayName("The relevance stage's chart keeps its first samples when the invocation reaches the second run the stage works under")
+    @Issue("880")
+    @Link(name = "ADR-417", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
+    void stage5sChartIsNotStartedAfreshWhenTheInvocationReachesItsSecondRun() throws IOException {
+        MovingClock clock = new MovingClock();
+        JobSampler sampler = aSampler(new AtomicReference<>(Map.of()), noRunsListed(), clock);
+        JobExecution job = aJob();
+        sampler.beforeJob(job);
 
-        // the first invocation: the census walks a walk its chart does not name, a reading falls while it does, and the
-        // census fails before it hands the job a walk
-        MovingClock firstClock = new MovingClock();
-        JobSampler first = aSampler(new AtomicReference<>(Map.of()), noRunsListed(), firstClock);
-        JobExecution failed = aJob();
-        first.beforeJob(failed);
-        StepExecution census = censusOf(failed);
-        censusSays(WALKED_BEFORE_THE_STOP, THE_WALK_DISCARDED);
-        readsOnce(first);
-        ended(census, BatchStatus.FAILED, 20);
-        failed.setStatus(BatchStatus.FAILED);
-        firstClock.moveOn(BETWEEN_READINGS);
-        first.afterJob(failed);
-        Map<String, String> afterTheFailure = textsOf(files.keySet());
+        // seed extraction runs under the seed-measurement run, and a reading falls while it does
+        new InvocationRuns(job.getExecutionContext()).record(
+                StageModules.SEED_MEASUREMENT.stage(), new RunId(SEED_MEASUREMENT_RUN));
+        StepExecution seedExtraction = aStep(job, StepNames.SEED_EXTRACTION, BatchStatus.STARTED, 0, null);
+        counts(seedExtraction, "Stage 5a (seed extraction)", SEEDS, SEEDS_DONE);
+        readsOnce(sampler);
+        ended(seedExtraction, BatchStatus.COMPLETED, 5);
 
-        // the second: the census continues that walk, a reading falls while it does, then it finishes the walk,
-        // discards it and hands the job the walk the chart names; stages 1 to 3, finished under the runs their charts
-        // name, go through
-        MovingClock secondClock = new MovingClock();
-        JobSampler second = aSampler(new AtomicReference<>(Map.of()), noRunsListed(), secondClock);
-        JobExecution finished = aJob();
-        second.beforeJob(finished);
-        census = censusOf(finished);
-        censusSays(WALKED_AT_THE_LAST_LINE, THE_WALK_DISCARDED);
-        readsOnce(second);
-        new InvocationRuns(finished.getExecutionContext()).recordCorpusWalk(new WalkId(THE_WALK_KEPT));
-        ended(census, BatchStatus.COMPLETED, CENSUS_ENDS);
-        goesThroughFinished(finished, StepNames.BYTE_LEVEL_REDUCTION, "byte-level-reduction", STAGE_1_RUN);
-        goesThroughFinished(finished, StepNames.EXTRACTION, "extraction", THE_RUN);
-        goesThroughFinished(finished, StepNames.CONTENT_CENSUS, "content-census", STAGE_3_RUN);
-        finished.setStatus(BatchStatus.COMPLETED);
-        secondClock.moveOn(BETWEEN_READINGS);
-        second.afterJob(finished);
-        Map<String, String> afterTheDiscard = textsOf(files.keySet());
+        // embedding scoring runs under the embedding-scoring run, a reading falls while it does, and it is stopped
+        new InvocationRuns(job.getExecutionContext()).record(
+                StageModules.EMBEDDING_SCORING.stage(), new RunId(EMBEDDING_SCORING_RUN));
+        StepExecution scoring = aStep(job, StepNames.EMBEDDING_SCORING, BatchStatus.STARTED, 5, null);
+        counts(scoring, "Stage 5c (embedding scoring, corpus survivors)", SURVIVORS_TO_SCORE, SURVIVORS_SCORED);
+        clock.moveOn(BETWEEN_READINGS);
+        readsOnce(sampler);
+        ended(scoring, BatchStatus.STOPPED, 15);
+        job.setStatus(BatchStatus.STOPPED);
+        clock.moveOn(BETWEEN_READINGS);
+        sampler.afterJob(job);
 
-        claim("a census that fails while it walks a walk the census's chart does not name leaves the four frozen charts,"
-                        + " of the census and of stages 1 to 3, as they were",
-                () -> assertThat(afterTheFailure).isEqualTo(before));
-        claim("an invocation whose census discards that walk and keeps the one its chart names, and whose stages 1 to 3"
-                        + " find their runs finished, leaves the four frozen charts as they were",
-                () -> assertThat(afterTheDiscard).isEqualTo(before));
+        Map<String, String> bothRuns = new LinkedHashMap<>();
+        bothRuns.put(StageModules.SEED_MEASUREMENT.stage(), SEED_MEASUREMENT_RUN);
+        bothRuns.put(StageModules.EMBEDDING_SCORING.stage(), EMBEDDING_SCORING_RUN);
+        claim("stage 5's chart is keyed by both its runs, not finished, and keeps every sample of the invocation: 2 seeds"
+                        + " extracted at second 0, then 3 survivors scored at seconds 10 and 20, no document below the"
+                        + " threshold",
+                () -> assertThat(Chart.in(fileOf("5"))).isEqualTo(new Chart(Map.copyOf(bothRuns), null, List.of(
+                        new Line("done", List.of(0.0, 10.0, 20.0),
+                                List.of((double) SEEDS_DONE, (double) SURVIVORS_SCORED, (double) SURVIVORS_SCORED)),
+                        new Line(BELOW_THRESHOLD, List.of(0.0, 10.0, 20.0), List.of(0.0, 0.0, 0.0))))));
     }
 
     @Test
     @Story("The window shows how each stage has gone")
-    @DisplayName("The census's chart of a walk it discards is kept under the walk it keeps, with the entries its lines said")
-    @Issue("861")
+    @DisplayName("The census's chart is written as it walks, drawn afresh by each invocation, and kept under the walk it hands the job, with the entries its lines said")
+    @Issue("880")
+    @Link(name = "ADR-417", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
     @Link(name = "ADR-412", url = Adr.STAGE_0S_CHART_IS_KEPT_UNDER_THE_WALK_THE_CENSUS_KEEPS, type = "adr")
-    void theChartOfAWalkTheCensusDiscardsIsKeptUnderTheWalkItKeeps() throws IOException {
-        Path file = workingDirectory.resolve("chart-stage-0.json");
+    void theChartOfTheCensusIsWrittenAsItWalksAndKeptUnderTheWalkItHandsTheJob() throws IOException {
+        Path file = fileOf("0");
 
         // the first invocation: no chart yet; the census walks a walk, a reading falls while it does, and it is stopped
         // with the walk unfinished, which it hands the job
@@ -321,7 +354,7 @@ class EachStagesChartIsKeptUnderItsRunTest {
         StepExecution census = censusOf(stopped);
         censusSays(WALKED_BEFORE_THE_STOP, THE_WALK_DISCARDED);
         readsOnce(first);
-        boolean writtenBeforeTheHandOver = Files.exists(file);
+        Chart whileTheFirstWalks = Chart.in(file);
         new InvocationRuns(stopped.getExecutionContext()).recordCorpusWalk(new WalkId(THE_WALK_DISCARDED));
         ended(census, BatchStatus.STOPPED, 20);
         stopped.setStatus(BatchStatus.STOPPED);
@@ -338,7 +371,7 @@ class EachStagesChartIsKeptUnderItsRunTest {
         census = censusOf(finished);
         censusSays(WALKED_AT_THE_LAST_LINE, THE_WALK_DISCARDED);
         readsOnce(second);
-        Chart whileItWalks = Chart.in(file);
+        Chart whileTheSecondWalks = Chart.in(file);
         new InvocationRuns(finished.getExecutionContext()).recordCorpusWalk(new WalkId(THE_WALK_KEPT));
         censusSays(SEED_FOLDER_WALKED, THE_SEED_FOLDERS_WALK);
         ended(census, BatchStatus.COMPLETED, CENSUS_ENDS);
@@ -346,118 +379,73 @@ class EachStagesChartIsKeptUnderItsRunTest {
         secondClock.moveOn(BETWEEN_READINGS);
         second.afterJob(finished);
 
-        double continuedAt = BETWEEN_READINGS + INTERVAL;
-        claim("before the census hands the job a walk, a chart that names no walk is not written: the reading's sample is"
-                        + " held",
-                () -> assertThat(writtenBeforeTheHandOver).isFalse());
-        claim("the census stopped with its walk unfinished keeps the samples it held under that walk, not finished:"
-                        + " 28,000 entries at second 0 and again at the stop, 10 s on",
+        claim("before the census hands the job a walk, the reading's sample is written as it is taken, under the walk the"
+                        + " census's lines name: 28,000 entries at second 0",
+                () -> assertThat(whileTheFirstWalks).isEqualTo(new Chart(
+                        Map.of("walk", String.valueOf(THE_WALK_DISCARDED)), null, List.of(
+                        new Line("done", List.of(0.0), List.of((double) WALKED_BEFORE_THE_STOP))))));
+        claim("the census stopped with its walk unfinished keeps the chart under that walk, not finished: 28,000 entries"
+                        + " at second 0 and again at the stop, 10 s on",
                 () -> assertThat(afterTheStop).isEqualTo(new Chart(
                         Map.of("walk", String.valueOf(THE_WALK_DISCARDED)), null, List.of(
                         new Line("done", List.of(0.0, (double) BETWEEN_READINGS),
                                 List.of((double) WALKED_BEFORE_THE_STOP, (double) WALKED_BEFORE_THE_STOP))))));
-        claim("the next census, continuing that walk, writes each sample as it takes it, under that walk, one interval"
-                        + " of 300 s after the chart's last second: 45,000 entries at second 310",
-                () -> assertThat(whileItWalks).isEqualTo(new Chart(
+        claim("the next census, continuing that walk, draws the chart afresh under it: 45,000 entries at second 0, and"
+                        + " nothing of the earlier invocation",
+                () -> assertThat(whileTheSecondWalks).isEqualTo(new Chart(
                         Map.of("walk", String.valueOf(THE_WALK_DISCARDED)), null, List.of(
-                        new Line("done", List.of(0.0, (double) BETWEEN_READINGS, continuedAt),
-                                List.of((double) WALKED_BEFORE_THE_STOP, (double) WALKED_BEFORE_THE_STOP,
-                                        (double) WALKED_AT_THE_LAST_LINE))))));
-        claim("the census that discards it keeps that chart under the walk it keeps, frozen at the census's end, its"
-                        + " last point 45,000 entries at second 320, the seed folder's 2,000 no point of it",
+                        new Line("done", List.of(0.0), List.of((double) WALKED_AT_THE_LAST_LINE))))));
+        claim("the census that discards it keeps that chart under the walk it keeps, frozen at the census's end: 45,000"
+                        + " entries at seconds 0 and 10, the seed folder's 2,000 no point of it",
                 () -> assertThat(Chart.in(file)).isEqualTo(new Chart(
                         Map.of("walk", String.valueOf(THE_WALK_KEPT)),
                         JOB_START.plusSeconds(CENSUS_ENDS).toString(),
-                        List.of(new Line("done",
-                                List.of(0.0, (double) BETWEEN_READINGS, continuedAt, continuedAt + BETWEEN_READINGS),
-                                List.of((double) WALKED_BEFORE_THE_STOP, (double) WALKED_BEFORE_THE_STOP,
-                                        (double) WALKED_AT_THE_LAST_LINE, (double) WALKED_AT_THE_LAST_LINE))))));
+                        List.of(new Line("done", List.of(0.0, (double) BETWEEN_READINGS),
+                                List.of((double) WALKED_AT_THE_LAST_LINE, (double) WALKED_AT_THE_LAST_LINE))))));
     }
 
     @Test
     @Story("The window shows how each stage has gone")
-    @DisplayName("A walk the census discards continues the census's chart of the walk it keeps where that chart is not frozen")
-    @Issue("861")
-    @Link(name = "ADR-412", url = Adr.STAGE_0S_CHART_IS_KEPT_UNDER_THE_WALK_THE_CENSUS_KEEPS, type = "adr")
-    void aWalkTheCensusDiscardsContinuesTheChartOfTheWalkItKeepsWhereItIsNotFrozen() throws IOException {
-        Path file = workingDirectory.resolve("chart-stage-0.json");
-        Files.writeString(file, aChartFile("0", "walk", String.valueOf(THE_WALK_KEPT), null, null), UTF_8);
-        String before = Files.readString(file, UTF_8);
+    @DisplayName("More samples of the census than a chart keeps are thinned to every other one, oldest first, as they are taken")
+    @Issue("880")
+    @Link(name = "ADR-417", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
+    void moreThan256SamplesOfTheCensusAreThinnedAsTheyAreTaken() throws IOException {
+        Path file = fileOf("0");
 
+        // no chart yet: the census says a line before each of 300 readings, one a second, before it hands the job any
+        // walk; then it hands the job the walk it walked and fails
         MovingClock clock = new MovingClock();
         JobSampler sampler = aSampler(new AtomicReference<>(Map.of()), noRunsListed(), clock);
         JobExecution job = aJob();
         sampler.beforeJob(job);
         StepExecution census = censusOf(job);
-        censusSays(WALKED_AT_THE_LAST_LINE, THE_WALK_DISCARDED);
-        readsOnce(sampler);
-        String whileItWalks = Files.readString(file, UTF_8);
-        new InvocationRuns(job.getExecutionContext()).recordCorpusWalk(new WalkId(THE_WALK_KEPT));
-        ended(census, BatchStatus.COMPLETED, CENSUS_ENDS);
-        job.setStatus(BatchStatus.COMPLETED);
-        clock.moveOn(BETWEEN_READINGS);
-        sampler.afterJob(job);
-
-        double continuedAt = LAST_SECOND_IN_THE_FILE + INTERVAL;
-        claim("while the census walks a walk the chart does not name, the reading's sample is held and the chart is left"
-                        + " as it was",
-                () -> assertThat(whileItWalks).isEqualTo(before));
-        claim("once the census hands the job the walk the chart names, the chart, not finished, takes the sample held,"
-                        + " 45,000 entries one interval of 300 s after its last second, 5, then the last reading's 10 s on,"
-                        + " and freezes at the census's end",
-                () -> assertThat(Chart.in(file)).isEqualTo(new Chart(
-                        Map.of("walk", String.valueOf(THE_WALK_KEPT)),
-                        JOB_START.plusSeconds(CENSUS_ENDS).toString(),
-                        List.of(new Line("done",
-                                List.of(FIRST_SECOND_IN_THE_FILE, LAST_SECOND_IN_THE_FILE, continuedAt,
-                                        continuedAt + BETWEEN_READINGS),
-                                List.of(FIRST_DONE_IN_THE_FILE, LAST_DONE_IN_THE_FILE,
-                                        (double) WALKED_AT_THE_LAST_LINE, (double) WALKED_AT_THE_LAST_LINE))))));
-    }
-
-    @Test
-    @Story("The window shows how each stage has gone")
-    @DisplayName("More samples held than a chart keeps are thinned to every other one, oldest first, as they are handed over")
-    @Issue("861")
-    @Link(name = "ADR-412", url = Adr.STAGE_0S_CHART_IS_KEPT_UNDER_THE_WALK_THE_CENSUS_KEEPS, type = "adr")
-    void moreThan256SamplesHeldAreThinnedAsTheyAreHandedOver() throws IOException {
-        Path file = workingDirectory.resolve("chart-stage-0.json");
-
-        // no chart yet: the census says a line before each of 300 readings, one a second, each held; then it hands the
-        // job the walk it walked and fails, and the reading after that takes no sample of its own
-        MovingClock clock = new MovingClock();
-        JobSampler sampler = aSampler(new AtomicReference<>(Map.of()), noRunsListed(), clock);
-        JobExecution job = aJob();
-        sampler.beforeJob(job);
-        StepExecution census = censusOf(job);
-        for (int reading = 0; reading < READINGS_HELD; reading++) {
+        for (int reading = 0; reading < READINGS_BEFORE_THE_HAND_OVER; reading++) {
             censusSays(ENTRIES_A_READING * (reading + 1), THE_WALK_DISCARDED);
             readsOnce(sampler);
             clock.moveOn(1);
         }
+        Chart beforeTheHandOver = Chart.in(file);
         new InvocationRuns(job.getExecutionContext()).recordCorpusWalk(new WalkId(THE_WALK_DISCARDED));
         ended(census, BatchStatus.FAILED, CENSUS_ENDS);
-        readsOnce(sampler);
-        Chart handedOver = Chart.in(file);
         job.setStatus(BatchStatus.FAILED);
         sampler.afterJob(job);
 
-        // added one at a time: the 257th point thins the chart to the 129 at even seconds 0 to 256, after which the 43
-        // held at seconds 257 to 299 are added whole, 172 points in all
+        // taken one at a time: the 257th point thins the chart to the 129 at even seconds 0 to 256, after which the 43
+        // taken at seconds 257 to 299 are added whole, 172 points in all
         List<Double> seconds = new ArrayList<>();
         List<Double> done = new ArrayList<>();
-        for (int second = 0; second < READINGS_HELD; second += second < MOST_POINTS ? 2 : 1) {
+        for (int second = 0; second < READINGS_BEFORE_THE_HAND_OVER; second += second < MOST_POINTS ? 2 : 1) {
             seconds.add((double) second);
             done.add((double) ENTRIES_A_READING * (second + 1));
         }
-        claim("the 300 samples held are kept as a chart taking them one at a time keeps them, at most 256 points: every"
-                        + " other one from second 0 to 256, then each from 257 to 299, 172 in all, each with the entries"
-                        + " its reading's line said",
+        claim("before the census hands the job a walk, its 300 samples are written as a chart taking them one at a time"
+                        + " keeps them, at most 256 points: every other one from second 0 to 256, then each from 257 to 299,"
+                        + " 172 in all, each with the entries its reading's line said",
                 () -> {
-                    assertThat(handedOver).isNotNull();
-                    assertThat(handedOver.lines()).hasSize(1);
-                    assertThat(handedOver.lines().getFirst().seconds()).hasSizeLessThanOrEqualTo(MOST_POINTS);
-                    assertThat(handedOver).isEqualTo(new Chart(
+                    assertThat(beforeTheHandOver).isNotNull();
+                    assertThat(beforeTheHandOver.lines()).hasSize(1);
+                    assertThat(beforeTheHandOver.lines().getFirst().seconds()).hasSizeLessThanOrEqualTo(MOST_POINTS);
+                    assertThat(beforeTheHandOver).isEqualTo(new Chart(
                             Map.of("walk", String.valueOf(THE_WALK_DISCARDED)), null,
                             List.of(new Line("done", seconds, done))));
                 });
@@ -465,12 +453,10 @@ class EachStagesChartIsKeptUnderItsRunTest {
 
     @Test
     @Story("The window shows how each stage has gone")
-    @DisplayName("A census that walks no part of the corpus root draws nothing of the seed folder's walk on its chart")
-    @Issue("861")
-    @Link(name = "ADR-412", url = Adr.STAGE_0S_CHART_IS_KEPT_UNDER_THE_WALK_THE_CENSUS_KEEPS, type = "adr")
-    void aCensusThatHandsTheJobNoWalkDrawsNothingOfTheSeedFoldersWalk() throws IOException {
-        Path file = workingDirectory.resolve("chart-stage-0.json");
-
+    @DisplayName("A census that walks no part of the corpus root leaves its chart empty when it ends")
+    @Issue("880")
+    @Link(name = "ADR-417", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
+    void aCensusThatHandsTheJobNoWalkLeavesItsChartEmpty() throws IOException {
         // the corpus root's walk fails before its first line, so the census hands the job no walk, and walks the seed
         // folder all the same; a reading falls while it does, and the census fails
         MovingClock clock = new MovingClock();
@@ -485,9 +471,10 @@ class EachStagesChartIsKeptUnderItsRunTest {
         clock.moveOn(BETWEEN_READINGS);
         sampler.afterJob(job);
 
-        claim("no chart of the census is written: the only walk its lines named, the seed folder's, is no walk of the"
-                        + " corpus root",
-                () -> assertThat(file).doesNotExist());
+        claim("after the census ends with no walk handed, its file holds format 1, its stage, no key, no finishing time"
+                        + " and no line: the only walk its lines named, the seed folder's, is drawn as no walk of the corpus"
+                        + " root",
+                () -> assertThat(filesOf(List.of("0"))).isEqualTo(emptyFiles(List.of("0"))));
     }
 
     // ---- the job
@@ -507,7 +494,7 @@ class EachStagesChartIsKeptUnderItsRunTest {
 
     /**
      * One reading as the sampler's own thread makes it at each interval, {@code scheduledWrite}, made on the test's
-     * thread so that it falls where the test puts it (ADR-412, What the implementation owes).
+     * thread so that it falls where the test puts it (ADR-417, What the implementation owes).
      */
     private static void readsOnce(JobSampler sampler) {
         try {
@@ -565,12 +552,6 @@ class EachStagesChartIsKeptUnderItsRunTest {
         return aStep(job, StepNames.CENSUS, BatchStatus.STARTED, 0, null);
     }
 
-    /** A step that finds its stage's {@code run} finished, recorded by the job and ended at once after the census. */
-    private static void goesThroughFinished(JobExecution job, String step, String runStage, String run) {
-        new InvocationRuns(job.getExecutionContext()).record(runStage, new RunId(run));
-        aStep(job, step, BatchStatus.COMPLETED, CENSUS_ENDS, CENSUS_ENDS);
-    }
-
     /** The census's own line, as it says it of {@code walk} at {@code entries} walked, on the logger it says it on. */
     private static void censusSays(long entries, long walk) {
         LoggerFactory.getLogger(WalkRecorder.class).info(
@@ -582,10 +563,15 @@ class EachStagesChartIsKeptUnderItsRunTest {
 
     /** The extraction's counter over its four documents, said on this thread with its step bound to it, {@code read} done. */
     private static void says(StepExecution step, int read) {
+        counts(step, "Stage 2 (extraction)", TO_READ, read);
+    }
+
+    /** A counter labelled {@code label} over {@code total} items, said on this thread with {@code step} bound to it. */
+    private static void counts(StepExecution step, String label, long total, int done) {
         StepSynchronizationManager.register(step);
         try {
-            StageProgress progress = StageProgress.over("Stage 2 (extraction)", TO_READ);
-            for (int i = 0; i < read; i++) {
+            StageProgress progress = StageProgress.over(label, total);
+            for (int i = 0; i < done; i++) {
                 progress.itemDone();
             }
         } finally {
@@ -600,6 +586,10 @@ class EachStagesChartIsKeptUnderItsRunTest {
 
     // ---- the files
 
+    private Path fileOf(String stage) {
+        return workingDirectory.resolve("chart-stage-" + stage + ".json");
+    }
+
     /** One line of a stage's chart: its name, and its points' seconds and values in order. */
     private record Line(String name, List<Double> seconds, List<Double> values) {
     }
@@ -607,12 +597,13 @@ class EachStagesChartIsKeptUnderItsRunTest {
     /** A stage's file as read: its key, when it finished or null, and its lines in order. */
     private record Chart(Map<String, String> key, String finishedAt, List<Line> lines) {
 
-        @SuppressWarnings("unchecked")
         static Chart in(Path file) throws IOException {
-            if (!Files.isRegularFile(file)) {
-                return null;
-            }
-            Map<String, Object> read = JSON.readValue(Files.readString(file, UTF_8), Map.class);
+            return Files.isRegularFile(file) ? of(Files.readString(file, UTF_8)) : null;
+        }
+
+        @SuppressWarnings("unchecked")
+        static Chart of(String text) {
+            Map<String, Object> read = JSON.readValue(text, Map.class);
             Map<String, String> key = new LinkedHashMap<>();
             ((Map<String, Object>) read.getOrDefault("key", Map.of())).forEach((name, id) -> key.put(name, (String) id));
             List<Line> lines = new ArrayList<>();
@@ -629,14 +620,30 @@ class EachStagesChartIsKeptUnderItsRunTest {
         }
     }
 
-    /** The text of each of the working directory's {@code files}, by name, null where one is not there. */
-    private Map<String, String> textsOf(Iterable<String> files) throws IOException {
-        Map<String, String> texts = new LinkedHashMap<>();
-        for (String name : files) {
-            Path file = workingDirectory.resolve(name);
-            texts.put(name, Files.isRegularFile(file) ? Files.readString(file, UTF_8) : null);
+    /** Each of {@code stages}' files as JSON read whole, by stage, in order; null where one is not there. */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> filesOf(List<String> stages) throws IOException {
+        Map<String, Object> files = new LinkedHashMap<>();
+        for (String stage : stages) {
+            Path file = fileOf(stage);
+            files.put(stage, Files.isRegularFile(file) ? JSON.readValue(Files.readString(file, UTF_8), Map.class) : null);
         }
-        return texts;
+        return files;
+    }
+
+    /** What each of {@code stages}' files holds once written empty: format 1, its stage, no key, no time and no line. */
+    private static Map<String, Object> emptyFiles(List<String> stages) {
+        Map<String, Object> files = new LinkedHashMap<>();
+        for (String stage : stages) {
+            Map<String, Object> empty = new LinkedHashMap<>();
+            empty.put("format", FORMAT);
+            empty.put("stage", stage);
+            empty.put("key", Map.of());
+            empty.put("finishedAt", null);
+            empty.put("lines", List.of());
+            files.put(stage, empty);
+        }
+        return files;
     }
 
     /** A stage's file frozen under {@code key}, of its own two samples: {@code done} and, where given, one kind. */
@@ -646,14 +653,12 @@ class EachStagesChartIsKeptUnderItsRunTest {
 
     /**
      * A stage's file under {@code key}, finished at {@code finishedAt} or, where it is null, not finished, of two
-     * samples at seconds {@link #FIRST_SECOND_IN_THE_FILE} and {@link #LAST_SECOND_IN_THE_FILE}: {@code done}
-     * {@link #FIRST_DONE_IN_THE_FILE} then {@link #LAST_DONE_IN_THE_FILE} and, where given, one kind 0 then 3.
+     * samples at seconds 0 and 5: {@code done} 10 then 20 and, where given, one kind 0 then 3.
      */
     private static String aChartFile(String stage, String keyName, String key, String kind, String finishedAt) {
         return "{\"format\":1,\"stage\":\"" + stage + "\",\"key\":{\"" + keyName + "\":\"" + key + "\"},"
                 + "\"finishedAt\":" + (finishedAt == null ? "null" : "\"" + finishedAt + "\"") + ",\"lines\":["
-                + "{\"name\":\"done\",\"seconds\":[" + (long) FIRST_SECOND_IN_THE_FILE + "," + (long) LAST_SECOND_IN_THE_FILE
-                + "],\"values\":[" + (long) FIRST_DONE_IN_THE_FILE + "," + (long) LAST_DONE_IN_THE_FILE + "]}"
+                + "{\"name\":\"done\",\"seconds\":[0,5],\"values\":[10,20]}"
                 + (kind == null ? "" : ",{\"name\":\"" + kind + "\",\"seconds\":[0,5],\"values\":[0,3]}")
                 + "]}";
     }
