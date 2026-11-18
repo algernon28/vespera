@@ -3,6 +3,9 @@ package io.algernon.vespera.engine.pipeline;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.profile.ProfileStore;
 import io.qameta.allure.Epic;
@@ -22,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -40,8 +44,9 @@ import tools.jackson.databind.json.JsonMapper;
  * this machine's {@value #TWO_NEIGHBOURS} neighbours for the topics each word's passages form a topic, and at its
  * breadth floor of {@value #THE_FLOOR} a topic of half the passages stands and one of a third does not. This fixture's
  * naming model names the topics {@code Scripted Topic 1}, {@code 2}, … in key order, the topic on pumps' key coming
- * first. Each invocation stops at the arrangement's approval, and the report is read from the class's working directory
- * as soon as it ends.
+ * first. Each invocation stops at the arrangement's approval, but the one whose naming is made to stop, and the report
+ * is read from the class's working directory as soon as it ends. The report is written on both of the step's branches,
+ * where it arranges and where it finds itself already recorded, and not where the naming stops (ADR-416 §1).
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
@@ -74,6 +79,12 @@ class TheTopicsAnalysisReportIsWrittenAtTheArrangementInvocationTest {
 
     /** The schema {@code topics.json} is published under (ADR-362 §9). */
     private static final Path SCHEMA = Path.of("docs", "report", "topics.schema.json");
+
+    /** What the serving engine answers a question it refuses with, which says nothing of the question's length. */
+    private static final String A_REFUSAL = "the serving engine is busy";
+
+    /** What the arrangement step logs where it finds itself recorded under the run it arrives at, before the run. */
+    private static final String THE_STEP_FOUND_RECORDED = "the arrangement step was already recorded under run ";
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -190,6 +201,80 @@ class TheTopicsAnalysisReportIsWrittenAtTheArrangementInvocationTest {
                         + " 2 seeds feeding none",
                 () -> assertThat(figuresOf(json)).containsExactly(
                         "topics 1", "seed-passages 6", "topics-with-no-document 0", "seeds-feeding-no-topic 2"));
+    }
+
+    /**
+     * {@link #aTopicNoDocumentIsPlacedUnderIsListedWithItsSeeds}'s fixture, run to the approval twice on one profile, the
+     * report's two files deleted in between: the second invocation finds the arrangement step recorded under the run the
+     * first minted, and writes the report again from the rows recorded, as it writes {@code arrangement.html} (ADR-154
+     * §2). Which branch the step took is read off the line it logs on finding itself recorded.
+     */
+    @Test
+    @Story("What feeds each topic is shown before the arrangement is approved")
+    @DisplayName("An invocation finding the arrangement already made writes the topics page and its data again, as the first wrote them")
+    void anInvocationFindingTheArrangementRecordedWritesTheTopicsAnalysisReportAgain(
+            @TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve(SeedScriptedExtractionBeans.A_DOCUMENT_IN_THREE_PARTS),
+                "a corpus document of " + root.getFileName());
+        seedsNamed(seeds, SeedScriptedExtractionBeans.ON_SLUICES.subList(0, 3),
+                SeedScriptedExtractionBeans.ON_PUMPS.subList(0, 3));
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+
+        cli.run("run", root.toString());
+        int first = cli.getExitCode();
+        List<List<Object>> rowsTheFirstWrote = AnalysisReportRows.of(sectionOf(theReport(), "topics"));
+        Files.delete(workingDirectory.resolve("topics.json"));
+        Files.delete(workingDirectory.resolve("topics.html"));
+        ListAppender<ILoggingEvent> lines = new ListAppender<>();
+        lines.start();
+        Logger arrangementLogger = (Logger) LoggerFactory.getLogger(ArrangementTasklet.class);
+        arrangementLogger.addAppender(lines);
+        try {
+            cli.run("run", root.toString());
+        } finally {
+            arrangementLogger.detachAppender(lines);
+            lines.stop();
+        }
+
+        claim("both invocations ended well, at the arrangement's approval",
+                () -> assertThat(List.of(first, cli.getExitCode())).containsExactly(0, 0));
+        claim("the second found the arrangement step already recorded, and so named and arranged nothing",
+                () -> assertThat(lines.list)
+                        .extracting(ILoggingEvent::getFormattedMessage)
+                        .anyMatch(line -> line.startsWith(THE_STEP_FOUND_RECORDED)));
+        claim("the page and its JSON lie in the working directory again",
+                () -> assertThat(List.of(workingDirectory.resolve("topics.html"), workingDirectory.resolve("topics.json")))
+                        .allSatisfy(file -> assertThat(file).isRegularFile()));
+        claim("and the JSON's row for each topic is the one the first invocation wrote",
+                () -> assertThat(AnalysisReportRows.of(sectionOf(theReport(), "topics")))
+                        .isEqualTo(rowsTheFirstWrote));
+    }
+
+    /**
+     * {@link #aTopicNoDocumentIsPlacedUnderIsListedWithItsSeeds}'s fixture, the serving engine refusing every question
+     * about sluices, so that the step stops once the topic on pumps, whose key comes first, is named (ADR-409 §6). The
+     * report's files are deleted first, since the class's working directory keeps what its other tests wrote.
+     */
+    @Test
+    @Story("What feeds each topic is shown before the arrangement is approved")
+    @DisplayName("Where naming the topics stops, neither the topics page nor its data is written")
+    void aStopWhileNamingWritesNoTopicsAnalysisReport(@TempDir Path root, @TempDir Path seeds) throws IOException {
+        Files.writeString(root.resolve(SeedScriptedExtractionBeans.A_DOCUMENT_IN_THREE_PARTS),
+                "a corpus document of " + root.getFileName());
+        seedsNamed(seeds, SeedScriptedExtractionBeans.ON_SLUICES.subList(0, 3),
+                SeedScriptedExtractionBeans.ON_PUMPS.subList(0, 3));
+        EveryGateOpen.throughStageFive(profileStore, seeds);
+        Files.deleteIfExists(workingDirectory.resolve("topics.json"));
+        Files.deleteIfExists(workingDirectory.resolve("topics.html"));
+        GenerationScriptedBeans.refuseEvery(question -> question.contains(SLUICES), A_REFUSAL);
+
+        cli.run("run", root.toString());
+
+        claim("the invocation failed, the naming model giving no answer for the topic on sluices",
+                () -> assertThat(cli.getExitCode()).isNotZero());
+        claim("and neither topics.json nor topics.html was written",
+                () -> assertThat(List.of(workingDirectory.resolve("topics.json"), workingDirectory.resolve("topics.html")))
+                        .allSatisfy(file -> assertThat(file).doesNotExist()));
     }
 
     private static void seedsNamed(Path seeds, List<String> onSluices, List<String> onPumps) throws IOException {
