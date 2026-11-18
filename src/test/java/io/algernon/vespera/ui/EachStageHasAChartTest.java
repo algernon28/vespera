@@ -220,7 +220,7 @@ class EachStageHasAChartTest {
     @Story("The window shows how each stage has gone")
     @DisplayName("A stage's chart the job wrote empty as it began is drawn as one the working directory keeps no file of: its title alone and no line")
     @Issue("880")
-    @Link(name = "ADR-417", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
+    @Link(name = "ADR-418", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
     void aStagesChartWrittenEmptyIsDrawnAsOneWithNoFile() throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
         Files.writeString(working.resolve("chart-stage-1.json"), STAGE_1_WRITTEN_EMPTY, UTF_8);

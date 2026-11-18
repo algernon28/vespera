@@ -49,12 +49,12 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The chart of each stage is kept by the job in a file of its own beside the report, keyed by the run its stage works
- * under (ADR-382 §4 to §7), and drawn by one invocation alone (ADR-417): every file is written empty as the job of
+ * under (ADR-382 §4 to §7), and drawn by one invocation alone (ADR-418): every file is written empty as the job of
  * {@code vespera run} begins, so a stage the invocation does not reach stays empty, one it works is drawn from second 0
  * and one it finds finished freezes holding one sample; within the invocation a chart is started once, its key written
  * as the invocation reaches it, and frozen once. The census's chart is written as the census walks, under the walk its
  * lines name, and kept under the walk the census hands the job, with the entries its lines said (ADR-412 §1 and §2, as
- * ADR-417 §4 amends them).
+ * ADR-418 §4 amends them).
  *
  * <p>The job's listener is driven as Spring Batch drives it, with executions built by hand on a fixed clock, as the
  * report's own tests drive it; each invocation is a listener of its own, as a new process is. The extraction, stage 2,
@@ -157,7 +157,7 @@ class EachStagesChartIsKeptUnderItsRunTest {
     @Story("The window shows how each stage has gone")
     @DisplayName("As the job begins, every stage's chart is written empty, whatever the working directory kept of it, and a stage the invocation does not reach stays empty")
     @Issue("880")
-    @Link(name = "ADR-417", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
+    @Link(name = "ADR-418", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
     void everyStagesChartIsWrittenEmptyAsTheJobBegins() throws IOException {
         Files.writeString(fileOf("0"), aFrozenFile("0", "walk", String.valueOf(THE_WALK_KEPT), null), UTF_8);
         Files.writeString(fileOf("1"), aFrozenFile("1", "byte-level-reduction", STAGE_1_RUN, "broken"), UTF_8);
@@ -194,7 +194,7 @@ class EachStagesChartIsKeptUnderItsRunTest {
     @Story("The window shows how each stage has gone")
     @DisplayName("Every invocation draws its stage's chart afresh under the same run, and one that finds the stage finished freezes it with one sample")
     @Issue("880")
-    @Link(name = "ADR-417", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
+    @Link(name = "ADR-418", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
     void everyInvocationDrawsTheStagesChartAfreshAndOneFindingItFinishedFreezesItWithOneSample() throws IOException {
         AtomicReference<Map<String, Long>> recorded = new AtomicReference<>(Map.of());
         Path file = fileOf("2");
@@ -263,7 +263,7 @@ class EachStagesChartIsKeptUnderItsRunTest {
     @Story("The window shows how each stage has gone")
     @DisplayName("Within the invocation that freezes it, a finished stage's chart is not written again")
     @Issue("880")
-    @Link(name = "ADR-417", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
+    @Link(name = "ADR-418", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
     void withinTheInvocationThatFreezesItAStagesChartIsNotWrittenAgain() throws IOException {
         Path file = fileOf("2");
         MovingClock clock = new MovingClock();
@@ -297,7 +297,7 @@ class EachStagesChartIsKeptUnderItsRunTest {
     @Story("The window shows how each stage has gone")
     @DisplayName("The relevance stage's chart keeps its first samples when the invocation reaches the second run the stage works under")
     @Issue("880")
-    @Link(name = "ADR-417", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
+    @Link(name = "ADR-418", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
     void stage5sChartIsNotStartedAfreshWhenTheInvocationReachesItsSecondRun() throws IOException {
         MovingClock clock = new MovingClock();
         JobSampler sampler = aSampler(new AtomicReference<>(Map.of()), noRunsListed(), clock);
@@ -340,7 +340,7 @@ class EachStagesChartIsKeptUnderItsRunTest {
     @Story("The window shows how each stage has gone")
     @DisplayName("The census's chart is written as it walks, drawn afresh by each invocation, and kept under the walk it hands the job, with the entries its lines said")
     @Issue("880")
-    @Link(name = "ADR-417", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
+    @Link(name = "ADR-418", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
     @Link(name = "ADR-412", url = Adr.STAGE_0S_CHART_IS_KEPT_UNDER_THE_WALK_THE_CENSUS_KEEPS, type = "adr")
     void theChartOfTheCensusIsWrittenAsItWalksAndKeptUnderTheWalkItHandsTheJob() throws IOException {
         Path file = fileOf("0");
@@ -408,7 +408,7 @@ class EachStagesChartIsKeptUnderItsRunTest {
     @Story("The window shows how each stage has gone")
     @DisplayName("More samples of the census than a chart keeps are thinned to every other one, oldest first, as they are taken")
     @Issue("880")
-    @Link(name = "ADR-417", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
+    @Link(name = "ADR-418", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
     void moreThan256SamplesOfTheCensusAreThinnedAsTheyAreTaken() throws IOException {
         Path file = fileOf("0");
 
@@ -455,7 +455,7 @@ class EachStagesChartIsKeptUnderItsRunTest {
     @Story("The window shows how each stage has gone")
     @DisplayName("A census that walks no part of the corpus root leaves its chart empty when it ends")
     @Issue("880")
-    @Link(name = "ADR-417", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
+    @Link(name = "ADR-418", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
     void aCensusThatHandsTheJobNoWalkLeavesItsChartEmpty() throws IOException {
         // the corpus root's walk fails before its first line, so the census hands the job no walk, and walks the seed
         // folder all the same; a reading falls while it does, and the census fails
@@ -494,7 +494,7 @@ class EachStagesChartIsKeptUnderItsRunTest {
 
     /**
      * One reading as the sampler's own thread makes it at each interval, {@code scheduledWrite}, made on the test's
-     * thread so that it falls where the test puts it (ADR-417, What the implementation owes).
+     * thread so that it falls where the test puts it (ADR-418, What the implementation owes).
      */
     private static void readsOnce(JobSampler sampler) {
         try {
