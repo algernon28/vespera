@@ -14,7 +14,7 @@
 
 **Where a report is read.** `ReportsPane` opens an analysis report in a tab of the cockpit's tabs pane, after the Report tab and Inclusions, in the order the reports are opened, and selects it; a report whose tab is open has that tab selected, neither opened nor read again; and every report's tab closes when the working-directory field changes (`ReportsPane.closeTabs()`, called by the field's listener in `Cockpit`). The tabs pane lies beneath the steps, the output and the charts, and shares the cockpit's one scroll with them: a report selected hides the Report tab, and a report and the run are not seen together. The Profile window was moved out of the same pane for the same reason (ADR-389's Context).
 
-**The ways in.** Each opens a report by its name through one call, `Cockpit.openReport(String)`, which today opens it through `ReportsPane`:
+**The ways in.** Each but a cell opens a report by its name through one call, `Cockpit.openReport(String)`, which today opens it through `ReportsPane`; a cell leads through `ReportsPane.leadTo`, below:
 
 | Way in | Where it is pressed |
 | --- | --- |
@@ -43,7 +43,7 @@ Seed folder's row is handed the same call, but `seedFolder` is read off no repor
 
 ### 3. Opening a report
 
-**Every way in opens the report in the Reports window**, each through `Cockpit.openReport(String)` as before: the sidebar's link, the Report tab's name, a row's link in the Profile window, in `wanted` and in Seed folder's row, and an `analysisReport` cell of a report open in the Reports window.
+**Every way in opens the report in the Reports window**: the sidebar's link, the Report tab's name, and a row's link in the Profile window, in `wanted` and in Seed folder's row, each through `Cockpit.openReport(String)` as before; and an `analysisReport` cell of a report open in the Reports window through the window's own lead, as it went through `ReportsPane.leadTo` before, which opens the report there where its JSON is written.
 
 | The report | What the window does |
 | --- | --- |
@@ -121,7 +121,7 @@ The Reports window is a view of the control panel's, and ADR-381 §1, ADR-374 an
 | `ui.EveryBarOfTheStepsCarriesItsPercentTest.aNativeViewNamesNoColourOfItsOwnAndStandsAtAaInBothThemes` | §6: amended so that the report's view is measured in the Reports window, in both themes |
 | `ui.EveryTextOfTheWindowCanBeCopiedTest.everyTextShownOutsideAControlIsSelectableText` | §6: amended so that the walk opens a report and reaches the Reports window from its root, its headline and its paragraph among the texts reached |
 
-That opening a report brings the window to the front and gives it the focus is held by no test: the Headless platform reports every window focused and keeps no order of windows a test can read; that it shows the window again where it is minimized is held. Seed folder's row draws no link to a report, so no test presses one.
+That opening a report brings the window to the front and gives it the focus is held by no test: the Headless platform reports every window focused and keeps no order of windows a test can read; that it shows the window again where it is minimized is held. A popup over the Reports window following the switch, a table's context menu among them, is held by no test, as ADR-389's Tests say of the Profile window: `ThemeSwitch.restylePopups` restyles the popups whose owner is the cockpit's window, and a popup over the Reports window hides as the cockpit's switch is clicked, so the operator cannot move the switch while one shows. Seed folder's row draws no link to a report, so no test presses one.
 
 ## What the implementation owes
 
