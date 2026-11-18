@@ -189,8 +189,8 @@ final class EndingPanel {
     private final Button openReport = new Button("Open report");
     private final Button copy = new Button("Copy details");
     private final Region stripe = new Region();
-    private final HBox panel = new HBox();
-    private final ScrollPane scroll = new ScrollPane(panel);
+    private final HBox stripeAndBody = new HBox();
+    private final ScrollPane scroll = new ScrollPane(stripeAndBody);
 
     /** {@code openProfile} opens the Profile window; {@code openReport} selects the Report tab. */
     EndingPanel(Runnable openProfile, Runnable openReport) {
@@ -216,9 +216,9 @@ final class EndingPanel {
         VBox body = new VBox(when, kind, line, faults, facts, buttons);
         body.getStyleClass().add("ending-body");
         HBox.setHgrow(body, Priority.ALWAYS);
-        panel.setId("ending-panel");
-        panel.getStyleClass().add("ending-panel");
-        panel.getChildren().addAll(stripe, body);
+        stripeAndBody.setId("ending-panel");
+        stripeAndBody.getStyleClass().add("ending-panel");
+        stripeAndBody.getChildren().addAll(stripe, body);
         scroll.setFitToWidth(true);
         scroll.setFitToHeight(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
