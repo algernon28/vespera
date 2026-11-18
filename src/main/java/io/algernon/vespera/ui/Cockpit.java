@@ -106,7 +106,7 @@ final class Cockpit {
     private Ending endingReadOf;
     private boolean endingCleared;
     /** Whether the Report tab last drew a report for the ending panel, not for a watched invocation. */
-    private boolean tabDrawnForThePanel;
+    private boolean tabDrawnForTheEndingPanel;
     private final Tab inclusionsTab = new Tab("Inclusions");
     private final Accordion sidebar = new Accordion();
     private final Map<String, TitledPane> sections = new LinkedHashMap<>();
@@ -1352,7 +1352,7 @@ final class Cockpit {
         endingReadFor = readFor;
         if (cleared) {
             takeTheEndingPanelAway();
-            tabDrawnForThePanel = false;
+            tabDrawnForTheEndingPanel = false;
             return;
         }
         Optional<EndingPanel.Said> said;
@@ -1360,16 +1360,16 @@ final class Cockpit {
             Optional<InvocationReportFile.Report> report = state.watchedChild()
                     .flatMap(child -> theChildsOwnReport(folder.get(), child));
             said = Optional.of(EndingPanel.ofTheChild(own, report, noticedAt, ZoneId.systemDefault()));
-            tabDrawnForThePanel = false;
+            tabDrawnForTheEndingPanel = false;
         } else {
             Optional<InvocationReportFile.Report> report = theReportAtTheTop(folder.get());
             said = report.flatMap(each -> EndingPanel.ofAnEarlier(each, ZoneId.systemDefault()));
             if (said.isPresent()) {
                 live.showsAnEarlier(report.get());
-                tabDrawnForThePanel = true;
-            } else if (tabDrawnForThePanel) {
+                tabDrawnForTheEndingPanel = true;
+            } else if (tabDrawnForTheEndingPanel) {
                 live.says(LiveReport.WAITING);
-                tabDrawnForThePanel = false;
+                tabDrawnForTheEndingPanel = false;
             }
         }
         if (said.isEmpty()) {
@@ -1406,7 +1406,13 @@ final class Cockpit {
             if (!Files.isRegularFile(file)) {
                 return Optional.empty();
             }
-            return Optional.of(InvocationReportFile.read(Files.readString(file, StandardCharsets.UTF_8)));
+            InvocationReportFile.Report report = InvocationReportFile.read(Files.readString(file, StandardCharsets.UTF_8));
+            if (report.invocation() == null
+                    || report.invocation().started() == null
+                    || report.invocation().writtenAt() == null) {
+                return Optional.empty();
+            }
+            return Optional.of(report);
         } catch (IOException | IllegalArgumentException | UncheckedIOException unreadable) {
             return Optional.empty();
         }
