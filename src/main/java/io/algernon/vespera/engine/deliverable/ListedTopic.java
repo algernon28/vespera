@@ -4,9 +4,8 @@ import io.algernon.vespera.engine.synthesis.TopicKey;
 
 /**
  * One topic of the arrangement as the tree is written from it (ADR-223 section 6, ADR-409 section 10): its key, its
- * recorded name, its place among the topics and how many clusters sit in it, across its subtopics. Until the
- * renderings draw a topic and its subtopics (#833), a topic stands where a seed partition stood, and its clusters are
- * drawn in one sequence.
+ * recorded name, its place among the topics and how many clusters sit in it, across its subtopics. The renderings draw
+ * it as a page, its subtopics as pages beneath it, and its clusters in one sequence through them (ADR-415).
  *
  * <p>A topic's folder is named from its name, so a topic that arrives without one is refused where it is made, before
  * the writer has made a folder or reported a total.
