@@ -9,14 +9,14 @@ import java.util.Optional;
 
 /**
  * {@code index.html}, the mechanical listing at the root of every tree (ADR-103, ADR-112, ADR-122, ADR-274 §1.4), and
- * the names it and the tree beneath it give their partitions and cluster pages.
+ * the names it and the tree beneath it give their topics and cluster pages.
  *
  * <p>It is appended to as its rows come (ADR-223 section 6): {@link #open} writes what produced the tree,
  * then {@link #topicHeading} opens one topic's table and {@link #clusterRow} appends each of its rows,
  * as the cluster's page is written from the same synthesis doc (ADR-241), {@link #topicEnd} closes the table, and
  * {@link #close} the page. Nothing here holds the index whole.
  *
- * <p><b>The order is rendered, never re-derived.</b> The partitions and the clusters arrive already in the
+ * <p><b>The order is rendered, never re-derived.</b> The topics and the clusters arrive already in the
  * order the operator approved (ADR-112), and neither level here is sorted again — a topic's position
  * comes from its own {@code topicOrder}, and a cluster's from its own {@code clusterOrder}.
  *
@@ -32,8 +32,9 @@ public final class IndexPage {
     static final String THE_INDEXS_PARAGRAPH = "The path column of documents.csv names each document beneath the archive"
             + " root recorded above. Each group's folder holds its page and a copy of every document listed on it,"
             + " checked against the digest taken when it was converted, and each link on a group's page leads to its"
-            + " copy; the archive root names where they were copied from. The seed_partition column is not a path"
-            + " beneath that root: it names a seed beneath the seed folder, which is a root of its own. The copy and"
+            + " copy; the archive root names where they were copied from. The seed_partition column is not a path:"
+            + " it holds the name of the topic each document is placed under, and each numbered folder beside this"
+            + " page is named after a topic and holds the folders of that topic's groups. The copy and"
             + " copy_outcome columns say which documents were copied and, of any that were not, why.";
 
     private IndexPage() {}
@@ -115,7 +116,7 @@ public final class IndexPage {
         return String.valueOf(count).length();
     }
 
-    /** What produced the tree, and what its path columns resolve against: everything before the first partition. */
+    /** What produced the tree, and what its path columns resolve against: everything before the first topic. */
     static void open(Appendable index, DeliverableProvenance provenance, DeliverableLanguage language)
             throws IOException {
         index.append(Html.head(FixedWords.theDeliverable(language) + provenance.runId(), language))
