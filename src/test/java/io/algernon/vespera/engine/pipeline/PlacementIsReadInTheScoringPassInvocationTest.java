@@ -39,9 +39,9 @@ import org.springframework.test.context.DynamicPropertySource;
  * TheTopicsAreFoundAtTheHeadOfRelevanceScoringInvocationTest}, on its fixture, with this machine's floor at {@value
  * #THE_FLOOR} and its neighbours for the topics at {@value #TWO_NEIGHBOURS}.
  *
- * <p>Nothing stores a placement yet, that being #832's, so what is read is the step's own lines: how many topics it
- * found, how many stand, and how many survivors it placed under how many topics, the last counted off the placement it
- * built. Each line the application logs is kept, in order, with how many calls {@link EmbeddingScriptedBeans}'
+ * <p>What is read is the step's own lines: how many topics it found, how many stand, and how many survivors it placed
+ * under how many topics, the last counted off the placement it built, in the words ADR-409 §8 gives it now that the
+ * placement is stored; what is stored is {@link TheTopicsAndPlacementAreStoredInvocationTest}'s. Each line the application logs is kept, in order, with how many calls {@link EmbeddingScriptedBeans}'
  * embedding double had answered when it was logged.
  *
  * <p>Two tests set the seeds' passages apart: {@link SeedScriptedExtractionBeans} converts each of its files on sluices
@@ -243,7 +243,7 @@ class PlacementIsReadInTheScoringPassInvocationTest {
     /** The step's line saying it placed {@code survivors} survivors, under the {@code topics} the placement read. */
     private static String placed(int survivors, int topics) {
         return "Stage 5d (relevance scoring) placed " + survivors + " survivor(s) under the " + topics + " topic(s) that"
-                + " stand, the placement held and not yet stored (#832)";
+                + " stand";
     }
 
     /**

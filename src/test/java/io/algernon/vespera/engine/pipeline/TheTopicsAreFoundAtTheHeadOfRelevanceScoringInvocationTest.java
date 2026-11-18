@@ -35,8 +35,9 @@ import org.springframework.test.context.DynamicPropertySource;
  * embedder. A sibling of {@link RelevanceScoringInvocationTest}, on its fixture: one corpus document, one seed, the
  * scripted extraction and embedding beans, and every gate through stage 5 open.
  *
- * <p>Nothing stores the topics yet, that being #832's, so what is read is the step's own line saying how many it
- * found, among the lines around it: each line the application logs is kept, in order, with how many calls {@link
+ * <p>What is read is the step's own line saying how many it found, among the lines around it, since where the line
+ * stands among them is what says when the topics were found; what is stored of them is {@link
+ * TheTopicsAndPlacementAreStoredInvocationTest}'s (ADR-409 §2, §5). Each line the application logs is kept, in order, with how many calls {@link
  * EmbeddingScriptedBeans}' embedding double had answered when it was logged. The line counting the first survivor
  * scored is logged once that survivor's score is recorded, and the total being one, it is logged for it.
  *

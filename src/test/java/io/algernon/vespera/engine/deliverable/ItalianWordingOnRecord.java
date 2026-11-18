@@ -119,15 +119,19 @@ public final class ItalianWordingOnRecord {
 
     public static final String ARCHIVE_ROOT = "Radice dell'archivio: ";
 
-    /** The index's paragraph on documents.csv and the copies. */
+    /**
+     * The index's paragraph on documents.csv and the copies, its sentence on {@code seed_partition} as ADR-409 §10
+     * words it: the column holds a topic's name, and each numbered folder beside the index is a topic's.
+     */
     public static final String THE_INDEXS_PARAGRAPH = "La colonna path di documents.csv indica ogni documento a"
             + " partire dalla radice dell'archivio riportata sopra. La cartella di ogni gruppo contiene la sua pagina e"
             + " una copia di ogni documento che vi è elencato, verificata con l'impronta presa quando è stato"
             + " convertito, e ogni collegamento della pagina di un gruppo porta alla sua copia; la radice"
-            + " dell'archivio indica da dove sono state copiate. La colonna seed_partition non è un percorso sotto"
-            + " quella radice: indica un documento campione sotto la cartella dei campioni, che è una radice a sé. Le"
-            + " colonne copy e copy_outcome dicono quali documenti sono stati copiati e, per quelli che non lo sono"
-            + " stati, perché.";
+            + " dell'archivio indica da dove sono state copiate. La colonna seed_partition non è un percorso:"
+            + " contiene il nome dell'argomento sotto cui è collocato ogni documento, e ogni cartella numerata"
+            + " accanto a questa pagina prende il nome da un argomento e contiene le cartelle dei gruppi di"
+            + " quell'argomento. Le colonne copy e copy_outcome dicono quali documenti sono stati copiati e, per"
+            + " quelli che non lo sono stati, perché.";
 
     /** The three heads of a seed partition's table of groups, on the index, the root page and its own page. */
     public static final List<String> THE_TABLE_OF_CLUSTERS = List.of("Gruppo", "Documenti", "Titolo del testo");

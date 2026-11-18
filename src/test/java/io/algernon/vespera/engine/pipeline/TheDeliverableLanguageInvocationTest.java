@@ -114,8 +114,10 @@ class TheDeliverableLanguageInvocationTest {
                         + " English readers with Italian pages",
                 () -> assertThat(runs).hasSize(TWO_GENERATION_RUNS).doesNotHaveDuplicates());
         claim(
-                "the second records English, the language an empty key means",
-                () -> assertThat(settingsOf(runs.getLast())).endsWith(",\"deliverableLanguage\":\"en\"}"));
+                "the second records English, the language an empty key means, and then the overview's temperature"
+                        + " and seed, which close the settings",
+                () -> assertThat(settingsOf(runs.getLast())).endsWith(
+                        ",\"deliverableLanguage\":\"en\",\"overviewTemperature\":0.0,\"overviewSeed\":1}"));
         claim(
                 "and every group was asked for again, in English",
                 () -> assertThat(GenerationScriptedBeans.promptsSent()).isNotEmpty().allSatisfy(question ->

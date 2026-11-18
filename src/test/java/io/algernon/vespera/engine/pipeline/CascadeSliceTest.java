@@ -9,10 +9,12 @@ import io.algernon.vespera.engine.corpus.WalkRecorder;
 import io.algernon.vespera.engine.embedding.ChunkEmbedderBeans;
 import io.algernon.vespera.engine.embedding.ClusteringBeans;
 import io.algernon.vespera.engine.embedding.DocumentClusters;
+import io.algernon.vespera.engine.embedding.Placements;
 import io.algernon.vespera.engine.embedding.RelevanceDistribution;
 import io.algernon.vespera.engine.embedding.RelevanceLabels;
 import io.algernon.vespera.engine.embedding.RelevanceScoringBeans;
 import io.algernon.vespera.engine.embedding.SeedCorpusComparison;
+import io.algernon.vespera.engine.embedding.Topics;
 import io.algernon.vespera.engine.embedding.UnusableSeeds;
 import io.algernon.vespera.engine.extraction.ConfidenceDistribution;
 import io.algernon.vespera.engine.extraction.DocumentTitles;
@@ -34,7 +36,10 @@ import io.algernon.vespera.engine.synthesis.ClusterGeneration;
 import io.algernon.vespera.engine.synthesis.ClusterSynthesis;
 import io.algernon.vespera.engine.synthesis.Clusters;
 import io.algernon.vespera.engine.synthesis.SynthesisDocs;
+import io.algernon.vespera.engine.synthesis.TopicNames;
 import io.algernon.vespera.engine.synthesis.TopicNaming;
+import io.algernon.vespera.engine.synthesis.TopicOverviewSynthesis;
+import io.algernon.vespera.engine.synthesis.TopicOverviews;
 import io.algernon.vespera.publish.website.WebsitePlugin;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -181,6 +186,9 @@ import org.springframework.transaction.annotation.Transactional;
     ClusteringTasklet.class,
     ClusteringBeans.class,
     DocumentClusters.class,
+    // The topics the scoring step keeps, and each document's place among them, read by the steps after it (ADR-409).
+    Topics.class,
+    Placements.class,
     // Stage 6a: arrangement.
     ArrangementTasklet.class,
     ArrangementGate.class,
@@ -192,8 +200,12 @@ import org.springframework.transaction.annotation.Transactional;
     GenerationContextWindow.class,
     GenerationScriptedBeans.class,
     ClusterSynthesis.class,
-    // The call that names the topics at the head of the arrangement step (ADR-407).
+    // The call that names the topics at the head of the arrangement step (ADR-407), and the names it records (ADR-409).
     TopicNaming.class,
+    TopicNames.class,
+    // The call that writes a topic's overview after the walk over its clusters (ADR-402), and its rows (ADR-409).
+    TopicOverviewSynthesis.class,
+    TopicOverviews.class,
     SynthesisDocs.class,
     // The loop over the clusters, and the faults it records, are beans GenerationTasklet is handed (ADR-190).
     ClusterGeneration.class,

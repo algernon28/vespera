@@ -1,6 +1,5 @@
 package io.algernon.vespera.engine.deliverable;
 
-import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.ReplacingMove;
 import io.algernon.vespera.engine.synthesis.ArrangedCluster;
 import io.algernon.vespera.engine.synthesis.ClusterSlot;
@@ -24,15 +23,15 @@ import java.util.function.Consumer;
  * An arrangement, its writing and its survivors held as lists, answering {@link ArrangedSurvivors} from them:
  * the one fixture ADR-223 leaves for the tests that hand the tree's writer everything at once.
  *
- * <p>{@code src/main} reads one seed partition at a time and holds no such lists (ADR-223). A test's
+ * <p>{@code src/main} reads one topic at a time and holds no such lists (ADR-223, ADR-409 section 13). A test's
  * arrangement is a handful of clusters, so a test may hold all of it, and every test that handed {@code
  * Deliverable.writeTo}, {@code IndexPage}, {@code ManifestCsv} or {@code EntryPictures} lists hands them here
  * instead and reads the same bytes back.
  *
- * <p><b>It answers as the lists read.</b> A partition is the clusters sharing a winning seed, in the order
- * they are listed; its seed's path is the one the first listed survivor of that seed carries, and a partition
- * no survivor names has none, which {@link ListedPartition} refuses. The survivors come in the order listed,
- * a partition's and a page's alike. Of two docs listed for one cluster the later is the one written over it.
+ * <p><b>It answers as the lists read.</b> A topic is the clusters sharing a topic key, in the order they are
+ * listed; its name is the one the first listed survivor under it carries, and a topic no survivor names has none,
+ * which {@link ListedTopic} refuses. The survivors come in the order listed, a topic's and a page's alike. Of two
+ * docs listed for one cluster the later is the one written over it.
  */
 public final class ListedArrangement {
 
@@ -56,7 +55,7 @@ public final class ListedArrangement {
             int survivorsInAPage) {
         Map<ClusterSlot, SynthesisDoc> writtenByCluster = new LinkedHashMap<>();
         for (ListedDoc doc : written) {
-            writtenByCluster.put(new ClusterSlot(doc.winningSeed(), doc.clusterOrdinal()), doc.doc());
+            writtenByCluster.put(doc.cluster(), doc.doc());
         }
         Map<ClusterSlot, ArrangedCluster> placeByCluster = new LinkedHashMap<>();
         for (RecordedCluster recorded : arrangement) {
@@ -70,13 +69,13 @@ public final class ListedArrangement {
             }
         };
         return ArrangedSurvivors.reading(
-                () -> partitionsOf(arrangement, survivors),
+                () -> ListedTree.topicsOf(arrangement, survivors),
                 () -> survivors.size(),
-                partition -> arrangement.stream()
-                        .filter(recorded -> recorded.cluster().winningSeed().equals(partition.winningSeed()))
+                topic -> arrangement.stream()
+                        .filter(recorded -> recorded.cluster().topic().equals(topic.topic()))
                         .toList(),
-                partition -> survivors.stream()
-                        .filter(survivor -> survivor.winningSeed().equals(partition.winningSeed()))
+                topic -> survivors.stream()
+                        .filter(survivor -> survivor.topic().equals(topic.topic()))
                         .toList(),
                 cluster -> Optional.ofNullable(writtenByCluster.get(cluster)),
                 cluster -> Optional.ofNullable(unwritten.get(cluster)),
@@ -148,25 +147,25 @@ public final class ListedArrangement {
                 progress);
     }
 
-    /** {@code index.html} for these lists, whole: its opening lines, then each partition's heading, rows and end as the writer appends them. */
+    /** {@code index.html} for these lists, whole: its opening lines, then each topic's heading, rows and end as the writer appends them. */
     static String indexContents(
             DeliverableProvenance provenance,
             List<RecordedCluster> arrangement,
             List<ListedDoc> written,
             List<ListedSurvivor> survivors) {
         ArrangedSurvivors source = of(arrangement, written, survivors, Map.of());
-        List<ListedPartition> partitions = source.partitions();
+        List<ListedTopic> topics = source.topics();
         StringBuilder index = new StringBuilder();
         try {
             IndexPage.open(index, provenance, DeliverableLanguage.ENGLISH);
-            for (ListedPartition partition : partitions) {
-                IndexPage.partitionHeading(index, partition, DeliverableLanguage.ENGLISH);
-                for (RecordedCluster recorded : source.clustersOf(partition)) {
+            for (ListedTopic topic : topics) {
+                IndexPage.topicHeading(index, topic, DeliverableLanguage.ENGLISH);
+                for (RecordedCluster recorded : source.clustersOf(topic)) {
                     IndexPage.clusterRow(
-                            index, partition, partitions.size(), recorded, source.writtenOver(ClusterSlot.of(recorded)),
+                            index, topic, topics.size(), recorded, source.writtenOver(ClusterSlot.of(recorded)),
                             DeliverableLanguage.ENGLISH);
                 }
-                IndexPage.partitionEnd(index);
+                IndexPage.topicEnd(index);
             }
             IndexPage.close(index);
         } catch (IOException e) {
@@ -193,7 +192,9 @@ public final class ListedArrangement {
         Map<ClusterSlot, List<ListedSurvivor>> byCluster = new LinkedHashMap<>();
         survivors.forEach(survivor -> byCluster.computeIfAbsent(survivor.slot(), slot -> new ArrayList<>()).add(survivor));
         byCluster.forEach((slot, members) -> copies.copyAll(
-                nowhere.resolve("tree").resolve(slot.winningSeed().value() + "-" + slot.clusterOrdinal()), members));
+                nowhere.resolve("tree").resolve(slot.topic().seedPath() + "-" + slot.topic().chunkIndex() + "-"
+                        + slot.subtopic().orElse(-1) + "-" + slot.clusterOrdinal()),
+                members));
         try {
             ManifestCsv.write(
                     csv,
@@ -210,24 +211,5 @@ public final class ListedArrangement {
     static EntryPictures picturesAmong(
             List<ListedSurvivor> survivors, SurvivorPictures pictures, DeliverableProgress progress) {
         return EntryPictures.among(of(List.of(), List.of(), survivors, Map.of()), pictures, progress, page -> {});
-    }
-
-    /**
-     * One partition for each winning seed the arrangement names, in the order its first cluster is listed.
-     * A seed no survivor names has no path, and {@link ListedPartition} refuses it.
-     */
-    private static List<ListedPartition> partitionsOf(List<RecordedCluster> arrangement, List<ListedSurvivor> survivors) {
-        Map<OccurrenceId, String> seedPaths = new LinkedHashMap<>();
-        for (ListedSurvivor survivor : survivors) {
-            seedPaths.putIfAbsent(survivor.winningSeed(), survivor.seedPath());
-        }
-        Map<OccurrenceId, List<RecordedCluster>> bySeed = new LinkedHashMap<>();
-        for (RecordedCluster recorded : arrangement) {
-            bySeed.computeIfAbsent(recorded.cluster().winningSeed(), seed -> new ArrayList<>()).add(recorded);
-        }
-        List<ListedPartition> partitions = new ArrayList<>();
-        bySeed.forEach((seed, clusters) -> partitions.add(new ListedPartition(
-                seed, seedPaths.get(seed), clusters.getFirst().cluster().partitionOrder(), clusters.size())));
-        return partitions;
     }
 }

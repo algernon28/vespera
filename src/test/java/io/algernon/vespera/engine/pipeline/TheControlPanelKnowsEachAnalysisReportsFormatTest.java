@@ -38,7 +38,9 @@ import org.junit.jupiter.api.io.TempDir;
 @Issue("754")
 @Issue("756")
 @Issue("758")
+@Issue("832")
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
+@Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
 class TheControlPanelKnowsEachAnalysisReportsFormatTest {
 
     @Test
@@ -49,7 +51,7 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
                 Map.entry(FormatMixReport.NAME, FormatMixReport.FORMAT),
                 Map.entry(ClusterSizeReport.NAME, ClusterSizeReport.FORMAT),
                 Map.entry(RelevanceLabellingReport.NAME, RelevanceLabellingReport.FORMAT),
-                Map.entry(ArrangementReport.NAME, AnalysisReportJson.FORMAT),
+                Map.entry(ArrangementReport.NAME, ArrangementReport.FORMAT),
                 Map.entry(ConfidenceDistributionReport.NAME, AnalysisReportJson.FORMAT),
                 Map.entry(WordCountDistributionReport.NAME, AnalysisReportJson.FORMAT),
                 Map.entry(DocumentFrequencyReport.NAME, AnalysisReportJson.FORMAT));

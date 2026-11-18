@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.corpus.Walk;
-import io.algernon.vespera.engine.profile.ProfileFixture;
 import io.algernon.vespera.engine.profile.ProfileStore;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -27,23 +26,26 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * The subtopic floor is shipped and refused when invalid, but read by no step until #832 wires the division into the
- * clustering step, and so names no run (ADR-406 §5): this machine names a floor of {@value #A_FLOOR}, other than the
- * shipped 300, and the scoring run's recorded configuration still carries no {@code subtopicFloor}.
+ * The subtopic floor decides how the clustering step divides each topic, so a machine's value other than the shipped
+ * 300 is another scoring run (ADR-406 §5, ADR-409 §8): this machine names a floor of {@value #A_FLOOR}, and the scoring
+ * run's recorded configuration ends with it, as the last member appended.
  *
- * <p>#832 replaces this test with its opposite, beside {@code TheClusteringPresetsInvocationTest}: once the step reads
- * the floor, a value other than 300 is written into the scoring run (ADR-406 §7).
+ * <p>{@code RunIdentityGoldenTest} holds the other side: at the shipped value no member is written.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
 @Epic("Relevance")
 @Feature("Clustering")
-@Issue("831")
+@Issue("832")
+@Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
 @Link(name = "ADR-406", url = Adr.A_CROWDED_TOPIC_IS_DIVIDED_INTO_SUBTOPICS, type = "adr")
-class TheSubtopicFloorNamesNoRunYetInvocationTest {
+class TheSubtopicFloorNamesTheScoringRunInvocationTest {
 
     /** A floor other than the shipped one, and the smallest the preset accepts. */
     private static final int A_FLOOR = 1;
+
+    /** The tail of the scoring run's recorded configuration where only the subtopic floor differs from what ships. */
+    private static final String THE_MEMBER = ",\"subtopicFloor\":" + A_FLOOR + "}";
 
     @TempDir
     static Path workingDirectory;
@@ -77,23 +79,20 @@ class TheSubtopicFloorNamesNoRunYetInvocationTest {
 
     @Test
     @Story("A crowded topic gets one level more, and no other does")
-    @DisplayName("A machine naming its own subtopic floor gets a scoring run naming none, until the clustering step reads it")
-    void noMemberIsWrittenBeforeTheStepReadsTheFloor() {
-        profileStore.save(ProfileFixture.profile()
-                .seedFolder(seeds.toString(), "set by this test")
-                .boilerplateDocumentFrequencyFloor(EveryGateOpen.BOILERPLATE_FLOOR, "set by this test, so stage 4's gate is open")
-                .embeddingModel(EveryGateOpen.EMBEDDING_MODEL, "set by this test, so the embedding-model gate is open")
-                .build());
+    @DisplayName("A machine naming its own subtopic floor gets a scoring run that names it, last")
+    void aFloorOtherThanTheShippedOneEntersTheScoringRun() {
+        EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
 
-        claim("the invocation ended well, a floor of 1 being one the preset accepts",
+        claim("the invocation ended well, a floor of " + A_FLOOR + " being one the preset accepts",
                 () -> assertThat(cli.getExitCode()).isZero());
         List<String> configurations = jdbcTemplate.queryForList(
                 "SELECT config_consumed FROM run WHERE stage = 'embedding-scoring' AND config_consumed LIKE ?",
                 String.class,
                 "%" + Walk.canonicalRoot(root).toString().replace("\\", "\\\\") + "%");
-        claim("its one scoring run's recorded configuration names no subtopic floor, the floor deciding nothing it did",
-                () -> assertThat(configurations).singleElement().asString().doesNotContain("subtopicFloor"));
+        claim("its one scoring run's recorded configuration ends with the subtopic floor of " + A_FLOOR + ", the one"
+                        + " member this machine's values add to it, because the clustering step divides each topic by it",
+                () -> assertThat(configurations).singleElement().asString().endsWith(THE_MEMBER));
     }
 }

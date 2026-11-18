@@ -98,7 +98,7 @@ class TreeThatFailsWritingItsManifestLeavesTheOldIndexAndManifestTest {
         ArrangedSurvivors whole = ListedArrangement.of(
                 ThreePartitions.arrangement(), List.of(), ThreePartitions.survivors(), Map.of(), SURVIVORS_IN_A_PAGE);
         return ArrangedSurvivors.reading(
-                whole::partitions,
+                whole::topics,
                 whole::survivorCount,
                 whole::clustersOf,
                 whole::survivorsOf,

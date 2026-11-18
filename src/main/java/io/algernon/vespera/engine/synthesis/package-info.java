@@ -7,7 +7,7 @@
  * which is what the declaration below enforces — so it <b>cannot read {@code Profile}</b> and
  * <b>cannot name {@code embedding}</b>. That second one is the constraint this module was designed
  * against rather than around: the clusters it arranges live in {@code embedding}'s
- * {@code document_cluster}, and the shortcut of reaching for them would have cost the module rule
+ * {@code cluster_member} (ADR-409 section 3), and the shortcut of reaching for them would have cost the module rule
  * its second exception (ADR-110). Instead {@code pipeline} reads that table and hands this module
  * plain values, or a callback this module owns and calls when it needs the answer, which forces the
  * seam ADR-108 wanted anyway — <em>given this cluster's exemplars, produce a synthesis doc</em>.

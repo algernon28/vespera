@@ -51,6 +51,7 @@ import org.springframework.util.StreamUtils;
 @Issue("350")
 @Link(name = "ADR-209", url = Adr.THE_LEDGER_IS_FOUR_RECORDS_AND_A_TABLES_SQL_IS_ITS_OWNERS, type = "adr")
 @Link(name = "ADR-041", url = Adr.LEDGER_OWNS_IDENTITY_AND_VERDICTS, type = "adr")
+@Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
 class EachTableIsNamedOnlyByItsOwnerTest {
 
     /** The line that says whose a table is, which stands directly above the table's {@code CREATE TABLE}. */
@@ -77,9 +78,18 @@ class EachTableIsNamedOnlyByItsOwnerTest {
      */
     private static final String THE_CLASS_THAT_COUNTS_FOR_THE_ACCOUNT = "io.algernon.vespera.engine.pipeline.InvocationAccount";
 
-    /** The seven tables that exception names, and no more: the ledger's three, extraction's one, synthesis's three. */
+    /**
+     * The seven tables that exception names, and no more: the ledger's three, extraction's one, synthesis's three,
+     * which ADR-409 section 14 keys by the topic under new names.
+     */
     private static final Set<String> TABLES_THE_ACCOUNT_COUNTS = Set.of(
-            "file_occurrence", "run", "verdict", "extraction_fault", "cluster", "cluster_fault", "synthesis_doc");
+            "file_occurrence",
+            "run",
+            "verdict",
+            "extraction_fault",
+            "arranged_cluster",
+            "standing_cluster_fault",
+            "cluster_synthesis_doc");
 
     @Test
     @Story("A table is reached only through the module that owns it")

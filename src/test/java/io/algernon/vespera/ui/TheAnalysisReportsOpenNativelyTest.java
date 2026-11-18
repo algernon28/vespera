@@ -54,6 +54,9 @@ class TheAnalysisReportsOpenNativelyTest {
     /** A report whose JSON the working directory does not hold, named by a cell of {@link #THE_REPORT}. */
     private static final String NOT_WRITTEN = "cluster-sizes";
 
+    /** A format the window does not read for {@link #WRITTEN}: the one after the format it reads. */
+    private static final int NOT_ITS_FORMAT = AnalysisReportFile.formatOf(WRITTEN) + 1;
+
     /** A report read off the boilerplate floor, which a value's row links. */
     private static final String ITS_KEYS_REPORT = "document-frequency";
 
@@ -127,7 +130,7 @@ class TheAnalysisReportsOpenNativelyTest {
         Files.writeString(workingDirectory.resolve(Reports.jsonOf(THE_REPORT)), "{\"format\":1,\"title\":\"cut",
                 StandardCharsets.UTF_8);
         Files.writeString(workingDirectory.resolve(Reports.jsonOf(WRITTEN)),
-                json(WRITTEN, "Grouping to approve", WRITTEN_AT, "1").replace("\"format\":1", "\"format\":2"),
+                json(WRITTEN, "Grouping to approve", WRITTEN_AT, "1").replace("\"format\":1", "\"format\":" + NOT_ITS_FORMAT),
                 StandardCharsets.UTF_8);
 
         String cut;
@@ -142,8 +145,9 @@ class TheAnalysisReportsOpenNativelyTest {
         }
 
         claim("a JSON cut short is said not to be read", () -> assertThat(cut).isEqualTo(THE_REPORT + ".json could not be read"));
-        claim("one of format 2 is said to be of a format the window does not read", () -> assertThat(another)
-                .isEqualTo(WRITTEN + ".json is of format 2, which this window does not read"));
+        claim("one of format " + NOT_ITS_FORMAT + ", the one after the format the window reads for it, is said to be"
+                + " of a format the window does not read", () -> assertThat(another)
+                .isEqualTo(WRITTEN + ".json is of format " + NOT_ITS_FORMAT + ", which this window does not read"));
         claim("and neither opens a tab", () -> assertThat(tabs).containsExactlyElementsOf(THE_FORM_TABS));
     }
 

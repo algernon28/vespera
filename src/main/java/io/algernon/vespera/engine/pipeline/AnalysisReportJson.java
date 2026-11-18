@@ -169,10 +169,17 @@ final class AnalysisReportJson implements AutoCloseable {
     /** Begins the report on {@code target}: everything before its first section. */
     static AnalysisReportJson begin(Writer target, String analysisReport, String title, Instant writtenAt)
             throws IOException {
+        return begin(target, FORMAT, analysisReport, title, writtenAt);
+    }
+
+    /** Begins the report on {@code target} at {@code format}. */
+    static AnalysisReportJson begin(
+            Writer target, int format, String analysisReport, String title, Instant writtenAt)
+            throws IOException {
         try {
             AnalysisReportJson json = new AnalysisReportJson(MAPPER.createGenerator(target));
             json.out.writeStartObject();
-            json.out.writeNumberProperty("format", FORMAT);
+            json.out.writeNumberProperty("format", format);
             json.out.writeStringProperty("analysisReport", analysisReport);
             json.out.writeStringProperty("title", title);
             json.out.writeStringProperty("writtenAt", instant(writtenAt));

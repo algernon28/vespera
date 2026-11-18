@@ -1,5 +1,7 @@
 # ADR-407 — Topics are named at the head of the arrangement step by a naming model of their own, from their strongest passages
 
+> **Partly amended — see [ADR-409](0409-topics-placement-names-overviews-and-clusters-within-topics-are-kept-in-new-tables-keyed-by-a-topics-first-passage.md).** §1's *"Until then each name is logged and none is stored"* and §9's *"Nothing is stored and nothing reads them"*: each name is recorded under the arrangement run as it is given, with its origin and turn-down, read back by every invocation that arrives at that run and not asked for again, and shown read-only at the 6a gate. The names given before the step stopped for the serving engine's silence are kept; those given before a failure that throws are lost with the rest of the step's work. §9's line stays for each name given, a subtopic's reading `Stage 6a (arrangement) subtopic <n> of topic <path> chunk <i> named "<name>" (<origin>)`, and a name read back is not logged again. The arrangement step reads the topics stage 5d recorded, and finds none again. The rest of this record stands.
+
 > **Partly amended — see [ADR-408](0408-the-naming-model-is-one-of-the-models-modelsrunon-speaks-for-and-the-start-of-vespera-run-refuses-for-it-too.md).** Of *What this does not decide*, its fourth point: the start of `vespera run` refuses for the naming model through `modelsRunOn` alone, reading no name, as for the embedding and generation models, and `modelsRunOn` speaks for the naming model. The rest of this record stands.
 
 - **Date**: 2026-11-16

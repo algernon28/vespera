@@ -226,10 +226,9 @@ class GenerationFaultInvocationTest {
                         + " both leaves the finished work and the record of it disagreeing about whether it"
                         + " was ever written",
                 () -> assertThat(writingKept(root).stream()
-                                .map(written -> written.winningSeed().value() + "/" + written.clusterOrdinal())
+                                .map(ListedDoc::cluster)
                                 .filter(written -> reasonsKept(root).stream()
-                                        .anyMatch(kept -> written.equals(
-                                                kept.winningSeed().value() + "/" + kept.clusterOrdinal())))
+                                        .anyMatch(kept -> written.equals(kept.cluster())))
                                 .toList())
                         .isEmpty());
     }
@@ -308,11 +307,11 @@ class GenerationFaultInvocationTest {
      */
     private void aSecondClusterAheadOfTheFirst(RunId arrangement) {
         jdbcTemplate.update(
-                "INSERT INTO cluster (run_id, winning_seed_occurrence_id, cluster_ordinal, label,"
-                        + " document_count, partition_order, cluster_order)"
-                        + " SELECT run_id, winning_seed_occurrence_id, cluster_ordinal + 1, ?,"
-                        + " document_count, partition_order, cluster_order - 1"
-                        + " FROM cluster WHERE run_id = ?",
+                "INSERT INTO arranged_cluster (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal,"
+                        + " cluster_ordinal, label, document_count, topic_order, subtopic_order, cluster_order)"
+                        + " SELECT run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal, cluster_ordinal + 1, ?,"
+                        + " document_count, topic_order, subtopic_order, cluster_order - 1"
+                        + " FROM arranged_cluster WHERE run_id = ?",
                 THE_CLUSTER_ANSWERED_BADLY,
                 arrangement.value());
     }
@@ -326,8 +325,8 @@ class GenerationFaultInvocationTest {
      */
     private void thatClusterIsGivenADocumentItCanSend(RunId arrangement) {
         jdbcTemplate.update(
-                "UPDATE document_cluster SET cluster_ordinal = cluster_ordinal + 1 WHERE rowid ="
-                        + " (SELECT rowid FROM document_cluster WHERE run_id ="
+                "UPDATE cluster_member SET cluster_ordinal = cluster_ordinal + 1 WHERE rowid ="
+                        + " (SELECT rowid FROM cluster_member WHERE run_id ="
                         + " (SELECT upstream_run_id FROM run_upstream WHERE run_id = ?)"
                         + " ORDER BY occurrence_id DESC LIMIT 1)",
                 arrangement.value());

@@ -3,6 +3,9 @@ package io.algernon.vespera.engine.deliverable;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.OccurrencePath;
 import io.algernon.vespera.engine.synthesis.ClusterSlot;
+import io.algernon.vespera.engine.synthesis.TopicKey;
+import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * One survivor as {@code documents.csv} carries it (ADR-104, ADR-112): every column the ledger
@@ -10,37 +13,41 @@ import io.algernon.vespera.engine.synthesis.ClusterSlot;
  * gathered here as a plain value so {@link Deliverable} needs no capability module this ticket did
  * not already name (ADR-110).
  *
- * <p><b>Two names for the seed, deliberately kept apart.</b> {@code winningSeed} is the seed's own
- * identity — the same value {@code document_cluster.winning_seed_occurrence_id} carries — and is
- * what the manifest's {@code winning_seed} column states, parallel to {@code occurrence_id} naming
- * this survivor's own identity. {@code seedPath} is the seed's own path, relative to the seed
- * folder rather than the archive (ADR-112) — the name an operator gave it by putting it in the seed
- * folder, and the same string {@link Deliverable} slugs to name the seed partition's directory — and
- * is what the manifest's {@code seed_partition} column states, parallel to {@code path} naming this
- * survivor's own place in the archive.
+ * <p><b>Two names, deliberately kept apart.</b> {@code winningSeed} is the identity of the seed this
+ * survivor scored highest against, and is what the manifest's {@code winning_seed} column states,
+ * parallel to {@code occurrence_id} naming this survivor's own identity. {@code topic} is the key of
+ * the topic it is placed under and {@code topicName} that topic's recorded name, which the manifest's
+ * {@code seed_partition} column states until #835 renames it (ADR-409 section 10); the topic's first
+ * passage may lie in a seed other than the winning one.
  *
  * @param occurrence this survivor's own identity
  * @param path this survivor's own root-relative path
  * @param contentHash the SHA-256 of this survivor's bytes as lowercase hex, the key stage 2
  *     recorded for this survivor, under which its conversion is cached (ADR-151, ADR-206); the copy
  *     is verified against it (ADR-274 section 2)
- * @param winningSeed the identity of the seed whose partition this survivor sits in
- * @param seedPath that seed's own path, relative to the seed folder (ADR-112)
- * @param clusterOrdinal the cluster's identity within that seed's partition
+ * @param winningSeed the identity of the seed this survivor scored highest against (ADR-020), which the manifest's
+ *     {@code winning_seed} column states
+ * @param topic the topic this survivor is placed under (ADR-409 section 1)
+ * @param topicName that topic's recorded name, which the manifest's {@code seed_partition} column states until #835
+ *     renames it (ADR-409 section 10)
+ * @param subtopic the subtopic of that topic this survivor lies in, empty where the topic has none
+ * @param clusterOrdinal the cluster's identity within its subtopic, or within the topic where it has none
  * @param score this survivor's relevance score (ADR-020)
  */
 public record ListedSurvivor(
         OccurrenceId occurrence,
         OccurrencePath path,
         String contentHash,
-        OccurrenceId winningSeed,
-        String seedPath,
+        Optional<OccurrenceId> winningSeed,
+        TopicKey topic,
+        String topicName,
+        OptionalInt subtopic,
         int clusterOrdinal,
         double score) {
 
-    /** The cluster this survivor is a member of, by its seed and its ordinal there. */
+    /** The cluster this survivor is a member of, by its topic, its subtopic and its ordinal there. */
     public ClusterSlot slot() {
-        return new ClusterSlot(winningSeed, clusterOrdinal);
+        return new ClusterSlot(topic, subtopic, clusterOrdinal);
     }
 
     /**
@@ -52,8 +59,10 @@ public record ListedSurvivor(
             OccurrenceId occurrence,
             OccurrencePath path,
             String contentHash,
-            OccurrenceId winningSeed,
-            String seedPath,
+            Optional<OccurrenceId> winningSeed,
+            TopicKey topic,
+            String topicName,
+            OptionalInt subtopic,
             int clusterOrdinal,
             java.util.Map<OccurrenceId, Double> scoresOnRecord) {
         return new ListedSurvivor(
@@ -61,7 +70,9 @@ public record ListedSurvivor(
                 path,
                 contentHash,
                 winningSeed,
-                seedPath,
+                topic,
+                topicName,
+                subtopic,
                 clusterOrdinal,
                 scoresOnRecord.getOrDefault(occurrence, 0.0));
     }

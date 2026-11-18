@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
-import io.algernon.vespera.engine.ledger.OccurrencePath;
 import io.algernon.vespera.engine.synthesis.ArrangedCluster;
 import io.algernon.vespera.engine.synthesis.ClusterLabel;
 import io.algernon.vespera.engine.synthesis.ListedDoc;
@@ -21,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,7 +31,7 @@ import org.junit.jupiter.api.io.TempDir;
  * names are, and what the two mechanical files at its root say.
  *
  * <p>Written against the writer rather than against an invocation, because three of the claims here
- * cannot be reached from one. A fixture corpus produces one seed partition holding one cluster, so
+ * cannot be reached from one. A fixture corpus produces one topic holding one cluster, so
  * nothing driven end to end can ask what the ordinal prefix does at the boundary between nine
  * clusters and ten; and an archive that is not there at all cannot be arranged behind a walk that has
  * just read the same files.
@@ -62,10 +62,13 @@ class DeliverableTest {
     /** The walk the run read, which is what says which archive the tree was drawn from (ADR-104). */
     private static final long WALK = 7L;
 
-    /** The seed whose partition every cluster below sits in, unless a test says otherwise. */
+    /** The seed that won every survivor below, whose topic every cluster lies in, unless a test says otherwise. */
     private static final OccurrenceId THE_SEED = new OccurrenceId(1);
 
-    /** The seed document's own filename, which is what the partition directory is named from. */
+    /** What a cluster's subtopic place is in a topic with no subtopics (ADR-409 section 3). */
+    private static final int NO_SUBTOPIC_PLACE = 0;
+
+    /** The seed document's own filename, whose stem names the topic, and so the topic's folder (ADR-409 section 10). */
     private static final String SEED_PATH = "seeds/Industrial Safety Standards.docx";
 
     /** The stem of that filename, slugged, which is what the directory name has to come out as. */
@@ -179,8 +182,8 @@ class DeliverableTest {
                         .exists()
                         .isRegularFile());
         claim(
-                "the one directory beneath it is named after the operator's own seed document, so the"
-                        + " top of the tree reads in their vocabulary rather than in an author's -- and"
+                "the one directory beneath it is named after the topic's name, here taken from the operator's own"
+                        + " seed document, so the top of the tree reads in words of the archive's -- and"
                         + " the page inside it in a folder named after the name stage 6a derived, never after the heading"
                         + " the model wrote, because a path that depended on the writing succeeding would"
                         + " not exist for a group nothing was written over",
@@ -195,10 +198,14 @@ class DeliverableTest {
     @DisplayName("The groups are listed in the order they were stored in, never sorted again on the way out")
     void rendersTheStoredOrderRatherThanDerivingItAgain(@TempDir Path workingDirectory) throws IOException {
         RecordedCluster lastButPlacedFirst = new RecordedCluster(
-                new ArrangedCluster(THE_SEED, A_LATER_ORDINAL, ONE_DOCUMENT, FIRST_PLACE, FIRST_PLACE),
+                new ArrangedCluster(
+                        ListedTree.topicOf(THE_SEED), OptionalInt.empty(), A_LATER_ORDINAL, ONE_DOCUMENT, FIRST_PLACE,
+                        NO_SUBTOPIC_PLACE, FIRST_PLACE),
                 new ClusterLabel(THE_NAME_THAT_SORTS_LAST));
         RecordedCluster firstButPlacedSecond = new RecordedCluster(
-                new ArrangedCluster(THE_SEED, FIRST_ORDINAL, FORTY_DOCUMENTS, FIRST_PLACE, SECOND_PLACE),
+                new ArrangedCluster(
+                        ListedTree.topicOf(THE_SEED), OptionalInt.empty(), FIRST_ORDINAL, FORTY_DOCUMENTS, FIRST_PLACE,
+                        NO_SUBTOPIC_PLACE, SECOND_PLACE),
                 new ClusterLabel(THE_NAME_THAT_SORTS_FIRST));
 
         Path tree = ListedArrangement.writeTo(
@@ -252,7 +259,7 @@ class DeliverableTest {
                                 .startsWith("reports/")));
         claim(
                 "and every row carries both places the arrangement gave its group -- "
-                        + SECOND_PLACE + " among the seeds and " + THIRD_PLACE + " among that seed's"
+                        + SECOND_PLACE + " among the topics and " + THIRD_PLACE + " among that topic's"
                         + " groups -- so a consumer rebuilding anything from this file has the order"
                         + " without parsing the index or falling back to alphabetical",
                 () -> assertThat(rowsOf(tree)).allSatisfy(row -> {
@@ -267,10 +274,12 @@ class DeliverableTest {
                 RUN_ID, WALK, THE_ARCHIVE_ROOT, List.of(new NamedValue(THE_SEED_FOLDER_KEY, seedFolder)));
     }
 
-    /** One cluster of the one seed partition these fixtures arrange, in the place it was given. */
-    private static RecordedCluster aCluster(int ordinal, String label, int partitionOrder, int clusterOrder) {
+    /** One cluster of the one undivided topic these fixtures arrange, in the place it was given. */
+    private static RecordedCluster aCluster(int ordinal, String label, int topicOrder, int clusterOrder) {
         return new RecordedCluster(
-                new ArrangedCluster(THE_SEED, ordinal, DOCUMENTS_IN_THE_CLUSTER, partitionOrder, clusterOrder),
+                new ArrangedCluster(
+                        ListedTree.topicOf(THE_SEED), OptionalInt.empty(), ordinal, DOCUMENTS_IN_THE_CLUSTER, topicOrder,
+                        NO_SUBTOPIC_PLACE, clusterOrder),
                 new ClusterLabel(label));
     }
 
@@ -293,7 +302,7 @@ class DeliverableTest {
     /** The same again, over exactly the documents named, in the order the call's ordinals were minted. */
     private static ListedDoc writingFor(int ordinal, OccurrenceId... sent) {
         return new ListedDoc(
-                THE_SEED, ordinal, new SynthesisDoc(THE_TITLE, THE_PROSE, List.of(sent)));
+                ListedTree.slotOf(THE_SEED, ordinal), new SynthesisDoc(THE_TITLE, THE_PROSE, List.of(sent)));
     }
 
     /** The two survivors that cluster holds, both of them under the one seed. */
@@ -304,17 +313,11 @@ class DeliverableTest {
     /** Those same two survivors, numbered from {@code firstOccurrenceId} so two clusters do not collide. */
     private static List<ListedSurvivor> survivors(int ordinal, long firstOccurrenceId) {
         return List.of(
-                new ListedSurvivor(
-                        new OccurrenceId(firstOccurrenceId),
-                        new OccurrencePath("reports/2019/retrofit.pdf"),
-                        "3a7b",
-                        THE_SEED,
-                        SEED_PATH,
-                        ordinal,
-                        A_SCORE),
-                new ListedSurvivor(
-                        new OccurrenceId(firstOccurrenceId + 1),
-                        new OccurrencePath("reports/2021/retrofit follow-up.pdf"),
+                ListedTree.survivor(
+                        firstOccurrenceId, "reports/2019/retrofit.pdf", "3a7b", THE_SEED, SEED_PATH, ordinal, A_SCORE),
+                ListedTree.survivor(
+                        firstOccurrenceId + 1,
+                        "reports/2021/retrofit follow-up.pdf",
                         "9c11",
                         THE_SEED,
                         SEED_PATH,

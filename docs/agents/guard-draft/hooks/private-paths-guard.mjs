@@ -1695,7 +1695,7 @@ function staticPrefix(pattern) {
 // The counting script of ADR-212, and the SHA-256 of its bytes with every CR LF read as LF. A change to
 // that script is a change to this constant, and is reviewed as one.
 const COUNTING_SCRIPT = join(here, "working-directory-counts.mjs");
-const COUNTING_SCRIPT_SHA256 = "0be436a51227c3c29d52a2e71200d07b5bdf2ef71ac70f1943fb4267411265a5";
+const COUNTING_SCRIPT_SHA256 = "e8109c911113d859e6f08e6f3950a06d4f2ebe13cfd7f8431de85f7cbccb1552";
 // node and two words, each single-quoted or with no quote and no white space in it, and nothing else.
 const COUNTING_COMMAND = /^[ \t]*node[ \t]+('[^']*'|[^\s']+)[ \t]+('[^']*'|[^\s']+)[ \t]*$/;
 

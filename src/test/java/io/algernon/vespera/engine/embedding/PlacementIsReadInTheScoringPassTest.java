@@ -169,8 +169,7 @@ class PlacementIsReadInTheScoringPassTest {
     }
 
     private RelevanceScoring scoring() {
-        return new RelevanceScoring(
-                new VectorCache(jdbcTemplate), new RelevanceScorer(), new RelevanceScoreCache(jdbcTemplate));
+        return RelevanceScoringBeans.real(jdbcTemplate);
     }
 
     /** The three seeds, each of a content of its own, in path order. */

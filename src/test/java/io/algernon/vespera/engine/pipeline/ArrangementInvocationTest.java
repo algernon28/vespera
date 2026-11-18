@@ -94,7 +94,7 @@ class ArrangementInvocationTest {
                 () -> assertThat(arranged).allSatisfy(recorded -> {
                     assertThat(recorded.label().value()).isNotBlank();
                     assertThat(recorded.cluster().documentCount()).isPositive();
-                    assertThat(recorded.cluster().partitionOrder()).isPositive();
+                    assertThat(recorded.cluster().topicOrder()).isPositive();
                     assertThat(recorded.cluster().clusterOrder()).isPositive();
                 }));
         claim(

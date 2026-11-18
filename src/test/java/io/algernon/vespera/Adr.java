@@ -2982,6 +2982,17 @@ public final class Adr {
             + "0408-the-naming-model-is-one-of-the-models-modelsrunon-speaks-for-and-the-start-of-vespera-run-refuses-for-it-too.md";
 
     /**
+     * ADR-409 -- the topics, each document's winning topic and the topics it fits, the clusters within topics and
+     * subtopics, the topics' and subtopics' names and the topics' overviews are kept in fifteen new tables keyed by a
+     * topic's first passage, the five tables keyed by a winning seed no longer created; no schema version moves; the
+     * clustering step divides each topic and {@code subtopicFloor} enters the scoring run where it is not 300; a name is
+     * kept under its run and shown at the gate read-only, a fallback marked by its turn-down (amends ADR-105, ADR-218,
+     * ADR-220, ADR-223, ADR-229, ADR-236, ADR-400, ADR-406 and ADR-407).
+     */
+    public static final String TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC = FILE
+            + "0409-topics-placement-names-overviews-and-clusters-within-topics-are-kept-in-new-tables-keyed-by-a-topics-first-passage.md";
+
+    /**
      * ADR-410 -- once the Docker engine answers, and before {@code up}, under {@code sidecars.lock}, {@code docker
      * compose version} and {@code docker buildx version} are run, inside the WSL distribution on Windows, each killed
      * after 30 s; one not exiting 0 refuses the start of the sidecars and the control panel's start of the engine in

@@ -1,5 +1,7 @@
 # ADR-406 — A topic of 300 survivors or more is divided into subtopics, its own communities, and its clusters are found within each
 
+> **Partly amended — see [ADR-409](0409-topics-placement-names-overviews-and-clusters-within-topics-are-kept-in-new-tables-keyed-by-a-topics-first-passage.md).** §5's *"Until #832, the division is not wired into the clustering step, and nothing stored changes"* and *"Until then no member is written at any value"*, and what §6, §7 and *Consequences* say until #832: the clustering step goes through the topics that have a placed survivor and divides each by `TopicDivision.of` at the subtopic floor; each member's subtopic and cluster are recorded in `cluster_member`, `-1` for the subtopic of a topic that has none; each subtopic is named, its fallback ending in `Subtopic n` or `Sottoargomento n`; and `subtopicFloor` enters the embedding-scoring run where it is not 300. The rest of this record stands.
+
 > **Partly amended — see [ADR-411](0411-adr-399-to-401-move-seed-measurement-and-adr-406s-floor-is-not-shown-in-the-control-panel.md).** Of §7: the control panel does not show `vespera.clustering.subtopic-floor`, and *"the control panel shows it read-only, as ADR-330 §12 shows a preset with no profile key"* is not part of what lands; that showing, which ADR-330 §12 owes for every preset with no profile key, is [#855](https://github.com/algernon28/vespera/issues/855)'s. Of Consequences, its *Run ids*: this record's code touches `embedding` in `TopicDivision` alone, `Clustering` unchanged; the runs it names stand. Of its second Amends line: *"table of the members a run's configuration gains gains"* reads *"table of the members of a run's configuration gains"*. The rest of this record stands.
 
 - **Date**: 2026-11-16
@@ -173,12 +175,12 @@ Where a subtopic's name falls back to its place (ADR-407 §7), it is `Subtopic n
 | `…aTopicWithNoSubtopicsListsNone` | a topic under the floor has no order of subtopics (§4) |
 | `pipeline.TheSubtopicFloorPresetTest.shipsTheMeasuredValue` | `application.yaml` names a floor of 300 (§5) |
 | `pipeline.TheSubtopicFloorPresetTest.refusesValuesNoRunCanBeMadeUnder` | 0 and 2.5 are refused, each in its line, and 1 is not (§5) |
-| `pipeline.TheSubtopicFloorNamesNoRunYetInvocationTest.noMemberIsWrittenBeforeTheStepReadsTheFloor` | a machine naming a floor of 1 gets a scoring run whose configuration names no `subtopicFloor` (§5), until #832 |
+| `pipeline.TheSubtopicFloorNamesNoRunYetInvocationTest.noMemberIsWrittenBeforeTheStepReadsTheFloor` (retired with #832, which put `pipeline.TheSubtopicFloorNamesTheScoringRunInvocationTest` in its place) | a machine naming a floor of 1 gets a scoring run whose configuration names no `subtopicFloor` (§5), until #832 |
 | `pipeline.RunIdentityGoldenTest.embeddingScoring` | the scoring run's configuration, literal, with no `subtopicFloor` member (§5) |
 | `TheVocabularyNamesTheSubtopicTest.subtopicIsATerm` | `CONTEXT.md` has a Subtopic entry whose `_Avoid_` line opens with sub-group and names group (§6) |
 | `TheVocabularyNamesTheSubtopicTest.noAvoidLineRejectsSubtopic` | no `_Avoid_` line rejects subtopic (§6) |
 
-**Owed by #832, and not written now**: that a floor other than 300 writes `subtopicFloor` into the scoring run, beside `TheClusteringPresetsInvocationTest`, replacing `TheSubtopicFloorNamesNoRunYetInvocationTest`; that the clustering step divides each topic and stores the subtopic, beside `ClusteringInvocationTest`; and subtopic naming and the fallback's word, `Subtopic n` and `Sottoargomento n`, beside the test of ADR-407's fallback name.
+**Owed by #832, and not written now**: that a floor other than 300 writes `subtopicFloor` into the scoring run, beside `TheClusteringPresetsInvocationTest`, in place of `TheSubtopicFloorNamesNoRunYetInvocationTest`; that the clustering step divides each topic and stores the subtopic, beside `ClusteringInvocationTest`; and subtopic naming and the fallback's word, `Subtopic n` and `Sottoargomento n`, beside the test of ADR-407's fallback name.
 
 ## What this does not decide
 

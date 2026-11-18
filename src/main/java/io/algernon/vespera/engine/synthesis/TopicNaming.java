@@ -89,7 +89,12 @@ public class TopicNaming {
         return List.copyOf(sent);
     }
 
-    private GivenName nameOne(NameCall call, List<String> taken, String modelName, DeliverableLanguage language) {
+    /**
+     * One name for {@code call}, its earlier siblings' names being {@code taken} (section 8): the step that records each
+     * name as it is given asks its siblings one at a time through this, the recorded names of its earlier siblings
+     * counting as taken (ADR-409 section 6).
+     */
+    public GivenName nameOne(NameCall call, List<String> taken, String modelName, DeliverableLanguage language) {
         List<String> sent = whatFits(call.passagesStrongestFirst());
         if (sent.isEmpty()) {
             return fallback(call, NameTurnDown.NOTHING_SENT);
