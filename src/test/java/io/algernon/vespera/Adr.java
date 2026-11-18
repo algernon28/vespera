@@ -3044,6 +3044,17 @@ public final class Adr {
     public static final String THE_ANALYSIS_REPORTS_OPEN_IN_A_REPORTS_WINDOW_OF_THEIR_OWN = FILE
             + "0414-the-analysis-reports-open-in-a-reports-window-of-their-own-a-tab-each-and-the-cockpit-keeps-its-list-and-two-tabs.md";
 
+    /**
+     * ADR-418 -- every stage's chart is written empty, no key, no time it finished and no line, at the first reading of
+     * the job of {@code vespera run}, and the job reads no chart's file; within its invocation a chart is started once,
+     * its seconds from its first sample there, its key added to as the invocation reaches it, and frozen once; a stage
+     * going through finished freezes with one sample; the census's samples are written as it walks and kept under the
+     * walk it hands the job, its file written empty where it hands none; the window draws the last job's charts
+     * (amends ADR-382 §4 to §7 and ADR-412 §1, §3 and §4).
+     */
+    public static final String EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS = FILE
+            + "0418-every-stages-chart-is-written-empty-as-the-job-of-vespera-run-begins-and-frozen-only-within-its-invocation.md";
+
     private Adr() {
     }
 }
