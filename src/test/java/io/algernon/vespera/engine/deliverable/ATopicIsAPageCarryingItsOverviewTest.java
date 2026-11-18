@@ -209,6 +209,32 @@ class ATopicIsAPageCarryingItsOverviewTest {
                         .noneMatch(file -> file.endsWith("seal and gate.pdf")));
     }
 
+    /**
+     * A folder of the tree a drawing did not write is counted at every level of the arrangement it draws into, a
+     * subtopic's folder as a topic's (ADR-415 §3, ADR-280 §4): a group's folder an earlier drawing left inside a
+     * subtopic's folder is counted, as one left inside a topic's folder is.
+     */
+    @Test
+    @Story("A divided topic's subtopics are pages beneath it")
+    @DisplayName("A folder an earlier drawing left inside a subtopic's folder is counted among the folders left behind, as one left inside a topic's folder is")
+    void aFolderLeftInsideASubtopicsFolderIsCountedAsLeftBehind(@TempDir Path workingDirectory) throws IOException {
+        Path tree = TwoTopicsDrawn.drawn(workingDirectory, List.of());
+        Files.createDirectories(tree.resolve(SLUICES_FOLDER).resolve("9-a-group-an-earlier-drawing-left"));
+        Files.createDirectories(tree.resolve(SEALS_FOLDER).resolve("9-another-group-an-earlier-drawing-left"));
+        long[] leftBehind = {-1};
+
+        TwoTopicsDrawn.drawn(workingDirectory, List.of(), new DeliverableProgress() {
+            @Override
+            public void leftBehind(boolean documentsFolder, long otherFolders) {
+                leftBehind[0] = otherFolders;
+            }
+        });
+
+        claim("the drawing of the same tree again counts both folders it did not write: the one in the undivided topic's"
+                        + " folder, and the one in the divided topic's first subtopic's folder",
+                () -> assertThat(leftBehind[0]).isEqualTo(2));
+    }
+
     @Test
     @Story("A topic's folder is named from its name")
     @DisplayName("A name's accented letters are folded to their base letter in its folder's name, and two topics of one name get two folders by their order")

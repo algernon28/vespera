@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.engine.deliverable.DeliverableProgress;
 import io.algernon.vespera.engine.deliverable.FixedWords;
 import io.algernon.vespera.engine.deliverable.Html;
 import io.algernon.vespera.engine.deliverable.Plugin;
@@ -177,6 +178,28 @@ class TheConfluenceRenderingDrawsTopicsAndSubtopicsTest {
         claim("and lists its one group as 3, its place among the topic's three, linking its page",
                 () -> assertThat(body).contains("<tr><td>3</td><td>" + ConfluencePages.link(MOTOR, "Motor Overheating")
                         + "</td><td>1</td><td>" + TwoTopicsDrawn.MOTOR_TITLE + "</td></tr>"));
+    }
+
+    @Test
+    @Story("A crowded topic's subtopics are pages beneath it")
+    @DisplayName("A folder an earlier drawing left inside a subtopic's folder of the Confluence rendering is counted among the folders left behind")
+    void aFolderLeftInsideASubtopicsFolderOfTheRenderingIsCountedAsLeftBehind(@TempDir Path base) throws IOException {
+        Path work = base.resolve("work");
+        Path tree = TwoTopicsDrawn.drawn(work, THE_CONFLUENCE_PLUGIN);
+        Files.createDirectories(tree.resolve(ConfluencePages.DIRECTORY_NAME).resolve(TwoTopicsDrawn.SEALS_FOLDER)
+                .resolve("9-a-group-an-earlier-drawing-left"));
+        long[] leftBehind = {-1};
+
+        TwoTopicsDrawn.drawn(work, THE_CONFLUENCE_PLUGIN, new DeliverableProgress() {
+            @Override
+            public void leftBehind(boolean documentsFolder, long otherFolders) {
+                leftBehind[0] = otherFolders;
+            }
+        });
+
+        claim("the drawing of the same tree again counts the one folder it did not write, in the rendering's folder of"
+                        + " the divided topic's first subtopic, as it counts one in the tree's",
+                () -> assertThat(leftBehind[0]).isEqualTo(1));
     }
 
     /** A citation of an overview: a link to the page titled {@code title}, reading {@code [n]}, with no anchor. */

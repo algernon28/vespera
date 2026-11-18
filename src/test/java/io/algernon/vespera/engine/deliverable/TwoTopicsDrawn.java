@@ -193,6 +193,19 @@ public final class TwoTopicsDrawn {
 
     /** As {@link #drawn(Path, List)}, each topic's overview the one {@code overviews} records for it. */
     public static Path drawn(Path workingDirectory, List<Plugin> plugins, Map<TopicKey, ListedOverview> overviews) {
+        return drawn(workingDirectory, plugins, overviews, DeliverableProgress.NONE);
+    }
+
+    /** As {@link #drawn(Path, List)}, {@code progress} told what the drawing tells. */
+    public static Path drawn(Path workingDirectory, List<Plugin> plugins, DeliverableProgress progress) {
+        return drawn(workingDirectory, plugins, overviews(), progress);
+    }
+
+    private static Path drawn(
+            Path workingDirectory,
+            List<Plugin> plugins,
+            Map<TopicKey, ListedOverview> overviews,
+            DeliverableProgress progress) {
         return Deliverable.writeTo(
                 workingDirectory,
                 DeliverableRoot.UNNAMED,
@@ -202,7 +215,7 @@ public final class TwoTopicsDrawn {
                 SurvivorPictures.none(),
                 new ClusterPageCeiling.Unset(),
                 plugins,
-                DeliverableProgress.NONE);
+                progress);
     }
 
     private static RecordedCluster cluster(
