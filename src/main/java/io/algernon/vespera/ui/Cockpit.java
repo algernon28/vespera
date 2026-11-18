@@ -1420,19 +1420,22 @@ final class Cockpit {
                 return Optional.empty();
             }
             InvocationReportFile.Report report = InvocationReportFile.read(Files.readString(file, StandardCharsets.UTF_8));
-            if (report.invocation() == null
-                    || report.invocation().started() == null
-                    || report.invocation().writtenAt() == null) {
-                return Optional.empty();
-            }
-            if ((report.steps() != null && report.steps().stream().anyMatch(each -> each == null || each.name() == null))
-                    || (report.faults() != null && report.faults().stream().anyMatch(each -> each == null || each.type() == null))) {
-                return Optional.empty();
-            }
-            return Optional.of(report);
+            return isThatJson(report) ? Optional.of(report) : Optional.empty();
         } catch (IOException | IllegalArgumentException | UncheckedIOException unreadable) {
             return Optional.empty();
         }
+    }
+
+    /**
+     * Whether {@code report}, read as of the format, is that JSON as far as the window draws it (ADR-362 §8): an
+     * invocation with its start and its last write, every step named and every fault typed.
+     */
+    private static boolean isThatJson(InvocationReportFile.Report report) {
+        return report.invocation() != null
+                && report.invocation().started() != null
+                && report.invocation().writtenAt() != null
+                && (report.steps() == null || report.steps().stream().allMatch(each -> each != null && each.name() != null))
+                && (report.faults() == null || report.faults().stream().allMatch(each -> each != null && each.type() != null));
     }
 
     /** The report at the top of {@code folder} where it is {@code child}'s own, as ADR-362 §8 accepts it. */
@@ -1516,6 +1519,9 @@ final class Cockpit {
                 return false;
             }
             InvocationReportFile.Report report = InvocationReportFile.read(Files.readString(file, StandardCharsets.UTF_8));
+            if (!isThatJson(report)) {
+                return false;
+            }
             InvocationReportFile.Invocation invocation = report.invocation();
             if (invocation.pid() != who.pid()
                     || invocation.started().isBefore(who.notBefore().truncatedTo(ChronoUnit.MILLIS))) {
