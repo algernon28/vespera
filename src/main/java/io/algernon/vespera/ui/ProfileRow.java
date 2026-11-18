@@ -252,7 +252,7 @@ final class ProfileRow {
 
     /** The last part of a warning's id, by the words it opens with (ADR-377 §3). */
     private static String warningIdOf(String warning) {
-        return warning.startsWith("Approval:") ? "approval" : warning.startsWith("Answers:") ? "answers" : "new-sample";
+        return warning.startsWith("Approval:") ? "approval" : warning.startsWith("Labels:") ? "answers" : "new-sample";
     }
 
     private void showOpen(boolean open) {
@@ -662,9 +662,9 @@ final class ProfileRow {
             warnings.add("Approval: a grouping you approved must be approved again in the Approved grouping row.");
         }
         if (cost.labelsRefused()) {
-            warnings.add("Answers: press Record my answers first; after the change the old answers file is refused.");
+            warnings.add("Labels: press Save my labels first; after the change the old relevance-labels.yaml is refused.");
         } else if (cost.sampleDrawnAgain()) {
-            warnings.add("Answers: press Record my answers first, or unsaved answers in relevance-labels.yaml are lost.");
+            warnings.add("Labels: press Save my labels first, or labels in relevance-labels.yaml not yet saved are lost.");
         }
         if (cost.sampleDrawnAgain()) {
             warnings.add("New sample: Vespera picks new documents for you to judge in relevance-labels.yaml.");

@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
  * @param corpusRoot the last run's report's {@code places.corpusRoot}, or {@code no run yet}
  * @param lastInvocation {@code <command> on <yyyy-MM-dd>, <outcome>}, or what says there is none, or who holds the folder
  * @param legReached {@code <name>, <state>} of the last leg whose state is not {@code not started}, or {@code none}
- * @param next the keys wanted, {@code answers to record}, {@code run} or {@code nothing}
+ * @param next the keys wanted, {@code labels to save}, {@code run} or {@code nothing}
  */
 public record WorkingDirectoryRow(String name, String corpusRoot, String lastInvocation, String legReached,
         String next) {
@@ -102,7 +102,7 @@ public record WorkingDirectoryRow(String name, String corpusRoot, String lastInv
             return String.join(", ", keys);
         }
         if (Boolean.TRUE.equals(next.get("answer"))) {
-            return "answers to record";
+            return "labels to save";
         }
         return "run".equals(next.get("invocation")) ? "run" : NOTHING;
     }

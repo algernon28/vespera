@@ -3013,6 +3013,15 @@ public final class Adr {
     public static final String THE_TOPICS_CODE_MOVES_SEED_MEASUREMENT = FILE
             + "0411-adr-399-to-401-move-seed-measurement-and-adr-406s-floor-is-not-shown-in-the-control-panel.md";
 
+    /**
+     * ADR-413 -- the two label commands leave the action card for a Labels section of the sidebar, after Seed folder,
+     * named Save my labels and Auto Label, each with its caption, and starting {@code vespera label} and {@code vespera
+     * label --auto} as before; every text of the control panel's windows that called a relevance label an answer says
+     * label (amends ADR-344 §1 and §5, ADR-377 §4 and §10, ADR-389 §1 and ADR-393 §5).
+     */
+    public static final String THE_LABEL_COMMANDS_ARE_A_LABELS_SECTION_OF_THE_SIDEBAR = FILE
+            + "0413-save-my-labels-and-auto-label-are-a-labels-section-of-the-sidebar-and-the-window-calls-no-label-an-answer.md";
+
     private Adr() {
     }
 }

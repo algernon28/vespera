@@ -268,10 +268,10 @@ class EveryTextOfTheWindowCanBeCopiedTest {
 
         claim("the tabs' titles are those of the Report and Inclusions tabs",
                 () -> assertThat(tabTitles).containsExactly("Report", "Inclusions"));
-        claim("Run, Stop and Record my answers are buttons", () -> assertThat(buttons).containsOnly(Button.class));
+        claim("Run, Stop and Save my labels are buttons", () -> assertThat(buttons).containsOnly(Button.class));
         claim("the sidebar's section titles are the titled panes' own",
                 () -> assertThat(sections).containsExactly("Profile", "Preflight", "Folders", "Services",
-                        "Seed folder", "Code sets", "Command options", "Reports"));
+                        "Seed folder", "Labels", "Code sets", "Command options", "Reports"));
         claim("each leg's name and state are labels, and lie in the header of the leg's titled pane",
                 () -> {
                     assertThat(legTexts).hasSize(2 * Legs.ALL.size());
