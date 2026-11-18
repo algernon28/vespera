@@ -204,12 +204,19 @@ class TheTreeIsHtmlTest {
                 new ClusterPageCeiling.Unset(),
                 BESIDE_THE_TREE);
         String index = Files.readString(tree.resolve("index.html"), StandardCharsets.UTF_8);
-        String page = Files.readString(theOnePageUnder(tree), StandardCharsets.UTF_8);
+        String page = Files.readString(theOnePageUnder(tree, 2), StandardCharsets.UTF_8);
+        String topicPage = Files.readString(theOnePageUnder(tree, 1), StandardCharsets.UTF_8);
 
         claim(
                 "the index shows the label, the heading the model wrote and the topic's name with each of the five"
                         + " characters written as its entity",
                 () -> assertThat(index).contains("Label " + FIVE_ESCAPED, "Title " + FIVE_ESCAPED, "Seed " + FIVE_ESCAPED));
+        claim(
+                "the topic's page shows the topic's name, the label and the heading the model wrote the same way, and"
+                        + " carries their tag nowhere as a tag",
+                () -> assertThat(topicPage)
+                        .contains("Seed " + FIVE_ESCAPED, "Label " + FIVE_ESCAPED, "Title " + FIVE_ESCAPED)
+                        .doesNotContain("<b>"));
         claim(
                 "the group's page shows the heading and the document's path the same way",
                 () -> assertThat(page).contains("Title " + FIVE_ESCAPED, "Path " + FIVE_ESCAPED));
@@ -310,13 +317,17 @@ class TheTreeIsHtmlTest {
                 .toList();
     }
 
-    /** The one page of the HTML tree beneath {@code tree} that is not the tree's own index. */
-    private static Path theOnePageUnder(Path tree) throws IOException {
+    /**
+     * The one page of the HTML tree beneath {@code tree} that lies {@code depth} folders down: 1 for the one topic's
+     * page, {@code <topic>/index.html}, and 2 for the one group's, {@code <topic>/<group>/index.html} (ADR-415 §2).
+     */
+    private static Path theOnePageUnder(Path tree, int depth) throws IOException {
         List<String> pages = htmlTreePagesOf(tree).stream()
-                .filter(name -> !name.equals("index.html"))
+                .filter(name -> name.chars().filter(c -> c == '/').count() == depth)
                 .toList();
         if (pages.size() != 1) {
-            throw new IllegalStateException("one group was arranged, and the tree holds pages " + pages);
+            throw new IllegalStateException("one topic of one group was arranged, and the tree holds pages " + pages
+                    + " " + depth + " folders down");
         }
         return tree.resolve(pages.getFirst());
     }
