@@ -58,7 +58,7 @@ import org.junit.jupiter.api.io.TempDir;
  * The ending panel (ADR-417): beneath the output panel, in its column and behind a divider of its own, it says how the
  * last invocation of the working directory chosen ended and why (§1). It shows every ending, the window's own child's as
  * it ends and an earlier one dated, read as the window opens and as another working directory is chosen, and nothing
- * where the working directory never had an invocation or while one runs (§2); what it says of each ending, from the
+ * where the working directory never had an invocation, where its report is not that JSON, or while one runs (§2); what it says of each ending, from the
  * invocation report, the exit code and, where the child wrote no report of its own, its last line of output (§3); its
  * three buttons, Open report selecting the Report tab, which draws the ending's report (§4); its colours, at AA in both themes, and its texts, every one selectable (§5); and the grips that
  * size the sidebar and the steps beside the output (§1).
@@ -632,6 +632,52 @@ class TheEndingPanelTest {
                 });
     }
 
+    @Test
+    @Story("The window says why the last invocation ended")
+    @DisplayName("A working directory whose report.json is of the format but not that JSON, its last write null, shows no panel, and the panel goes on following the working directory chosen")
+    void aReportThatIsNotThatJsonShowsNoPanelAndThePanelGoesOnFollowingTheChoice(@TempDir Path folder)
+            throws Exception {
+        Path refused = Files.createDirectories(folder.resolve("refused"));
+        Path notThatJson = Files.createDirectories(folder.resolve("not-that-json"));
+        Path atAGate = Files.createDirectories(folder.resolve("at-a-gate"));
+        anEarlierRefusal(refused);
+        aReportWrittenAtNoTime(notThatJson);
+        anEarlierGate(atAGate);
+        ControlPanelState state = aStateOver(folder, notStarting(folder));
+        WorkingDirectoryList.store(WorkingDirectoryList.besides(LaunchValues.fileIn(folder.resolve("tmp"), USER)),
+                USER, List.of(notThatJson, atAGate), line -> { });
+        state.hold(launchValues(folder, refused));
+
+        Shown asOpened;
+        Shown inTheOneNotThatJson;
+        Shown atTheGate;
+        Shown inTheRefusedAgain;
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            asOpened = window.awaiting(TheEndingPanelTest::seen, Shown::shown);
+            choose(window, notThatJson);
+            inTheOneNotThatJson = window.awaiting(TheEndingPanelTest::seen, shown -> !shown.shown());
+            choose(window, atAGate);
+            atTheGate = window.awaiting(TheEndingPanelTest::seen, shown -> ENDED.equals(shown.kind()));
+            choose(window, refused);
+            inTheRefusedAgain = window.awaiting(TheEndingPanelTest::seen,
+                    shown -> FAILED_OR_REFUSED.equals(shown.kind()));
+        }
+
+        claim("as the window opens on a working directory whose last invocation was refused, the panel shows it",
+                () -> assertThat(List.of(asOpened.shown(), asOpened.kind())).containsExactly(true, FAILED_OR_REFUSED));
+        claim("choosing one whose report.json is of the format the window reads but says it runs and was last written at"
+                        + " no time, not that JSON, shows no panel, the first working directory's ending not left on"
+                        + " screen",
+                () -> assertThat(inTheOneNotThatJson.shown()).as("whether the panel shows").isFalse());
+        claim("choosing then one whose last invocation ended at a gate shows that ending, the panel still following the"
+                        + " working directory chosen",
+                () -> assertThat(List.of(atTheGate.kind(), atTheGate.when(), atTheGate.line())).containsExactly(ENDED,
+                        "Last invocation, " + DAY_AND_MINUTE.format(theGatesEnd()), A_GATES_CLOSING));
+        claim("and choosing the first again shows its ending again",
+                () -> assertThat(List.of(inTheRefusedAgain.kind(), inTheRefusedAgain.line()))
+                        .containsExactly(FAILED_OR_REFUSED, A_REFUSAL));
+    }
+
     // ---- the Report tab
 
     /** What the Report tab shows: whether it is selected, its status line and its closing line. */
@@ -858,6 +904,21 @@ class TheEndingPanelTest {
     private static void anEarlierGate(Path working) throws IOException {
         ReportFixtures.write(working, AN_EARLIER_PID, endedJob(ENDS, "completed", theGatesEnd(),
                 steps("census", "finished"), List.of(), "[]", A_GATES_CLOSING), THE_GATES_START, theGatesEnd(), 1);
+    }
+
+    /**
+     * Writes a {@code report.json} of the format the window reads whose invocation says it runs and whose
+     * {@code writtenAt} is null: not that JSON (§2's fourth case). Written whole, {@link ReportFixtures} always stamping
+     * a last write.
+     */
+    private static void aReportWrittenAtNoTime(Path working) throws IOException {
+        Files.writeString(working.resolve(InvocationReportFile.FILE_NAME), "{\"format\":" + InvocationReportFile.FORMAT
+                + ",\"invocation\":{\"id\":\"20261108T000000Z\",\"pid\":" + AN_EARLIER_PID + ",\"command\":\"run\","
+                + "\"started\":" + quoted(THE_UNFINISHEDS_LAST_WRITE.minusSeconds(600).toString()) + ",\"ended\":null,"
+                + "\"state\":\"running\",\"outcome\":null,\"exitCode\":null,\"writtenAt\":null,\"interval\":1},"
+                + "\"steps\":[{\"name\":\"census\",\"state\":\"finished\",\"progress\":null},{\"name\":\"extraction\","
+                + "\"state\":\"running\",\"progress\":null}],\"legs\":[],\"charts\":null,\"gates\":[],\"refusals\":[],"
+                + "\"faults\":[],\"closing\":null,\"analysisReports\":[]}", UTF_8);
     }
 
     private static Instant theGatesEnd() {
