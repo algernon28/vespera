@@ -59,6 +59,7 @@ class TheValuesTheNextInvocationWantsTest {
         ControlPanelState state = WindowForTests.aState(folder, EndingJar.runtime());
         state.hold(new LaunchValues(corpus.toString(), working.toString(), "", "", "", "", "", ""));
         String id = "wanted-" + WANTED.key();
+        boolean ended;
         Stated first;
         Stated second;
         String[] tooltip = new String[1];
@@ -69,8 +70,7 @@ class TheValuesTheNextInvocationWantsTest {
                     .as("the child that ends at once is started").isEmpty();
             // the wanted rows are drawn as the window opens (ADR-404 §1), so only the ending says the window's own
             // child no longer runs, and a Save pressed before it writes nothing (ADR-295 §1; issue #869)
-            assumeThat(WindowForTests.within(() -> state.ending().isPresent()))
-                    .as("the child that ends at once has ended").isTrue();
+            ended = WindowForTests.within(() -> state.ending().isPresent());
             boolean drawn = window.awaiting(root -> HeadlessToolkit.nodeWithId(root, id).isPresent(),
                     Boolean::booleanValue);
             assumeThat(drawn).as("the wanted value's row is drawn").isTrue();
@@ -90,6 +90,8 @@ class TheValuesTheNextInvocationWantsTest {
             second = savedIn(working);
         }
 
+        claim("the child that ends at once has ended",
+                () -> assertThat(ended).isTrue());
         claim("the first Save writes the value with the filled-in words",
                 () -> assertThat(first).isEqualTo(new Stated("0.5", FILLED_IN)));
         claim("and says it saved it",
