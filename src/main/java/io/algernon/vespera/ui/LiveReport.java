@@ -23,7 +23,8 @@ import javafx.scene.layout.VBox;
  * a {@code WebView} — the status line and its stale mark, the display and what was opened, the gates with their keys
  * and the reports each is read off, the refusals, the faults by type, the closing line and the next value, the twelve
  * analysis reports and the files. A report's name opens that report in a tab of the Reports window (ADR-414), and the deliverable's index is handed to
- * the system; {@code report.html} and {@code report.json} are shown as text, never opened.
+ * the system; {@code report.html} and {@code report.json} are shown as text, never opened. While no invocation runs it
+ * also draws the report of the ending the ending panel shows, an earlier invocation's among them (ADR-417 §4).
  */
 final class LiveReport {
 
@@ -158,6 +159,15 @@ final class LiveReport {
         for (InvocationReportFile.FileWritten each : report.files()) {
             files.getChildren().add(line(each.role() + ": " + each.path()));
         }
+    }
+
+    /**
+     * Draws {@code report}, which is no watched invocation's but the one the ending panel shows (ADR-417 §4): an earlier
+     * invocation's, drawn as an ended one, never marked stale, a report still saying {@code running} said to have ended
+     * without its last write. It is drawn whole as {@link #shows} draws a watched report whose child has ended.
+     */
+    void showsAnEarlier(InvocationReportFile.Report report) {
+        shows(report, Instant.now(), true, "");
     }
 
     /** The deliverable's index, where the invocation drew a tree and its index is there. */
