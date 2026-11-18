@@ -324,6 +324,11 @@ _Avoid_: console (the jar's standard output, ADR-093), launcher (ADR-158; the Do
 The part of the control panel's window that shows what its child writes to standard output, standard error merged in, as text the operator selects and copies.
 _Avoid_: console, console panel (the console is the jar's standard output), output tail, log view.
 
+**Ending panel**:
+The part of the control panel's window beneath the output panel, in its column and behind a divider of its own, that says how the last invocation of the working directory chosen ended and why: the window's own child's ending once it ends, else the one its `report.json` records, dated, whichever way it ended, failed or refused, a defect of the control panel, stopped by the operator or ended; nothing where that working directory never had an invocation, and nothing while one runs (ADR-417). It reads the invocation report's refusals, faults and closing line and the exit code, and, where the child wrote no report of its own, its last line of output; it words no advice of its own.
+_Avoid_: error panel, status panel, why panel, banner, toast, popup, alert, notification. Also "panel" alone, in a name of ours.
+_Not to be confused with_: `outcome`, the one line the last action said, and the header's `child` line, both of which stay.
+
 **Profile window**:
 The control panel's window of its own in which the operator edits `profile.yaml`, one form of every key, opened from the Profile section, the first of the sidebar, and apart from the cockpit, which it neither blocks nor is held above; there is one at a time, and closing it, or the control panel, with an edit unsaved asks whether to save it (ADR-389). Not the profile itself, which is the file, and not the Seed folder section, which edits one key of it in the cockpit.
 _Avoid_: Profile tab (what ADR-344 called it, before ADR-389), profile dialog, profile popup, profile editor. Also "panel" alone, in a name of ours.

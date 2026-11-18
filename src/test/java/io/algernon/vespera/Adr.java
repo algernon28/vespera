@@ -3032,6 +3032,15 @@ public final class Adr {
     public static final String THE_ANALYSIS_REPORTS_OPEN_IN_A_REPORTS_WINDOW_OF_THEIR_OWN = FILE
             + "0414-the-analysis-reports-open-in-a-reports-window-of-their-own-a-tab-each-and-the-cockpit-keeps-its-list-and-two-tabs.md";
 
+    /**
+     * ADR-417 -- an ending panel beneath the output panel, in its column and behind a divider of its own, says how the
+     * last invocation of the working directory chosen ended and why: every ending, from the invocation report and the
+     * exit code, an earlier one dated, nothing while an invocation runs; the sidebar's width and the steps' and output's
+     * height are dragged by grips (amends ADR-344 §1).
+     */
+    public static final String THE_ENDING_PANEL_SAYS_HOW_THE_LAST_INVOCATION_ENDED_AND_WHY = FILE
+            + "0417-an-ending-panel-beneath-the-output-says-how-the-last-invocation-of-the-working-directory-ended-and-why.md";
+
     private Adr() {
     }
 }

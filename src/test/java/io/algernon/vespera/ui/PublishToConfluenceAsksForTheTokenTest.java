@@ -40,7 +40,8 @@ import org.junit.jupiter.api.io.TempDir;
  * where the control panel started it, and the window warns, asking for a different title (ADR-383): a title entered is
  * saved as {@code confluenceFolderTitle} and the publish is started again, the token asked for again; Cancel, or a
  * blank title, saves nothing and starts nothing. The child is {@link ATitleCheckingChildForTests}, which reads the title
- * in {@code profile.yaml} as the jar does and exits as the jar would.
+ * in {@code profile.yaml} as the jar does and exits as the jar would. The warning stays as it was, and the ending panel
+ * records the ending beside it as it records any other (ADR-417 §6).
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -182,7 +183,8 @@ class PublishToConfluenceAsksForTheTokenTest {
     @Story("A parent's title naming no page or several asks for another")
     @Link(name = "ADR-383", url = Adr.A_PARENT_TITLE_NAMING_NO_PAGE_OR_SEVERAL_ASKS_FOR_ANOTHER_IN_A_WARNING, type = "adr")
     @Link(name = "ADR-389", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
-    @DisplayName("A publish whose parent's title names several pages warns so; the warning cancelled, or answered with blanks, saves nothing, starts nothing and says the title is left as it was")
+    @Link(name = "ADR-417", url = Adr.THE_ENDING_PANEL_SAYS_HOW_THE_LAST_INVOCATION_ENDED_AND_WHY, type = "adr")
+    @DisplayName("A publish whose parent's title names several pages warns so, and the panel beneath the output records that ending too; the warning cancelled, or answered with blanks, saves nothing, starts nothing and says the title is left as it was")
     void aTitleNamingSeveralAsksTooAndCancelOrBlanksSaveAndStartNothing(@TempDir Path folder) throws Exception {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
         aListAt(workingDirectory.resolve("deliverable").resolve(A_RUN).resolve("confluence"), "pages.json");
@@ -191,6 +193,7 @@ class PublishToConfluenceAsksForTheTokenTest {
         ControlPanelState state = aStateOver(folder, workingDirectory, new ChildRuntime(java(), titleCheckingJar()));
 
         List<String> outcomes = new ArrayList<>();
+        List<String> endings = new ArrayList<>();
         List<AnsweringDialogs.Warned> warned;
         List<String> asked;
         try (WindowForTests window = WindowForTests.shown(state)) {
@@ -205,6 +208,8 @@ class PublishToConfluenceAsksForTheTokenTest {
                 WindowForTests.within(() -> window.dialogs.warned.size() > before);
                 outcomes.add(window.read(
                         root -> WindowForTests.node(root, "outcome", TextInputControl.class).getText()));
+                endings.add(window.awaiting(PublishToConfluenceAsksForTheTokenTest::endingSaid,
+                        said -> said.contains("exit " + ATitleCheckingChildForTests.SEVERAL_SO_TITLED)));
             }
             warned = List.copyOf(window.dialogs.warned);
             asked = List.copyOf(window.dialogs.maskedAsked);
@@ -217,6 +222,12 @@ class PublishToConfluenceAsksForTheTokenTest {
                                 ATitleCheckingChildForTests.TITLE_OF_SEVERAL),
                         new AnsweringDialogs.Warned(WARNING_TITLE, WARNING_OF_SEVERAL,
                                 ATitleCheckingChildForTests.TITLE_OF_SEVERAL)));
+        claim("each such ending is also shown beneath the output as any other is: Failed or refused, the publish having"
+                        + " printed nothing and written no report, before any step, with its exit code and the time it"
+                        + " ended",
+                () -> assertThat(endings).hasSize(2).allSatisfy(said -> assertThat(said).matches("Failed or refused"
+                        + " / Stopped before any step · exit " + ATitleCheckingChildForTests.SEVERAL_SO_TITLED
+                        + " · ended \\d{2}:\\d{2}:\\d{2}")));
         claim("cancelled, then answered with blanks, it said each time that the title is left as it was",
                 () -> assertThat(outcomes).containsExactly(LEFT_AS_IT_WAS, LEFT_AS_IT_WAS));
         claim("no publish was started again: the token was asked for once for each Publish pressed and no more",
@@ -235,6 +246,19 @@ class PublishToConfluenceAsksForTheTokenTest {
                 .map(CheckBox.class::cast)
                 .map(box -> box.getId().substring("publish-to-".length()))
                 .toList();
+    }
+
+    /**
+     * What the panel beneath the output says of the ending (ADR-417 §3), its kind and its facts, as {@code <kind> /
+     * <facts>}; empty where no such panel shows.
+     */
+    private static String endingSaid(Parent root) {
+        Optional<Node> kind = HeadlessToolkit.nodeWithId(root, "ending-kind").filter(Node::isVisible);
+        Optional<Node> facts = HeadlessToolkit.nodeWithId(root, "ending-facts").filter(Node::isVisible);
+        if (kind.isEmpty() || facts.isEmpty()) {
+            return "";
+        }
+        return ((TextInputControl) kind.get()).getText() + " / " + ((TextInputControl) facts.get()).getText();
     }
 
     /** Every text the window shows: of each label, button, box and field. */
