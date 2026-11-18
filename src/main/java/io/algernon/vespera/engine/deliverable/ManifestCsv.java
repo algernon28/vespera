@@ -71,7 +71,7 @@ final class ManifestCsv {
      * For each subtopic of a crowded topic, how many of the topic's clusters lie before it in the topic's one
      * sequence (ADR-409 section 10). A row's place in that sequence, the number its cluster's folder carries, is
      * this offset plus the cluster's order within its subtopic, so that the listing tells the topic's clusters apart
-     * as the tree does. One number is held for each subtopic and a topic is read at a time; a topic with no
+     * as the tree does. Its offset in the sequence and its name are held for each subtopic and a topic is read at a time; a topic with no
      * subtopics has none here and its rows keep the places the arrangement stored.
      */
     private static Map<SubtopicKey, SubtopicPlace> sequenceOffsets(ArrangedSurvivors source) {

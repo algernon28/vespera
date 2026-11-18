@@ -777,12 +777,26 @@ public final class Deliverable {
                     others++;
                 }
             }
-            // A partition's folder, and a plugin's, are looked into one level; a plugin's own partition folders one
-            // level more, as the tree's are (ADR-312 §4).
+            // A topic's folder, and a plugin's, are looked into one level; a plugin's own topic folders one level
+            // more, as the tree's are (ADR-312 §4). A subtopic's folder, in the tree and in a plugin's folder, is
+            // looked into too: it is the folder of a topic's in which this drawing wrote another folder (a cluster's),
+            // where a cluster's folder, which holds only what was written in it, is not (ADR-415 §3).
+            Set<String> holdingFolders = new HashSet<>();
+            for (String name : written) {
+                int slash = name.lastIndexOf('/');
+                if (slash > 0) {
+                    holdingFolders.add(name.substring(0, slash));
+                }
+            }
             for (String folder : written.stream()
-                    .filter(name -> name.indexOf('/') < 0
-                            || pluginFolders.stream().anyMatch(plugin -> name.startsWith(plugin + "/")
-                                    && name.indexOf('/', plugin.length() + 1) < 0))
+                    .filter(name -> {
+                        long depth = name.chars().filter(c -> c == '/').count();
+                        boolean inPlugin = pluginFolders.stream().anyMatch(plugin -> name.startsWith(plugin + "/"));
+                        if (depth <= (inPlugin ? 1 : 0)) {
+                            return true;
+                        }
+                        return depth == (inPlugin ? 2 : 1) && holdingFolders.contains(name);
+                    })
                     .toList()) {
                 WrittenHere here = new WrittenHere(tree, folder + "/", written);
                 try (Stream<Path> inside = Files.list(tree.resolve(folder))) {

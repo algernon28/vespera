@@ -486,8 +486,7 @@ class GenerationTasklet implements Tasklet {
                 Optional<SynthesisDoc> doc = synthesisDocs.forCluster(generation, slot);
                 if (doc.isPresent()) {
                     written.add(new OverviewSource(at + 1, doc.get().title(), doc.get().prose()));
-                } else if (!unsendable.containsKey(slot)
-                        && !(theStepFinishes && clusterFaults.forCluster(generation, slot).isPresent())) {
+                } else if (!isSettled(generation, slot, unsendable, theStepFinishes)) {
                     everyClusterIsSettled = false;
                 }
             }
@@ -990,7 +989,7 @@ class GenerationTasklet implements Tasklet {
                 generation.value(), walkId.value(), canonicalRoot.toString(), profileValues(profile));
         RunId extractionRun = stageRuns.upstream(StageModules.EXTRACTION);
         long survivorCount = arranged.stream().mapToLong(ArrangedTopic::memberCount).sum();
-        // Each topic's recorded name, read once: the tree's folders and the manifest's seed_partition column name it.
+        // Each topic's recorded name, read once: the tree's folders and the manifest's topic column name it.
         Map<TopicKey, String> topicNameOf = new HashMap<>();
         arranged.forEach(topic -> topicNameOf.put(
                 topic.topic(),
@@ -1043,7 +1042,7 @@ class GenerationTasklet implements Tasklet {
                         () -> clusterFaults.forCluster(generation, slot))),
                 slots -> clusters.placesOf(arrangement, slots),
                 topic -> subtopicsOf(arrangement, topic),
-                topic -> overviewOf(generation, arrangement, topic),
+                topic -> overviewOf(generation, arrangement, topic, foundThisRun, writingFinished),
                 (topic, page) -> eachPageOfSeeAlso(scoring, arranged, topic, page),
                 page -> eachPageOfSurvivors(
                         EmbeddingStatement.ARRANGED_OCCURRENCES_FOR_PICTURES,
@@ -1091,10 +1090,15 @@ class GenerationTasklet implements Tasklet {
     /**
      * A topic's overview under the generation run, written with how many clusters it was written over, or the reason it
      * has none (ADR-415 section 11, ADR-402 section 7): the fault recorded for it where there is one, otherwise that
-     * nothing was written over any of its clusters where none has a synthesis doc, otherwise that the step did not reach
-     * it.
+     * nothing was written over any of its clusters where none has a synthesis doc and every cluster is settled (the
+     * same test the overviews are asked under), otherwise that the step did not reach it.
      */
-    private ListedOverview overviewOf(RunId generation, RunId arrangement, ListedTopic topic) {
+    private ListedOverview overviewOf(
+            RunId generation,
+            RunId arrangement,
+            ListedTopic topic,
+            Map<ClusterSlot, Unwritten> foundThisRun,
+            boolean writingFinished) {
         Optional<TopicOverviews.RecordedOverview> written = topicOverviews.writtenFor(generation, topic.topic());
         if (written.isPresent()) {
             return new ListedOverview.Written(written.get().writing(), written.get().clustersSent());
@@ -1103,10 +1107,27 @@ class GenerationTasklet implements Tasklet {
         if (fault.isPresent()) {
             return new ListedOverview.Unwritten(OverviewUnwritten.of(fault.get()));
         }
-        boolean someClusterWritten = clusters.ofTopic(arrangement, topic.topic()).stream()
-                .anyMatch(recorded -> synthesisDocs.isWritten(generation, ClusterSlot.of(recorded)));
+        List<ClusterSlot> slots = clusters.ofTopic(arrangement, topic.topic()).stream()
+                .map(ClusterSlot::of)
+                .toList();
+        boolean someClusterWritten = slots.stream().anyMatch(slot -> synthesisDocs.isWritten(generation, slot));
+        boolean everyClusterIsSettled =
+                slots.stream().allMatch(slot -> isSettled(generation, slot, foundThisRun, writingFinished));
         return new ListedOverview.Unwritten(
-                someClusterWritten ? OverviewUnwritten.NOT_REACHED : OverviewUnwritten.NOTHING_WRITTEN_OVER_ANY_CLUSTER);
+                !someClusterWritten && everyClusterIsSettled
+                        ? OverviewUnwritten.NOTHING_WRITTEN_OVER_ANY_CLUSTER
+                        : OverviewUnwritten.NOT_REACHED);
+    }
+
+    /**
+     * Whether a cluster with no synthesis doc is settled: nothing could be sent for it, or it carries a standing fault
+     * and the step finishes, which is where the walk leaves the step to be recorded finished under ADR-319 section 2.
+     * A cluster with a synthesis doc is read as settled by the caller, which asks for the docs apart.
+     */
+    private boolean isSettled(
+            RunId generation, ClusterSlot slot, Map<ClusterSlot, Unwritten> unsendable, boolean theStepFinishes) {
+        return unsendable.containsKey(slot)
+                || (theStepFinishes && clusterFaults.forCluster(generation, slot).isPresent());
     }
 
     /**
