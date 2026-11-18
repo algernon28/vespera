@@ -3045,6 +3045,16 @@ public final class Adr {
             + "0414-the-analysis-reports-open-in-a-reports-window-of-their-own-a-tab-each-and-the-cockpit-keeps-its-list-and-two-tabs.md";
 
     /**
+     * ADR-417 -- an ending panel beneath the output panel, in its column and behind a divider of its own, says how the
+     * last invocation of the working directory chosen ended and why: every ending, from the invocation report and the
+     * exit code, an earlier one dated, nothing while an invocation runs; the sidebar's width and the steps' and output's
+     * height are dragged by grips; its Open report selects the Report tab, which draws that ending's report (amends
+     * ADR-344 §1 and ADR-362 §8).
+     */
+    public static final String THE_ENDING_PANEL_SAYS_HOW_THE_LAST_INVOCATION_ENDED_AND_WHY = FILE
+            + "0417-an-ending-panel-beneath-the-output-says-how-the-last-invocation-of-the-working-directory-ended-and-why.md";
+
+    /**
      * ADR-418 -- every stage's chart is written empty, no key, no time it finished and no line, at the first reading of
      * the job of {@code vespera run}, and the job reads no chart's file; within its invocation a chart is started once,
      * its seconds from its first sample there, its key added to as the invocation reaches it, and frozen once; a stage

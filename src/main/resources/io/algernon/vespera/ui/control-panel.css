@@ -283,10 +283,6 @@
     -fx-spacing: 8px;
 }
 
-.steps-and-output {
-    -fx-pref-height: 300px;
-}
-
 .form-tabs {
     -fx-pref-height: 420px;
 }
@@ -405,7 +401,6 @@
 }
 
 .sidebar {
-    -fx-pref-width: 420px;
     -fx-background-color: -vespera-surface;
 }
 
@@ -438,4 +433,65 @@
 .table-view:focused > .virtual-flow > .clipped-container > .sheet > .table-row-cell:filled:selected,
 .tree-view:focused > .virtual-flow > .clipped-container > .sheet > .tree-cell:filled:selected {
     -fx-text-background-color: -vespera-accent-ink;
+}
+
+/*
+ * The ending panel beneath the output (ADR-417): on the surface, a stripe down its left edge and its kind in the error
+ * colour or the accent. Every colour is a token above; the grips are bars the operator drags to size the sidebar and the
+ * steps beside the output.
+ */
+.ending-scroll,
+.ending-scroll > .viewport {
+    -fx-background-color: -vespera-surface;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.ending-panel {
+    -fx-background-color: -vespera-surface;
+}
+
+.ending-body {
+    -fx-padding: 8px;
+    -fx-spacing: 4px;
+}
+
+.ending-stripe {
+    -fx-min-width: 6px;
+    -fx-pref-width: 6px;
+    -fx-max-width: 6px;
+}
+
+.ending-stripe.ending-bad {
+    -fx-background-color: -vespera-bad;
+}
+
+.ending-stripe.ending-accent {
+    -fx-background-color: -vespera-accent;
+}
+
+.selectable-text.ending-bad {
+    -fx-text-fill: -vespera-bad;
+}
+
+.selectable-text.ending-accent {
+    -fx-text-fill: -vespera-accent;
+}
+
+.grip {
+    -fx-background-color: -vespera-rule;
+}
+
+.grip-wide {
+    -fx-min-width: 6px;
+    -fx-pref-width: 6px;
+    -fx-max-width: 6px;
+    -fx-cursor: h-resize;
+}
+
+.grip-high {
+    -fx-min-height: 6px;
+    -fx-pref-height: 6px;
+    -fx-max-height: 6px;
+    -fx-cursor: v-resize;
 }

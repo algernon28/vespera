@@ -8,14 +8,16 @@ import java.nio.file.Path;
  * Jars whose main class prints a line and then a report line, and either ends with exit code 1 ({@link #refusing()},
  * an invocation refused before it wrote a report) or sleeps until it is killed ({@link #printing()}, one that Stop
  * ends); and one whose main class prints a publish's refusal naming the control panel's Profile window and ends with
- * exit code 1 ({@link #refusedPublish()}). Each is written once for the test JVM, as {@link SleepingJar} is and for
- * the same reason.
+ * exit code 1 ({@link #refusedPublish()}); and one whose main class ends as the working directory's file tells it,
+ * writing a report or none ({@link #endingAsTold()}). Each is written once for the test JVM, as {@link SleepingJar} is
+ * and for the same reason.
  */
 final class PrintingJars {
 
     private static Path refusing;
     private static Path printing;
     private static Path refusedPublish;
+    private static Path endingAsTold;
 
     private PrintingJars() {
     }
@@ -30,6 +32,17 @@ final class PrintingJars {
 
     static ChildRuntime refusedPublish() throws IOException {
         return new ChildRuntime(theJava(), refusedPublishJar());
+    }
+
+    static ChildRuntime endingAsTold() throws IOException {
+        return new ChildRuntime(theJava(), endingAsToldJar());
+    }
+
+    private static synchronized Path endingAsToldJar() throws IOException {
+        if (endingAsTold == null) {
+            endingAsTold = written("ending-as-told.jar", AChildEndingAsToldForTests.class);
+        }
+        return endingAsTold;
     }
 
     private static Path theJava() {
