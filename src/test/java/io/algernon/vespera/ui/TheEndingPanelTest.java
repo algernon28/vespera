@@ -634,24 +634,28 @@ class TheEndingPanelTest {
 
     @Test
     @Story("The window says why the last invocation ended")
-    @DisplayName("A working directory whose report.json is of the format but not that JSON, its last write null, shows no panel, and the panel goes on following the working directory chosen")
+    @DisplayName("A working directory whose report.json is of the format but not that JSON, its last write null or a step unnamed, shows no panel, and the panel goes on following the working directory chosen")
     void aReportThatIsNotThatJsonShowsNoPanelAndThePanelGoesOnFollowingTheChoice(@TempDir Path folder)
             throws Exception {
         Path refused = Files.createDirectories(folder.resolve("refused"));
         Path notThatJson = Files.createDirectories(folder.resolve("not-that-json"));
+        Path aStepUnnamed = Files.createDirectories(folder.resolve("a-step-unnamed"));
         Path atAGate = Files.createDirectories(folder.resolve("at-a-gate"));
         anEarlierRefusal(refused);
         aReportWrittenAtNoTime(notThatJson);
+        aReportWithAStepUnnamed(aStepUnnamed);
         anEarlierGate(atAGate);
         ControlPanelState state = aStateOver(folder, notStarting(folder));
         WorkingDirectoryList.store(WorkingDirectoryList.besides(LaunchValues.fileIn(folder.resolve("tmp"), USER)),
-                USER, List.of(notThatJson, atAGate), line -> { });
+                USER, List.of(notThatJson, aStepUnnamed, atAGate), line -> { });
         state.hold(launchValues(folder, refused));
 
         Shown asOpened;
         Shown inTheOneNotThatJson;
         Shown atTheGate;
         Shown inTheRefusedAgain;
+        Shown inTheOneWithAStepUnnamed;
+        Shown atTheGateAgain;
         try (WindowForTests window = WindowForTests.shown(state)) {
             asOpened = window.awaiting(TheEndingPanelTest::seen, Shown::shown);
             choose(window, notThatJson);
@@ -661,6 +665,10 @@ class TheEndingPanelTest {
             choose(window, refused);
             inTheRefusedAgain = window.awaiting(TheEndingPanelTest::seen,
                     shown -> FAILED_OR_REFUSED.equals(shown.kind()));
+            choose(window, aStepUnnamed);
+            inTheOneWithAStepUnnamed = window.awaiting(TheEndingPanelTest::seen, shown -> !shown.shown());
+            choose(window, atAGate);
+            atTheGateAgain = window.awaiting(TheEndingPanelTest::seen, shown -> ENDED.equals(shown.kind()));
         }
 
         claim("as the window opens on a working directory whose last invocation was refused, the panel shows it",
@@ -676,6 +684,14 @@ class TheEndingPanelTest {
         claim("and choosing the first again shows its ending again",
                 () -> assertThat(List.of(inTheRefusedAgain.kind(), inTheRefusedAgain.line()))
                         .containsExactly(FAILED_OR_REFUSED, A_REFUSAL));
+        claim("choosing then one whose report.json is of the format the window reads and has ended, exit code 1, but"
+                        + " names a step that failed by no name, not that JSON, shows no panel, the first working"
+                        + " directory's ending not left on screen",
+                () -> assertThat(inTheOneWithAStepUnnamed.shown()).as("whether the panel shows").isFalse());
+        claim("and choosing the one ended at a gate again shows its ending, the panel still following the working"
+                        + " directory chosen",
+                () -> assertThat(List.of(atTheGateAgain.kind(), atTheGateAgain.line())).containsExactly(ENDED,
+                        A_GATES_CLOSING));
     }
 
     // ---- the Report tab
@@ -918,6 +934,21 @@ class TheEndingPanelTest {
                 + "\"state\":\"running\",\"outcome\":null,\"exitCode\":null,\"writtenAt\":null,\"interval\":1},"
                 + "\"steps\":[{\"name\":\"census\",\"state\":\"finished\",\"progress\":null},{\"name\":\"extraction\","
                 + "\"state\":\"running\",\"progress\":null}],\"legs\":[],\"charts\":null,\"gates\":[],\"refusals\":[],"
+                + "\"faults\":[],\"closing\":null,\"analysisReports\":[]}", UTF_8);
+    }
+
+    /**
+     * Writes a {@code report.json} of the format the window reads, its last write and its start set, whose invocation
+     * has ended, exit code 1, and whose one step, failed, has no {@code name}: not that JSON (§2's fourth case). Written
+     * whole, {@link ReportFixtures} always writing a step's name.
+     */
+    private static void aReportWithAStepUnnamed(Path working) throws IOException {
+        Files.writeString(working.resolve(InvocationReportFile.FILE_NAME), "{\"format\":" + InvocationReportFile.FORMAT
+                + ",\"invocation\":{\"id\":\"20261108T000000Z\",\"pid\":" + AN_EARLIER_PID + ",\"command\":\"run\","
+                + "\"started\":" + quoted(THE_REFUSALS_END.minusSeconds(2).toString()) + ",\"ended\":"
+                + quoted(THE_REFUSALS_END.toString()) + ",\"state\":\"ended\",\"outcome\":\"failed\",\"exitCode\":"
+                + FAILS + ",\"writtenAt\":" + quoted(THE_REFUSALS_END.toString()) + ",\"interval\":1},"
+                + "\"steps\":[{\"state\":\"failed\"}],\"legs\":[],\"charts\":null,\"gates\":[],\"refusals\":[],"
                 + "\"faults\":[],\"closing\":null,\"analysisReports\":[]}", UTF_8);
     }
 
