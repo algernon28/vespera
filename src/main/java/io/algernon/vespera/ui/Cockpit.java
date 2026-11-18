@@ -97,7 +97,7 @@ final class Cockpit {
     private final ProgressCharts charts = new ProgressCharts();
     private final OptionsPane options;
     private final ReportsPane reports;
-    private final AnalysisReportsWindow reportsWindow;
+    private final AnalysisReportsWindow analysisReportsWindow;
     private final PreflightPane preflight;
     private final CodeSetsPane codeSets;
     private final InclusionsTab inclusions;
@@ -146,7 +146,7 @@ final class Cockpit {
         this.dialogs = dialogs;
         this.options = new OptionsPane(state, this::showCommandLines);
         this.reports = new ReportsPane(folders, this::openReport);
-        this.reportsWindow = new AnalysisReportsWindow(root, dialogs, folders, this::say);
+        this.analysisReportsWindow = new AnalysisReportsWindow(root, dialogs, folders, this::say);
         this.live = new LiveReport(this::openReport, dialogs::handToTheSystem);
         this.preflight = new PreflightPane(state, folders, property -> fields.get(property).text());
         this.codeSets = new CodeSetsPane(state, dialogs, folders, this::foldersToKeepApart, this::loadFiles);
@@ -619,7 +619,7 @@ final class Cockpit {
         working.input.textProperty().addListener((observed, was, now) -> {
             where();
             showModelsInUse();
-            reportsWindow.close();
+            analysisReportsWindow.close();
             // the rows drawn for another working directory start as they first do (ADR-377 section 3)
             List.of(profileOpen, seedOpen, wantedOpen).forEach(ProfileRow.OpenKeys::forget);
             settleTheEditBeforeLoading();
@@ -929,7 +929,7 @@ final class Cockpit {
     }
 
     private void openReport(String report) {
-        reportsWindow.open(report);
+        analysisReportsWindow.open(report);
     }
 
     /** The corpus root as the field names it now, which the window uses wherever it reads or holds one (ADR-344 §3). */
@@ -1355,6 +1355,6 @@ final class Cockpit {
     void closed() {
         timeline.stop();
         profileWindow.close();
-        reportsWindow.close();
+        analysisReportsWindow.close();
     }
 }

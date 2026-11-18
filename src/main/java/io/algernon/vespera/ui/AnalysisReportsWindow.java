@@ -43,7 +43,7 @@ final class AnalysisReportsWindow {
     private final Consumer<String> say;
     private final BorderPane root = new BorderPane();
     private final TabPane tabs = new TabPane();
-    private final Map<String, Tab> reportTabs = new LinkedHashMap<>();
+    private final Map<String, Tab> analysisReportTabs = new LinkedHashMap<>();
     private Stage stage;
     private Placed kept;
 
@@ -79,7 +79,7 @@ final class AnalysisReportsWindow {
         if (folder.isEmpty()) {
             return;
         }
-        Tab open = reportTabs.get(report);
+        Tab open = analysisReportTabs.get(report);
         if (open == null) {
             open = openNatively(report, folder.get().toAbsolutePath().normalize());
             if (open == null) {
@@ -116,12 +116,12 @@ final class AnalysisReportsWindow {
         reload.setOnAction(event -> read(report, file).ifPresent(again -> draw(scroll, tab, report, again)));
         tab.setId("analysis-report-" + report);
         tab.setOnClosed(event -> {
-            reportTabs.remove(report);
-            if (reportTabs.isEmpty()) {
+            analysisReportTabs.remove(report);
+            if (analysisReportTabs.isEmpty()) {
                 close();
             }
         });
-        reportTabs.put(report, tab);
+        analysisReportTabs.put(report, tab);
         tabs.getTabs().add(tab);
         return tab;
     }
@@ -153,10 +153,10 @@ final class AnalysisReportsWindow {
             stage.setResizable(true);
             stage.setOnHiding(event -> {
                 kept = new Placed(stage.getX(), stage.getY(), stage.getWidth(), stage.getHeight());
-                for (Tab tab : List.copyOf(reportTabs.values())) {
+                for (Tab tab : List.copyOf(analysisReportTabs.values())) {
                     tabs.getTabs().remove(tab);
                 }
-                reportTabs.clear();
+                analysisReportTabs.clear();
             });
         }
         follow();
@@ -170,10 +170,6 @@ final class AnalysisReportsWindow {
         stage.show();
         stage.toFront();
         stage.requestFocus();
-    }
-
-    boolean isOpen() {
-        return stage != null && stage.isShowing();
     }
 
     /** Closes the window, its tabs with it, asking nothing: where its last tab closes, the working directory changes or the cockpit closes. */
