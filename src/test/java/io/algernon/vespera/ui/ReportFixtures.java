@@ -15,7 +15,7 @@ import java.util.Map;
  * the window watches, stamped with the child's pid and the instant it is written, since the window draws a report only
  * where it is the watched invocation's. The window tests describe a job as the steps and charts it holds, in the shape
  * {@code {"ended": false, "steps": [{"name", "state", "done", "total"}], "charts": [...]}}, with a {@code "closing"} line and
- * {@code "gates"}, {@code "faults"} and {@code "refusals"} where a test draws them, which this turns into the
+ * {@code "gates"}, {@code "faults"}, {@code "refusals"} and {@code "analysisReports"} where a test draws them, which this turns into the
  * report the jar writes of it, so that each test names the steps and charts it draws and nothing else of the report.
  */
 final class ReportFixtures {
@@ -57,7 +57,8 @@ final class ReportFixtures {
                 + "\",\"interval\":" + interval + "},\"steps\":" + steps + ",\"legs\":[],\"charts\":"
                 + json(shape.get("charts")) + ",\"gates\":" + json(orEmpty(shape.get("gates")))
                 + ",\"refusals\":" + json(orEmpty(shape.get("refusals"))) + ",\"faults\":"
-                + json(orEmpty(shape.get("faults"))) + ",\"closing\":" + json(shape.get("closing")) + "}";
+                + json(orEmpty(shape.get("faults"))) + ",\"closing\":" + json(shape.get("closing"))
+                + ",\"analysisReports\":" + json(orEmpty(shape.get("analysisReports"))) + "}";
     }
 
     private static Object orEmpty(Object list) {

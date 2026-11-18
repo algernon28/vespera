@@ -22,7 +22,7 @@ import javafx.scene.layout.VBox;
  * The Report tab, first of the tabs pane and not closable (ADR-362 §8): the invocation report drawn natively, never by
  * a {@code WebView} — the status line and its stale mark, the display and what was opened, the gates with their keys
  * and the reports each is read off, the refusals, the faults by type, the closing line and the next value, the twelve
- * analysis reports and the files. A report's name opens that report's tab, and the deliverable's index is handed to
+ * analysis reports and the files. A report's name opens that report in a tab of the Reports window (ADR-414), and the deliverable's index is handed to
  * the system; {@code report.html} and {@code report.json} are shown as text, never opened.
  */
 final class LiveReport {

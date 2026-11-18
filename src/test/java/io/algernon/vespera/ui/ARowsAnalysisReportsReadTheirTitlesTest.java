@@ -34,8 +34,8 @@ import org.junit.jupiter.api.io.TempDir;
  * {@code <prefix><key>.report-<name>}, which opens the report's native view (ADR-362 §10); a report whose JSON the
  * working directory does not hold is its title in grey, not written yet; and the eleven titles are {@code
  * Reports.TITLES}, which the jar's pages carry too. Each window is shown on the Headless platform, the Profile window
- * opened: its rows are read and pressed there, and the report's tab a link opens is read in the control panel's window
- * (ADR-389 §2).
+ * opened: its rows are read and pressed there, and the report's tab a link opens is read in the Reports window
+ * (ADR-414 §3).
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -115,7 +115,8 @@ class ARowsAnalysisReportsReadTheirTitlesTest {
     @Test
     @Story("A row's reports read their titles")
     @Link(name = "ADR-389", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
-    @DisplayName("A row's link opens its report's native view in the control panel's window, and hands nothing to the system")
+    @Link(name = "ADR-414", url = Adr.THE_ANALYSIS_REPORTS_OPEN_IN_A_REPORTS_WINDOW_OF_THEIR_OWN, type = "adr")
+    @DisplayName("A row's link opens its report's native view in the Reports window, and hands nothing to the system")
     void aLinkOpensItsAnalysisReportsNativeView(@TempDir Path folder) throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
         writeJson(working, ITS_ANALYSIS_REPORT);
@@ -125,10 +126,10 @@ class ARowsAnalysisReportsReadTheirTitlesTest {
         List<URI> handed;
         try (WindowForTests window = windowOver(folder, working)) {
             window.actOnProfile(root -> WindowForTests.pressRowAnalysisReportLink(root, PROFILE, ONE_ANALYSIS_REPORT, ITS_ANALYSIS_REPORT));
-            opened = window.read(root -> WindowForTests.reportTab(root, ITS_ANALYSIS_REPORT));
-            title = window.read(root -> HeadlessToolkit.tabWithId(root, "analysis-report-" + ITS_ANALYSIS_REPORT)
-                    .map(Tab::getText).orElse(null));
-            window.act(root -> HeadlessToolkit.tabWithId(root, "analysis-report-" + ITS_ANALYSIS_REPORT)
+            opened = window.readAnalysisReports(root -> WindowForTests.reportTab(root, ITS_ANALYSIS_REPORT));
+            title = window.readAnalysisReports(root -> HeadlessToolkit.tabWithId(root, "analysis-report-"
+                    + ITS_ANALYSIS_REPORT).map(Tab::getText).orElse(null));
+            window.actOnAnalysisReports(root -> HeadlessToolkit.tabWithId(root, "analysis-report-" + ITS_ANALYSIS_REPORT)
                     .map(Tab::getContent)
                     .ifPresent(content -> HeadlessToolkit.everyNodeUnder(content).stream()
                             .map(node -> node.getClass().getName())

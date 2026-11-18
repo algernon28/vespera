@@ -22,7 +22,6 @@ import java.util.Optional;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.chart.BarChart;
-import javafx.scene.control.Hyperlink;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TableView;
@@ -32,9 +31,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * An analysis report opens in the window drawn by JavaFX's controls from its JSON (ADR-362 §10), in a tab
- * {@code analysis-report-<name>}: its headline's tiles, and each section's chart and table, with a cell that leads
- * where its column's kind says.
+ * An analysis report opens drawn by JavaFX's controls from its JSON (ADR-362 §10), in a tab
+ * {@code analysis-report-<name>} of the Reports window (ADR-414 §2): its headline's tiles, and each section's chart and
+ * table, with a cell that leads where its column's kind says.
  *
  * <p>The window runs on the Headless platform as every window test does (ADR-342 §6), and what is handed to the system
  * is answered by the test's dialogs, so no program of the system is started.
@@ -43,6 +42,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("The control panel")
 @Issue("749")
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
+@Link(name = "ADR-414", url = Adr.THE_ANALYSIS_REPORTS_OPEN_IN_A_REPORTS_WINDOW_OF_THEIR_OWN, type = "adr")
 class TheAnalysisReportsOpenNativelyTest {
 
     /** A report the test draws natively, and the one its section's chart and table are drawn from. */
@@ -78,12 +78,13 @@ class TheAnalysisReportsOpenNativelyTest {
 
     @Test
     @Story("The operator reads the reports inside the window")
-    @DisplayName("A report opens in a tab of its own drawn from its JSON, with no viewer, and hands nothing to the system")
+    @DisplayName("A report opens in a tab of its own of the Reports window, drawn from its JSON, with no viewer, and hands nothing to the system")
     void anAnalysisReportsLinkOpensItsNativeViewInATabOfTheWindow(@TempDir Path folder) throws Exception {
         Path workingDirectory = Files.createDirectories(folder.resolve("working"));
         writeJson(workingDirectory, THE_REPORT, "Format mix", WRITTEN_AT, FILES_COUNTED);
 
         List<String> tabs;
+        List<String> theCockpitsTabs;
         Optional<WindowForTests.ReportTab> opened;
         String tab;
         String tile;
@@ -93,19 +94,24 @@ class TheAnalysisReportsOpenNativelyTest {
         List<URI> handed;
         try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", THE_REPORT));
-            tabs = window.read(WindowForTests::tabIds);
-            opened = window.read(root -> WindowForTests.reportTab(root, THE_REPORT));
-            tab = window.read(root -> HeadlessToolkit.tabWithId(root, THE_TAB).orElseThrow().getText());
-            tile = window.read(root -> textOf(root, "headline-" + THE_REPORT + "-files"));
-            share = window.read(root -> textOf(root, "headline-" + THE_REPORT + "-code"));
-            chartDrawn = window.read(root -> WindowForTests.node(root, "chart-" + THE_REPORT + "-" + THE_SECTION,
-                    Node.class) instanceof BarChart);
-            rows = window.read(TheAnalysisReportsOpenNativelyTest::rowsOfTheTable);
+            tabs = window.analysisReportTabIds();
+            theCockpitsTabs = window.read(WindowForTests::tabIds);
+            opened = window.readAnalysisReports(root -> WindowForTests.reportTab(root, THE_REPORT));
+            tab = window.readAnalysisReports(root -> HeadlessToolkit.tabWithId(root, THE_TAB).orElseThrow().getText());
+            tile = window.readAnalysisReports(root -> textOf(root, "headline-" + THE_REPORT + "-files"));
+            share = window.readAnalysisReports(root -> textOf(root, "headline-" + THE_REPORT + "-code"));
+            chartDrawn = window.readAnalysisReports(root -> WindowForTests.node(root, "chart-" + THE_REPORT + "-"
+                    + THE_SECTION, Node.class) instanceof BarChart);
+            rows = window.readAnalysisReports(TheAnalysisReportsOpenNativelyTest::rowsOfTheTable);
             handed = List.copyOf(window.dialogs.handed);
         }
 
-        claim("the report's tab is the third, after the two the window opens with, by the new id",
-                () -> assertThat(tabs).containsExactly("live-report", "inclusions", THE_TAB));
+        claim("the report's tab is the Reports window's one tab, by the new id, and the control panel's window keeps the"
+                        + " two tabs it opens with",
+                () -> {
+                    assertThat(tabs).containsExactly(THE_TAB);
+                    assertThat(theCockpitsTabs).containsExactlyElementsOf(THE_FORM_TABS);
+                });
         claim("it is selected",
                 () -> assertThat(opened).hasValueSatisfying(each -> {
                     assertThat(each.selected()).isTrue();
@@ -136,19 +142,24 @@ class TheAnalysisReportsOpenNativelyTest {
         String cut;
         String another;
         List<String> tabs;
+        int analysisReportsWindows;
         try (WindowForTests window = WindowForTests.shown(aStateOver(folder, workingDirectory))) {
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", THE_REPORT));
             cut = window.read(TheAnalysisReportsOpenNativelyTest::outcome);
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", WRITTEN));
             another = window.read(TheAnalysisReportsOpenNativelyTest::outcome);
             tabs = window.read(WindowForTests::tabIds);
+            analysisReportsWindows = window.analysisReportsWindows().size();
         }
 
         claim("a JSON cut short is said not to be read", () -> assertThat(cut).isEqualTo(THE_REPORT + ".json could not be read"));
         claim("one of format " + NOT_ITS_FORMAT + ", the one after the format the window reads for it, is said to be"
                 + " of a format the window does not read", () -> assertThat(another)
                 .isEqualTo(WRITTEN + ".json is of format " + NOT_ITS_FORMAT + ", which this window does not read"));
-        claim("and neither opens a tab", () -> assertThat(tabs).containsExactlyElementsOf(THE_FORM_TABS));
+        claim("and neither opens a tab or a Reports window", () -> {
+            assertThat(tabs).containsExactlyElementsOf(THE_FORM_TABS);
+            assertThat(analysisReportsWindows).isZero();
+        });
     }
 
     /** The cells of the fixture's table as the window draws them, row by row. */
@@ -163,16 +174,6 @@ class TheAnalysisReportsOpenNativelyTest {
             }
             return List.<String>copyOf(cells);
         }).toList();
-    }
-
-    /** Presses the link a cell of the fixture's table draws with {@code text}. */
-    private static void pressCell(Parent root, String text) {
-        Node table = WindowForTests.node(root, "table-" + THE_REPORT + "-" + THE_SECTION, Node.class);
-        root.applyCss();
-        root.layout();
-        HeadlessToolkit.everyNodeUnder(table).stream().filter(Hyperlink.class::isInstance).map(Hyperlink.class::cast)
-                .filter(link -> text.equals(link.getText())).findFirst()
-                .orElseThrow(() -> new AssertionError("the table draws no link to " + text)).fire();
     }
 
     private static String textOf(Parent root, String id) {
