@@ -1,9 +1,9 @@
 {
   "type": "object",
-  "description": "The JSON of the cluster sizes report, cluster-sizes.json, written beside cluster-sizes.html (ADR-362 section 9), format 2: one row a topic since ADR-409 section 8.",
+  "description": "The JSON of the cluster sizes report, cluster-sizes.json, written beside cluster-sizes.html (ADR-362 section 9), format 3: one row a topic since ADR-409 section 8, and under a divided topic one row a subtopic, each with its share of the documents grouped, since ADR-416.",
   "properties": {
     "format": {
-      "const": 2,
+      "const": 3,
       "description": "The report's own format, raised by a change that removes, renames or retypes a field."
     },
     "analysisReport": {
@@ -20,7 +20,7 @@
     },
     "headline": {
       "type": "array",
-      "description": "The numbers the page states first: the topics grouped, the documents and groups they hold between them, and the groups of one.",
+      "description": "The numbers the page states first: the topics grouped, the documents and groups they hold between them, and the groups of one, each taken over the topics' rows alone.",
       "items": {
         "type": "object",
         "description": "One figure.",
@@ -101,7 +101,7 @@
             "properties": {
               "columns": {
                 "type": "array",
-                "description": "Its columns in the page's order: topic, documents, groups, largest-group, middle-group, groups-of-one, weakest-link, middle-link and strongest-link.",
+                "description": "Its columns in the page's order: topic, subtopic, documents, share-of-documents, groups, largest-group, middle-group, groups-of-one, weakest-link, middle-link and strongest-link.",
                 "items": {
                   "type": "object",
                   "description": "One column.",
@@ -111,7 +111,9 @@
                       "description": "Its id.",
                       "enum": [
                         "topic",
+                        "subtopic",
                         "documents",
+                        "share-of-documents",
                         "groups",
                         "largest-group",
                         "middle-group",
@@ -127,10 +129,11 @@
                     },
                     "kind": {
                       "type": "string",
-                      "description": "Its kind: text for the topic, count for the sizes, number for the three links.",
+                      "description": "Its kind: text for the topic, count for the subtopic and the sizes, share for the share of documents, number for the three links.",
                       "enum": [
                         "text",
                         "count",
+                        "share",
                         "number"
                       ]
                     }
@@ -145,7 +148,7 @@
               },
               "rows": {
                 "type": "array",
-                "description": "One row for each topic, in the page's order, each a list of cells in the columns' order: the topic's key, its first passage's seed path, the word chunk and that passage's number, five counts, and three links to two places, each null where the topic holds one document and so has no link.",
+                "description": "One row for each topic, each followed, where the topic is divided, by one row for each of its subtopics, most documents first, in the page's order; each a list of cells in the columns' order: the topic's key, its first passage's seed path, the word chunk and that passage's number; the subtopic's number, counted from 0, or null on a topic's own row; five counts around the share of the documents grouped, a fraction of one to three places; and three links to two places, each null where the row holds one document and so has no link.",
                 "items": {
                   "type": "array",
                   "description": "One row."

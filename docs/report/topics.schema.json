@@ -1,0 +1,184 @@
+{
+  "type": "object",
+  "description": "The JSON of the topics report, topics.json, written beside topics.html by the arrangement step once the topics are named (ADR-416), format 1: what feeds each topic, the topics no document was placed under and the seed documents feeding no topic.",
+  "properties": {
+    "format": {
+      "const": 1,
+      "description": "The report's own format, raised by a change that removes, renames or retypes a field."
+    },
+    "analysisReport": {
+      "const": "topics",
+      "description": "The report's name."
+    },
+    "title": {
+      "type": "string",
+      "description": "The page's title."
+    },
+    "writtenAt": {
+      "type": "string",
+      "description": "The instant it was written, in UTC to the millisecond."
+    },
+    "headline": {
+      "type": "array",
+      "description": "The numbers the page states first: the topics, the seed passages, the topics with no document and the seed documents feeding no topic.",
+      "items": {
+        "type": "object",
+        "description": "One figure.",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Its key: topics, seed-passages, topics-with-no-document or seeds-feeding-no-topic.",
+            "enum": [
+              "topics",
+              "seed-passages",
+              "topics-with-no-document",
+              "seeds-feeding-no-topic"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "description": "Its label."
+          },
+          "value": {
+            "type": "integer",
+            "description": "Its value."
+          },
+          "unit": {
+            "type": "string",
+            "description": "Its unit, count for each.",
+            "enum": [
+              "count"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "value",
+          "unit"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "sections": {
+      "type": "array",
+      "description": "The page's parts in its order: topics, topics-with-no-document, seeds-feeding-no-topic and how-to-read. Where no topic lacks a document, or no seed document feeds no topic, that part holds its one sentence and no table.",
+      "items": {
+        "type": "object",
+        "description": "One part of the page.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Its id.",
+            "enum": [
+              "topics",
+              "topics-with-no-document",
+              "seeds-feeding-no-topic",
+              "how-to-read"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "Its title."
+          },
+          "text": {
+            "type": "array",
+            "description": "Its paragraphs, as the words a reader reads.",
+            "items": {
+              "type": "string",
+              "description": "One paragraph."
+            }
+          },
+          "chart": {
+            "type": "null",
+            "description": "Its chart; the page draws none."
+          },
+          "table": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Its table, null where the part has none.",
+            "properties": {
+              "columns": {
+                "type": "array",
+                "description": "Its columns in the page's order. The topics: topic, first-passage, seed-passages, share-of-seed-passages, seed-documents, documents-placed and linked-documents. The topics with no document: topic, first-passage, seed-document and passages. The seed documents feeding no topic: seed-document.",
+                "items": {
+                  "type": "object",
+                  "description": "One column.",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Its id.",
+                      "enum": [
+                        "topic",
+                        "first-passage",
+                        "seed-passages",
+                        "share-of-seed-passages",
+                        "seed-documents",
+                        "documents-placed",
+                        "linked-documents",
+                        "seed-document",
+                        "passages"
+                      ]
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "Its label, as the page's header reads."
+                    },
+                    "kind": {
+                      "type": "string",
+                      "description": "Its kind: text for a topic's name and its first passage, path for a seed document, share for the share of seed passages, count for the rest.",
+                      "enum": [
+                        "text",
+                        "path",
+                        "share",
+                        "count"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "rows": {
+                "type": "array",
+                "description": "Its rows, in the page's order, each a list of cells in the columns' order. A topic's row: its name, its first passage as the seed's path, the word chunk and the passage's number, its passages, their share of every seed passage as a fraction of one to three places, its seed documents, the documents placed under it and the documents linked from it. A row of a topic with no document: its name, its first passage, one seed document feeding it and that seed document's passages in it. A seed document feeding no topic: its path.",
+                "items": {
+                  "type": "array",
+                  "description": "One row."
+                }
+              }
+            },
+            "required": [
+              "columns",
+              "rows"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "text",
+          "chart",
+          "table"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "format",
+    "analysisReport",
+    "title",
+    "writtenAt",
+    "headline",
+    "sections"
+  ],
+  "additionalProperties": false
+}

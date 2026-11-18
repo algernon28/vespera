@@ -39,8 +39,10 @@ import org.junit.jupiter.api.io.TempDir;
 @Issue("756")
 @Issue("758")
 @Issue("832")
+@Issue("834")
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
 @Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
+@Link(name = "ADR-416", url = Adr.THE_TOPICS_ANALYSIS_REPORT_LISTS_WHAT_FEEDS_EACH_TOPIC, type = "adr")
 class TheControlPanelKnowsEachAnalysisReportsFormatTest {
 
     @Test
@@ -52,6 +54,7 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
                 Map.entry(ClusterSizeReport.NAME, ClusterSizeReport.FORMAT),
                 Map.entry(RelevanceLabellingReport.NAME, RelevanceLabellingReport.FORMAT),
                 Map.entry(ArrangementReport.NAME, ArrangementReport.FORMAT),
+                Map.entry(TopicsAnalysisReport.NAME, TopicsAnalysisReport.FORMAT),
                 Map.entry(ConfidenceDistributionReport.NAME, AnalysisReportJson.FORMAT),
                 Map.entry(WordCountDistributionReport.NAME, AnalysisReportJson.FORMAT),
                 Map.entry(DocumentFrequencyReport.NAME, AnalysisReportJson.FORMAT));
@@ -62,7 +65,7 @@ class TheControlPanelKnowsEachAnalysisReportsFormatTest {
         claim("the seed/corpus comparison's entry is the format its writer writes",
                 () -> assertThat(AnalysisReportFile.FORMATS)
                         .containsEntry(SeedCorpusComparisonReport.NAME, SeedCorpusComparisonReport.FORMAT));
-        claim("the window names no report that is not one of the eleven",
+        claim("the window names no report that is not one of the twelve",
                 () -> assertThat(Reports.ALL).containsAll(AnalysisReportFile.FORMATS.keySet()));
 
         StringWriter reviewPage = new StringWriter();

@@ -3032,6 +3032,17 @@ public final class Adr {
     public static final String THE_ANALYSIS_REPORTS_OPEN_IN_A_REPORTS_WINDOW_OF_THEIR_OWN = FILE
             + "0414-the-analysis-reports-open-in-a-reports-window-of-their-own-a-tab-each-and-the-cockpit-keeps-its-list-and-two-tabs.md";
 
+    /**
+     * ADR-416 -- a twelfth analysis report, topics, written at 6a once the topics are named: one row of counts a topic,
+     * the topics no survivor is placed under with each seed feeding them and its passages, and the seeds feeding no
+     * topic; cluster-sizes gains a row a subtopic under a divided topic, with its own numbers and spread, and a share of
+     * the documents grouped on every row, at format 3; ADR-045's 60% alarm is retired; 6b's closing line counts the
+     * overviews written and turned down (amends ADR-223 §2 and §9, ADR-362 §8 and §9, ADR-377 §5, ADR-392 §5 and
+     * ADR-409 §8).
+     */
+    public static final String THE_TOPICS_ANALYSIS_REPORT_LISTS_WHAT_FEEDS_EACH_TOPIC = FILE
+            + "0416-a-topics-report-lists-the-topics-with-no-document-and-the-seeds-feeding-none-and-cluster-sizes-gain-a-row-a-subtopic.md";
+
     private Adr() {
     }
 }

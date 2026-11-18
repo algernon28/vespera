@@ -46,15 +46,17 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Each analysis report's native view shows what its page shows (ADR-362 §10), and the title it shows is the one the
- * control panel links it by (ADR-377 §5): each of the eleven writers gives its page its {@code <title>} and first
- * heading, and its JSON its {@code title}, as {@code Reports.TITLES} names it. Each writer writes over the smallest
- * fixture it takes, its title being the same whatever it counts.
+ * control panel links it by (ADR-377 §5): each of the twelve writers gives its page its {@code <title>} and first
+ * heading, and its JSON its {@code title}, as {@code Reports.TITLES} names it, the topics' among them since ADR-416 §4.
+ * Each writer writes over the smallest fixture it takes, its title being the same whatever it counts.
  */
 @Epic("Reports")
 @Feature("Each analysis report writes its numbers")
 @Issue("806")
+@Issue("834")
 @Link(name = "ADR-377", url = Adr.A_PROFILE_ROW_IS_ONE_LINE_ITS_PROVENANCE_IN_A_TOOLTIP, type = "adr")
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
+@Link(name = "ADR-416", url = Adr.THE_TOPICS_ANALYSIS_REPORT_LISTS_WHAT_FEEDS_EACH_TOPIC, type = "adr")
 class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
@@ -81,10 +83,11 @@ class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
         written.put(SeedCorpusComparisonReport.NAME, seedCorpus());
         written.put(ClusterSizeReport.NAME, clusterSizes());
         written.put(RelevanceLabellingReport.NAME, relevance());
+        written.put(TopicsAnalysisReport.NAME, topics());
         written.put(ArrangementReport.NAME, arrangement(base));
         written.put("cluster-page-sizes", clusterPageSizes(base));
 
-        claim("the eleven writers are those of the eleven reports the control panel lists, in its order",
+        claim("the twelve writers are those of the twelve reports the control panel lists, in its order",
                 () -> assertThat(written.keySet()).containsExactlyElementsOf(Reports.ALL));
         written.forEach((name, report) -> {
             String title = Reports.TITLES.get(name);
@@ -168,6 +171,13 @@ class EachAnalysisReportsNativeViewShowsWhatItsPageShowsTest {
         LabelledSpread.Spread noAnswers = new LabelledSpread.Spread(List.of(), List.of(), 0);
         return new Written(RelevanceLabellingReport.render(distribution, List.of(), noAnswers, null),
                 jsonOf(RelevanceLabellingReport.json(distribution, List.of(), noAnswers, null, WRITTEN_AT)));
+    }
+
+    private static Written topics() throws IOException {
+        List<TopicsAnalysisReport.Topic> topics = List.of(new TopicsAnalysisReport.Topic("Pump maintenance",
+                "seeds/one.docx", 0, List.of(new TopicsAnalysisReport.Seed("seeds/one.docx", 2)), 1, 0));
+        return new Written(TopicsAnalysisReport.render(2, topics, List.of()),
+                jsonOf(TopicsAnalysisReport.document(2, topics, List.of(), WRITTEN_AT)));
     }
 
     private static Written arrangement(Path base) throws IOException {

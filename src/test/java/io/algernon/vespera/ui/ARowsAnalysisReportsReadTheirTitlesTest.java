@@ -32,7 +32,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * A profile row's reports read their titles (ADR-377 §5): each report of the key is a link reading the report's title,
  * {@code <prefix><key>.report-<name>}, which opens the report's native view (ADR-362 §10); a report whose JSON the
- * working directory does not hold is its title in grey, not written yet; and the eleven titles are {@code
+ * working directory does not hold is its title in grey, not written yet; and the twelve titles are {@code
  * Reports.TITLES}, which the jar's pages carry too. Each window is shown on the Headless platform, the Profile window
  * opened: its rows are read and pressed there, and the report's tab a link opens is read in the Reports window
  * (ADR-414 §3).
@@ -56,7 +56,7 @@ class ARowsAnalysisReportsReadTheirTitlesTest {
     /** The Profile window's prefix of every id of its rows. */
     private static final String PROFILE = "profile-";
 
-    /** The eleven analysis reports' titles, by name, as the record gives them. */
+    /** The twelve analysis reports' titles, by name, as the records give them (ADR-377 §5, ADR-416 §4). */
     private static final Map<String, String> THE_RECORDS_TITLES = titles(
             "format-mix", "What the files turned out to be",
             "extraction-failures", "Files whose text could not be read",
@@ -67,6 +67,7 @@ class ARowsAnalysisReportsReadTheirTitlesTest {
             "seed-corpus-comparison", "Your documents compared with your seed documents",
             "cluster-sizes", "Group sizes",
             "relevance-labelling", "Choosing the relevance cut-off",
+            "topics", "Topics found in your seed documents",
             "arrangement", "Grouping to approve",
             "cluster-page-sizes", "Group page sizes");
 
@@ -173,9 +174,11 @@ class ARowsAnalysisReportsReadTheirTitlesTest {
 
     @Test
     @Story("A row's reports read their titles")
-    @DisplayName("The eleven reports' titles are the ones the record gives, and every report a row links has one")
-    void theElevenTitlesAreTheRecords() {
-        claim("the titles are the eleven the record gives, each for its report, in the order the reports are listed",
+    @Issue("834")
+    @Link(name = "ADR-416", url = Adr.THE_TOPICS_ANALYSIS_REPORT_LISTS_WHAT_FEEDS_EACH_TOPIC, type = "adr")
+    @DisplayName("The twelve reports' titles are the ones the records give, and every report a row links has one")
+    void theTwelveTitlesAreTheRecords() {
+        claim("the titles are the twelve the records give, each for its report, in the order the reports are listed",
                 () -> assertThat(Reports.TITLES).containsExactlyEntriesOf(THE_RECORDS_TITLES));
         claim("they title every report the window lists",
                 () -> assertThat(Reports.TITLES.keySet()).containsExactlyElementsOf(Reports.ALL));

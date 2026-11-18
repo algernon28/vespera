@@ -273,6 +273,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-250: the survivor list reads who survived and what was measured, and decides neither.
             "SurvivorListListener",
             "SurvivorListReport",
+            // ADR-416: draws the topics analysis report from counts, paths, keys and names it is handed; what it counts
+            // is embedding's, and it decides no verdict, cache key, cluster or text of the deliverable.
+            "TopicsAnalysisReport",
             "TaskletSteps",
             "TemporaryFilesInTheWorkingDirectory",
             "TimedStatement",

@@ -12,8 +12,10 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,25 +25,31 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The clustering step clusters each topic's placed survivors, and divides a topic of at least the subtopic floor's
  * survivors into subtopics where they form two communities or more, its clusters then found and numbered within each
  * (ADR-406 §1, §2; ADR-409 §3, §8). Each survivor's row names its topic's key, its subtopic, or -1 where the topic has
- * none, and its cluster.
+ * none, and its cluster. {@code cluster-sizes.json} has the topic's row and, under a divided topic, a row for each
+ * subtopic, each with its share of the documents grouped (ADR-416 §5, §6).
  *
  * <p>One seed of one passage gives one topic, keyed by {@code seed.txt} and its first chunk, 0, and every document is
  * placed under it. Every vector of the fixture is the same, and at this machine's resolution of {@value
  * #A_FINER_RESOLUTION} three such documents form three communities, one each, as {@code TheClusteringPresetsInvocationTest}
- * measured them through {@code Communities.of}; this machine's subtopic floor is {@value #THE_FLOOR}.
+ * measured them through {@code Communities.of}; this machine's subtopic floor is {@value #THE_FLOOR}. The report is
+ * read from the class's working directory as soon as the invocation that wrote it ends.
  */
 @CascadeSliceTest
 @Import(SeedScriptedExtractionBeans.class)
 @Epic("Relevance")
 @Feature("Clustering")
 @Issue("832")
+@Issue("834")
 @Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
 @Link(name = "ADR-406", url = Adr.A_CROWDED_TOPIC_IS_DIVIDED_INTO_SUBTOPICS, type = "adr")
+@Link(name = "ADR-416", url = Adr.THE_TOPICS_ANALYSIS_REPORT_LISTS_WHAT_FEEDS_EACH_TOPIC, type = "adr")
 class ClusteringDividesEachTopicInvocationTest {
 
     /** This machine's subtopic floor: a topic of three survivors is crowded, one of two is not. */
@@ -55,6 +63,17 @@ class ClusteringDividesEachTopicInvocationTest {
 
     /** The one topic's key, its first passage's seed path and chunk index. */
     private static final String THE_TOPIC = "seed.txt 0";
+
+    /** The one topic's key as the group sizes page writes it. */
+    private static final String THE_TOPICS_ROW_KEY = "seed.txt chunk 0";
+
+    /** How alike two documents of one vector are, as the page shows it to two places. */
+    private static final double ALIKE = 1.0;
+
+    /** A third of the documents, to three places. */
+    private static final double A_THIRD = 0.333;
+
+    private static final JsonMapper JSON = JsonMapper.builder().build();
 
     @TempDir
     static Path workingDirectory;
@@ -83,6 +102,7 @@ class ClusteringDividesEachTopicInvocationTest {
         aCorpusOf(THE_FLOOR, root, seeds);
 
         cli.run("run", root.toString());
+        List<List<Object>> sizes = theClusterSizesRows();
 
         claim("the invocation ended well", () -> assertThat(cli.getExitCode()).isZero());
         claim("each of the " + THE_FLOOR + " documents is kept as a member of the one topic, in subtopics 0, 1 and 2,"
@@ -91,6 +111,15 @@ class ClusteringDividesEachTopicInvocationTest {
                         THE_TOPIC + " subtopic 0 cluster 0",
                         THE_TOPIC + " subtopic 1 cluster 0",
                         THE_TOPIC + " subtopic 2 cluster 0"));
+        claim("the group sizes have the topic's row, its " + THE_FLOOR + " documents all of those grouped, in "
+                        + THE_FLOOR + " groups of one, its links those of its whole graph, the documents being alike;"
+                        + " then a row for each of subtopics 0, 1 and 2, one document and a third each, with no link,"
+                        + " a subtopic of one document having no pair",
+                () -> assertThat(sizes).containsExactly(
+                        Arrays.asList(THE_TOPICS_ROW_KEY, null, 3.0, 1.0, 3.0, 1.0, 1.0, 3.0, ALIKE, ALIKE, ALIKE),
+                        Arrays.asList(THE_TOPICS_ROW_KEY, 0.0, 1.0, A_THIRD, 1.0, 1.0, 1.0, 1.0, null, null, null),
+                        Arrays.asList(THE_TOPICS_ROW_KEY, 1.0, 1.0, A_THIRD, 1.0, 1.0, 1.0, 1.0, null, null, null),
+                        Arrays.asList(THE_TOPICS_ROW_KEY, 2.0, 1.0, A_THIRD, 1.0, 1.0, 1.0, 1.0, null, null, null)));
     }
 
     @Test
@@ -101,6 +130,7 @@ class ClusteringDividesEachTopicInvocationTest {
         aCorpusOf(underTheFloor, root, seeds);
 
         cli.run("run", root.toString());
+        List<List<Object>> sizes = theClusterSizesRows();
 
         claim("the invocation ended well", () -> assertThat(cli.getExitCode()).isZero());
         claim("each of the " + underTheFloor + " documents is kept as a member of the one topic with the subtopic that"
@@ -108,6 +138,10 @@ class ClusteringDividesEachTopicInvocationTest {
                 () -> assertThat(membersOf(root))
                         .hasSize(underTheFloor)
                         .allSatisfy(member -> assertThat(member).startsWith(THE_TOPIC + " subtopic " + NO_SUBTOPIC + " ")));
+        claim("and the group sizes have the topic's row alone, its subtopic empty, holding the " + underTheFloor
+                        + " documents, all of those grouped",
+                () -> assertThat(sizes).singleElement().satisfies(row -> assertThat(row.subList(0, 4))
+                        .containsExactly(THE_TOPICS_ROW_KEY, null, (double) underTheFloor, 1.0)));
     }
 
     /** {@code documents} corpus documents and one seed of one passage, every gate up to the approval open. */
@@ -128,5 +162,12 @@ class ClusteringDividesEachTopicInvocationTest {
                         + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ?",
                 String.class,
                 Walk.canonicalRoot(root).toString());
+    }
+
+    /** The rows of {@code cluster-sizes.json}'s first part, as the last invocation of the class wrote them. */
+    private static List<List<Object>> theClusterSizesRows() throws IOException {
+        JsonNode json = JSON.readTree(
+                Files.readString(workingDirectory.resolve("cluster-sizes.json"), StandardCharsets.UTF_8));
+        return AnalysisReportRows.of(json.get("sections").get(0));
     }
 }
