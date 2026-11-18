@@ -1,6 +1,6 @@
 # ADR-045 — Clustering runs within each seed partition
 
-> **Partly amended — see [ADR-396](0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md).** Clustering runs within each topic, no longer within each seed partition, and still never corpus-wide, so the bound on its compute is one topic's. How the alarm on a seed owning 60% reads for a topic is left to [#834](https://github.com/algernon28/vespera/issues/834). The summary is transcribed verbatim and is not edited.
+> **Partly amended — see [ADR-396](0396-topics-inferred-from-the-seed-sets-passages-replace-seed-partitions-and-a-survivor-is-placed-apart-from-its-score.md).** Clustering runs within each topic, no longer within each seed partition, and still never corpus-wide, so the bound on its compute is one topic's. The alarm on a seed owning 60% is retired as a threshold by [ADR-416](0416-a-topics-report-lists-the-topics-with-no-document-and-the-seeds-feeding-none-and-cluster-sizes-gain-a-row-a-subtopic.md) §6: each topic's share of the documents grouped, *Share of documents*, is a column of `cluster-sizes` instead. The summary is transcribed verbatim and is not edited.
 
 > **Reconstituted record — the original text of this ADR is lost.**
 > Rebuilt on 2026-08-22 from the decision-ledger table in [`docs/decision-ledger.md`](../decision-ledger.md), the only surviving record of these decisions. The summary below is transcribed **verbatim** from that digest.
