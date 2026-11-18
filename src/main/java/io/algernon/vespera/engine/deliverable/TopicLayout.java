@@ -15,7 +15,7 @@ import java.util.Optional;
  * <p>The clusters are the topic's in one sequence, each carrying the place the sequence gives it ({@link
  * Deliverable#inOneSequence}), which names its folder and which its row and the overview's citation show.
  */
-final class TopicLayout {
+public final class TopicLayout {
 
     private final ListedTopic topic;
     private final int topicCount;
@@ -30,7 +30,7 @@ final class TopicLayout {
      * @param subtopics the topic's subtopics in their order, none where it has none
      * @param clusters the topic's clusters in one sequence, each carrying its place in it
      */
-    TopicLayout(ListedTopic topic, int topicCount, List<ListedSubtopic> subtopics, List<RecordedCluster> clusters) {
+    public TopicLayout(ListedTopic topic, int topicCount, List<ListedSubtopic> subtopics, List<RecordedCluster> clusters) {
         this.topic = topic;
         this.topicCount = topicCount;
         this.subtopics = List.copyOf(subtopics);

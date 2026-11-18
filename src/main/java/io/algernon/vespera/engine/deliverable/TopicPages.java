@@ -16,21 +16,14 @@ import java.util.function.Consumer;
  * subtopic's holds its name, the topic it is part of and its table of clusters. Every text of the writing is escaped
  * before any markup is added ({@link Prose}), and every fixed word is the language's ({@link FixedWords}).
  */
-final class TopicPages {
+public final class TopicPages {
 
     /** One cluster's row of a table: the cluster, and what the writing over it is titled, empty where there is none. */
-    record Row(RecordedCluster recorded, Optional<String> title) {}
+    public record Row(RecordedCluster recorded, Optional<String> title) {}
 
     private TopicPages() {}
 
-    /**
-     * Writes {@code layout}'s topic's page to {@code page}.
-     *
-     * @param overview what the topic's page carries before its table
-     * @param rows a row for each of the topic's clusters, in its one sequence
-     * @param seeAlso hands each page of the topic's see-also lines to the consumer it is given, which is {@code
-     *     page}'s; the heading and the sentence are written before the first page, and none where it hands none
-     */
+    /** Writes {@code layout}'s topic's page to {@code page}: the content of {@link #topicContent} between the tree's head and tail. */
     static void writeTopicPage(
             Appendable page,
             TopicLayout layout,
@@ -39,8 +32,31 @@ final class TopicPages {
             DeliverableLanguage language,
             SeeAlsoFeed seeAlso)
             throws IOException {
+        page.append(Html.head(layout.topic().name(), language));
+        topicContent(page, layout, overview, rows, language, seeAlso);
+        page.append(Html.tail());
+    }
+
+    /**
+     * Writes what {@code layout}'s topic's page holds between its opening and its closing, so that every rendering that
+     * draws the page draws the same content (ADR-415 section 8): its name as its {@code <h1>}, its overview or the
+     * sentence for its absence, its table and its See also. Its links are relative to the topic's folder.
+     *
+     * @param overview what the topic's page carries before its table
+     * @param rows a row for each of the topic's clusters, in its one sequence
+     * @param seeAlso hands each page of the topic's see-also lines to the consumer it is given; the heading and the
+     *     sentence are written before the first page, and none where it hands none
+     */
+    public static void topicContent(
+            Appendable page,
+            TopicLayout layout,
+            ListedOverview overview,
+            List<Row> rows,
+            DeliverableLanguage language,
+            SeeAlsoFeed seeAlso)
+            throws IOException {
         String name = Html.escape(layout.topic().name());
-        page.append(Html.head(layout.topic().name(), language)).append("<h1>").append(name).append("</h1>\n");
+        page.append("<h1>").append(name).append("</h1>\n");
         writeOverview(page, layout, overview, language);
         if (layout.divided()) {
             writeTableOfSubtopics(page, layout, rows, language);
@@ -78,13 +94,9 @@ final class TopicPages {
         if (heading[0]) {
             page.append("</ul>\n");
         }
-        page.append(Html.tail());
     }
 
-    /**
-     * Writes a divided topic's subtopic's page to {@code page}: its name, the line naming its topic and linking it, and
-     * its table of clusters, which links each through its own folder.
-     */
+    /** Writes a divided topic's subtopic's page to {@code page}: {@link #subtopicContent} between the tree's head and tail. */
     static void writeSubtopicPage(
             Appendable page,
             TopicLayout layout,
@@ -92,8 +104,23 @@ final class TopicPages {
             List<Row> rows,
             DeliverableLanguage language)
             throws IOException {
-        page.append(Html.head(subtopic.name(), language))
-                .append("<h1>")
+        page.append(Html.head(subtopic.name(), language));
+        subtopicContent(page, layout, subtopic, rows, language);
+        page.append(Html.tail());
+    }
+
+    /**
+     * Writes what a divided topic's subtopic's page holds between its opening and its closing (ADR-415 section 3): its
+     * name, the line naming its topic and linking it, and its table of clusters, which links each through its own folder.
+     */
+    public static void subtopicContent(
+            Appendable page,
+            TopicLayout layout,
+            ListedSubtopic subtopic,
+            List<Row> rows,
+            DeliverableLanguage language)
+            throws IOException {
+        page.append("<h1>")
                 .append(Html.escape(subtopic.name()))
                 .append("</h1>\n<p>")
                 .append(Html.escape(FixedWords.inTheTopic(language)))
@@ -103,12 +130,11 @@ final class TopicPages {
                 .append(Html.escape(layout.topic().name()))
                 .append("</a>.</p>\n");
         writeTableOfClusters(page, layout, rows, language, layout::ownFolder);
-        page.append(Html.tail());
     }
 
     /** What hands a topic page its see-also lines, a page at a time. */
     @FunctionalInterface
-    interface SeeAlsoFeed {
+    public interface SeeAlsoFeed {
 
         void eachPage(Consumer<List<SeeAlsoLine>> page);
     }
