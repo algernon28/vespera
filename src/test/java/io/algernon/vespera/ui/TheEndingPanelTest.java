@@ -139,6 +139,12 @@ class TheEndingPanelTest {
 
     private static final String HOW_LONG = "took 1 h 2 min 3 s";
 
+    /** A deliverable root no file system can hold, as JSON text: a string of one NUL character, escaped. */
+    private static final String A_ROOT_NO_FILE_SYSTEM_HOLDS = "\"\\u0000\"";
+
+    /** The end of an earlier invocation that failed, its report's deliverable root one no file system can hold. */
+    private static final Instant THE_UNHELD_ROOTS_END = Instant.parse("2026-11-14T08:30:00Z");
+
     // ---- the window's own children
 
     /** A child's failure, as the jar closes a run whose step threw. */
@@ -634,21 +640,28 @@ class TheEndingPanelTest {
 
     @Test
     @Story("The window says why the last invocation ended")
-    @DisplayName("A working directory whose report.json is of the format but not that JSON, its last write null or a step unnamed, shows no panel, and the panel goes on following the working directory chosen")
-    void aReportThatIsNotThatJsonShowsNoPanelAndThePanelGoesOnFollowingTheChoice(@TempDir Path folder)
+    @DisplayName("A working directory whose report.json is of the format but not that JSON, its last write null, a step unnamed or a fault untyped, shows no ending panel; one whose deliverable root no file system can hold still shows its ending; and the ending panel goes on following the working directory chosen")
+    void aReportThatIsNotThatJsonShowsNoEndingPanelAndTheEndingPanelGoesOnFollowingTheChoice(@TempDir Path folder)
             throws Exception {
         Path refused = Files.createDirectories(folder.resolve("refused"));
         Path notThatJson = Files.createDirectories(folder.resolve("not-that-json"));
         Path aStepUnnamed = Files.createDirectories(folder.resolve("a-step-unnamed"));
+        Path aFaultUntyped = Files.createDirectories(folder.resolve("a-fault-untyped"));
+        Path aRootNoFileSystemHolds = Files.createDirectories(folder.resolve("a-root-no-file-system-holds"));
         Path atAGate = Files.createDirectories(folder.resolve("at-a-gate"));
         anEarlierRefusal(refused);
         aReportWrittenAtNoTime(notThatJson);
-        aReportWithAStepUnnamed(aStepUnnamed);
+        aFailureWrittenWhole(aStepUnnamed, THE_REFUSALS_END, "[{\"state\":\"failed\"}]", "[]", null);
+        aFailureWrittenWhole(aFaultUntyped, THE_REFUSALS_END, steps("census", "finished", "extraction", "failed"),
+                "[{\"step\":\"extraction\",\"causes\":[\"ConnectException\"]}]", null);
+        aFailureWrittenWhole(aRootNoFileSystemHolds, THE_UNHELD_ROOTS_END,
+                steps("census", "finished", "extraction", "failed"), "[]", A_ROOT_NO_FILE_SYSTEM_HOLDS);
         anEarlierGate(atAGate);
         ControlPanelState state = aStateOver(folder, notStarting(folder));
         WorkingDirectoryList.store(WorkingDirectoryList.besides(LaunchValues.fileIn(folder.resolve("tmp"), USER)),
-                USER, List.of(notThatJson, aStepUnnamed, atAGate), line -> { });
+                USER, List.of(notThatJson, aStepUnnamed, aFaultUntyped, aRootNoFileSystemHolds, atAGate), line -> { });
         state.hold(launchValues(folder, refused));
+        String theUnheldRootsWhen = "Last invocation, " + DAY_AND_MINUTE.format(THE_UNHELD_ROOTS_END);
 
         Shown asOpened;
         Shown inTheOneNotThatJson;
@@ -656,6 +669,9 @@ class TheEndingPanelTest {
         Shown inTheRefusedAgain;
         Shown inTheOneWithAStepUnnamed;
         Shown atTheGateAgain;
+        Shown inTheOneWithAFaultUntyped;
+        Shown inTheOneWithARootNoFileSystemHolds;
+        Shown atTheGateOnceMore;
         try (WindowForTests window = WindowForTests.shown(state)) {
             asOpened = window.awaiting(TheEndingPanelTest::seen, Shown::shown);
             choose(window, notThatJson);
@@ -669,28 +685,50 @@ class TheEndingPanelTest {
             inTheOneWithAStepUnnamed = window.awaiting(TheEndingPanelTest::seen, shown -> !shown.shown());
             choose(window, atAGate);
             atTheGateAgain = window.awaiting(TheEndingPanelTest::seen, shown -> ENDED.equals(shown.kind()));
+            choose(window, aFaultUntyped);
+            inTheOneWithAFaultUntyped = window.awaiting(TheEndingPanelTest::seen, shown -> !shown.shown());
+            choose(window, aRootNoFileSystemHolds);
+            inTheOneWithARootNoFileSystemHolds = window.awaiting(TheEndingPanelTest::seen,
+                    shown -> FAILED_OR_REFUSED.equals(shown.kind()) && theUnheldRootsWhen.equals(shown.when()));
+            choose(window, atAGate);
+            atTheGateOnceMore = window.awaiting(TheEndingPanelTest::seen, shown -> ENDED.equals(shown.kind()));
         }
 
-        claim("as the window opens on a working directory whose last invocation was refused, the panel shows it",
+        claim("as the window opens on a working directory whose last invocation was refused, the ending panel shows it",
                 () -> assertThat(List.of(asOpened.shown(), asOpened.kind())).containsExactly(true, FAILED_OR_REFUSED));
         claim("choosing one whose report.json is of the format the window reads but says it runs and was last written at"
-                        + " no time, not that JSON, shows no panel, the first working directory's ending not left on"
-                        + " screen",
-                () -> assertThat(inTheOneNotThatJson.shown()).as("whether the panel shows").isFalse());
-        claim("choosing then one whose last invocation ended at a gate shows that ending, the panel still following the"
-                        + " working directory chosen",
+                        + " no time, not that JSON, shows no ending panel, the first working directory's ending not left"
+                        + " on screen",
+                () -> assertThat(inTheOneNotThatJson.shown()).as("whether the ending panel shows").isFalse());
+        claim("choosing then one whose last invocation ended at a gate shows that ending, the ending panel still"
+                        + " following the working directory chosen",
                 () -> assertThat(List.of(atTheGate.kind(), atTheGate.when(), atTheGate.line())).containsExactly(ENDED,
                         "Last invocation, " + DAY_AND_MINUTE.format(theGatesEnd()), A_GATES_CLOSING));
         claim("and choosing the first again shows its ending again",
                 () -> assertThat(List.of(inTheRefusedAgain.kind(), inTheRefusedAgain.line()))
                         .containsExactly(FAILED_OR_REFUSED, A_REFUSAL));
         claim("choosing then one whose report.json is of the format the window reads and has ended, exit code 1, but"
-                        + " names a step that failed by no name, not that JSON, shows no panel, the first working"
+                        + " names a step that failed by no name, not that JSON, shows no ending panel, the first working"
                         + " directory's ending not left on screen",
-                () -> assertThat(inTheOneWithAStepUnnamed.shown()).as("whether the panel shows").isFalse());
-        claim("and choosing the one ended at a gate again shows its ending, the panel still following the working"
-                        + " directory chosen",
+                () -> assertThat(inTheOneWithAStepUnnamed.shown()).as("whether the ending panel shows").isFalse());
+        claim("and choosing the one ended at a gate again shows its ending, the ending panel still following the"
+                        + " working directory chosen",
                 () -> assertThat(List.of(atTheGateAgain.kind(), atTheGateAgain.line())).containsExactly(ENDED,
+                        A_GATES_CLOSING));
+        claim("choosing then one whose report.json is of the format the window reads and has ended, exit code 1, but"
+                        + " names a fault of no type, not that JSON, shows no ending panel, the gate's ending not left"
+                        + " on screen",
+                () -> assertThat(inTheOneWithAFaultUntyped.shown()).as("whether the ending panel shows").isFalse());
+        claim("choosing then one whose report.json has ended, exit code 1, its places.deliverableRoot a path no file"
+                        + " system can hold, still shows its ending, dated, Failed or refused and its closing line, the"
+                        + " report being that JSON",
+                () -> assertThat(List.of(inTheOneWithARootNoFileSystemHolds.shown(),
+                        inTheOneWithARootNoFileSystemHolds.when(), inTheOneWithARootNoFileSystemHolds.kind(),
+                        inTheOneWithARootNoFileSystemHolds.line())).containsExactly(true, theUnheldRootsWhen,
+                                FAILED_OR_REFUSED, A_FAILURES_CLOSING));
+        claim("and choosing the one ended at a gate once more shows its ending, the ending panel still following the"
+                        + " working directory chosen",
+                () -> assertThat(List.of(atTheGateOnceMore.kind(), atTheGateOnceMore.line())).containsExactly(ENDED,
                         A_GATES_CLOSING));
     }
 
@@ -938,18 +976,24 @@ class TheEndingPanelTest {
     }
 
     /**
-     * Writes a {@code report.json} of the format the window reads, its last write and its start set, whose invocation
-     * has ended, exit code 1, and whose one step, failed, has no {@code name}: not that JSON (§2's fourth case). Written
-     * whole, {@link ReportFixtures} always writing a step's name.
+     * Writes a {@code report.json} of the format the window reads, its start, its end and its last write set, whose
+     * invocation has ended, exit code 1, closing with {@link #A_FAILURES_CLOSING}, with {@code steps} and {@code faults}
+     * as given, and, where {@code deliverableRoot} is given, its {@code places} naming it as that JSON text. Written whole,
+     * {@link ReportFixtures} always writing a step's name and a fault's type, and no {@code places}: a step unnamed or a
+     * fault untyped makes it not that JSON (§2's fourth case); a deliverable root no file system can hold does not.
      */
-    private static void aReportWithAStepUnnamed(Path working) throws IOException {
+    private static void aFailureWrittenWhole(Path working, Instant ended, String steps, String faults,
+            String deliverableRoot) throws IOException {
+        String places = deliverableRoot == null ? "" : "\"places\":{\"workingDirectory\":" + quoted(working.toString())
+                + ",\"corpusRoot\":" + quoted(working.resolveSibling("corpus").toString()) + ",\"deliverableRoot\":"
+                + deliverableRoot + "},";
         Files.writeString(working.resolve(InvocationReportFile.FILE_NAME), "{\"format\":" + InvocationReportFile.FORMAT
                 + ",\"invocation\":{\"id\":\"20261108T000000Z\",\"pid\":" + AN_EARLIER_PID + ",\"command\":\"run\","
-                + "\"started\":" + quoted(THE_REFUSALS_END.minusSeconds(2).toString()) + ",\"ended\":"
-                + quoted(THE_REFUSALS_END.toString()) + ",\"state\":\"ended\",\"outcome\":\"failed\",\"exitCode\":"
-                + FAILS + ",\"writtenAt\":" + quoted(THE_REFUSALS_END.toString()) + ",\"interval\":1},"
-                + "\"steps\":[{\"state\":\"failed\"}],\"legs\":[],\"charts\":null,\"gates\":[],\"refusals\":[],"
-                + "\"faults\":[],\"closing\":null,\"analysisReports\":[]}", UTF_8);
+                + "\"started\":" + quoted(ended.minusSeconds(2).toString()) + ",\"ended\":" + quoted(ended.toString())
+                + ",\"state\":\"ended\",\"outcome\":\"failed\",\"exitCode\":" + FAILS + ",\"writtenAt\":"
+                + quoted(ended.toString()) + ",\"interval\":1}," + places + "\"steps\":" + steps
+                + ",\"legs\":[],\"charts\":null,\"gates\":[],\"refusals\":[],\"faults\":" + faults + ",\"closing\":"
+                + quoted(A_FAILURES_CLOSING) + ",\"analysisReports\":[]}", UTF_8);
     }
 
     private static Instant theGatesEnd() {
