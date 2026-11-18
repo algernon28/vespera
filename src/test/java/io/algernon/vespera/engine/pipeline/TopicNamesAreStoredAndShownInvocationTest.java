@@ -123,6 +123,20 @@ class TopicNamesAreStoredAndShownInvocationTest {
     /** The folder the one topic named {@link #THE_FIRST_NAME} is drawn in: its order, 1, then its name as a slug. */
     private static final String THE_TOPICS_FOLDER = "1-scripted-topic-1";
 
+    /**
+     * The index's paragraph on documents.csv and the copies, whole, as ADR-321 §4 words it and ADR-409 §10 words its
+     * sentence on {@code seed_partition}: the column holds a topic's name, and each numbered folder beside the index
+     * is a topic's. The index writes it unescaped, inside one {@code <p>}.
+     */
+    private static final String THE_INDEXS_PARAGRAPH = "<p>The path column of documents.csv names each document"
+            + " beneath the archive root recorded above. Each group's folder holds its page and a copy of every"
+            + " document listed on it, checked against the digest taken when it was converted, and each link on a"
+            + " group's page leads to its copy; the archive root names where they were copied from. The"
+            + " seed_partition column is not a path: it holds the name of the topic each document is placed under,"
+            + " and each numbered folder beside this page is named after a topic and holds the folders of that"
+            + " topic's groups. The copy and copy_outcome columns say which documents were copied and, of any that"
+            + " were not, why.</p>\n";
+
     /** The one corpus document of the one-topic arrangement, by its path beneath the root. */
     private static final String THE_CORPUS_DOCUMENT = "corpus.txt";
 
@@ -360,7 +374,7 @@ class TopicNamesAreStoredAndShownInvocationTest {
 
     @Test
     @Story("A topic is drawn under its name until its rendering is decided")
-    @DisplayName("The tree draws the topic in a folder named from the name kept for it, headed by that name, and the listing gives its name and place")
+    @DisplayName("The tree draws the topic in a folder named from the name kept for it, headed by that name, the index says so of its folders and the listing, and the listing gives its name and place")
     void theTreeNamesTheTopicsFolderAndHeadingByItsName() throws IOException {
         Arranged arranged = arranged();
         EveryGateOpen.throughStageFive(profileStore, theSeeds);
@@ -388,6 +402,9 @@ class TopicNamesAreStoredAndShownInvocationTest {
                 () -> assertThat(index)
                         .contains("<h2>" + THE_FIRST_NAME + "</h2>")
                         .doesNotContain("<h2>" + THE_SEED + "</h2>"));
+        claim("the index's paragraph says that the seed_partition column holds the name of a topic, and that each"
+                        + " numbered folder beside the index is a topic's, every other sentence of it as it was",
+                () -> assertThat(index).contains(THE_INDEXS_PARAGRAPH));
         claim("and the listing's row for the corpus document gives, under its two columns of the old names, the"
                         + " topic's name and its place, 1",
                 () -> assertThat(List.of(listed.get("seed_partition"), listed.get("partition_order")))

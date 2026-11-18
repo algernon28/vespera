@@ -18,8 +18,8 @@ import org.junit.jupiter.api.Test;
 /**
  * The Italian of an Italian deliverable's fixed words, held to the record word for word and to the rules every English
  * sentence keeps (ADR-321 §4, §5): the eight sentences of ADR-174 and ADR-319, a copy's outcome, the line on pictures not
- * shown and the index's code sets. The pages these land on are held by {@link AnItalianTreeIsDrawnInItalianTest}; a
- * split cluster's Confluence title moved with the Confluence rendering into {@code confluence} (ADR-333 §1), where
+ * shown, the index's code sets and the index's paragraph, whose sentence on {@code seed_partition} ADR-409 §10 words.
+ * The pages these land on are held by {@link AnItalianTreeIsDrawnInItalianTest}; a split cluster's Confluence title moved with the Confluence rendering into {@code confluence} (ADR-333 §1), where
  * {@code TheConfluenceRenderingIsDrawnInItalianTest} holds it.
  *
  * <p>The report says <em>group</em> where the code says cluster (ADR-122); the Italian says <em>gruppo</em>.
@@ -29,13 +29,14 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-321", url = Adr.THE_DELIVERABLE_IS_IN_THE_LANGUAGE_THE_PROFILE_NAMES, type = "adr")
 @Link(name = "ADR-174", url = Adr.A_PAGE_NOTHING_WAS_WRITTEN_OVER_SAYS_WHY, type = "adr")
 @Link(name = "ADR-319", url = Adr.A_CLUSTER_TURNED_DOWN_THE_LAST_TWO_TIMES_STANDS_WITHOUT_WRITING, type = "adr")
+@Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
 class ItalianWordingTest {
 
     private static final DeliverableLanguage ITALIAN = DeliverableLanguage.ITALIAN;
 
     @Test
     @Story("An Italian deliverable says in Italian why nothing was written over a group")
-    @DisplayName("The code gives each case the Italian the record gives it, and has no Italian sentence the record does not")
+    @DisplayName("The code gives each case and the index's paragraph the Italian the record gives them, and has no Italian sentence for a case the record does not")
     void theCodesItalianForEveryCaseIsTheRecords() {
         claim(
                 "for every way an answer can be turned down, the Italian sentence is the record's, word for word",
@@ -56,6 +57,12 @@ class ItalianWordingTest {
                 "and the code has no Italian sentence the record does not",
                 () -> assertThat(Arrays.stream(Unwritten.values()).map(why -> UnwrittenSentences.of(why, ITALIAN)))
                         .containsExactlyInAnyOrderElementsOf(ItalianWordingOnRecord.EVERY_SENTENCE));
+        claim(
+                "and the index's paragraph is the record's Italian, word for word, saying that the seed_partition"
+                        + " column holds the name of a topic and that each numbered folder beside the index is a"
+                        + " topic's",
+                () -> assertThat(FixedWords.indexParagraph(ITALIAN))
+                        .isEqualTo(ItalianWordingOnRecord.THE_INDEXS_PARAGRAPH));
     }
 
     /** {@code html} as a reader reads it: the five entities read back, so an escaped apostrophe reads as one. */
