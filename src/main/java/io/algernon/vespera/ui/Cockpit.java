@@ -1347,10 +1347,10 @@ final class Cockpit {
         if (cleared == endingCleared && own == endingReadOf && Objects.equals(readFor, endingReadFor)) {
             return;
         }
-        endingCleared = cleared;
-        endingReadOf = own;
-        endingReadFor = readFor;
         if (cleared) {
+            endingCleared = true;
+            endingReadOf = own;
+            endingReadFor = readFor;
             takeTheEndingPanelAway();
             tabDrawnForTheEndingPanel = false;
             return;
@@ -1372,6 +1372,10 @@ final class Cockpit {
                 tabDrawnForTheEndingPanel = false;
             }
         }
+        // cached only once the reading is worked out, so a throw above cannot leave a stale reading standing
+        endingCleared = false;
+        endingReadOf = own;
+        endingReadFor = readFor;
         if (said.isEmpty()) {
             takeTheEndingPanelAway();
             return;
@@ -1410,6 +1414,10 @@ final class Cockpit {
             if (report.invocation() == null
                     || report.invocation().started() == null
                     || report.invocation().writtenAt() == null) {
+                return Optional.empty();
+            }
+            if ((report.steps() != null && report.steps().stream().anyMatch(each -> each == null || each.name() == null))
+                    || (report.faults() != null && report.faults().stream().anyMatch(each -> each == null || each.type() == null))) {
                 return Optional.empty();
             }
             return Optional.of(report);
