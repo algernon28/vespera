@@ -60,7 +60,7 @@ import org.junit.jupiter.api.io.TempDir;
  * it ends and an earlier one dated, read as the window opens and as another working directory is chosen, and nothing
  * where the working directory never had an invocation or while one runs (§2); what it says of each ending, from the
  * invocation report, the exit code and, where the child wrote no report of its own, its last line of output (§3); its
- * three buttons (§4); its colours, at AA in both themes, and its texts, every one selectable (§5); and the grips that
+ * three buttons, Open report selecting the Report tab, which draws the ending's report (§4); its colours, at AA in both themes, and its texts, every one selectable (§5); and the grips that
  * size the sidebar and the steps beside the output (§1).
  *
  * <p>Each test draws the window on the Headless platform (ADR-342 §6) through {@link WindowForTests}, and finds the
@@ -99,6 +99,10 @@ class TheEndingPanelTest {
     private static final String DEFECT = "Defect of the control panel";
     private static final String STOPPED = "Stopped";
     private static final String ENDED = "Ended";
+    private static final String UNFINISHED = "Ended without its last write";
+
+    /** The last write of an earlier invocation whose report never ended. */
+    private static final Instant THE_UNFINISHEDS_LAST_WRITE = Instant.parse("2026-11-17T10:20:30Z");
 
     /** The fixed sentence beneath a defect's line. */
     private static final String A_BUG_OF_THE_CONTROL_PANEL = "This is a bug of the control panel, not of your settings.";
@@ -182,7 +186,6 @@ class TheEndingPanelTest {
         Path neverRun = Files.createDirectories(folder.resolve("never-run"));
         Path atAGate = Files.createDirectories(folder.resolve("at-a-gate"));
         anEarlierRefusal(refused);
-        Files.writeString(refused.resolve("report.html"), "<html></html>", UTF_8);
         anEarlierGate(atAGate);
         ControlPanelState state = aStateOver(folder, notStarting(folder));
         WorkingDirectoryList.store(WorkingDirectoryList.besides(LaunchValues.fileIn(folder.resolve("tmp"), USER)),
@@ -214,8 +217,8 @@ class TheEndingPanelTest {
         claim("as the window opens on a working directory whose last invocation was refused after it took the lock, the"
                         + " panel says when, Failed or refused, the refusal once although it is also the closing line,"
                         + " that it stopped before any step, its exit code and the time it ended; Open report is offered,"
-                        + " the report's page being there, Open profile is not, the line not naming the Profile window,"
-                        + " and Copy details is",
+                        + " the ending having a report of its own, Open profile is not, the line not naming the Profile"
+                        + " window, and Copy details is",
                 () -> assertThat(asOpened).isEqualTo(theRefusal));
         claim("Copy details puts the panel's texts on the clipboard, top to bottom, one to a line",
                 () -> assertThat(copied).isEqualTo(String.join("\n", theRefusal.when(), theRefusal.kind(),
@@ -223,10 +226,11 @@ class TheEndingPanelTest {
         claim("choosing a working directory that never had an invocation shows no panel",
                 () -> assertThat(inTheOneNeverRun.shown()).as("whether the panel shows").isFalse());
         claim("choosing one whose last invocation ended at a gate shows when, Ended, its closing line, the time it ended"
-                        + " and how long it took, and no Open report, its report's page not being there",
+                        + " and how long it took, and Open report, its report.html not being there and its report.json"
+                        + " being its own",
                 () -> assertThat(atTheGate).isEqualTo(new Shown(true,
                         "Last invocation, " + DAY_AND_MINUTE.format(theGatesEnd()), ENDED, A_GATES_CLOSING, "",
-                        "ended " + CLOCK.format(theGatesEnd()) + " · " + HOW_LONG, false, false, true)));
+                        "ended " + CLOCK.format(theGatesEnd()) + " · " + HOW_LONG, false, true, true)));
         claim("and choosing the first again shows its ending again",
                 () -> assertThat(inTheRefusedAgain).isEqualTo(theRefusal));
     }
@@ -244,7 +248,6 @@ class TheEndingPanelTest {
                         "content-census", "waiting"), List.of(),
                 "[{\"step\":\"extraction\",\"type\":\"DoclingUnavailableException\",\"causes\":[\"ConnectException\","
                         + "\"SocketTimeoutException\"]}]", A_FAILURES_CLOSING), 0, started, ended, 1)));
-        Files.writeString(working.resolve("report.html"), "<html></html>", UTF_8);
         ControlPanelState state = aStateOver(folder, PrintingJars.endingAsTold());
         state.hold(launchValues(folder, working));
 
@@ -294,6 +297,9 @@ class TheEndingPanelTest {
         claim("and that it stopped before any step, its exit code and the time the window saw it end",
                 () -> assertThat(onceItEnded.facts())
                         .matches("Stopped before any step · exit " + FAILS + " · ended " + ANY_CLOCK_TIME));
+        claim("Open report is not offered, the report.json in the working directory being the earlier invocation's and"
+                        + " not the child's own, and Copy details is",
+                () -> assertThat(List.of(onceItEnded.openReport(), onceItEnded.copy())).containsExactly(false, true));
     }
 
     @Test
@@ -359,9 +365,10 @@ class TheEndingPanelTest {
                     assertThat(runsThen).as("whether the child still ran").isTrue();
                 });
         claim("once the operator stops it, the panel shows, undated, Stopped and Stopped by you at the step its report"
-                        + " said was running, nothing about what the next Run does, and Copy details",
+                        + " said was running, nothing about what the next Run does, Open report, the child having written"
+                        + " a report of its own, and Copy details",
                 () -> assertThat(onceStopped).isEqualTo(new Shown(true, "", STOPPED, "Stopped by you at extraction",
-                        "", "", false, false, true)));
+                        "", "", false, true, true)));
         claim("its kind is drawn in the accent colour",
                 () -> assertThat(kindDrawnIn).isEqualTo(light.get("-vespera-accent")));
     }
@@ -389,11 +396,11 @@ class TheEndingPanelTest {
         }
 
         claim("once the window's own child has ended, the panel shows, undated, Ended, its report's closing line, the"
-                        + " time it ended and how long it took, Open profile, the line naming the Profile window, and no"
-                        + " Open report, the report's page not being there",
+                        + " time it ended and how long it took, Open profile, the line naming the Profile window, and"
+                        + " Open report, the child having written a report of its own though no report.html is there",
                 () -> assertThat(onceItEnded).isEqualTo(new Shown(true, "", ENDED,
                         A_CLOSING_NAMING_THE_PROFILE_WINDOW, "", "ended " + CLOCK.format(ended) + " · " + HOW_LONG,
-                        true, false, true)));
+                        true, true, true)));
         claim("and Open profile opens the Profile window",
                 () -> assertThat(profileWindowsOpened).as("Profile windows showing").isEqualTo(1));
     }
@@ -512,6 +519,134 @@ class TheEndingPanelTest {
                 });
         claim("and every text it shows outside a button is text the operator can select",
                 () -> assertThat(notSelectable).as("the texts drawn as labels").isEmpty());
+    }
+
+    @Test
+    @Story("The window says why the last invocation ended")
+    @DisplayName("Open report selects the Report tab, which draws the report of the ending the panel shows, an earlier invocation's too, and follows the window's child again as it starts")
+    void openReportSelectsTheReportTabDrawingTheEndingsReportAndAChildStartingTakesItBack(@TempDir Path folder)
+            throws Exception {
+        Path atAGate = Files.createDirectories(folder.resolve("at-a-gate"));
+        Path refused = Files.createDirectories(folder.resolve("refused"));
+        anEarlierGate(atAGate);
+        anEarlierRefusal(refused);
+        ControlPanelState state = aStateOver(folder, SleepingJar.runtime());
+        WorkingDirectoryList.store(WorkingDirectoryList.besides(LaunchValues.fileIn(folder.resolve("tmp"), USER)),
+                USER, List.of(refused), line -> { });
+        state.hold(launchValues(folder, atAGate));
+
+        ReportTab beforeThePress;
+        ReportTab afterThePress;
+        ReportTab inTheRefused;
+        ReportTab whileTheChildRuns;
+        boolean shownWhileTheChildRuns;
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            window.awaiting(TheEndingPanelTest::seen, shown -> ENDED.equals(shown.kind()));
+            window.act(root -> {
+                javafx.scene.control.Tab inclusions = HeadlessToolkit.tabWithId(root, "inclusions").orElseThrow();
+                inclusions.getTabPane().getSelectionModel().select(inclusions);
+            });
+            beforeThePress = window.read(TheEndingPanelTest::reportTab);
+            window.act(root -> WindowForTests.node(root, OPEN_REPORT, Button.class).fire());
+            afterThePress = window.awaiting(TheEndingPanelTest::reportTab,
+                    tab -> A_GATES_CLOSING.equals(tab.closing()));
+            choose(window, refused);
+            window.awaiting(TheEndingPanelTest::seen, shown -> FAILED_OR_REFUSED.equals(shown.kind()));
+            inTheRefused = window.awaiting(TheEndingPanelTest::reportTab, tab -> A_REFUSAL.equals(tab.closing()));
+            choose(window, atAGate);
+            window.awaiting(TheEndingPanelTest::seen, shown -> ENDED.equals(shown.kind()));
+            assumeThat(state.start(ControlPanelState.Start.RUN, new ArrayList<>())).as("the child is started").isEmpty();
+            whileTheChildRuns = window.awaiting(TheEndingPanelTest::reportTab,
+                    tab -> LiveReport.WAITING.equals(tab.status()));
+            shownWhileTheChildRuns = window.read(TheEndingPanelTest::seen).shown();
+        }
+
+        claim("before Open report is pressed, the Inclusions tab is the one selected",
+                () -> assertThat(beforeThePress.selected()).as("whether the Report tab is selected").isFalse());
+        claim("pressing it selects the Report tab, which draws the earlier invocation's report the panel shows: its"
+                        + " closing line, and a status line saying it ended, completed",
+                () -> {
+                    assertThat(afterThePress.selected()).as("whether the Report tab is selected").isTrue();
+                    assertThat(afterThePress.closing()).as("the Report tab's closing line").isEqualTo(A_GATES_CLOSING);
+                    assertThat(afterThePress.status()).as("the Report tab's status line")
+                            .startsWith("run ended: completed");
+                });
+        claim("choosing another working directory, the Report tab draws the report of the ending the panel then shows",
+                () -> assertThat(inTheRefused.closing()).as("the Report tab's closing line").isEqualTo(A_REFUSAL));
+        claim("once the window's child is started, the panel shows nothing and the Report tab follows the child again,"
+                        + " waiting for its report, the earlier closing line gone",
+                () -> {
+                    assertThat(shownWhileTheChildRuns).as("whether the panel shows").isFalse();
+                    assertThat(List.of(whileTheChildRuns.status(), whileTheChildRuns.closing()))
+                            .containsExactly(LiveReport.WAITING, "");
+                });
+    }
+
+    @Test
+    @Story("The window says why the last invocation ended")
+    @DisplayName("An earlier invocation whose report never ended, the working directory held by nobody, is shown dated as ended without its last write, at the step it ran, in the accent colour")
+    void anEarlierInvocationWhoseReportNeverEndedIsShownAsEndedWithoutItsLastWrite(@TempDir Path folder)
+            throws Exception {
+        Path working = Files.createDirectories(folder.resolve("working"));
+        ReportFixtures.write(working, AN_EARLIER_PID, "{\"ended\":false,\"steps\":"
+                + steps("census", "finished", "byte-level-reduction", "finished", "extraction", "running") + "}",
+                THE_UNFINISHEDS_LAST_WRITE.minusSeconds(600), THE_UNFINISHEDS_LAST_WRITE, 1);
+        ControlPanelState state = aStateOver(folder, notStarting(folder));
+        state.hold(launchValues(folder, working));
+
+        Shown asOpened;
+        Color kindDrawnIn;
+        Paint stripeDrawnIn;
+        ReportTab afterThePress;
+        boolean markedStale;
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            asOpened = window.awaiting(TheEndingPanelTest::seen, Shown::shown);
+            kindDrawnIn = window.read(root -> inkOf(KIND, root));
+            stripeDrawnIn = window.read(root -> innermost(WindowForTests.node(root, STRIPE, Node.class)));
+            window.act(root -> WindowForTests.node(root, OPEN_REPORT, Button.class).fire());
+            afterThePress = window.awaiting(TheEndingPanelTest::reportTab,
+                    tab -> tab.status().contains(LiveReport.UNFINISHED));
+            markedStale = window.read(root -> HeadlessToolkit.nodeWithId(root, "report-stale")
+                    .filter(TheEndingPanelTest::shownInTheScene).isPresent());
+        }
+        Map<String, Color> light = theme(stylesheet(), LIGHT_BLOCK);
+
+        claim("as the window opens on a working directory whose last report still says it runs and that nobody holds,"
+                        + " the panel shows it dated by its last write, Ended without its last write, no line, the step"
+                        + " its report said was running and the time of its last write, with Open report and Copy"
+                        + " details",
+                () -> assertThat(asOpened).isEqualTo(new Shown(true,
+                        "Last invocation, " + DAY_AND_MINUTE.format(THE_UNFINISHEDS_LAST_WRITE), UNFINISHED, "", "",
+                        "At extraction · last written " + CLOCK.format(THE_UNFINISHEDS_LAST_WRITE), false, true,
+                        true)));
+        claim("its stripe and its kind are drawn in the accent colour",
+                () -> assertThat(List.of(String.valueOf(stripeDrawnIn), String.valueOf(kindDrawnIn)))
+                        .containsOnly(String.valueOf(light.get("-vespera-accent"))));
+        claim("Open report selects the Report tab, which says the report ended without its last write and does not mark"
+                        + " it stale",
+                () -> {
+                    assertThat(afterThePress.selected()).as("whether the Report tab is selected").isTrue();
+                    assertThat(afterThePress.status()).as("the Report tab's status line")
+                            .contains(LiveReport.UNFINISHED);
+                    assertThat(markedStale).as("whether the Report tab marks it stale").isFalse();
+                });
+    }
+
+    // ---- the Report tab
+
+    /** What the Report tab shows: whether it is selected, its status line and its closing line. */
+    record ReportTab(boolean selected, String status, String closing) {
+    }
+
+    private static ReportTab reportTab(Parent root) {
+        boolean selected = HeadlessToolkit.tabWithId(root, LiveReport.ID).map(javafx.scene.control.Tab::isSelected)
+                .orElse(false);
+        return new ReportTab(selected, textIn(root, "report-status"), textIn(root, "report-closing"));
+    }
+
+    /** The words of the text {@code id}, shown or not; empty where it is not there. */
+    private static String textIn(Parent root, String id) {
+        return HeadlessToolkit.nodeWithId(root, id).map(node -> ((TextInputControl) node).getText()).orElse("");
     }
 
     // ---- what the panel shows
