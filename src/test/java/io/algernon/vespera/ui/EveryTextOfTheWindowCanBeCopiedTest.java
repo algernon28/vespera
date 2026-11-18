@@ -59,9 +59,9 @@ import org.junit.jupiter.api.io.TempDir;
  * the label it replaces was (ADR-364 §8). The window is shown as the control panel shows it, on the Headless platform,
  * and the tests read it as the record says a test does: from the root, through every parent that is neither a control
  * nor a chart, and, of the controls, through a scroll pane's content, a split pane's items, each tab's content, an
- * accordion's panes and a titled pane's content, never its header; and the Profile window, a window of its own, from
- * its root the same way (ADR-389 §7). The context menu's items are found by their English
- * names, which JavaFX gives them in the tests' locale, pinned to {@code en_US} on every machine (ADR-386).
+ * accordion's panes and a titled pane's content, never its header; and the Profile window and the Reports window, each
+ * a window of its own, from its root the same way (ADR-389 §7, ADR-414 §6). The context menu's items are found by their
+ * English names, which JavaFX gives them in the tests' locale, pinned to {@code en_US} on every machine (ADR-386).
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -69,13 +69,19 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-364", url = Adr.THE_OUTPUT_PANEL_IS_COPYABLE_TEXT_AND_EVERY_LINE_GOES_THROUGH_LOGBACK, type = "adr")
 @Link(name = "ADR-386", url = Adr.THE_TESTS_RUN_IN_ONE_LOCALE_ON_EVERY_MACHINE, type = "adr")
 @Link(name = "ADR-389", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
+@Link(name = "ADR-414", url = Adr.THE_ANALYSIS_REPORTS_OPEN_IN_A_REPORTS_WINDOW_OF_THEIR_OWN, type = "adr")
 class EveryTextOfTheWindowCanBeCopiedTest {
 
     /** How far apart two sizes or places may be and still be the same: a pixel. */
     private static final double ONE_PIXEL = 1.0;
 
-    /** The report whose file the working directory holds in the first window. */
-    private static final String A_REPORT_WRITTEN = "document-frequency.html";
+    /** The report whose JSON the working directory holds in the first window, opened there in the Reports window. */
+    private static final String A_REPORT_WRITTEN = "document-frequency";
+
+    /** That report's one section, by its id, and its one paragraph. */
+    private static final String ITS_SECTION = "about";
+
+    private static final String ITS_PARAGRAPH = "One paragraph of the report.";
 
     /** A folder name long enough that the header's {@code where} is wider than a window of 700. */
     private static final String A_LONG_FOLDER = "/archive/" + "a-folder-with-a-long-name/".repeat(9) + "corpus";
@@ -101,7 +107,12 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                 Optional.empty(), ProfileKey.GENERATION_MODEL, "a-writing-model:8b", "measured on the seed set")),
                 ProfileKey.CODE_SET_FOLDERS, elsewhere.toString(), "folders outside the corpus root"),
                 StandardCharsets.UTF_8);
-        Files.writeString(working.resolve(A_REPORT_WRITTEN), "<html></html>", StandardCharsets.UTF_8);
+        Files.writeString(working.resolve(Reports.jsonOf(A_REPORT_WRITTEN)), "{\"format\":"
+                + AnalysisReportFile.FORMATS.get(A_REPORT_WRITTEN) + ",\"analysisReport\":\"" + A_REPORT_WRITTEN
+                + "\",\"title\":\"" + Reports.TITLES.get(A_REPORT_WRITTEN) + "\",\"writtenAt\":\"2026-11-18T10:00:00Z\","
+                + "\"headline\":[{\"key\":\"files\",\"label\":\"Files\",\"value\":3,\"unit\":\"count\"}],"
+                + "\"sections\":[{\"id\":\"" + ITS_SECTION + "\",\"title\":\"About\",\"text\":[\"" + ITS_PARAGRAPH
+                + "\"],\"chart\":null,\"table\":null}]}", StandardCharsets.UTF_8);
         Files.writeString(working.resolve(NextInvocation.FILE_NAME),
                 "invocation=run\nwants=boilerplateDocumentFrequencyFloor\nanswer=false\n", StandardCharsets.UTF_8);
         ControlPanelState state = WindowForTests.aState(folder, EndingJar.runtime());
@@ -137,6 +148,9 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                 root.layout();
                 return outsideAControl(root);
             }));
+            // the reports lie in a window of their own, walked from its root as the window is (ADR-414 section 6)
+            window.act(root -> WindowForTests.pressReportLink(root, "reports-list", A_REPORT_WRITTEN));
+            reached.addAll(window.readAnalysisReports(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl));
         }
         try (WindowForTests window = WindowForTests.shown(otherState)) {
             reachedWhenNotInForm = new ArrayList<>(window.read(EveryTextOfTheWindowCanBeCopiedTest::outsideAControl));
@@ -159,8 +173,8 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                         + " the Tab key",
                 () -> assertThat(reading).isEmpty());
         claim("the walk reaches the header's where and child, the outcome, a step's state, a profile row's title, a"
-                        + " preflight line, a wanted value's title and a profile problem's line, so that a walk"
-                        + " reaching nothing cannot pass",
+                        + " preflight line, a wanted value's title, a profile problem's line, and a report's headline"
+                        + " and paragraph in the Reports window, so that a walk reaching nothing cannot pass",
                 () -> {
                     assertThat(reached).filteredOn(node -> "where".equals(node.getId())).hasSize(1);
                     assertThat(reached).filteredOn(node -> "child".equals(node.getId())).hasSize(1);
@@ -171,6 +185,9 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                     assertThat(texts(reached, "preflight-list")).anyMatch(line -> line.startsWith("Corpus root: "));
                     assertThat(texts(reached, "wanted-row-boilerplateDocumentFrequencyFloor")).isNotEmpty();
                     assertThat(texts(reached, "code-sets")).contains(elsewhere.toString());
+                    assertThat(texts(reached, "headline-" + A_REPORT_WRITTEN)).contains("Files");
+                    assertThat(texts(reached, "section-" + A_REPORT_WRITTEN + "-" + ITS_SECTION))
+                            .contains(ITS_PARAGRAPH);
                     assertThat(reachedWhenNotInForm).filteredOn(node -> "profile-problem".equals(node.getId()))
                             .hasSize(1);
                     assertThat(texts(reachedWhenNotInForm, "profile-problem"))

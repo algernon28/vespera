@@ -3011,6 +3011,16 @@ public final class Adr {
     public static final String THE_LABEL_COMMANDS_ARE_A_LABELS_SECTION_OF_THE_SIDEBAR = FILE
             + "0413-save-my-labels-and-auto-label-are-a-labels-section-of-the-sidebar-and-the-window-calls-no-label-an-answer.md";
 
+    /**
+     * ADR-414 -- the analysis reports open in one Reports window of their own, a tab each, with no owner and no
+     * modality, opened by the first report opened, a report open selected and the window brought back; closing its last
+     * tab closes it, another working directory and the cockpit's closing close it, and its size and place are kept
+     * until the control panel exits; the cockpit keeps the sidebar's Reports list, the Report tab and Inclusions (amends
+     * ADR-344 §6, ADR-362 §10 and ADR-389 §1 and §2).
+     */
+    public static final String THE_ANALYSIS_REPORTS_OPEN_IN_A_REPORTS_WINDOW_OF_THEIR_OWN = FILE
+            + "0414-the-analysis-reports-open-in-a-reports-window-of-their-own-a-tab-each-and-the-cockpit-keeps-its-list-and-two-tabs.md";
+
     private Adr() {
     }
 }

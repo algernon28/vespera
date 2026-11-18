@@ -1226,24 +1226,16 @@ class TheProfileWindowTest {
         return root.getStyleClass().contains("dark");
     }
 
-    /** Whether the control panel's window, which {@code cockpitShowing} says, and {@code profile} are showing, in that order. */
     /**
-     * Closes the cockpit as the operator does and waits, within the tests' bound, for it to close: since ADR-390 §5 it
-     * stays shown while its child and then the sidecars are stopped, and closes after. Gives whether the cockpit and the
-     * Profile window are each still shown.
+     * Closes the cockpit as the operator does and waits for it to close, as {@link
+     * WindowForTests#closedAsTheOperatorDoesAndAwaited} does. Gives whether the cockpit and the Profile window are each
+     * still shown.
      */
     private static boolean[] closedOnceTheSidecarsAreStopped(WindowForTests window, Stage profile) throws Exception {
-        WindowForTests.closeAsTheOperatorDoes(window.stage);
-        WindowForTests.within(() -> {
-            try {
-                return !HeadlessToolkit.onTheToolkit(window.stage::isShowing);
-            } catch (Exception unanswered) {
-                throw new IllegalStateException(unanswered);
-            }
-        });
-        return showing(HeadlessToolkit.onTheToolkit(window.stage::isShowing), profile);
+        return showing(window.closedAsTheOperatorDoesAndAwaited(), profile);
     }
 
+    /** Whether the control panel's window, which {@code cockpitShowing} says, and {@code profile} are showing, in that order. */
     private static boolean[] showing(boolean cockpitShowing, Stage profile) throws Exception {
         return new boolean[] {cockpitShowing, HeadlessToolkit.onTheToolkit(profile::isShowing)};
     }

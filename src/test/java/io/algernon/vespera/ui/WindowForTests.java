@@ -22,6 +22,7 @@ import javafx.scene.control.CheckBoxTreeItem;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TitledPane;
 import javafx.scene.control.TreeView;
@@ -33,8 +34,9 @@ import org.assertj.core.api.Assumptions;
 /**
  * The control panel's window shown on a stage of the Headless platform (ADR-342 §6), as {@code ControlPanelWindow}
  * shows it when it starts, with dialogs a test answers: what the window tests that act on it, wait for its clock and read
- * it again share, and the Profile window it opens (ADR-389). Every read and every act runs on the toolkit's thread.
- * Closing it stops the child its state started and closes the stage, and every Profile window showing.
+ * it again share, and the Profile window (ADR-389) and the Reports window (ADR-414) it opens. Every read and every act
+ * runs on the toolkit's thread. Closing it stops the child its state started and closes the stage, and every Profile
+ * window and Reports window showing.
  */
 final class WindowForTests implements AutoCloseable {
 
@@ -209,6 +211,60 @@ final class WindowForTests implements AutoCloseable {
         return inclusions.getTabPane().getTabs().stream().map(Tab::getId).toList();
     }
 
+    // ---- the Reports window (ADR-414)
+
+    /** The id of the Reports window's pane of tabs, by which a test finds that window among the toolkit's (ADR-414 §2). */
+    static final String ANALYSIS_REPORT_TABS = "analysis-report-tabs";
+
+    /** Every Reports window showing, in the toolkit's order: each stage but this window's own whose root holds the pane. */
+    List<Stage> analysisReportsWindows() throws Exception {
+        return HeadlessToolkit.onTheToolkit(() -> windowsBeside(stage, ANALYSIS_REPORT_TABS));
+    }
+
+    /** The one Reports window showing; the test fails where there is none, or more than one. */
+    Stage analysisReportsWindow() throws Exception {
+        List<Stage> showing = analysisReportsWindows();
+        if (showing.size() != 1) {
+            throw new AssertionError("the control panel shows " + showing.size() + " Reports windows, not one");
+        }
+        return showing.getFirst();
+    }
+
+    /** What {@code reading} reads of the Reports window's root, laid out, on the toolkit's thread. */
+    <T> T readAnalysisReports(Function<Parent, T> reading) throws Exception {
+        return readOn(analysisReportsWindow(), reading);
+    }
+
+    /** Does {@code acting} to the Reports window's root on the toolkit's thread. */
+    void actOnAnalysisReports(Consumer<Parent> acting) throws Exception {
+        readAnalysisReports(root -> {
+            acting.accept(root);
+            return null;
+        });
+    }
+
+    /** The ids of the Reports window's tabs, in their order; none where no Reports window shows. */
+    List<String> analysisReportTabIds() throws Exception {
+        if (analysisReportsWindows().isEmpty()) {
+            return List.of();
+        }
+        return readAnalysisReports(root -> node(root, ANALYSIS_REPORT_TABS, TabPane.class).getTabs().stream()
+                .map(Tab::getId).toList());
+    }
+
+    /** Closes {@code tab} as its close button does: asked to close, taken out of its pane, then told it is closed. */
+    static void closeTabAsTheOperatorDoes(Tab tab) {
+        Event.fireEvent(tab, new Event(tab, tab, Tab.TAB_CLOSE_REQUEST_EVENT));
+        tab.getTabPane().getTabs().remove(tab);
+        Event.fireEvent(tab, new Event(tab, tab, Tab.CLOSED_EVENT));
+    }
+
+    /** Presses the link a cell of the table whose id is {@code table} draws with {@code text}; fails where it draws none. */
+    static void pressCellLink(Parent root, String table, String text) {
+        every(root, table, Hyperlink.class).stream().filter(link -> text.equals(link.getText())).findFirst()
+                .orElseThrow(() -> new AssertionError("the table " + table + " draws no link to " + text)).fire();
+    }
+
     // ---- the Profile window (ADR-389)
 
     /** Opens the Profile window as the operator does: the sidebar's Profile section opened and Open profile pressed. */
@@ -227,14 +283,15 @@ final class WindowForTests implements AutoCloseable {
 
     /** Every Profile window showing, in the toolkit's order: each stage but this window's own whose root holds the form. */
     List<Stage> profileWindows() throws Exception {
-        return HeadlessToolkit.onTheToolkit(() -> profileWindowsBeside(stage));
+        return HeadlessToolkit.onTheToolkit(() -> windowsBeside(stage, "profile-form"));
     }
 
-    private static List<Stage> profileWindowsBeside(Stage cockpit) {
+    /** Every stage showing but {@code cockpit} whose root holds the node whose id is {@code id}, in the toolkit's order. */
+    private static List<Stage> windowsBeside(Stage cockpit, String id) {
         return Window.getWindows().stream().filter(Stage.class::isInstance).map(Stage.class::cast)
                 .filter(each -> each != cockpit && each.isShowing() && each.getScene() != null
                         && each.getScene().getRoot() != null
-                        && HeadlessToolkit.nodeWithId(each.getScene().getRoot(), "profile-form").isPresent())
+                        && HeadlessToolkit.nodeWithId(each.getScene().getRoot(), id).isPresent())
                 .toList();
     }
 
@@ -249,9 +306,13 @@ final class WindowForTests implements AutoCloseable {
 
     /** What {@code reading} reads of the Profile window's root, laid out, on the toolkit's thread. */
     <T> T readProfile(Function<Parent, T> reading) throws Exception {
-        Stage profile = profileWindow();
+        return readOn(profileWindow(), reading);
+    }
+
+    /** What {@code reading} reads of {@code window}'s root, laid out, on the toolkit's thread. */
+    private static <T> T readOn(Stage window, Function<Parent, T> reading) throws Exception {
         return HeadlessToolkit.onTheToolkit(() -> {
-            Parent root = profile.getScene().getRoot();
+            Parent root = window.getScene().getRoot();
             root.applyCss();
             root.layout();
             return reading.apply(root);
@@ -292,13 +353,30 @@ final class WindowForTests implements AutoCloseable {
         node(root, prefix + key.key() + ".report-" + name, Hyperlink.class).fire();
     }
 
+    /**
+     * Closes the cockpit as the operator does and waits, within the tests' bound, for it to close: since ADR-390 §5 it
+     * stays shown while its child and then the sidecars are stopped, and closes after. Gives whether it is still shown.
+     */
+    boolean closedAsTheOperatorDoesAndAwaited() throws Exception {
+        closeAsTheOperatorDoes(stage);
+        within(() -> {
+            try {
+                return !HeadlessToolkit.onTheToolkit(stage::isShowing);
+            } catch (Exception unanswered) {
+                throw new IllegalStateException(unanswered);
+            }
+        });
+        return HeadlessToolkit.onTheToolkit(stage::isShowing);
+    }
+
     @Override
     public void close() throws Exception {
         try {
             state.stop();
         } finally {
             HeadlessToolkit.onTheToolkit(() -> {
-                profileWindowsBeside(stage).forEach(Stage::close);
+                windowsBeside(stage, "profile-form").forEach(Stage::close);
+                windowsBeside(stage, ANALYSIS_REPORT_TABS).forEach(Stage::close);
                 stage.close();
                 return null;
             });

@@ -431,6 +431,7 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
     @Story("Every part of the window reads in the light and the dark theme")
     @DisplayName("A report's native view takes every colour from the window's stylesheet and stands at WCAG AA in the light and the dark theme")
     @Link(name = "ADR-374", url = Adr.EVERY_TEXT_LINE_AND_MARKER_OF_THE_WINDOW_STANDS_AT_AA_IN_BOTH_THEMES, type = "adr")
+    @Link(name = "ADR-414", url = Adr.THE_ANALYSIS_REPORTS_OPEN_IN_A_REPORTS_WINDOW_OF_THEIR_OWN, type = "adr")
     void aNativeViewNamesNoColourOfItsOwnAndStandsAtAaInBothThemes(@TempDir Path folder) throws Exception {
         List<String> coloursInCode = coloursNamedBy(A_NATIVE_VIEW);
 
@@ -447,7 +448,8 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
             window.act(root -> WindowForTests.pressReportLink(root, "reports-list", AN_ANALYSIS_REPORT));
             for (String theme : THEMES) {
                 window.act(root -> themed(root, theme));
-                keptOncePerPair(faults, window.read(root -> faultsIn(HeadlessToolkit.tabWithId(root, "analysis-report-"
+                // the report's view lies in the Reports window, which follows the switch (ADR-414 section 6)
+                keptOncePerPair(faults, window.readAnalysisReports(root -> faultsIn(HeadlessToolkit.tabWithId(root, "analysis-report-"
                         + AN_ANALYSIS_REPORT).map(javafx.scene.control.Tab::getContent).filter(Parent.class::isInstance)
                         .map(Parent.class::cast).orElseThrow(() -> new AssertionError("the report's tab did not open")),
                         theme + ", " + AN_ANALYSIS_REPORT + "'s view", measured)));
