@@ -4,9 +4,10 @@ import io.algernon.vespera.engine.deliverable.FixedWords;
 import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
 
 /**
- * The titles of the Confluence rendering's pages (ADR-378 §1): a cluster's {@code TEXT (P.C · code)} or {@code TEXT
- * (P.C page K · code)}, a seed partition's {@code TEXT (P · code)}, and the root page's {@code Vespera_<code>}. No
- * title carries the run's marker.
+ * The titles of the Confluence rendering's pages (ADR-378 §1, ADR-415 §7): a cluster's {@code TEXT (P.C · code)} or {@code
+ * TEXT (P.C page K · code)}, or {@code TEXT (P.S.C · code)} where its topic is crowded, a subtopic's {@code TEXT (P.S ·
+ * code)}, a topic's {@code TEXT (P · code)}, and the root page's {@code Vespera_<code>}. No title carries the run's
+ * marker.
  *
  * <p><b>The suffix is never cut</b> (ADR-310 §4): every control character of the text becomes a space, runs of
  * whitespace one space, the text is trimmed, and where the whole would pass {@value #LONGEST_TITLE} UTF-16 code units
@@ -60,14 +61,19 @@ final class ConfluenceTitles {
         return " · " + language.code();
     }
 
-    /** A seed partition's page's title, {@code place} its padded order (ADR-378 §1). */
-    static String partition(String stem, String place, DeliverableLanguage language) {
-        return titled(stem, " (" + place + code(language) + ")");
+    /** A topic's page's title, {@code NAME (P · code)}, {@code place} its padded order (ADR-378 §1, ADR-415 §7). */
+    static String topic(String name, String place, DeliverableLanguage language) {
+        return titled(name, " (" + place + code(language) + ")");
+    }
+
+    /** A crowded topic's subtopic's page's title, {@code NAME (P.S · code)}, {@code place} being {@code P.S} (ADR-415 §7). */
+    static String subtopic(String name, String place, DeliverableLanguage language) {
+        return titled(name, " (" + place + code(language) + ")");
     }
 
     /**
-     * A cluster's page's title, {@code place} being {@code P.C} and {@code page} counted from 1: the first page carries no
-     * page number (ADR-310 §2, ADR-328 §1).
+     * A cluster's page's title, {@code place} being {@code P.C}, or {@code P.S.C} where its topic is crowded, and {@code
+     * page} counted from 1: the first page carries no page number (ADR-310 §2, ADR-328 §1, ADR-415 §7).
      */
     static String cluster(String text, String place, int page, DeliverableLanguage language) {
         return titled(text, " (" + place + (page == 1 ? "" : FixedWords.pageInATitle(language) + page)

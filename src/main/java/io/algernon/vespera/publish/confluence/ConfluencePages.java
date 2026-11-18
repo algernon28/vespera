@@ -8,10 +8,15 @@ import io.algernon.vespera.engine.deliverable.Entries;
 import io.algernon.vespera.engine.deliverable.FixedWords;
 import io.algernon.vespera.engine.deliverable.Html;
 import io.algernon.vespera.engine.deliverable.IndexPage;
+import io.algernon.vespera.engine.deliverable.ListedOverview;
+import io.algernon.vespera.engine.deliverable.ListedSubtopic;
 import io.algernon.vespera.engine.deliverable.ListedTopic;
 import io.algernon.vespera.engine.deliverable.ListedSurvivor;
+import io.algernon.vespera.engine.deliverable.SeeAlsoLine;
+import io.algernon.vespera.engine.deliverable.TopicOverviewWording;
 import io.algernon.vespera.engine.ledger.ReplacingMove;
 import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
+import io.algernon.vespera.engine.synthesis.OverviewUnwritten;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
 import io.algernon.vespera.engine.synthesis.SynthesisDoc;
 import io.algernon.vespera.engine.synthesis.Unwritten;
@@ -26,8 +31,11 @@ import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import tools.jackson.databind.json.JsonMapper;
@@ -37,7 +45,8 @@ import tools.jackson.databind.json.JsonMapper;
  * the HTML tree (ADR-301, ADR-312), and its page list, {@value #PAGE_LIST_FILE_NAME} (ADR-316).
  *
  * <p><b>It follows the HTML tree's shape</b> (ADR-312 §1): the root page's body and the page list directly in {@code
- * confluence/}, a folder for each topic and within it for each cluster, named as the HTML tree names them,
+ * confluence/}, a folder for each topic, within it one for each subtopic of a crowded topic, and within that, or within
+ * the topic's, one for each cluster, named as the HTML tree names them (ADR-415 §7),
  * each holding its page's body, {@value #BODY_NAME} or {@code page-<k>.xml} for page k of a split cluster, and its
  * pictures' files (ADR-314). A copy is not written again: the page list names it at its place in the HTML tree
  * (ADR-316 §2).
@@ -86,12 +95,50 @@ final class ConfluencePages implements Drawing {
     private final Writer rest;
 
     /** The topic being drawn, and its rows, held until its last cluster is drawn. */
+    private ListedTopic topicDrawn;
+    private int topicCount;
     private String topicKey;
     private String topicPlace;
     private String topicTitle;
     private String topicFolder;
-    private final StringBuilder topicRows = new StringBuilder();
+    private ListedOverview overview;
+    private List<ListedSubtopic> subtopics = List.of();
+
+    /** What a crowded topic's subtopic has drawn: its rows, and its clusters' pages listed beneath its own. */
+    private final class SubtopicDrawn {
+        final ListedSubtopic subtopic;
+        final String key;
+        final String title;
+        final String folder;
+        final StringBuilder pageRows = new StringBuilder();
+        final StringBuilder indexRows = new StringBuilder();
+        final List<ListedPage> pages = new ArrayList<>();
+        int clusters;
+        long documents;
+
+        SubtopicDrawn(ListedSubtopic subtopic) {
+            this.subtopic = subtopic;
+            this.key = topicKey + "." + subtopic.subtopicOrder();
+            this.title = ConfluenceTitles.subtopic(
+                    subtopic.name(),
+                    topicPlace + "." + IndexPage.pad(subtopic.subtopicOrder(), IndexPage.widthOf(subtopics.size())),
+                    language);
+            this.folder = IndexPage.subtopicDirectoryName(subtopic, subtopics.size());
+        }
+    }
+
+    private final Map<Integer, SubtopicDrawn> subtopicsDrawn = new LinkedHashMap<>();
+
+    /** The rows of an undivided topic's table, and its clusters' pages. */
+    private final StringBuilder topicPageRows = new StringBuilder();
+    private final StringBuilder topicIndexRows = new StringBuilder();
     private final List<ListedPage> clusterPages = new ArrayList<>();
+
+    /** The title of the first page of the cluster at each place of the topic's one sequence, which its overview cites. */
+    private final Map<Integer, String> firstPageTitles = new HashMap<>();
+
+    /** The topic's see-also lines, as list items, held until its page is written. */
+    private final StringBuilder seeAlsoItems = new StringBuilder();
 
     /**
      * Opens the rendering in {@code tree}, writing the root page's opening, and adds every folder it writes to {@code
@@ -119,18 +166,63 @@ final class ConfluencePages implements Drawing {
                 + "</ac:link-body></ac:link>";
     }
 
-    /** Starts a topic's page: its folder, named as the HTML tree's (ADR-312 §1, ADR-409 section 10). */
+    /** Starts a topic's page with no subtopic and no overview, which a drawing that is handed neither is left to answer. */
     @Override
     public void topicStarted(ListedTopic topic, int topicCount) throws IOException {
+        topicStarted(topic, topicCount, List.of(), new ListedOverview.Unwritten(OverviewUnwritten.NOT_REACHED));
+    }
+
+    /**
+     * Starts a topic's page: its folder, and a folder for each of its subtopics, named as the HTML tree's (ADR-312 §1,
+     * ADR-415 §7).
+     */
+    @Override
+    public void topicStarted(
+            ListedTopic topic, int topicCount, List<ListedSubtopic> subtopics, ListedOverview overview)
+            throws IOException {
         String place = IndexPage.pad(topic.topicOrder(), IndexPage.widthOf(topicCount));
-        topicFolder = IndexPage.topicDirectoryName(topic, topicCount);
-        topicKey = language.code() + ":" + topic.topicOrder();
-        topicPlace = place;
-        topicTitle = ConfluenceTitles.partition(topic.name(), place, language);
+        this.topicDrawn = topic;
+        this.topicCount = topicCount;
+        this.topicFolder = IndexPage.topicDirectoryName(topic, topicCount);
+        this.topicKey = language.code() + ":" + topic.topicOrder();
+        this.topicPlace = place;
+        this.topicTitle = ConfluenceTitles.topic(topic.name(), place, language);
+        this.overview = overview;
+        this.subtopics = List.copyOf(subtopics);
         Files.createDirectories(directory.resolve(topicFolder));
         written.add(DIRECTORY_NAME + "/" + topicFolder);
-        topicRows.setLength(0);
+        subtopicsDrawn.clear();
+        for (ListedSubtopic subtopic : this.subtopics) {
+            SubtopicDrawn drawn = new SubtopicDrawn(subtopic);
+            subtopicsDrawn.put(subtopic.subtopic(), drawn);
+            Files.createDirectories(directory.resolve(topicFolder).resolve(drawn.folder));
+            written.add(DIRECTORY_NAME + "/" + topicFolder + "/" + drawn.folder);
+        }
+        topicPageRows.setLength(0);
+        topicIndexRows.setLength(0);
+        seeAlsoItems.setLength(0);
+        firstPageTitles.clear();
         clusterPages.clear();
+    }
+
+    /** The subtopic {@code recorded} lies in, null where its topic has none. */
+    private SubtopicDrawn subtopicOf(RecordedCluster recorded) {
+        if (recorded.cluster().subtopic().isEmpty()) {
+            return null;
+        }
+        SubtopicDrawn drawn = subtopicsDrawn.get(recorded.cluster().subtopic().getAsInt());
+        if (drawn == null) {
+            throw new IllegalStateException("a cluster lies in subtopic " + recorded.cluster().subtopic().getAsInt()
+                    + ", which the topic's subtopics do not include");
+        }
+        return drawn;
+    }
+
+    /** The folder of {@code recorded} beneath {@code confluence/}: in its subtopic's where it has one. */
+    private String clusterFolderPath(ListedTopic topic, RecordedCluster recorded) {
+        SubtopicDrawn within = subtopicOf(recorded);
+        return topicFolder + (within == null ? "" : "/" + within.folder) + "/"
+                + IndexPage.clusterFolderName(recorded, IndexPage.widthOf(topic.clusterCount()));
     }
 
     /**
@@ -144,7 +236,7 @@ final class ConfluencePages implements Drawing {
             ListedTopic topic, RecordedCluster recorded, List<ListedSurvivor> members, Path clusterFolder,
             Copies copies)
             throws IOException {
-        String folderPath = topicFolder + "/" + IndexPage.clusterFolderName(recorded, IndexPage.widthOf(topic.clusterCount()));
+        String folderPath = clusterFolderPath(topic, recorded);
         Path folder = directory.resolve(folderPath);
         Files.createDirectories(folder);
         written.add(DIRECTORY_NAME + "/" + folderPath);
@@ -170,13 +262,19 @@ final class ConfluencePages implements Drawing {
         ConfluenceEntries entries = (ConfluenceEntries) handedBack;
         entries.close();
         int clusterWidth = IndexPage.widthOf(topic.clusterCount());
-        String folderPath = topicFolder + "/" + IndexPage.clusterFolderName(recorded, clusterWidth);
+        SubtopicDrawn within = subtopicOf(recorded);
+        String folderPath = clusterFolderPath(topic, recorded);
         Path folder = directory.resolve(folderPath);
-        String place = topicPlace + "."
-                + IndexPage.pad(recorded.cluster().clusterOrder(), clusterWidth);
+        String parentKey = within == null ? topicKey : within.key;
+        String place = (within == null
+                        ? topicPlace
+                        : topicPlace + "."
+                                + IndexPage.pad(within.subtopic.subtopicOrder(), IndexPage.widthOf(subtopics.size())))
+                + "." + IndexPage.pad(recorded.cluster().clusterOrder(), clusterWidth);
         String text = doc.map(SynthesisDoc::title).orElse(recorded.label().value());
         int pages = breaks.map(ClusterPage.PageBreaks::pages).orElse(1);
-        String firstKey = topicKey + "." + recorded.cluster().clusterOrder();
+        String firstKey = parentKey + "." + recorded.cluster().clusterOrder();
+        List<ListedPage> listedPages = within == null ? clusterPages : within.pages;
         for (int page = 1; page <= pages; page++) {
             String body = page == 1 ? BODY_NAME : "page-" + page + ".xml";
             Path part = folder.resolve(body + Deliverable.PART_SUFFIX);
@@ -188,44 +286,142 @@ final class ConfluencePages implements Drawing {
             }
             String digest = sha256Of(part);
             moves.intoPlace(part, folder.resolve(body));
-            clusterPages.add(new ListedPage(
+            listedPages.add(new ListedPage(
                     page == 1 ? firstKey : firstKey + "." + page,
-                    page == 1 ? topicKey : firstKey,
+                    page == 1 ? parentKey : firstKey,
                     ConfluenceTitles.cluster(text, place, page, language),
                     folderPath + "/" + body,
                     digest,
                     files));
         }
         Files.delete(entries.file());
-        topicRows.append("<tr><td>")
-                .append(link(ConfluenceTitles.cluster(text, place, 1, language), recorded.label().value()))
-                .append("</td><td>")
-                .append(recorded.cluster().documentCount())
-                .append("</td><td>")
-                .append(doc.isEmpty()
-                        ? "<em>" + Html.escape(FixedWords.nothingWasWrittenOverIt(language)) + "</em>"
-                        : Html.escape(doc.get().title()))
-                .append("</td></tr>\n");
+        String firstPageTitle = ConfluenceTitles.cluster(text, place, 1, language);
+        String clusterLink = link(firstPageTitle, recorded.label().value());
+        String titleCell = doc.isEmpty()
+                ? "<em>" + Html.escape(FixedWords.nothingWasWrittenOverIt(language)) + "</em>"
+                : Html.escape(doc.get().title());
+        String pageRow = "<tr><td>" + recorded.cluster().clusterOrder() + "</td><td>" + clusterLink + "</td><td>"
+                + recorded.cluster().documentCount() + "</td><td>" + titleCell + "</td></tr>\n";
+        String indexRow = "<tr><td>" + clusterLink + "</td><td>" + recorded.cluster().documentCount() + "</td><td>"
+                + titleCell + "</td></tr>\n";
+        firstPageTitles.put(recorded.cluster().clusterOrder(), firstPageTitle);
+        if (within == null) {
+            topicPageRows.append(pageRow);
+            topicIndexRows.append(indexRow);
+        } else {
+            within.pageRows.append(pageRow);
+            within.indexRows.append(indexRow);
+            within.clusters++;
+            within.documents += recorded.cluster().documentCount();
+        }
     }
 
     /**
-     * Writes the topic's page, its table of groups, and appends the same to the root page under a link to it;
-     * then lists the topic's page and its clusters' pages, parents first (ADR-316 §2).
+     * Holds one page of the topic's see-also lines until its page is written (ADR-415 §5, §7): each path an {@code
+     * ac:link} to the title of its cluster's first page, followed by the name of the topic it is placed under.
+     */
+    @Override
+    public void seeAlso(ListedTopic topic, List<SeeAlsoLine> lines) {
+        for (SeeAlsoLine line : lines) {
+            String place = IndexPage.pad(line.topic().topicOrder(), IndexPage.widthOf(topicCount))
+                    + line.subtopic()
+                            .map(subtopic -> "." + IndexPage.pad(subtopic.subtopicOrder(), IndexPage.widthOf(line.subtopicCount())))
+                            .orElse("")
+                    + "." + IndexPage.pad(
+                            line.cluster().cluster().clusterOrder(), IndexPage.widthOf(line.topic().clusterCount()));
+            String text = line.writingTitle().orElse(line.cluster().label().value());
+            seeAlsoItems.append("<li>")
+                    .append(link(ConfluenceTitles.cluster(text, place, 1, language), line.path().value()))
+                    .append(" (")
+                    .append(Html.escape(line.topic().name()))
+                    .append(")</li>\n");
+        }
+    }
+
+    /**
+     * Writes the topic's page, with its overview above its table, its subtopics' pages and the root page's section for it,
+     * then lists the topic's page, and beneath each parent its children's pages, parents first (ADR-316 §2, ADR-415 §7).
      */
     @Override
     public void topicEnded() throws IOException {
-        String table = "<table><tbody>\n" + FixedWords.clusterTableHeadRow(language) + topicRows
-                + "</tbody></table>\n";
-        Path part = directory.resolve(topicFolder).resolve(BODY_NAME + Deliverable.PART_SUFFIX);
-        Files.writeString(part, table, StandardCharsets.UTF_8);
-        String digest = sha256Of(part);
-        moves.intoPlace(part, directory.resolve(topicFolder).resolve(BODY_NAME));
-        root.append("<h2>").append(link(topicTitle, topicTitle)).append("</h2>\n").append(table);
-        listed(new ListedPage(topicKey, rootKey(), topicTitle, topicFolder + "/" + BODY_NAME, digest, List.of()));
+        boolean divided = !subtopics.isEmpty();
+        StringBuilder body = new StringBuilder(overviewStorage());
+        if (divided) {
+            body.append("<table><tbody>\n").append(FixedWords.subtopicTableHeadRow(language));
+            for (SubtopicDrawn drawn : subtopicsDrawn.values()) {
+                body.append("<tr><td>").append(link(drawn.title, drawn.subtopic.name())).append("</td><td>")
+                        .append(drawn.clusters).append("</td><td>").append(drawn.documents).append("</td></tr>\n");
+            }
+            body.append("</tbody></table>\n");
+        } else {
+            body.append(clusterTable(FixedWords.topicTableHeadRow(language), topicPageRows));
+        }
+        if (seeAlsoItems.length() > 0) {
+            body.append("<h2>").append(Html.escape(FixedWords.seeAlso(language))).append("</h2>\n<p>")
+                    .append(Html.escape(FixedWords.seeAlsoSentence(language))).append("</p>\n<ul>\n")
+                    .append(seeAlsoItems).append("</ul>\n");
+        }
+        String topicDigest = written(directory.resolve(topicFolder), body.toString());
+        root.append("<h2>").append(link(topicTitle, topicDrawn.name())).append("</h2>\n");
+        if (divided) {
+            for (SubtopicDrawn drawn : subtopicsDrawn.values()) {
+                root.append("<h3>").append(link(drawn.title, drawn.subtopic.name())).append("</h3>\n")
+                        .append(clusterTable(FixedWords.clusterTableHeadRow(language), drawn.indexRows));
+            }
+        } else {
+            root.append(clusterTable(FixedWords.clusterTableHeadRow(language), topicIndexRows));
+        }
+        listed(new ListedPage(topicKey, rootKey(), topicTitle, topicFolder + "/" + BODY_NAME, topicDigest, List.of()));
+        for (SubtopicDrawn drawn : subtopicsDrawn.values()) {
+            String page = "<p>" + Html.escape(FixedWords.inTheTopic(language)) + " "
+                    + link(topicTitle, topicDrawn.name()) + ".</p>\n"
+                    + clusterTable(FixedWords.topicTableHeadRow(language), drawn.pageRows);
+            String digest = written(directory.resolve(topicFolder).resolve(drawn.folder), page);
+            listed(new ListedPage(
+                    drawn.key, topicKey, drawn.title, topicFolder + "/" + drawn.folder + "/" + BODY_NAME, digest,
+                    List.of()));
+            for (ListedPage clusterPage : drawn.pages) {
+                listed(clusterPage);
+            }
+        }
         for (ListedPage page : clusterPages) {
             listed(page);
         }
         clusterPages.clear();
+        subtopicsDrawn.clear();
+    }
+
+    /** The topic's overview in storage format, or the sentence for its absence, and the disclosure beneath one (ADR-415 §2, §7). */
+    private String overviewStorage() {
+        return switch (overview) {
+            case ListedOverview.Written written -> {
+                StringBuilder text = new StringBuilder(
+                        ProseStorage.ofAnOverview(written.writing(), firstPageTitles::get)).append('\n');
+                int clusters = topicDrawn.clusterCount();
+                if (written.clustersSent() < clusters) {
+                    text.append("<p><em>")
+                            .append(Html.escape(TopicOverviewWording.disclosure(language)
+                                    .formatted(written.clustersSent(), clusters)))
+                            .append("</em></p>\n");
+                }
+                yield text.toString();
+            }
+            case ListedOverview.Unwritten unwritten -> "<p><em>"
+                    + Html.escape(TopicOverviewWording.of(unwritten.why(), language)) + "</em></p>\n";
+        };
+    }
+
+    private static String clusterTable(String head, CharSequence rows) {
+        return "<table><tbody>\n" + head + rows + "</tbody></table>\n";
+    }
+
+    /** Writes {@code body} as the page body of {@code folder} through its {@code .part}, and answers its digest. */
+    private String written(Path folder, String body) throws IOException {
+        Path part = folder.resolve(BODY_NAME + Deliverable.PART_SUFFIX);
+        Files.writeString(part, body, StandardCharsets.UTF_8);
+        String digest = sha256Of(part);
+        moves.intoPlace(part, folder.resolve(BODY_NAME));
+        return digest;
     }
 
     /**

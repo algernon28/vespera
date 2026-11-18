@@ -12,6 +12,7 @@ import java.util.function.Supplier;
  * @param path the survivor's own root-relative path
  * @param topic the topic the survivor is placed under, whose name follows the path
  * @param subtopic the subtopic of that topic its cluster lies in, empty where the topic has none
+ * @param subtopicCount how many subtopics that topic has, which pads its subtopic's place in a title
  * @param cluster the survivor's cluster, carrying its place in its topic's one sequence and its label
  * @param clusterFolder the cluster's folder in the HTML tree, from the tree's root, which holds its first page
  * @param writingTitleOf what the writing over the cluster is titled, empty where nothing was written over it; asked only
@@ -21,6 +22,7 @@ public record SeeAlsoLine(
         OccurrencePath path,
         ListedTopic topic,
         Optional<ListedSubtopic> subtopic,
+        int subtopicCount,
         RecordedCluster cluster,
         String clusterFolder,
         Supplier<Optional<String>> writingTitleOf) {

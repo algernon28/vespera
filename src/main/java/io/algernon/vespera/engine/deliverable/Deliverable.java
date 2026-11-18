@@ -640,6 +640,7 @@ public final class Deliverable {
                             line.path(),
                             layout.topic(),
                             layout.subtopicOf(cluster.get()),
+                            layout.subtopics().size(),
                             cluster.get(),
                             layout.clusterFolder(cluster.get()),
                             () -> source.writtenOver(slot).map(SynthesisDoc::title)));
