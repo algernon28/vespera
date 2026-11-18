@@ -3014,6 +3014,18 @@ public final class Adr {
             + "0411-adr-399-to-401-move-seed-measurement-and-adr-406s-floor-is-not-shown-in-the-control-panel.md";
 
     /**
+     * ADR-412 -- stage 0's chart is kept under the walk the census hands the job, and a new key empties no other
+     * stage's chart: before the hand-over the census's samples are those of the walk its lines name, written only over
+     * a file that names that walk, not frozen, and held otherwise; at the hand-over a file frozen under the walk handed
+     * is left as it is, one not frozen continued, and any other started afresh holding the walk walked's points, the
+     * samples held added one at a time and thinned past 256 as a chart's are; the census's count done is
+     * what its lines said of the walk walked; a stage's new key writes no other stage's file (amends ADR-382 §5, §7,
+     * Consequences and Known limits).
+     */
+    public static final String STAGE_0S_CHART_IS_KEPT_UNDER_THE_WALK_THE_CENSUS_KEEPS = FILE
+            + "0412-stage-0s-chart-is-kept-under-the-walk-the-census-keeps-and-a-new-key-empties-no-other-stages-chart.md";
+
+    /**
      * ADR-413 -- the two label commands leave the action card for a Labels section of the sidebar, after Seed folder,
      * named Save my labels and Auto Label, each with its caption, and starting {@code vespera label} and {@code vespera
      * label --auto} as before; every text of the control panel's windows that called a relevance label an answer says

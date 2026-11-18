@@ -55,7 +55,8 @@ import tools.jackson.databind.json.JsonMapper;
  * has succeeded; it never fails the invocation (ADR-265 section 4).
  *
  * <p>It also builds and writes each stage's chart, {@code chart-stage-<stage>.json} beside the report, from the same
- * readings (ADR-382 section 4 to 7).
+ * readings (ADR-382 section 4 to 7, as ADR-412 amends them: the census's chart is kept under the walk walked until the
+ * census hands the job its walk, and a new key empties no other stage's chart).
  *
  * <p>It holds no rule: it decides no verdict, cache key, cluster or text of the deliverable.
  */
@@ -276,7 +277,7 @@ final class JobSampler implements JobExecutionListener {
         lastLine.clear();
         stillInside.clear();
         entriesWalked.clear();
-        firstWalkNamed.set(null);
+        walkWalked.set(null);
         for (Class<?> source : List.of(StageProgress.class, StatementProgress.class, WalkRecorder.class)) {
             if (LoggerFactory.getLogger(source) instanceof ch.qos.logback.classic.Logger logger) {
                 LineAppender appender = new LineAppender();
@@ -295,6 +296,8 @@ final class JobSampler implements JobExecutionListener {
             baseline = recorded.get();
             discardedBaseline = discarded.get();
             keptCharts.clear();
+            heldSamples.clear();
+            censusHandedOver = false;
             chartsWarned = false;
             startRuns = null;
             samples.clear();
@@ -795,8 +798,21 @@ final class JobSampler implements JobExecutionListener {
     /** The entries each walk has been said to have walked so far, by walk, which the census's own line gives. */
     private final Map<Long, Long> entriesWalked = new ConcurrentHashMap<>();
 
-    /** The first walk the census's lines named: the corpus root's, which is walked before the seed folder. */
-    private final AtomicReference<Long> firstWalkNamed = new AtomicReference<>();
+    /**
+     * The walk walked (ADR-412 section 1): the first walk the census's lines named before it handed the job its walk,
+     * the corpus root's as the walk recorder continued or minted it, or the seed folder's where the corpus root's
+     * said no line.
+     */
+    private final AtomicReference<Long> walkWalked = new AtomicReference<>();
+
+    /** One sample of the walk walked that the census's chart holds in memory, not in its file (ADR-412 section 1). */
+    private record Held(Instant at, Long done) {}
+
+    /** Guarded by the writing lock: the walk walked's samples held until the census hands the job its walk. */
+    private final List<Held> heldSamples = new ArrayList<>();
+
+    /** Guarded by the writing lock: whether a reading has seen the census hand the job its walk (ADR-412 section 1). */
+    private boolean censusHandedOver;
 
     /** Guarded by {@link #writing}: each stage's chart, read from its file the first time the invocation needs it. */
     private final Map<String, KeptChart> keptCharts = new HashMap<>();
@@ -806,10 +822,12 @@ final class JobSampler implements JobExecutionListener {
 
     /**
      * Takes, at one reading, the samples of the stages' charts and writes the files that changed (ADR-382 section 4 to
-     * 7): a chart not frozen takes a sample at a reading at which a step of its stage runs, at the one at which it
-     * freezes and at the last where a step of its stage ran; a frozen chart is never written again under its key; a
-     * new key starts the chart afresh and empties the files of the stages after it. A file that cannot be written is
-     * warned of once in the invocation and fails nothing (ADR-265 section 4).
+     * 7, as ADR-412 amends them): a chart not frozen takes a sample at a reading at which a step of its stage runs, at
+     * the one at which it freezes and at the last where a step of its stage ran; a frozen chart is never written again
+     * under its key; a new key starts that stage's chart afresh and writes no other stage's file; the census's chart
+     * is kept under the walk walked until the census hands the job its walk, and under the walk handed from then on
+     * (ADR-412 section 1). A file that cannot be written is warned of once in the invocation and fails nothing
+     * (ADR-265 section 4).
      */
     private void keepTheCharts(
             JobExecution job, Map<String, StepExecution> executions, Map<String, String> states, boolean last,
@@ -834,10 +852,22 @@ final class JobSampler implements JobExecutionListener {
             throws IOException {
         StageOfChart stage = CHART_STAGES.get(at);
         Map<String, String> key = keyOf(stage, runs);
-        if (key.isEmpty()) {
+        if (key.isEmpty() && !stage.runStages().isEmpty()) {
             return;
         }
         KeptChart chart = keptChart(stage);
+        boolean handOver = false;
+        if (stage.runStages().isEmpty()) {
+            if (key.isEmpty()) {
+                beforeTheHandOver(stage, chart, runs, executions, states, last, now, nowRecorded, nowDiscarded);
+                return;
+            }
+            handOver = !censusHandedOver && walkWalked.get() != null;
+            if (handOver) {
+                handTheWalkOver(stage, chart, key.get(WALK_KEY));
+            }
+            censusHandedOver = true;
+        }
         boolean fresh = !key.entrySet().stream().allMatch(named -> named.getValue().equals(chart.key.get(named.getKey())));
         if (!fresh && chart.finishedAt != null) {
             return;
@@ -846,7 +876,7 @@ final class JobSampler implements JobExecutionListener {
         boolean ran = stage.steps().stream().anyMatch(executions::containsKey);
         boolean finishes = stage.steps().stream().allMatch(step -> "finished".equals(states.get(step)));
         boolean sampling = running || finishes || (last && ran);
-        if (!fresh && !sampling) {
+        if (!fresh && !sampling && !handOver) {
             return;
         }
         if (fresh) {
@@ -873,36 +903,77 @@ final class JobSampler implements JobExecutionListener {
             chart.finishedAt = (end == null ? now : end).truncatedTo(java.time.temporal.ChronoUnit.SECONDS).toString();
         }
         writeTheChart(stage, chart);
-        if (fresh) {
-            // a later stage's run names the run before it upstream, so it is new too: its file is emptied (ADR-382 section 7)
-            for (StageOfChart later : CHART_STAGES.subList(at + 1, CHART_STAGES.size())) {
-                KeptChart emptied = keptChart(later);
-                if (emptied.key.isEmpty() && emptied.finishedAt == null && emptied.points.isEmpty()) {
-                    continue;
-                }
-                emptied.key.clear();
-                emptied.finishedAt = null;
-                emptied.points = new ArrayList<>();
-                emptied.fileLast = new long[later.kinds().size()];
-                emptied.firstSampleAt = null;
-                emptied.origin = 0;
-                try {
-                    writeTheChart(later, emptied);
-                } catch (IOException | RuntimeException e) {
-                    if (!chartsWarned) {
-                        chartsWarned = true;
-                        log.warn("a stage's chart could not be kept beside the report: {}", e.getClass().getName());
-                    }
-                }
-            }
+    }
+
+    /**
+     * The census's chart before it has handed the job its walk (ADR-412 section 1): the sample of the walk walked is
+     * written where the file names that walk and is not frozen, and held otherwise, to be handed over or dropped.
+     */
+    private void beforeTheHandOver(
+            StageOfChart stage, KeptChart chart, InvocationRuns runs, Map<String, StepExecution> executions,
+            Map<String, String> states, boolean last, Instant now, Map<String, Long> nowRecorded,
+            Map<String, Long> nowDiscarded) throws IOException {
+        Long walked = walkWalked.get();
+        if (walked == null) {
+            return;
+        }
+        boolean running = stage.steps().stream().anyMatch(step -> "running".equals(states.get(step)));
+        boolean ran = stage.steps().stream().anyMatch(executions::containsKey);
+        if (!running && !(last && ran)) {
+            return;
+        }
+        if (String.valueOf(walked).equals(chart.key.get(WALK_KEY)) && chart.finishedAt == null) {
+            takeASample(stage, chart, runs, now, nowRecorded, nowDiscarded);
+            writeTheChart(stage, chart);
+        } else {
+            heldSamples.add(new Held(now, entriesWalked.get(walked)));
         }
     }
 
-    /** What a stage's chart is kept under: the corpus root's walk for the census, the runs the invocation reached otherwise. */
+    /**
+     * The first reading after the census handed the job its walk (ADR-412 section 1): a frozen chart of the walk
+     * handed drops the samples held; a chart of it not frozen is continued by them; otherwise the chart is started
+     * afresh under the walk handed, holding the walk walked's chart.
+     */
+    private void handTheWalkOver(StageOfChart stage, KeptChart chart, String handedKey) {
+        boolean names = handedKey.equals(chart.key.get(WALK_KEY));
+        if (names && chart.finishedAt != null) {
+            heldSamples.clear();
+            return;
+        }
+        if (!names) {
+            boolean holdsTheWalkWalked = String.valueOf(walkWalked.get()).equals(chart.key.get(WALK_KEY));
+            chart.key.clear();
+            chart.key.put(WALK_KEY, handedKey);
+            chart.finishedAt = null;
+            if (!holdsTheWalkWalked) {
+                chart.points = new ArrayList<>();
+                chart.fileLast = new long[stage.kinds().size()];
+                chart.firstSampleAt = null;
+                chart.origin = 0;
+            }
+        }
+        for (Held held : heldSamples) {
+            chart.points.add(new Point(secondOf(chart, held.at()), held.done(), new long[0]));
+            thin(chart);
+        }
+        heldSamples.clear();
+    }
+
+    /** The chart's own second for a sample taken at the instant given, the first of the invocation fixing its origin. */
+    private long secondOf(KeptChart chart, Instant at) {
+        if (chart.firstSampleAt == null) {
+            chart.firstSampleAt = at;
+            chart.origin = chart.points.isEmpty() ? 0 : chart.points.getLast().seconds() + interval.toSeconds();
+        }
+        return chart.origin + Math.max(0, Duration.between(chart.firstSampleAt, at).getSeconds());
+    }
+
+    /** What a stage's chart is kept under: the walk handed for the census, the runs the invocation reached otherwise. */
     private Map<String, String> keyOf(StageOfChart stage, InvocationRuns runs) {
         Map<String, String> key = new LinkedHashMap<>();
         if (stage.runStages().isEmpty()) {
-            Long walk = runs.corpusWalk().map(WalkId::value).orElse(firstWalkNamed.get());
+            Long walk = runs.corpusWalk().map(WalkId::value).orElse(null);
             if (walk != null) {
                 key.put(WALK_KEY, String.valueOf(walk));
             }
@@ -922,14 +993,10 @@ final class JobSampler implements JobExecutionListener {
     private void takeASample(
             StageOfChart stage, KeptChart chart, InvocationRuns runs, Instant now, Map<String, Long> nowRecorded,
             Map<String, Long> nowDiscarded) {
-        if (chart.firstSampleAt == null) {
-            chart.firstSampleAt = now;
-            chart.origin = chart.points.isEmpty() ? 0 : chart.points.getLast().seconds() + interval.toSeconds();
-        }
-        long seconds = chart.origin + Math.max(0, Duration.between(chart.firstSampleAt, now).getSeconds());
+        long seconds = secondOf(chart, now);
         Long done = null;
         if (stage.runStages().isEmpty()) {
-            Long walk = runs.corpusWalk().map(WalkId::value).orElse(firstWalkNamed.get());
+            Long walk = walkWalked.get();
             done = walk == null ? null : entriesWalked.get(walk);
         }
         for (String step : stage.steps()) {
@@ -958,6 +1025,11 @@ final class JobSampler implements JobExecutionListener {
             kinds[i] = Math.max(0, before + recordedHere - discardedHere);
         }
         chart.points.add(new Point(seconds, done, kinds));
+        thin(chart);
+    }
+
+    /** Thins a chart passing {@link #MOST_SAMPLES} to every other point, oldest first (ADR-382 section 5, ADR-412 section 1). */
+    private static void thin(KeptChart chart) {
         if (chart.points.size() > MOST_SAMPLES) {
             List<Point> kept = new ArrayList<>();
             for (int i = 0; i < chart.points.size(); i += 2) {
@@ -1099,7 +1171,9 @@ final class JobSampler implements JobExecutionListener {
                 // the census's own line, of the corpus root's walk or the seed folder's, by the walk it names (ADR-382 section 5)
                 long walk = Long.parseLong(census.group(2));
                 entriesWalked.put(walk, Long.parseLong(census.group(1).replace(",", "")));
-                firstWalkNamed.compareAndSet(null, walk);
+                if (job == null || new InvocationRuns(job.getExecutionContext()).corpusWalk().isEmpty()) {
+                    walkWalked.compareAndSet(null, walk);
+                }
                 return;
             }
             if (message == null
