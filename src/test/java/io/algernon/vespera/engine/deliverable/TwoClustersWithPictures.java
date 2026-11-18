@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * One seed partition of two clusters, drawn so that every call a plugin's drawing can hear is heard (ADR-333 §2): the
+ * One topic of two clusters, drawn so that every call a plugin's drawing can hear is heard (ADR-333 §2): the
  * first written over its two documents, the first of them an image whose copy its entry shows, carrying a picture it
  * shows and one it cannot, so that its entry tells of a copy shown, a picture and a picture not shown; the second
  * unwritten, its answer turned down for its shape. Every fixture is synthetic: an archive written here, a run id of
@@ -81,7 +81,7 @@ final class TwoClustersWithPictures {
     /** Every call one plugin hears over this fixture, in order, the closing of its entries left out. */
     static final List<String> EVERY_CALL = List.of(
             ScriptedPlugin.DRAWING,
-            ScriptedPlugin.PARTITION_STARTED + " 1/1",
+            ScriptedPlugin.TOPIC_STARTED + " 1/1",
             ScriptedPlugin.ENTRIES_OF + " 1 of 2",
             ScriptedPlugin.START + " 1 held",
             ScriptedPlugin.COPY_SHOWN,
@@ -95,7 +95,7 @@ final class TwoClustersWithPictures {
             ScriptedPlugin.START + " 1 held",
             ScriptedPlugin.END,
             ScriptedPlugin.CLUSTER_DRAWN + " 2 of 1 unwritten with its entries",
-            ScriptedPlugin.PARTITION_ENDED,
+            ScriptedPlugin.TOPIC_ENDED,
             ScriptedPlugin.FINISH + " " + Deliverable.MANIFEST_FILE_NAME + " standing",
             ScriptedPlugin.CLOSE);
 

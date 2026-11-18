@@ -204,7 +204,6 @@ class ASeedWithNoVectorStopsScoringTest {
     }
 
     private RelevanceScoring scoring() {
-        return new RelevanceScoring(
-                new VectorCache(jdbcTemplate), new RelevanceScorer(), new RelevanceScoreCache(jdbcTemplate));
+        return RelevanceScoringBeans.real(jdbcTemplate);
     }
 }

@@ -4,7 +4,6 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
-import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -14,6 +13,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -24,12 +24,14 @@ import org.junit.jupiter.api.Test;
  * <p>The two levels are ordered by different rules because they are not the same comparison. Within
  * one cluster of documents the scores share a seed and compare soundly; across clusters they would rank
  * the operator's own documents by how long they are, which is a property of the scoring function and
- * not a statement about the archive.
+ * not a statement about the archive. The top level is a topic's since ADR-396, its clusters offered as {@link
+ * TopicClusters} (ADR-409 section 3).
  */
 @Epic("Arrangement")
 @Feature("Ordering the arrangement")
 @Issue("175")
 @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
+@Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
 class ArrangementTest {
 
     /** The closest any document below sits to its seed. */
@@ -41,15 +43,19 @@ class ArrangementTest {
     /** The higher of that pair, offered to the arranger first so that insertion order cannot be what decides. */
     private static final int SECOND_ORDINAL = 7;
 
+    /** What a cluster's subtopic place is in a topic that has no subtopics (ADR-409 section 3). */
+    private static final int NO_SUBTOPIC_ORDER = 0;
+
     @Test
     @Story("Groups of documents are ordered ahead of lone documents")
     @DisplayName("Two groups that are equally close are ordered the same way on every run")
     void breaksAClusterTieOnSomethingThatDoesNotMoveBetweenRuns() {
         Cluster later = new Cluster(SECOND_ORDINAL, scores(TOP_SCORE, TOP_SCORE));
         Cluster earlier = new Cluster(FIRST_ORDINAL, scores(TOP_SCORE, TOP_SCORE));
-        Partition partition = new Partition(new OccurrenceId(1), "safety.docx", List.of(later, earlier));
+        TopicClusters topic = new TopicClusters(
+                new TopicKey("seeds/safety.docx", 0), OptionalInt.empty(), List.of(later, earlier));
 
-        List<ArrangedCluster> arranged = arranged(List.of(partition));
+        List<ArrangedCluster> arranged = arranged(List.of(topic));
 
         claim(
                 "two groups that cannot be told apart by size or by closeness are still ordered the same"
@@ -60,28 +66,26 @@ class ArrangementTest {
     }
 
     /**
-     * Every cluster of {@code partitions} with the place the two rules give it, arranged as stage 6a arranges
-     * since ADR-223: the partitions are put in order from their sizes and their seeds' paths alone, and then
-     * each partition's clusters are ordered on their own, at the place that order gave the partition.
+     * Every cluster of {@code topics} with the place the two rules give it, arranged as stage 6a arranges since
+     * ADR-223: the topics are put in order from their sizes and their keys alone, and then each topic's clusters are
+     * ordered on their own, at the place that order gave the topic. Each topic here has no subtopics.
      */
-    private static List<ArrangedCluster> arranged(List<Partition> partitions) {
-        Map<OccurrenceId, Integer> memberCounts = new LinkedHashMap<>();
-        Map<OccurrenceId, String> seedPaths = new LinkedHashMap<>();
-        for (Partition partition : partitions) {
+    private static List<ArrangedCluster> arranged(List<TopicClusters> topics) {
+        Map<TopicKey, Integer> memberCounts = new LinkedHashMap<>();
+        for (TopicClusters topic : topics) {
             memberCounts.put(
-                    partition.seed(),
-                    partition.clusters().stream().mapToInt(Cluster::documentCount).sum());
-            seedPaths.put(partition.seed(), partition.seedPath());
+                    topic.topic(),
+                    topic.clusters().stream().mapToInt(Cluster::documentCount).sum());
         }
-        List<OccurrenceId> inOrder = Arrangement.inOrder(memberCounts, seedPaths);
+        List<TopicKey> inOrder = Arrangement.topicsInOrder(memberCounts);
         List<ArrangedCluster> arranged = new ArrayList<>();
         for (int place = 0; place < inOrder.size(); place++) {
-            OccurrenceId seed = inOrder.get(place);
-            Partition partition = partitions.stream()
-                    .filter(candidate -> candidate.seed().equals(seed))
+            TopicKey key = inOrder.get(place);
+            TopicClusters topic = topics.stream()
+                    .filter(candidate -> candidate.topic().equals(key))
                     .findFirst()
                     .orElseThrow();
-            arranged.addAll(Arrangement.order(partition, place + 1));
+            arranged.addAll(Arrangement.order(topic, place + 1, NO_SUBTOPIC_ORDER));
         }
         return arranged;
     }
@@ -92,10 +96,6 @@ class ArrangementTest {
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("cluster " + cluster.ordinal() + " was not arranged"))
                 .clusterOrder();
-    }
-
-    private static Partition partition(long seedId, String seedPath, List<Double> memberScores) {
-        return new Partition(new OccurrenceId(seedId), seedPath, List.of(new Cluster(0, memberScores)));
     }
 
     private static List<Double> scores(double... values) {

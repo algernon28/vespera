@@ -233,7 +233,7 @@ class NextAction {
     /**
      * The tree a generation run left, and how many of its clusters carry no writing: every cluster the
      * arrangement it read gave, less every one a call actually produced (ADR-111) — faulted and
-     * unsendable both, since neither carries a {@code synthesis_doc} row.
+     * unsendable both, since neither carries a {@code cluster_synthesis_doc} row.
      */
     private Optional<DeliverableSummary> summarize(RunId generation) {
         Clusters clustersBean = clusters.getIfAvailable();

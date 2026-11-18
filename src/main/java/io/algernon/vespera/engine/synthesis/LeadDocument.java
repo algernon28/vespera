@@ -12,13 +12,14 @@ public final class LeadDocument {
     private LeadDocument() {}
 
     /**
-     * The member of {@code documents} in {@code cluster}'s partition and at {@code cluster}'s ordinal with
+     * The member of {@code documents} in {@code cluster}'s topic and subtopic and at {@code cluster}'s ordinal with
      * the highest score. A member with a null score is weighed as 0.0; of equal scores the first in
      * {@code documents}' order wins; none at all is an {@link IllegalStateException}.
      */
     public static OccurrenceId of(ArrangedCluster cluster, List<ClusteredDocument> documents) {
         return documents.stream()
-                .filter(document -> document.winningSeed().equals(cluster.winningSeed()))
+                .filter(document -> document.topic().equals(cluster.topic()))
+                .filter(document -> document.subtopic().equals(cluster.subtopic()))
                 .filter(document -> document.clusterOrdinal() == cluster.ordinal())
                 .max(Comparator.comparingDouble(document -> document.score() == null ? 0.0 : document.score()))
                 .map(ClusteredDocument::occurrence)

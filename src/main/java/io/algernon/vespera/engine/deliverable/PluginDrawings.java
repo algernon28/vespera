@@ -100,15 +100,15 @@ final class PluginDrawings implements AutoCloseable {
         return slots.stream().map(slot -> slot.plugin.name()).toList();
     }
 
-    void partitionStarted(ListedPartition partition, int partitionCount) {
+    void topicStarted(ListedTopic topic, int topicCount) {
         for (Slot slot : slots) {
-            call(slot, () -> slot.drawing.partitionStarted(partition, partitionCount));
+            call(slot, () -> slot.drawing.topicStarted(topic, topicCount));
         }
     }
 
     /** Opens one cluster's entries in every plugin still drawing, and answers the one set that passes each call on. */
     Entries entriesOf(
-            ListedPartition partition, RecordedCluster recorded, List<ListedSurvivor> members, Path clusterFolder,
+            ListedTopic topic, RecordedCluster recorded, List<ListedSurvivor> members, Path clusterFolder,
             Copies copies) {
         Fanned fanned = new Fanned();
         for (Slot slot : slots) {
@@ -116,7 +116,7 @@ final class PluginDrawings implements AutoCloseable {
                 continue;
             }
             Entries[] own = new Entries[1];
-            call(slot, () -> own[0] = slot.drawing.entriesOf(partition, recorded, members, clusterFolder, copies));
+            call(slot, () -> own[0] = slot.drawing.entriesOf(topic, recorded, members, clusterFolder, copies));
             if (slot.active) {
                 fanned.add(slot, own[0]);
             }
@@ -126,7 +126,7 @@ final class PluginDrawings implements AutoCloseable {
 
     /** Tells each plugin the cluster is drawn, handing it back the entries its own {@code entriesOf} returned. */
     void clusterDrawn(
-            ListedPartition partition,
+            ListedTopic topic,
             RecordedCluster recorded,
             Optional<SynthesisDoc> doc,
             Unwritten why,
@@ -139,13 +139,13 @@ final class PluginDrawings implements AutoCloseable {
             Slot slot = fanned.slots.get(at);
             Entries own = fanned.own.get(at);
             call(slot, () -> slot.drawing.clusterDrawn(
-                    partition, recorded, doc, why, entryCount, breaks, own, writingFinished));
+                    topic, recorded, doc, why, entryCount, breaks, own, writingFinished));
         }
     }
 
-    void partitionEnded() {
+    void topicEnded() {
         for (Slot slot : slots) {
-            call(slot, () -> slot.drawing.partitionEnded());
+            call(slot, () -> slot.drawing.topicEnded());
         }
     }
 

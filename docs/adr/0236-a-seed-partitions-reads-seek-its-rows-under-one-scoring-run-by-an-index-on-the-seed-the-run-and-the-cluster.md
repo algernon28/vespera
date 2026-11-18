@@ -1,5 +1,7 @@
 # ADR-236 — A seed partition's reads seek its rows under one scoring run, by an index on the seed, the run and the cluster
 
+> **Partly amended — see [ADR-409](0409-topics-placement-names-overviews-and-clusters-within-topics-are-kept-in-new-tables-keyed-by-a-topics-first-passage.md).** §1's index no longer ships, and with it what §2 and §3 say of it: `schema.sql` no longer creates `document_cluster` or builds `document_cluster_by_winning_seed_run_and_cluster`, and a database an earlier build wrote keeps both, unread. One topic's memberships are read, and its sizes counted, by `cluster_member_by_run_topic_subtopic_and_cluster (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal, cluster_ordinal)`, led by the run and the topic, which sorts nothing and is built over a table holding no row when `schema.sql` first runs over it. *What this does not decide*, taking out `document_cluster_by_winning_seed_occurrence_id`, is moot for the same reason.
+
 - **Date**: 2026-10-11
 - **Status**: accepted on 2026-10-11.
 - **Amends**: [ADR-218](0218-every-statement-whose-temporary-files-grow-with-the-corpus-is-an-exception-to-adr-060-with-its-size.md): §2's class of start-up index builds gains one, `document_cluster_by_winning_seed_run_and_cluster`, with the size measured below, so the class is thirty-two; §3's class loses row 12, the cluster sizes of one partition, which sorts nothing once the index is there. ADR-218 carries a note at its head saying so.

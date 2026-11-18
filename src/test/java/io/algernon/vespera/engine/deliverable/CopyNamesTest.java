@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
-import io.algernon.vespera.engine.ledger.OccurrencePath;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -249,7 +248,6 @@ class CopyNamesTest {
 
     /** A member of one cluster, at {@code path}; no file is read, so its key and score are placeholders. */
     private static ListedSurvivor member(long occurrence, String path) {
-        return new ListedSurvivor(
-                new OccurrenceId(occurrence), new OccurrencePath(path), "0".repeat(64), THE_SEED, "seeds/a.docx", 0, 0.5);
+        return ListedTree.survivor(occurrence, path, "0".repeat(64), THE_SEED, "seeds/a.docx", 0, 0.5);
     }
 }

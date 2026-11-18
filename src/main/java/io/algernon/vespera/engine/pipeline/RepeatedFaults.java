@@ -51,7 +51,7 @@ final class RepeatedFaults {
     void asking(RecordedCluster recorded) {
         ClusterSlot slot = ClusterSlot.of(recorded);
         standingWhenAsked.computeIfAbsent(
-                slot, key -> clusterFaults.forCluster(generation, key.winningSeed(), key.clusterOrdinal()));
+                slot, key -> clusterFaults.forCluster(generation, key));
     }
 
     /** Notes that this invocation's answer for {@code recorded} was turned down with {@code fault}. */
@@ -63,7 +63,10 @@ final class RepeatedFaults {
         if (standingBefore && KINDS_OF_WHAT_WAS_WRITTEN.contains(fault.kind())) {
             repeated.put(
                     slot,
-                    "cluster " + recorded.cluster().ordinal() + " of partition " + recorded.cluster().partitionOrder()
+                    "cluster " + recorded.cluster().ordinal() + " of topic " + recorded.cluster().topicOrder()
+                            + (recorded.cluster().subtopic().isPresent()
+                                    ? ", subtopic " + recorded.cluster().subtopic().getAsInt()
+                                    : "")
                             + " (" + fault.kind() + ": " + fault.detail() + ")");
         }
     }

@@ -315,8 +315,8 @@ class RunIdentityGoldenTest {
                                         + "\"measurementRunId\":\"%s\",\"relevanceScoreFloor\":null}")
                                 .formatted(inJson(Walk.canonicalRoot(root)), theIdOf("seed-measurement"))));
         claim(
-                "and it names no subtopic floor: until #832 wires the floor into the clustering step no step reads"
-                        + " it, so no run names it (ADR-406 section 5)",
+                "and it names no subtopic floor: the clustering step divides each topic at the floor, and the"
+                        + " shipped 300 is written as no member (ADR-406 section 5, ADR-409 section 8)",
                 () -> assertThat((String) run.get("config_consumed")).doesNotContain("subtopicFloor"));
         claim(
                 "and its code version is the embedding module's, then extraction's, and not the version of the"
@@ -364,6 +364,8 @@ class RunIdentityGoldenTest {
     @Issue("479")
     @Link(name = "ADR-226", url = Adr.NO_STAGE_NAMES_PIPELINE_AND_ITS_RULES_LIVE_IN_THE_CAPABILITY_MODULES, type = "adr")
     @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
+    @Issue("832")
+    @Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
     void generation() {
         Map<String, Object> run = theRunOf("generation");
 
@@ -373,14 +375,16 @@ class RunIdentityGoldenTest {
                         + " under that name, the 8192-token window it reads each group through by default,"
                         + " the 1024 tokens it leaves the reply, -1 for how much of a question too long"
                         + " for the window the engine is asked to keep: all of it that fits, so a cut shows"
-                        + " in the count, and en, the language the pages are written and drawn in where the"
-                        + " profile names none",
+                        + " in the count, en, the language the pages are written and drawn in where the"
+                        + " profile names none, and the temperature of 0 and the seed of 1 each topic's"
+                        + " overview is asked at",
                 () -> assertThat(run.get("config_consumed")).isEqualTo(
                         ("{\"corpusRoot\":\"%s\",\"arrangementRunId\":\"%s\","
                                         + "\"generationModel\":\"" + GENERATION_MODEL + "\","
                                         + "\"weightsDigest\":\"" + EmbeddingScriptedBeans.DIGEST + "\","
                                         + "\"contextWindow\":8192,\"replyAllowance\":1024,\"numKeep\":-1,"
-                                        + "\"deliverableLanguage\":\"en\"}")
+                                        + "\"deliverableLanguage\":\"en\","
+                                        + "\"overviewTemperature\":0.0,\"overviewSeed\":1}")
                                 .formatted(inJson(Walk.canonicalRoot(root)), theIdOf("arrangement"))));
         claim(
                 "and its code version is the synthesis module's, then extraction's, then embedding's: the code"

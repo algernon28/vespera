@@ -6,9 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
-import io.algernon.vespera.engine.ledger.OccurrencePath;
-import io.algernon.vespera.engine.synthesis.ArrangedCluster;
-import io.algernon.vespera.engine.synthesis.ClusterLabel;
 import io.algernon.vespera.engine.synthesis.ListedDoc;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
 import io.algernon.vespera.engine.synthesis.SynthesisDoc;
@@ -75,10 +72,10 @@ class ClusterPageLinksAndWordingTest {
     /** The walk the run read, which is what says which archive the copies were taken from (ADR-104). */
     private static final long WALK = 7L;
 
-    /** The seed whose partition every cluster below sits in. */
+    /** The seed that won every survivor below, whose topic every cluster lies in ({@link ListedTree#topicOf}). */
     private static final OccurrenceId THE_SEED = new OccurrenceId(1);
 
-    /** The seed document's own filename, which is what the partition directory is named from. */
+    /** The seed document's own filename, whose stem names the topic, and so the topic's directory. */
     private static final String SEED_PATH = "seeds/Industrial Safety Standards.docx";
 
     /** What stage 6a called the one cluster most of these tests arrange. */
@@ -247,12 +244,10 @@ class ClusterPageLinksAndWordingTest {
             List<ListedSurvivor> members,
             int documentCount) {
         List<RecordedCluster> arrangement =
-                List.of(new RecordedCluster(
-                        new ArrangedCluster(THE_SEED, FIRST_ORDINAL, documentCount, FIRST_PLACE, FIRST_PLACE),
-                        new ClusterLabel(THE_LABEL)));
+                List.of(ListedTree.cluster(THE_SEED, FIRST_ORDINAL, THE_LABEL, FIRST_PLACE, documentCount));
         List<ListedDoc> written = doc == null
                 ? List.of()
-                : List.of(new ListedDoc(THE_SEED, FIRST_ORDINAL, doc));
+                : List.of(new ListedDoc(ListedTree.slotOf(THE_SEED, FIRST_ORDINAL), doc));
         return ListedArrangement.writeTo(workingDirectory, provenance(corpusRoot), arrangement, written, members);
     }
 
@@ -330,13 +325,6 @@ class ClusterPageLinksAndWordingTest {
 
     /** One survivor of the one cluster, at {@code path} with {@code score}, its key that of its file's bytes. */
     private static ListedSurvivor aMember(long occurrence, String path, double score, int ordinal) {
-        return new ListedSurvivor(
-                new OccurrenceId(occurrence),
-                new OccurrencePath(path),
-                sha256Of(bytesOf(path)),
-                THE_SEED,
-                SEED_PATH,
-                ordinal,
-                score);
+        return ListedTree.survivor(occurrence, path, sha256Of(bytesOf(path)), THE_SEED, SEED_PATH, ordinal, score);
     }
 }

@@ -12,7 +12,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * {@code extraction}'s record of a refused conversion (ADR-139), behind this class and nothing else
  * querying the table (ADR-041).
  *
- * <p><b>The precedent is {@code unusable_seed} and {@code cluster_fault}, not the ledger.</b> A
+ * <p><b>The precedent is {@code unusable_seed} and {@code standing_cluster_fault}, not the ledger.</b> A
  * verdict removes an occurrence from the survivor set; a fault row alone removes nothing -- it is
  * {@code pipeline}'s own fault-resolving listener (ADR-139 section 3) that turns one into {@code
  * extraction-failed}, and since ADR-220 section 14 it does so from the rows this class reads back a page

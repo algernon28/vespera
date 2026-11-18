@@ -150,9 +150,10 @@ public final class FixedWords {
                     + " dell'archivio riportata sopra. La cartella di ogni gruppo contiene la sua pagina e una copia"
                     + " di ogni documento che vi è elencato, verificata con l'impronta presa quando è stato"
                     + " convertito, e ogni collegamento della pagina di un gruppo porta alla sua copia; la radice"
-                    + " dell'archivio indica da dove sono state copiate. La colonna seed_partition non è un percorso"
-                    + " sotto quella radice: indica un documento campione sotto la cartella dei campioni, che è una"
-                    + " radice a sé. Le colonne copy e copy_outcome dicono quali documenti sono stati copiati e, per"
+                    + " dell'archivio indica da dove sono state copiate. La colonna seed_partition non è un percorso:"
+                    + " contiene il nome dell'argomento sotto cui è collocato ogni documento, e ogni cartella numerata"
+                    + " accanto a questa pagina prende il nome da un argomento e contiene le cartelle dei gruppi di"
+                    + " quell'argomento. Le colonne copy e copy_outcome dicono quali documenti sono stati copiati e, per"
                     + " quelli che non lo sono stati, perché.";
         };
     }

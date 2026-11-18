@@ -117,7 +117,7 @@ class ClusteringInvocationTest {
      */
     private long documentClusterRowCountFor(Path root) {
         Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM document_cluster c JOIN file_occurrence f ON f.id = c.occurrence_id"
+                "SELECT COUNT(*) FROM cluster_member c JOIN file_occurrence f ON f.id = c.occurrence_id"
                         + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ?",
                 Long.class,
                 walkRoot(root));
@@ -126,7 +126,7 @@ class ClusteringInvocationTest {
 
     private List<String> documentClusterRunIdsFor(Path root) {
         return jdbcTemplate.queryForList(
-                "SELECT c.run_id FROM document_cluster c JOIN file_occurrence f ON f.id = c.occurrence_id"
+                "SELECT c.run_id FROM cluster_member c JOIN file_occurrence f ON f.id = c.occurrence_id"
                         + " JOIN walk w ON w.id = f.walk_id WHERE w.root = ?",
                 String.class,
                 walkRoot(root));

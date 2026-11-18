@@ -76,9 +76,10 @@ class InvocationAccountTest {
         jdbc.execute("CREATE TABLE run (id TEXT PRIMARY KEY, walk_id INTEGER)");
         jdbc.execute("CREATE TABLE verdict (run_id TEXT, kind TEXT)");
         jdbc.execute("CREATE TABLE extraction_fault (run_id TEXT, category TEXT)");
-        jdbc.execute("CREATE TABLE cluster_fault (run_id TEXT, kind TEXT)");
-        jdbc.execute("CREATE TABLE cluster (run_id TEXT)");
-        jdbc.execute("CREATE TABLE synthesis_doc (run_id TEXT)");
+        // The account's three counts of synthesis's tables read the tables ADR-409 section 14 names.
+        jdbc.execute("CREATE TABLE standing_cluster_fault (run_id TEXT, kind TEXT)");
+        jdbc.execute("CREATE TABLE arranged_cluster (run_id TEXT)");
+        jdbc.execute("CREATE TABLE cluster_synthesis_doc (run_id TEXT)");
         report = SixJobsForTests.aReport(workingDirectory);
         report.begins(InvocationReport.RUN);
     }

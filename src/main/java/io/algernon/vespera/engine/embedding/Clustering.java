@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import org.springframework.stereotype.Component;
 
 /**
@@ -55,12 +56,12 @@ public class Clustering {
     static final long BLOCK_BUDGET_BYTES = 64L * 1024 * 1024;
 
     private final VectorCache vectorCache;
-    private final RelevanceScoreCache scoreCache;
+    private final Placements placements;
     private final DocumentClusters documentClusters;
 
-    Clustering(VectorCache vectorCache, RelevanceScoreCache scoreCache, DocumentClusters documentClusters) {
+    Clustering(VectorCache vectorCache, Placements placements, DocumentClusters documentClusters) {
         this.vectorCache = vectorCache;
-        this.scoreCache = scoreCache;
+        this.placements = placements;
         this.documentClusters = documentClusters;
     }
 
@@ -95,80 +96,148 @@ public class Clustering {
         return mean;
     }
 
-    /** The seeds whose partitions {@code runId} scored, in occurrence order — one clustering pass each. */
-    public List<OccurrenceId> partitions(RunId runId) {
-        return scoreCache.winningSeeds(runId);
+    /**
+     * The survivors of {@code contentHashes}, which are one subtopic's, strongest first (ADR-407 section 4, ADR-409
+     * section 6): by the cosine of each survivor's mean vector to the subtopic's centroid, two of equal cosine in the
+     * order of their paths as ADR-399 section 4 compares a seed's. The centroid is taken in one pass over the members,
+     * summing their mean vectors each taken to unit length, and each member's cosine in a second, so that no mean
+     * vector is held past its member (ADR-085).
+     *
+     * @param paths each survivor's path, which breaks a tie
+     * @throws IllegalStateException for a survivor with no stored chunk vector under the identities
+     */
+    public List<OccurrenceId> strongestFirst(
+            Map<OccurrenceId, String> contentHashes,
+            Map<OccurrenceId, String> paths,
+            String chunkerIdentity,
+            String chunkingRuleIdentity,
+            String embedderIdentity) {
+        double[] centroid = null;
+        for (String contentHash : contentHashes.values()) {
+            double[] unit = unitLengthMeanOf(contentHash, chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
+            if (centroid == null) {
+                centroid = new double[unit.length];
+            }
+            for (int component = 0; component < unit.length; component++) {
+                centroid[component] += unit[component];
+            }
+        }
+        Map<OccurrenceId, Double> cosines = new java.util.HashMap<>();
+        for (Map.Entry<OccurrenceId, String> member : contentHashes.entrySet()) {
+            double[] unit =
+                    unitLengthMeanOf(member.getValue(), chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
+            double dot = 0;
+            double norm = 0;
+            for (int component = 0; component < unit.length; component++) {
+                dot += unit[component] * centroid[component];
+                norm += centroid[component] * centroid[component];
+            }
+            cosines.put(member.getKey(), norm == 0 ? 0.0 : dot / Math.sqrt(norm));
+        }
+        List<OccurrenceId> ordered = new ArrayList<>(contentHashes.keySet());
+        ordered.sort(java.util.Comparator.<OccurrenceId>comparingDouble(cosines::get)
+                .reversed()
+                .thenComparing((left, right) -> SeedPassage.comparePaths(paths.get(left), paths.get(right))));
+        return List.copyOf(ordered);
     }
 
-    /** The survivors {@code winningSeed} won under {@code runId}, in the order clustering visits them. */
-    public List<OccurrenceId> membersOf(RunId runId, OccurrenceId winningSeed) {
-        return scoreCache.partitionMembers(runId, winningSeed);
+    private double[] unitLengthMeanOf(
+            String contentHash, String chunkerIdentity, String chunkingRuleIdentity, String embedderIdentity) {
+        float[] mean = meanVectorOf(contentHash, chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
+        if (mean.length == 0) {
+            throw new IllegalStateException("no stored chunk vectors under content hash " + contentHash
+                    + " for a survivor of a subtopic being named, under the identities asked for");
+        }
+        double norm = 0;
+        for (float component : mean) {
+            norm += (double) component * component;
+        }
+        norm = Math.sqrt(norm);
+        double[] unit = new double[mean.length];
+        for (int component = 0; component < mean.length; component++) {
+            unit[component] = norm == 0 ? 0 : mean[component] / norm;
+        }
+        return unit;
+    }
+
+    /** The topics {@code runId} placed at least one survivor under, in key order — one clustering pass each (ADR-409 section 8). */
+    public List<TopicKey> topics(RunId runId) {
+        return placements.topicsPlacedUnder(runId);
+    }
+
+    /** The survivors {@code topic} holds under {@code runId}, in the order clustering visits them. */
+    public List<OccurrenceId> membersOf(RunId runId, TopicKey topic) {
+        return placements.membersOf(runId, topic);
     }
 
     /**
-     * Clusters one seed partition and records where each of its documents landed.
+     * Clusters one topic and records where each of its documents landed: its subtopic, where the topic is crowded
+     * and divided (ADR-406), and its cluster.
      *
-     * <p>{@code contentHashesByOccurrence} is the partition in the order clustering visits it — which
+     * <p>{@code contentHashesByOccurrence} is the topic in the order clustering visits it — which
      * is occurrence order, from {@link #membersOf} — each document mapped to the content hash its
      * vectors are stored under. The caller owes the hashes because only it can reach the files;
      * nothing here touches one.
      *
      * <p><b>What comes back is an observation about the graph, not about the recording.</b> The
-     * spread of the similarities on the edges the graph kept is the one number that tells a partition
-     * clustered by resemblance from a partition clustered by k (ADR-096), and it is returned rather than
+     * spread of the similarities on the edges the graph kept over the whole topic is the one number that tells a topic
+     * clustered by resemblance from a topic clustered by k (ADR-096), and it is returned rather than
      * stored because nothing reads it but the page: no verdict, no profile key and no gate follows
-     * from it. Empty where the graph kept no edge, which is a partition of one.
+     * from it. Empty where the graph kept no edge, which is a topic of one.
      *
-     * <p>Every document in the partition comes back with exactly one cluster ordinal, including a
+     * <p>Every document in the topic comes back with exactly one cluster ordinal, including a
      * document that resembles nothing, which lands in a cluster of its own. Nothing is merged and
-     * nothing is left out: a survivor with no cluster is a page-tree hole, and a partition-level
+     * nothing is left out: a survivor with no cluster is a page-tree hole, and a topic-level
      * catch-all would be a page no document belongs to (ADR-022's unattributed bucket sits at the top
-     * level, for documents with no winning seed, which is a different condition with a different
-     * cause).
+     * level, for documents placed nowhere, which is a different condition with a different cause).
      *
      * <p>{@code neighbours} is ADR-087's k, the preset {@code vespera.clustering.neighbours} (shipped as 15), and
      * {@code resolution} the one {@code vespera.clustering.resolution} or the profile's {@code clusterResolution}
      * gives (shipped as 1.0; ADR-330 §8, §9). Both are the numbers the scoring run was minted under, handed down by
-     * it, and neither is held by a constant here.
+     * it, and neither is held by a constant here. {@code subtopicFloor} is the number of survivors from which a topic
+     * is divided (ADR-406 section 1, shipped as 300).
      *
-     * @throws IllegalArgumentException for {@code neighbours} below 1, or a {@code resolution} that is not a finite
-     *     number above 0, whatever the partition holds
+     * @throws IllegalArgumentException for {@code neighbours} below 1, a {@code subtopicFloor} below 1, or a {@code
+     *     resolution} that is not a finite number above 0, whatever the topic holds
      */
     public Optional<RetainedEdgeSpread> clusterAndRecord(
             RunId runId,
-            OccurrenceId winningSeed,
-            Map<OccurrenceId, String> contentHashesByOccurrence,
-            String chunkerIdentity,
-            String chunkingRuleIdentity,
-            String embedderIdentity,
-            int neighbours,
-            double resolution) {
-        return clusterAndRecord(
-                runId,
-                winningSeed,
-                contentHashesByOccurrence,
-                chunkerIdentity,
-                chunkingRuleIdentity,
-                embedderIdentity,
-                neighbours,
-                resolution,
-                ClusteringProgress.NONE);
-    }
-
-    /**
-     * As {@link #clusterAndRecord(RunId, OccurrenceId, Map, String, String, String, int, double)}, telling {@code
-     * progress} how many pairs of blocks the partition's pass compares and each pair as it is done (ADR-192
-     * section 5). A partition with no member returns before the pass and calls neither method.
-     */
-    public Optional<RetainedEdgeSpread> clusterAndRecord(
-            RunId runId,
-            OccurrenceId winningSeed,
+            TopicKey topic,
             Map<OccurrenceId, String> contentHashesByOccurrence,
             String chunkerIdentity,
             String chunkingRuleIdentity,
             String embedderIdentity,
             int neighbours,
             double resolution,
+            int subtopicFloor) {
+        return clusterAndRecord(
+                runId,
+                topic,
+                contentHashesByOccurrence,
+                chunkerIdentity,
+                chunkingRuleIdentity,
+                embedderIdentity,
+                neighbours,
+                resolution,
+                subtopicFloor,
+                ClusteringProgress.NONE);
+    }
+
+    /**
+     * As {@link #clusterAndRecord(RunId, TopicKey, Map, String, String, String, int, double, int)}, telling {@code
+     * progress} how many pairs of blocks the pass over the whole topic compares and each pair as it is done (ADR-192
+     * section 5). A topic with no member returns before the pass and calls neither method.
+     */
+    public Optional<RetainedEdgeSpread> clusterAndRecord(
+            RunId runId,
+            TopicKey topic,
+            Map<OccurrenceId, String> contentHashesByOccurrence,
+            String chunkerIdentity,
+            String chunkingRuleIdentity,
+            String embedderIdentity,
+            int neighbours,
+            double resolution,
+            int subtopicFloor,
             ClusteringProgress progress) {
         if (neighbours < 1) {
             throw new IllegalArgumentException("a graph keeps at least one neighbour, not " + neighbours);
@@ -176,17 +245,24 @@ public class Clustering {
         if (!(resolution > 0) || Double.isInfinite(resolution)) {
             throw new IllegalArgumentException("the resolution must be a finite number above 0, not " + resolution);
         }
+        if (subtopicFloor < 1) {
+            throw new IllegalArgumentException(
+                    "a topic must hold at least one survivor to be divided, not " + subtopicFloor);
+        }
         List<OccurrenceId> members = List.copyOf(contentHashesByOccurrence.keySet());
         if (members.isEmpty()) {
             return Optional.empty();
         }
         StoredMeanVectors vectors = new StoredMeanVectors(
                 List.copyOf(contentHashesByOccurrence.values()), chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
-        NearestNeighbourGraph.Graph graph =
-                NearestNeighbourGraph.build(vectors, neighbours, blockSizeFor(vectors.dimension()), progress);
-        int[] ordinals = Communities.of(graph, resolution);
+        int blockSize = blockSizeFor(vectors.dimension());
+        NearestNeighbourGraph.Graph graph = NearestNeighbourGraph.build(vectors, neighbours, blockSize, progress);
+        TopicDivision division = TopicDivision.of(graph, vectors, neighbours, resolution, subtopicFloor, blockSize);
         for (int document = 0; document < members.size(); document++) {
-            documentClusters.record(runId, members.get(document), winningSeed, ordinals[document]);
+            OptionalInt subtopic = division.hasSubtopics()
+                    ? OptionalInt.of(division.subtopicOf().get(document))
+                    : OptionalInt.empty();
+            documentClusters.record(runId, members.get(document), topic, subtopic, division.clusterOf().get(document));
         }
         return RetainedEdgeSpread.over(graph);
     }

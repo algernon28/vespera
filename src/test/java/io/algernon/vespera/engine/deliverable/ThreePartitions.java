@@ -13,17 +13,19 @@ import io.algernon.vespera.engine.synthesis.Unwritten;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
- * An arrangement of three seed partitions and eleven survivors, as lists: what the tests of ADR-223 hand the
- * tree's writer.
+ * An arrangement of three topics and eleven survivors, as lists: what the tests of ADR-223 hand the tree's writer.
  *
- * <p>Chosen so that every case the record names is in it. The survivors' occurrence ids run 10 to 20 and
- * alternate between the partitions, so occurrence order cuts across them. Seed 2's partition holds five and
- * comes first; seeds 1 and 3 hold three each and are placed by their seeds' paths. Two survivors of one cluster
- * score alike in each partition. Cluster 0 of seed 2 is written from two of its three survivors, neither the
- * highest-scoring, in an order that is not occurrence order. Of the four clusters with no writing, one carries
- * a fault, nothing could be sent for one, one was not reached, and one has no reason given.
+ * <p>Chosen so that every case the record names is in it. Each topic is the one {@link ListedTree#topicOf} gives the
+ * survivors one seed won, undivided, and named by that seed's filename stem (ADR-409 section 10). The survivors'
+ * occurrence ids run 10 to 20 and alternate between the topics, so occurrence order cuts across them. Seed 2's topic
+ * holds five and comes first; seeds 1's and 3's hold three each and are placed by their keys. Two survivors of one
+ * cluster score alike in each topic. Cluster 0 of seed 2's topic is written from two of its three survivors, neither
+ * the highest-scoring, in an order that is not occurrence order. Of the four clusters with no writing, one carries a
+ * fault, nothing could be sent for one, one was not reached, and one has no reason given.
  *
  * <p>Public, as {@link ListedTree} is, so that {@code confluence}'s tests draw the same lists through a plugin
  * (ADR-333 §2).
@@ -49,7 +51,7 @@ public final class ThreePartitions {
                 "f00d".repeat(16), 7L, corpusRoot, List.of(new NamedValue("seedFolder", "seeds"), new NamedValue("relevanceFloor", "")));
     }
 
-    /** The six clusters, in stored order: partition order, then cluster order. */
+    /** The six clusters, in stored order: topic order, then cluster order. */
     public static List<RecordedCluster> arrangement() {
         return List.of(
                 cluster(BETA, 0, 3, 1, 1, "Fire doors | inspection"),
@@ -80,15 +82,13 @@ public final class ThreePartitions {
     public static List<ListedDoc> written() {
         return List.of(
                 new ListedDoc(
-                        BETA,
-                        0,
+                        ListedTree.slotOf(BETA, 0),
                         new SynthesisDoc(
                                 "Fire doors & their inspection",
                                 "The doors were inspected twice [1]. The second inspection found a fault [2][1].",
                                 List.of(new OccurrenceId(17), new OccurrenceId(10)))),
                 new ListedDoc(
-                        ALPHA,
-                        2,
+                        ListedTree.slotOf(ALPHA, 2),
                         new SynthesisDoc(
                                 "Risers", "[1] One note covers the risers.", List.of(new OccurrenceId(15)))));
     }
@@ -96,16 +96,18 @@ public final class ThreePartitions {
     /** Why three of the four clusters without writing have none; the fourth is given no reason. */
     public static Map<ClusterSlot, Unwritten> unwritten() {
         Map<ClusterSlot, Unwritten> why = new LinkedHashMap<>();
-        why.put(new ClusterSlot(BETA, 1), Unwritten.of(ClusterFaultKind.SCHEMA_VIOLATION));
-        why.put(new ClusterSlot(ALPHA, 0), Unwritten.NO_SENDABLE_DOCUMENT);
-        why.put(new ClusterSlot(GAMMA, 1), Unwritten.NOT_REACHED);
+        why.put(ListedTree.slotOf(BETA, 1), Unwritten.of(ClusterFaultKind.SCHEMA_VIOLATION));
+        why.put(ListedTree.slotOf(ALPHA, 0), Unwritten.NO_SENDABLE_DOCUMENT);
+        why.put(ListedTree.slotOf(GAMMA, 1), Unwritten.NOT_REACHED);
         return why;
     }
 
     private static RecordedCluster cluster(
-            OccurrenceId seed, int ordinal, int documentCount, int partitionOrder, int clusterOrder, String label) {
+            OccurrenceId seed, int ordinal, int documentCount, int topicOrder, int clusterOrder, String label) {
         return new RecordedCluster(
-                new ArrangedCluster(seed, ordinal, documentCount, partitionOrder, clusterOrder), new ClusterLabel(label));
+                new ArrangedCluster(
+                        ListedTree.topicOf(seed), OptionalInt.empty(), ordinal, documentCount, topicOrder, 0, clusterOrder),
+                new ClusterLabel(label));
     }
 
     private static ListedSurvivor survivor(
@@ -114,8 +116,10 @@ public final class ThreePartitions {
                 new OccurrenceId(occurrence),
                 new OccurrencePath(path),
                 "key" + occurrence,
-                seed,
-                seedPath,
+                Optional.of(seed),
+                ListedTree.topicOf(seed),
+                ListedTree.topicNameOf(seedPath),
+                OptionalInt.empty(),
                 clusterOrdinal,
                 score);
     }

@@ -206,18 +206,20 @@ class GenerationInvocationTest {
     private ConversionOffTheRecordFixture.Held aClusterNothingCanBeSentFor(
             RunId arrangement, Path root, String label) throws IOException {
         jdbcTemplate.update(
-                "INSERT INTO cluster (run_id, winning_seed_occurrence_id, cluster_ordinal, label,"
-                        + " document_count, partition_order, cluster_order)"
-                        + " SELECT run_id, winning_seed_occurrence_id, cluster_ordinal + 1, ?,"
-                        + " 1, partition_order, cluster_order + 1"
-                        + " FROM cluster WHERE run_id = ?",
+                "INSERT INTO arranged_cluster (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal,"
+                        + " cluster_ordinal, label, document_count, topic_order, subtopic_order, cluster_order)"
+                        + " SELECT run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal, cluster_ordinal + 1, ?,"
+                        + " 1, topic_order, subtopic_order, cluster_order + 1"
+                        + " FROM arranged_cluster WHERE run_id = ?",
                 label,
                 arrangement.value());
         jdbcTemplate.update(
-                "UPDATE cluster SET document_count = 1 WHERE run_id = ? AND label <> ?", arrangement.value(), label);
+                "UPDATE arranged_cluster SET document_count = 1 WHERE run_id = ? AND label <> ?",
+                arrangement.value(),
+                label);
         long moved = theLastDocumentOf(arrangement);
         jdbcTemplate.update(
-                "UPDATE document_cluster SET cluster_ordinal = cluster_ordinal + 1 WHERE occurrence_id = ?"
+                "UPDATE cluster_member SET cluster_ordinal = cluster_ordinal + 1 WHERE occurrence_id = ?"
                         + " AND run_id = (SELECT upstream_run_id FROM run_upstream WHERE run_id = ?)",
                 moved,
                 arrangement.value());
@@ -230,7 +232,7 @@ class GenerationInvocationTest {
      */
     private long theLastDocumentOf(RunId arrangement) {
         return jdbcTemplate.queryForObject(
-                "SELECT occurrence_id FROM document_cluster WHERE run_id ="
+                "SELECT occurrence_id FROM cluster_member WHERE run_id ="
                         + " (SELECT upstream_run_id FROM run_upstream WHERE run_id = ?)"
                         + " ORDER BY occurrence_id DESC LIMIT 1",
                 Long.class,

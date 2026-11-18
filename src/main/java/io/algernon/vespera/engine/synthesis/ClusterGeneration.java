@@ -68,7 +68,7 @@ public class ClusterGeneration {
         Map<ClusterSlot, Unwritten> unsendable = new LinkedHashMap<>();
         for (RecordedCluster recorded : clusters) {
             ClusterSlot slot = ClusterSlot.of(recorded);
-            if (synthesisDocs.isWritten(generation, slot.winningSeed(), slot.clusterOrdinal())) {
+            if (synthesisDocs.isWritten(generation, slot)) {
                 skipped++;
                 progress.clusterGoneThrough();
                 continue;
@@ -89,7 +89,7 @@ public class ClusterGeneration {
             SynthesisDoc doc;
             try {
                 doc = clusterSynthesis.docFor(
-                        new ClusterCall(recorded.label().value(), material.seedPath(), material.exemplars()),
+                        new ClusterCall(recorded.label().value(), material.topicName(), material.exemplars()),
                         modelName,
                         contextWindow,
                         language);
@@ -99,7 +99,7 @@ public class ClusterGeneration {
                 } else {
                     progress.answerTurnedDown(recorded, e.fault());
                 }
-                clusterFaults.record(generation, slot.winningSeed(), slot.clusterOrdinal(), e.fault());
+                clusterFaults.record(generation, slot, e.fault());
                 faulted++;
                 // ADR-166 §4a: a cluster no answer was asked for is no evidence either way, so it is
                 // left out of the streak, neither added to it nor clearing it.
@@ -114,10 +114,10 @@ public class ClusterGeneration {
                 progress.clusterGoneThrough();
                 continue;
             }
-            synthesisDocs.record(generation, slot.winningSeed(), slot.clusterOrdinal(), doc);
+            synthesisDocs.record(generation, slot, doc);
             // The repair pass (ADR-111, #185): a fault row from an earlier invocation would now say the
             // cluster both failed and succeeded under one run.
-            clusterFaults.delete(generation, slot.winningSeed(), slot.clusterOrdinal());
+            clusterFaults.delete(generation, slot);
             written++;
             // Only a believed answer drops the streak.
             turnedDownInARow.clear();

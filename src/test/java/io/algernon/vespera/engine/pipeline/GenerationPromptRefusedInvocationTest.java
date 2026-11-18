@@ -41,7 +41,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p><b>What was observed.</b> On Ollama 0.33.2's llama-server path,
  * the first call — the largest cluster — came back HTTP 400, {@code exceed_context_size_error}, and
  * Spring AI raised it as {@link NonTransientAiException} out of {@code OllamaChatModel.call}. Nothing
- * caught it, so no cluster was written and no {@code cluster_fault} row was left, and the invocation
+ * caught it, so no cluster was written and no {@code standing_cluster_fault} row was left, and the invocation
  * exited 1 with a stack trace.
  *
  * <p><b>How the refusal is scripted.</b> {@link GenerationScriptedBeans#refuseEvery} refuses every
@@ -156,16 +156,16 @@ class GenerationPromptRefusedInvocationTest {
                 .build());
         RunId arrangement = theApprovedArrangement(root);
         jdbcTemplate.update(
-                "INSERT INTO cluster (run_id, winning_seed_occurrence_id, cluster_ordinal, label,"
-                        + " document_count, partition_order, cluster_order)"
-                        + " SELECT run_id, winning_seed_occurrence_id, cluster_ordinal + 1, ?,"
-                        + " document_count, partition_order, cluster_order - 1"
-                        + " FROM cluster WHERE run_id = ?",
+                "INSERT INTO arranged_cluster (run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal,"
+                        + " cluster_ordinal, label, document_count, topic_order, subtopic_order, cluster_order)"
+                        + " SELECT run_id, topic_seed_path, topic_chunk_index, subtopic_ordinal, cluster_ordinal + 1, ?,"
+                        + " document_count, topic_order, subtopic_order, cluster_order - 1"
+                        + " FROM arranged_cluster WHERE run_id = ?",
                 THE_CLUSTER_AHEAD,
                 arrangement.value());
         jdbcTemplate.update(
-                "UPDATE document_cluster SET cluster_ordinal = cluster_ordinal + 1 WHERE rowid ="
-                        + " (SELECT rowid FROM document_cluster WHERE run_id ="
+                "UPDATE cluster_member SET cluster_ordinal = cluster_ordinal + 1 WHERE rowid ="
+                        + " (SELECT rowid FROM cluster_member WHERE run_id ="
                         + " (SELECT upstream_run_id FROM run_upstream WHERE run_id = ?)"
                         + " ORDER BY occurrence_id DESC LIMIT 1)",
                 arrangement.value());

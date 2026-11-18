@@ -149,7 +149,7 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
                 "all " + CORPUS_DOCUMENTS + " documents are scored and grouped under the second run",
                 () -> assertThat(theRunsOfThePull).singleElement().satisfies(run -> {
                     assertThat(countUnder("relevance_score", run)).isEqualTo(CORPUS_DOCUMENTS);
-                    assertThat(countUnder("document_cluster", run)).isEqualTo(CORPUS_DOCUMENTS);
+                    assertThat(countUnder("cluster_member", run)).isEqualTo(CORPUS_DOCUMENTS);
                 }));
         claim(
                 "and the first run's " + CORPUS_DOCUMENTS + " scores are still recorded under it: nothing of an"
@@ -274,11 +274,14 @@ class APullOfTheEmbeddingModelIsADifferentScoringRunInvocationTest {
         return jdbcTemplate.queryForObject("SELECT config_consumed FROM run WHERE id = ?", String.class, run);
     }
 
-    /** Each document {@code run} clustered with its seed and cluster ordinal, in the order of the documents. */
+    /**
+     * Each document {@code run} clustered with its topic's key, its subtopic and its cluster ordinal, in the order of
+     * the documents (ADR-409 section 3).
+     */
     private List<String> clustersUnder(String run) {
         return jdbcTemplate.queryForList(
-                "SELECT occurrence_id || ' ' || winning_seed_occurrence_id || ' ' || cluster_ordinal"
-                        + " FROM document_cluster WHERE run_id = ? ORDER BY occurrence_id",
+                "SELECT occurrence_id || ' ' || topic_seed_path || ' ' || topic_chunk_index || ' ' || subtopic_ordinal"
+                        + " || ' ' || cluster_ordinal FROM cluster_member WHERE run_id = ? ORDER BY occurrence_id",
                 String.class,
                 run);
     }

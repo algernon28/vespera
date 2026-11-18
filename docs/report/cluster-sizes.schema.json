@@ -1,9 +1,9 @@
 {
   "type": "object",
-  "description": "The JSON of the cluster sizes report, cluster-sizes.json, written beside cluster-sizes.html (ADR-362 section 9), format 1.",
+  "description": "The JSON of the cluster sizes report, cluster-sizes.json, written beside cluster-sizes.html (ADR-362 section 9), format 2: one row a topic since ADR-409 section 8.",
   "properties": {
     "format": {
-      "const": 1,
+      "const": 2,
       "description": "The report's own format, raised by a change that removes, renames or retypes a field."
     },
     "analysisReport": {
@@ -20,16 +20,16 @@
     },
     "headline": {
       "type": "array",
-      "description": "The numbers the page states first: the exemplars grouped, the documents and groups they hold between them, and the groups of one.",
+      "description": "The numbers the page states first: the topics grouped, the documents and groups they hold between them, and the groups of one.",
       "items": {
         "type": "object",
         "description": "One figure.",
         "properties": {
           "key": {
             "type": "string",
-            "description": "Its key: partitions, documents, groups or groups-of-one.",
+            "description": "Its key: topics, documents, groups or groups-of-one.",
             "enum": [
-              "partitions",
+              "topics",
               "documents",
               "groups",
               "groups-of-one"
@@ -62,7 +62,7 @@
     },
     "sections": {
       "type": "array",
-      "description": "The page's parts in its order: partitions, how-to-read and what-this-page-cannot-see; with no exemplar matched, partitions alone and without a table.",
+      "description": "The page's parts in its order: topics, how-to-read and what-this-page-cannot-see; with no document placed under a topic, topics alone and without a table.",
       "items": {
         "type": "object",
         "description": "One part of the page.",
@@ -71,7 +71,7 @@
             "type": "string",
             "description": "Its id.",
             "enum": [
-              "partitions",
+              "topics",
               "how-to-read",
               "what-this-page-cannot-see"
             ]
@@ -101,7 +101,7 @@
             "properties": {
               "columns": {
                 "type": "array",
-                "description": "Its columns in the page's order: exemplar, documents, groups, largest-group, middle-group, groups-of-one, weakest-link, middle-link and strongest-link.",
+                "description": "Its columns in the page's order: topic, documents, groups, largest-group, middle-group, groups-of-one, weakest-link, middle-link and strongest-link.",
                 "items": {
                   "type": "object",
                   "description": "One column.",
@@ -110,7 +110,7 @@
                       "type": "string",
                       "description": "Its id.",
                       "enum": [
-                        "exemplar",
+                        "topic",
                         "documents",
                         "groups",
                         "largest-group",
@@ -127,9 +127,9 @@
                     },
                     "kind": {
                       "type": "string",
-                      "description": "Its kind: path for the exemplar, count for the sizes, number for the three links.",
+                      "description": "Its kind: text for the topic, count for the sizes, number for the three links.",
                       "enum": [
-                        "path",
+                        "text",
                         "count",
                         "number"
                       ]
@@ -145,7 +145,7 @@
               },
               "rows": {
                 "type": "array",
-                "description": "One row for each exemplar, in the page's order, each a list of cells in the columns' order: the exemplar's path, five counts, and three links to two places, each null where the exemplar holds one document and so has no link.",
+                "description": "One row for each topic, in the page's order, each a list of cells in the columns' order: the topic's key, its first passage's seed path, the word chunk and that passage's number, five counts, and three links to two places, each null where the topic holds one document and so has no link.",
                 "items": {
                   "type": "array",
                   "description": "One row."

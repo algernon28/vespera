@@ -104,11 +104,11 @@ final class InvocationAccount implements JobExecutionListener {
                 + " SUM(kind = 'PROMPT_EVALUATION_CEILING' COLLATE NOCASE),"
                 + " SUM(kind = 'ANSWER_RAN_OUT_OF_ROOM' COLLATE NOCASE), SUM(kind = 'SCHEMA_VIOLATION' COLLATE NOCASE),"
                 + " SUM(kind = 'CITATION_NOT_IN_RANGE' COLLATE NOCASE)"
-                + " FROM cluster_fault WHERE run_id IN (" + runIds + ")", args, ClusterFaultKind.class));
+                + " FROM standing_cluster_fault WHERE run_id IN (" + runIds + ")", args, ClusterFaultKind.class));
         Long clusters = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM cluster WHERE run_id IN (" + runIds + ")", Long.class, args);
+                "SELECT COUNT(*) FROM arranged_cluster WHERE run_id IN (" + runIds + ")", Long.class, args);
         Long written = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM synthesis_doc WHERE run_id IN (" + runIds + ")", Long.class, args);
+                "SELECT COUNT(*) FROM cluster_synthesis_doc WHERE run_id IN (" + runIds + ")", Long.class, args);
         held.put("clusters", clusters);
         held.put("synthesisDocs", written);
         report.counted(held);
