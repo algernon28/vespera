@@ -1,7 +1,10 @@
 package io.algernon.vespera.ui;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import javafx.scene.Parent;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
@@ -147,21 +150,30 @@ public final class Prototype874WhyItStopped extends Application {
     private int variant;
     private int scenario;
     private boolean dismissed;
-    private final BorderPane root = new BorderPane();
+    private BorderPane root;
+    private Parent cockpit;
+    private SplitPane split;
+    private TextArea output;
     private final Label variantWords = new Label();
 
     @Override
     public void start(Stage stage) {
-        root.getStylesheets().add(ControlPanelWindow.class.getResource("control-panel.css").toExternalForm());
-        root.getStyleClass().add("cockpit");
+        // The REAL cockpit, unchanged, on a throwaway state whose child is never started (Run is not pressed).
+        try {
+            Path scratch = Files.createTempDirectory("prototype-874");
+            ControlPanelState state = new ControlPanelState(
+                    new ChildRuntime(Path.of(System.getProperty("java.home"), "bin", "java.exe"),
+                            scratch.resolve("no-such.jar")),
+                    LaunchValues.fileIn(Files.createDirectories(scratch.resolve("tmp")), "prototype"),
+                    Files.createDirectories(scratch.resolve("root-locks")), "prototype");
+            cockpit = ControlPanelWindow.drawn(state);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+        root = (BorderPane) cockpit; // the palette variables are defined on the scene root, so it must be the cockpit
 
-        ToggleButton dark = new ToggleButton("Dark");
-        dark.selectedProperty().addListener((o, was, now) -> {
-            root.getStyleClass().remove("dark");
-            if (now) {
-                root.getStyleClass().add("dark");
-            }
-        });
+        ToggleButton dark = new ToggleButton("(theme: use the cockpit's own switch)");
+        dark.setDisable(true);
         HBox top = new HBox(8, new Label("PROTOTYPE #874 — ending:"));
         ToggleGroup endings = new ToggleGroup();
         for (int i = 0; i < SCENARIOS.size(); i++) {
@@ -199,7 +211,7 @@ public final class Prototype874WhyItStopped extends Application {
         BorderPane.setAlignment(bar, Pos.CENTER);
         root.setBottom(bar);
 
-        Scene scene = new Scene(root, 1280, 800);
+        Scene scene = new Scene(root, 1500, 950);
         scene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, e -> {
             if (e.getTarget() instanceof TextArea) {
                 return;
@@ -212,10 +224,59 @@ public final class Prototype874WhyItStopped extends Application {
                 e.consume();
             }
         });
-        switchTo(0);
         stage.setTitle("PROTOTYPE #874 why the invocation stopped");
         stage.setScene(scene);
         stage.show();
+        // the cockpit sits in a ScrollPane, whose content joins the scene graph only once shown
+        root.applyCss();
+        root.layout();
+        split = (SplitPane) cockpit.lookup(".steps-and-output");
+        output = (TextArea) cockpit.lookup("#output");
+        split.getItems().set(1, new Region());
+        VBox.setVgrow(output, Priority.ALWAYS);
+        // every panel resizes: the sidebar's width and the steps/log block's height by a grip (the cockpit fixes both),
+        // the divider between steps and log is the cockpit's own, the one between log and the why-panel is added below
+        if (split.getParent() instanceof VBox column) {
+            column.getChildren().add(column.getChildren().indexOf(split) + 1, grip(split, true));
+        }
+        if (root.getLeft() instanceof Region side) {
+            root.setLeft(new HBox(side, grip(side, false)));
+        }
+        switchTo(0);
+    }
+
+    /** A thin drag bar that sets {@code target}'s height (below it) or width (beside it). */
+    private static Region grip(Region target, boolean height) {
+        Region bar = new Region();
+        if (height) {
+            bar.setMinHeight(8);
+            bar.setPrefHeight(8);
+            bar.setCursor(javafx.scene.Cursor.V_RESIZE);
+        } else {
+            bar.setMinWidth(8);
+            bar.setPrefWidth(8);
+            bar.setCursor(javafx.scene.Cursor.H_RESIZE);
+        }
+        bar.setStyle("-fx-background-color: -vespera-rule;");
+        double[] from = new double[2];
+        bar.setOnMousePressed(e -> {
+            from[0] = height ? e.getScreenY() : e.getScreenX();
+            from[1] = height ? target.getHeight() : target.getWidth();
+        });
+        bar.setOnMouseDragged(e -> {
+            double moved = (height ? e.getScreenY() : e.getScreenX()) - from[0];
+            double size = Math.max(height ? 150 : 220, from[1] + moved);
+            if (height) {
+                target.setMinHeight(size);
+                target.setPrefHeight(size);
+                target.setMaxHeight(size);
+            } else {
+                target.setMinWidth(size);
+                target.setPrefWidth(size);
+                target.setMaxWidth(size);
+            }
+        });
+        return bar;
     }
 
     private void switchTo(int index) {
@@ -228,7 +289,27 @@ public final class Prototype874WhyItStopped extends Application {
 
     // ---- the mock cockpit
 
+    /** The real cockpit untouched; "D" adds the small panel under the log, "today" leaves the log alone. */
     private void redraw() {
+        Scenario s = SCENARIOS.get(scenario);
+        output.setText(String.join("\n", s.output()));
+        if (split.getItems().get(1) instanceof SplitPane old) {
+            old.getItems().set(0, new Region()); // frees the log from the old split before it is moved
+        }
+        if (VARIANTS.get(variant).equals("D")) {
+            // a vertical split: drag the divider between log and panel to resize
+            SplitPane logAndPanel = new SplitPane(new Region(), beneathPanel(s));
+            logAndPanel.setOrientation(Orientation.VERTICAL);
+            split.getItems().set(1, logAndPanel);
+            logAndPanel.getItems().set(0, output);
+            logAndPanel.setDividerPositions(0.6);
+        } else {
+            split.getItems().set(1, output);
+        }
+        split.setDividerPositions(0.5);
+    }
+
+    private void oldMockRedraw() {
         Scenario s = SCENARIOS.get(scenario);
         String v = VARIANTS.get(variant);
 
@@ -393,9 +474,7 @@ public final class Prototype874WhyItStopped extends Application {
         ScrollPane scroll = new ScrollPane(panel);
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroll.setPrefHeight(110);
-        scroll.setMinHeight(110);
-        scroll.setMaxHeight(110);
+        scroll.setMinHeight(60);
         scroll.setStyle("-fx-border-color: -vespera-rule;");
         return scroll;
     }
