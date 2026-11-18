@@ -2,6 +2,7 @@
   "enabledPlugins": {
     "mattpocock-skills@claude-plugins-official": true
   },
+  "permissions": { "deny": ["Read(./.env)", "Read(./.env.*)"] },
   "hooks": {
     "PreToolUse": [
       {
@@ -9,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "w=\"$CLAUDE_PROJECT_DIR/.claude/hooks/run-private-paths-guard.sh\"; [ -f \"$w\" ] || w=\"$(git -C \"$CLAUDE_PROJECT_DIR\" rev-parse --path-format=absolute --git-common-dir)/../.claude/hooks/run-private-paths-guard.sh\"; [ -f \"$w\" ] || { echo 'Refused: the private-paths guard could not be found.' >&2; exit 2; }; bash \"$w\"; s=$?; [ \"$s\" -eq 0 ] || exit 2"
+            "command": "bash \"${CLAUDE_PROJECT_DIR}\"/.claude/hooks/run-private-paths-guard.sh; s=$?; [ \"$s\" -eq 0 ] && exit 0; [ \"$s\" -eq 2 ] && exit 2; if [ \"$s\" -eq 127 ]; then g=$(git -C \"${CLAUDE_PROJECT_DIR}\" rev-parse --path-format=absolute --git-common-dir 2>/dev/null); w=\"$g/../.claude/hooks/run-private-paths-guard.sh\"; if [ -n \"$g\" ] && [ -f \"$w\" ]; then bash \"$w\"; s=$?; [ \"$s\" -eq 0 ] && exit 0; [ \"$s\" -eq 2 ] && exit 2; fi; fi; echo \"Refused: the private-paths guard failed or could not be found (exit $s).\" >&2; exit 2"
           }
         ]
       }
