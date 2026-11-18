@@ -40,7 +40,6 @@ import org.springframework.batch.core.listener.JobExecutionListener;
 import org.springframework.batch.core.scope.context.StepContext;
 import org.springframework.batch.core.scope.context.StepSynchronizationManager;
 import org.springframework.batch.core.step.StepExecution;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * What the job's report is handed while the job runs (ADR-362 section 3), which the progress pages were drawn from
@@ -55,7 +54,8 @@ import tools.jackson.databind.json.JsonMapper;
  * has succeeded; it never fails the invocation (ADR-265 section 4).
  *
  * <p>It also builds and writes each stage's chart, {@code chart-stage-<stage>.json} beside the report, from the same
- * readings (ADR-382 section 4 to 7).
+ * readings (ADR-382 section 4 to 7, as ADR-412 and ADR-418 amend them: all eight files are written empty as the job
+ * begins, none is read, each chart is started once in its invocation, and the census's is written as it walks).
  *
  * <p>It holds no rule: it decides no verdict, cache key, cluster or text of the deliverable.
  */
@@ -276,7 +276,7 @@ final class JobSampler implements JobExecutionListener {
         lastLine.clear();
         stillInside.clear();
         entriesWalked.clear();
-        firstWalkNamed.set(null);
+        walkWalked.set(null);
         for (Class<?> source : List.of(StageProgress.class, StatementProgress.class, WalkRecorder.class)) {
             if (LoggerFactory.getLogger(source) instanceof ch.qos.logback.classic.Logger logger) {
                 LineAppender appender = new LineAppender();
@@ -295,7 +295,10 @@ final class JobSampler implements JobExecutionListener {
             baseline = recorded.get();
             discardedBaseline = discarded.get();
             keptCharts.clear();
+            censusHandedOver = false;
+            censusEmptied = false;
             chartsWarned = false;
+            writeEveryChartEmpty();
             startRuns = null;
             samples.clear();
             firstWrite = null;
@@ -744,8 +747,6 @@ final class JobSampler implements JobExecutionListener {
      */
     private static final String WALK_KEY = WalkId.class.getSimpleName().replace("Id", "").toLowerCase(java.util.Locale.ROOT);
 
-    private static final JsonMapper CHART_JSON = JsonMapper.builder().build();
-
     /**
      * A stage as its chart sees it (ADR-382 section 2, 4): its number, its steps in job order, the run stages it works
      * under, whose runs key its chart, and the kinds of verdict it records, in {@code VerdictKind}'s order.
@@ -780,25 +781,27 @@ final class JobSampler implements JobExecutionListener {
         private String finishedAt;
         private List<Point> points = new ArrayList<>();
 
-        /** The kinds' counts the file held at the chart's last sample as it was read, for a runs reading that failed. */
-        private long[] fileLast;
-
-        /** The instant of the chart's first sample in this invocation, and the second that sample stands at. */
+        /** The instant of the chart's first sample in this invocation, which stands at second 0. */
         private Instant firstSampleAt;
-        private long origin;
-
-        KeptChart(int kinds) {
-            fileLast = new long[kinds];
-        }
     }
 
     /** The entries each walk has been said to have walked so far, by walk, which the census's own line gives. */
     private final Map<Long, Long> entriesWalked = new ConcurrentHashMap<>();
 
-    /** The first walk the census's lines named: the corpus root's, which is walked before the seed folder. */
-    private final AtomicReference<Long> firstWalkNamed = new AtomicReference<>();
+    /**
+     * The walk walked (ADR-412 section 1): the first walk the census's lines named before it handed the job its walk,
+     * the corpus root's as the walk recorder continued or minted it, or the seed folder's where the corpus root's
+     * said no line.
+     */
+    private final AtomicReference<Long> walkWalked = new AtomicReference<>();
 
-    /** Guarded by {@link #writing}: each stage's chart, read from its file the first time the invocation needs it. */
+    /** Guarded by the writing lock: whether a reading has seen the census hand the job its walk (ADR-418 section 4). */
+    private boolean censusHandedOver;
+
+    /** Guarded by the writing lock: whether the census's file was written empty as its step ended with no walk handed. */
+    private boolean censusEmptied;
+
+    /** Guarded by {@link #writing}: each stage's chart of this invocation, started with no point (ADR-418 section 1). */
     private final Map<String, KeptChart> keptCharts = new HashMap<>();
 
     /** Guarded by {@link #writing}: whether a file that could not be written was warned of in this invocation. */
@@ -806,10 +809,12 @@ final class JobSampler implements JobExecutionListener {
 
     /**
      * Takes, at one reading, the samples of the stages' charts and writes the files that changed (ADR-382 section 4 to
-     * 7): a chart not frozen takes a sample at a reading at which a step of its stage runs, at the one at which it
-     * freezes and at the last where a step of its stage ran; a frozen chart is never written again under its key; a
-     * new key starts the chart afresh and empties the files of the stages after it. A file that cannot be written is
-     * warned of once in the invocation and fails nothing (ADR-265 section 4).
+     * 7, as ADR-412 and ADR-418 amend them): a chart not frozen takes a sample at a reading at which a step of its
+     * stage runs, at the one at which it freezes and at the last where a step of its stage ran; a frozen chart is not
+     * written again in its invocation; a chart is started once, its key added to as the invocation reaches it; the
+     * census's chart is written as it walks, its key moving to the walk handed, and is left empty where no walk is
+     * handed (ADR-418 section 4). A file that cannot be written is warned of once in the invocation and fails nothing
+     * (ADR-265 section 4).
      */
     private void keepTheCharts(
             JobExecution job, Map<String, StepExecution> executions, Map<String, String> states, boolean last,
@@ -820,10 +825,25 @@ final class JobSampler implements JobExecutionListener {
             try {
                 keepTheChart(at, runs, executions, states, last, now, zone, nowRecorded, nowDiscarded);
             } catch (IOException | RuntimeException e) {
-                if (!chartsWarned) {
-                    chartsWarned = true;
-                    log.warn("a stage's chart could not be kept beside the report: {}", e.getClass().getName());
-                }
+                warnOfAChart(e);
+            }
+        }
+    }
+
+    private void warnOfAChart(Exception e) {
+        if (!chartsWarned) {
+            chartsWarned = true;
+            log.warn("a stage's chart could not be kept beside the report: {}", e.getClass().getName());
+        }
+    }
+
+    /** Writes each of the eight files empty, as the job's first reading begins (ADR-418 section 1). */
+    private void writeEveryChartEmpty() {
+        for (StageOfChart stage : CHART_STAGES) {
+            try {
+                writeTheChart(stage, new KeptChart());
+            } catch (IOException | RuntimeException e) {
+                warnOfAChart(e);
             }
         }
     }
@@ -834,29 +854,29 @@ final class JobSampler implements JobExecutionListener {
             throws IOException {
         StageOfChart stage = CHART_STAGES.get(at);
         Map<String, String> key = keyOf(stage, runs);
-        if (key.isEmpty()) {
+        if (key.isEmpty() && !stage.runStages().isEmpty()) {
             return;
         }
         KeptChart chart = keptChart(stage);
-        boolean fresh = !key.entrySet().stream().allMatch(named -> named.getValue().equals(chart.key.get(named.getKey())));
-        if (!fresh && chart.finishedAt != null) {
-            return;
-        }
         boolean running = stage.steps().stream().anyMatch(step -> "running".equals(states.get(step)));
         boolean ran = stage.steps().stream().anyMatch(executions::containsKey);
-        boolean finishes = stage.steps().stream().allMatch(step -> "finished".equals(states.get(step)));
-        boolean sampling = running || finishes || (last && ran);
-        if (!fresh && !sampling) {
+        if (stage.runStages().isEmpty() && key.isEmpty()) {
+            beforeTheHandOver(stage, chart, runs, states, running, ran, now, nowRecorded, nowDiscarded);
             return;
         }
-        if (fresh) {
-            chart.key.clear();
-            chart.finishedAt = null;
-            chart.points = new ArrayList<>();
-            chart.fileLast = new long[stage.kinds().size()];
-            chart.firstSampleAt = null;
-            chart.origin = 0;
+        if (chart.finishedAt != null) {
+            return;
         }
+        boolean keyChanged = !key.equals(chart.key);
+        if (stage.runStages().isEmpty()) {
+            censusHandedOver = true;
+        }
+        boolean finishes = stage.steps().stream().allMatch(step -> "finished".equals(states.get(step)));
+        boolean sampling = running || finishes || (last && ran);
+        if (!keyChanged && !sampling) {
+            return;
+        }
+        chart.key.clear();
         chart.key.putAll(key);
         if (sampling) {
             takeASample(stage, chart, runs, now, nowRecorded, nowDiscarded);
@@ -873,36 +893,52 @@ final class JobSampler implements JobExecutionListener {
             chart.finishedAt = (end == null ? now : end).truncatedTo(java.time.temporal.ChronoUnit.SECONDS).toString();
         }
         writeTheChart(stage, chart);
-        if (fresh) {
-            // a later stage's run names the run before it upstream, so it is new too: its file is emptied (ADR-382 section 7)
-            for (StageOfChart later : CHART_STAGES.subList(at + 1, CHART_STAGES.size())) {
-                KeptChart emptied = keptChart(later);
-                if (emptied.key.isEmpty() && emptied.finishedAt == null && emptied.points.isEmpty()) {
-                    continue;
-                }
-                emptied.key.clear();
-                emptied.finishedAt = null;
-                emptied.points = new ArrayList<>();
-                emptied.fileLast = new long[later.kinds().size()];
-                emptied.firstSampleAt = null;
-                emptied.origin = 0;
-                try {
-                    writeTheChart(later, emptied);
-                } catch (IOException | RuntimeException e) {
-                    if (!chartsWarned) {
-                        chartsWarned = true;
-                        log.warn("a stage's chart could not be kept beside the report: {}", e.getClass().getName());
-                    }
-                }
-            }
-        }
     }
 
-    /** What a stage's chart is kept under: the corpus root's walk for the census, the runs the invocation reached otherwise. */
+    /**
+     * The census's chart before it has handed the job its walk (ADR-418 section 4): each sample of the walk walked is
+     * written as it is taken, under the walk walked; where the census's step ends with no walk handed, the file is
+     * written empty, once, and takes no sample.
+     */
+    private void beforeTheHandOver(
+            StageOfChart stage, KeptChart chart, InvocationRuns runs, Map<String, String> states, boolean running,
+            boolean ran, Instant now, Map<String, Long> nowRecorded, Map<String, Long> nowDiscarded)
+            throws IOException {
+        if (censusHandedOver || censusEmptied) {
+            return;
+        }
+        if (ran && !running && !"not started".equals(states.get(StepNames.CENSUS))) {
+            censusEmptied = true;
+            chart.key.clear();
+            chart.finishedAt = null;
+            chart.points = new ArrayList<>();
+            chart.firstSampleAt = null;
+            writeTheChart(stage, chart);
+            return;
+        }
+        Long walked = walkWalked.get();
+        if (walked == null || !running) {
+            return;
+        }
+        chart.key.clear();
+        chart.key.put(WALK_KEY, String.valueOf(walked));
+        takeASample(stage, chart, runs, now, nowRecorded, nowDiscarded);
+        writeTheChart(stage, chart);
+    }
+
+    /** The chart's own second for a sample taken at the instant given, the first of the invocation being second 0. */
+    private long secondOf(KeptChart chart, Instant at) {
+        if (chart.firstSampleAt == null) {
+            chart.firstSampleAt = at;
+        }
+        return Math.max(0, Duration.between(chart.firstSampleAt, at).getSeconds());
+    }
+
+    /** What a stage's chart is kept under: the walk handed for the census, the runs the invocation reached otherwise. */
     private Map<String, String> keyOf(StageOfChart stage, InvocationRuns runs) {
         Map<String, String> key = new LinkedHashMap<>();
         if (stage.runStages().isEmpty()) {
-            Long walk = runs.corpusWalk().map(WalkId::value).orElse(firstWalkNamed.get());
+            Long walk = runs.corpusWalk().map(WalkId::value).orElse(null);
             if (walk != null) {
                 key.put(WALK_KEY, String.valueOf(walk));
             }
@@ -922,14 +958,10 @@ final class JobSampler implements JobExecutionListener {
     private void takeASample(
             StageOfChart stage, KeptChart chart, InvocationRuns runs, Instant now, Map<String, Long> nowRecorded,
             Map<String, Long> nowDiscarded) {
-        if (chart.firstSampleAt == null) {
-            chart.firstSampleAt = now;
-            chart.origin = chart.points.isEmpty() ? 0 : chart.points.getLast().seconds() + interval.toSeconds();
-        }
-        long seconds = chart.origin + Math.max(0, Duration.between(chart.firstSampleAt, now).getSeconds());
+        long seconds = secondOf(chart, now);
         Long done = null;
         if (stage.runStages().isEmpty()) {
-            Long walk = runs.corpusWalk().map(WalkId::value).orElse(firstWalkNamed.get());
+            Long walk = walkWalked.get();
             done = walk == null ? null : entriesWalked.get(walk);
         }
         for (String step : stage.steps()) {
@@ -944,9 +976,8 @@ final class JobSampler implements JobExecutionListener {
         long[] kinds = new long[stage.kinds().size()];
         for (int i = 0; i < kinds.length; i++) {
             String kind = stage.kinds().get(i);
-            long before = chart.fileLast[i];
+            long before = 0;
             if (start != null && start.read() != null) {
-                before = 0;
                 for (String runStage : stage.runStages()) {
                     String run = runs.all().get(runStage);
                     before += run == null ? 0
@@ -958,6 +989,11 @@ final class JobSampler implements JobExecutionListener {
             kinds[i] = Math.max(0, before + recordedHere - discardedHere);
         }
         chart.points.add(new Point(seconds, done, kinds));
+        thin(chart);
+    }
+
+    /** Thins a chart passing {@link #MOST_SAMPLES} to every other point, oldest first (ADR-382 section 5, ADR-412 section 1). */
+    private static void thin(KeptChart chart) {
         if (chart.points.size() > MOST_SAMPLES) {
             List<Point> kept = new ArrayList<>();
             for (int i = 0; i < chart.points.size(); i += 2) {
@@ -968,77 +1004,11 @@ final class JobSampler implements JobExecutionListener {
     }
 
     private KeptChart keptChart(StageOfChart stage) {
-        return keptCharts.computeIfAbsent(stage.number(), number -> readTheChart(stage));
+        return keptCharts.computeIfAbsent(stage.number(), number -> new KeptChart());
     }
 
     private Path fileOf(StageOfChart stage) {
         return workingDirectory.resolve("chart-stage-" + stage.number() + ".json");
-    }
-
-    /** What the stage's file holds, or an empty chart where there is none, it cannot be read or is of another format. */
-    @SuppressWarnings("unchecked")
-    private KeptChart readTheChart(StageOfChart stage) {
-        KeptChart chart = new KeptChart(stage.kinds().size());
-        try {
-            Path file = fileOf(stage);
-            if (!Files.isRegularFile(file)) {
-                return chart;
-            }
-            Map<String, Object> root = CHART_JSON.readValue(Files.readString(file, StandardCharsets.UTF_8), Map.class);
-            if (!(root.get("format") instanceof Number format) || format.longValue() != CHART_FORMAT
-                    || !stage.number().equals(root.get("stage"))) {
-                return chart;
-            }
-            Map<String, Object> key = root.get("key") instanceof Map<?, ?> named ? (Map<String, Object>) named : Map.of();
-            Map<String, String> readKey = new LinkedHashMap<>();
-            key.forEach((runStage, run) -> readKey.put(runStage, String.valueOf(run)));
-            Map<String, List<Number>> seconds = new HashMap<>();
-            Map<String, List<Number>> values = new HashMap<>();
-            for (Object each : root.get("lines") instanceof List<?> lines ? lines : List.of()) {
-                Map<String, Object> line = (Map<String, Object>) each;
-                seconds.put((String) line.get("name"), (List<Number>) line.get("seconds"));
-                values.put((String) line.get("name"), (List<Number>) line.get("values"));
-            }
-            List<Number> doneSeconds = seconds.getOrDefault("done", List.of());
-            List<Number> doneValues = values.getOrDefault("done", List.of());
-            List<Point> points = new ArrayList<>();
-            if (stage.kinds().isEmpty()) {
-                for (int i = 0; i < Math.min(doneSeconds.size(), doneValues.size()); i++) {
-                    points.add(new Point(doneSeconds.get(i).longValue(), doneValues.get(i).longValue(), new long[0]));
-                }
-            } else {
-                int count = Integer.MAX_VALUE;
-                for (String kind : stage.kinds()) {
-                    count = Math.min(count, Math.min(
-                            seconds.getOrDefault(kind, List.of()).size(), values.getOrDefault(kind, List.of()).size()));
-                }
-                Long[] done = new Long[count];
-                int from = 0;
-                for (int i = 0; i < Math.min(doneSeconds.size(), doneValues.size()); i++) {
-                    while (from < count && seconds.get(stage.kinds().getFirst()).get(from).longValue()
-                            != doneSeconds.get(i).longValue()) {
-                        from++;
-                    }
-                    if (from < count) {
-                        done[from] = doneValues.get(i).longValue();
-                    }
-                }
-                for (int i = 0; i < count; i++) {
-                    long[] kinds = new long[stage.kinds().size()];
-                    for (int k = 0; k < kinds.length; k++) {
-                        kinds[k] = values.get(stage.kinds().get(k)).get(i).longValue();
-                    }
-                    points.add(new Point(seconds.get(stage.kinds().getFirst()).get(i).longValue(), done[i], kinds));
-                }
-            }
-            chart.key.putAll(readKey);
-            chart.finishedAt = root.get("finishedAt") instanceof String at ? at : null;
-            chart.points = points;
-            chart.fileLast = points.isEmpty() ? new long[stage.kinds().size()] : points.getLast().kinds();
-            return chart;
-        } catch (IOException | RuntimeException unreadable) {
-            return new KeptChart(stage.kinds().size());
-        }
     }
 
     /** Writes the stage's file whole, to a temporary file moved over it as the report is (ADR-382 section 4). */
@@ -1099,7 +1069,9 @@ final class JobSampler implements JobExecutionListener {
                 // the census's own line, of the corpus root's walk or the seed folder's, by the walk it names (ADR-382 section 5)
                 long walk = Long.parseLong(census.group(2));
                 entriesWalked.put(walk, Long.parseLong(census.group(1).replace(",", "")));
-                firstWalkNamed.compareAndSet(null, walk);
+                if (job == null || new InvocationRuns(job.getExecutionContext()).corpusWalk().isEmpty()) {
+                    walkWalked.compareAndSet(null, walk);
+                }
                 return;
             }
             if (message == null
