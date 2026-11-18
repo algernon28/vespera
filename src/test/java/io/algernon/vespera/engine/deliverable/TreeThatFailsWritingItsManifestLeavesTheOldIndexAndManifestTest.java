@@ -105,6 +105,9 @@ class TreeThatFailsWritingItsManifestLeavesTheOldIndexAndManifestTest {
                 whole::writtenOver,
                 whole::whyUnwritten,
                 whole::placesOf,
+                whole::subtopicsOf,
+                whole::overviewOf,
+                whole::eachPageOfSeeAlso,
                 whole::eachPageOfSurvivorsForTheirPictures,
                 page -> {
                     AtomicInteger pages = new AtomicInteger();

@@ -1,5 +1,7 @@
 # ADR-321 — The deliverable is written and drawn in the language the profile names, and the question names the answer's two fields and where its writing ends
 
+> **Partly amended — see [ADR-415](0415-a-topic-is-a-page-carrying-its-overview-its-subtopics-are-pages-beneath-it-and-a-see-also-link-lands-on-a-groups-page.md).** §4's index paragraph: its sentence on the topic, which ADR-409 §10 gave on `seed_partition`, names the `topic` and `subtopic` columns and a topic's folder holding its page, in English and in Italian.
+
 > **Partly amended — see [ADR-328](0328-the-confluence-rendering-is-one-tree-updated-in-place-by-each-publish-its-pages-keyed-and-titled-by-their-place-with-no-run-id-and-a-page-it-no-longer-has-moved-to-the-trash.md).** The Italian form of ADR-310 §2 reads `TEXT (P.C pagina K)`, with no marker. The rest of this record stands.
 
 > **Partly amended — see [ADR-333](0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** Every fixed word of the website rendering is drawn in the deliverable language too, from the same table. The rest of this record stands.

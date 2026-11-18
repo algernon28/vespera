@@ -3032,6 +3032,17 @@ public final class Adr {
     public static final String THE_ANALYSIS_REPORTS_OPEN_IN_A_REPORTS_WINDOW_OF_THEIR_OWN = FILE
             + "0414-the-analysis-reports-open-in-a-reports-window-of-their-own-a-tab-each-and-the-cockpit-keeps-its-list-and-two-tabs.md";
 
+    /**
+     * ADR-415 -- each rendering draws a topic as a page carrying its overview, its citations linking its clusters'
+     * pages, its placeholder or disclosure, its table of clusters by number or of subtopics, and a see-also list linking
+     * the clusters of survivors placed under other topics that fit it; a crowded topic's subtopics are a folder and a
+     * page each, its clusters a level down numbered over the topic; every slug folds accents; documents.csv names topic,
+     * subtopic and their orders; Confluence keys a subtopic's page P.S and its clusters P.S.C (amends ADR-112, ADR-274,
+     * ADR-276, ADR-321, ADR-328, ADR-333, ADR-396 and ADR-409).
+     */
+    public static final String A_TOPIC_IS_A_PAGE_CARRYING_ITS_OVERVIEW_AND_ITS_SUBTOPICS_ARE_PAGES_BENEATH_IT = FILE
+            + "0415-a-topic-is-a-page-carrying-its-overview-its-subtopics-are-pages-beneath-it-and-a-see-also-link-lands-on-a-groups-page.md";
+
     private Adr() {
     }
 }

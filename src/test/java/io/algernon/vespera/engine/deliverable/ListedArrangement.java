@@ -88,6 +88,9 @@ public final class ListedArrangement {
                     });
                     return places;
                 },
+                topic -> ListedTree.subtopicsOf(arrangement, topic),
+                topic -> ListedTree.NO_OVERVIEW_YET,
+                ListedTree.NO_SEE_ALSO,
                 everySurvivorAPageAtATime,
                 everySurvivorAPageAtATime,
                 false,
@@ -145,33 +148,6 @@ public final class ListedArrangement {
                 of(arrangement, written, survivors, unwritten),
                 pictures,
                 progress);
-    }
-
-    /** {@code index.html} for these lists, whole: its opening lines, then each topic's heading, rows and end as the writer appends them. */
-    static String indexContents(
-            DeliverableProvenance provenance,
-            List<RecordedCluster> arrangement,
-            List<ListedDoc> written,
-            List<ListedSurvivor> survivors) {
-        ArrangedSurvivors source = of(arrangement, written, survivors, Map.of());
-        List<ListedTopic> topics = source.topics();
-        StringBuilder index = new StringBuilder();
-        try {
-            IndexPage.open(index, provenance, DeliverableLanguage.ENGLISH);
-            for (ListedTopic topic : topics) {
-                IndexPage.topicHeading(index, topic, DeliverableLanguage.ENGLISH);
-                for (RecordedCluster recorded : source.clustersOf(topic)) {
-                    IndexPage.clusterRow(
-                            index, topic, topics.size(), recorded, source.writtenOver(ClusterSlot.of(recorded)),
-                            DeliverableLanguage.ENGLISH);
-                }
-                IndexPage.topicEnd(index);
-            }
-            IndexPage.close(index);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        return index.toString();
     }
 
     /** {@code documents.csv} for these lists, whole. */
