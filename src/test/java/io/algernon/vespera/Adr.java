@@ -3014,6 +3014,18 @@ public final class Adr {
             + "0411-adr-399-to-401-move-seed-measurement-and-adr-406s-floor-is-not-shown-in-the-control-panel.md";
 
     /**
+     * ADR-412 -- stage 0's chart is kept under the walk the census hands the job, and a new key empties no other
+     * stage's chart: before the hand-over the census's samples are those of the walk its lines name, written only over
+     * a file that names that walk, not frozen, and held otherwise; at the hand-over a file frozen under the walk handed
+     * is left as it is, one not frozen continued, and any other started afresh holding the walk walked's points, the
+     * samples held added one at a time and thinned past 256 as a chart's are; the census's count done is
+     * what its lines said of the walk walked; a stage's new key writes no other stage's file (amends ADR-382 §5, §7,
+     * Consequences and Known limits).
+     */
+    public static final String STAGE_0S_CHART_IS_KEPT_UNDER_THE_WALK_THE_CENSUS_KEEPS = FILE
+            + "0412-stage-0s-chart-is-kept-under-the-walk-the-census-keeps-and-a-new-key-empties-no-other-stages-chart.md";
+
+    /**
      * ADR-413 -- the two label commands leave the action card for a Labels section of the sidebar, after Seed folder,
      * named Save my labels and Auto Label, each with its caption, and starting {@code vespera label} and {@code vespera
      * label --auto} as before; every text of the control panel's windows that called a relevance label an answer says
@@ -3042,6 +3054,17 @@ public final class Adr {
      */
     public static final String A_TOPIC_IS_A_PAGE_CARRYING_ITS_OVERVIEW_AND_ITS_SUBTOPICS_ARE_PAGES_BENEATH_IT = FILE
             + "0415-a-topic-is-a-page-carrying-its-overview-its-subtopics-are-pages-beneath-it-and-a-see-also-link-lands-on-a-groups-page.md";
+
+    /**
+     * ADR-418 -- every stage's chart is written empty, no key, no time it finished and no line, at the first reading of
+     * the job of {@code vespera run}, and the job reads no chart's file; within its invocation a chart is started once,
+     * its seconds from its first sample there, its key added to as the invocation reaches it, and frozen once; a stage
+     * going through finished freezes with one sample; the census's samples are written as it walks and kept under the
+     * walk it hands the job, its file written empty where it hands none; the window draws the last job's charts
+     * (amends ADR-382 §4 to §7 and ADR-412 §1, §3 and §4).
+     */
+    public static final String EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS = FILE
+            + "0418-every-stages-chart-is-written-empty-as-the-job-of-vespera-run-begins-and-frozen-only-within-its-invocation.md";
 
     private Adr() {
     }
