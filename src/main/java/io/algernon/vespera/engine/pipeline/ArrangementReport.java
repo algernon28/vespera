@@ -13,8 +13,8 @@ import java.util.List;
 /**
  * Writes the arrangement as one self-contained HTML page (ADR-107) — plain, hand-assembled HTML, no
  * templating library, the shared {@link ReportPage} module the reports beside the database all
- * supply their title, prose and rows to (ADR-046, ADR-130) — as its partitions come: {@link #open}, then
- * {@link #partition} for each, then {@link #close} (ADR-223 section 3).
+ * supply their title, prose and rows to (ADR-046, ADR-130) — as its topics come: {@link #open}, then
+ * {@link #topic} for each, then {@link #close} (ADR-223 section 3).
  *
  * <p><b>This page is a gate, not a report.</b> The other five beside the database inform a number the
  * operator then supplies; this one asks for a decision about the thing it is showing. So it carries

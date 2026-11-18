@@ -700,7 +700,7 @@ class StageRuns {
             @JsonInclude(JsonInclude.Include.NON_NULL) Double topicBreadthFloor,
             @JsonInclude(JsonInclude.Include.NON_NULL) Double seeAlsoShare,
             // ADR-406 section 5, ADR-409 section 8: the subtopic floor, after the see-also share, written only where it is
-            // not what ships, since the clustering step now divides each topic at it.
+            // not what ships, since the clustering step divides each topic at it.
             @JsonInclude(JsonInclude.Include.NON_NULL) Integer subtopicFloor) {}
 
     /**

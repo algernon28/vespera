@@ -103,7 +103,7 @@ public final class IndexPage {
     }
 
     /**
-     * The name of a cluster's folder within its partition's directory, which holds its page and its copies: its
+     * The name of a cluster's folder within its topic's folder, which holds its page and its copies: its
      * position zero-padded to {@code clusterWidth} digits, then its label as a slug (ADR-112, ADR-280 §0).
      */
     public static String clusterFolderName(RecordedCluster recorded, int clusterWidth) {

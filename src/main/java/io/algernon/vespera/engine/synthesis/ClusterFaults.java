@@ -24,7 +24,7 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>A bean</b>, handed both to {@code GenerationTasklet}, which reads a cluster's row by its key to say why
  * the cluster went unwritten, and to {@link ClusterGeneration}, which writes them. ADR-041 holds as before: only
- * this class touches {@code cluster_fault}, and only through here (ADR-190).
+ * this class touches {@code standing_cluster_fault}, and only through here (ADR-190).
  */
 @Component
 public class ClusterFaults {
@@ -66,12 +66,12 @@ public class ClusterFaults {
      * succeeded (ADR-111, #185).
      *
      * <p><b>The one row in this schema removed on success.</b> Every other row this module writes — a
-     * {@code synthesis_doc}, a fault recorded above — stands until the table itself is gone. A fault
+     * {@code cluster_synthesis_doc}, a fault recorded above — stands until the table itself is gone. A fault
      * is rewritten in place when a later attempt fails a different check, which is what {@link
      * #record}'s replace is for; what happens nowhere else here is a row being taken away because
      * something went right. This delete exists for exactly one reason and does not generalise: the
      * ledger must never say a cluster both failed and succeeded under one run, so once a {@code
-     * synthesis_doc} row is written for a cluster that once faulted, the fault row saying otherwise has
+     * cluster_synthesis_doc} row is written for a cluster that once faulted, the fault row saying otherwise has
      * to go with it. Read this as the narrow carve-out ADR-111 names, not as licence to delete anything
      * else in this module.
      *

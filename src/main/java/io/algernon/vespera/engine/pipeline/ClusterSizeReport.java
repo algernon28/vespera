@@ -8,17 +8,17 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * Renders how each seed partition broke into clusters as one self-contained HTML file (ADR-087) —
+ * Renders how each topic broke into clusters as one self-contained HTML file (ADR-087, ADR-409) —
  * plain, hand-assembled HTML, no templating library, the shared {@link ReportPage} module the
  * reports beside the database all supply their title, prose and rows to (ADR-046, ADR-130).
  *
  * <p>The page exists because the number of clusters is not chosen: it falls out of how the documents
  * link to each other, so the only way to know what shape the deliverable will have is to look. A
- * partition that is 40% one-document pages is a fact whoever builds that tree needs <em>before</em>
+ * topic that is 40% one-document pages is a fact whoever builds that tree needs <em>before</em>
  * they build it, and this is where it belongs rather than in a threshold that quietly merges them.
  *
- * <p><b>It reports and never repairs.</b> A partition that broke into nothing but clusters of one is
- * a real outcome — it says the seed collected documents that resemble it individually and not each
+ * <p><b>It reports and never repairs.</b> A topic that broke into nothing but clusters of one is
+ * a real outcome — it says the survivors placed under it resemble the topic individually and not each
  * other — and merging those into a catch-all would be two unmeasured thresholds and a page no
  * document belongs to.
  */
@@ -137,26 +137,26 @@ final class ClusterSizeReport {
      * numbers, in the same order, and the paragraphs the page reads, stripped of their markup. A link the page shows
      * as a dash is {@code null}, and one it shows to two places is those two places.
      */
-    static AnalysisReportJson.Document document(List<Topic> partitions, Instant writtenAt) {
+    static AnalysisReportJson.Document document(List<Topic> topics, Instant writtenAt) {
         List<String> intro = new ArrayList<>(List.of(plain(INTRO)));
         List<AnalysisReportJson.Section> sections = new ArrayList<>();
-        if (partitions.isEmpty()) {
+        if (topics.isEmpty()) {
             intro.add(plain(NONE));
             sections.add(new AnalysisReportJson.Section("topics", TITLE, intro, null, null));
-            return new AnalysisReportJson.Document(FORMAT, NAME, TITLE, writtenAt, headline(partitions), sections);
+            return new AnalysisReportJson.Document(FORMAT, NAME, TITLE, writtenAt, headline(topics), sections);
         }
         List<List<Object>> rows = new ArrayList<>();
-        for (Topic partition : partitions) {
+        for (Topic topic : topics) {
             List<Object> row = new ArrayList<>();
-            row.add(partition.key());
-            row.add((long) partition.documentCount());
-            row.add((long) partition.clusterCount());
-            row.add((long) partition.largest());
-            row.add((long) partition.median());
-            row.add((long) partition.singletons());
-            row.add(shown(partition.spread().map(RetainedEdgeSpread::lowest).orElse(null)));
-            row.add(shown(partition.spread().map(RetainedEdgeSpread::middle).orElse(null)));
-            row.add(shown(partition.spread().map(RetainedEdgeSpread::highest).orElse(null)));
+            row.add(topic.key());
+            row.add((long) topic.documentCount());
+            row.add((long) topic.clusterCount());
+            row.add((long) topic.largest());
+            row.add((long) topic.median());
+            row.add((long) topic.singletons());
+            row.add(shown(topic.spread().map(RetainedEdgeSpread::lowest).orElse(null)));
+            row.add(shown(topic.spread().map(RetainedEdgeSpread::middle).orElse(null)));
+            row.add(shown(topic.spread().map(RetainedEdgeSpread::highest).orElse(null)));
             rows.add(row);
         }
         List<AnalysisReportJson.Column> columns = List.of(
@@ -181,22 +181,22 @@ final class ClusterSizeReport {
                 null));
         sections.add(new AnalysisReportJson.Section(
                 "what-this-page-cannot-see", "What this page cannot see", List.of(plain(CANNOT_SEE)), null, null));
-        return new AnalysisReportJson.Document(FORMAT, NAME, TITLE, writtenAt, headline(partitions), sections);
+        return new AnalysisReportJson.Document(FORMAT, NAME, TITLE, writtenAt, headline(topics), sections);
     }
 
     /** The numbers the page states first: what the topics came to between them. */
-    private static List<AnalysisReportJson.Figure> headline(List<Topic> partitions) {
+    private static List<AnalysisReportJson.Figure> headline(List<Topic> topics) {
         return List.of(
-                new AnalysisReportJson.Figure("topics", "Topics grouped", (long) partitions.size(), "count"),
+                new AnalysisReportJson.Figure("topics", "Topics grouped", (long) topics.size(), "count"),
                 new AnalysisReportJson.Figure(
                         "documents", "Documents grouped",
-                        partitions.stream().mapToLong(Topic::documentCount).sum(), "count"),
+                        topics.stream().mapToLong(Topic::documentCount).sum(), "count"),
                 new AnalysisReportJson.Figure(
                         "groups", "Groups",
-                        partitions.stream().mapToLong(Topic::clusterCount).sum(), "count"),
+                        topics.stream().mapToLong(Topic::clusterCount).sum(), "count"),
                 new AnalysisReportJson.Figure(
                         "groups-of-one", "Groups of one",
-                        partitions.stream().mapToLong(Topic::singletons).sum(), "count"));
+                        topics.stream().mapToLong(Topic::singletons).sum(), "count"));
     }
 
     /** A resemblance as the page shows it, to two places, or {@code null} where it shows a dash. */
@@ -209,12 +209,12 @@ final class ClusterSizeReport {
         return html.replaceAll("<[^>]*>", "").replace("&mdash;", "\u2014");
     }
 
-    static String render(List<Topic> partitions) {
+    static String render(List<Topic> topics) {
         StringBuilder body = new StringBuilder();
         body.append(ReportPage.heading(1, TITLE))
                 .append(ReportPage.paragraph(INTRO));
 
-        if (partitions.isEmpty()) {
+        if (topics.isEmpty()) {
             return ReportPage.render(
                     TITLE,
                     body.append(ReportPage.paragraph(NONE))
@@ -225,20 +225,20 @@ final class ClusterSizeReport {
                 "Topic", "Documents", "Groups", "Largest group", "Middle group", "Groups of one",
                 "Weakest link", "Middle link", "Strongest link");
         StringBuilder rows = new StringBuilder();
-        for (Topic partition : partitions) {
+        for (Topic topic : topics) {
             rows.append(ReportPage.row(
-                    ReportPage.textCell(partition.key()),
-                    ReportPage.numberCell(partition.documentCount()),
-                    ReportPage.numberCell(partition.clusterCount()),
-                    ReportPage.numberCell(partition.largest()),
-                    ReportPage.numberCell(partition.median()),
-                    ReportPage.numberCell(partition.singletons()),
+                    ReportPage.textCell(topic.key()),
+                    ReportPage.numberCell(topic.documentCount()),
+                    ReportPage.numberCell(topic.clusterCount()),
+                    ReportPage.numberCell(topic.largest()),
+                    ReportPage.numberCell(topic.median()),
+                    ReportPage.numberCell(topic.singletons()),
                     ReportPage.numberCell(resemblance(
-                            partition.spread().map(RetainedEdgeSpread::lowest).orElse(null))),
+                            topic.spread().map(RetainedEdgeSpread::lowest).orElse(null))),
                     ReportPage.numberCell(resemblance(
-                            partition.spread().map(RetainedEdgeSpread::middle).orElse(null))),
+                            topic.spread().map(RetainedEdgeSpread::middle).orElse(null))),
                     ReportPage.numberCell(resemblance(
-                            partition.spread().map(RetainedEdgeSpread::highest).orElse(null)))));
+                            topic.spread().map(RetainedEdgeSpread::highest).orElse(null)))));
         }
         body.append(ReportPage.table(headers, rows.toString()));
 
@@ -258,10 +258,10 @@ final class ClusterSizeReport {
      * One resemblance, to two places, or an em dash where there is none.
      *
      * <p>Two places because a third says nothing a reader would act on, and an em dash rather than
-     * 0.00 because a partition of one has no pair to be alike: a zero there would read as a document
+     * 0.00 because a topic of one has no pair to be alike: a zero there would read as a document
      * resembling nothing, which is a different statement about the archive.
      *
-     * @param value the resemblance, or {@code null} where the partition had no pair to measure
+     * @param value the resemblance, or {@code null} where the topic had no pair to measure
      */
     private static String resemblance(Double value) {
         return value == null ? "&mdash;" : String.format(Locale.ROOT, "%.2f", value);

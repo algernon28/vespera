@@ -113,20 +113,20 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>Completion needs two things, not one, bar one case</b> (ADR-116), and the walk's rule is {@link
  * ClusterGeneration}'s (ADR-190), which returns how the walk ended and leaves this step to act on it: every sendable
- * cluster carries a {@code synthesis_doc} row, <em>and</em> no {@code cluster_fault} row stands under this run. The
+ * cluster carries a {@code cluster_synthesis_doc} row, <em>and</em> no {@code standing_cluster_fault} row stands under this run. The
  * one case (ADR-319 §2) is this step's own, decided by {@link RepeatedFaults}: the walk went through every cluster,
  * found none unsendable, and every fault standing is a repeated fault, a cluster whose answer was turned down the last
  * two times it was asked; the step then records completion, and those clusters stand without writing. A
- * turned-down cluster carries no {@code synthesis_doc} row, so the next invocation of this run asks
+ * turned-down cluster carries no {@code cluster_synthesis_doc} row, so the next invocation of this run asks
  * about it again, and its fault row is deleted the moment that answer is believed (ADR-111, #185) —
  * which is what makes completion reachable for it at all. An unsendable cluster is reached again too
  * and refused again: no call is ever made for a cluster nothing fits into (ADR-121), so no later
- * invocation can turn one into a {@code synthesis_doc} row and this step never records completion
+ * invocation can turn one into a {@code cluster_synthesis_doc} row and this step never records completion
  * for it. Widening the reading window is not the repair — the window is consumed into this run's own
  * id ({@link StageRuns#generation}), so an operator who widens it generates under a run of its own rather
  * than finishing this one. ADR-121 accepts that permanence rather than mitigating it, and #183
- * settled in the negative that such a cluster earns no {@code cluster_fault} row of its own: the 6a
- * {@code cluster} row is the denominator, and the missing {@code synthesis_doc} row is the hole.
+ * settled in the negative that such a cluster earns no {@code standing_cluster_fault} row of its own: the 6a
+ * {@code arranged_cluster} row is the denominator, and the missing {@code cluster_synthesis_doc} row is the hole.
  *
  * <p><b>Five turned down in a row stop the step</b> (ADR-111, #184), the count being {@link
  * ClusterGeneration}'s and the stop this step's own, and any answer that is believed

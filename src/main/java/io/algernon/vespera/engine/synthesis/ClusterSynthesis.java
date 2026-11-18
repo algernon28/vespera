@@ -513,7 +513,7 @@ public class ClusterSynthesis {
      *
      * <p><b>The two ways a title fails to arrive keep different details, where the two ways writing
      * fails to arrive keep one</b> (ADR-124, ADR-125). ADR-124's test is what decides it, applied to
-     * different facts: a blank title is storable — {@code synthesis_doc.title} takes it, the row is
+     * different facts: a blank title is storable — {@code cluster_synthesis_doc.title} takes it, the row is
      * written, and ADR-111's skip means no repair pass ever reaches it again — while an absent one met
      * {@code TEXT NOT NULL} and could leave no row at all. Neither missing {@code prose} could leave
      * anything behind, which is why that pair folds and this one does not.
