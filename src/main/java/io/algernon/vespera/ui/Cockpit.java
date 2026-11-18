@@ -46,7 +46,9 @@ import javafx.util.Duration;
 /**
  * The control panel's window as one cockpit (ADR-344 §1): Run and Stop, the job's steps as a bar each beside the
  * child's output, a chart for each stage in two rows (ADR-382), the Report and Inclusions tabs and a sidebar of nine
- * sections in their order, Profile first, which opens the Profile window (ADR-389). Every part is found by its id. The cockpit reads and writes only through the {@link ControlPanelState}
+ * sections in their order, Profile first, which opens the Profile window (ADR-389). Its tabs pane holds the Report tab and
+ * Inclusions alone: an analysis report opens, by its name, in a tab of the Reports window, {@link AnalysisReportsWindow},
+ * which a change of the working directory and the cockpit's closing close (ADR-414). Every part is found by its id. The cockpit reads and writes only through the {@link ControlPanelState}
  * it is given, and reads the sources its fields start from from that state (ADR-344 §3), so a cockpit a test draws
  * starts from what the test gives it. Every colour, size and space is the stylesheet's; no node here sets a style.
  * It composes the parts, each its own class, and keeps what they share: the launch fields, the plan a start is given,
@@ -95,6 +97,7 @@ final class Cockpit {
     private final ProgressCharts charts = new ProgressCharts();
     private final OptionsPane options;
     private final ReportsPane reports;
+    private final AnalysisReportsWindow reportsWindow;
     private final PreflightPane preflight;
     private final CodeSetsPane codeSets;
     private final InclusionsTab inclusions;
@@ -142,7 +145,8 @@ final class Cockpit {
         this.state = state;
         this.dialogs = dialogs;
         this.options = new OptionsPane(state, this::showCommandLines);
-        this.reports = new ReportsPane(tabs, dialogs, folders, this::say);
+        this.reports = new ReportsPane(folders, this::openReport);
+        this.reportsWindow = new AnalysisReportsWindow(root, dialogs, folders, this::say);
         this.live = new LiveReport(this::openReport, dialogs::handToTheSystem);
         this.preflight = new PreflightPane(state, folders, property -> fields.get(property).text());
         this.codeSets = new CodeSetsPane(state, dialogs, folders, this::foldersToKeepApart, this::loadFiles);
@@ -615,7 +619,7 @@ final class Cockpit {
         working.input.textProperty().addListener((observed, was, now) -> {
             where();
             showModelsInUse();
-            reports.closeTabs();
+            reportsWindow.close();
             // the rows drawn for another working directory start as they first do (ADR-377 section 3)
             List.of(profileOpen, seedOpen, wantedOpen).forEach(ProfileRow.OpenKeys::forget);
             settleTheEditBeforeLoading();
@@ -925,7 +929,7 @@ final class Cockpit {
     }
 
     private void openReport(String report) {
-        reports.open(report);
+        reportsWindow.open(report);
     }
 
     /** The corpus root as the field names it now, which the window uses wherever it reads or holds one (ADR-344 §3). */
@@ -1351,5 +1355,6 @@ final class Cockpit {
     void closed() {
         timeline.stop();
         profileWindow.close();
+        reportsWindow.close();
     }
 }
