@@ -79,7 +79,7 @@ class TheEndingPanelTest {
 
     // ---- the parts, by id (§1, §3, §4, §5)
 
-    private static final String PANEL = "ending-panel";
+    private static final String ENDING_PANEL = "ending-panel";
     private static final String STRIPE = "ending-stripe";
     private static final String WHEN = "ending-when";
     private static final String KIND = "ending-kind";
@@ -657,8 +657,8 @@ class TheEndingPanelTest {
     }
 
     private static Shown seen(Parent root) {
-        Optional<Node> panel = HeadlessToolkit.nodeWithId(root, PANEL);
-        if (panel.isEmpty() || !shownInTheScene(panel.get())) {
+        Optional<Node> endingPanel = HeadlessToolkit.nodeWithId(root, ENDING_PANEL);
+        if (endingPanel.isEmpty() || !shownInTheScene(endingPanel.get())) {
             return new Shown(false, "", "", "", "", "", false, false, false);
         }
         return new Shown(true, textOf(root, WHEN), textOf(root, KIND), textOf(root, LINE), textOf(root, FAULTS),
@@ -697,7 +697,7 @@ class TheEndingPanelTest {
      * second item is {@code output-and-ending}, a split up and down; whether that split's first item is the output;
      * and whether the panel lies in its second.
      */
-    record Placed(boolean stepsFirst, boolean outputSideSplitUpAndDown, boolean outputAbove, boolean panelBeneath) {
+    record Placed(boolean stepsFirst, boolean outputSideSplitUpAndDown, boolean outputAbove, boolean endingPanelBeneath) {
     }
 
     private static Placed placed(Parent root) {
@@ -715,7 +715,7 @@ class TheEndingPanelTest {
         return new Placed(stepsFirst, split.getOrientation() == Orientation.VERTICAL,
                 split.getItems().getFirst() == WindowForTests.node(root, "output", TextArea.class),
                 HeadlessToolkit.everyNodeUnder(split.getItems().get(1)).stream()
-                        .anyMatch(node -> PANEL.equals(node.getId())));
+                        .anyMatch(node -> ENDING_PANEL.equals(node.getId())));
     }
 
     /** The width of the sidebar's scroll, the one that holds its sections. */
@@ -756,10 +756,10 @@ class TheEndingPanelTest {
     }
 
     private static Drawn drawn(Parent root) {
-        Node panel = WindowForTests.node(root, PANEL, Node.class);
+        Node endingPanel = WindowForTests.node(root, ENDING_PANEL, Node.class);
         Map<String, Color> texts = new LinkedHashMap<>();
         List<String> notSelectable = new ArrayList<>();
-        for (Node node : HeadlessToolkit.everyNodeUnder(panel)) {
+        for (Node node : HeadlessToolkit.everyNodeUnder(endingPanel)) {
             if (node instanceof Text text && text.getText() != null && !text.getText().isBlank()
                     && shownInTheScene(text) && inside(text, TextInputControl.class) && text.getFill() instanceof Color ink) {
                 texts.put(text.getText(), ink);
@@ -769,7 +769,7 @@ class TheEndingPanelTest {
                 notSelectable.add(labeled.getText());
             }
         }
-        return new Drawn(innermost(panel), innermost(WindowForTests.node(root, STRIPE, Node.class)), inkOf(KIND, root),
+        return new Drawn(innermost(endingPanel), innermost(WindowForTests.node(root, STRIPE, Node.class)), inkOf(KIND, root),
                 texts, notSelectable);
     }
 
