@@ -1362,10 +1362,19 @@ final class Cockpit {
             said = Optional.of(EndingPanel.ofTheChild(own, report, noticedAt, ZoneId.systemDefault()));
             tabDrawnForTheEndingPanel = false;
         } else {
-            Optional<InvocationReportFile.Report> report = theReportAtTheTop(folder.get());
-            said = report.flatMap(each -> EndingPanel.ofAnEarlier(each, ZoneId.systemDefault()));
+            Optional<EndingPanel.Said> earlier;
+            try {
+                Optional<InvocationReportFile.Report> report = theReportAtTheTop(folder.get());
+                earlier = report.flatMap(each -> EndingPanel.ofAnEarlier(each, ZoneId.systemDefault()));
+                if (earlier.isPresent()) {
+                    live.showsAnEarlier(report.get());
+                }
+            } catch (RuntimeException unreadable) {
+                // a report that cannot be read or drawn is no panel, and must not leave the last folder's ending standing
+                earlier = Optional.empty();
+            }
+            said = earlier;
             if (said.isPresent()) {
-                live.showsAnEarlier(report.get());
                 tabDrawnForTheEndingPanel = true;
             } else if (tabDrawnForTheEndingPanel) {
                 live.says(LiveReport.WAITING);

@@ -2,6 +2,7 @@ package io.algernon.vespera.ui;
 
 import java.net.URI;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -173,8 +174,16 @@ final class LiveReport {
     /** The deliverable's index, where the invocation drew a tree and its index is there. */
     private static String indexOf(InvocationReportFile.Report report) {
         return Optional.ofNullable(report.places()).map(InvocationReportFile.Places::deliverableRoot)
-                .map(root -> Path.of(root).resolve("index.html")).filter(Files::isRegularFile).map(Path::toString)
-                .orElse(null);
+                .map(LiveReport::indexUnder).filter(Files::isRegularFile).map(Path::toString).orElse(null);
+    }
+
+    /** The index file under a root, or nothing where the root is no valid path on this system. */
+    private static Path indexUnder(String root) {
+        try {
+            return Path.of(root).resolve("index.html");
+        } catch (InvalidPathException unusable) {
+            return null;
+        }
     }
 
     /** Marks the report drawn last stale or not by the clock, where its child has not ended; it is read again only each interval. */
