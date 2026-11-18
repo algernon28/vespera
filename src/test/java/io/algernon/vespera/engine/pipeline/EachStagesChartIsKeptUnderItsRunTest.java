@@ -99,6 +99,11 @@ class EachStagesChartIsKeptUnderItsRunTest {
 
     private static final String BELOW_THRESHOLD = "below-threshold";
 
+    /** The refusals the kept chart's line ends at, and those an invocation whose runs reading failed records. */
+    private static final long REFUSALS_KEPT = 3;
+
+    private static final long RECORDED_WITH_NO_RUNS_READ = 1;
+
     /** The extraction's counter: four documents to read, the first invocation stopping after two. */
     private static final long TO_READ = 4;
 
@@ -475,6 +480,44 @@ class EachStagesChartIsKeptUnderItsRunTest {
                         + " and no line: the only walk its lines named, the seed folder's, is drawn as no walk of the corpus"
                         + " root",
                 () -> assertThat(filesOf(List.of("0"))).isEqualTo(emptyFiles(List.of("0"))));
+    }
+
+    @Test
+    @Story("The window shows how each stage has gone")
+    @DisplayName("Where the runs could not be read as the invocation began, a kind of verdict is counted from what this invocation recorded alone, nothing of the chart kept before")
+    @Issue("880")
+    @Link(name = "ADR-418", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
+    void aRunsReadingThatFailsCountsAKindFromThisInvocationAlone() throws IOException {
+        // the extraction's chart, not finished, both its kinds drawn: refusals 0 then 3, none without text
+        Files.writeString(fileOf("2"), "{\"format\":1,\"stage\":\"2\",\"key\":{\"extraction\":\"" + THE_RUN + "\"},"
+                + "\"finishedAt\":null,\"lines\":[{\"name\":\"done\",\"seconds\":[0,5],\"values\":[10,20]},"
+                + "{\"name\":\"" + EXTRACTION_FAILED + "\",\"seconds\":[0,5],\"values\":[0," + REFUSALS_KEPT + "]},"
+                + "{\"name\":\"" + DEGENERATE_OUTPUT + "\",\"seconds\":[0,5],\"values\":[0,0]}]}", UTF_8);
+        AtomicReference<Map<String, Long>> recorded = new AtomicReference<>(Map.of());
+
+        // the runs reading at the start fails; the extraction runs under the run the kept chart names, refuses one
+        // document, and is stopped
+        JobSampler sampler = aSampler(recorded, () -> {
+            throw new IllegalStateException("the ledger could not be read");
+        });
+        JobExecution job = aJob();
+        sampler.beforeJob(job);
+        StepExecution extraction = extractionUnder(job, THE_RUN);
+        says(extraction, 1);
+        recorded.set(Map.of(EXTRACTION_FAILED, RECORDED_WITH_NO_RUNS_READ));
+        ended(extraction, BatchStatus.STOPPED, 20);
+        job.setStatus(BatchStatus.STOPPED);
+        sampler.afterJob(job);
+        Chart chart = Chart.in(fileOf("2"));
+
+        claim("the extraction's refusals end at the 1 this invocation recorded, not at that 1 added to the 3 the chart kept"
+                        + " before it ended at",
+                () -> {
+                    assertThat(chart).isNotNull();
+                    Line refusals = chart.lines().stream().filter(line -> line.name().equals(EXTRACTION_FAILED))
+                            .findFirst().orElseThrow();
+                    assertThat(refusals.values()).last().isEqualTo((double) RECORDED_WITH_NO_RUNS_READ);
+                });
     }
 
     // ---- the job
