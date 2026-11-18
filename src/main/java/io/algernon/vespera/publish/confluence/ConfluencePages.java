@@ -37,14 +37,14 @@ import tools.jackson.databind.json.JsonMapper;
  * the HTML tree (ADR-301, ADR-312), and its page list, {@value #PAGE_LIST_FILE_NAME} (ADR-316).
  *
  * <p><b>It follows the HTML tree's shape</b> (ADR-312 §1): the root page's body and the page list directly in {@code
- * confluence/}, a folder for each seed partition and within it for each cluster, named as the HTML tree names them,
+ * confluence/}, a folder for each topic and within it for each cluster, named as the HTML tree names them,
  * each holding its page's body, {@value #BODY_NAME} or {@code page-<k>.xml} for page k of a split cluster, and its
  * pictures' files (ADR-314). A copy is not written again: the page list names it at its place in the HTML tree
  * (ADR-316 §2).
  *
  * <p><b>It is appended to as the HTML tree is</b> (ADR-223 §6): a cluster's pages are written as its HTML pages are, a
- * seed partition's page when its last cluster is drawn, and the root page and the page list last, once {@code
- * documents.csv} stands (ADR-315 §3). What is held is one seed partition's rows; the root page's body and the page
+ * topic's page when its last cluster is drawn, and the root page and the page list last, once {@code
+ * documents.csv} stands (ADR-315 §3). What is held is one topic's rows; the root page's body and the page
  * list's entries after the root's are written to their {@code .part} files as they come.
  *
  * <p><b>Nothing names the corpus root, the working directory or a profile value</b> (ADR-315 §1, ADR-316 §2), and
@@ -85,12 +85,12 @@ final class ConfluencePages implements Drawing {
     private final Writer root;
     private final Writer rest;
 
-    /** The seed partition being drawn, and its rows, held until its last cluster is drawn. */
-    private String partitionKey;
-    private String partitionPlace;
-    private String partitionTitle;
-    private String partitionFolder;
-    private final StringBuilder partitionRows = new StringBuilder();
+    /** The topic being drawn, and its rows, held until its last cluster is drawn. */
+    private String topicKey;
+    private String topicPlace;
+    private String topicTitle;
+    private String topicFolder;
+    private final StringBuilder topicRows = new StringBuilder();
     private final List<ListedPage> clusterPages = new ArrayList<>();
 
     /**
@@ -123,13 +123,13 @@ final class ConfluencePages implements Drawing {
     @Override
     public void topicStarted(ListedTopic topic, int topicCount) throws IOException {
         String place = IndexPage.pad(topic.topicOrder(), IndexPage.widthOf(topicCount));
-        partitionFolder = IndexPage.topicDirectoryName(topic, topicCount);
-        partitionKey = language.code() + ":" + topic.topicOrder();
-        partitionPlace = place;
-        partitionTitle = ConfluenceTitles.partition(topic.name(), place, language);
-        Files.createDirectories(directory.resolve(partitionFolder));
-        written.add(DIRECTORY_NAME + "/" + partitionFolder);
-        partitionRows.setLength(0);
+        topicFolder = IndexPage.topicDirectoryName(topic, topicCount);
+        topicKey = language.code() + ":" + topic.topicOrder();
+        topicPlace = place;
+        topicTitle = ConfluenceTitles.partition(topic.name(), place, language);
+        Files.createDirectories(directory.resolve(topicFolder));
+        written.add(DIRECTORY_NAME + "/" + topicFolder);
+        topicRows.setLength(0);
         clusterPages.clear();
     }
 
@@ -144,7 +144,7 @@ final class ConfluencePages implements Drawing {
             ListedTopic topic, RecordedCluster recorded, List<ListedSurvivor> members, Path clusterFolder,
             Copies copies)
             throws IOException {
-        String folderPath = partitionFolder + "/" + IndexPage.clusterFolderName(recorded, IndexPage.widthOf(topic.clusterCount()));
+        String folderPath = topicFolder + "/" + IndexPage.clusterFolderName(recorded, IndexPage.widthOf(topic.clusterCount()));
         Path folder = directory.resolve(folderPath);
         Files.createDirectories(folder);
         written.add(DIRECTORY_NAME + "/" + folderPath);
@@ -153,7 +153,7 @@ final class ConfluencePages implements Drawing {
 
     /**
      * Writes one cluster's page, or pages where {@code breaks} splits its HTML page (ADR-303), from {@code entries}, which
-     * it closes and deletes, and its row of its seed partition's table and the root page's.
+     * it closes and deletes, and its row of its topic's table and the root page's.
      */
     @Override
     public void clusterDrawn(
@@ -170,13 +170,13 @@ final class ConfluencePages implements Drawing {
         ConfluenceEntries entries = (ConfluenceEntries) handedBack;
         entries.close();
         int clusterWidth = IndexPage.widthOf(topic.clusterCount());
-        String folderPath = partitionFolder + "/" + IndexPage.clusterFolderName(recorded, clusterWidth);
+        String folderPath = topicFolder + "/" + IndexPage.clusterFolderName(recorded, clusterWidth);
         Path folder = directory.resolve(folderPath);
-        String place = partitionPlace + "."
+        String place = topicPlace + "."
                 + IndexPage.pad(recorded.cluster().clusterOrder(), clusterWidth);
         String text = doc.map(SynthesisDoc::title).orElse(recorded.label().value());
         int pages = breaks.map(ClusterPage.PageBreaks::pages).orElse(1);
-        String firstKey = partitionKey + "." + recorded.cluster().clusterOrder();
+        String firstKey = topicKey + "." + recorded.cluster().clusterOrder();
         for (int page = 1; page <= pages; page++) {
             String body = page == 1 ? BODY_NAME : "page-" + page + ".xml";
             Path part = folder.resolve(body + Deliverable.PART_SUFFIX);
@@ -190,14 +190,14 @@ final class ConfluencePages implements Drawing {
             moves.intoPlace(part, folder.resolve(body));
             clusterPages.add(new ListedPage(
                     page == 1 ? firstKey : firstKey + "." + page,
-                    page == 1 ? partitionKey : firstKey,
+                    page == 1 ? topicKey : firstKey,
                     ConfluenceTitles.cluster(text, place, page, language),
                     folderPath + "/" + body,
                     digest,
                     files));
         }
         Files.delete(entries.file());
-        partitionRows.append("<tr><td>")
+        topicRows.append("<tr><td>")
                 .append(link(ConfluenceTitles.cluster(text, place, 1, language), recorded.label().value()))
                 .append("</td><td>")
                 .append(recorded.cluster().documentCount())
@@ -209,19 +209,19 @@ final class ConfluencePages implements Drawing {
     }
 
     /**
-     * Writes the seed partition's page, its table of groups, and appends the same to the root page under a link to it;
-     * then lists the seed partition's page and its clusters' pages, parents first (ADR-316 §2).
+     * Writes the topic's page, its table of groups, and appends the same to the root page under a link to it;
+     * then lists the topic's page and its clusters' pages, parents first (ADR-316 §2).
      */
     @Override
     public void topicEnded() throws IOException {
-        String table = "<table><tbody>\n" + FixedWords.clusterTableHeadRow(language) + partitionRows
+        String table = "<table><tbody>\n" + FixedWords.clusterTableHeadRow(language) + topicRows
                 + "</tbody></table>\n";
-        Path part = directory.resolve(partitionFolder).resolve(BODY_NAME + Deliverable.PART_SUFFIX);
+        Path part = directory.resolve(topicFolder).resolve(BODY_NAME + Deliverable.PART_SUFFIX);
         Files.writeString(part, table, StandardCharsets.UTF_8);
         String digest = sha256Of(part);
-        moves.intoPlace(part, directory.resolve(partitionFolder).resolve(BODY_NAME));
-        root.append("<h2>").append(link(partitionTitle, partitionTitle)).append("</h2>\n").append(table);
-        listed(new ListedPage(partitionKey, rootKey(), partitionTitle, partitionFolder + "/" + BODY_NAME, digest, List.of()));
+        moves.intoPlace(part, directory.resolve(topicFolder).resolve(BODY_NAME));
+        root.append("<h2>").append(link(topicTitle, topicTitle)).append("</h2>\n").append(table);
+        listed(new ListedPage(topicKey, rootKey(), topicTitle, topicFolder + "/" + BODY_NAME, digest, List.of()));
         for (ListedPage page : clusterPages) {
             listed(page);
         }
