@@ -136,6 +136,10 @@ class EachStageHasAChartTest {
     /** The look-up key under which {@link Tooltip#install} keeps a node's tooltip among its properties. */
     private static final String TOOLTIP_KEY = "javafx.scene.control.Tooltip";
 
+    /** Stage 1's file as the job writes every stage's as it begins: no key, no time it finished and no line. */
+    private static final String STAGE_1_WRITTEN_EMPTY =
+            "{\"format\":1,\"stage\":\"1\",\"key\":{},\"finishedAt\":null,\"lines\":[]}";
+
     @TempDir
     Path folder;
 
@@ -304,6 +308,30 @@ class EachStageHasAChartTest {
                 () -> assertThat(mixed.markersByLine()).as("markers shown, line by line").containsExactly(0, 0, 1));
         claim("on stage 4's chart, not finished, each of its two lines of one sample shows one marker",
                 () -> assertThat(running.markersByLine()).as("markers shown, line by line").containsExactly(1, 1));
+    }
+
+    @Test
+    @Story("The window shows how each stage has gone")
+    @DisplayName("A stage's chart the job wrote empty as it began is drawn as one the working directory keeps no file of: its title alone and no line")
+    @Issue("880")
+    @Link(name = "ADR-418", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
+    void aStagesChartWrittenEmptyIsDrawnAsOneWithNoFile() throws Exception {
+        Path working = Files.createDirectories(folder.resolve("working"));
+        Files.writeString(working.resolve("chart-stage-1.json"), STAGE_1_WRITTEN_EMPTY, UTF_8);
+
+        Drawn empty;
+        try (WindowForTests window = WindowForTests.shown(overThe(working))) {
+            empty = window.read(root -> drawn(root, "1"));
+        }
+
+        claim("the chart of stage 1, whose file holds no line and no finishing time, is titled with its stage alone, is"
+                        + " not marked frozen, draws no line and marks no point as the latest",
+                () -> {
+                    assertThat(empty.title()).isEqualTo("1 · Byte-level reduction");
+                    assertThat(empty.frozen()).isFalse();
+                    assertThat(empty.lines()).isEmpty();
+                    assertThat(empty.latestMarks()).isZero();
+                });
     }
 
     // ---- the window
