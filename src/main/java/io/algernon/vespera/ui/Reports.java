@@ -12,12 +12,12 @@ import java.util.Map;
 public final class Reports {
 
     /**
-     * The eleven analysis reports by name, in the order of ADR-302 §3 and ADR-306 §2, without the progress pages the
+     * The twelve analysis reports by name, in the order of ADR-302 §3 and ADR-306 §2, without the progress pages the
      * Report tab replaces (ADR-362 §8).
      */
     public static final List<String> ALL = List.of("format-mix", "extraction-failures", "extraction-survivors",
             "confidence-distribution", "document-frequency", "word-count-distribution",
-            "seed-corpus-comparison", "cluster-sizes", "relevance-labelling",
+            "seed-corpus-comparison", "cluster-sizes", "relevance-labelling", "topics",
             "arrangement", "cluster-page-sizes");
 
     /** Each analysis report's title by its name, in {@link #ALL}'s order (ADR-377 §5). */
@@ -31,6 +31,7 @@ public final class Reports {
             "seed-corpus-comparison", "Your documents compared with your seed documents",
             "cluster-sizes", "Group sizes",
             "relevance-labelling", "Choosing the relevance cut-off",
+            "topics", "Topics found in your seed documents",
             "arrangement", "Grouping to approve",
             "cluster-page-sizes", "Group page sizes");
 

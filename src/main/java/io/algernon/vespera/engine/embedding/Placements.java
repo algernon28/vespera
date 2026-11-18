@@ -1,10 +1,12 @@
 package io.algernon.vespera.engine.embedding;
 
+import io.algernon.vespera.engine.ledger.KeysetPages;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.RunId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Consumer;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -69,6 +71,23 @@ public class Placements {
                 runId.value()));
         topics.sort(Comparator.comparing(TopicKey::firstPassage));
         return topics;
+    }
+
+    /**
+     * Hands the documents with a link to {@code topic} under {@code runId} to {@code page}, a page of up to {@value
+     * KeysetPages#ROWS_IN_A_PAGE} at a time in occurrence order, by the index on the run, the topic and the occurrence,
+     * sorting nothing (ADR-416 section 8). Each page is handed over once its statement has finished.
+     */
+    public void eachSeeAlsoPage(RunId runId, TopicKey topic, Consumer<List<OccurrenceId>> page) {
+        new KeysetPages<OccurrenceId>(
+                        jdbcTemplate,
+                        "SELECT occurrence_id FROM see_also WHERE run_id = ? AND topic_seed_path = ?"
+                                + " AND topic_chunk_index = ? AND occurrence_id > ? ORDER BY occurrence_id",
+                        List.of(runId.value(), topic.firstPassage().seedPath(), topic.firstPassage().chunkIndex()),
+                        List.of(Long.MIN_VALUE),
+                        last -> List.of(last.value()),
+                        (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("occurrence_id")))
+                .eachPage(page);
     }
 
     /** The documents {@code runId} placed under {@code topic}, in occurrence order, the order clustering visits them in (ADR-087). */

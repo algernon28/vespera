@@ -73,7 +73,7 @@ public final class InvocationReportFile {
     public record Fault(String step, String type, List<String> causes) {
     }
 
-    /** One of the eleven analysis reports: its name, whether its page is there, and the paths of the page and its JSON. */
+    /** One of the twelve analysis reports: its name, whether its page is there, and the paths of the page and its JSON. */
     public record AnalysisReport(String name, String html, String json, boolean written) {
     }
 

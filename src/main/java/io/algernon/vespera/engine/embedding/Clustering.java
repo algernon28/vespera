@@ -165,6 +165,12 @@ public class Clustering {
         return placements.topicsPlacedUnder(runId);
     }
 
+    /** The documents with a link to {@code topic} under {@code runId}, a page of 1,000 at a time (ADR-416 section 8). */
+    public void eachSeeAlsoPage(
+            RunId runId, TopicKey topic, java.util.function.Consumer<List<OccurrenceId>> page) {
+        placements.eachSeeAlsoPage(runId, topic, page);
+    }
+
     /** The survivors {@code topic} holds under {@code runId}, in the order clustering visits them. */
     public List<OccurrenceId> membersOf(RunId runId, TopicKey topic) {
         return placements.membersOf(runId, topic);
@@ -239,6 +245,44 @@ public class Clustering {
             double resolution,
             int subtopicFloor,
             ClusteringProgress progress) {
+        return clusterAndRecordWithSubtopicSpreads(
+                        runId,
+                        topic,
+                        contentHashesByOccurrence,
+                        chunkerIdentity,
+                        chunkingRuleIdentity,
+                        embedderIdentity,
+                        neighbours,
+                        resolution,
+                        subtopicFloor,
+                        progress)
+                .topic();
+    }
+
+    /**
+     * What a topic's pass observed of its graphs (ADR-096, ADR-416 section 5).
+     *
+     * @param topic the spread over the whole topic's graph, as {@code clusterAndRecord} returns it
+     * @param subtopics each subtopic's spread, by its number, over the graph its clusters were found over; empty
+     *     where the topic is not divided
+     */
+    public record Spreads(Optional<RetainedEdgeSpread> topic, Map<Integer, Optional<RetainedEdgeSpread>> subtopics) {}
+
+    /**
+     * As {@link #clusterAndRecord(RunId, TopicKey, Map, String, String, String, int, double, int, ClusteringProgress)},
+     * returning each subtopic's spread beside the topic's, from the same pass.
+     */
+    public Spreads clusterAndRecordWithSubtopicSpreads(
+            RunId runId,
+            TopicKey topic,
+            Map<OccurrenceId, String> contentHashesByOccurrence,
+            String chunkerIdentity,
+            String chunkingRuleIdentity,
+            String embedderIdentity,
+            int neighbours,
+            double resolution,
+            int subtopicFloor,
+            ClusteringProgress progress) {
         if (neighbours < 1) {
             throw new IllegalArgumentException("a graph keeps at least one neighbour, not " + neighbours);
         }
@@ -251,7 +295,7 @@ public class Clustering {
         }
         List<OccurrenceId> members = List.copyOf(contentHashesByOccurrence.keySet());
         if (members.isEmpty()) {
-            return Optional.empty();
+            return new Spreads(Optional.empty(), Map.of());
         }
         StoredMeanVectors vectors = new StoredMeanVectors(
                 List.copyOf(contentHashesByOccurrence.values()), chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
@@ -264,7 +308,11 @@ public class Clustering {
                     : OptionalInt.empty();
             documentClusters.record(runId, members.get(document), topic, subtopic, division.clusterOf().get(document));
         }
-        return RetainedEdgeSpread.over(graph);
+        Map<Integer, Optional<RetainedEdgeSpread>> subtopics = new java.util.LinkedHashMap<>();
+        for (int subtopic = 0; subtopic < division.subtopicSpreads().size(); subtopic++) {
+            subtopics.put(subtopic, division.subtopicSpreads().get(subtopic));
+        }
+        return new Spreads(RetainedEdgeSpread.over(graph), subtopics);
     }
 
     /**

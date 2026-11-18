@@ -2,7 +2,11 @@ package io.algernon.vespera.engine.embedding;
 
 import io.algernon.vespera.engine.ledger.RunId;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -80,6 +84,72 @@ public class Topics {
             topics.add(new Topic(key, passages));
         }
         return List.copyOf(topics);
+    }
+
+    /** One seed that feeds a topic and how many of the topic's passages are of it (ADR-416 section 2). */
+    public record SeedFeed(String seedPath, int passages) {}
+
+    /**
+     * The topics {@code runId} kept, each with its passage count, in key order, by the primary key and sorting nothing
+     * (ADR-416 section 8).
+     */
+    public Map<TopicKey, Integer> passageCountsUnder(RunId runId) {
+        Map<TopicKey, Integer> counts = new LinkedHashMap<>();
+        jdbcTemplate.query(
+                "SELECT seed_path, chunk_index, passage_count FROM topic WHERE run_id = ?"
+                        + " ORDER BY seed_path, chunk_index",
+                resultSet -> {
+                    counts.put(
+                            new TopicKey(new SeedPassage(
+                                    resultSet.getString("seed_path"), resultSet.getInt("chunk_index"))),
+                            resultSet.getInt("passage_count"));
+                },
+                runId.value());
+        return counts;
+    }
+
+    /**
+     * The seeds feeding {@code topic} under {@code runId}, each with how many of the topic's passages it gives, in the
+     * order of ADR-399 section 4's paths: grouped on the seed by the index on the run and the topic, which sorts
+     * nothing (ADR-416 section 8).
+     */
+    public List<SeedFeed> seedsOf(RunId runId, TopicKey topic) {
+        List<SeedFeed> seeds = new ArrayList<>(jdbcTemplate.query(
+                "SELECT seed_path, COUNT(*) AS passages FROM topic_passage WHERE run_id = ? AND topic_seed_path = ?"
+                        + " AND topic_chunk_index = ? GROUP BY seed_path",
+                (resultSet, rowNumber) ->
+                        new SeedFeed(resultSet.getString("seed_path"), resultSet.getInt("passages")),
+                runId.value(),
+                topic.firstPassage().seedPath(),
+                topic.firstPassage().chunkIndex()));
+        seeds.sort((left, right) -> SeedPassage.comparePaths(left.seedPath(), right.seedPath()));
+        return seeds;
+    }
+
+    /** The seeds feeding no topic under {@code runId}, in the order of ADR-399 section 4's paths (ADR-401 section 4). */
+    public List<String> seedsFeedingNoTopic(RunId runId) {
+        List<String> paths = new ArrayList<>(jdbcTemplate.query(
+                "SELECT seed_path FROM seed_feeding_no_topic WHERE run_id = ?",
+                (resultSet, rowNumber) -> resultSet.getString("seed_path"),
+                runId.value()));
+        paths.sort(SeedPassage::comparePaths);
+        return paths;
+    }
+
+    /**
+     * Every seed passage, counted as the breadth floor counts it (ADR-401 section 1): the chunks of one seed of each
+     * content, the first by path in ADR-399 section 4's order.
+     */
+    public static long seedPassagesOf(Map<String, SeedChunks> bySeedPath) {
+        long passages = 0;
+        Set<String> contents = new HashSet<>();
+        for (String path : bySeedPath.keySet().stream().sorted(SeedPassage::comparePaths).toList()) {
+            SeedChunks seed = bySeedPath.get(path);
+            if (contents.add(seed.contentHash())) {
+                passages += seed.chunkCount();
+            }
+        }
+        return passages;
     }
 
     /**
