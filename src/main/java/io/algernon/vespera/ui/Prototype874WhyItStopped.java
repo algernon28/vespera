@@ -140,9 +140,9 @@ public final class Prototype874WhyItStopped extends Application {
                             "  publish  Delivers the last drawing"),
                     0, "defect"));
 
-    private static final List<String> VARIANTS = List.of("D", "E", "");
-    private static final List<String> NAMES = List.of("beneath the output, its column only",
-            "beneath chart and output, full width", "today: child line only");
+    private static final List<String> VARIANTS = List.of("D", "");
+    private static final List<String> NAMES = List.of("today + small scrollable panel beneath the log",
+            "today, unchanged");
 
     private int variant;
     private int scenario;
@@ -238,7 +238,7 @@ public final class Prototype874WhyItStopped extends Application {
         childLine.setWrapText(true);
         HBox childRow = new HBox(8, childLine);
         childRow.setAlignment(Pos.CENTER_LEFT);
-        if (!v.isEmpty()) {
+        if (!v.isEmpty() && !v.equals("D")) {
             childLine.setText("run: " + shortHow(s) + (s.step() == null ? "" : " at " + s.step()));
             childLine.setStyle("-fx-text-fill: " + colourOf(s) + "; -fx-font-weight: bold;");
             if (v.equals("A") && dismissed) {
@@ -389,9 +389,15 @@ public final class Prototype874WhyItStopped extends Application {
         stripe.setMinWidth(5);
         stripe.setStyle("-fx-background-color: " + colourOf(s) + ";");
         HBox panel = new HBox(stripe, body);
-        panel.setMinHeight(Region.USE_PREF_SIZE);
-        panel.setStyle("-fx-background-color: -vespera-surface; -fx-border-color: -vespera-rule;");
-        return panel;
+        panel.setStyle("-fx-background-color: -vespera-surface;");
+        ScrollPane scroll = new ScrollPane(panel);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setPrefHeight(110);
+        scroll.setMinHeight(110);
+        scroll.setMaxHeight(110);
+        scroll.setStyle("-fx-border-color: -vespera-rule;");
+        return scroll;
     }
 
     // ---- variant C: a third column between chart and output, tying the failed step to the output line
