@@ -136,7 +136,7 @@ class TheTopicsAnalysisReportIsWrittenAtTheArrangementInvocationTest {
         EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
-        JsonNode json = theReport();
+        JsonNode json = theTopicsAnalysisReport();
         JsonNode schema = JSON.readTree(Files.readString(SCHEMA, StandardCharsets.UTF_8));
         String onSluicesKey = onSluices.getFirst() + " chunk 0";
         String onPumpsKey = onPumps.getFirst() + " chunk 0";
@@ -185,7 +185,7 @@ class TheTopicsAnalysisReportIsWrittenAtTheArrangementInvocationTest {
         EveryGateOpen.throughStageFive(profileStore, seeds);
 
         cli.run("run", root.toString());
-        JsonNode json = theReport();
+        JsonNode json = theTopicsAnalysisReport();
 
         claim("the invocation ended well, at the arrangement's approval", () -> assertThat(cli.getExitCode()).isZero());
         claim("the one topic is given, named first, its four passages 0.667 of the six, the dropped topic's two counted"
@@ -222,7 +222,7 @@ class TheTopicsAnalysisReportIsWrittenAtTheArrangementInvocationTest {
 
         cli.run("run", root.toString());
         int first = cli.getExitCode();
-        List<List<Object>> rowsTheFirstWrote = AnalysisReportRows.of(sectionOf(theReport(), "topics"));
+        List<List<Object>> rowsTheFirstWrote = AnalysisReportRows.of(sectionOf(theTopicsAnalysisReport(), "topics"));
         Files.delete(workingDirectory.resolve("topics.json"));
         Files.delete(workingDirectory.resolve("topics.html"));
         ListAppender<ILoggingEvent> lines = new ListAppender<>();
@@ -246,7 +246,7 @@ class TheTopicsAnalysisReportIsWrittenAtTheArrangementInvocationTest {
                 () -> assertThat(List.of(workingDirectory.resolve("topics.html"), workingDirectory.resolve("topics.json")))
                         .allSatisfy(file -> assertThat(file).isRegularFile()));
         claim("and the JSON's row for each topic is the one the first invocation wrote",
-                () -> assertThat(AnalysisReportRows.of(sectionOf(theReport(), "topics")))
+                () -> assertThat(AnalysisReportRows.of(sectionOf(theTopicsAnalysisReport(), "topics")))
                         .isEqualTo(rowsTheFirstWrote));
     }
 
@@ -284,7 +284,7 @@ class TheTopicsAnalysisReportIsWrittenAtTheArrangementInvocationTest {
     }
 
     /** {@code topics.json} as the last invocation of the class wrote it. */
-    private static JsonNode theReport() throws IOException {
+    private static JsonNode theTopicsAnalysisReport() throws IOException {
         return JSON.readTree(Files.readString(workingDirectory.resolve("topics.json"), StandardCharsets.UTF_8));
     }
 

@@ -16,6 +16,8 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,7 +30,8 @@ import org.springframework.test.context.ActiveProfiles;
 /**
  * One topic, clustered end to end over the stored vectors (ADR-087, ADR-045, ADR-409 section 8): the graph, the
  * communities and the rows, composed the way stage 5's own step composes them. The topic is under the subtopic
- * floor, so it is clustered whole, as a seed partition was.
+ * floor, so it is clustered whole, as a seed partition was, except where a test lowers the floor to divide it
+ * (ADR-406, ADR-416 section 5).
  *
  * <p><b>The count is never supplied.</b> The fixtures below say how the documents resemble each
  * other and nothing says how many clusters to find — which is the property that lets a topic of
@@ -73,6 +76,21 @@ class ClusteringTest {
      * clustered here, so the topic is not divided and its clusters are found over it whole (ADR-406 section 1).
      */
     private static final int SUBTOPIC_FLOOR = 300;
+
+    /** A subtopic floor the thirty-six documents of the divided topic reach, so it is divided (ADR-406 section 1). */
+    private static final int A_LOW_FLOOR = 2;
+
+    /** How far each document of a tight group leans off its axis, a step a document. */
+    private static final float TIGHT = 0.01f;
+
+    /** How far each document of a loose group leans off its axis: three times a tight one's. */
+    private static final float LOOSE = 0.03f;
+
+    /**
+     * A loose group's size: other than a tight one's, so the two subtopics are not of as many, and k + 1, so each of
+     * its documents keeps every other and the group stays one community.
+     */
+    private static final int LOOSE_SIZE = NEIGHBOURS + 1;
 
     /** The topic every document here is placed under (ADR-409 section 1). */
     private static final TopicKey THE_TOPIC = new TopicKey(new SeedPassage("exemplar.pdf", 0));
@@ -152,6 +170,74 @@ class ClusteringTest {
                 () -> assertThat(WholeRun.membership(jdbcTemplate,first)).hasSize(members.size()));
     }
 
+    @Test
+    @Issue("834")
+    @Link(name = "ADR-406", url = Adr.A_CROWDED_TOPIC_IS_DIVIDED_INTO_SUBTOPICS, type = "adr")
+    @Link(name = "ADR-416", url = Adr.THE_TOPICS_ANALYSIS_REPORT_LISTS_WHAT_FEEDS_EACH_TOPIC, type = "adr")
+    @Story("Each subtopic's row of the group sizes shows the spread of its own graph")
+    @DisplayName("A divided topic gives each subtopic, by its number, the spread its own documents give alone")
+    void eachSubtopicsSpreadIsTheOneOfItsOwnGraph() {
+        Clustering clustering = ClusteringBeans.real(jdbcTemplate);
+        DocumentClusters clusters = new DocumentClusters(jdbcTemplate);
+        long walkId = insertWalk("C:/two-subtopics");
+        RunId divided = insertRun(walkId, "clustering-test-divided");
+        RunId tightAlone = insertRun(walkId, "clustering-test-tight-alone");
+        RunId looseAlone = insertRun(walkId, "clustering-test-loose-alone");
+        OccurrenceId seed = insertOccurrence(walkId, "seeds/exemplar.pdf");
+        Map<OccurrenceId, String> tight = insertCluster(walkId, divided, seed, "tight", 0, CLUSTER_SIZE, TIGHT);
+        Map<OccurrenceId, String> loose = insertCluster(walkId, divided, seed, "loose", 1, LOOSE_SIZE, LOOSE);
+        Map<OccurrenceId, String> members = new LinkedHashMap<>();
+        members.putAll(tight);
+        members.putAll(loose);
+        tight.keySet().forEach(member -> insertScore(tightAlone, member, seed));
+        loose.keySet().forEach(member -> insertScore(looseAlone, member, seed));
+
+        Clustering.Spreads spreads = clustering.clusterAndRecordWithSubtopicSpreads(
+                divided, THE_TOPIC, members, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS,
+                RESOLUTION, A_LOW_FLOOR, ClusteringProgress.NONE);
+        Optional<RetainedEdgeSpread> tightsOwn = clustering.clusterAndRecord(
+                tightAlone, THE_TOPIC, tight, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS,
+                RESOLUTION, SUBTOPIC_FLOOR);
+        Optional<RetainedEdgeSpread> loosesOwn = clustering.clusterAndRecord(
+                looseAlone, THE_TOPIC, loose, CHUNKER_IDENTITY, CHUNKING_RULE_IDENTITY, EMBEDDER_IDENTITY, NEIGHBOURS,
+                RESOLUTION, SUBTOPIC_FLOOR);
+        Map<OccurrenceId, Integer> subtopicOf = clusters.membersOf(divided, THE_TOPIC).stream()
+                .filter(member -> member.subtopic().isPresent())
+                .collect(Collectors.toMap(DocumentCluster::occurrenceId, member -> member.subtopic().getAsInt()));
+        Set<Integer> tightsSubtopics = tight.keySet().stream().map(subtopicOf::get).collect(Collectors.toSet());
+        Set<Integer> loosesSubtopics = loose.keySet().stream().map(subtopicOf::get).collect(Collectors.toSet());
+
+        claim("the topic of " + members.size() + " documents, at a subtopic floor of " + A_LOW_FLOOR + ", is divided"
+                        + " into two subtopics, the " + CLUSTER_SIZE + " tight documents all in one and the "
+                        + LOOSE_SIZE + " loose ones all in the other, each with a spread returned by its number",
+                () -> {
+                    assertThat(subtopicOf).as("every document's subtopic").hasSize(members.size());
+                    assertThat(tightsSubtopics).as("the tight documents' subtopics").hasSize(1);
+                    assertThat(loosesSubtopics).as("the loose documents' subtopics").hasSize(1)
+                            .doesNotContainAnyElementsOf(tightsSubtopics);
+                    assertThat(spreads.subtopics()).as("the subtopics' spreads, by number")
+                            .containsOnlyKeys(0, 1);
+                });
+        int tightsSubtopic = tightsSubtopics.iterator().next();
+        int loosesSubtopic = loosesSubtopics.iterator().next();
+        claim("the two groups' own graphs keep edges of different spreads, so a spread handed to the wrong subtopic"
+                        + " would show",
+                () -> assertThat(tightsOwn)
+                        .as("the tight documents' spread clustered alone")
+                        .isPresent()
+                        .isNotEqualTo(loosesOwn));
+        claim("subtopic " + tightsSubtopic + ", the tight documents', carries the spread their own graph gives,"
+                        + " the one they give clustered alone (ADR-416 section 5)",
+                () -> assertThat(spreads.subtopics().get(tightsSubtopic))
+                        .as("subtopic %d's spread", tightsSubtopic)
+                        .isEqualTo(tightsOwn));
+        claim("and subtopic " + loosesSubtopic + ", the loose documents', carries theirs",
+                () -> assertThat(spreads.subtopics().get(loosesSubtopic))
+                        .as("subtopic %d's spread", loosesSubtopic)
+                        .isPresent()
+                        .isEqualTo(loosesOwn));
+    }
+
     /** Which cluster each document landed in, keyed by document so two runs can be compared. */
     private Map<OccurrenceId, Integer> ordinalsOf(DocumentClusters clusters, RunId run) {
         return WholeRun.membership(jdbcTemplate,run).stream()
@@ -176,15 +262,16 @@ class ClusteringTest {
     /** {@link #CLUSTER_SIZE} documents pointing the same way, each scored to {@code seed}. */
     private Map<OccurrenceId, String> insertCluster(
             long walkId, RunId run, OccurrenceId seed, String cluster, int axis) {
-        return insertCluster(walkId, run, seed, cluster, axis, CLUSTER_SIZE);
+        return insertCluster(walkId, run, seed, cluster, axis, CLUSTER_SIZE, TIGHT);
     }
 
     /**
      * {@code size} documents whose vectors point along {@code axis}, so documents of one cluster
-     * resemble each other and barely resemble the other cluster's.
+     * resemble each other and barely resemble the other cluster's; the {@code i}th leans {@code scatter} times
+     * {@code i + 1} towards the last component, so a larger {@code scatter} makes the documents less alike.
      */
     private Map<OccurrenceId, String> insertCluster(
-            long walkId, RunId run, OccurrenceId seed, String cluster, int axis, int size) {
+            long walkId, RunId run, OccurrenceId seed, String cluster, int axis, int size, float scatter) {
         Map<OccurrenceId, String> members = new LinkedHashMap<>();
         for (int i = 0; i < size; i++) {
             String path = cluster + "-" + i + ".txt";
@@ -197,7 +284,7 @@ class ClusteringTest {
             // A little of a third component, distinct per document, so no two documents are identical --
             // ties are broken by index, and a fixture of identical vectors would be testing that rule
             // rather than the grouping.
-            vector[DIMENSION - 1] = 0.01f * (i + 1);
+            vector[DIMENSION - 1] = scatter * (i + 1);
             insertVector(contentHash, vector);
             insertScore(run, occurrenceId, seed);
             members.put(occurrenceId, contentHash);
