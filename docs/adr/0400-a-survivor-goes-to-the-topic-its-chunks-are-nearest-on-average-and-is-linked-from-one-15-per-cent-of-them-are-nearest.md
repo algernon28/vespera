@@ -1,6 +1,6 @@
 # ADR-400 — A survivor goes to the topic its chunks are nearest on average, and is linked from one 15% of them are nearest
 
-> **Partly amended — see [ADR-427](0427-the-presets-with-no-profile-key-are-shown-read-only-in-command-options-a-list-for-each-run-they-enter.md).** Of §6, as ADR-411 left it: the control panel shows `vespera.topics.see-also-share` read-only in Command options, so *"the control panel shows it read-only, as ADR-330 §12 shows a preset with no profile key"* holds again. The rest of this record stands.
+> **Partly amended — see [ADR-428](0428-the-presets-with-no-profile-key-are-shown-read-only-in-command-options-a-list-for-each-run-they-enter.md).** Of §6, as ADR-411 left it: the control panel shows `vespera.topics.see-also-share` read-only in Command options, so *"the control panel shows it read-only, as ADR-330 §12 shows a preset with no profile key"* holds again. The rest of this record stands.
 
 > **Partly amended — see [ADR-409](0409-topics-placement-names-overviews-and-clusters-within-topics-are-kept-in-new-tables-keyed-by-a-topics-first-passage.md).** §6's line *"…, the placement held and not yet stored (#832)"*: the placement is stored under the embedding-scoring run, each scored document's winning topic in `winning_topic` and each other topic it fits in `see_also`, as it is scored, and the line reads `Stage 5d (relevance scoring) placed <n> survivor(s) under the <t> topic(s) that stand`. The rest of this record stands.
 

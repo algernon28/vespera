@@ -1,4 +1,4 @@
-# ADR-427 — The presets with no profile key are shown read-only in Command options, a list for each run they enter
+# ADR-428 — The presets with no profile key are shown read-only in Command options, a list for each run they enter
 
 - **Date**: 2026-11-19
 - **Status**: accepted on 2026-11-19.

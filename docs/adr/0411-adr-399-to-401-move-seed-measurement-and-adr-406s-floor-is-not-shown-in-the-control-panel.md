@@ -1,6 +1,6 @@
 # ADR-411 — ADR-399, ADR-400 and ADR-401 move seed measurement, ADR-406's code touches `embedding` in `TopicDivision` alone, and the four records' presets are not shown in the control panel
 
-> **Partly amended — see [ADR-427](0427-the-presets-with-no-profile-key-are-shown-read-only-in-command-options-a-list-for-each-run-they-enter.md).** Of §3 and its Consequences: the cockpit shows the five presets read-only in Command options, with every other preset that has no profile key, so *"No class shows"* them and *"an operator learns their values from `application.yaml` or `effective-values.properties`"* no longer hold. The rest of this record stands.
+> **Partly amended — see [ADR-428](0428-the-presets-with-no-profile-key-are-shown-read-only-in-command-options-a-list-for-each-run-they-enter.md).** Of §3 and its Consequences: the cockpit shows the five presets read-only in Command options, with every other preset that has no profile key, so *"No class shows"* them and *"an operator learns their values from `application.yaml` or `effective-values.properties`"* no longer hold. The rest of this record stands.
 
 - **Date**: 2026-11-17
 - **Status**: accepted on 2026-11-17.

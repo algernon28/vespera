@@ -28,10 +28,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The presets with no profile key are shown read-only in Command options (ADR-427, as ADR-330 §12 and ADR-344 §4 owe
+ * The presets with no profile key are shown read-only in Command options (ADR-428, as ADR-330 §12 and ADR-344 §4 owe
  * it): one block, {@code presets-in-use}, holding a list for each run the presets enter,
  * {@code presets-in-use-<run>}, in the cascade's order, and in each a row for each preset, {@code in-use-<key>}, in
- * ADR-427 §2's order, reading the key, two spaces and the value {@code effective-values.properties} names, or the
+ * ADR-428 §2's order, reading the key, two spaces and the value {@code effective-values.properties} names, or the
  * sentence the window says where the jar has not said; its tooltip saying where the value came from, in ADR-377 §4's
  * words, and the record behind the preset. No control of the block changes anything, and no node of the window carries
  * a preset's key as its id. The rows are read again when the window's own child ends, so a value the command line gave
@@ -43,7 +43,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("855")
-@Link(name = "ADR-427", url = Adr.THE_PRESETS_WITH_NO_PROFILE_KEY_ARE_SHOWN_READ_ONLY_IN_COMMAND_OPTIONS, type = "adr")
+@Link(name = "ADR-428", url = Adr.THE_PRESETS_WITH_NO_PROFILE_KEY_ARE_SHOWN_READ_ONLY_IN_COMMAND_OPTIONS, type = "adr")
 @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS,
         type = "adr")
 @Link(name = "ADR-344", url = Adr.THE_CONTROL_PANELS_WINDOW_IS_ONE_COCKPIT, type = "adr")

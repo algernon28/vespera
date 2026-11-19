@@ -117,7 +117,7 @@ final class OptionsPane {
         return pane;
     }
 
-    /** Shows the presets with no profile key from the working directory's file, empty being no file (ADR-427 §5). */
+    /** Shows the presets with no profile key from the working directory's file, empty being no file (ADR-428 §5). */
     void showPresets(Optional<EffectiveValues> said) {
         presetsInUse.show(said);
     }

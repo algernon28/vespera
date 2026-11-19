@@ -11,16 +11,16 @@ import javafx.scene.layout.VBox;
 /**
  * The block of Command options that shows, read-only, the presets with no profile key: a list for each run they enter,
  * each row the key and the value the working directory's file names, its tooltip the source of the value and the record
- * behind the preset (ADR-427 §1 to §4).
+ * behind the preset (ADR-428 §1 to §4).
  */
 final class PresetsInUse {
 
-    /** The sentence a row says where the jar has not said a value, which the naming model's line says too (ADR-427 §3). */
+    /** The sentence a row says where the jar has not said a value, which the naming model's line says too (ADR-428 §3). */
     static final String NOT_SAID_YET = ProfileRow.NOT_SAID_YET;
 
     private static final String ADR_330 = "ADR-330";
 
-    /** The twenty presets by the run they enter, each list in the order its rows stand (ADR-427 §2). */
+    /** The twenty presets by the run they enter, each list in the order its rows stand (ADR-428 §2). */
     private static final Map<ProfileKey.Run, List<String>> KEYS_BY_RUN = keysByRun();
 
     private static final Map<ProfileKey.Run, String> HEADINGS = Map.of(
@@ -28,7 +28,7 @@ final class PresetsInUse {
             ProfileKey.Run.CONTENT_REDUNDANCY, "Stage 4: finding documents that say the same thing",
             ProfileKey.Run.EMBEDDING_SCORING, "Stage 5: measuring closeness, the topics and the groups");
 
-    /** The record behind a preset where it is not ADR-330 (ADR-427 §4). */
+    /** The record behind a preset where it is not ADR-330 (ADR-428 §4). */
     private static final Map<String, String> RECORDS = Map.of(
             "vespera.topics.neighbours", "ADR-399",
             "vespera.topics.resolution", "ADR-399",
@@ -98,7 +98,7 @@ final class PresetsInUse {
         return block;
     }
 
-    /** Sets each row's text and tooltip from the file, an empty {@code said} being no file (ADR-427 §3, §4). */
+    /** Sets each row's text and tooltip from the file, an empty {@code said} being no file (ADR-428 §3, §4). */
     void show(Optional<EffectiveValues> said) {
         rows.forEach((key, row) -> {
             Optional<EffectiveValues.Value> value = said.flatMap(values -> values.named(key));
