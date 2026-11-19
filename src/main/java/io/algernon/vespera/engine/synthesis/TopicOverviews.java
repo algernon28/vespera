@@ -2,6 +2,7 @@ package io.algernon.vespera.engine.synthesis;
 
 import io.algernon.vespera.engine.ledger.RunId;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -37,6 +38,44 @@ public class TopicOverviews {
                 topic.seedPath(),
                 topic.chunkIndex());
         return count != null && count > 0;
+    }
+
+    /** An overview as recorded: its writing, and how many clusters it was written over. */
+    public record RecordedOverview(String writing, int clustersSent) {}
+
+    /**
+     * The overview {@code topic} has under {@code generation}, with how many numbers it was written over, or empty where it
+     * has none (ADR-415 section 11). Both are read by the key of the topic under the run, the writing by the primary key
+     * and the count by the primary key's prefix, so nothing is sorted.
+     */
+    public Optional<RecordedOverview> writtenFor(RunId generation, TopicKey topic) {
+        return jdbcTemplate
+                .query(
+                        "SELECT writing, (SELECT COUNT(*) FROM topic_overview_source s WHERE s.run_id = o.run_id"
+                                + " AND s.topic_seed_path = o.topic_seed_path AND s.topic_chunk_index = o.topic_chunk_index)"
+                                + " AS sent FROM topic_overview o WHERE o.run_id = ? AND o.topic_seed_path = ?"
+                                + " AND o.topic_chunk_index = ?",
+                        (resultSet, rowNumber) ->
+                                new RecordedOverview(resultSet.getString("writing"), resultSet.getInt("sent")),
+                        generation.value(),
+                        topic.seedPath(),
+                        topic.chunkIndex())
+                .stream()
+                .findFirst();
+    }
+
+    /** The kind of fault that turned {@code topic}'s overview down under {@code generation}, empty where none did. */
+    public Optional<ClusterFaultKind> faultOf(RunId generation, TopicKey topic) {
+        return jdbcTemplate
+                .query(
+                        "SELECT kind FROM topic_overview_fault WHERE run_id = ? AND topic_seed_path = ?"
+                                + " AND topic_chunk_index = ?",
+                        (resultSet, rowNumber) -> ClusterFaultKind.valueOf(resultSet.getString("kind")),
+                        generation.value(),
+                        topic.seedPath(),
+                        topic.chunkIndex())
+                .stream()
+                .findFirst();
     }
 
     /**

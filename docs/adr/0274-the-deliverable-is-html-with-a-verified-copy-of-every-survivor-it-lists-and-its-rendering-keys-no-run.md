@@ -1,5 +1,7 @@
 # ADR-274 — The deliverable is HTML with a verified copy of every survivor it lists, and its rendering keys no run
 
+> **Partly amended — see [ADR-415](0415-a-topic-is-a-page-carrying-its-overview-its-subtopics-are-pages-beneath-it-and-a-see-also-link-lands-on-a-groups-page.md).** §2.7's bound of 69 characters holds of every file of a topic with no subtopics, and is 46 characters less for the pages of a crowded topic, which lie a folder deeper.
+
 > **Partly amended — see [ADR-301](0301-stage-6b-draws-a-confluence-storage-format-rendering-beside-the-html-tree-and-beyond-drawing-it-nothing-in-this-project-renders-uploads-or-transmits-the-deliverable.md).** Decided here 1's refusal of Markdown stands, and its reason that two renderings of one tree are two to keep in step no longer bars a second rendering: a Confluence storage-format rendering is drawn beside the tree, kept in step by a parity test. §1 holds of the HTML tree, and the Keeps of ADR-101 and ADR-102 stand: drawing a second rendering is not carrying the tree anywhere. Everything else in this record stands.
 
 > **Partly amended — see [ADR-286](0286-a-clusters-page-is-one-file-written-an-entry-at-a-time-through-its-part-with-its-pictures-and-a-png-or-jpeg-image-inlined.md).** §1.1's rule of no scheme admits one exception, an `<img>`'s `src` holding a `data:image/png` or `data:image/jpeg` URI in base64; the tree writes no picture file; and §2.7's bound holds of the index and the pages. Everything else in this record stands.

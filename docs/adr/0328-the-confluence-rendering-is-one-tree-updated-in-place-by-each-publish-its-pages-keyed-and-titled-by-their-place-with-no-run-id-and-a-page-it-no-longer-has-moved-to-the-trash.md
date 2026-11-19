@@ -1,5 +1,7 @@
 # ADR-328 — The Confluence rendering is one tree, updated in place by each publish, its pages keyed and titled by their place with no run id, and a page it no longer has moved to the trash
 
+> **Partly amended — see [ADR-415](0415-a-topic-is-a-page-carrying-its-overview-its-subtopics-are-pages-beneath-it-and-a-see-also-link-lands-on-a-groups-page.md).** Of §1 and §3: a crowded topic's subtopic's page is titled `NAME (P.S · code)` and keyed `P.S`, and its clusters' pages `TEXT (P.S.C · code)` and `TEXT (P.S.C page K · code)`, keyed `P.S.C` and `P.S.C.K`, `C` the cluster's place in its topic's one sequence; a key holds at most four numbers. The rest of this record stands.
+
 > **Partly amended — see [ADR-378](0378-each-deliverable-language-is-a-tree-of-its-own-its-titles-carrying-its-code-and-an-earlier-tree-taken-by-its-heading.md).** There is one tree for each deliverable language under the parent: its root page `Vespera_<code>`, every other title's suffix ending ` · <code>)`, every page keyed `<code>:<place>` and labelled `vespera-<code>`, and the page list of format 3; a publish touches its own language's tree alone; and where its language has no tree, a tree of this record's form or of ADR-310's under the parent is taken only by the language its root page's heading names. §2, §5 within each language's tree, and §8 stand.
 
 - **Date**: 2026-10-29

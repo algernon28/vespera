@@ -124,18 +124,21 @@ class TopicNamesAreStoredAndShownInvocationTest {
     private static final String THE_TOPICS_FOLDER = "1-scripted-topic-1";
 
     /**
-     * The index's paragraph on documents.csv and the copies, whole, as ADR-321 §4 words it and ADR-409 §10 words its
-     * sentence on {@code seed_partition}: the column holds a topic's name, and each numbered folder beside the index
-     * is a topic's. The index writes it unescaped, inside one {@code <p>}.
+     * The index's paragraph on documents.csv and the copies, whole, as ADR-321 §4 words it and ADR-415 §6 words its
+     * sentence on the {@code topic} and {@code subtopic} columns: they hold a topic's and a subtopic's name, and each
+     * numbered folder beside the index is a topic's, holding its page. The index writes it unescaped, inside one
+     * {@code <p>}.
      */
     private static final String THE_INDEXS_PARAGRAPH = "<p>The path column of documents.csv names each document"
             + " beneath the archive root recorded above. Each group's folder holds its page and a copy of every"
             + " document listed on it, checked against the digest taken when it was converted, and each link on a"
-            + " group's page leads to its copy; the archive root names where they were copied from. The"
-            + " seed_partition column is not a path: it holds the name of the topic each document is placed under,"
-            + " and each numbered folder beside this page is named after a topic and holds the folders of that"
-            + " topic's groups. The copy and copy_outcome columns say which documents were copied and, of any that"
-            + " were not, why.</p>\n";
+            + " group's page leads to its copy; the archive root names where they were copied from. The topic column"
+            + " is not a path: it holds the name of the topic each document is placed under, and the subtopic column,"
+            + " where that topic is divided, the name of the subtopic the document lies in. Each numbered folder"
+            + " beside this page is a topic's: it holds the topic's page and the folders of its groups, or, where the"
+            + " topic is divided, a folder for each subtopic holding the subtopic's page and the folders of its"
+            + " groups. The copy and copy_outcome columns say which documents were copied and, of any that were not,"
+            + " why.</p>\n";
 
     /** The one corpus document of the one-topic arrangement, by its path beneath the root. */
     private static final String THE_CORPUS_DOCUMENT = "corpus.txt";
@@ -373,8 +376,10 @@ class TopicNamesAreStoredAndShownInvocationTest {
     }
 
     @Test
-    @Story("A topic is drawn under its name until its rendering is decided")
-    @DisplayName("The tree draws the topic in a folder named from the name kept for it, headed by that name, the index says so of its folders and the listing, and the listing gives its name and place")
+    @Story("A topic is drawn under its name")
+    @DisplayName("The tree draws the topic in a folder named from the name kept for it, its page headed by that name, the index links it under that name and says so of its folders and the listing, and the listing gives its name and place")
+    @Issue("833")
+    @Link(name = "ADR-415", url = Adr.A_TOPIC_IS_A_PAGE_CARRYING_ITS_OVERVIEW_AND_ITS_SUBTOPICS_ARE_PAGES_BENEATH_IT, type = "adr")
     void theTreeNamesTheTopicsFolderAndHeadingByItsName() throws IOException {
         Arranged arranged = arranged();
         EveryGateOpen.throughStageFive(profileStore, theSeeds);
@@ -398,17 +403,24 @@ class TopicNamesAreStoredAndShownInvocationTest {
         claim("the one topic is drawn in one numbered folder, its place, 1, then the name kept for it, and none is named"
                         + " from the seed's file",
                 () -> assertThat(numberedFolders).containsExactly(THE_TOPICS_FOLDER));
-        claim("the index heads the topic with the name kept for it, and not with the seed's path",
+        claim("the index heads the topic with the name kept for it, linking the topic's page, and not with the seed's"
+                        + " path",
                 () -> assertThat(index)
-                        .contains("<h2>" + THE_FIRST_NAME + "</h2>")
-                        .doesNotContain("<h2>" + THE_SEED + "</h2>"));
-        claim("the index's paragraph says that the seed_partition column holds the name of a topic, and that each"
-                        + " numbered folder beside the index is a topic's, every other sentence of it as it was",
+                        .contains("<h2><a href=\"" + THE_TOPICS_FOLDER + "/index.html\">" + THE_FIRST_NAME + "</a></h2>")
+                        .doesNotContain(">" + THE_SEED + "</a></h2>"));
+        claim("the topic's page lies in its folder, headed by the name kept for it",
+                () -> assertThat(Files.readString(tree.resolve(THE_TOPICS_FOLDER).resolve("index.html"),
+                                StandardCharsets.UTF_8))
+                        .contains("<h1>" + THE_FIRST_NAME + "</h1>"));
+        claim("the index's paragraph says that the topic column holds the name of a topic and the subtopic column that"
+                        + " of a subtopic, and that each numbered folder beside the index is a topic's, holding its page,"
+                        + " every other sentence of it as it was",
                 () -> assertThat(index).contains(THE_INDEXS_PARAGRAPH));
-        claim("and the listing's row for the corpus document gives, under its two columns of the old names, the"
-                        + " topic's name and its place, 1",
-                () -> assertThat(List.of(listed.get("seed_partition"), listed.get("partition_order")))
-                        .containsExactly(THE_FIRST_NAME, "1"));
+        claim("and the listing's row for the corpus document gives, under its topic and topic_order columns, the topic's"
+                        + " name and its place, 1, and no subtopic, the topic being undivided",
+                () -> assertThat(List.of(listed.get("topic"), listed.get("topic_order"), listed.get("subtopic"),
+                                listed.get("subtopic_order")))
+                        .containsExactly(THE_FIRST_NAME, "1", "", ""));
     }
 
     /**

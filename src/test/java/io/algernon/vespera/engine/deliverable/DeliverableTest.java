@@ -134,14 +134,14 @@ class DeliverableTest {
     /** How many rows a manifest listing two survivors carries beneath that header. */
     private static final int TWO_SURVIVORS = 2;
 
-    /** Where the document's own path sits among those columns, counting from zero: second of eleven. */
+    /** Where the document's own path sits among those columns, counting from zero: second of thirteen. */
     private static final int THE_PATH_COLUMN = 1;
 
-    /** Where its seed partition's place in the order sits: eighth of eleven. */
-    private static final int THE_PARTITION_ORDER_COLUMN = 7;
+    /** Where its topic's place in the order sits, {@code topic_order}: ninth of thirteen (ADR-415 §6). */
+    private static final int THE_TOPIC_ORDER_COLUMN = 8;
 
-    /** And where its own place within that partition sits: ninth of eleven. */
-    private static final int THE_CLUSTER_ORDER_COLUMN = 8;
+    /** And where its group's place within that topic sits, {@code cluster_order}: eleventh of thirteen. */
+    private static final int THE_CLUSTER_ORDER_COLUMN = 10;
 
     /** What the profile key naming the archive's own documents was set to when the run read it. */
     private static final String THE_SEED_FOLDER_VALUE = "D:/archive/seeds";
@@ -225,10 +225,11 @@ class DeliverableTest {
                         + " looked at",
                 () -> assertThat(index).containsSubsequence(THE_NAME_THAT_SORTS_LAST, THE_NAME_THAT_SORTS_FIRST));
         claim(
-                "and the file names carry the same sequence, so the listing on disk says what the index"
-                        + " says",
+                "and the folder names carry the same sequence, so the listing on disk says what the index"
+                        + " says; beside them stands the topic's own page",
                 () -> assertThat(fileNamesUnder(tree.resolve(THE_ONLY_ONE_PREFIX + SEED_STEM_SLUGGED)))
-                        .containsExactlyInAnyOrder("1-zinc-coating-trials", "2-access-platforms"));
+                        .containsExactlyInAnyOrder(
+                                "1-zinc-coating-trials", "2-access-platforms", Deliverable.INDEX_FILE_NAME));
     }
 
     @Test
@@ -263,7 +264,7 @@ class DeliverableTest {
                         + " groups -- so a consumer rebuilding anything from this file has the order"
                         + " without parsing the index or falling back to alphabetical",
                 () -> assertThat(rowsOf(tree)).allSatisfy(row -> {
-                    assertThat(columnsOf(row)[THE_PARTITION_ORDER_COLUMN]).isEqualTo(String.valueOf(SECOND_PLACE));
+                    assertThat(columnsOf(row)[THE_TOPIC_ORDER_COLUMN]).isEqualTo(String.valueOf(SECOND_PLACE));
                     assertThat(columnsOf(row)[THE_CLUSTER_ORDER_COLUMN]).isEqualTo(String.valueOf(THIRD_PLACE));
                 }));
     }

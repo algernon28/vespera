@@ -212,10 +212,16 @@ class DeliverablePicturesTest {
                         .isEqualTo(shown(screenshot))
                         .matches(source -> A_SAFE_SOURCE.matcher(source).matches(), "a source of the safe shape"));
         claim(
-                "and the page is the only file written anywhere beneath the partition, in the group's folder whose"
-                        + " name the label only reaches after being reduced to letters, digits and hyphens: neither"
-                        + " the document's name nor the label climbed out of the tree or named a second file",
-                () -> assertThat(allFilesUnder(partition)).containsExactly(page));
+                "and the group's page, in the group's folder whose name the label only reaches after being reduced to"
+                        + " letters, digits and hyphens, and the topic's own page beside that folder are the only files"
+                        + " written anywhere beneath the topic: neither the document's name nor the label climbed out"
+                        + " of the tree or named a file of its own",
+                () -> assertThat(allFilesUnder(partition))
+                        .containsExactlyInAnyOrder(page, partition.resolve("index.html")));
+        claim(
+                "and the topic's page carries no picture's source: a picture is shown on its document's group's page"
+                        + " alone",
+                () -> assertThat(sourcesOn(partition.resolve("index.html"))).isEmpty());
     }
 
     @Test

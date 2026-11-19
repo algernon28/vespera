@@ -3045,6 +3045,17 @@ public final class Adr {
             + "0414-the-analysis-reports-open-in-a-reports-window-of-their-own-a-tab-each-and-the-cockpit-keeps-its-list-and-two-tabs.md";
 
     /**
+     * ADR-415 -- each rendering draws a topic as a page carrying its overview, its citations linking its clusters'
+     * pages, its placeholder or disclosure, its table of clusters by number or of subtopics, and a see-also list linking
+     * the clusters of survivors placed under other topics that fit it; a crowded topic's subtopics are a folder and a
+     * page each, its clusters a level down numbered over the topic; every slug folds accents; documents.csv names topic,
+     * subtopic and their orders; Confluence keys a subtopic's page P.S and its clusters P.S.C (amends ADR-112, ADR-274,
+     * ADR-276, ADR-321, ADR-328, ADR-333, ADR-396 and ADR-409).
+     */
+    public static final String A_TOPIC_IS_A_PAGE_CARRYING_ITS_OVERVIEW_AND_ITS_SUBTOPICS_ARE_PAGES_BENEATH_IT = FILE
+            + "0415-a-topic-is-a-page-carrying-its-overview-its-subtopics-are-pages-beneath-it-and-a-see-also-link-lands-on-a-groups-page.md";
+
+    /**
      * ADR-417 -- an ending panel beneath the output panel, in its column and behind a divider of its own, says how the
      * last invocation of the working directory chosen ended and why: every ending, from the invocation report and the
      * exit code, an earlier one dated, nothing while an invocation runs; the sidebar's width and the steps' and output's

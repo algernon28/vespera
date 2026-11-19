@@ -17,7 +17,7 @@ import java.util.OptionalInt;
  * survivor scored highest against, and is what the manifest's {@code winning_seed} column states,
  * parallel to {@code occurrence_id} naming this survivor's own identity. {@code topic} is the key of
  * the topic it is placed under and {@code topicName} that topic's recorded name, which the manifest's
- * {@code seed_partition} column states until #835 renames it (ADR-409 section 10); the topic's first
+ * {@code topic} column states (ADR-415 section 6); the topic's first
  * passage may lie in a seed other than the winning one.
  *
  * @param occurrence this survivor's own identity
@@ -28,8 +28,8 @@ import java.util.OptionalInt;
  * @param winningSeed the identity of the seed this survivor scored highest against (ADR-020), which the manifest's
  *     {@code winning_seed} column states
  * @param topic the topic this survivor is placed under (ADR-409 section 1)
- * @param topicName that topic's recorded name, which the manifest's {@code seed_partition} column states until #835
- *     renames it (ADR-409 section 10)
+ * @param topicName that topic's recorded name, which the manifest's {@code topic} column states
+ *     (ADR-415 section 6)
  * @param subtopic the subtopic of that topic this survivor lies in, empty where the topic has none
  * @param clusterOrdinal the cluster's identity within its subtopic, or within the topic where it has none
  * @param score this survivor's relevance score (ADR-020)

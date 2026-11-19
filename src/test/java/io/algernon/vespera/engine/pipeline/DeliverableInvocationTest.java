@@ -93,8 +93,11 @@ class DeliverableInvocationTest {
     /** The two documents this fixture's corpus holds, which are the two the listing has to carry. */
     private static final int TWO_DOCUMENTS = 2;
 
-    /** And how many this corpus arranges on its own, which is how many pages its tree holds. */
+    /** And how many this corpus arranges on its own, which is how many group's pages its tree holds. */
     private static final int ONE_CLUSTER = 1;
+
+    /** How many names a group's page has below the tree's root: its topic's folder, its own, and the page (ADR-415). */
+    private static final int A_GROUPS_PAGE_DEPTH = 3;
 
     /** What the corpus documents of this fixture hold, so a copy of one is recognisable as a copy. */
     private static final String WHAT_A_CORPUS_DOCUMENT_SAYS = "a corpus document";
@@ -349,10 +352,13 @@ class DeliverableInvocationTest {
                 .filter(file -> !file.equals(theIndexFileOf(root)))
                 // The HTML tree's pages alone: the plugins' renderings beside it are their own (ADR-333 §3).
                 .filter(file -> !tree.relativize(file).getName(0).toString().matches("website|confluence"))
+                // A group's page lies in its folder in its topic's, beside the topic's own page (ADR-415 §2): this
+                // corpus's one topic has no subtopics, so its group's page is two folders down.
+                .filter(file -> tree.relativize(file).getNameCount() == A_GROUPS_PAGE_DEPTH)
                 .toList();
         if (pages.size() != ONE_CLUSTER) {
             throw new IllegalStateException(
-                    "this corpus arranges one group and so writes one page, and the tree holds " + pages.size());
+                    "this corpus arranges one group and so writes one group's page, and the tree holds " + pages.size());
         }
         return pages.getFirst();
     }

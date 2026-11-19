@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -49,6 +50,18 @@ public interface ArrangedSurvivors {
     /** The two places the arrangement gives each of {@code clusters}, holding only those it records. */
     Map<ClusterSlot, ArrangedCluster> placesOf(Set<ClusterSlot> clusters);
 
+    /** The topic's subtopics in {@code subtopic_order}, none for a topic with no subtopics (ADR-415 section 11). */
+    List<ListedSubtopic> subtopicsOf(ListedTopic topic);
+
+    /** The topic's overview, written or not, and if not why (ADR-415 section 11). */
+    ListedOverview overviewOf(ListedTopic topic);
+
+    /**
+     * The topic's see-also lines, a page at a time, in the order of the topic each survivor is placed under and within one
+     * topic in occurrence order (ADR-415 section 5). A topic with none hands none.
+     */
+    void eachPageOfSeeAlso(ListedTopic topic, Consumer<List<ListedSeeAlso>> page);
+
     /** Hands every survivor to {@code page} once, a page at a time, in occurrence order, for the pictures. */
     void eachPageOfSurvivorsForTheirPictures(Consumer<List<ListedSurvivor>> page);
 
@@ -73,6 +86,9 @@ public interface ArrangedSurvivors {
             Function<ClusterSlot, Optional<SynthesisDoc>> writtenOver,
             Function<ClusterSlot, Optional<Unwritten>> whyUnwritten,
             Function<Set<ClusterSlot>, Map<ClusterSlot, ArrangedCluster>> placesOf,
+            Function<ListedTopic, List<ListedSubtopic>> subtopicsOf,
+            Function<ListedTopic, ListedOverview> overviewOf,
+            BiConsumer<ListedTopic, Consumer<List<ListedSeeAlso>>> eachPageOfSeeAlso,
             Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheirPictures,
             Consumer<Consumer<List<ListedSurvivor>>> eachPageOfSurvivorsForTheManifest,
             boolean writingFinished,
@@ -121,6 +137,21 @@ public interface ArrangedSurvivors {
             @Override
             public Map<ClusterSlot, ArrangedCluster> placesOf(Set<ClusterSlot> clusters) {
                 return placesOf.apply(clusters);
+            }
+
+            @Override
+            public List<ListedSubtopic> subtopicsOf(ListedTopic topic) {
+                return subtopicsOf.apply(topic);
+            }
+
+            @Override
+            public ListedOverview overviewOf(ListedTopic topic) {
+                return overviewOf.apply(topic);
+            }
+
+            @Override
+            public void eachPageOfSeeAlso(ListedTopic topic, Consumer<List<ListedSeeAlso>> page) {
+                eachPageOfSeeAlso.accept(topic, page);
             }
 
             @Override

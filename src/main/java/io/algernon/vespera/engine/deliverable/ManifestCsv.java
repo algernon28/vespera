@@ -34,7 +34,7 @@ final class ManifestCsv {
      * (ADR-122).
      */
     private static final String HEADER = "occurrence_id,path,content_hash,winning_seed,"
-            + "relevance_score,seed_partition,cluster,partition_order,cluster_order,copy,copy_outcome";
+            + "relevance_score,topic,subtopic,cluster,topic_order,subtopic_order,cluster_order,copy,copy_outcome";
 
     private ManifestCsv() {}
 
@@ -47,7 +47,7 @@ final class ManifestCsv {
     static void write(Appendable csv, ArrangedSurvivors source, DeliverableProgress progress, Copies copies)
             throws IOException {
         csv.append(HEADER).append('\n');
-        Map<SubtopicKey, Integer> sequence = sequenceOffsets(source);
+        Map<SubtopicKey, SubtopicPlace> sequence = sequenceOffsets(source);
         try {
             source.eachPageOfSurvivorsForTheManifest(page -> {
                 Set<ClusterSlot> clusters = new LinkedHashSet<>();
@@ -71,17 +71,21 @@ final class ManifestCsv {
      * For each subtopic of a crowded topic, how many of the topic's clusters lie before it in the topic's one
      * sequence (ADR-409 section 10). A row's place in that sequence, the number its cluster's folder carries, is
      * this offset plus the cluster's order within its subtopic, so that the listing tells the topic's clusters apart
-     * as the tree does. One number is held for each subtopic and a topic is read at a time; a topic with no
+     * as the tree does. Its offset in the sequence and its name are held for each subtopic and a topic is read at a time; a topic with no
      * subtopics has none here and its rows keep the places the arrangement stored.
      */
-    private static Map<SubtopicKey, Integer> sequenceOffsets(ArrangedSurvivors source) {
-        Map<SubtopicKey, Integer> offsets = new java.util.HashMap<>();
+    private static Map<SubtopicKey, SubtopicPlace> sequenceOffsets(ArrangedSurvivors source) {
+        Map<SubtopicKey, SubtopicPlace> offsets = new java.util.HashMap<>();
         for (ListedTopic topic : source.topics()) {
             List<RecordedCluster> sequence = Deliverable.inOneSequence(source.clustersOf(topic));
+            Map<Integer, String> names = new java.util.HashMap<>();
+            source.subtopicsOf(topic).forEach(subtopic -> names.put(subtopic.subtopic(), subtopic.name()));
             for (int place = 0; place < sequence.size(); place++) {
                 ArrangedCluster cluster = sequence.get(place).cluster();
                 if (cluster.subtopic().isPresent()) {
-                    offsets.putIfAbsent(new SubtopicKey(cluster.topic(), cluster.subtopic().getAsInt()), place);
+                    int subtopic = cluster.subtopic().getAsInt();
+                    offsets.putIfAbsent(
+                            new SubtopicKey(cluster.topic(), subtopic), new SubtopicPlace(place, names.get(subtopic)));
                 }
             }
         }
@@ -90,19 +94,31 @@ final class ManifestCsv {
 
     private record SubtopicKey(TopicKey topic, int subtopic) {}
 
+    /** Where a subtopic's clusters begin in its topic's sequence, and the subtopic's recorded name. */
+    private record SubtopicPlace(int offset, String name) {}
+
     /** The survivor's place in its topic's one sequence where its topic is crowded, otherwise {@code stored}. */
     private static int placeInSequence(
-            Map<SubtopicKey, Integer> offsets, ListedSurvivor survivor, ArrangedCluster cluster, int stored) {
+            Map<SubtopicKey, SubtopicPlace> offsets, ListedSurvivor survivor, ArrangedCluster cluster, int stored) {
         if (survivor.subtopic().isEmpty()) {
             return stored;
         }
-        Integer offset = offsets.get(new SubtopicKey(survivor.topic(), survivor.subtopic().getAsInt()));
-        return offset == null ? stored : offset + cluster.clusterOrder();
+        SubtopicPlace place = offsets.get(new SubtopicKey(survivor.topic(), survivor.subtopic().getAsInt()));
+        return place == null ? stored : place.offset() + cluster.clusterOrder();
+    }
+
+    /** The name of the subtopic the survivor lies in, empty where its topic has none. */
+    private static String subtopicName(Map<SubtopicKey, SubtopicPlace> offsets, ListedSurvivor survivor) {
+        if (survivor.subtopic().isEmpty()) {
+            return "";
+        }
+        SubtopicPlace place = offsets.get(new SubtopicKey(survivor.topic(), survivor.subtopic().getAsInt()));
+        return place == null ? "" : place.name();
     }
 
     private static void append(
             Appendable csv, ListedSurvivor survivor, Map<ClusterSlot, ArrangedCluster> places,
-            Map<SubtopicKey, Integer> sequence, CopyOutcome outcome, Copies copies)
+            Map<SubtopicKey, SubtopicPlace> sequence, CopyOutcome outcome, Copies copies)
             throws IOException {
         ArrangedCluster cluster = Optional.ofNullable(places.get(survivor.slot()))
                 .orElseThrow(() ->
@@ -128,9 +144,14 @@ final class ManifestCsv {
                 .append(',')
                 .append(cell(survivor.topicName()))
                 .append(',')
+                .append(cell(subtopicName(sequence, survivor)))
+                .append(',')
                 .append(String.valueOf(placeInSequence(sequence, survivor, cluster, survivor.clusterOrdinal())))
                 .append(',')
                 .append(String.valueOf(cluster.topicOrder()))
+                .append(',')
+                // A topic with no subtopics leaves its two cells empty, each holding its place (ADR-415 section 6).
+                .append(survivor.subtopic().isEmpty() ? "" : String.valueOf(cluster.subtopicOrder()))
                 .append(',')
                 .append(String.valueOf(placeInSequence(sequence, survivor, cluster, cluster.clusterOrder())))
                 .append(',')

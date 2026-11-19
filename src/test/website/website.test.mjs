@@ -16,8 +16,9 @@
 // "input" event, as a reader typing does.
 //
 // The index is set as search-index.js sets it (website.TheSearchIndexHoldsNoExtractedTextTest holds that
-// shape): one global, VESPERA_SEARCH_INDEX, an array of a cluster an element, each of partition, title,
-// label, writing, link and entries, each entry of name and link, every link relative to the website's root.
+// shape): one global, VESPERA_SEARCH_INDEX, an array of a cluster an element, each of topic, subtopic, title,
+// label, writing, link and entries, each entry of name and link, every link relative to the website's root
+// (docs/adr/0415 §8). A cluster of an undivided topic has an empty subtopic, or none.
 // A cluster with no writing has no title and no writing.
 //
 // What a search shows beyond a title and a link is not decided (docs/adr/0333, What this does not decide), so
@@ -36,7 +37,7 @@ const WEBSITE_JS = resolve(repo, "src/main/resources/io/algernon/vespera/publish
 
 const THE_INDEX = [
   {
-    partition: "Fire Safety",
+    topic: "Fire Safety",
     title: "Fire doors and their inspection",
     label: "Fire doors",
     writing: "Doors close by themselves [1], and they are inspected twice a year [2].",
@@ -47,13 +48,14 @@ const THE_INDEX = [
     ],
   },
   {
-    partition: "Fire Safety",
+    topic: "Fire Safety",
     label: "Smoke dampers",
     link: "1-fire-safety/2-smoke-dampers/index.html",
     entries: [{ name: "scans/damper-calibration.png", link: "1-fire-safety/2-smoke-dampers/index.html#document-1" }],
   },
   {
-    partition: "Plant Rooms",
+    topic: "Plant Rooms",
+    subtopic: "Heating",
     title: "Boilers and their servicing",
     label: "Boilers",
     writing: "The boilers are serviced each autumn [1].",
@@ -408,17 +410,25 @@ test("an entry's name finds its group", () => {
   assert.ok(!results.textContent.includes(THE_INDEX[0].title), "the doors are not found by the dampers' entry");
 });
 
-test("a seed partition's name finds its groups", () => {
+test("a topic's name finds its groups", () => {
   const results = theWebsite(THE_INDEX).search("Plant Rooms");
 
   assert.ok(results.textContent.includes(THE_INDEX[2].title), "the boilers, under Plant Rooms, are found");
   assert.ok(!results.textContent.includes(THE_INDEX[0].title), "the doors, under Fire Safety, are not");
 });
 
+test("a subtopic's name finds its groups, and is shown with them", () => {
+  const results = theWebsite(THE_INDEX).search("Heating");
+
+  assert.ok(results.textContent.includes(THE_INDEX[2].title), "the boilers, in the subtopic Heating, are found");
+  assert.ok(results.textContent.includes("Heating"), "the subtopic's name is shown with the group found");
+  assert.ok(!results.textContent.includes(THE_INDEX[0].title), "the doors, in no subtopic, are not");
+});
+
 test("what a search finds is written as text, never as markup", () => {
   const index = [
     {
-      partition: "Fire Safety",
+      topic: "Fire Safety",
       title: HOSTILE_TITLE,
       label: HOSTILE_LABEL,
       writing: "Hinges <script>globalThis.pwned = 2</script> are oiled [1].",
