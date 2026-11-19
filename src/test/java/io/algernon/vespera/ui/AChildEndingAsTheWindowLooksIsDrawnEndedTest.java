@@ -15,6 +15,8 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import javafx.scene.Parent;
+import javafx.scene.control.Button;
+import javafx.scene.control.ListView;
 import javafx.scene.control.TextInputControl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,8 +44,11 @@ class AChildEndingAsTheWindowLooksIsDrawnEndedTest {
     /** The word the window says a child ended with when it was killed by no Stop of the window's. */
     private static final String FAILED_OR_REFUSED = "Failed or refused";
 
-    /** What the Report tab's status line and the line above the tab say, read at one instant. */
-    private record Said(String status, String child) {
+    /**
+     * What the Report tab's status line and the line above the tab say, and whether the working-directory list can be
+     * changed, read at one instant.
+     */
+    private record Said(String status, String child, boolean listChangeable) {
     }
 
     @Test
@@ -62,9 +67,15 @@ class AChildEndingAsTheWindowLooksIsDrawnEndedTest {
             // taken before the watch: the window's look holds the state's lock, so asking it then would wait the look out
             ProcessHandle child = ProcessHandle.of(state.watchedChild().orElseThrow().pid()).orElseThrow();
             Thread toolkit = HeadlessToolkit.onTheToolkit(Thread::currentThread);
+            // killed before it prints, the child would have no last line to be said with, whatever the window does
+            assertThat(WindowForTests.within(() -> state.tail().contains(APrintingChildForTests.ITS_LAST_LINE)))
+                    .as("the child prints \"%s\" within the tests' bound, before it is killed",
+                            APrintingChildForTests.ITS_LAST_LINE)
+                    .isTrue();
             caught = caughtLookingAtHowTheChildEnded(toolkit);
             child.destroyForcibly();
-            said = window.awaiting(root -> new Said(textOf(root, "report-status"), textOf(root, "child")),
+            said = window.awaiting(root -> new Said(textOf(root, "report-status"), textOf(root, "child"),
+                            listChangeable(root)),
                     each -> LiveReport.NO_REPORT.equals(each.status()));
         }
         Ending ending = state.ending().orElseThrow();
@@ -75,8 +86,10 @@ class AChildEndingAsTheWindowLooksIsDrawnEndedTest {
                         + WATCHING.toSeconds() + " seconds, twenty of its ticks, so that the child is killed inside that look",
                 () -> assertThat(caught).isTrue());
         claim("on the tick the Report tab first says the invocation wrote no report, the line above the tab says the child"
-                        + " failed, with its exit code and its last line of output, and not that it is running",
-                () -> assertThat(said).isEqualTo(new Said(LiveReport.NO_REPORT, endedAs)));
+                        + " failed, with its exit code and its last line of output, and not that it is running; and the"
+                        + " working-directory list, with its New and Browse buttons, can be changed again, as Run can be"
+                        + " pressed again (ADR-393 section 4)",
+                () -> assertThat(said).isEqualTo(new Said(LiveReport.NO_REPORT, endedAs, true)));
     }
 
     /**
@@ -104,6 +117,13 @@ class AChildEndingAsTheWindowLooksIsDrawnEndedTest {
             }
         }
         return false;
+    }
+
+    /** Whether the working-directory list and its New and Browse buttons are all enabled. */
+    private static boolean listChangeable(Parent root) {
+        return !WindowForTests.node(root, "working-directories", ListView.class).isDisable()
+                && !WindowForTests.node(root, "working-directory-new", Button.class).isDisable()
+                && !WindowForTests.node(root, "working-directory-browse", Button.class).isDisable();
     }
 
     private static String textOf(Parent root, String id) {
