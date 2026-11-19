@@ -1,5 +1,7 @@
 # ADR-276 — The deliverable is drawn at a root the operator may name, outside the corpus root and the seed folder
 
+> **Partly amended — see [ADR-429](0429-every-tree-holds-the-ledger-of-the-runs-it-was-drawn-from-in-one-sqlite-file-written-at-each-drawing.md).** Of §1 and §3: every tree, at a named root or not, holds at its top its tree ledger, `vespera-run.db`, written after the marker and over itself at each drawing; the own tree a named root holds includes that file. The checks at the start and at the drawing are unchanged. The rest of this record stands.
+
 > **Partly amended — see [ADR-415](0415-a-topic-is-a-page-carrying-its-overview-its-subtopics-are-pages-beneath-it-and-a-see-also-link-lands-on-a-groups-page.md).** §1's bound of 146 characters holds of every file of a topic with no subtopics, and is 46 characters less for the pages of a crowded topic, which lie a folder deeper.
 
 > **Partly amended — see [ADR-286](0286-a-clusters-page-is-one-file-written-an-entry-at-a-time-through-its-part-with-its-pictures-and-a-png-or-jpeg-image-inlined.md).** §1's bound of 146 characters holds of the index and the pages, the tree writing no picture file. Everything else in this record stands.

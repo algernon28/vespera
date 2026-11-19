@@ -31,7 +31,7 @@ The union of three separable conditions — mechanically broken, redundant, and 
 _Avoid_: junk, noise, garbage
 
 **Ledger**:
-The single record of file occurrence identity, verdicts and run identity — the vocabulary every stage records against. Not the database: each capability owns its own tables alongside it, and the ledger is only the part that says what exists and what was judged.
+The single record of file occurrence identity, verdicts and run identity — the vocabulary every stage records against. Not the database: each capability owns its own tables alongside it, and the ledger is only the part that says what exists and what was judged. It lives in the working directory's database, the one store; a tree's own runs' part of it is also written into that tree's **tree ledger** (ADR-429), which nothing reads back.
 _Avoid_: the database, the store, the index
 
 **Verdict**:
@@ -226,9 +226,14 @@ _Avoid_: db dir (the option's spelling, not the term), output directory, data di
 _Not to be confused with_: the directory a process or a shell command is started in. That is the **current directory**, as ADR-066 writes it, in every name and record of ours, never the working directory.
 
 **Deliverable root**:
-The folder one generation run's tree is drawn in, with its index at the top. Named by the operator, or `<working directory>/deliverable/<generation run>/` when none is named, as when the folder named is `<working directory>/deliverable` itself (ADR-334). It lies outside the corpus root and the seed folder. It holds the Confluence rendering too, under `confluence/` at its top (ADR-312), and the website rendering, under `website/` (ADR-333). It is never at or inside the website.
+The folder one generation run's tree is drawn in, with its index at the top. Named by the operator, or `<working directory>/deliverable/<generation run>/` when none is named, as when the folder named is `<working directory>/deliverable` itself (ADR-334). It lies outside the corpus root and the seed folder. It holds the Confluence rendering too, under `confluence/` at its top (ADR-312), and the website rendering, under `website/` (ADR-333), and its tree ledger, `vespera-run.db`, at its top (ADR-429). It is never at or inside the website.
 _Avoid_: output directory, output folder, destination (where a publish delivers), export folder
 _Renders as_: "Output folder" on the control panel.
+
+**Tree ledger**:
+The file `vespera-run.db` at the top of every tree, at a named root or not: the ledger's rows of the walk and of the runs the tree was drawn from, its generation run and every run upstream of it, every occurrence and every verdict of them included, so the paths of the files they removed too, and the rows its topics, clusters and writing were drawn from (ADR-429). One SQLite file in the rollback journal, written once the tree is drawn, after the marker, from rows read through the application's connection, and written again whole at each drawing of the same run's tree. A record of what the tree was drawn from, and not a store: the working directory's database stays the one store, and nothing in Vespera reads the file back, so it holds no cache, vector or label, and a tree cannot be drawn again from it. No publish carries it, and no agent reads it, as no agent reads anything in a tree (ADR-283).
+_Avoid_: export (the **Publication-ready artifact**'s rejected word), snapshot, backup, dump, run database, the database (the working directory's `vespera.db`), copy (a survivor's file in the tree)
+_Not to be confused with_: the **Ledger** in the working directory's database, which it is written from; the marker, `vespera-deliverable.txt`, which names the working directory and the generation run and nothing else.
 
 **Walk**:
 One observation of a filesystem, producing file occurrences. Carries the root it observed and whether it finished, because a partial walk that looks complete curates a fraction of the archive and reports success.
@@ -404,7 +409,7 @@ A re-run of generation that finishes what an earlier one left behind: the cluste
 _Avoid_: retry, regeneration, repairing a synthesis doc (a synthesis doc is written or it is not; nothing edits one)
 
 **Publication-ready artifact**:
-The pipeline's terminal state, and the deliverable: the arrangement, the synthesis docs written over it, and a listing of the survivors it arranges, a page for each cluster beside its copies — every source and link staying on its page or in the tree (ADR-286), handed over as files. It carries a verified copy of each surviving original it lists, checked against the key stage 2 recorded, so every link lands inside it (ADR-274). The files are written; nothing in this project carries them to a destination but a publish, which delivers a plugin's rendering to each destination it names: the Confluence rendering to the operator's Confluence Cloud site (ADR-308) and the website rendering to the website (ADR-333), and never the HTML tree itself. Publication is the state they are handed over in. It also carries the code stage 1 kept apart, each code set copied whole under `code/` in its own layout and listed in `code.csv` (ADR-284, ADR-296); nothing is written over code, and no code reaches the website (ADR-333).
+The pipeline's terminal state, and the deliverable: the arrangement, the synthesis docs written over it, and a listing of the survivors it arranges, a page for each cluster beside its copies — every source and link staying on its page or in the tree (ADR-286), handed over as files. It carries a verified copy of each surviving original it lists, checked against the key stage 2 recorded, so every link lands inside it (ADR-274). The files are written; nothing in this project carries them to a destination but a publish, which delivers a plugin's rendering to each destination it names: the Confluence rendering to the operator's Confluence Cloud site (ADR-308) and the website rendering to the website (ADR-333), and never the HTML tree itself. Publication is the state they are handed over in. It also carries the code stage 1 kept apart, each code set copied whole under `code/` in its own layout and listed in `code.csv` (ADR-284, ADR-296); nothing is written over code, and no code reaches the website (ADR-333). At its top lies its **tree ledger**, the record of what it was drawn from, which no publish carries (ADR-429).
 _Avoid_: the wiki, the Confluence output, the export
 
 **Deliverable language**:
