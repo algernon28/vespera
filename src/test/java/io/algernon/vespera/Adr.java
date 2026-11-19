@@ -3115,6 +3115,17 @@ public final class Adr {
     public static final String A_QUESTIONS_ANSWERS_ARE_COLOURED_AND_A_BUTTON_GROWS_UNDER_THE_POINTER = FILE
             + "0423-a-question-has-no-header-or-icon-its-answers-are-coloured-by-what-they-do-and-a-button-grows-under-the-pointer.md";
 
+    /**
+     * ADR-426 -- no identifier of the jar's code or the tests, and no text the jar prints, says partition for the seed
+     * partition ADR-396 retired, but a record's constant and a name of the retirement; five test classes and their
+     * names are renamed, and the records naming them corrected in place as ADR-337 §5 has it; a comment saying it is
+     * reworded now in a module no stage's version names, and in `embedding` and `synthesis` only with a change that
+     * re-mints the module for its own reasons (ADR-216 §1); `CONTEXT.md`'s Seed partition entry goes to the topic's
+     * Avoid line (amends ADR-396 §10).
+     */
+    public static final String THE_SEED_PARTITIONS_NAMES_ARE_RETIRED_FROM_THE_CODE_AND_THE_TESTS = FILE
+            + "0426-the-seed-partitions-names-leave-the-code-and-the-tests-and-a-comment-in-a-stages-module-waits-for-a-re-mint.md";
+
     private Adr() {
     }
 }

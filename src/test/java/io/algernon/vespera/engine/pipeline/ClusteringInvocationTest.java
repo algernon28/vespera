@@ -82,7 +82,7 @@ class ClusteringInvocationTest {
                 () -> assertThat(cli.getExitCode()).isZero());
         claim(
                 "each of the " + CORPUS_DOCUMENTS + " scored survivors carries exactly one membership row,"
-                        + " so membership over the partition is total and disjoint through the real"
+                        + " so membership over the topic is total and disjoint through the real"
                         + " pipeline and not only at the unit",
                 () -> assertThat(documentClusterRowCountFor(root)).isEqualTo(CORPUS_DOCUMENTS));
         claim(

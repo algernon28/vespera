@@ -69,8 +69,8 @@ class PublishUpdatesOneTreeInPlaceIT {
     /** That tree's label and its pages' keys, its places alone (ADR-328 §3, §4). */
     private static final String THE_EARLIER_LABEL = "vespera";
 
-    /** Its seed partition's and its group's titles, their places alone in their suffixes (ADR-328 §1). */
-    private static final String THE_EARLIER_PARTITION_TITLE = "Seeds (1)";
+    /** Its topic's and its group's titles, their places alone in their suffixes (ADR-328 §1). */
+    private static final String THE_EARLIER_TOPIC_TITLE = "Seeds (1)";
 
     private static final String THE_EARLIER_CLUSTER_TITLE = "Payroll and leave (1.1)";
 
@@ -141,11 +141,11 @@ class PublishUpdatesOneTreeInPlaceIT {
     private static final int NOT_FOUND = 404;
 
     /** Pages of the English tree an earlier publish of a larger rendering left, which this rendering no longer has. */
-    private static final String FORMER_PARTITION_TITLE = "Former seeds (2 · en)";
+    private static final String FORMER_TOPIC_TITLE = "Former seeds (2 · en)";
 
     private static final String FORMER_CLUSTER_TITLE = "Former payroll (2.1 · en)";
 
-    private static final String FORMER_PARTITION_KEY = "en:2";
+    private static final String FORMER_TOPIC_KEY = "en:2";
 
     private static final String FORMER_CLUSTER_KEY = "en:2.1";
 
@@ -212,20 +212,20 @@ class PublishUpdatesOneTreeInPlaceIT {
             Publisher.Outcome later = publish(site, rendering, Rendering.LATER_RUN, new ArrayList<>());
 
             claim("the later run's publish went to its end, creating no page: the root page unchanged, the seed"
-                            + " partition's and the group's updated",
+                            + " topic's and the group's updated",
                     () -> assertThat(List.of(later.published(), later.closingLine().contains(
                             "3 pages (0 created, 2 updated, 1 unchanged)"))).containsExactly(true, true));
             claim("the site holds the same three pages, at the same addresses, the place 1.1 now titled by the group"
                             + " drawn there",
                     () -> assertThat(site.pages()).extracting(page -> page.id + " " + page.title).containsExactly(
                             ids.get(0) + " " + Rendering.ROOT_TITLE,
-                            ids.get(1) + " " + Rendering.PARTITION_TITLE,
+                            ids.get(1) + " " + Rendering.TOPIC_TITLE,
                             ids.get(2) + " " + THE_LATER_GROUPS_TITLE));
             claim("every page is labelled vespera alone and keyed by its place, with nothing of either run in them",
                     () -> assertThat(site.pages()).extracting(page -> page.labels + " " + page.property.get("key"))
                             .containsExactly(
                                     "[" + Rendering.LABEL + "] " + Rendering.ROOT,
-                                    "[" + Rendering.LABEL + "] " + Rendering.PARTITION,
+                                    "[" + Rendering.LABEL + "] " + Rendering.TOPIC,
                                     "[" + Rendering.LABEL + "] " + Rendering.CLUSTER));
             claim("and nothing was moved to the trash", () -> assertThat(site.trash()).isEmpty());
         }
@@ -267,8 +267,8 @@ class PublishUpdatesOneTreeInPlaceIT {
                             + " and still labelled and keyed as the English tree's root page",
                     () -> assertThat(afterRetitling).containsExactly(
                             ids.get(0) + " " + THE_TITLE_IN_ENGLISH + " [" + Rendering.LABEL + "] " + Rendering.ROOT,
-                            ids.get(1) + " " + Rendering.PARTITION_TITLE + " [" + Rendering.LABEL + "] "
-                                    + Rendering.PARTITION,
+                            ids.get(1) + " " + Rendering.TOPIC_TITLE + " [" + Rendering.LABEL + "] "
+                                    + Rendering.TOPIC,
                             ids.get(2) + " " + Rendering.CLUSTER_TITLE + " [" + Rendering.LABEL + "] "
                                     + Rendering.CLUSTER));
             claim("the one write the site took was the root page's body, sent under the new title: no page created, no"
@@ -284,8 +284,8 @@ class PublishUpdatesOneTreeInPlaceIT {
             claim("the same three pages stand, the root page titled Vespera_en again",
                     () -> assertThat(afterGoingBack).containsExactly(
                             ids.get(0) + " " + Rendering.ROOT_TITLE + " [" + Rendering.LABEL + "] " + Rendering.ROOT,
-                            ids.get(1) + " " + Rendering.PARTITION_TITLE + " [" + Rendering.LABEL + "] "
-                                    + Rendering.PARTITION,
+                            ids.get(1) + " " + Rendering.TOPIC_TITLE + " [" + Rendering.LABEL + "] "
+                                    + Rendering.TOPIC,
                             ids.get(2) + " " + Rendering.CLUSTER_TITLE + " [" + Rendering.LABEL + "] "
                                     + Rendering.CLUSTER));
             claim("and nothing was moved to the trash", () -> assertThat(site.trash()).isEmpty());
@@ -308,7 +308,7 @@ class PublishUpdatesOneTreeInPlaceIT {
         try (StubConfluence site = StubConfluence.start()) {
             publish(site, rendering, Rendering.RUN, new ArrayList<>());
             StubConfluence.Page cluster = page(site, Rendering.CLUSTER_TITLE);
-            rendering.withBody(Rendering.PARTITION, "<p>The seed partition, with no group now.</p>").withoutTheCluster();
+            rendering.withBody(Rendering.TOPIC, "<p>The topic, with no group now.</p>").withoutTheCluster();
             site.forgetTheRequests();
             List<String> lines = new ArrayList<>();
             Publisher.Outcome again = publish(site, rendering, Rendering.RUN, lines);
@@ -331,9 +331,9 @@ class PublishUpdatesOneTreeInPlaceIT {
             claim("the request just before it asked for the page's children",
                     () -> assertThat(justBefore).isEqualTo(
                             "GET /wiki/api/v2/pages/" + cluster.id + "/direct-children"));
-            claim("the site took the seed partition's new body first, and only then the removal",
+            claim("the site took the topic's new body first, and only then the removal",
                     () -> assertThat(site.writes()).extracting(StubConfluence.Write::toString).containsExactly(
-                            new StubConfluence.Write(StubConfluence.Kind.BODY, Rendering.PARTITION_TITLE, null).toString(),
+                            new StubConfluence.Write(StubConfluence.Kind.BODY, Rendering.TOPIC_TITLE, null).toString(),
                             new StubConfluence.Write(StubConfluence.Kind.TRASHED, Rendering.CLUSTER_TITLE, null)
                                     .toString()));
             claim("after the last page's line, a line counts the removals and a line says what became of the page",
@@ -581,32 +581,32 @@ class PublishUpdatesOneTreeInPlaceIT {
 
     @Test
     @Story("A publish removes what the rendering no longer has")
-    @DisplayName("A seed partition's page and its group's page the rendering no longer has, someone's page under the group's, are neither deleted, and each line says why")
-    void aSeedPartitionWhoseClusterHoldsAPersonsPageIsLeftWithIt() throws IOException {
+    @DisplayName("A topic's page and its group's page the rendering no longer has, someone's page under the group's, are neither deleted, and each line says why")
+    void aTopicWhoseClusterHoldsAPersonsPageIsLeftWithIt() throws IOException {
         Rendering rendering = Rendering.drawnIn(folder.resolve("tree"));
         try (StubConfluence site = StubConfluence.start()) {
             publish(site, rendering, Rendering.RUN, new ArrayList<>());
-            StubConfluence.Page partition = site.aPageOfTheTree(page(site, Rendering.ROOT_TITLE).id,
-                    FORMER_PARTITION_TITLE, FORMER_PARTITION_KEY);
-            StubConfluence.Page cluster = site.aPageOfTheTree(partition.id, FORMER_CLUSTER_TITLE, FORMER_CLUSTER_KEY);
+            StubConfluence.Page topic = site.aPageOfTheTree(page(site, Rendering.ROOT_TITLE).id,
+                    FORMER_TOPIC_TITLE, FORMER_TOPIC_KEY);
+            StubConfluence.Page cluster = site.aPageOfTheTree(topic.id, FORMER_CLUSTER_TITLE, FORMER_CLUSTER_KEY);
             site.aPageNoPublishMadeUnder(cluster.id, A_PERSONS_PAGE);
             site.forgetTheRequests();
             List<String> lines = new ArrayList<>();
             Publisher.Outcome again = publish(site, rendering, Rendering.RUN, lines);
 
-            claim("no DELETE was sent, of the group's page, of the seed partition's page or of any",
+            claim("no DELETE was sent, of the group's page, of the topic's page or of any",
                     () -> assertThat(site.sent()).filteredOn(request -> request.method().equals("DELETE"))
                             .extracting(StubConfluence.Request::path).isEmpty());
-            claim("the seed partition's page, the group's page and the page under it stand, and nothing is in the trash",
+            claim("the topic's page, the group's page and the page under it stand, and nothing is in the trash",
                     () -> assertThat(List.of(site.pages().stream().map(page -> page.title).toList()
-                            .containsAll(List.of(FORMER_PARTITION_TITLE, FORMER_CLUSTER_TITLE, A_PERSONS_PAGE)),
+                            .containsAll(List.of(FORMER_TOPIC_TITLE, FORMER_CLUSTER_TITLE, A_PERSONS_PAGE)),
                             site.trash().isEmpty())).containsExactly(true, true));
             claim("the lines count two removals, the group's page first, and say each was left because something"
                             + " stands under it",
                     () -> assertThat(lines.subList(lines.size() - 3, lines.size())).containsExactly(
                             "2 pages of the tree the rendering no longer has are moved to the trash",
                             "removal 1 of 2: " + FORMER_CLUSTER_TITLE + LEFT_HOLDING,
-                            "removal 2 of 2: " + FORMER_PARTITION_TITLE + LEFT_HOLDING));
+                            "removal 2 of 2: " + FORMER_TOPIC_TITLE + LEFT_HOLDING));
             claim("and the publish went to its end, counting both left and none removed",
                     () -> assertThat(List.of(again.published(),
                             again.closingLine().contains("; 2 pages the rendering no longer has were left as they stand"),
@@ -862,7 +862,7 @@ class PublishUpdatesOneTreeInPlaceIT {
 
     @Test
     @Story("A tree an earlier publish made is taken as this tree")
-    @DisplayName("A taking the site stopped at a seed partition's page and then at the root page is finished by the next publish in its language, the root page keyed last")
+    @DisplayName("A taking the site stopped at a topic's page and then at the root page is finished by the next publish in its language, the root page keyed last")
     void aTakingStoppedPartWayIsFinishedByTheNextPublishInItsLanguageTheRootPageKeyedLast() throws IOException {
         Path tree = folder.resolve("it");
         Rendering italian = Rendering.drawnIn(tree, Rendering.ITALIAN);
@@ -1088,7 +1088,7 @@ class PublishUpdatesOneTreeInPlaceIT {
 
     /**
      * Puts under the parent the tree an earlier publish made under ADR-328, which named no language: its root page
-     * {@code Vespera}, its body {@code rootBody}, and its seed partition's and group's pages titled by their place
+     * {@code Vespera}, its body {@code rootBody}, and its topic's and group's pages titled by their place
      * alone, all labelled {@code vespera} and keyed by their place, carrying the files the rendering in {@code tree}
      * lists at their digests; gives the pages' ids, root first.
      */
@@ -1098,13 +1098,13 @@ class PublishUpdatesOneTreeInPlaceIT {
                 THE_EARLIER_LABEL, "root",
                 Map.of(Rendering.LISTING, Files.readAllBytes(tree.resolve(Rendering.LISTING))));
         root.body = rootBody;
-        StubConfluence.Page partition = site.aPageAnEarlierPublishMade(root.id, THE_EARLIER_PARTITION_TITLE,
+        StubConfluence.Page topic = site.aPageAnEarlierPublishMade(root.id, THE_EARLIER_TOPIC_TITLE,
                 THE_EARLIER_LABEL, "1", Map.of());
-        StubConfluence.Page cluster = site.aPageAnEarlierPublishMade(partition.id, THE_EARLIER_CLUSTER_TITLE,
+        StubConfluence.Page cluster = site.aPageAnEarlierPublishMade(topic.id, THE_EARLIER_CLUSTER_TITLE,
                 THE_EARLIER_LABEL, "1.1", Map.of(
                         Rendering.COPY, Files.readAllBytes(tree.resolve("001/001/" + Rendering.COPY)),
                         Rendering.PICTURE, Files.readAllBytes(tree.resolve("confluence/001/001/" + Rendering.PICTURE))));
-        return List.of(root.id, partition.id, cluster.id);
+        return List.of(root.id, topic.id, cluster.id);
     }
 
     /**
@@ -1128,13 +1128,13 @@ class PublishUpdatesOneTreeInPlaceIT {
         StubConfluence.Page root = site.aPageAnEarlierPublishMade(parentId, "Vespera " + marker, label,
                 run + ":root", Map.of(Rendering.LISTING, Files.readAllBytes(tree.resolve(Rendering.LISTING))));
         root.body = "<h1>Deliverable " + run + "</h1>\n<p>An earlier body.</p>";
-        StubConfluence.Page partition = site.aPageAnEarlierPublishMade(root.id, "Seeds (01 · " + marker + ")", label,
+        StubConfluence.Page topic = site.aPageAnEarlierPublishMade(root.id, "Seeds (01 · " + marker + ")", label,
                 run + ":01", Map.of());
-        StubConfluence.Page cluster = site.aPageAnEarlierPublishMade(partition.id,
+        StubConfluence.Page cluster = site.aPageAnEarlierPublishMade(topic.id,
                 "Payroll and leave (01.01 · " + marker + ")", label, run + ":01.01", Map.of(
                         Rendering.COPY, Files.readAllBytes(tree.resolve("001/001/" + Rendering.COPY)),
                         Rendering.PICTURE, Files.readAllBytes(tree.resolve("confluence/001/001/" + Rendering.PICTURE))));
-        return List.of(root.id, partition.id, cluster.id);
+        return List.of(root.id, topic.id, cluster.id);
     }
 
     /** The account's email and token as Basic authentication encodes them, with no {@code Basic} before them. */

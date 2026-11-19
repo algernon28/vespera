@@ -40,7 +40,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
 class CopyNamesTest {
 
-    /** The seed whose partition every member sits in. */
+    /** The seed whose topic every member sits in. */
     private static final OccurrenceId THE_SEED = new OccurrenceId(1);
 
     /** {@code é} written as one code point, as normalisation form C writes it. */

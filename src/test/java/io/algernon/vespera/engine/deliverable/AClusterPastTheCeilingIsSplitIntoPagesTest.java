@@ -66,7 +66,7 @@ class AClusterPastTheCeilingIsSplitIntoPagesTest {
     /** The cluster written over, placed first, of three documents. */
     private static final RecordedCluster DOORS = cluster(THE_SEED, 0, "Fire doors", 1, 3);
 
-    /** Its folder, from the tree's root: the partition's place and slug, then the cluster's. */
+    /** Its folder, from the tree's root: the topic's place and slug, then the cluster's. */
     private static final String DOORS_FOLDER = "1-fire-safety/1-fire-doors";
 
     /** The writing over the first cluster, citing each of its three documents. */

@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-280", url = Adr.A_CLUSTERS_FOLDER_HOLDS_ITS_PAGE_AND_ITS_SURVIVORS_COPIES, type = "adr")
 class ClusterPageTest {
 
-    /** The seed whose partition the cluster sits in. */
+    /** The seed whose topic the cluster sits in. */
     private static final OccurrenceId THE_SEED = new OccurrenceId(1);
 
     /** The seed's path, as each member carries it. */

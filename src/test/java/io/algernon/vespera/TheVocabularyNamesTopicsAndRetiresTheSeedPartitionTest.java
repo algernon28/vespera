@@ -31,8 +31,9 @@ import org.junit.jupiter.api.Test;
  *
  * <p>The first test holds that "topic" is a term: it has an entry, and so has the winning topic, and no {@code
  * _Avoid_} line lists it as a rejected word, as the seed partition's did. The second holds that the seed partition is
- * retired: no entry's definition names one but the two retired entries', and each of those opens by saying it is
- * retired.
+ * retired: no entry's definition names one but the retired entry of its page's, which opens by saying it is retired.
+ * The third holds that the seed partition has no entry of its own since ADR-426: its words stand on the topic's
+ * {@code _Avoid_} line, citing that record.
  */
 @Epic("Architecture")
 @Feature("The project's vocabulary")
@@ -53,7 +54,14 @@ class TheVocabularyNamesTopicsAndRetiresTheSeedPartitionTest {
 
     private static final String WINNING_TOPIC = "Winning topic";
 
-    private static final List<String> THE_RETIRED_ENTRIES = List.of("Seed partition", "Seed partition's page");
+    /** The one retired entry left: the seed partition's own went to the topic's {@code _Avoid_} line (ADR-426). */
+    private static final List<String> THE_RETIRED_ENTRIES = List.of("Seed partition's page");
+
+    /** The heading the seed partition's own entry had, which no entry has now. */
+    private static final String THE_RETIRED_TERMS_ENTRY = "Seed partition";
+
+    /** The record that took the seed partition's entry down to an {@code _Avoid_} line. */
+    private static final String THE_RECORD_RETIRING_ITS_NAMES = "ADR-426";
 
     private static final String RETIRED_BY_THE_RECORD = "Retired by ADR-396";
 
@@ -110,7 +118,7 @@ class TheVocabularyNamesTopicsAndRetiresTheSeedPartitionTest {
 
     @Test
     @Story("The seed partition is retired")
-    @DisplayName("Only the two retired glossary entries use the words 'seed partition' in their definitions, and each says it is retired")
+    @DisplayName("Only the retired glossary entry for the seed partition's page uses the words 'seed partition' in its definition, and it says it is retired")
     void noDefinitionButTheRetiredOnesNamesASeedPartition() {
         Map<String, String> naming = new LinkedHashMap<>();
         ENTRIES.forEach((name, lines) -> {
@@ -120,10 +128,26 @@ class TheVocabularyNamesTopicsAndRetiresTheSeedPartitionTest {
             }
         });
 
-        claim("No entry's definition uses the words 'seed partition' but the two retired entries'",
+        claim("No entry's definition uses the words 'seed partition' but the retired entry for the seed partition's page",
                 () -> assertThat(naming.keySet()).isSubsetOf(THE_RETIRED_ENTRIES));
-        claim("Each retired entry's definition opens by saying the record retired it",
+        claim("That retired entry's definition opens by saying the record retired it",
                 () -> assertThat(THE_RETIRED_ENTRIES).allSatisfy(name ->
                         assertThat(definitionOf(ENTRIES.get(name))).startsWith(RETIRED_BY_THE_RECORD)));
+    }
+
+    @Test
+    @Link(name = "ADR-426", url = Adr.THE_SEED_PARTITIONS_NAMES_ARE_RETIRED_FROM_THE_CODE_AND_THE_TESTS, type = "adr")
+    @Issue("895")
+    @Story("The seed partition is retired")
+    @DisplayName("The seed partition has no glossary entry of its own: the topic's list of rejected words carries it, and names the record that retired it from every name")
+    void theSeedPartitionHasNoEntryAndTheTopicsAvoidLineRetiresIt() {
+        List<String> topicsAvoidLines = ENTRIES.get(TOPIC).stream().filter(line -> line.startsWith(AVOID)).toList();
+
+        claim("No glossary entry is headed by the seed partition any more",
+                () -> assertThat(ENTRIES).doesNotContainKey(THE_RETIRED_TERMS_ENTRY));
+        claim("The topic's one list of rejected words lists the seed partition and names the record that retired its"
+                        + " names",
+                () -> assertThat(topicsAvoidLines).singleElement().satisfies(line -> assertThat(line)
+                        .contains(THE_RETIRED_TERM, THE_RECORD_RETIRING_ITS_NAMES)));
     }
 }

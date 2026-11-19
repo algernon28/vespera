@@ -93,8 +93,8 @@ class ClusterPageLinksAndWordingTest {
     /** Where the copy of that document stands in the tree: under its own name, in its cluster's folder. */
     private static final String THE_DOCUMENTS_COPY = "1-industrial-safety-standards/1-fire-suppression-retrofits/retrofit.pdf";
 
-    /** The one partition directory these fixtures write, named from the seed's stem, slugged. */
-    private static final String THE_PARTITION_DIRECTORY = "1-industrial-safety-standards";
+    /** The one topic directory these fixtures write, named from the seed's stem, slugged. */
+    private static final String THE_TOPIC_DIRECTORY = "1-industrial-safety-standards";
 
     /** The one cluster's folder beneath it, named from the derived label and never the generated heading. */
     private static final String THE_CLUSTER_FOLDER = "1-" + THE_LABEL_SLUGGED;
@@ -273,7 +273,7 @@ class ClusterPageLinksAndWordingTest {
 
     /** Where that page sits, which a claim about a relative destination has to follow it from. */
     private static Path thePageOf(Path tree) {
-        return tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_CLUSTER_PAGE);
+        return tree.resolve(THE_TOPIC_DIRECTORY).resolve(THE_CLUSTER_PAGE);
     }
 
     /** An archive beside the working directory, on its volume. */

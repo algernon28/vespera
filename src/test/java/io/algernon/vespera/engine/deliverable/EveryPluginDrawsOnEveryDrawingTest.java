@@ -44,9 +44,9 @@ class EveryPluginDrawsOnEveryDrawingTest {
         TwoClustersWithPictures.draw(base, List.of(zulu, alpha), DeliverableProgress.NONE);
 
         claim(
-                "each plugin opens its drawing, hears the seed partition start, each group's entries opened, every"
+                "each plugin opens its drawing, hears the topic start, each group's entries opened, every"
                         + " entry, its copy shown, its picture and its picture not shown, each group drawn with the"
-                        + " entries it opened, the seed partition end and the finish once documents.csv stands, and"
+                        + " entries it opened, the topic end and the finish once documents.csv stands, and"
                         + " closes",
                 () -> {
                     assertThat(TwoClustersWithPictures.withoutEntriesClosed(alpha.calls()))

@@ -13,7 +13,7 @@ import io.algernon.vespera.engine.deliverable.ListedArrangement;
 import io.algernon.vespera.engine.deliverable.ListedCodeSets;
 import io.algernon.vespera.engine.deliverable.Plugin;
 import io.algernon.vespera.engine.deliverable.SurvivorPictures;
-import io.algernon.vespera.engine.deliverable.ThreePartitions;
+import io.algernon.vespera.engine.deliverable.ThreeTopics;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -32,13 +32,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The Confluence rendering stage 6b draws one seed partition and one page of survivors at a time (ADR-223 sections 6
+ * The Confluence rendering stage 6b draws one topic and one page of survivors at a time (ADR-223 sections 6
  * and 7) does not depend on where the pages fall: every file under {@code confluence/} is byte for byte the one drawn
  * with every survivor handed over at once.
  *
- * <p>This claim stood in {@code deliverable.TreeIsTheSameWrittenAPartitionAtATimeTest} while {@code deliverable} drew
+ * <p>This claim stood in {@code deliverable.TreeIsTheSameWrittenATopicAtATimeTest} while {@code deliverable} drew
  * the rendering itself. It draws none now, since it names no plugin (ADR-333 §1), so the claim is made here, over the
- * same {@link ThreePartitions} lists, through the public way in that is handed the plugins, with {@link
+ * same {@link ThreeTopics} lists, through the public way in that is handed the plugins, with {@link
  * ConfluencePlugin} the one plugin. Its publisher is never asked to send.
  *
  * <p>Pure: no database. The archive is not there, so every copy is {@code gone} in both drawings.
@@ -50,13 +50,13 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-301", url = Adr.A_CONFLUENCE_RENDERING_IS_DRAWN_BESIDE_THE_HTML_TREE, type = "adr")
 @Link(name = "ADR-312", url = Adr.THE_CONFLUENCE_RENDERING_LIES_UNDER_CONFLUENCE, type = "adr")
 @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
-class TheConfluenceRenderingIsTheSameWrittenAPartitionAtATimeTest {
+class TheConfluenceRenderingIsTheSameWrittenATopicAtATimeTest {
 
-    /** How many survivors the source hands over at once: fewer than any partition here holds. */
+    /** How many survivors the source hands over at once: fewer than any topic here holds. */
     private static final int TWO_SURVIVORS_IN_A_PAGE = 2;
 
     /**
-     * The files of the rendering: the root page, the page list, a page for each of the three seed partitions and the
+     * The files of the rendering: the root page, the page list, a page for each of the three topics and the
      * six groups, and the state of the drawing (ADR-333 §11).
      */
     private static final int TWELVE_FILES = 12;
@@ -73,23 +73,23 @@ class TheConfluenceRenderingIsTheSameWrittenAPartitionAtATimeTest {
                 base.resolve("paged"),
                 corpusRoot,
                 ListedArrangement.of(
-                        ThreePartitions.arrangement(),
-                        ThreePartitions.written(),
-                        ThreePartitions.survivors(),
-                        ThreePartitions.unwritten(),
+                        ThreeTopics.arrangement(),
+                        ThreeTopics.written(),
+                        ThreeTopics.survivors(),
+                        ThreeTopics.unwritten(),
                         TWO_SURVIVORS_IN_A_PAGE)));
         Map<String, String> whole = renderingOf(drawn(
                 base.resolve("whole"),
                 corpusRoot,
                 ListedArrangement.of(
-                        ThreePartitions.arrangement(),
-                        ThreePartitions.written(),
-                        ThreePartitions.survivors(),
-                        ThreePartitions.unwritten())));
+                        ThreeTopics.arrangement(),
+                        ThreeTopics.written(),
+                        ThreeTopics.survivors(),
+                        ThreeTopics.unwritten())));
 
         claim(
                 "the rendering holds the same " + TWELVE_FILES + " files and nothing else: the root page, the page"
-                        + " list, a page for each of the three seed partitions and the six groups, and drawing.txt,"
+                        + " list, a page for each of the three topics and the six groups, and drawing.txt,"
                         + " with no file left half written beside any of them",
                 () -> {
                     assertThat(whole)
@@ -122,7 +122,7 @@ class TheConfluenceRenderingIsTheSameWrittenAPartitionAtATimeTest {
         return Deliverable.writeTo(
                 work,
                 DeliverableRoot.UNNAMED,
-                ThreePartitions.provenance(corpusRoot),
+                ThreeTopics.provenance(corpusRoot),
                 source,
                 ListedCodeSets.NONE,
                 SurvivorPictures.none(),
