@@ -150,15 +150,73 @@ public final class FixedWords {
                     + " dell'archivio riportata sopra. La cartella di ogni gruppo contiene la sua pagina e una copia"
                     + " di ogni documento che vi è elencato, verificata con l'impronta presa quando è stato"
                     + " convertito, e ogni collegamento della pagina di un gruppo porta alla sua copia; la radice"
-                    + " dell'archivio indica da dove sono state copiate. La colonna seed_partition non è un percorso:"
-                    + " contiene il nome dell'argomento sotto cui è collocato ogni documento, e ogni cartella numerata"
-                    + " accanto a questa pagina prende il nome da un argomento e contiene le cartelle dei gruppi di"
-                    + " quell'argomento. Le colonne copy e copy_outcome dicono quali documenti sono stati copiati e, per"
-                    + " quelli che non lo sono stati, perché.";
+                    + " dell'archivio indica da dove sono state copiate. La colonna topic non è un percorso: contiene il"
+                    + " nome dell'argomento sotto cui è collocato ogni documento, e la colonna subtopic, dove quell'argomento"
+                    + " è diviso, il nome del sottoargomento in cui si trova il documento. Ogni cartella numerata accanto a"
+                    + " questa pagina è di un argomento: contiene la pagina dell'argomento e le cartelle dei suoi gruppi,"
+                    + " oppure, dove l'argomento è diviso, una cartella per ogni sottoargomento con la pagina del"
+                    + " sottoargomento e le cartelle dei suoi gruppi. Le colonne copy e copy_outcome dicono quali documenti"
+                    + " sono stati copiati e, per quelli che non lo sono stati, perché.";
         };
     }
 
-    /** The heads of a seed partition's table of groups: group, documents, and what the writing is titled. */
+    /** The heads of a topic's or a subtopic's table of groups, the group's number first (ADR-415 section 10). */
+    public static List<String> topicTableHeads(DeliverableLanguage language) {
+        return switch (language) {
+            case ENGLISH -> List.of("No.", "Group", "Documents", "Written up as");
+            case ITALIAN -> List.of("N.", "Gruppo", "Documenti", "Titolo del testo");
+        };
+    }
+
+    /** The row of heads of a topic's or a subtopic's table of groups. */
+    public static String topicTableHeadRow(DeliverableLanguage language) {
+        return headRow(topicTableHeads(language));
+    }
+
+    /** The heads of a divided topic's table of subtopics (ADR-415 section 10). */
+    public static List<String> subtopicTableHeads(DeliverableLanguage language) {
+        return switch (language) {
+            case ENGLISH -> List.of("Subtopic", "Groups", "Documents");
+            case ITALIAN -> List.of("Sottoargomento", "Gruppi", "Documenti");
+        };
+    }
+
+    /** The row of heads of a divided topic's table of subtopics. */
+    public static String subtopicTableHeadRow(DeliverableLanguage language) {
+        return headRow(subtopicTableHeads(language));
+    }
+
+    /** What a subtopic's page says before its topic's name and a full stop (ADR-415 section 10). */
+    public static String inTheTopic(DeliverableLanguage language) {
+        return switch (language) {
+            case ENGLISH -> "In the topic";
+            case ITALIAN -> "Nell'argomento";
+        };
+    }
+
+    /** The heading of a topic's list of the documents placed under another topic that also speak of it (ADR-415 section 5). */
+    public static String seeAlso(DeliverableLanguage language) {
+        return switch (language) {
+            case ENGLISH -> "See also";
+            case ITALIAN -> "Vedi anche";
+        };
+    }
+
+    /** The one sentence under that heading (ADR-415 section 10). */
+    public static String seeAlsoSentence(DeliverableLanguage language) {
+        return switch (language) {
+            case ENGLISH -> "Placed under another topic, these documents also speak of this one.";
+            case ITALIAN -> "Collocati sotto un altro argomento, questi documenti parlano anche di questo.";
+        };
+    }
+
+    private static String headRow(List<String> heads) {
+        StringBuilder row = new StringBuilder("<tr>");
+        heads.forEach(head -> row.append("<th>").append(head).append("</th>"));
+        return row.append("</tr>\n").toString();
+    }
+
+    /** The heads of a topic's table of groups: group, documents, and what the writing is titled. */
     public static List<String> clusterTableHeads(DeliverableLanguage language) {
         return switch (language) {
             case ENGLISH -> List.of("Group", "Documents", "Written up as");
@@ -166,11 +224,9 @@ public final class FixedWords {
         };
     }
 
-    /** The row of heads of a seed partition's table of groups, as the index, the root page and the partition write it. */
+    /** The row of heads of a topic's table of groups, as the index, the root page and the topic's page write it. */
     public static String clusterTableHeadRow(DeliverableLanguage language) {
-        StringBuilder row = new StringBuilder("<tr>");
-        clusterTableHeads(language).forEach(head -> row.append("<th>").append(head).append("</th>"));
-        return row.append("</tr>\n").toString();
+        return headRow(clusterTableHeads(language));
     }
 
     /** The index's code sets: the heading. */

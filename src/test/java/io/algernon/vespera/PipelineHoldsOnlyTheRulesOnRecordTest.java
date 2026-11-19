@@ -249,6 +249,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "SidecarsDidNotAnswerException",
             "SidecarsDidNotStartException",
             "SystemProcessRunner",
+            // ADR-421: on Windows, write .wslconfig where there is none, and read one that is there for its idle
+            // timeout; it decides no verdict, cache key, cluster or text of the deliverable.
+            "WslIdleTimeout",
             // ADR-329: pull into Ollama a model it does not serve, and say why where it cannot; neither decides a verdict,
             // a cache key, a cluster or text of the deliverable.
             "ModelPull",
@@ -273,6 +276,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-250: the survivor list reads who survived and what was measured, and decides neither.
             "SurvivorListListener",
             "SurvivorListReport",
+            // ADR-416: draws the topics analysis report from counts, paths, keys and names it is handed; what it counts
+            // is embedding's, and it decides no verdict, cache key, cluster or text of the deliverable.
+            "TopicsAnalysisReport",
             "TaskletSteps",
             "TemporaryFilesInTheWorkingDirectory",
             "TimedStatement",

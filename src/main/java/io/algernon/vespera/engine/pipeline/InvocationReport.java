@@ -114,15 +114,16 @@ final class InvocationReport {
             StepNames.CENSUS, "0", StepNames.RELEVANCE_FLOOR, "5e", StepNames.RELEVANCE_REPORT, "5");
 
     /**
-     * The eleven analysis reports, by the name of the page each writes (ADR-362 section 9); a report is named by its
+     * The twelve analysis reports, by the name of the page each writes (ADR-362 section 9); a report is named by its
      * page's name without the ending, which {@link #ANALYSIS_REPORTS} holds.
      */
     private static final List<String> ANALYSIS_PAGES = List.of(
             "format-mix.html", "extraction-failures.html", "extraction-survivors.html", "confidence-distribution.html",
             "word-count-distribution.html", "document-frequency.html", "seed-corpus-comparison.html",
-            "relevance-labelling.html", "cluster-sizes.html", "arrangement.html", "cluster-page-sizes.html");
+            "relevance-labelling.html", "cluster-sizes.html", "topics.html", "arrangement.html",
+            "cluster-page-sizes.html");
 
-    /** The eleven analysis reports, by name. */
+    /** The twelve analysis reports, by name. */
     static final List<String> ANALYSIS_REPORTS =
             ANALYSIS_PAGES.stream().map(page -> page.substring(0, page.length() - ".html".length())).toList();
 
@@ -134,6 +135,7 @@ final class InvocationReport {
             Map.entry(SeedCorpusComparisonReport.NAME, 1),
             Map.entry(ClusterSizeReport.NAME, ClusterSizeReport.FORMAT),
             Map.entry(RelevanceLabellingReport.NAME, RelevanceLabellingReport.FORMAT),
+            Map.entry(TopicsAnalysisReport.NAME, TopicsAnalysisReport.FORMAT),
             Map.entry(ArrangementReport.NAME, AnalysisReportJson.FORMAT),
             Map.entry("cluster-page-sizes", 1));
 

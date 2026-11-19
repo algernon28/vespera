@@ -3,10 +3,12 @@ package io.algernon.vespera.ui;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.DoubleFunction;
 import java.util.regex.Pattern;
 import javafx.collections.ListChangeListener;
@@ -94,11 +96,11 @@ final class ProgressCharts extends ScrollPane {
         time.setLabel("Elapsed");
         time.setForceZeroInRange(false);
         // the unit follows the spacing of the ticks, so that two ticks side by side never read alike
-        time.setTickLabelFormatter(drawnAs(tick -> timeTick(tick, time.getTickUnit())));
+        time.setTickLabelFormatter(drawnAs(tick -> tick < 0 ? "" : timeTick(tick, time.getTickUnit())));
         NumberAxis value = new NumberAxis();
         value.setLabel(axisOf(stage));
         value.setForceZeroInRange(false);
-        value.setTickLabelFormatter(drawnAs(tick -> tickText(value.getLabel(), tick, value.getTickUnit())));
+        value.setTickLabelFormatter(drawnAs(tick -> tick < 0 ? "" : tickText(value.getLabel(), tick, value.getTickUnit())));
         LineChart<Number, Number> chart = new LineChart<>(time, value);
         chart.setId("stage-chart-" + stage);
         chart.setTitle(TITLES.get(stage));
@@ -209,6 +211,7 @@ final class ProgressCharts extends ScrollPane {
             } else if (!frozen) {
                 chart.getStyleClass().remove("frozen");
             }
+            setAxes(chart, drawn);
             if (drawn == null) {
                 chart.setLegendVisible(false);
                 continue;
@@ -228,7 +231,7 @@ final class ProgressCharts extends ScrollPane {
                 // the chart sets a plotted node's style classes as it adds it and again as its lines change, so each
                 // node puts its own back whenever they are set; a frozen chart marks none as the latest
                 for (int i = 0; i < series.getData().size(); i++) {
-                    keepClasses(series.getData().get(i).getNode(), !frozen && i == count - 1);
+                    keepClasses(series.getData().get(i).getNode(), !frozen && i == count - 1, count == 1);
                 }
             }
             // all the lines at once: one change to the chart per reading
@@ -238,8 +241,43 @@ final class ProgressCharts extends ScrollPane {
         }
     }
 
+    /**
+     * Sets each axis of {@code chart} from the samples {@code drawn} holds now, and from no earlier drawing (ADR-425):
+     * two numbers or more, the axis ranges by itself, ticked every 5; one number, or none (0), it runs one power of ten
+     * either side of that number, ticked at that step.
+     */
+    private static void setAxes(LineChart<Number, Number> chart, StageChartFile.Chart drawn) {
+        Set<Double> seconds = new HashSet<>();
+        Set<Double> values = new HashSet<>();
+        if (drawn != null) {
+            for (StageChartFile.Line line : drawn.lines()) {
+                int count = Math.min(line.values().size(), line.seconds().size());
+                for (int i = 0; i < count; i++) {
+                    seconds.add(line.seconds().get(i).doubleValue());
+                    values.add(line.values().get(i).doubleValue());
+                }
+            }
+        }
+        setAxis((NumberAxis) chart.getXAxis(), seconds);
+        setAxis((NumberAxis) chart.getYAxis(), values);
+    }
+
+    private static void setAxis(NumberAxis axis, Set<Double> numbers) {
+        if (numbers.size() >= 2) {
+            axis.setTickUnit(5);
+            axis.setAutoRanging(true);
+            return;
+        }
+        double n = numbers.isEmpty() ? 0 : numbers.iterator().next();
+        double d = Math.abs(n) >= 1 ? Math.pow(10, Math.floor(Math.log10(Math.abs(n)))) : 1;
+        axis.setAutoRanging(false);
+        axis.setLowerBound(n - d);
+        axis.setUpperBound(n + d);
+        axis.setTickUnit(d);
+    }
+
     /** Gives a sample's node its style classes, and gives them again whenever the chart sets its classes anew. */
-    private static void keepClasses(Node node, boolean latest) {
+    private static void keepClasses(Node node, boolean latest, boolean only) {
         Runnable put = () -> {
             List<String> classes = node.getStyleClass();
             if (!classes.contains("sample")) {
@@ -248,9 +286,13 @@ final class ProgressCharts extends ScrollPane {
             if (latest && !classes.contains("latest-sample")) {
                 classes.add("latest-sample");
             }
+            if (only && !classes.contains("only-sample")) {
+                classes.add("only-sample");
+            }
         };
         node.getStyleClass().addListener((ListChangeListener<String>) change -> {
-            if (!node.getStyleClass().contains("sample") || latest && !node.getStyleClass().contains("latest-sample")) {
+            if (!node.getStyleClass().contains("sample") || latest && !node.getStyleClass().contains("latest-sample")
+                    || only && !node.getStyleClass().contains("only-sample")) {
                 put.run();
             }
         });

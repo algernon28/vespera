@@ -627,6 +627,14 @@ final class ProfileRow {
             "environment", "this computer's environment",
             "code", "Vespera's built-in value");
 
+    /** What the window says wherever the jar has not said yet what it would use. */
+    static final String NOT_SAID_YET = "The jar has not said yet what it would use; run an invocation to see it.";
+
+    /** The words ADR-377 §4 gives {@code source}, empty where it is none of the five. */
+    static Optional<String> sourceInWords(String source) {
+        return Optional.ofNullable(SOURCES_IN_WORDS.get(source));
+    }
+
     /** What a change of the key redoes and what it keeps, in one sentence, by the earliest work it redoes (ADR-377 §4). */
     static String costOf(ProfileKey key) {
         if (key == ProfileKey.CLUSTER_PAGE_BYTE_CEILING) {

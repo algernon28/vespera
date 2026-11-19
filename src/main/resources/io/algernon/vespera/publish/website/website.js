@@ -1,6 +1,7 @@
 // The website's search (ADR-333 section 3 and 9). It runs in the browser over what search-index.js set:
-// the global VESPERA_SEARCH_INDEX, one element for each cluster, with its seed partition's name, its title,
-// its label, the text of its writing and the name and link of each of its entries. It reads nothing else,
+// the global VESPERA_SEARCH_INDEX, one element for each cluster, with its topic's name, its subtopic's name (empty
+// where its topic has none), its title, its label, the text of its writing and the name and link of each of its
+// entries (ADR-415 section 8). It reads nothing else,
 // asks nothing of any server, and writes what it finds as text and never as markup, so no title, label,
 // writing or name can add an element or run a script.
 //
@@ -26,7 +27,13 @@
 
   /** Everything of a cluster that a search reads, lower case, one string. */
   function haystackOf(cluster) {
-    var parts = [textOf(cluster.partition), textOf(cluster.title), textOf(cluster.label), textOf(cluster.writing)];
+    var parts = [
+      textOf(cluster.topic),
+      textOf(cluster.subtopic),
+      textOf(cluster.title),
+      textOf(cluster.label),
+      textOf(cluster.writing),
+    ];
     (Array.isArray(cluster.entries) ? cluster.entries : []).forEach(function (entry) {
       parts.push(textOf(entry.name));
     });
@@ -70,8 +77,11 @@
         var item = document.createElement("li");
         var heading = textOf(cluster.title) || textOf(cluster.label);
         item.appendChild(anchor(document, root + textOf(cluster.link), heading));
-        if (textOf(cluster.partition)) {
-          item.appendChild(document.createTextNode(" - " + textOf(cluster.partition)));
+        if (textOf(cluster.topic)) {
+          item.appendChild(document.createTextNode(" - " + textOf(cluster.topic)));
+        }
+        if (textOf(cluster.subtopic)) {
+          item.appendChild(document.createTextNode(" - " + textOf(cluster.subtopic)));
         }
         var matching = (Array.isArray(cluster.entries) ? cluster.entries : []).filter(function (entry) {
           var name = textOf(entry.name).toLowerCase();

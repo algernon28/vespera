@@ -16,8 +16,10 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.lang.reflect.Proxy;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -50,7 +52,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-213", url = Adr.EACH_RULE_THE_DELIVERABLE_IS_WRITTEN_BY_HAS_ONE_CLASS, type = "adr")
 @Link(name = "ADR-223", url = Adr.THE_LAST_THREE_STAGES_GO_THROUGH_ONE_SEED_PARTITION_AT_A_TIME, type = "adr")
 @Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
-class PartitionNoSurvivorNamesStopsTheWriterTest {
+class TopicNoSurvivorNamesStopsTheWriterTest {
 
     private static final String RUN_ID = "d".repeat(48) + "0123456789abcdef";
     private static final long WALK = 7L;
@@ -64,7 +66,7 @@ class PartitionNoSurvivorNamesStopsTheWriterTest {
     @Test
     @Story("A topic that arrives with no name stops the writer")
     @DisplayName("The writer stops before anything is written, the tree's own directory included, and before it reports anything at all")
-    void stopsBeforeAnyPartitionIsWrittenOrAnnounced(@TempDir Path workingDirectory) {
+    void stopsBeforeAnyTopicIsWrittenOrAnnounced(@TempDir Path workingDirectory) {
         List<String> events = new ArrayList<>();
         ListedSurvivor theOneSurvivor = new ListedSurvivor(
                 new OccurrenceId(10),
@@ -114,7 +116,8 @@ class PartitionNoSurvivorNamesStopsTheWriterTest {
                         .isEmptyDirectory());
         claim(
                 "nothing was reported either: the topics are asked for before the survivors are asked for"
-                        + " their pictures, so no count of survivors, topics, files or entries was announced",
+                        + " their pictures, so the progress was told nothing at all: no count of survivors, topics,"
+                        + " clusters or entries, and no copy",
                 () -> assertThat(events)
                         .as("what the writer reported before it stopped")
                         .isEmpty());
@@ -126,47 +129,25 @@ class PartitionNoSurvivorNamesStopsTheWriterTest {
                 new ArrangedCluster(topic, OptionalInt.empty(), 0, 1, topicOrder, 0, 1), new ClusterLabel(label));
     }
 
+    /**
+     * A progress that records every call made of it, by the method's name and its arguments, whatever the method: every
+     * method of {@link DeliverableProgress} returns nothing, so the proxy answers each with nothing. Recording them all,
+     * rather than overriding the counts one by one, keeps the claim below about everything the writer can report.
+     */
     private static DeliverableProgress recording(List<String> events) {
-        return new DeliverableProgress() {
-            @Override
-            public void toListPictures(long survivors) {
-                events.add("to-list " + survivors);
-            }
-
-            @Override
-            public void picturesListed() {
-                events.add("listed");
-            }
-
-            @Override
-            public void toWritePartitions(long partitions) {
-                events.add("to-partitions " + partitions);
-            }
-
-            @Override
-            public void partitionWritten() {
-                events.add("partition");
-            }
-
-            @Override
-            public void toDrawClusters(long clusters) {
-                events.add("to-files " + clusters);
-            }
-
-            @Override
-            public void clusterDrawn() {
-                events.add("file");
-            }
-
-            @Override
-            public void toWriteMembershipEntries(long entries) {
-                events.add("to-entries " + entries);
-            }
-
-            @Override
-            public void membershipEntryWritten() {
-                events.add("entry");
-            }
-        };
+        return (DeliverableProgress) Proxy.newProxyInstance(
+                DeliverableProgress.class.getClassLoader(),
+                new Class<?>[] {DeliverableProgress.class},
+                (proxy, method, arguments) -> {
+                    if (method.getDeclaringClass() == Object.class) {
+                        return switch (method.getName()) {
+                            case "equals" -> proxy == arguments[0];
+                            case "hashCode" -> System.identityHashCode(proxy);
+                            default -> "the recording progress";
+                        };
+                    }
+                    events.add(method.getName() + (arguments == null ? List.of() : Arrays.asList(arguments)));
+                    return null;
+                });
     }
 }

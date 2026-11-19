@@ -13,10 +13,10 @@ package io.algernon.vespera.engine.deliverable;
  * with the loop's total, before the loop's first item, zero included; its completion method is called once
  * after each item. <b>The order is fixed:</b> the survivors asked for their pictures first, the furniture
  * pass; then, once that pass has seen every survivor, the copies about to be made ({@link #toCopySurvivors}); then
- * the partitions, the clusters and the membership entries, in that order, all before the loop over partitions,
- * the last two summed across every partition; then, within the loop, a partition's copies are made before its pages,
+ * the topics, the clusters and the membership entries, in that order, all before the loop over topics,
+ * the last two summed across every topic; then, within the loop, a topic's copies are made before its pages,
  * each entry is reported after its pictures are written, each cluster after its entries and its pages, however many,
- * and each partition after its files; and last, after the loop, the rows of the manifest. An entry for a document the cluster no longer
+ * and each topic after its files; and last, after the loop, the rows of the manifest. An entry for a document the cluster no longer
  * holds reads no picture and is neither in the total nor reported.
  *
  * <p><b>Of the copies</b>, exactly one of {@link #survivorCopied}, {@link #survivorChanged}, {@link #survivorGone},
@@ -69,14 +69,14 @@ public interface DeliverableProgress {
     /** Called for a survivor whose copy failed any other way. */
     default void survivorNotCopied() {}
 
-    /** Called once, before the loop over partitions, with how many partitions will be written. */
-    default void toWritePartitions(long partitions) {}
+    /** Called once, before the loop over topics, with how many topics will be written. */
+    default void toWriteTopics(long topics) {}
 
-    /** Called after each partition's directory and cluster pages have been written. */
-    default void partitionWritten() {}
+    /** Called after each topic's directory and cluster pages have been written. */
+    default void topicWritten() {}
 
     /**
-     * Called once, before the loop over partitions, with how many clusters will be drawn in all, a cluster being counted
+     * Called once, before the loop over topics, with how many clusters will be drawn in all, a cluster being counted
      * once whatever its pages (ADR-303 §3, §11).
      */
     default void toDrawClusters(long clusters) {}
@@ -84,13 +84,13 @@ public interface DeliverableProgress {
     /** Called after each cluster has been drawn, all its pages written. */
     default void clusterDrawn() {}
 
-    /** Called once, before the loop over partitions, with how many membership entries with a document there are in all. */
+    /** Called once, before the loop over topics, with how many membership entries with a document there are in all. */
     default void toWriteMembershipEntries(long entries) {}
 
     /** Called after each membership entry with a document has been written, its pictures included. */
     default void membershipEntryWritten() {}
 
-    /** Called once, after the loop over partitions, with how many rows the manifest will carry. */
+    /** Called once, after the loop over topics, with how many rows the manifest will carry. */
     default void toWriteManifestRows(long rows) {}
 
     /** Called after each row of the manifest has been written. */
@@ -104,7 +104,7 @@ public interface DeliverableProgress {
 
     /**
      * Called once, after the index and the manifest are in place, with whether the tree's top level holds a {@code
-     * documents/} folder this drawing did not write, and how many other folders, at the top or in a partition folder
+     * documents/} folder this drawing did not write, and how many other folders, at the top or in a topic folder
      * this drawing wrote, it did not write either (ADR-280 §4).
      */
     default void leftBehind(boolean documentsFolder, long otherFolders) {}

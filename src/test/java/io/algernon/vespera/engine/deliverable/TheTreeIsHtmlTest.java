@@ -67,7 +67,7 @@ class TheTreeIsHtmlTest {
     private static final String SEED_PATH = "seeds/Fire Safety.docx";
 
     /** The topic's folder: its place, 1 of 1, and its name as a slug. */
-    private static final String PARTITION_FOLDER = "1-fire-safety";
+    private static final String TOPIC_FOLDER = "1-fire-safety";
 
     /** The cluster written over, placed first. */
     private static final RecordedCluster WRITTEN = cluster(THE_SEED, 0, "Fire doors", 1, 2);
@@ -172,7 +172,7 @@ class TheTreeIsHtmlTest {
             copiesByFolder.computeIfAbsent(copy.substring(0, copy.lastIndexOf('/')), folder -> new ArrayList<>())
                     .add(copy.substring(copy.lastIndexOf('/') + 1));
         }
-        for (String folder : List.of(PARTITION_FOLDER + "/1-fire-doors", PARTITION_FOLDER + "/2-smoke-dampers")) {
+        for (String folder : List.of(TOPIC_FOLDER + "/1-fire-doors", TOPIC_FOLDER + "/2-smoke-dampers")) {
             List<String> expected = new ArrayList<>(copiesByFolder.getOrDefault(folder, List.of()));
             expected.add("index.html");
             claim(
@@ -204,12 +204,19 @@ class TheTreeIsHtmlTest {
                 new ClusterPageCeiling.Unset(),
                 BESIDE_THE_TREE);
         String index = Files.readString(tree.resolve("index.html"), StandardCharsets.UTF_8);
-        String page = Files.readString(theOnePageUnder(tree), StandardCharsets.UTF_8);
+        String page = Files.readString(theOnePageUnder(tree, 2), StandardCharsets.UTF_8);
+        String topicPage = Files.readString(theOnePageUnder(tree, 1), StandardCharsets.UTF_8);
 
         claim(
                 "the index shows the label, the heading the model wrote and the topic's name with each of the five"
                         + " characters written as its entity",
                 () -> assertThat(index).contains("Label " + FIVE_ESCAPED, "Title " + FIVE_ESCAPED, "Seed " + FIVE_ESCAPED));
+        claim(
+                "the topic's page shows the topic's name, the label and the heading the model wrote the same way, and"
+                        + " carries their tag nowhere as a tag",
+                () -> assertThat(topicPage)
+                        .contains("Seed " + FIVE_ESCAPED, "Label " + FIVE_ESCAPED, "Title " + FIVE_ESCAPED)
+                        .doesNotContain("<b>"));
         claim(
                 "the group's page shows the heading and the document's path the same way",
                 () -> assertThat(page).contains("Title " + FIVE_ESCAPED, "Path " + FIVE_ESCAPED));
@@ -310,13 +317,17 @@ class TheTreeIsHtmlTest {
                 .toList();
     }
 
-    /** The one page of the HTML tree beneath {@code tree} that is not the tree's own index. */
-    private static Path theOnePageUnder(Path tree) throws IOException {
+    /**
+     * The one page of the HTML tree beneath {@code tree} that lies {@code depth} folders down: 1 for the one topic's
+     * page, {@code <topic>/index.html}, and 2 for the one group's, {@code <topic>/<group>/index.html} (ADR-415 §2).
+     */
+    private static Path theOnePageUnder(Path tree, int depth) throws IOException {
         List<String> pages = htmlTreePagesOf(tree).stream()
-                .filter(name -> !name.equals("index.html"))
+                .filter(name -> name.chars().filter(c -> c == '/').count() == depth)
                 .toList();
         if (pages.size() != 1) {
-            throw new IllegalStateException("one group was arranged, and the tree holds pages " + pages);
+            throw new IllegalStateException("one topic of one group was arranged, and the tree holds pages " + pages
+                    + " " + depth + " folders down");
         }
         return tree.resolve(pages.getFirst());
     }
@@ -375,7 +386,7 @@ class TheTreeIsHtmlTest {
                             + "<script src=\"https://example.invalid/its.js\"></script><style></style><style></style>"
                             + "</head><body><a href=\"../../../outside-the-tree.html\">out</a>"
                             + "<img src=\"its-own-picture.png\"></body></html>\n";
-                    Path cluster = Files.createDirectories(folder.resolve(PARTITION_FOLDER).resolve("1-fire-doors"));
+                    Path cluster = Files.createDirectories(folder.resolve(TOPIC_FOLDER).resolve("1-fire-doors"));
                     Files.writeString(folder.resolve("index.html"), page, StandardCharsets.UTF_8);
                     Files.writeString(cluster.resolve("index.html"), page, StandardCharsets.UTF_8);
                 }

@@ -12,7 +12,7 @@ import static io.algernon.vespera.publish.website.WebsiteFixture.DOOR_SURVEY;
 import static io.algernon.vespera.publish.website.WebsiteFixture.FIRST_SENTENCE;
 import static io.algernon.vespera.publish.website.WebsiteFixture.GONE;
 import static io.algernon.vespera.publish.website.WebsiteFixture.INSPECTION_LOG;
-import static io.algernon.vespera.publish.website.WebsiteFixture.PARTITION_NAME;
+import static io.algernon.vespera.publish.website.WebsiteFixture.TOPIC_NAME;
 import static io.algernon.vespera.publish.website.WebsiteFixture.SEARCH_INDEX;
 import static io.algernon.vespera.publish.website.WebsiteFixture.SECOND_SENTENCE;
 import static io.algernon.vespera.publish.website.WebsiteFixture.filesUnder;
@@ -39,14 +39,14 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The search is the website's own, in the browser, over titles, labels, the synthesis writing and entries' names, its
- * index drawn at stage 6b (ADR-333 §9): {@code search-index.js} holds, for each cluster, its seed partition's name, its
- * title, its label, the text of its synthesis doc, each entry's name as its page shows it and each entry's link. It
+ * index drawn at stage 6b (ADR-333 §9): {@code search-index.js} holds, for each cluster, its topic's name and its
+ * subtopic's, the empty text where its topic is undivided (ADR-415 §8), its title, its label, the text of its synthesis doc, each entry's name as its page shows it and each entry's link. It
  * reads no document's extracted text: a sentence marked in a document's bytes is in no file of the rendering. A
  * cluster with no synthesis doc is found by its label and its entries.
  *
  * <p><b>The index's shape</b>, which {@code src/test/website/website.test.mjs} reads too: the script sets one global,
- * {@code VESPERA_SEARCH_INDEX}, to a JSON array, a cluster an element, each an object of {@code partition}, {@code
- * title}, {@code label}, {@code writing}, {@code link} and {@code entries}, each entry an object of {@code name} and
+ * {@code VESPERA_SEARCH_INDEX}, to a JSON array, a cluster an element, each an object of {@code topic}, {@code
+ * subtopic}, {@code title}, {@code label}, {@code writing}, {@code link} and {@code entries}, each entry an object of {@code name} and
  * {@code link}, every link relative to the website's root. A cluster with no writing has no {@code title} and no
  * {@code writing}, or each empty or null. It is set and never fetched, since a page opened at a {@code file:} address
  * may not fetch (ADR-333 Decided here 3).
@@ -54,6 +54,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Epic("The deliverable")
 @Feature("The website rendering")
 @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
+@Link(name = "ADR-415", url = Adr.A_TOPIC_IS_A_PAGE_CARRYING_ITS_OVERVIEW_AND_ITS_SUBTOPICS_ARE_PAGES_BENEATH_IT, type = "adr")
 class TheSearchIndexHoldsNoExtractedTextTest {
 
     /** The script as a whole: one global set to a JSON array. */
@@ -64,7 +65,7 @@ class TheSearchIndexHoldsNoExtractedTextTest {
 
     @Test
     @Story("The website's search reads no document")
-    @DisplayName("search-index.js holds each group's partition, title, label, writing and entries' names and links, and no document's text")
+    @DisplayName("search-index.js holds each group's topic, subtopic, title, label, writing and entries' names and links, and no document's text")
     void theIndexHoldsWhatPagesShowAndNoExtractedText(@TempDir Path base) throws IOException {
         Path rendering = renderingOf(WebsiteFixture.drawn(base));
         String script = textOf(rendering.resolve(SEARCH_INDEX));
@@ -81,9 +82,12 @@ class TheSearchIndexHoldsNoExtractedTextTest {
         JsonNode dampers = clusters.get(1);
 
         claim(
-                "the doors are named by their seed partition, their title and their label",
+                "the doors are named by their topic, by no subtopic, their topic being undivided, by their title and by"
+                        + " their label, and by nothing under the retired word partition",
                 () -> {
-                    assertThat(doors.path("partition").asString()).contains(PARTITION_NAME);
+                    assertThat(doors.path("topic").asString()).contains(TOPIC_NAME);
+                    assertThat(doors.path("subtopic").asString()).isEmpty();
+                    assertThat(doors.has("partition")).isFalse();
                     assertThat(doors.path("title").asString()).isEqualTo(DOORS_TITLE);
                     assertThat(doors.path("label").asString()).isEqualTo(DOORS_LABEL);
                 });

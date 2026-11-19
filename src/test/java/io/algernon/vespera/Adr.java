@@ -3045,6 +3045,77 @@ public final class Adr {
             + "0414-the-analysis-reports-open-in-a-reports-window-of-their-own-a-tab-each-and-the-cockpit-keeps-its-list-and-two-tabs.md";
 
     /**
+     * ADR-415 -- each rendering draws a topic as a page carrying its overview, its citations linking its clusters'
+     * pages, its placeholder or disclosure, its table of clusters by number or of subtopics, and a see-also list linking
+     * the clusters of survivors placed under other topics that fit it; a crowded topic's subtopics are a folder and a
+     * page each, its clusters a level down numbered over the topic; every slug folds accents; documents.csv names topic,
+     * subtopic and their orders; Confluence keys a subtopic's page P.S and its clusters P.S.C (amends ADR-112, ADR-274,
+     * ADR-276, ADR-321, ADR-328, ADR-333, ADR-396 and ADR-409).
+     */
+    public static final String A_TOPIC_IS_A_PAGE_CARRYING_ITS_OVERVIEW_AND_ITS_SUBTOPICS_ARE_PAGES_BENEATH_IT = FILE
+            + "0415-a-topic-is-a-page-carrying-its-overview-its-subtopics-are-pages-beneath-it-and-a-see-also-link-lands-on-a-groups-page.md";
+
+    /**
+     * ADR-416 -- a twelfth analysis report, topics, written at 6a once the topics are named: one row of counts a topic,
+     * the topics no survivor is placed under with each seed feeding them and its passages, and the seeds feeding no
+     * topic; cluster-sizes gains a row a subtopic under a divided topic, with its own numbers and spread, and a share of
+     * the documents grouped on every row, at format 3; ADR-045's 60% alarm is retired; 6b's closing line counts the
+     * overviews written and turned down (amends ADR-223 §2 and §9, ADR-362 §8 and §9, ADR-377 §5, ADR-392 §5 and
+     * ADR-409 §8).
+     */
+    public static final String THE_TOPICS_ANALYSIS_REPORT_LISTS_WHAT_FEEDS_EACH_TOPIC = FILE
+            + "0416-a-topics-report-lists-the-topics-with-no-document-and-the-seeds-feeding-none-and-cluster-sizes-gain-a-row-a-subtopic.md";
+
+    /**
+     * ADR-417 -- an ending panel beneath the output panel, in its column and behind a divider of its own, says how the
+     * last invocation of the working directory chosen ended and why: every ending, from the invocation report and the
+     * exit code, an earlier one dated, nothing while an invocation runs; the sidebar's width and the steps' and output's
+     * height are dragged by grips; its Open report selects the Report tab, which draws that ending's report (amends
+     * ADR-344 §1 and ADR-362 §8).
+     */
+    public static final String THE_ENDING_PANEL_SAYS_HOW_THE_LAST_INVOCATION_ENDED_AND_WHY = FILE
+            + "0417-an-ending-panel-beneath-the-output-says-how-the-last-invocation-of-the-working-directory-ended-and-why.md";
+
+    /**
+     * ADR-418 -- every stage's chart is written empty, no key, no time it finished and no line, at the first reading of
+     * the job of {@code vespera run}, and the job reads no chart's file; within its invocation a chart is started once,
+     * its seconds from its first sample there, its key added to as the invocation reaches it, and frozen once; a stage
+     * going through finished freezes with one sample; the census's samples are written as it walks and kept under the
+     * walk it hands the job, its file written empty where it hands none; the window draws the last job's charts
+     * (amends ADR-382 §4 to §7 and ADR-412 §1, §3 and §4).
+     */
+    public static final String EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS = FILE
+            + "0418-every-stages-chart-is-written-empty-as-the-job-of-vespera-run-begins-and-frozen-only-within-its-invocation.md";
+
+    /**
+     * ADR-421 -- on Windows, each start of the sidecars that looks for them on this machine, and the control panel's
+     * start as its window opens, write {@code .wslconfig} in the profile folder ({@code user.home}) as {@code [general]}
+     * and {@code instanceIdleTimeout=-1} where no file of that name is there, and read one that is there without ever
+     * changing it; each outcome but a file that sets it is one line at WARN, none refuses a start, and nothing runs
+     * {@code wsl --shutdown} (amends ADR-390 §1, §4 and §5 and ADR-323 §3).
+     */
+    public static final String ON_WINDOWS_VESPERA_WRITES_WSLCONFIG_WHERE_THERE_IS_NONE = FILE
+            + "0421-on-windows-vespera-writes-wslconfig-with-no-idle-timeout-where-there-is-none-and-changes-no-file-that-is-there.md";
+
+    /**
+     * ADR-422 -- a line of a stage's chart whose file holds one sample draws it as a marker in the line's colour, the
+     * latest sample's marker, holding its value, on a frozen chart too and there dimmed as its lines are; a frozen line
+     * of two samples or more still marks none, and the legend is kept (amends ADR-382 §6 and ADR-365 §3).
+     */
+    public static final String A_LINE_OF_ONE_SAMPLE_IS_DRAWN_AS_A_MARKER = FILE
+            + "0422-a-line-of-one-sample-is-drawn-as-a-marker-in-its-colour-on-a-frozen-chart-too.md";
+
+    /**
+     * ADR-423 -- a question of the control panel is a plain dialog under a title its caller names, with no header and
+     * no icon; the answer that ends something is drawn in a muted red and the one that keeps it in a muted green, in
+     * both themes, a choice's first answer keeping and its second ending; every button, a question's answers among
+     * them, is drawn at once in a lighter fill and 1.04 times its size under the pointer, and a disabled one is not
+     * (amends ADR-344 §7, ADR-379 §3 and §4, ADR-389 §4 and ADR-390 §5).
+     */
+    public static final String A_QUESTIONS_ANSWERS_ARE_COLOURED_AND_A_BUTTON_GROWS_UNDER_THE_POINTER = FILE
+            + "0423-a-question-has-no-header-or-icon-its-answers-are-coloured-by-what-they-do-and-a-button-grows-under-the-pointer.md";
+
+    /**
      * ADR-424 -- no text written for the operator calls a relevance label an answer or an entry of the label file a
      * question: {@code vespera label}'s usage, the jar's lines, refusals and closing lines, {@code report.html}, {@code
      * relevance-labelling.html} and its JSON's titles, the window's texts that said question, the README and {@code
@@ -3054,6 +3125,36 @@ public final class Adr {
      */
     public static final String NO_TEXT_FOR_THE_OPERATOR_CALLS_A_LABEL_AN_ANSWER = FILE
             + "0424-the-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md";
+
+    /**
+     * ADR-425 -- at each reading a stage's chart sets its time axis from the seconds of the samples it holds and its
+     * value axis from their values, nothing of an earlier drawing moving either; an axis of two numbers or more is ranged
+     * as before, one of one number n spans n - d to n + d ticked every d, d the largest power of ten not above |n| or 1,
+     * one of none spans -1 to 1, and no tick below 0 carries a label (amends ADR-382 §5 and ADR-371 §3 and §4).
+     */
+    public static final String EACH_AXIS_IS_SET_FROM_THE_SAMPLES_ITS_CHART_HOLDS = FILE
+            + "0425-a-stages-chart-sets-each-axis-from-the-samples-it-holds-at-each-reading-and-centres-one-of-one-number-or-none.md";
+
+    /**
+     * ADR-426 -- no identifier of the jar's code or the tests, and no text the jar prints, says partition for the seed
+     * partition ADR-396 retired, but a record's constant and a name of the retirement; five test classes and their
+     * names are renamed, and the records naming them corrected in place as ADR-337 §5 has it; a comment saying it is
+     * reworded now in a module no stage's version names, and in `embedding` and `synthesis` only with a change that
+     * re-mints the module for its own reasons (ADR-216 §1); `CONTEXT.md`'s Seed partition entry goes to the topic's
+     * Avoid line (amends ADR-396 §10).
+     */
+    public static final String THE_SEED_PARTITIONS_NAMES_ARE_RETIRED_FROM_THE_CODE_AND_THE_TESTS = FILE
+            + "0426-the-seed-partitions-names-leave-the-code-and-the-tests-and-a-comment-in-a-stages-module-waits-for-a-re-mint.md";
+
+    /**
+     * ADR-428 -- the Command options section ends with a read-only block of the twenty presets with no profile key, a
+     * list for each run they enter, each row its key and the value {@code effective-values.properties} names, or the
+     * window's sentence where the jar has not said, its tooltip the value's source and the record behind the preset,
+     * read again as another working directory is chosen and as the window's own child ends (amends ADR-330 §12,
+     * ADR-399 §7, ADR-400 §6, ADR-401 §6, ADR-406 §7 and ADR-411 §3).
+     */
+    public static final String THE_PRESETS_WITH_NO_PROFILE_KEY_ARE_SHOWN_READ_ONLY_IN_COMMAND_OPTIONS = FILE
+            + "0428-the-presets-with-no-profile-key-are-shown-read-only-in-command-options-a-list-for-each-run-they-enter.md";
 
     private Adr() {
     }

@@ -158,6 +158,42 @@ public class DocumentClusters {
                 topic.firstPassage().chunkIndex());
     }
 
+    /**
+     * How many survivors each subtopic of {@code topic} holds under {@code runId}, by the subtopic's number (ADR-416
+     * section 8): grouped on the index of the run, the topic and the subtopic, which sorts nothing. Empty where the topic
+     * is not divided.
+     */
+    public Map<Integer, Integer> survivorsOfSubtopics(RunId runId, TopicKey topic) {
+        Map<Integer, Integer> counted = new LinkedHashMap<>();
+        jdbcTemplate.query(
+                "SELECT subtopic_ordinal, COUNT(*) AS members FROM cluster_member WHERE run_id = ?"
+                        + " AND topic_seed_path = ? AND topic_chunk_index = ? AND subtopic_ordinal >= 0"
+                        + " GROUP BY subtopic_ordinal",
+                resultSet -> {
+                    counted.put(resultSet.getInt("subtopic_ordinal"), resultSet.getInt("members"));
+                },
+                runId.value(),
+                topic.firstPassage().seedPath(),
+                topic.firstPassage().chunkIndex());
+        return counted;
+    }
+
+    /**
+     * How large each cluster of one subtopic of {@code topic} is, in cluster order (ADR-416 section 8), read from the
+     * index of the run, the topic, the subtopic and the cluster.
+     */
+    public List<Integer> sizesFor(RunId runId, TopicKey topic, int subtopic) {
+        return jdbcTemplate.query(
+                "SELECT COUNT(*) AS members FROM cluster_member WHERE run_id = ? AND topic_seed_path = ?"
+                        + " AND topic_chunk_index = ? AND subtopic_ordinal = ? GROUP BY cluster_ordinal"
+                        + " ORDER BY cluster_ordinal",
+                (resultSet, rowNumber) -> resultSet.getInt("members"),
+                runId.value(),
+                topic.firstPassage().seedPath(),
+                topic.firstPassage().chunkIndex(),
+                subtopic);
+    }
+
     private static TopicKey topicOf(ResultSet resultSet) throws SQLException {
         return new TopicKey(
                 new SeedPassage(resultSet.getString("topic_seed_path"), resultSet.getInt("topic_chunk_index")));

@@ -49,7 +49,7 @@ class ClusterLabelTest {
         claim(
                 "a file whose whole name is its extension leaves nothing to call the group after, so the"
                         + " group is called by its number -- the last tier of the chain, and one a reader"
-                        + " can still tell apart from every other group in the same partition",
+                        + " can still tell apart from every other group in the same topic",
                 () -> assertThat(label.value()).isEqualTo("Cluster 3"));
     }
 }

@@ -1,8 +1,9 @@
 package io.algernon.vespera.ui;
 
 import java.math.BigDecimal;
+import java.time.DateTimeException;
 import java.time.Instant;
-import java.time.format.DateTimeParseException;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -73,7 +74,7 @@ public final class InvocationReportFile {
     public record Fault(String step, String type, List<String> causes) {
     }
 
-    /** One of the eleven analysis reports: its name, whether its page is there, and the paths of the page and its JSON. */
+    /** One of the twelve analysis reports: its name, whether its page is there, and the paths of the page and its JSON. */
     public record AnalysisReport(String name, String html, String json, boolean written) {
     }
 
@@ -130,7 +131,7 @@ public final class InvocationReportFile {
                     gates(root.get("gates")), strings(root.get("refusals")), faults(root.get("faults")),
                     (String) root.get("closing"), objectOf(root.get("next")), analysisReports(root.get("analysisReports")),
                     files(root.get("files")));
-        } catch (ClassCastException | NullPointerException | ArithmeticException | DateTimeParseException notThatJson) {
+        } catch (ClassCastException | NullPointerException | ArithmeticException | DateTimeException notThatJson) {
             throw new IllegalArgumentException(FILE_NAME + " is not in the shape the jar writes it", notThatJson);
         }
     }
@@ -249,8 +250,15 @@ public final class InvocationReportFile {
         return object == null ? null : (Map<String, Object>) object;
     }
 
+    /** The instant {@code text} names; one no clock of any zone can show is not that JSON (ADR-362 section 8). */
     private static Instant instant(Object text) {
-        return text == null ? null : Instant.parse((String) text);
+        if (text == null) {
+            return null;
+        }
+        Instant instant = Instant.parse((String) text);
+        instant.atOffset(ZoneOffset.MIN);
+        instant.atOffset(ZoneOffset.MAX);
+        return instant;
     }
 
     private static Long whole(Object number) {

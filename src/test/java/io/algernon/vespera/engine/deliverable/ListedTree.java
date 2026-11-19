@@ -8,6 +8,7 @@ import io.algernon.vespera.engine.synthesis.ClusterLabel;
 import io.algernon.vespera.engine.synthesis.ClusterSlot;
 import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
 import io.algernon.vespera.engine.synthesis.FilenameStem;
+import io.algernon.vespera.engine.synthesis.OverviewUnwritten;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
 import io.algernon.vespera.engine.synthesis.SynthesisDoc;
 import io.algernon.vespera.engine.synthesis.TopicKey;
@@ -21,12 +22,15 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
@@ -100,10 +104,39 @@ public final class ListedTree {
                     });
                     return places;
                 },
+                topic -> subtopicsOf(arrangement, topic),
+                topic -> NO_OVERVIEW_YET,
+                NO_SEE_ALSO,
                 everySurvivorInOnePage,
                 everySurvivorInOnePage,
                 writingFinished,
                 language);
+    }
+
+    /**
+     * What these fixtures answer for every topic's overview: none recorded, the writing not having reached it, so that
+     * every tree they draw has a page for each topic, carrying ADR-402 §5's sentence for that case (ADR-415 §2).
+     */
+    public static final ListedOverview NO_OVERVIEW_YET = new ListedOverview.Unwritten(OverviewUnwritten.NOT_REACHED);
+
+    /** What these fixtures answer for every topic's see-also lines: none (ADR-415 §5). */
+    public static final BiConsumer<ListedTopic, Consumer<List<ListedSeeAlso>>> NO_SEE_ALSO = (topic, page) -> {};
+
+    /**
+     * The subtopics {@code arrangement} holds under {@code topic}, in their order, each named {@code Subtopic n} after
+     * its order as ADR-406 §6's last fallback names one; none for a topic whose clusters lie in none (ADR-415 §11).
+     */
+    static List<ListedSubtopic> subtopicsOf(List<RecordedCluster> arrangement, ListedTopic topic) {
+        Map<Integer, Integer> orderBySubtopic = new TreeMap<>();
+        for (RecordedCluster recorded : arrangement) {
+            if (recorded.cluster().topic().equals(topic.topic()) && recorded.cluster().subtopic().isPresent()) {
+                orderBySubtopic.put(recorded.cluster().subtopic().getAsInt(), recorded.cluster().subtopicOrder());
+            }
+        }
+        return orderBySubtopic.entrySet().stream()
+                .map(entry -> new ListedSubtopic(entry.getKey(), "Subtopic " + entry.getValue(), entry.getValue()))
+                .sorted(Comparator.comparingInt(ListedSubtopic::subtopicOrder))
+                .toList();
     }
 
     /** The tree written from these lists over {@code corpusRoot}, with no pictures and no progress heard. */

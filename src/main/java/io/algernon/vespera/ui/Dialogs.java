@@ -61,8 +61,11 @@ interface Dialogs {
     /** Hands {@code address}, a document that is no report of the window, to the operating system to open (ADR-344 §6). */
     void handToTheSystem(URI address);
 
-    /** Asks {@code sentence} with two answers; true where the operator gives {@code yes}, the one that goes on. */
-    boolean confirm(String sentence, String yes, String no);
+    /**
+     * Asks {@code sentence} under {@code title}, with no header or icon, and two answers (ADR-423 §1); true where the
+     * operator gives {@code yes}, the one that goes on and ends something.
+     */
+    boolean confirm(String title, String sentence, String yes, String no);
 
     /**
      * Asks {@code sentence} under {@code title} with one button for each of {@code answers}, in their order (ADR-389 §4):
@@ -88,7 +91,7 @@ interface Dialogs {
         }
 
         @Override
-        public boolean confirm(String sentence, String yes, String no) {
+        public boolean confirm(String title, String sentence, String yes, String no) {
             return false;
         }
 
@@ -172,6 +175,12 @@ interface Dialogs {
                 });
                 for (ButtonType type : buttons) {
                     Node button = ask.getDialogPane().lookupButton(type);
+                    int place = buttons.indexOf(type);
+                    if (place == 0) {
+                        button.getStyleClass().add("answer-that-keeps");
+                    } else if (place == 1) {
+                        button.getStyleClass().add("answer-that-ends");
+                    }
                     button.addEventFilter(ActionEvent.ACTION, event -> {
                         if (!escaping[0]) {
                             pressed[0] = type.getText();
@@ -265,10 +274,17 @@ interface Dialogs {
             }
 
             @Override
-            public boolean confirm(String sentence, String yes, String no) {
+            public boolean confirm(String title, String sentence, String yes, String no) {
                 ButtonType goOn = new ButtonType(yes, ButtonBar.ButtonData.OK_DONE);
                 ButtonType keep = new ButtonType(no, ButtonBar.ButtonData.CANCEL_CLOSE);
-                Alert ask = new Alert(Alert.AlertType.CONFIRMATION, sentence, goOn, keep);
+                Dialog<ButtonType> ask = new Dialog<>();
+                ask.setTitle(title);
+                Label words = new Label(sentence);
+                words.setWrapText(true);
+                ask.getDialogPane().setContent(words);
+                ask.getDialogPane().getButtonTypes().setAll(goOn, keep);
+                ask.getDialogPane().lookupButton(goOn).getStyleClass().add("answer-that-ends");
+                ask.getDialogPane().lookupButton(keep).getStyleClass().add("answer-that-keeps");
                 Window over = owner.get();
                 if (over != null) {
                     ask.initOwner(over);

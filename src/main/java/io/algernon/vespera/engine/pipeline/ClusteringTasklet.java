@@ -31,6 +31,7 @@ import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import io.algernon.vespera.engine.ledger.RunId;
+import io.algernon.vespera.engine.synthesis.Arrangement;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -55,13 +56,13 @@ import org.springframework.stereotype.Component;
  * shape they came out in before they build it.
  *
  * <p>Its completion record is honoured only while its rows are of the survivors as they stand: the
- * relevance-floor step decides again on every invocation, so where a survivor of a partition has no
+ * relevance-floor step decides again on every invocation, so where a survivor of a topic has no
  * cluster row, or a clustered document is no longer a survivor, the step forms the clusters again under
  * the same run (ADR-230). A document with a cluster row and no score answers neither question, so the
  * arrangement step still stops on it.
  *
  * <p>Gated exactly as the scoring step before it is, and for the same reasons: with no model named,
- * no seed folder, or no usable seed, no score exists, so there is no partition to cluster.
+ * no seed folder, or no usable seed, no score exists, so there is no topic to cluster.
  */
 @Component
 @StepScope
@@ -126,7 +127,7 @@ class ClusteringTasklet implements Tasklet {
         int subtopicFloor = stageRuns.subtopicFloor();
 
         // relevance-scoring and relevance-floor, which share this run, are not asked -- each step
-        // answers only for itself. The empty-partition check sits between the finished check and the
+        // answers only for itself. The empty-topic check sits between the finished check and the
         // discard (ADR-157 §5): the discard is at the head of work, after the check.
         TaskletSteps.StepWork formClusters =
                 () -> {
@@ -200,7 +201,7 @@ class ClusteringTasklet implements Tasklet {
                         StageProgress keysRead = StageProgress.over(
                                 "Stage 5f (clustering, cache keys read, topic " + place + " of " + of + ")",
                                 members.size());
-                        Optional<RetainedEdgeSpread> spread = clustering.clusterAndRecord(
+                        Clustering.Spreads spreads = clustering.clusterAndRecordWithSubtopicSpreads(
                                 scoring,
                                 topic,
                                 contentHashesOf(extractionRun, members, keysRead),
@@ -219,14 +220,37 @@ class ClusteringTasklet implements Tasklet {
                         // what the arithmetic meant to write.
                         // The sizes are let go once the five numbers the page shows are taken from them
                         // (ADR-223 section 2).
-                        reported.add(ClusterSizeReport.Topic.of(
-                                topic.firstPassage().seedPath(),
-                                topic.firstPassage().chunkIndex(),
-                                TimedStatement.of(
-                                        STAGE, "reading", "read",
-                                        "the cluster sizes of " + whichTopic,
-                                        () -> documentClusters.sizesFor(scoring, topic)),
-                                spread));
+                        // A divided topic's row is followed by a row for each subtopic, most survivors first
+                        // (ADR-416 section 5), each with the sizes of its own clusters and the spread of its own graph.
+                        Map<Integer, Integer> survivorsOfSubtopics = TimedStatement.of(
+                                STAGE, "reading", "read",
+                                "the subtopics of " + whichTopic,
+                                () -> documentClusters.survivorsOfSubtopics(scoring, topic));
+                        if (survivorsOfSubtopics.isEmpty()) {
+                            reported.add(ClusterSizeReport.Topic.of(
+                                    topic.firstPassage().seedPath(),
+                                    topic.firstPassage().chunkIndex(),
+                                    TimedStatement.of(
+                                            STAGE, "reading", "read",
+                                            "the cluster sizes of " + whichTopic,
+                                            () -> documentClusters.sizesFor(scoring, topic)),
+                                    spreads.topic()));
+                        } else {
+                            List<ClusterSizeReport.Subtopic> subtopics = new ArrayList<>();
+                            for (int subtopic : Arrangement.subtopicsInOrder(survivorsOfSubtopics)) {
+                                subtopics.add(ClusterSizeReport.Subtopic.of(
+                                        TimedStatement.of(
+                                                STAGE, "reading", "read",
+                                                "the cluster sizes of subtopic " + subtopic + " of " + whichTopic,
+                                                () -> documentClusters.sizesFor(scoring, topic, subtopic)),
+                                        spreads.subtopics().getOrDefault(subtopic, Optional.empty())));
+                            }
+                            reported.add(ClusterSizeReport.Topic.divided(
+                                    topic.firstPassage().seedPath(),
+                                    topic.firstPassage().chunkIndex(),
+                                    subtopics,
+                                    spreads.topic()));
+                        }
                         topicsDone.itemDone();
                     }
 
@@ -259,7 +283,7 @@ class ClusteringTasklet implements Tasklet {
                                     + " the run has now: the relevance-floor step has decided again since."
                                     + " The step does its work again.",
                             scoring.value());
-                    // The work discards the run's rows at its head, past the empty-partition check.
+                    // The work discards the run's rows at its head, past the empty-topic check.
                     formClusters.run();
                 },
                 () -> {},
@@ -294,13 +318,13 @@ class ClusteringTasklet implements Tasklet {
     }
 
     /**
-     * Each partition member's content hash, in the order clustering visits them.
+     * Each topic member's content hash, in the order clustering visits them.
      *
      * <p>Read here from the key stage 2 recorded under {@code extractionRun}, because only {@code
      * pipeline} reads that table for another module, exactly as the scoring step before it does (ADR-206).
      * No file is opened. This is a hash per document rather than a vector per document, which is what
      * ADR-085's ceiling is about: it is what lets {@link Clustering} address a block without holding
-     * the partition.
+     * the topic.
      */
     private Map<OccurrenceId, String> contentHashesOf(
             RunId extractionRun, List<OccurrenceId> members, StageProgress keysRead) {

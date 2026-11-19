@@ -8,7 +8,7 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * Renders how each topic broke into clusters as one self-contained HTML file (ADR-087, ADR-409) —
+ * Renders how each topic broke into clusters as one self-contained HTML file (ADR-087, ADR-409, ADR-416) —
  * plain, hand-assembled HTML, no templating library, the shared {@link ReportPage} module the
  * reports beside the database all supply their title, prose and rows to (ADR-046, ADR-130).
  *
@@ -28,7 +28,7 @@ final class ClusterSizeReport {
     static final String NAME = "cluster-sizes";
 
     /** The format of {@code cluster-sizes.json}, raised by a change that removes, renames or retypes a field. */
-    static final int FORMAT = 2;
+    static final int FORMAT = 3;
 
     /** The page's title and first heading, and its JSON's {@code title} (ADR-377 §5). */
     private static final String TITLE = "Group sizes";
@@ -78,6 +78,18 @@ final class ClusterSizeReport {
             "A topic with one document has no link at all, shown"
             + " as <code>&mdash;</code>: there is no pair for a number to describe.";
 
+    private static final String SUBTOPICS =
+            "A crowded topic is divided into subtopics before its documents are grouped. Its row counts every group"
+            + " across its subtopics, and its links are those of the documents of the whole topic; directly under it,"
+            + " each subtopic has a row of its own, numbered by its place among the topic's subtopics, most documents first, counted from 1, which counts"
+            + " that subtopic's groups alone, its links being those of the documents its groups were found among. A"
+            + " topic that is not divided has its own row alone.";
+
+    private static final String THE_SHARE =
+            "<em>Share of documents</em> is how many of the documents grouped on this page lie in the topic, or in the"
+            + " subtopic. No share is too large: a topic holding most of the documents takes the grouping longer, and"
+            + " nothing else, and its share is here so that you can see where the documents went, not as a warning.";
+
     private static final String CANNOT_SEE =
             "Whether a group reads as one coherent subject to a"
             + " person. The link columns narrow this: a group of forty documents that"
@@ -91,7 +103,8 @@ final class ClusterSizeReport {
 
     /**
      * One topic's clusters, as the five numbers the page shows of them (ADR-223 section 2, ADR-409 section 8): the page
-     * keeps a row for each topic, taken over its clusters across its subtopics, and not the size of each cluster.
+     * keeps a row for each topic, taken over its clusters across its subtopics, and under a divided topic a row for
+     * each subtopic (ADR-416 section 5).
      *
      * @param key the topic, by its key as ADR-407 section 9's lines write it, {@code <path> chunk <i>}
      * @param documentCount how many documents its clusters hold between them
@@ -102,6 +115,7 @@ final class ClusterSizeReport {
      *     is worth building
      * @param spread how alike the documents on the kept links were over the whole topic, or empty where the topic
      *     holds one document and so has no link to measure (ADR-096)
+     * @param subtopics its subtopics' rows, in the order they are drawn, none where the topic is not divided
      */
     record Topic(
             String key,
@@ -110,26 +124,147 @@ final class ClusterSizeReport {
             int largest,
             int median,
             int singletons,
-            Optional<RetainedEdgeSpread> spread) {
+            Optional<RetainedEdgeSpread> spread,
+            List<Subtopic> subtopics) {
 
         /**
          * The row for a topic whose clusters hold {@code sizes}, in subtopic and cluster order. The middle cluster by
          * size says more about the spread than a mean does: one cluster holding most of a topic drags a
          * mean up and leaves the reader thinking the pages are evenly sized; of two middle sizes it is the
-         * upper.
+         * upper. A topic not divided has no subtopic row.
          */
         static Topic of(String seedPath, int chunkIndex, List<Integer> sizes, Optional<RetainedEdgeSpread> spread) {
-            List<Integer> ascending = new ArrayList<>(sizes);
-            ascending.sort(Integer::compareTo);
+            return of(seedPath, chunkIndex, sizes, List.of(), spread);
+        }
+
+        /**
+         * The row for a divided topic: its five numbers taken across the clusters of all its subtopics, the
+         * subtopics drawn under it in the order given, each numbered by its place in that order, counted from 1
+         * (ADR-416 section 5).
+         */
+        static Topic divided(
+                String seedPath, int chunkIndex, List<Subtopic> subtopics, Optional<RetainedEdgeSpread> spread) {
+            List<Integer> sizes = new ArrayList<>();
+            subtopics.forEach(subtopic -> sizes.addAll(subtopic.sizes()));
+            // The sizes are taken over once here and each subtopic is then kept without its own, so a divided
+            // topic holds eleven values a row until the page is written (ADR-416 section 8, ADR-223 section 2).
+            List<Subtopic> placed = new ArrayList<>();
+            for (int place = 0; place < subtopics.size(); place++) {
+                placed.add(subtopics.get(place).withoutSizes(place + 1));
+            }
+            return of(seedPath, chunkIndex, sizes, placed, spread);
+        }
+
+        private static Topic of(
+                String seedPath,
+                int chunkIndex,
+                List<Integer> sizes,
+                List<Subtopic> subtopics,
+                Optional<RetainedEdgeSpread> spread) {
+            Numbers numbers = Numbers.of(sizes);
             return new Topic(
                     seedPath + " chunk " + chunkIndex,
+                    numbers.documents(),
+                    numbers.groups(),
+                    numbers.largest(),
+                    numbers.median(),
+                    numbers.singletons(),
+                    spread,
+                    List.copyOf(subtopics));
+        }
+    }
+
+    /**
+     * One subtopic of a divided topic: the five numbers of its own clusters and the spread of its own graph (ADR-416
+     * section 5).
+     *
+     * @param ordinal the subtopic's place among its topic's subtopics in the order drawn, counted from 1; 0 until a
+     *     divided topic has numbered it
+     * @param sizes how many documents each of its clusters holds; empty once the subtopic is held inside a divided
+     *     topic, whose row has taken the numbers from them
+     * @param spread how alike the documents on the links of the subtopic's own graph were, or empty where it holds one
+     */
+    record Subtopic(
+            int ordinal,
+            List<Integer> sizes,
+            int documentCount,
+            int clusterCount,
+            int largest,
+            int median,
+            int singletons,
+            Optional<RetainedEdgeSpread> spread) {
+
+        static Subtopic of(List<Integer> sizes, Optional<RetainedEdgeSpread> spread) {
+            Numbers numbers = Numbers.of(sizes);
+            return new Subtopic(
+                    0,
+                    List.copyOf(sizes),
+                    numbers.documents(),
+                    numbers.groups(),
+                    numbers.largest(),
+                    numbers.median(),
+                    numbers.singletons(),
+                    spread);
+        }
+
+        private Subtopic withoutSizes(int place) {
+            return new Subtopic(place, List.of(), documentCount, clusterCount, largest, median, singletons, spread);
+        }
+    }
+
+    /** The five numbers of some clusters' sizes. */
+    private record Numbers(int documents, int groups, int largest, int median, int singletons) {
+
+        static Numbers of(List<Integer> sizes) {
+            List<Integer> ascending = new ArrayList<>(sizes);
+            ascending.sort(Integer::compareTo);
+            return new Numbers(
                     sizes.stream().mapToInt(Integer::intValue).sum(),
                     sizes.size(),
                     sizes.stream().mapToInt(Integer::intValue).max().orElse(0),
                     ascending.isEmpty() ? 0 : ascending.get(ascending.size() / 2),
-                    (int) sizes.stream().filter(size -> size == 1).count(),
-                    spread);
+                    (int) sizes.stream().filter(size -> size == 1).count());
         }
+    }
+
+    /** One row of the page: a topic's, with no subtopic, or one of its subtopics'. */
+    private record Row(
+            String key,
+            Integer subtopic,
+            int documentCount,
+            int clusterCount,
+            int largest,
+            int median,
+            int singletons,
+            Optional<RetainedEdgeSpread> spread) {}
+
+    /** Each topic's row, and under a divided topic's a row for each of its subtopics, in the order given. */
+    private static List<Row> rowsOf(List<Topic> topics) {
+        List<Row> rows = new ArrayList<>();
+        for (Topic topic : topics) {
+            rows.add(new Row(
+                    topic.key(), null, topic.documentCount(), topic.clusterCount(), topic.largest(), topic.median(),
+                    topic.singletons(), topic.spread()));
+            for (Subtopic subtopic : topic.subtopics()) {
+                rows.add(new Row(
+                        topic.key(), subtopic.ordinal(), subtopic.documentCount(), subtopic.clusterCount(),
+                        subtopic.largest(), subtopic.median(), subtopic.singletons(), subtopic.spread()));
+            }
+        }
+        return rows;
+    }
+
+    /** The documents of every topic grouped, the denominator of each share: the topics' rows alone. */
+    private static long documentsGrouped(List<Topic> topics) {
+        return topics.stream().mapToLong(Topic::documentCount).sum();
+    }
+
+    private static String percentage(int documents, long grouped) {
+        return String.format(Locale.ROOT, "%.1f%%", 100.0 * documents / grouped);
+    }
+
+    private static Double fraction(int documents, long grouped) {
+        return Double.valueOf(String.format(Locale.ROOT, "%.3f", (double) documents / grouped));
     }
 
     /**
@@ -146,24 +281,29 @@ final class ClusterSizeReport {
             return new AnalysisReportJson.Document(FORMAT, NAME, TITLE, writtenAt, headline(topics), sections);
         }
         List<List<Object>> rows = new ArrayList<>();
-        for (Topic topic : topics) {
+        long grouped = documentsGrouped(topics);
+        for (Row shown : rowsOf(topics)) {
             List<Object> row = new ArrayList<>();
-            row.add(topic.key());
-            row.add((long) topic.documentCount());
-            row.add((long) topic.clusterCount());
-            row.add((long) topic.largest());
-            row.add((long) topic.median());
-            row.add((long) topic.singletons());
-            row.add(shown(topic.spread().map(RetainedEdgeSpread::lowest).orElse(null)));
-            row.add(shown(topic.spread().map(RetainedEdgeSpread::middle).orElse(null)));
-            row.add(shown(topic.spread().map(RetainedEdgeSpread::highest).orElse(null)));
+            row.add(shown.key());
+            row.add(shown.subtopic() == null ? null : (Object) (long) shown.subtopic());
+            row.add((long) shown.documentCount());
+            row.add(fraction(shown.documentCount(), grouped));
+            row.add((long) shown.clusterCount());
+            row.add((long) shown.largest());
+            row.add((long) shown.median());
+            row.add((long) shown.singletons());
+            row.add(shown(shown.spread().map(RetainedEdgeSpread::lowest).orElse(null)));
+            row.add(shown(shown.spread().map(RetainedEdgeSpread::middle).orElse(null)));
+            row.add(shown(shown.spread().map(RetainedEdgeSpread::highest).orElse(null)));
             rows.add(row);
         }
         List<AnalysisReportJson.Column> columns = List.of(
                 // The column's id is the row's own name, taken from the record, not a string that is the name of a
                 // table which is embedding's: this class names none (ADR-041).
                 new AnalysisReportJson.Column(Topic.class.getSimpleName().toLowerCase(Locale.ROOT), "Topic", "text"),
+                new AnalysisReportJson.Column(Subtopic.class.getSimpleName().toLowerCase(Locale.ROOT), "Subtopic", "count"),
                 new AnalysisReportJson.Column("documents", "Documents", "count"),
+                new AnalysisReportJson.Column("share-of-documents", "Share of documents", "share"),
                 new AnalysisReportJson.Column("groups", "Groups", "count"),
                 new AnalysisReportJson.Column("largest-group", "Largest group", "count"),
                 new AnalysisReportJson.Column("middle-group", "Middle group", "count"),
@@ -176,7 +316,8 @@ final class ClusterSizeReport {
         sections.add(new AnalysisReportJson.Section(
                 "how-to-read",
                 "How to read this",
-                List.of(plain(GROUPS_OF_ONE), plain(MIDDLE), plain(LINKS), plain(STRONGEST), plain(ONE_DOCUMENT)),
+                List.of(plain(GROUPS_OF_ONE), plain(MIDDLE), plain(LINKS), plain(STRONGEST), plain(ONE_DOCUMENT),
+                        plain(SUBTOPICS), plain(THE_SHARE)),
                 null,
                 null));
         sections.add(new AnalysisReportJson.Section(
@@ -184,7 +325,7 @@ final class ClusterSizeReport {
         return new AnalysisReportJson.Document(FORMAT, NAME, TITLE, writtenAt, headline(topics), sections);
     }
 
-    /** The numbers the page states first: what the topics came to between them. */
+    /** The numbers the page states first: what the topics came to between them, over the topics' rows alone. */
     private static List<AnalysisReportJson.Figure> headline(List<Topic> topics) {
         return List.of(
                 new AnalysisReportJson.Figure("topics", "Topics grouped", (long) topics.size(), "count"),
@@ -222,23 +363,26 @@ final class ClusterSizeReport {
         }
 
         String headers = ReportPage.headerRow(
-                "Topic", "Documents", "Groups", "Largest group", "Middle group", "Groups of one",
-                "Weakest link", "Middle link", "Strongest link");
+                "Topic", "Subtopic", "Documents", "Share of documents", "Groups", "Largest group", "Middle group",
+                "Groups of one", "Weakest link", "Middle link", "Strongest link");
         StringBuilder rows = new StringBuilder();
-        for (Topic topic : topics) {
+        long grouped = documentsGrouped(topics);
+        for (Row shown : rowsOf(topics)) {
             rows.append(ReportPage.row(
-                    ReportPage.textCell(topic.key()),
-                    ReportPage.numberCell(topic.documentCount()),
-                    ReportPage.numberCell(topic.clusterCount()),
-                    ReportPage.numberCell(topic.largest()),
-                    ReportPage.numberCell(topic.median()),
-                    ReportPage.numberCell(topic.singletons()),
+                    ReportPage.textCell(shown.key()),
+                    ReportPage.numberCell(shown.subtopic() == null ? "" : Integer.toString(shown.subtopic())),
+                    ReportPage.numberCell(shown.documentCount()),
+                    ReportPage.numberCell(percentage(shown.documentCount(), grouped)),
+                    ReportPage.numberCell(shown.clusterCount()),
+                    ReportPage.numberCell(shown.largest()),
+                    ReportPage.numberCell(shown.median()),
+                    ReportPage.numberCell(shown.singletons()),
                     ReportPage.numberCell(resemblance(
-                            topic.spread().map(RetainedEdgeSpread::lowest).orElse(null))),
+                            shown.spread().map(RetainedEdgeSpread::lowest).orElse(null))),
                     ReportPage.numberCell(resemblance(
-                            topic.spread().map(RetainedEdgeSpread::middle).orElse(null))),
+                            shown.spread().map(RetainedEdgeSpread::middle).orElse(null))),
                     ReportPage.numberCell(resemblance(
-                            topic.spread().map(RetainedEdgeSpread::highest).orElse(null)))));
+                            shown.spread().map(RetainedEdgeSpread::highest).orElse(null)))));
         }
         body.append(ReportPage.table(headers, rows.toString()));
 
@@ -248,6 +392,8 @@ final class ClusterSizeReport {
                 .append(ReportPage.paragraph(LINKS))
                 .append(ReportPage.paragraph(STRONGEST))
                 .append(ReportPage.paragraph(ONE_DOCUMENT))
+                .append(ReportPage.paragraph(SUBTOPICS))
+                .append(ReportPage.paragraph(THE_SHARE))
                 .append(ReportPage.heading(2, "What this page cannot see"))
                 .append(ReportPage.paragraph(CANNOT_SEE));
 

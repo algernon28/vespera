@@ -1,6 +1,7 @@
 package io.algernon.vespera.engine.pipeline;
 
 import java.net.URI;
+import java.nio.file.Path;
 import java.time.Duration;
 import org.springframework.boot.convert.DurationStyle;
 import org.springframework.core.env.Environment;
@@ -12,13 +13,26 @@ import org.springframework.core.env.Environment;
  * files ({@code vespera.docling.image}), and where each sidecar is looked for.
  */
 record SidecarStartSettings(
-        URI doclingBaseUrl, URI ollamaBaseUrl, String doclingImage, Duration waitAtMost, String wslDistribution) {
+        URI doclingBaseUrl,
+        URI ollamaBaseUrl,
+        String doclingImage,
+        Duration waitAtMost,
+        String wslDistribution,
+        Path profileFolder) {
 
     static final String WSL_DISTRIBUTION_PROPERTY = "vespera.sidecars.wsl-distribution";
+
+    static final String USER_HOME_PROPERTY = "user.home";
 
     /** The settings with no WSL distribution named: WSL's default is used where it is read. */
     SidecarStartSettings(URI doclingBaseUrl, URI ollamaBaseUrl, String doclingImage, Duration waitAtMost) {
         this(doclingBaseUrl, ollamaBaseUrl, doclingImage, waitAtMost, "");
+    }
+
+    /** The settings with no profile folder known (ADR-421 §7): {@code .wslconfig} is looked for nowhere. */
+    SidecarStartSettings(
+            URI doclingBaseUrl, URI ollamaBaseUrl, String doclingImage, Duration waitAtMost, String wslDistribution) {
+        this(doclingBaseUrl, ollamaBaseUrl, doclingImage, waitAtMost, wslDistribution, null);
     }
 
     static final String WAIT_AT_MOST_PROPERTY = "vespera.sidecars.wait-at-most";
@@ -36,11 +50,13 @@ record SidecarStartSettings(
     static final String DEFAULT_OLLAMA = "http://localhost:11434";
 
     static SidecarStartSettings from(Environment environment) {
+        String home = environment.getProperty(USER_HOME_PROPERTY);
         return new SidecarStartSettings(
                 URI.create(environment.getProperty("vespera.docling.base-url", DEFAULT_DOCLING)),
                 URI.create(environment.getProperty("spring.ai.ollama.base-url", DEFAULT_OLLAMA)),
                 environment.getProperty("vespera.docling.image", ""),
                 DurationStyle.detectAndParse(environment.getProperty(WAIT_AT_MOST_PROPERTY, DEFAULT_WAIT_AT_MOST)),
-                environment.getProperty(WSL_DISTRIBUTION_PROPERTY, ""));
+                environment.getProperty(WSL_DISTRIBUTION_PROPERTY, ""),
+                home == null || home.isBlank() ? null : Path.of(home.strip()));
     }
 }

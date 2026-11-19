@@ -120,18 +120,37 @@ public final class ItalianWordingOnRecord {
     public static final String ARCHIVE_ROOT = "Radice dell'archivio: ";
 
     /**
-     * The index's paragraph on documents.csv and the copies, its sentence on {@code seed_partition} as ADR-409 §10
-     * words it: the column holds a topic's name, and each numbered folder beside the index is a topic's.
+     * The index's paragraph on documents.csv and the copies, its sentence on the {@code topic} and {@code subtopic}
+     * columns as ADR-415 §6 words it: the columns hold a topic's and a subtopic's name, and each numbered folder beside
+     * the index is a topic's, holding its page.
      */
     public static final String THE_INDEXS_PARAGRAPH = "La colonna path di documents.csv indica ogni documento a"
             + " partire dalla radice dell'archivio riportata sopra. La cartella di ogni gruppo contiene la sua pagina e"
             + " una copia di ogni documento che vi è elencato, verificata con l'impronta presa quando è stato"
             + " convertito, e ogni collegamento della pagina di un gruppo porta alla sua copia; la radice"
-            + " dell'archivio indica da dove sono state copiate. La colonna seed_partition non è un percorso:"
-            + " contiene il nome dell'argomento sotto cui è collocato ogni documento, e ogni cartella numerata"
-            + " accanto a questa pagina prende il nome da un argomento e contiene le cartelle dei gruppi di"
-            + " quell'argomento. Le colonne copy e copy_outcome dicono quali documenti sono stati copiati e, per"
-            + " quelli che non lo sono stati, perché.";
+            + " dell'archivio indica da dove sono state copiate. La colonna topic non è un percorso: contiene il nome"
+            + " dell'argomento sotto cui è collocato ogni documento, e la colonna subtopic, dove quell'argomento è"
+            + " diviso, il nome del sottoargomento in cui si trova il documento. Ogni cartella numerata accanto a"
+            + " questa pagina è di un argomento: contiene la pagina dell'argomento e le cartelle dei suoi gruppi,"
+            + " oppure, dove l'argomento è diviso, una cartella per ogni sottoargomento con la pagina del"
+            + " sottoargomento e le cartelle dei suoi gruppi. Le colonne copy e copy_outcome dicono quali documenti"
+            + " sono stati copiati e, per quelli che non lo sono stati, perché.";
+
+    /** The four heads of a topic's or a subtopic's table of groups, the group's number first (ADR-415 §10). */
+    public static final List<String> THE_TOPICS_TABLE_OF_CLUSTERS =
+            List.of("N.", "Gruppo", "Documenti", "Titolo del testo");
+
+    /** The three heads of a divided topic's table of subtopics (ADR-415 §10). */
+    public static final List<String> THE_TABLE_OF_SUBTOPICS = List.of("Sottoargomento", "Gruppi", "Documenti");
+
+    /** What a subtopic's page says before its topic's name (ADR-415 §10). */
+    public static final String IN_THE_TOPIC = "Nell'argomento";
+
+    /** The see-also heading, and the one sentence under it (ADR-415 §10). */
+    public static final String SEE_ALSO = "Vedi anche";
+
+    public static final String THE_SEE_ALSO_SENTENCE =
+            "Collocati sotto un altro argomento, questi documenti parlano anche di questo.";
 
     /** The three heads of a seed partition's table of groups, on the index, the root page and its own page. */
     public static final List<String> THE_TABLE_OF_CLUSTERS = List.of("Gruppo", "Documenti", "Titolo del testo");

@@ -100,9 +100,17 @@ final class PluginDrawings implements AutoCloseable {
         return slots.stream().map(slot -> slot.plugin.name()).toList();
     }
 
-    void topicStarted(ListedTopic topic, int topicCount) {
+    void topicStarted(
+            ListedTopic topic, int topicCount, List<ListedSubtopic> subtopics, ListedOverview overview) {
         for (Slot slot : slots) {
-            call(slot, () -> slot.drawing.topicStarted(topic, topicCount));
+            call(slot, () -> slot.drawing.topicStarted(topic, topicCount, subtopics, overview));
+        }
+    }
+
+    /** One page of a topic's see-also lines, handed to every plugin still drawing. */
+    void seeAlso(ListedTopic topic, List<SeeAlsoLine> lines) {
+        for (Slot slot : slots) {
+            call(slot, () -> slot.drawing.seeAlso(topic, lines));
         }
     }
 

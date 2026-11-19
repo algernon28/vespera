@@ -17,6 +17,23 @@ public interface Drawing extends AutoCloseable {
     /** A topic's clusters are about to be drawn. */
     void topicStarted(ListedTopic topic, int topicCount) throws IOException;
 
+    /**
+     * A topic's clusters are about to be drawn, with its subtopics in their order, none where it has none, and its
+     * overview (ADR-415 section 11). Called in place of {@link #topicStarted(ListedTopic, int)}, which a drawing that
+     * draws neither is left to answer.
+     */
+    default void topicStarted(
+            ListedTopic topic, int topicCount, List<ListedSubtopic> subtopics, ListedOverview overview)
+            throws IOException {
+        topicStarted(topic, topicCount);
+    }
+
+    /**
+     * One page of the topic's see-also lines, after its last cluster is drawn and before {@link #topicEnded()}; not called
+     * for a topic with none (ADR-415 section 5).
+     */
+    default void seeAlso(ListedTopic topic, List<SeeAlsoLine> lines) throws IOException {}
+
     /** Opens one cluster's entries; {@code clusterFolder} is its folder in the HTML tree, where its copies stand. */
     Entries entriesOf(
             ListedTopic topic, RecordedCluster recorded, List<ListedSurvivor> members, Path clusterFolder,

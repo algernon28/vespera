@@ -16,7 +16,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * {@code cluster-sizes.html} has one row a topic, and the row names the topic by its key, its first passage's seed path
- * and chunk index written {@code <path> chunk <i>} (ADR-409 §8), until #834 settles what the page shows of topics.
+ * and chunk index written {@code <path> chunk <i>} (ADR-409 §8); a subtopic's row, under a divided topic's, opens with
+ * the same key (ADR-416 §5), which {@code TheClusterSizesPageHasARowForEachSubtopicTest} holds.
  *
  * <p>Drawn by {@link ClusterSizeReport} alone. The chunk index is {@value #THE_CHUNK}, not 0, so that a row naming the
  * seed's path alone, or the chunk by a number the code took from elsewhere, is told apart.
