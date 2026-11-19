@@ -224,7 +224,7 @@ public final class FixedWords {
         };
     }
 
-    /** The row of heads of a topic's table of groups, as the index, the root page and the topic write it. */
+    /** The row of heads of a topic's table of groups, as the index, the root page and the topic's page write it. */
     public static String clusterTableHeadRow(DeliverableLanguage language) {
         return headRow(clusterTableHeads(language));
     }
