@@ -26,8 +26,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The Docker engine from the control panel's window (ADR-390 §5): it is started once as the window opens, a refusal's
- * line shown where the window says what happened; <i>Shut down Docker</i>, beside Stop, warns first, stops the window's
+ * The Docker engine from the control panel's window (ADR-390 §5): it is started by <i>Start Docker</i>, since ADR-430
+ * §1 not as the window opens, a start's line shown where the window says what happened; <i>Shut down Docker</i>, after
+ * Stop and <i>Start Docker</i>, warns first, stops the window's
  * running child before anything else, and then stops the sidecars and the engine, showing the line it said; and closing
  * the window stops the sidecars and not the engine.
  *
@@ -79,41 +80,57 @@ class TheShutDownDockerButtonTest {
     @TempDir
     Path folder;
 
+    /**
+     * Since ADR-430 §1 nothing is started as the window opens: the start is <i>Start Docker</i>'s (§5), and a refused
+     * one's line is shown where the window says what happened, as ADR-390 §5 had it for the start as the window opened.
+     * The check answers the daemon KO, so that the button is enabled.
+     */
     @Test
-    @Story("The control panel starts the Docker engine as its window opens")
-    @DisplayName("The window starts the Docker engine once as it opens, for the launch values it holds, and shows the line of a start that was refused")
-    void theEngineIsStartedOnceAsTheWindowOpens() throws Exception {
+    @Link(name = "ADR-430", url = Adr.THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER, type = "adr")
+    @Issue("889")
+    @Story("Start Docker starts Docker and the containers")
+    @DisplayName("Start Docker, pressed, starts once for what the Services fields hold and shows the line of a start that was refused")
+    void startDockerShowsTheLineOfAStartThatWasRefused() throws Exception {
         RecordingDockerControl docker = new RecordingDockerControl(
-                new DockerControl.Said(false, START_REFUSED), STARTED);
+                new DockerControl.Said(false, START_REFUSED), STARTED).checkAnswering(THE_DAEMON_DOWN);
         ControlPanelState state = aState(SleepingJar.runtime(), docker);
         state.hold(new LaunchValues("", "", "", "", "http://localhost:5001", "http://localhost:11434", "", ""));
 
         try (WindowForTests window = WindowForTests.shown(state)) {
+            List<String> fields = window.read(TheWindowAsksWhatItsServicesFieldsHoldTest::servicesFields);
+            pressStartDocker(window);
             String said = window.awaiting(TheShutDownDockerButtonTest::outcome, START_REFUSED::equals);
 
             claim("the window shows the refused start's line where it says what happened",
                     () -> assertThat(said).isEqualTo(START_REFUSED));
-            claim("and Docker was asked one thing, once: to start the engine, for the launch values the window holds",
-                    () -> assertThat(docker.calls).containsExactly(
-                            new RecordingDockerControl.Call("start", Optional.of(state.values()), false)));
+            claim("and Docker was asked one thing, once: to start, with no invocation running",
+                    () -> assertThat(docker.calls).singleElement()
+                            .extracting(RecordingDockerControl.Call::kind, RecordingDockerControl.Call::childRan)
+                            .containsExactly("start", false));
+            claim("for the addresses and the image the Services fields hold, which start from the launch values held",
+                    () -> assertThat(TheWindowAsksWhatItsServicesFieldsHoldTest.services(
+                            docker.calls.getFirst().values().orElseThrow())).isEqualTo(fields)
+                            .startsWith("http://localhost:5001", "http://localhost:11434"));
         }
     }
 
     /**
      * A start that went through and said something, as the start does on Windows where it wrote {@code .wslconfig}
-     * (ADR-421 §6), shows its line where the window says what happened, as a refused start's is shown.
+     * (ADR-421 §6), shows its line where the window says what happened, as a refused start's is shown; since ADR-430 §5
+     * the start is <i>Start Docker</i>'s.
      */
     @Test
     @Link(name = "ADR-421", url = Adr.ON_WINDOWS_VESPERA_WRITES_WSLCONFIG_WHERE_THERE_IS_NONE, type = "adr")
     @Issue("881")
-    @Story("The control panel starts the Docker engine as its window opens")
-    @DisplayName("A start of the Docker engine that went through with a line to say shows that line where the window says what happened")
+    @Story("Start Docker starts Docker and the containers")
+    @DisplayName("A start of Docker that went through with a line to say shows that line where the window says what happened")
     void aStartThatWentThroughShowsTheLineItSaid() throws Exception {
         RecordingDockerControl docker = new RecordingDockerControl(
-                new DockerControl.Said(true, WSLCONFIG_WRITTEN), STARTED);
+                new DockerControl.Said(true, WSLCONFIG_WRITTEN), STARTED).checkAnswering(THE_DAEMON_DOWN);
         ControlPanelState state = aState(SleepingJar.runtime(), docker);
 
         try (WindowForTests window = WindowForTests.shown(state)) {
+            pressStartDocker(window);
             String said = window.awaiting(TheShutDownDockerButtonTest::outcome, WSLCONFIG_WRITTEN::equals);
 
             claim("the window shows the line of the start that went through where it says what happened",
@@ -132,14 +149,16 @@ class TheShutDownDockerButtonTest {
 
         try (WindowForTests window = WindowForTests.shown(state)) {
             window.dialogs.answer = false;
-            List<String> row = window.read(root -> WindowForTests.node(root, "stop", Button.class).getParent()
+            List<String> row = window.read(root -> WindowForTests.node(root, "actions", Parent.class)
                     .getChildrenUnmodifiable().stream().map(Node::getId).toList());
             String text = window.read(root -> WindowForTests.node(root, "shut-down-docker", Button.class).getText());
             window.act(root -> WindowForTests.node(root, "shut-down-docker", Button.class).fire());
 
-            claim("the button reads Shut down Docker and stands in Stop's row right after it",
-                    () -> assertThat(List.of(text, row.indexOf("shut-down-docker") - row.indexOf("stop")))
-                            .containsExactly(GO_ON, 1));
+            claim("the button reads Shut down Docker and stands in Stop's row after it, Start Docker alone between them"
+                            + " (each on the wrapper that carries its caption)",
+                    () -> assertThat(List.of(text, row.indexOf("start-docker-captioned") - row.indexOf("stop-captioned"),
+                            row.indexOf("shut-down-docker-captioned") - row.indexOf("stop-captioned")))
+                            .containsExactly(GO_ON, 1, 2));
             claim("pressed, it asked one question, titled Shut down Docker: the warning, with Shut down Docker to go on"
                             + " and Keep Docker running not to",
                     () -> assertThat(window.dialogs.asked)
@@ -253,6 +272,17 @@ class TheShutDownDockerButtonTest {
         return new ControlPanelState(runtime,
                 LaunchValues.fileIn(Files.createDirectories(folder.resolve("tmp")), USER),
                 Files.createDirectories(folder.resolve("root-locks")), USER, docker);
+    }
+
+    /** A check whose daemon is KO, the rest OK, so that Start Docker is enabled (ADR-430 §5). */
+    private static final DockerCheck THE_DAEMON_DOWN = RecordingDockerControl.everyRow(DockerCheck.Mark.KO,
+            DockerCheck.Mark.OK, DockerCheck.Mark.OK, DockerCheck.Mark.OK, DockerCheck.Mark.OK);
+
+    /** Presses Start Docker once the first check has enabled it. */
+    private static void pressStartDocker(WindowForTests window) throws Exception {
+        window.awaiting(root -> !WindowForTests.node(root, "start-docker", Button.class).isDisabled(),
+                Boolean::booleanValue);
+        window.act(root -> WindowForTests.node(root, "start-docker", Button.class).fire());
     }
 
     /** What the window says happened, the text of its {@code outcome}. */

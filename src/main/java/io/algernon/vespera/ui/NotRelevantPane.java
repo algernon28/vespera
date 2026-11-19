@@ -52,9 +52,9 @@ final class NotRelevantPane {
         remove.setId("not-relevant-remove");
         remove.setOnAction(event -> changeNotRelevant(false, notRelevantList.getSelectionModel().getSelectedItem()));
         notRelevantOutcome.setId("not-relevant-outcome");
-        SelectableText.Wrapping words = SelectableText.wrapping("Folders not relevant are still read: the documents of relevance-labels.yaml below them are"
+        Captions.on(notRelevantList, "Folders not relevant are still read: the documents of relevance-labels.yaml below them are"
                 + " labelled not relevant, and no run changes.");
-        VBox pane = new VBox(SelectableText.line("Folders not relevant"), words, notRelevantList,
+        VBox pane = new VBox(SelectableText.line("Folders not relevant"), notRelevantList,
                 row(notRelevantFolder, browse, add, remove), notRelevantOutcome);
         pane.getStyleClass().add("section");
         return pane;

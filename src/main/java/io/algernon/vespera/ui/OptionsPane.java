@@ -142,10 +142,31 @@ final class OptionsPane {
         });
     }
 
+    /**
+     * Whether {@code vespera.models.pull} is ticked as the pane holds it now: a run downloads a model Ollama has not
+     * where it is, and the window's Run and Auto Label wait for the model where it is not (ADR-430 §6).
+     */
+    boolean modelsPull() {
+        Preset pull = presets.get("vespera.models.pull");
+        if (pull == null) {
+            return true;
+        }
+        String value = pull.value();
+        return value == null || value.isBlank() || Boolean.parseBoolean(value);
+    }
+
     /** How often the report is read, in whole seconds, from the progress interval as the preset holds it. */
     int intervalSeconds() {
         Preset interval = presets.get("vespera.progress-interval");
         return interval == null ? 5 : secondsOf(interval.value());
+    }
+
+    /** How long a download may stand still, from {@code vespera.models.pull-stalled-at-most} as the preset holds it now (ADR-329 §6, ADR-430 §7). */
+    java.time.Duration stalledAtMost() {
+        Preset stalled = presets.get("vespera.models.pull-stalled-at-most");
+        return java.time.Duration.ofSeconds(stalled == null
+                ? secondsOf(StartingValues.of("vespera.models.pull-stalled-at-most", state.sources()).value())
+                : secondsOf(stalled.value()));
     }
 
     private static int secondsOf(String duration) {

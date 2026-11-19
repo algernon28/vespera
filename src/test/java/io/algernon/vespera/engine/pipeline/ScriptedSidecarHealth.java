@@ -47,6 +47,15 @@ final class ScriptedSidecarHealth implements SidecarHealth {
         return doclingAsked.get() + ollamaAsked.get();
     }
 
+    /** The questions docling-serve was asked, and Ollama, each apart (ADR-430 §10). */
+    int doclingQuestions() {
+        return doclingAsked.get();
+    }
+
+    int ollamaQuestions() {
+        return ollamaAsked.get();
+    }
+
     @Override
     public boolean doclingAnswers() {
         return doclingAsked.incrementAndGet() > doclingFailsFirst && doclingAnswers;

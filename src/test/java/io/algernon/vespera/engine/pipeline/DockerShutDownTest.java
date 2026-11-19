@@ -10,7 +10,9 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.file.Files;
@@ -33,7 +35,7 @@ import org.junit.jupiter.api.io.TempDir;
  * {@code docker compose -p vespera stop}, then, only where that exited 0, the engine's one stop, and nothing else, never
  * {@code down}; a refused step is one line, the lock's and an output file's among them; and each stop waits for
  * {@code sidecars.lock} where another holds it. And what closing the window runs: the sidecars' stop alone, only where
- * one answers and both are looked for on this machine (ADR-390 §5). Once the sidecars are stopped, an engine stop whose
+ * a container on this machine answers (ADR-390 §5, ADR-430 §10). Once the sidecars are stopped, an engine stop whose
  * output file fails says so (ADR-395 §6).
  *
  * <p>No Docker is needed: the starter is given a {@link ScriptedDocker}, which records every command and its limit. The
@@ -208,8 +210,10 @@ class DockerShutDownTest {
 
     @Test
     @Story("Closing the control panel stops the sidecars")
-    @DisplayName("Closing the window stops the sidecars where one of the two answers, and runs nothing where one is looked for on another machine")
+    @DisplayName("Closing the window stops the containers where one on this machine answers, and runs nothing where none on this machine answers")
     @Issue("818")
+    @Issue("889")
+    @Link(name = "ADR-430", url = Adr.THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER, type = "adr")
     void closingStopsTheSidecarsWhereEitherAnswersAndNothingWhereOneIsOnAnotherMachine() {
         for (boolean doclingAnswers : List.of(true, false)) {
             ScriptedSidecarHealth one = ScriptedSidecarHealth.neitherAnswering();
@@ -219,25 +223,47 @@ class DockerShutDownTest {
             Optional<String> stopped = starter(settings(), docker, HostSystem.LINUX, one).stopTheSidecars();
 
             String which = doclingAnswers ? "docling-serve alone" : "Ollama alone";
-            claim("with " + which + " answering, it said nothing and ran docker compose -p vespera stop, once and"
-                            + " alone",
+            claim("both on this machine, with " + which + " answering, it said nothing and ran docker compose -p"
+                            + " vespera stop, once and alone",
                     () -> assertThat(List.of(stopped, docker.commands()))
                             .containsExactly(Optional.empty(), List.of(COMPOSE_STOP)));
         }
 
-        for (SidecarStartSettings elsewhere : List.of(
+        for (SidecarStartSettings oneHere : List.of(
                 new SidecarStartSettings(DOCLING_ELSEWHERE, OLLAMA_HERE, AN_IMAGE, WAIT_AT_MOST),
                 new SidecarStartSettings(DOCLING_HERE, OLLAMA_ELSEWHERE, AN_IMAGE, WAIT_AT_MOST))) {
             ScriptedDocker docker = ScriptedDocker.engineRunning().otherCommandsExiting(0);
 
-            Optional<String> nothing = starter(elsewhere, docker, HostSystem.LINUX,
+            Optional<String> stopped = starterOnAMachineOfItsOwn(oneHere, docker,
                     ScriptedSidecarHealth.bothAnswering()).stopTheSidecars();
 
-            claim("with docling-serve at " + elsewhere.doclingBaseUrl() + " and Ollama at "
-                            + elsewhere.ollamaBaseUrl() + ", one of them on another machine, it said nothing and ran no"
-                            + " command, though both answer",
-                    () -> assertThat(List.of(nothing, docker.commands())).containsExactly(Optional.empty(), List.of()));
+            claim("with docling-serve at " + oneHere.doclingBaseUrl() + " and Ollama at " + oneHere.ollamaBaseUrl()
+                            + ", one on this machine and answering, it said nothing and ran docker compose -p vespera"
+                            + " stop, once and alone (ADR-430 §10)",
+                    () -> assertThat(List.of(stopped, docker.commands()))
+                            .containsExactly(Optional.empty(), List.of(COMPOSE_STOP)));
         }
+
+        ScriptedSidecarHealth onlyTheOneElsewhere = ScriptedSidecarHealth.neitherAnswering();
+        onlyTheOneElsewhere.answering(true, false);
+        ScriptedDocker hereSilent = ScriptedDocker.engineRunning().otherCommandsExiting(0);
+        Optional<String> nothingHere = starterOnAMachineOfItsOwn(
+                new SidecarStartSettings(DOCLING_ELSEWHERE, OLLAMA_HERE, AN_IMAGE, WAIT_AT_MOST), hereSilent,
+                onlyTheOneElsewhere).stopTheSidecars();
+        claim("with docling-serve at " + DOCLING_ELSEWHERE + " answering and Ollama at " + OLLAMA_HERE + ", on this"
+                        + " machine, not answering, it said nothing and ran no command: the one that answers is not"
+                        + " this machine's to stop",
+                () -> assertThat(List.of(nothingHere, hereSilent.commands()))
+                        .containsExactly(Optional.empty(), List.of()));
+
+        ScriptedDocker bothElsewhere = ScriptedDocker.engineRunning().otherCommandsExiting(0);
+        Optional<String> nothing = starterOnAMachineOfItsOwn(
+                new SidecarStartSettings(DOCLING_ELSEWHERE, OLLAMA_ELSEWHERE, AN_IMAGE, WAIT_AT_MOST), bothElsewhere,
+                ScriptedSidecarHealth.bothAnswering()).stopTheSidecars();
+        claim("with docling-serve at " + DOCLING_ELSEWHERE + " and Ollama at " + OLLAMA_ELSEWHERE + ", both on another"
+                        + " machine, it said nothing and ran no command, though both answer",
+                () -> assertThat(List.of(nothing, bothElsewhere.commands()))
+                        .containsExactly(Optional.empty(), List.of()));
     }
 
     @Test
@@ -365,6 +391,23 @@ class DockerShutDownTest {
             SidecarStartSettings settings, ScriptedDocker docker, HostSystem host, ScriptedSidecarHealth health) {
         Supplier<ComposeFiles> theRepositorysFiles = () -> ComposeFiles.in(REPOSITORY);
         return new SidecarStarter(settings, docker, health, host, theRepositorysFiles, lockFolder, CHECK_EVERY);
+    }
+
+    /**
+     * The starter on a machine whose resolver is the test's, so no name is looked up (ADR-430 §10): {@code localhost}
+     * resolves to the loopback, the two {@code example.org} hosts to documentation addresses of another machine, and the
+     * machine holds no address of its own beyond the loopback.
+     */
+    private SidecarStarter starterOnAMachineOfItsOwn(
+            SidecarStartSettings settings, ScriptedDocker docker, ScriptedSidecarHealth health) {
+        ThisMachine thisMachine = new ThisMachine(name -> switch (name) {
+            case "localhost" -> new InetAddress[] {InetAddress.ofLiteral("127.0.0.1")};
+            case "docling.example.org" -> new InetAddress[] {InetAddress.ofLiteral("192.0.2.10")};
+            case "ollama.example.org" -> new InetAddress[] {InetAddress.ofLiteral("192.0.2.11")};
+            default -> throw new UnknownHostException(name);
+        }, List::of);
+        return new SidecarStarter(settings, docker, health, HostSystem.LINUX, () -> ComposeFiles.in(REPOSITORY),
+                lockFolder, CHECK_EVERY, thisMachine);
     }
 
     private static SidecarStartSettings settings() {

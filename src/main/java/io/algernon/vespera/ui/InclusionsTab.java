@@ -44,9 +44,9 @@ final class InclusionsTab {
         });
         inclusionsOutcome.setId("inclusions-outcome");
         VBox.setVgrow(inclusions.view(), Priority.ALWAYS);
-        SelectableText.Wrapping words = SelectableText.wrapping("Untick a folder holding nothing you want. An unticked folder is never read,"
+        Captions.on(inclusions.view(), "Untick a folder holding nothing you want. An unticked folder is never read,"
                 + " and a change makes the next walk another, so every run after it is new.");
-        VBox content = new VBox(words, inclusions.view(), inclusionsOutcome, row(save, reset), notRelevant.pane());
+        VBox content = new VBox(inclusions.view(), inclusionsOutcome, row(save, reset), notRelevant.pane());
         content.getStyleClass().add("tab-content");
         return content;
     }
