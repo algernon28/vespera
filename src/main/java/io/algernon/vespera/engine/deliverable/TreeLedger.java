@@ -74,6 +74,9 @@ public final class TreeLedger {
             "topic_overview_source",
             "topic_overview_fault");
 
+    /** The table of which the generation run's own rows are left out. */
+    private static final String WITHOUT_THE_GENERATION_RUNS_OWN_ROWS = "finished_step";
+
     /** The runs the tree was drawn from: the generation run and every run reached through its upstream runs. */
     private static final String THE_RUNS_DRAWN_FROM = "WITH RECURSIVE drawn_from(id) AS (SELECT ? UNION"
             + " SELECT run_upstream.upstream_run_id FROM run_upstream"
@@ -120,7 +123,16 @@ public final class TreeLedger {
                     copy(file, schema, table, "SELECT * FROM " + table + " WHERE walk_id = ?", new Object[] {walk});
                 }
                 for (String table : BY_THE_RUNS) {
-                    copy(file, schema, table, "SELECT * FROM " + table + " WHERE run_id IN " + inTheRuns, runs.toArray());
+                    if (table.equals(WITHOUT_THE_GENERATION_RUNS_OWN_ROWS)) {
+                        // The generation run's own finished step is recorded after the tree is drawn (ADR-429 section 3).
+                        List<Object> arguments = new ArrayList<>(runs);
+                        arguments.add(generationRun.value());
+                        copy(file, schema, table,
+                                "SELECT * FROM " + table + " WHERE run_id IN " + inTheRuns + " AND run_id <> ?",
+                                arguments.toArray());
+                    } else {
+                        copy(file, schema, table, "SELECT * FROM " + table + " WHERE run_id IN " + inTheRuns, runs.toArray());
+                    }
                 }
             }
             ReplacingMove.ATOMIC.intoPlace(part, place);
