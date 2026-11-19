@@ -1,5 +1,7 @@
 # ADR-371 — A size of memory is written in powers of 1,024, and only a count axis of the cockpit is shortened to K, M, B and T
 
+> **Partly amended — see [ADR-425](0425-a-stages-chart-sets-each-axis-from-the-samples-it-holds-at-each-reading-and-centres-one-of-one-number-or-none.md).** Of §3 and §4: on a stage's chart a tick below 0 is drawn with no label; every tick at 0 or above reads as these sections write it. The rest of this record stands.
+
 - **Date**: 2026-11-11
 - **Status**: accepted on 2026-11-11.
 - **Decided**: by the operator, of the shortened ticks #789 drew: the cockpit's value-axis ticks are shortened to `K`, `M`, `B` and `T`, but not where the unit is memory; there a value is written in bytes, `KB` once it reaches 1,024, then `MB`, `GB` and `TB`; and powers of 1,024 are used only where the unit is memory; and where the unit is time, a tick is written in seconds, minutes and hours. The examples, the abbreviations and decimals of a time tick, the rounding at a unit's edge, the decimals of a memory axis's ticks and the tests are decided under delegation.
