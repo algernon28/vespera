@@ -1216,8 +1216,8 @@ final class Cockpit {
         showDatabaseSize();
         state.workingDirectories().keepWhatWasMade();
         showTheListsButtons();
-        boolean runs = state.childRuns();
         Optional<Ending> ending = state.ending();
+        boolean runs = runs(ending);
         ending.ifPresent(this::warnOfTheParentsTitle);
         ControlPanelState.Holders holders = state.holders(workingDirectory(), corpusRoot());
         boolean busy = runs || holders.any();
@@ -1256,6 +1256,15 @@ final class Cockpit {
         showTheEnding(runs, ending, holders);
         preflight.draw();
         wasShown = wasShown || showing;
+    }
+
+    /**
+     * Whether the child runs, by {@code ending}, the one look at it the window draws from: a look of its own asking
+     * whether it runs, taken a moment before, could find running a child the look at its ending then finds ended, and
+     * the tick draw it running beside its own ending (ADR-278 section 5).
+     */
+    private boolean runs(Optional<Ending> ending) {
+        return ending.isEmpty() && state.childWasStarted();
     }
 
     private String childWords(boolean runs, Optional<Ending> ending) {
@@ -1319,7 +1328,8 @@ final class Cockpit {
     /** Reads the ending again where the working directory chosen changed, outside the clock's tick. */
     private void showTheEnding() {
         Optional<Path> folder = workingDirectory();
-        showTheEnding(state.childRuns(), state.ending(), state.holders(folder, corpusRoot()));
+        Optional<Ending> ending = state.ending();
+        showTheEnding(runs(ending), ending, state.holders(folder, corpusRoot()));
     }
 
     /**
