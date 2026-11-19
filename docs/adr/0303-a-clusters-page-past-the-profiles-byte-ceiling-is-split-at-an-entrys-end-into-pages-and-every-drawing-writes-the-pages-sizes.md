@@ -199,7 +199,7 @@ ADR-149 §6's ten pictures a document shows and ADR-274 §2.5's gibibyte left fr
 - `PipelineHoldsOnlyTheRulesOnRecordTest`: `ClusterPageByteCeiling` among the classes holding no rule; `GenerationTasklet`'s collaborators gain `deliverable.ClusterPageCeiling` and `profile.NumericValue`.
 - `pipeline.TheJarReadsWhatTheControlPanelWritesTest` and `controlpanel.ProfileEditTest`: the key's accepted and refused samples, `9223372036854775807` accepted and `9223372036854775808` refused.
 - `profile.ProfileTest`: seventeen keys; `profile.ProfileStoreTest`: the key answered among every key; `profile.ProfileFixture`: the key.
-- `deliverable.DeliverableProgressTest`, `deliverable.PartitionNoSurvivorNamesStopsTheWriterTest` and `pipeline.GenerationReportsItsProgressInvocationTest`: `toDrawClusters` and `clusterDrawn`.
+- `deliverable.DeliverableProgressTest`, `deliverable.TopicNoSurvivorNamesStopsTheWriterTest` and `pipeline.GenerationReportsItsProgressInvocationTest`: `toDrawClusters` and `clusterDrawn` (named for the topic by ADR-426, #895).
 - `deliverable.ListedTree`: a drawing handed a ceiling and a progress.
 - `deliverable.TheTreeIsHtmlTest.everySourceAndLinkStaysOnItsPageOrInTheTree`: its reading of every link is a helper both of its tests share, and a link to a file that carries a fragment has the fragment's `id` on that file.
 

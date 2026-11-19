@@ -119,7 +119,7 @@ class Presets {
     }
 
     /**
-     * The resolution a partition divides at: the profile's number where it is a finite number above 0, else the one
+     * The resolution a topic divides at: the profile's number where it is a finite number above 0, else the one
      * configuration names. An unset, blank or unreadable value, and a number written by hand that is none of that, fall
      * through to the preset as configuration resolves it (ADR-330 §9), as the shipped one is 1.0.
      */
@@ -151,7 +151,7 @@ class Presets {
         throw new PresetRefusedException(RESOLUTION + " is " + raw + ": a number above 0");
     }
 
-    /** How many neighbours each document of a partition keeps in the graph (ADR-087's k). */
+    /** How many neighbours each document of a topic keeps in the graph (ADR-087's k). */
     int clusterNeighbours() {
         return wholeNumber(NEIGHBOURS_OF_A_DOCUMENT);
     }

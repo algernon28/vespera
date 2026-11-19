@@ -24,7 +24,7 @@ import tools.jackson.databind.json.JsonMapper;
  * The sizes of the tree's cluster pages, and the report {@code cluster-page-sizes.html} that states them (ADR-303 §8),
  * which every drawing writes in the working directory, whatever the ceiling.
  *
- * <p><b>Numbers and fixed words only</b>: no cluster, seed partition, document or path is named and no title or label
+ * <p><b>Numbers and fixed words only</b>: no cluster, topic, document or path is named and no title or label
  * is shown, so the page can be sent to anyone (ADR-274 §8). <b>What is held</b> is three numbers for each cluster of the
  * run, its one-page size, its entries and its pages, bounded by the run's clusters and never by its survivors
  * (ADR-220 §9, ADR-303 §8), and three running counts.

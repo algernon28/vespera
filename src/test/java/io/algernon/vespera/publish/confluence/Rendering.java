@@ -13,7 +13,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * A Confluence rendering drawn by hand as stage 6b draws one (ADR-312, ADR-316, ADR-328, ADR-378): a root page carrying
- * {@code documents.csv}, a seed partition's page, and a cluster's page carrying a copy and a picture's file, with the
+ * {@code documents.csv}, a topic's page, and a cluster's page carrying a copy and a picture's file, with the
  * page list naming them, each page keyed by its language's code and its place, titled by its text, its place and the
  * code, and none carrying the run's id. English unless drawn in another language. Every text in it is synthetic.
  */
@@ -45,14 +45,14 @@ final class Rendering {
     /** Each page's key in the English rendering: the code and its place, unpadded (ADR-378 §2). */
     static final String ROOT = "en:root";
 
-    static final String PARTITION = "en:1";
+    static final String TOPIC = "en:1";
 
     static final String CLUSTER = "en:1.1";
 
     /** Each page's title in the English rendering: its text, its place and the code, and no marker (ADR-378 §1). */
     static final String ROOT_TITLE = "Vespera_en";
 
-    static final String PARTITION_TITLE = "Seeds (1 · en)";
+    static final String TOPIC_TITLE = "Seeds (1 · en)";
 
     static final String CLUSTER_TITLE = "Payroll and leave (1.1 · en)";
 
@@ -60,7 +60,7 @@ final class Rendering {
     static final String LABEL = "vespera-en";
 
     /** The texts the titles are drawn from, the same in either language: a seed's stem and a cluster's label. */
-    static final String PARTITION_TEXT = "Seeds";
+    static final String TOPIC_TEXT = "Seeds";
 
     static final String CLUSTER_TEXT = "Payroll and leave";
 
@@ -81,7 +81,7 @@ final class Rendering {
     private String clusterTitle;
 
     /**
-     * Each body names its page's files by {@code ri:attachment}, and the root page and the seed partition's page link
+     * Each body names its page's files by {@code ri:attachment}, and the root page and the topic's page link
      * to the page after them by title, as stage 6b draws them (ADR-313 §1, ADR-314, ADR-315, ADR-309): so a body sent
      * before its files, or a link to a page not yet created, is there for a test to see.
      */
@@ -91,9 +91,9 @@ final class Rendering {
         this.run = run;
         this.marker = marker;
         this.clusterTitle = titleOf(CLUSTER_TEXT, "1.1", language);
-        bodies.put(key("root"), "<p>The groups.</p>\n<h2>" + pageLink(partitionTitle(), PARTITION_TEXT) + "</h2>\n<p>"
+        bodies.put(key("root"), "<p>The groups.</p>\n<h2>" + pageLink(topicTitle(), TOPIC_TEXT) + "</h2>\n<p>"
                 + fileLink(LISTING) + "</p>");
-        bodies.put(key("1"), partitionBody(clusterTitle));
+        bodies.put(key("1"), topicBody(clusterTitle));
         bodies.put(key("1.1"), "<p>What the group holds.</p>\n<p>" + fileLink(COPY) + "</p>\n<p><ac:image ac:alt=\"a"
                 + " chart\"><ri:attachment ri:filename=\"" + PICTURE + "\" /></ac:image></p>");
     }
@@ -103,8 +103,8 @@ final class Rendering {
         return text + " (" + place + " · " + language + ")";
     }
 
-    private static String partitionBody(String clusterTitle) {
-        return "<p>The seed partition.</p>\n<p>" + pageLink(clusterTitle, "the group") + "</p>";
+    private static String topicBody(String clusterTitle) {
+        return "<p>The topic.</p>\n<p>" + pageLink(clusterTitle, "the group") + "</p>";
     }
 
     private static String pageLink(String title, String text) {
@@ -160,8 +160,8 @@ final class Rendering {
         return "Vespera_" + language;
     }
 
-    String partitionTitle() {
-        return titleOf(PARTITION_TEXT, "1", language);
+    String topicTitle() {
+        return titleOf(TOPIC_TEXT, "1", language);
     }
 
     String clusterTitle() {
@@ -200,13 +200,13 @@ final class Rendering {
 
     /**
      * Draws the rendering as the later generation run's, the place {@code 1.1} now holding the group titled {@code
-     * title}, the seed partition's page linking it by that title (ADR-328 §4).
+     * title}, the topic's page linking it by that title (ADR-328 §4).
      */
     Rendering asTheLaterRunWithTheClusterTitled(String title) {
         run = LATER_RUN;
         marker = LATER_MARKER;
         clusterTitle = title;
-        bodies.put(key("1"), partitionBody(title));
+        bodies.put(key("1"), topicBody(title));
         write();
         return this;
     }
@@ -225,7 +225,7 @@ final class Rendering {
             List<Object> pages = new ArrayList<>();
             pages.add(page(key("root"), null, rootTitle(), "page.xml",
                     List.of(file(LISTING, "../" + LISTING, "listing"))));
-            pages.add(page(key("1"), key("root"), partitionTitle(), "001/page.xml", List.of()));
+            pages.add(page(key("1"), key("root"), topicTitle(), "001/page.xml", List.of()));
             if (bodies.containsKey(key("1.1"))) {
                 Files.writeString(confluence().resolve("001/001/page.xml"), bodies.get(key("1.1")),
                         StandardCharsets.UTF_8);

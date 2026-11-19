@@ -199,7 +199,7 @@ function fillForeignBytes(db) {
 
 // What a working directory holds beside vespera.db: a lock, the logs folder with two logs and an invocation
 // account (docs/adr/0270), a log an earlier Vespera left at the top, two pages and a deliverable, one of
-// whose partition folders and one stray folder are named with MARKER, as a seed's name would be.
+// whose topic folders and one stray folder are named with MARKER, as a seed's name would be.
 const LOGS = {
   "logs/vespera.log": `a line of the operator's log about ${MARKER}\n`,
   "logs/vespera.2026-10-07.0.log": `an older line about ${MARKER}\n`,
@@ -207,7 +207,7 @@ const LOGS = {
 };
 const UNDER_THE_RUN = {
   [`deliverable/${RG}/index.md`]: `# ${MARKER}\n`,
-  [`deliverable/${RG}/${MARKER} partition/cluster.md`]: `${MARKER} prose\n`,
+  [`deliverable/${RG}/${MARKER} topic/cluster.md`]: `${MARKER} prose\n`,
 };
 const ELSEWHERE_IN_THE_DELIVERABLE = {
   [`deliverable/${MARKER} folder/x.md`]: "x\n",

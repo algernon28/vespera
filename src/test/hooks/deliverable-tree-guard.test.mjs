@@ -28,7 +28,7 @@
 //                          deliverable/run/, in the flat layout: the marker, index.html, documents.csv
 //                          and documents/0001-report.pdf
 //     named/               a tree drawn at a named root, per cluster: the marker, index.html,
-//                          documents.csv, 01-partition/01-cluster/index.html and report.pdf
+//                          documents.csv, 01-topic/01-cluster/index.html and report.pdf
 //     beside/note.txt      a folder beside the named root, holding no marker
 //     earlier/deliverable/old/index.html, a tree drawn before the marker, which carries none
 //     odd/                 whose vespera-deliverable.txt is a folder, and note.txt
@@ -96,7 +96,7 @@ put(`${FLAT}/documents.csv`, "copy\n");
 put(`${FLAT}/documents/0001-report.pdf`, "fixture\n");
 
 const NAMED = `${T}/named`;
-const CLUSTER = `${NAMED}/01-partition/01-cluster`;
+const CLUSTER = `${NAMED}/01-topic/01-cluster`;
 put(`${NAMED}/${MARKER}`, marker(WORK));
 put(`${NAMED}/index.html`, "<p>fixture</p>\n");
 put(`${NAMED}/documents.csv`, "copy\n");
@@ -173,11 +173,11 @@ const CASES = [
   ["F112", "cat of a named root's index", "Bash", { command: "cat ${TMPDIR}/named/index.html" }, REFUSED],
   ["F113", "cd to the top of a tree, then cat of its index", "Bash", { command: "cd ${TMPDIR}/named && cat index.html" }, REFUSED],
   ["F114", "rm of the marker", "Bash", { command: `rm \${TMPDIR}/named/${MARKER}` }, REFUSED],
-  ["F115", "cat of a relative copy from a partition's folder", "Bash", { command: "cat 01-cluster/report.pdf" }, REFUSED, { cwd: `${NAMED}/01-partition` }],
+  ["F115", "cat of a relative copy from a topic's folder", "Bash", { command: "cat 01-cluster/report.pdf" }, REFUSED, { cwd: `${NAMED}/01-topic` }],
   ["F116", "Read beside a marker that is a folder: any name there is a marker", "Read", { file_path: `${T}/odd/note.txt` }, REFUSED],
   // What prints names is let through, as it is outside the allow list.
   ["F201", "Glob beneath a tree", "Glob", { pattern: "**/*", path: NAMED }, ALLOWED],
-  ["F202", "ls of a cluster's folder", "Bash", { command: "ls ${TMPDIR}/named/01-partition/01-cluster" }, ALLOWED],
+  ["F202", "ls of a cluster's folder", "Bash", { command: "ls ${TMPDIR}/named/01-topic/01-cluster" }, ALLOWED],
   ["F203", "stat of the marker", "Bash", { command: `stat \${TMPDIR}/named/${MARKER}` }, ALLOWED],
   // What is not in a tree stays as it was.
   ["F301", "Read of a working directory's page, beside its tree", "Read", { file_path: `${WORK}/report.html` }, ALLOWED],

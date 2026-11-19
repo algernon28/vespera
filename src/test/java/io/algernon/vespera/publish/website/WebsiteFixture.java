@@ -41,7 +41,7 @@ import tools.jackson.databind.json.JsonMapper;
  * with the website rendering's plugin, from lists held here over an archive written here, and what those tests read
  * back out of the rendering and out of a website a publish refreshed. Every text in it is synthetic.
  *
- * <p>One seed partition, {@code seeds/Fire Safety.docx}, of two groups: the doors, written over and citing its
+ * <p>One topic, named from {@code seeds/Fire Safety.docx}, of two groups: the doors, written over and citing its
  * documents, the first carrying a PNG picture, one gone from the archive, and one whose name carries a space; and the
  * dampers, nothing written over it, its one document a PNG image whose name carries a {@code #}. The second document's
  * bytes in the archive carry {@link #A_MARKED_SENTENCE}, which stands for a document's extracted text: nothing of the
@@ -69,18 +69,18 @@ final class WebsiteFixture {
 
     static final String SEED_PATH = "seeds/Fire Safety.docx";
 
-    /** The seed partition's name as the seed's stem gives it. */
-    static final String PARTITION_NAME = "Fire Safety";
+    /** The topic's name as the seed's stem gives it. */
+    static final String TOPIC_NAME = "Fire Safety";
 
-    static final String PARTITION_FOLDER = "1-fire-safety";
+    static final String TOPIC_FOLDER = "1-fire-safety";
 
     static final String DOORS_LABEL = "Fire doors";
 
     static final String DAMPERS_LABEL = "Smoke dampers";
 
-    static final String DOORS_FOLDER = PARTITION_FOLDER + "/1-fire-doors";
+    static final String DOORS_FOLDER = TOPIC_FOLDER + "/1-fire-doors";
 
-    static final String DAMPERS_FOLDER = PARTITION_FOLDER + "/2-smoke-dampers";
+    static final String DAMPERS_FOLDER = TOPIC_FOLDER + "/2-smoke-dampers";
 
     static final String DOORS_TITLE = "Fire doors and their inspection";
 

@@ -96,7 +96,7 @@ class RelevanceFloorInvocationTest {
                 () -> assertThat(belowThresholdCountFor(root)).isEqualTo(CORPUS_DOCUMENTS));
         claim(
                 "and none of them was clustered under the second run: a removed document is not a survivor"
-                        + " by the time clustering reads the partition, so it is never grouped and never"
+                        + " by the time clustering reads the topic, so it is never grouped and never"
                         + " given a page. That is the whole of ADR-087's 'a below-threshold document costs"
                         + " nothing', and it depends on the floor step running first",
                 () -> assertThat(documentClusterCountFor(root, theRunAfter(root, theFirstRun)))

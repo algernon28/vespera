@@ -195,7 +195,7 @@ Each built with the step of §13 that needs it.
 | `confluence.APageKeyedByFourNumbersIsOfTheTreeTest.aPageKeyedByFourNumbersIsMovedToTheTrashAndOneOfFiveIsLeftAlone` | a page keyed `en:1.2.3.2` is found as the tree's and moved to the trash where the rendering no longer has it; one keyed by five numbers is left alone (§7) | 2 |
 | `deliverable.TheTreeIsHtmlTest.escapesEveryValueInTextAndInAttributes` | the topic's page shows the topic's name, the label and the title escaped, beside the group's page (§2) | 1 |
 | `deliverable.DeliverablePicturesTest.noCharacterOfADocumentsNameOrALabelReachesAPicturesSource` | beneath the topic's folder, the group's page and the topic's page alone, the topic's page carrying no picture (§2) | 1 |
-| `deliverable.TreeIsTheSameWrittenAPartitionAtATimeTest.everyFileIsTheSame` | twelve files, the three topics' pages among them (§2) | 1 |
+| `deliverable.TreeIsTheSameWrittenATopicAtATimeTest.everyFileIsTheSame` (named for the topic by ADR-426, #895) | twelve files, the three topics' pages among them (§2) | 1 |
 | `deliverable.DeliverableTest.rendersTheStoredOrderRatherThanDerivingItAgain` | the topic's folder holds its groups' folders in order and its page (§2) | 1 |
 | `deliverable.DeliverableTest.carriesEverySurvivorIntoTheListingWithPathsRelativeToTheArchive` | `topic_order` and `cluster_order` read at their places among thirteen columns (§6) | 1 |
 | `pipeline.DeliverableInvocationTest.copiesEverySurvivorIntoTheTreeAndLeavesTheArchiveAsItWas` | the group's page is found two folders down, beside the topic's page (§2) | 1 |
