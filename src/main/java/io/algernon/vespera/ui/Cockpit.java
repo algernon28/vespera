@@ -859,7 +859,11 @@ final class Cockpit {
 
     /** The list cannot be changed while the window's own child runs, as Run cannot be pressed (ADR-393 \u00a74). */
     private void showTheListsButtons() {
-        boolean runs = state.childRuns();
+        showTheListsButtons(state.childRuns());
+    }
+
+    /** The tick's own answer is passed in, so the list and Run never disagree (ADR-393 §4). */
+    private void showTheListsButtons(boolean runs) {
         Path chosen = workingDirectoryList.getSelectionModel().getSelectedItem();
         workingDirectoryList.setDisable(runs);
         workingDirectoryNew.setDisable(runs);
@@ -1215,9 +1219,9 @@ final class Cockpit {
         }
         showDatabaseSize();
         state.workingDirectories().keepWhatWasMade();
-        showTheListsButtons();
         Optional<Ending> ending = state.ending();
         boolean runs = runs(ending);
+        showTheListsButtons(runs);
         ending.ifPresent(this::warnOfTheParentsTitle);
         ControlPanelState.Holders holders = state.holders(workingDirectory(), corpusRoot());
         boolean busy = runs || holders.any();
