@@ -32,8 +32,10 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p>Drawn by {@link ClusterSizeReport} alone. The fixture holds {@value #DOCUMENTS} documents: an undivided topic,
  * {@code seeds/a.txt} chunk 0, of two clusters of two; and a topic divided in two, {@code seeds/b.txt} chunk 4, whose
- * subtopic 1, of clusters of two and one, is given before its subtopic 0, of one cluster of one, as the clustering
- * step orders them, most documents first. The report draws the subtopics in the order it is given them.
+ * subtopic of clusters of two and one is given before its subtopic of one cluster of one, as the clustering step
+ * orders them, most documents first (ADR-406 §4). The report draws the subtopics in the order it is given them and
+ * numbers each by its place in it, counted from 1, the number every other view gives a subtopic: it is handed no
+ * number the division recorded, so it cannot show one.
  */
 @Epic("Relevance")
 @Feature("Clustering")
@@ -60,8 +62,8 @@ class TheClusterSizesPageHasARowForEachSubtopicTest {
     private static final ClusterSizeReport.Topic DIVIDED = ClusterSizeReport.Topic.divided(
             "seeds/b.txt",
             4,
-            List.of(ClusterSizeReport.Subtopic.of(1, List.of(2, 1), Optional.empty()),
-                    ClusterSizeReport.Subtopic.of(0, List.of(1), Optional.empty())),
+            List.of(ClusterSizeReport.Subtopic.of(List.of(2, 1), Optional.empty()),
+                    ClusterSizeReport.Subtopic.of(List.of(1), Optional.empty())),
             Optional.empty());
 
     private static final List<ClusterSizeReport.Topic> TWO_TOPICS = List.of(UNDIVIDED, DIVIDED);
@@ -72,9 +74,10 @@ class TheClusterSizesPageHasARowForEachSubtopicTest {
     /** The sixth paragraph under How to read this, whole. */
     private static final String SUBTOPICS = "A crowded topic is divided into subtopics before its documents are"
             + " grouped. Its row counts every group across its subtopics, and its links are those of the documents of"
-            + " the whole topic; directly under it, each subtopic has a row of its own, numbered as the division"
-            + " numbered it, counted from 0, which counts that subtopic's groups alone, its links being those of the"
-            + " documents its groups were found among. A topic that is not divided has its own row alone.";
+            + " the whole topic; directly under it, each subtopic has a row of its own, numbered by its place among the"
+            + " topic's subtopics, most documents first, counted from 1, which counts that subtopic's groups alone, its"
+            + " links being those of the documents its groups were found among. A topic that is not divided has its own"
+            + " row alone.";
 
     /** The seventh, whole, its first words in {@code <em>}. */
     private static final String THE_SHARE = "<em>Share of documents</em> is how many of the documents grouped on this"
@@ -98,8 +101,9 @@ class TheClusterSizesPageHasARowForEachSubtopicTest {
                         + "<th>Groups of one</th><th>Weakest link</th><th>Middle link</th><th>Strongest link</th></tr>\n"));
         claim("the undivided topic has its row alone, its subtopic cell empty, holding 4 of the " + DOCUMENTS
                         + " documents, a half, in 2 groups; the divided topic's row counts every group across its"
-                        + " subtopics, 4 documents in 3 groups, 2 of them of one; then subtopic 1's row, 3 documents,"
-                        + " 37.5%, in 2 groups, and subtopic 0's, 1 document, 12.5%, in 1, each named by its topic's key",
+                        + " subtopics, 4 documents in 3 groups, 2 of them of one; then its first subtopic's row,"
+                        + " numbered 1, 3 documents, 37.5%, in 2 groups, and its second's, numbered 2, 1 document,"
+                        + " 12.5%, in 1, each named by its topic's key",
                 () -> assertThat(page).contains(
                         "<tr><td>seeds/a.txt chunk 0</td><td class=\"count\"></td><td class=\"count\">4</td>"
                                 + "<td class=\"count\">50.0%</td><td class=\"count\">2</td><td class=\"count\">2</td>"
@@ -113,7 +117,7 @@ class TheClusterSizesPageHasARowForEachSubtopicTest {
                                 + "<td class=\"count\">37.5%</td><td class=\"count\">2</td><td class=\"count\">2</td>"
                                 + "<td class=\"count\">2</td><td class=\"count\">1</td>"
                                 + NO_LINK + NO_LINK + NO_LINK + "</tr>\n"
-                                + "<tr><td>seeds/b.txt chunk 4</td><td class=\"count\">0</td><td class=\"count\">1</td>"
+                                + "<tr><td>seeds/b.txt chunk 4</td><td class=\"count\">2</td><td class=\"count\">1</td>"
                                 + "<td class=\"count\">12.5%</td><td class=\"count\">1</td><td class=\"count\">1</td>"
                                 + "<td class=\"count\">1</td><td class=\"count\">1</td>"
                                 + NO_LINK + NO_LINK + NO_LINK + "</tr>\n"));
@@ -126,19 +130,19 @@ class TheClusterSizesPageHasARowForEachSubtopicTest {
         ClusterSizeReport.Topic divided = ClusterSizeReport.Topic.divided(
                 "seeds/b.txt",
                 4,
-                List.of(ClusterSizeReport.Subtopic.of(1, List.of(2, 1), Optional.of(new RetainedEdgeSpread(0.7, 0.8, 0.9, 2))),
-                        ClusterSizeReport.Subtopic.of(0, List.of(1), Optional.empty())),
+                List.of(ClusterSizeReport.Subtopic.of(List.of(2, 1), Optional.of(new RetainedEdgeSpread(0.7, 0.8, 0.9, 2))),
+                        ClusterSizeReport.Subtopic.of(List.of(1), Optional.empty())),
                 Optional.of(new RetainedEdgeSpread(0.4, 0.5, 0.6, 3)));
 
         String page = ClusterSizeReport.render(List.of(divided));
 
         claim("the topic's row shows the links of its whole graph, 0.40 to 0.60; subtopic 1's those of its own, 0.70 to"
-                        + " 0.90; and subtopic 0, of one document, no link",
+                        + " 0.90; and subtopic 2, of one document, no link",
                 () -> assertThat(page).contains(
                         "<td class=\"count\">0.40</td><td class=\"count\">0.50</td><td class=\"count\">0.60</td></tr>\n"
                                 + "<tr><td>seeds/b.txt chunk 4</td><td class=\"count\">1</td>",
                         "<td class=\"count\">0.70</td><td class=\"count\">0.80</td><td class=\"count\">0.90</td></tr>\n"
-                                + "<tr><td>seeds/b.txt chunk 4</td><td class=\"count\">0</td>",
+                                + "<tr><td>seeds/b.txt chunk 4</td><td class=\"count\">2</td>",
                         NO_LINK + NO_LINK + NO_LINK + "</tr>\n</table>\n"));
     }
 
@@ -181,13 +185,13 @@ class TheClusterSizesPageHasARowForEachSubtopicTest {
                                 "weakest-link Weakest link number",
                                 "middle-link Middle link number",
                                 "strongest-link Strongest link number"));
-        claim("its rows are the page's, in its order: a topic's subtopic null, a subtopic's its number, each share a"
-                        + " fraction of the " + DOCUMENTS + " documents to three places, and no link null",
+        claim("its rows are the page's, in its order: a topic's subtopic null, a subtopic's its place, counted from 1,"
+                        + " each share a fraction of the " + DOCUMENTS + " documents to three places, and no link null",
                 () -> assertThat(AnalysisReportRows.of(topics)).containsExactly(
                         Arrays.asList("seeds/a.txt chunk 0", null, 4.0, 0.5, 2.0, 2.0, 2.0, 0.0, null, null, null),
                         Arrays.asList("seeds/b.txt chunk 4", null, 4.0, 0.5, 3.0, 2.0, 1.0, 2.0, null, null, null),
                         Arrays.asList("seeds/b.txt chunk 4", 1.0, 3.0, 0.375, 2.0, 2.0, 2.0, 1.0, null, null, null),
-                        Arrays.asList("seeds/b.txt chunk 4", 0.0, 1.0, 0.125, 1.0, 1.0, 1.0, 1.0, null, null, null)));
+                        Arrays.asList("seeds/b.txt chunk 4", 2.0, 1.0, 0.125, 1.0, 1.0, 1.0, 1.0, null, null, null)));
         claim("its headline counts the topics' rows alone, so no document or group is counted twice: 2 topics, "
                         + DOCUMENTS + " documents, 5 groups, 2 of one",
                 () -> assertThat(json.get("headline"))

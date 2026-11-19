@@ -59,7 +59,9 @@ final class TopicsAnalysisReport {
 
     private static final String THE_LINKS =
             "<em>Linked documents</em> are documents placed under another topic that also fit this one: each is copied"
-            + " once, under its own topic, and this topic carries a link to it rather than a second copy.";
+            + " once, under its own topic, and this topic's page carries a link to it rather than a second copy. A topic no"
+            + " document was placed under has no page in what is written: its linked documents are counted here, and no"
+            + " link to them is drawn.";
 
     /** The column of a topic's name: the row's own name, taken from the record, as no literal of this class names a table (ADR-041). */
     private static final String TOPIC_COLUMN = Topic.class.getSimpleName().toLowerCase(Locale.ROOT);

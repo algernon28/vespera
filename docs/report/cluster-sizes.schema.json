@@ -148,7 +148,7 @@
               },
               "rows": {
                 "type": "array",
-                "description": "One row for each topic, each followed, where the topic is divided, by one row for each of its subtopics, most documents first, in the page's order; each a list of cells in the columns' order: the topic's key, its first passage's seed path, the word chunk and that passage's number; the subtopic's number, counted from 0, or null on a topic's own row; five counts around the share of the documents grouped, a fraction of one to three places; and three links to two places, each null where the row holds one document and so has no link.",
+                "description": "One row for each topic, each followed, where the topic is divided, by one row for each of its subtopics, most documents first, in the page's order; each a list of cells in the columns' order: the topic's key, its first passage's seed path, the word chunk and that passage's number; the subtopic's place among its topic's subtopics, most documents first, counted from 1, or null on a topic's own row; five counts around the share of the documents grouped, a fraction of one to three places; and three links to two places, each null where the row holds one document and so has no link.",
                 "items": {
                   "type": "array",
                   "description": "One row."

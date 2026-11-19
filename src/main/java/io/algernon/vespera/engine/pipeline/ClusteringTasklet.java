@@ -239,7 +239,6 @@ class ClusteringTasklet implements Tasklet {
                             List<ClusterSizeReport.Subtopic> subtopics = new ArrayList<>();
                             for (int subtopic : Arrangement.subtopicsInOrder(survivorsOfSubtopics)) {
                                 subtopics.add(ClusterSizeReport.Subtopic.of(
-                                        subtopic,
                                         TimedStatement.of(
                                                 STAGE, "reading", "read",
                                                 "the cluster sizes of subtopic " + subtopic + " of " + whichTopic,

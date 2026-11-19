@@ -33,7 +33,10 @@ import tools.jackson.databind.json.JsonMapper;
  * survivors into subtopics where they form two communities or more, its clusters then found and numbered within each
  * (ADR-406 §1, §2; ADR-409 §3, §8). Each survivor's row names its topic's key, its subtopic, or -1 where the topic has
  * none, and its cluster. {@code cluster-sizes.json} has the topic's row and, under a divided topic, a row for each
- * subtopic, each with its share of the documents grouped (ADR-416 §5, §6).
+ * subtopic, numbered by its place in ADR-406 §4's order counted from 1, each with its share of the documents grouped
+ * (ADR-416 §5, §6). The three subtopics here hold a document each, so that order is the order of their recorded
+ * numbers, and the place of each is its recorded number and one; {@code TheClusterSizesPageHasARowForEachSubtopicTest}
+ * holds that the page numbers subtopics by their place and is handed no recorded number.
  *
  * <p>One seed of one passage gives one topic, keyed by {@code seed.txt} and its first chunk, 0, and every document is
  * placed under it. Every vector of the fixture is the same, and at this machine's resolution of {@value
@@ -113,13 +116,15 @@ class ClusteringDividesEachTopicInvocationTest {
                         THE_TOPIC + " subtopic 2 cluster 0"));
         claim("the group sizes have the topic's row, its " + THE_FLOOR + " documents all of those grouped, in "
                         + THE_FLOOR + " groups of one, its links those of its whole graph, the documents being alike;"
-                        + " then a row for each of subtopics 0, 1 and 2, one document and a third each, with no link,"
-                        + " a subtopic of one document having no pair",
+                        + " then a row for each of its three subtopics, numbered 1, 2 and 3 by their place in the"
+                        + " topic's order of subtopics, as every other view numbers them, and not 0, 1 and 2 as the"
+                        + " division recorded them; one document and a third each, with no link, a subtopic of one"
+                        + " document having no pair",
                 () -> assertThat(sizes).containsExactly(
                         Arrays.asList(THE_TOPICS_ROW_KEY, null, 3.0, 1.0, 3.0, 1.0, 1.0, 3.0, ALIKE, ALIKE, ALIKE),
-                        Arrays.asList(THE_TOPICS_ROW_KEY, 0.0, 1.0, A_THIRD, 1.0, 1.0, 1.0, 1.0, null, null, null),
                         Arrays.asList(THE_TOPICS_ROW_KEY, 1.0, 1.0, A_THIRD, 1.0, 1.0, 1.0, 1.0, null, null, null),
-                        Arrays.asList(THE_TOPICS_ROW_KEY, 2.0, 1.0, A_THIRD, 1.0, 1.0, 1.0, 1.0, null, null, null)));
+                        Arrays.asList(THE_TOPICS_ROW_KEY, 2.0, 1.0, A_THIRD, 1.0, 1.0, 1.0, 1.0, null, null, null),
+                        Arrays.asList(THE_TOPICS_ROW_KEY, 3.0, 1.0, A_THIRD, 1.0, 1.0, 1.0, 1.0, null, null, null)));
     }
 
     @Test

@@ -147,7 +147,7 @@
               },
               "rows": {
                 "type": "array",
-                "description": "Its rows, in the page's order, each a list of cells in the columns' order. A topic's row: its name, its first passage as the seed's path, the word chunk and the passage's number, its passages, their share of every seed passage as a fraction of one to three places, its seed documents, the documents placed under it and the documents linked from it. A row of a topic with no document: its name, its first passage, one seed document feeding it and that seed document's passages in it. A seed document feeding no topic: its path.",
+                "description": "Its rows, in the page's order, each a list of cells in the columns' order. A topic's row: its name, its first passage as the seed's path, the word chunk and the passage's number, its passages, their share of every seed passage as a fraction of one to three places, its seed documents, the documents placed under it and the documents placed under another topic that fit it, counted whether or not the topic has a page to link them from. A row of a topic with no document: its name, its first passage, one seed document feeding it and that seed document's passages in it. A seed document feeding no topic: its path.",
                 "items": {
                   "type": "array",
                   "description": "One row."

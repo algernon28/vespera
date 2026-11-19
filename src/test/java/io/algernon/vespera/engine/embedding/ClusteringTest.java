@@ -80,15 +80,15 @@ class ClusteringTest {
     /** A subtopic floor the thirty-six documents of the divided topic reach, so it is divided (ADR-406 section 1). */
     private static final int A_LOW_FLOOR = 2;
 
-    /** How far each document of a tight group leans off its axis, a step a document. */
+    /** How far each tight document leans off its axis, a step a document. */
     private static final float TIGHT = 0.01f;
 
-    /** How far each document of a loose group leans off its axis: three times a tight one's. */
+    /** How far each loose document leans off its axis: three times a tight one's. */
     private static final float LOOSE = 0.03f;
 
     /**
-     * A loose group's size: other than a tight one's, so the two subtopics are not of as many, and k + 1, so each of
-     * its documents keeps every other and the group stays one community.
+     * How many loose documents there are: other than the tight ones' count, so the two subtopics are not of as many,
+     * and k + 1, so each loose document keeps every other and the loose documents stay one community.
      */
     private static final int LOOSE_SIZE = NEIGHBOURS + 1;
 
@@ -220,8 +220,8 @@ class ClusteringTest {
                 });
         int tightsSubtopic = tightsSubtopics.iterator().next();
         int loosesSubtopic = loosesSubtopics.iterator().next();
-        claim("the two groups' own graphs keep edges of different spreads, so a spread handed to the wrong subtopic"
-                        + " would show",
+        claim("the tight documents' own graph and the loose ones' keep edges of different spreads, so a spread handed"
+                        + " to the wrong subtopic would show",
                 () -> assertThat(tightsOwn)
                         .as("the tight documents' spread clustered alone")
                         .isPresent()

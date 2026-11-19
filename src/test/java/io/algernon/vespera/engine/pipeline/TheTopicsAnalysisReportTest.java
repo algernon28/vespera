@@ -108,10 +108,14 @@ class TheTopicsAnalysisReportTest {
             + " passage of your seed documents, a seed document whose text is the same as an earlier one's counted"
             + " once, under the earlier. The shares add up to less than the whole where a topic was too narrow to keep.";
 
-    /** The second, whole. */
+    /**
+     * The second, whole: a topic no document was placed under has no page (ADR-415 section 5), so its linked documents
+     * are counted and linked from nowhere.
+     */
     private static final String THE_LINKS = "<em>Linked documents</em> are documents placed under another topic that"
-            + " also fit this one: each is copied once, under its own topic, and this topic carries a link to it rather"
-            + " than a second copy.";
+            + " also fit this one: each is copied once, under its own topic, and this topic's page carries a link to it"
+            + " rather than a second copy. A topic no document was placed under has no page in what is written: its"
+            + " linked documents are counted here, and no link to them is drawn.";
 
     @Test
     @Story("What feeds each topic is shown before the arrangement is approved")
@@ -197,7 +201,9 @@ class TheTopicsAnalysisReportTest {
         String page = TopicsAnalysisReport.render(SEED_PASSAGES, TWO_TOPICS, TWO_SEEDS_FEEDING_NONE);
 
         claim("under How to read this, the share is said to be of every seed passage, a repeated seed counted once, and"
-                        + " a linked document to be copied once under its own topic and linked from this one",
+                        + " a linked document to be copied once under its own topic and linked from this topic's page,"
+                        + " and a topic no document was placed under to have no page, its linked documents counted"
+                        + " and no link to them drawn",
                 () -> assertThat(page).contains("<h2>How to read this</h2>\n<p>" + THE_SHARE + "</p>\n<p>" + THE_LINKS
                         + "</p>\n"));
     }

@@ -81,7 +81,7 @@ final class ClusterSizeReport {
     private static final String SUBTOPICS =
             "A crowded topic is divided into subtopics before its documents are grouped. Its row counts every group"
             + " across its subtopics, and its links are those of the documents of the whole topic; directly under it,"
-            + " each subtopic has a row of its own, numbered as the division numbered it, counted from 0, which counts"
+            + " each subtopic has a row of its own, numbered by its place among the topic's subtopics, most documents first, counted from 1, which counts"
             + " that subtopic's groups alone, its links being those of the documents its groups were found among. A"
             + " topic that is not divided has its own row alone.";
 
@@ -139,7 +139,8 @@ final class ClusterSizeReport {
 
         /**
          * The row for a divided topic: its five numbers taken across the clusters of all its subtopics, the
-         * subtopics drawn under it in the order given (ADR-416 section 5).
+         * subtopics drawn under it in the order given, each numbered by its place in that order, counted from 1
+         * (ADR-416 section 5).
          */
         static Topic divided(
                 String seedPath, int chunkIndex, List<Subtopic> subtopics, Optional<RetainedEdgeSpread> spread) {
@@ -147,7 +148,11 @@ final class ClusterSizeReport {
             subtopics.forEach(subtopic -> sizes.addAll(subtopic.sizes()));
             // The sizes are taken over once here and each subtopic is then kept without its own, so a divided
             // topic holds eleven values a row until the page is written (ADR-416 section 8, ADR-223 section 2).
-            return of(seedPath, chunkIndex, sizes, subtopics.stream().map(Subtopic::withoutSizes).toList(), spread);
+            List<Subtopic> placed = new ArrayList<>();
+            for (int place = 0; place < subtopics.size(); place++) {
+                placed.add(subtopics.get(place).withoutSizes(place + 1));
+            }
+            return of(seedPath, chunkIndex, sizes, placed, spread);
         }
 
         private static Topic of(
@@ -173,7 +178,8 @@ final class ClusterSizeReport {
      * One subtopic of a divided topic: the five numbers of its own clusters and the spread of its own graph (ADR-416
      * section 5).
      *
-     * @param ordinal the subtopic's number as {@code cluster_member} records it, counted from 0
+     * @param ordinal the subtopic's place among its topic's subtopics in the order drawn, counted from 1; 0 until a
+     *     divided topic has numbered it
      * @param sizes how many documents each of its clusters holds; empty once the subtopic is held inside a divided
      *     topic, whose row has taken the numbers from them
      * @param spread how alike the documents on the links of the subtopic's own graph were, or empty where it holds one
@@ -188,10 +194,10 @@ final class ClusterSizeReport {
             int singletons,
             Optional<RetainedEdgeSpread> spread) {
 
-        static Subtopic of(int ordinal, List<Integer> sizes, Optional<RetainedEdgeSpread> spread) {
+        static Subtopic of(List<Integer> sizes, Optional<RetainedEdgeSpread> spread) {
             Numbers numbers = Numbers.of(sizes);
             return new Subtopic(
-                    ordinal,
+                    0,
                     List.copyOf(sizes),
                     numbers.documents(),
                     numbers.groups(),
@@ -201,8 +207,8 @@ final class ClusterSizeReport {
                     spread);
         }
 
-        private Subtopic withoutSizes() {
-            return new Subtopic(ordinal, List.of(), documentCount, clusterCount, largest, median, singletons, spread);
+        private Subtopic withoutSizes(int place) {
+            return new Subtopic(place, List.of(), documentCount, clusterCount, largest, median, singletons, spread);
         }
     }
 
