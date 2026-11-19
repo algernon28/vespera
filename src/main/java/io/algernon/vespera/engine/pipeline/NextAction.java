@@ -566,14 +566,14 @@ class NextAction {
                     + renderingsNotDrawn(deliverable) + ".");
         }
         if (!questionsWritten) {
-            return runWanting(whatIsSet(profile, answersRecorded) + " No questions were written this invocation,"
-                    + " so there is nothing to answer yet. Next: fix what the gated line above names,"
+            return runWanting(whatIsSet(profile, answersRecorded) + " No documents to label were written this invocation,"
+                    + " so there is nothing to label yet. Next: fix what the gated line above names,"
                     + " and run again.");
         }
         if (answersRecorded == 0) {
-            return new Closing(whatIsSet(profile, answersRecorded) + " Next: answer the questions in "
+            return new Closing(whatIsSet(profile, answersRecorded) + " Next: label the documents in "
                     + RelevanceLabelFile.FILE_NAME + " -- " + RelevanceLabellingReport.FILE_NAME
-                    + " says what each one is asking and what your answers are for -- then record them"
+                    + " shows each one and what your labels are for -- then record them"
                     + " with vespera label.",
                     new NextInvocationFile.Contents(
                             NextInvocationFile.Invocation.LABEL, List.of(), true, Optional.empty()));
@@ -846,7 +846,7 @@ class NextAction {
         }
         String answers = answersRecorded == 0
                 ? ""
-                : ", and " + answersRecorded + (answersRecorded == 1 ? " answer is" : " answers are")
+                : ", and " + answersRecorded + (answersRecorded == 1 ? " label is" : " labels are")
                         + " recorded";
         String mistyped = unreadable.isEmpty() ? "" : "; " + listed(unreadable);
         if (set.isEmpty()) {

@@ -167,7 +167,7 @@ Stage 5 is eight steps and spans three invocations, with `vespera label` between
 
 **What it does.** Once `relevanceScoreFloor` is set, removes the documents scoring below it. This is the first step that removes anything for being irrelevant.
 
-**Resume.** This step is never recorded as finished. On every invocation it withdraws the removals it made under this scoring and decides again, because the answers you gave with `vespera label` can change what it should do without changing anything else. It calls no sidecar. When an answer changes what it removes, the groups are formed again (5f) and the arrangement is a different one (6a).
+**Resume.** This step is never recorded as finished. On every invocation it withdraws the removals it made under this scoring and decides again, because the labels you recorded with `vespera label` can change what it should do without changing anything else. It calls no sidecar. When a label changes what it removes, the groups are formed again (5f) and the arrangement is a different one (6a).
 
 ### 5f — the groups
 
@@ -175,11 +175,11 @@ Stage 5 is eight steps and spans three invocations, with `vespera label` between
 
 **Resume.** Interrupted, it discards its own groups and forms them again from the stored vectors. Finished, it checks that its groups still hold exactly the documents the floor leaves. If they do, it is skipped. If the floor has since removed a grouped document, or brought back one that has no group, it forms every group again from the stored vectors and writes `cluster-sizes.html` again.
 
-### The questions
+### The documents to label
 
-**What it does.** `relevance-report` writes `relevance-labelling.html` and `relevance-labels.yaml`: sixty documents drawn across the score range, each waiting for your answer.
+**What it does.** `relevance-report` writes `relevance-labelling.html` and `relevance-labels.yaml`: sixty documents drawn across the score range, each waiting for your label.
 
-**Resume.** Like the floor, this step is never recorded as finished, so both files are written anew on every invocation that reaches it, from the answers recorded so far. **Record your answers with `vespera label` before you run `vespera run` again**, so that the new file starts from them.
+**Resume.** Like the floor, this step is never recorded as finished, so both files are written anew on every invocation that reaches it, from the labels recorded so far. **Record your labels with `vespera label` before you run `vespera run` again**, so that the new file starts from them.
 
 ### Between invocations — `vespera label`
 
@@ -187,11 +187,11 @@ Stage 5 is eight steps and spans three invocations, with `vespera label` between
 
 **What it does.** Reads `relevance-labels.yaml` and records every `true` or `false` you wrote. It runs no stage and removes nothing.
 
-**Resume.** Labelling is built to be stopped. Answer some, run `vespera label`, answer more another day, run it again. The same run always asks about the same documents. Your answers are kept by document, not by run, so they survive a new embedding model, a new floor and a new walk.
+**Resume.** Labelling is built to be stopped. Label some, run `vespera label`, label more another day, run it again. The same run always draws the same documents. Your labels are kept by document, not by run, so they survive a new embedding model, a new floor and a new walk.
 
-**It refuses, and records nothing,** when there is no label file, when the file was written for another seed folder, or when it names a run this working directory does not hold. The message says which. Run `vespera run` again to have a current file written, then answer that one.
+**It refuses, and records nothing,** when there is no label file, when the file was written for another seed folder, or when it names a run this working directory does not hold. The message says which. Run `vespera run` again to have a current file written, then label that one.
 
-**`vespera label --auto`** has the local model answer the questions in the label file and then sets `relevanceScoreFloor` by a rule that loses no document labelled relevant. It never replaces an answer a person gave, and it leaves a floor a person wrote as it is. It takes no file argument, and it refuses while the file holds answers you have not recorded: run `vespera label` first.
+**`vespera label --auto`** has the local model label the documents in the label file and then sets `relevanceScoreFloor` by a rule that loses no document labelled relevant. It never replaces a label a person set, and it leaves a floor a person wrote as it is. It takes no file argument, and it refuses while the file holds labels you have not recorded: run `vespera label` first.
 
 ### Setting the floor
 
@@ -207,7 +207,7 @@ Read a number off `relevance-labelling.html`, write it into `relevanceScoreFloor
 
 **Resume.** Interrupted, it discards its own rows and arranges again. Finished, it is not arranged again.
 
-**An approval is for one arrangement.** If anything upstream changes afterwards (the archive, the embedding model, the floor, an extraction attempt), the groups are formed again, the arrangement has a new name, and the old approval opens nothing, unless it is `auto`. The last line says the approval does not match and gives you the new name. Read the page again before you copy it. The same holds when your answers change what the floor removes without the floor itself changing: the arrangement with those removals and the one without are two arrangements, each with its own name, approval and written groups, and going back to the earlier answers arrives at the earlier one again.
+**An approval is for one arrangement.** If anything upstream changes afterwards (the archive, the embedding model, the floor, an extraction attempt), the groups are formed again, the arrangement has a new name, and the old approval opens nothing, unless it is `auto`. The last line says the approval does not match and gives you the new name. Read the page again before you copy it. The same holds when your labels change what the floor removes without the floor itself changing: the arrangement with those removals and the one without are two arrangements, each with its own name, approval and written groups, and going back to the earlier labels arrives at the earlier one again.
 
 ## Stage 6b — generation
 
@@ -231,14 +231,14 @@ A stage runs again when something it was computed from changes. What it was comp
 
 | You change | Runs again | Kept |
 |---|---|---|
-| `logTimestampShareFloor`, `outOfScopeNameEndings`, `codeNameEndings`, `configurationSettingShareFloor` | stage 1 onward | conversions, vectors, your answers |
-| `degenerateOutputConfidenceFloor` | stage 2 onward | conversions, vectors, your answers |
-| `degenerateOutputWordFloor` | stage 2 onward | conversions, vectors, your answers |
-| `extractionAttempt` | stage 2 onward | conversions already answered, vectors, your answers |
-| `boilerplateDocumentFrequencyFloor` | stage 4 onward | extraction, vectors, your answers |
-| `seedFolder` | stage 5 onward | extraction, stage 4; the answers given for the old folder stay with the old folder |
-| `embeddingModel` | stage 5 scoring onward | extraction, stage 4, your answers |
-| `relevanceScoreFloor` | stage 5 scoring onward, from the stored vectors | extraction, stage 4, vectors, your answers |
+| `logTimestampShareFloor`, `outOfScopeNameEndings`, `codeNameEndings`, `configurationSettingShareFloor` | stage 1 onward | conversions, vectors, your labels |
+| `degenerateOutputConfidenceFloor` | stage 2 onward | conversions, vectors, your labels |
+| `degenerateOutputWordFloor` | stage 2 onward | conversions, vectors, your labels |
+| `extractionAttempt` | stage 2 onward | conversions already answered, vectors, your labels |
+| `boilerplateDocumentFrequencyFloor` | stage 4 onward | extraction, vectors, your labels |
+| `seedFolder` | stage 5 onward | extraction, stage 4; the labels set for the old folder stay with the old folder |
+| `embeddingModel` | stage 5 scoring onward | extraction, stage 4, your labels |
+| `relevanceScoreFloor` | stage 5 scoring onward, from the stored vectors | extraction, stage 4, vectors, your labels |
 | `arrangementApproved` | generation only | everything before it |
 | `generationModel`, `generationContextWindow`, `deliverableLanguage` | generation | everything before it |
 | `clusterPageByteCeiling` | no stage: the next invocation that reaches generation draws the tree again | everything |
@@ -247,11 +247,11 @@ Three things to know about this table:
 
 - **Any change above stage 6a ends in a new arrangement to approve.** That is the cost of going back, and it is deliberate: an approval never outlives what it approved.
 - **Nothing is deleted when you change a value.** The old stage's results stay recorded beside the new ones. Put the old value back and the next invocation finds that work already recorded and continues from it at no cost. So trying a stricter floor and returning to the looser one is cheap in both directions.
-- **The two expensive things are kept across almost everything**: a converted document, as long as the converter image is the same, and a vector, as long as the embedding model is the same. Pulling the embedding model again can make it another model under the same name: Vespera then embeds and scores every document again, the relevance threshold removes nothing until you answer the sample again from the new label file, and the arrangement has to be approved again.
+- **The two expensive things are kept across almost everything**: a converted document, as long as the converter image is the same, and a vector, as long as the embedding model is the same. Pulling the embedding model again can make it another model under the same name: Vespera then embeds and scores every document again, the relevance threshold removes nothing until you label the sample again from the new label file, and the arrangement has to be approved again.
 
 ### The archive changed
 
-A file added, removed, moved or modified makes the next walk a new observation. Every stage runs again over it, and the arrangement has to be approved again. It costs far less than the first time: unchanged files are read back from the conversion store and their vectors from the vector store, so only new or changed content reaches a sidecar. Your recorded answers still apply.
+A file added, removed, moved or modified makes the next walk a new observation. Every stage runs again over it, and the arrangement has to be approved again. It costs far less than the first time: unchanged files are read back from the conversion store and their vectors from the vector store, so only new or changed content reaches a sidecar. Your recorded labels still apply.
 
 ### The build changed
 
