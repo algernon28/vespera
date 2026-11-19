@@ -51,8 +51,10 @@ interface DockerControl {
      * @param wslDistribution the WSL distribution, blank for WSL's default
      * @param waitAtMost the bound of every start and stop command
      * @param lockFolder the folder the corpus-root locks lie in, where {@code sidecars.lock} lies too
+     * @param profileFolder the Windows profile folder {@code .wslconfig} lies in (ADR-421 §6)
      */
-    record Settings(String wslDistribution, Duration waitAtMost, Path lockFolder, StartingValues.Sources sources) {
+    record Settings(String wslDistribution, Duration waitAtMost, Path lockFolder, Path profileFolder,
+            StartingValues.Sources sources) {
     }
 
     /**
@@ -69,12 +71,19 @@ interface DockerControl {
 
     /** The control: {@link DockerEngine}, called in this process. */
     static DockerControl inProcess(Settings settings) {
-        DockerEngine engine = DockerEngine.of(settings.wslDistribution(), settings.waitAtMost(), settings.lockFolder());
+        DockerEngine engine = DockerEngine.of(
+                settings.wslDistribution(), settings.waitAtMost(), settings.lockFolder(), settings.profileFolder());
         return new DockerControl() {
             @Override
             public Said start(LaunchValues values) {
-                return said(engine.startTheEngine(address(values.doclingBaseUrl(), DOCLING_PROPERTY, DEFAULT_DOCLING),
-                        address(values.ollamaBaseUrl(), OLLAMA_PROPERTY, DEFAULT_OLLAMA)));
+                URI docling = address(values.doclingBaseUrl(), DOCLING_PROPERTY, DEFAULT_DOCLING);
+                URI ollama = address(values.ollamaBaseUrl(), OLLAMA_PROPERTY, DEFAULT_OLLAMA);
+                Optional<String> wslLine = engine.keepTheWslDistributionUp(docling, ollama);
+                Optional<String> refusal = engine.startTheEngine(docling, ollama);
+                if (refusal.isPresent()) {
+                    return new Said(false, refusal.get());
+                }
+                return new Said(true, wslLine.orElse(""));
             }
 
             @Override

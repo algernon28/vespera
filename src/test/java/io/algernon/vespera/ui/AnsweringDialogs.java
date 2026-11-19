@@ -13,8 +13,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 final class AnsweringDialogs implements Dialogs {
 
-    /** A question the window asked: its sentence, the words of the answer that goes on, and of the one that does not. */
-    record Asked(String sentence, String yes, String no) {
+    /**
+     * A question the window asked: its title (ADR-423 §1), its sentence, the words of the answer that goes on, and of
+     * the one that does not.
+     */
+    record Asked(String title, String sentence, String yes, String no) {
     }
 
     /** Every question asked, in order. */
@@ -89,8 +92,8 @@ final class AnsweringDialogs implements Dialogs {
     }
 
     @Override
-    public boolean confirm(String sentence, String yes, String no) {
-        asked.add(new Asked(sentence, yes, no));
+    public boolean confirm(String title, String sentence, String yes, String no) {
+        asked.add(new Asked(title, sentence, yes, no));
         return answer;
     }
 }

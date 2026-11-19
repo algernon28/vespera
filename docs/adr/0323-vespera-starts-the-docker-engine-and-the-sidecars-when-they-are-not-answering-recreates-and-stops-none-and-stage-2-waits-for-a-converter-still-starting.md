@@ -14,6 +14,8 @@
 
 > **Partly amended — see [ADR-410](0410-a-missing-docker-compose-or-buildx-is-named-with-the-command-that-installs-it-before-up.md).** Of §3: between step 6 and step 7, under the lock, `docker compose version` and then `docker buildx version` are run, inside the distribution on Windows, each killed after 30 s; one not exiting 0 refuses the start before `up`. Of §8: a line of its own, `ComposeOrBuildxIsNotInstalledException`'s, naming what is missing, the distribution on Windows, and the command that installs it on that system. The rest of this record stands.
 
+> **Partly amended — see [ADR-421](0421-on-windows-vespera-writes-wslconfig-with-no-idle-timeout-where-there-is-none-and-changes-no-file-that-is-there.md).** Of §3: between step 2 and step 3, on Windows, `%UserProfile%\.wslconfig` is written, holding `[general]` and `instanceIdleTimeout=-1`, where no file of that name is there, and read where one is, never changed; it runs no command, takes no lock and refuses nothing, a line at WARN saying what it found. The rest of this record stands.
+
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.
 - **Decided**: by the operator, who decided that Vespera starts the Docker engine where it is not running, Docker Desktop on Windows and macOS and the service on Linux, then brings the sidecars up with the README's `up` line, `compose.gpu.yaml` included where the configuration asks for the GPU, and never stops them; and that stage 2's start check waits for a converter that is still starting. How the GPU is known, which commands start them, the per-system commands, the bounds, the refusals, the opt-out and the locks are decided under delegation.
