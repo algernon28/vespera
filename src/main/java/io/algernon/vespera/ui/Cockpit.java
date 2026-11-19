@@ -956,13 +956,14 @@ final class Cockpit {
     private void showModelsInUse() {
         namingModel.setText(modelInUse("vespera.naming.model"));
         labelModel.setText(modelInUse("vespera.label.model"));
+        options.showPresets(state.effectiveValues(folders.workingDirectory()));
     }
 
     /** What the working directory's file says of the model {@code key} names, or that the jar has not said yet. */
     private String modelInUse(String key) {
         return state.effectiveValues(folders.workingDirectory()).flatMap(values -> values.named(key))
                 .map(ProfileRow::modelInUseOf)
-                .orElse("The jar has not said yet what it would use; run an invocation to see it.");
+                .orElse(ProfileRow.NOT_SAID_YET);
     }
 
     /** The label model's line is shown only while its field stands blank (ADR-334 section 2). */

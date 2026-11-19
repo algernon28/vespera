@@ -5,6 +5,7 @@ import static io.algernon.vespera.ui.Layout.tight;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,6 +29,7 @@ final class OptionsPane {
     private final Runnable changed;
     private final Map<String, Preset> presets = new LinkedHashMap<>();
     private final Map<ControlPanelState.Start, SelectableText.Wrapping> commandLines = new LinkedHashMap<>();
+    private final PresetsInUse presetsInUse = new PresetsInUse();
 
     /** {@code changed} runs whenever a control of the pane changes what a command line would be. */
     OptionsPane(ControlPanelState state, Runnable changed) {
@@ -110,8 +112,14 @@ final class OptionsPane {
             commandLines.put(kind, shown);
             pane.getChildren().add(shown);
         }
+        pane.getChildren().add(presetsInUse.block());
         pane.getStyleClass().add("section");
         return pane;
+    }
+
+    /** Shows the presets with no profile key from the working directory's file, empty being no file (ADR-427 §5). */
+    void showPresets(Optional<EffectiveValues> said) {
+        presetsInUse.show(said);
     }
 
     /** Whether the command lines are drawn yet. */
