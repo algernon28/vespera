@@ -12,7 +12,7 @@
 
 > **Partly amended — see [ADR-384](0384-whether-the-models-run-locally-or-in-the-cloud-is-the-profiles-to-say-local-by-default-and-cloud-refused-at-the-start.md).** Of §3's form read: a whole line that is a comment, at any indent, is in the form, at the margin belonging to no block, and every write keeps it byte for byte; a comment after a key or a value on its line is still not in the form. The rest stands.
 
-> **Partly amended — see [ADR-424](0424-the-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md).** Of §6: the refusal of a missing label file reads *relevance-labels.yaml is not there, so there is no document to label; vespera run writes it*.
+> **Partly amended — see [ADR-424](0424-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md).** Of §6: the refusal of a missing label file reads *relevance-labels.yaml is not there, so there is no document to label; vespera run writes it*.
 
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.

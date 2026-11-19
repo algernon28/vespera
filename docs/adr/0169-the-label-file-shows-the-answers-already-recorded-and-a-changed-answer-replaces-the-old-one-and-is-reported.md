@@ -1,6 +1,6 @@
 # ADR-169 — The label file shows the answers already recorded, and a changed answer replaces the old one and is reported
 
-> **Partly amended — see [ADR-424](0424-the-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md).** Of §3: `vespera label`'s line counts labels and the documents still blank, *recorded ‹n› label(s) about the seed set at ‹p›: …; ‹n› document(s) are still blank*. Of §4: the refusal of a file about another seed set ends *labels about one seed set are not labels about another, so nothing in it was recorded*.
+> **Partly amended — see [ADR-424](0424-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md).** Of §3: `vespera label`'s line counts labels and the documents still blank, *recorded ‹n› label(s) about the seed set at ‹p›: …; ‹n› document(s) are still blank*. Of §4: the refusal of a file about another seed set ends *labels about one seed set are not labels about another, so nothing in it was recorded*.
 
 - **Date**: 2026-09-28
 - **Status**: accepted

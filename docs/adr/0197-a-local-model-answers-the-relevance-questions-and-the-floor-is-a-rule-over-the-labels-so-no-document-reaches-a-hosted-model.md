@@ -10,7 +10,7 @@
 
 > **Partly amended — see [ADR-384](0384-whether-the-models-run-locally-or-in-the-cloud-is-the-profiles-to-say-local-by-default-and-cloud-refused-at-the-start.md).** Of §6: the labeller refuses an endpoint not this machine, its first case, and a model whose digest `/api/tags` does not give; its second and third cases, a tag ending in `cloud` and a model Ollama reports as remote or whose `/api/show` answer cannot be read, go. `vespera label --auto` refuses at its start a profile whose `modelsRunOn` is `cloud`, or any value but `local`, before the sidecars' start and before the labeller is asked anything. The rest stands.
 
-> **Partly amended — see [ADR-424](0424-the-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md).** Of §6: `--auto`'s refusal reads *the label file holds ‹n› label(s) not yet recorded; run vespera label first*, its line *labelled ‹n› of ‹m› document(s) with …; ‹d› already labelled by a person and left as they are*, and its description *Have the local model label the documents in the label file …*.
+> **Partly amended — see [ADR-424](0424-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md).** Of §6: `--auto`'s refusal reads *the label file holds ‹n› label(s) not yet recorded; run vespera label first*, its line *labelled ‹n› of ‹m› document(s) with …; ‹d› already labelled by a person and left as they are*, and its description *Have the local model label the documents in the label file …*.
 
 - **Date**: 2026-10-05
 - **Status**: accepted

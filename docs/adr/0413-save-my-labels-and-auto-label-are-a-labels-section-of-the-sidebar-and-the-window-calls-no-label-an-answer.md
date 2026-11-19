@@ -1,6 +1,6 @@
 # ADR-413 — Save my labels and Auto Label are a Labels section of the sidebar, and the window calls no label an answer
 
-> **Partly amended — see [ADR-424](0424-the-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md).** Of *What this does not decide*: `vespera label`'s usage, the jar's lines, the invocation report, the README's sections on the command and the label file, `CONTEXT.md`'s Relevance label and the window's *question* call no label an answer and no document to label a question; and the README's section on the control panel names Auto Label where it still named Let the local model answer.
+> **Partly amended — see [ADR-424](0424-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md).** Of *What this does not decide*: `vespera label`'s usage, the jar's lines, the invocation report, the README's sections on the command and the label file, `CONTEXT.md`'s Relevance label and the window's *question* call no label an answer and no document to label a question; and the README's section on the control panel names Auto Label where it still named Let the local model answer.
 
 - **Date**: 2026-11-17
 - **Status**: accepted on 2026-11-17.

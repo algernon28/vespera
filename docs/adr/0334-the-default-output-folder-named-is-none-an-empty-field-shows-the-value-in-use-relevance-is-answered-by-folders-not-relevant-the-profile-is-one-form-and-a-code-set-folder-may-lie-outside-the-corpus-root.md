@@ -12,7 +12,7 @@
 
 > **Partly amended — see [ADR-397](0397-the-yaml-configuration-lies-beside-the-jar-and-the-jar-writes-its-shipped-copy-where-a-file-is-missing.md).** Of §11: the jar's own default image is its shipped copy's `vespera.docling.image`, still the processor build; `application.yaml` lies in the folder beside the jar, and a file there naming another image is the operator's, which `vespera` started by hand runs. The rest of this record stands.
 
-> **Partly amended — see [ADR-424](0424-the-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md).** Of §6: the refusal of the corpus root reads *the folder ‹folder› is not added: the corpus root holds every document to label; name a folder below it*.
+> **Partly amended — see [ADR-424](0424-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md).** Of §6: the refusal of the corpus root reads *the folder ‹folder› is not added: the corpus root holds every document to label; name a folder below it*.
 
 - **Date**: 2026-11-03
 - **Status**: accepted on 2026-11-03.

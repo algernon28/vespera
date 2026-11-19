@@ -3124,7 +3124,7 @@ public final class Adr {
      * and §4, ADR-197 §6, ADR-266 §3, ADR-295 §6, ADR-334 §6 and ADR-413).
      */
     public static final String NO_TEXT_FOR_THE_OPERATOR_CALLS_A_LABEL_AN_ANSWER = FILE
-            + "0424-the-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md";
+            + "0424-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md";
 
     /**
      * ADR-425 -- at each reading a stage's chart sets its time axis from the seconds of the samples it holds and its
