@@ -199,11 +199,11 @@ Read a number off `relevance-labelling.html`, write it into `relevanceScoreFloor
 
 ## Stage 6a — arrangement
 
-**Needs:** groups from stage 5.
+**Needs:** groups from stage 5, and Ollama running and serving the naming model.
 
 **What it does.** Has the naming model (`qwen3:8b`, unless `vespera.naming.model` names another) name each topic and subtopic, pulling it into Ollama first where Ollama does not serve it, unless `VESPERA_MODELS_PULL=false`; a name, once given, is kept for this arrangement and never asked for again. Then it names each group after its highest-scoring document, puts the topics and the groups in order, and writes `topics.html`, what feeds each topic, the topics no document was placed under and the exemplars feeding none, and `arrangement.html`, the groups under their topics and subtopics, whose names are shown and not approved. It judges nothing and removes nothing. The last line of the output gives you a twelve-character name for this arrangement.
 
-**Where it stops.** The invocation ends here until you approve. Read `arrangement.html`. If it is the arrangement you want, write the name from the last line into `arrangementApproved`, with what you checked in `provenance`, and run again. To have every arrangement written over without stopping here, write `auto` instead of a name.
+**Where it stops.** The invocation ends here until you approve. Read `arrangement.html`. If it is the arrangement you want, write the name from the last line into `arrangementApproved`, with what you checked in `provenance`, and run again. To have every arrangement written over without stopping here, write `auto` instead of a name. It also stops, before any topic is named, when Ollama does not serve the naming model and the step could not pull it or was told not to, with a line naming it; and when the naming model gives no answer, the names already given kept, so the next invocation asks only for the rest.
 
 **Resume.** Interrupted, it discards its own rows and arranges again. Finished, it is not arranged again.
 
