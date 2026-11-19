@@ -65,7 +65,7 @@ class RelevanceFloor {
                     }
                     // Timed: the read has no run, so no span (ADR-193 section 6).
                     return TimedStatement.of(
-                            stage, "reading", "read", "the recorded answers",
+                            stage, "reading", "read", "the recorded labels",
                             () -> relevanceLabels.forSeedSet(seedSet.get(), currentScale.orElseThrow()));
                 });
     }
