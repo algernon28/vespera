@@ -17,8 +17,10 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import javafx.geometry.Bounds;
 import javafx.geometry.Orientation;
@@ -26,8 +28,10 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.chart.LineChart;
+import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
 import javafx.scene.control.Labeled;
+import javafx.scene.control.ListView;
 import javafx.scene.control.ScrollBar;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextInputControl;
@@ -37,6 +41,7 @@ import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.Paint;
 import javafx.scene.shape.Shape;
+import javafx.scene.text.Text;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -139,6 +144,38 @@ class EachStageHasAChartTest {
     /** Stage 1's file as the job writes every stage's as it begins: no key, no time it finished and no line. */
     private static final String STAGE_1_WRITTEN_EMPTY =
             "{\"format\":1,\"stage\":\"1\",\"key\":{},\"finishedAt\":null,\"lines\":[]}";
+
+    private static final String USER = System.getProperty("user.name");
+
+    /**
+     * The stages whose charts the axes test draws, each kept as a curve in the first working directory, and the run
+     * stage each one's file is keyed by.
+     */
+    private static final List<String> AXES_STAGES = List.of("0", "1", "2", "3", "4", "5");
+
+    private static final Map<String, String> RUN_STAGES = Map.of("0", "census", "1", "byte-level-reduction",
+            "2", "extraction", "3", "content-census", "4", "content-redundancy", "5", "embedding-scoring");
+
+    /** A curve to 421 s and 70,000, far from every number the second working directory's charts hold. */
+    private static final List<Line> CURVE = List.of(
+            new Line("done", List.of(0.0, 200.0, 421.0), List.of(0.0, 30_000.0, 70_000.0)));
+
+    /** A flat line: done standing at 7 at 0 s and at 5 s. */
+    private static final List<Line> FLAT = List.of(new Line("done", List.of(0.0, 5.0), List.of(7.0, 7.0)));
+
+    /** Stage 2 gone through finished: no done, and its two kinds of one sample each at 0 s. */
+    private static final List<Line> TWO_KINDS_AT_ONE_SECOND = List.of(
+            new Line("done", List.of(), List.of()),
+            new Line("extraction-failed", List.of(0.0), List.of(3_176.0)),
+            new Line("degenerate-output", List.of(0.0), List.of(1_974.0)));
+
+    /** Stage 3 gone through finished: a done of no sample. */
+    private static final List<Line> NO_SAMPLE = List.of(new Line("done", List.of(), List.of()));
+
+    /** Stage 4 gone through finished: no done, and its one kind of one sample at 0 s. */
+    private static final List<Line> ONE_KIND_OF_ONE_SAMPLE = List.of(
+            new Line("done", List.of(), List.of()),
+            new Line("redundant-with", List.of(0.0), List.of(604.0)));
 
     @TempDir
     Path folder;
@@ -334,7 +371,145 @@ class EachStageHasAChartTest {
                 });
     }
 
+    /**
+     * Each reading sets a stage's chart's two axes from the samples that chart holds and from nothing the window drew
+     * before (ADR-425): the window drawn over a working directory of curves, then the operator choosing another, whose
+     * files are those the job leaves of stages gone through finished (ADR-418 §3), draws each chart's axes as a window
+     * opened over that other directory alone draws them; an axis of one number is centred on it (§3), one of none on 0
+     * (§4), and no tick below 0 is labelled (§5).
+     */
+    @Test
+    @Issue("884")
+    @Link(name = "ADR-425", url = Adr.EACH_AXIS_IS_SET_FROM_THE_SAMPLES_ITS_CHART_HOLDS, type = "adr")
+    @Story("The window shows how each stage has gone")
+    @DisplayName("Each chart's axes are set from the points it holds and not from what the window drew before, an axis of one number centred on it and one of none on 0")
+    void eachAxisIsSetFromTheSamplesItsChartHoldsAndNotFromAnEarlierDrawing() throws Exception {
+        Path curves = Files.createDirectories(folder.resolve("curves"));
+        Path finished = Files.createDirectories(folder.resolve("finished"));
+        for (String stage : AXES_STAGES) {
+            Files.writeString(curves.resolve("chart-stage-" + stage + ".json"),
+                    aStagesFile(stage, RUN_STAGES.get(stage), null, CURVE), UTF_8);
+        }
+        Files.writeString(finished.resolve("chart-stage-0.json"), aStagesFile("0", "census", null, FLAT), UTF_8);
+        Files.writeString(finished.resolve("chart-stage-1.json"),
+                aStagesFile("1", "byte-level-reduction", STAGE_1_FINISHED, ONE_SAMPLE_EACH), UTF_8);
+        Files.writeString(finished.resolve("chart-stage-2.json"),
+                aStagesFile("2", "extraction", STAGE_1_FINISHED, TWO_KINDS_AT_ONE_SECOND), UTF_8);
+        Files.writeString(finished.resolve("chart-stage-3.json"),
+                aStagesFile("3", "content-census", STAGE_1_FINISHED, NO_SAMPLE), UTF_8);
+        Files.writeString(finished.resolve("chart-stage-4.json"),
+                aStagesFile("4", "content-redundancy", STAGE_1_FINISHED, ONE_KIND_OF_ONE_SAMPLE), UTF_8);
+
+        Map<String, Axes> alone;
+        try (WindowForTests window = WindowForTests.shown(listing(finished, curves))) {
+            alone = window.read(EachStageHasAChartTest::axesOf);
+        }
+        Map<String, Axes> afterTheCurves;
+        boolean stage4sMarkerWhole;
+        try (WindowForTests window = WindowForTests.shown(listing(curves, finished))) {
+            window.read(EachStageHasAChartTest::axesOf);
+            chooseWorkingDirectory(window, finished);
+            // laid out again until it stands as the window opened over the second directory alone stands, or the
+            // window's bound passes, so that a chart still settling into its new width is not read half-way
+            afterTheCurves = window.awaiting(EachStageHasAChartTest::axesOf, alone::equals);
+            stage4sMarkerWhole = window.read(root -> wholeInThePlot(root, "4", 1));
+        }
+
+        claim("after the working directory of curves to 421 s and 70,000, every chart's two axes, their bounds and the"
+                        + " tick labels drawn, are those a window opened over the second working directory alone draws",
+                () -> assertThat(afterTheCurves).isEqualTo(alone));
+        claim("the time axis of stages 1 to 4, each holding its samples at 0 s alone or none, runs from -1 s to 1 s,"
+                        + " labelled 0 s and 1 s",
+                () -> assertThat(List.of("1", "2", "3", "4")).allSatisfy(stage ->
+                        assertThat(alone.get(stage).time()).as("stage %s's time axis", stage)
+                                .isEqualTo(new Axis(-1, 1, List.of("0 s", "1 s")))));
+        claim("stage 4's value axis, holding the one count 604, runs a hundred either side of it, from 504 to 704,"
+                        + " labelled 504, 604 and 704",
+                () -> assertThat(alone.get("4").value()).isEqualTo(new Axis(504, 704, List.of("504", "604", "704"))));
+        claim("stage 0's value axis, holding the one count 7 at 0 s and 5 s, runs one either side of it, from 6 to 8,"
+                        + " labelled 6, 7 and 8",
+                () -> assertThat(alone.get("0").value()).isEqualTo(new Axis(6, 8, List.of("6", "7", "8"))));
+        claim("stage 3, whose file holds a line of no sample, and stage 5, whose file the directory does not keep,"
+                        + " draw both axes from -1 to 1, labelled 0 s and 1 s, and 0 and 1",
+                () -> assertThat(List.of("3", "5")).allSatisfy(stage -> {
+                    assertThat(alone.get(stage).time()).as("stage %s's time axis", stage)
+                            .isEqualTo(new Axis(-1, 1, List.of("0 s", "1 s")));
+                    assertThat(alone.get(stage).value()).as("stage %s's value axis", stage)
+                            .isEqualTo(new Axis(-1, 1, List.of("0", "1")));
+                }));
+        claim("the marker of stage 4's one sample, 8 px across, lies whole inside the chart's plot",
+                () -> assertThat(stage4sMarkerWhole).isTrue());
+    }
+
     // ---- the window
+
+    /** An axis as drawn: its lower and upper bounds, and the tick labels it draws, in order, those of no text left out. */
+    private record Axis(double lower, double upper, List<String> labels) {
+    }
+
+    /** A chart's two axes. */
+    private record Axes(Axis time, Axis value) {
+    }
+
+    /** The two axes of each of {@link #AXES_STAGES}'s charts, by stage. */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Axes> axesOf(Parent root) {
+        Map<String, Axes> byStage = new LinkedHashMap<>();
+        for (String stage : AXES_STAGES) {
+            LineChart<Number, Number> chart = WindowForTests.node(root, "stage-chart-" + stage, LineChart.class);
+            byStage.put(stage, new Axes(axis((NumberAxis) chart.getXAxis()), axis((NumberAxis) chart.getYAxis())));
+        }
+        return byStage;
+    }
+
+    private static Axis axis(NumberAxis axis) {
+        List<String> labels = axis.getChildrenUnmodifiable().stream()
+                .filter(node -> node instanceof Text && node.isVisible()).map(node -> ((Text) node).getText())
+                .filter(text -> text != null && !text.isBlank()).toList();
+        return new Axis(axis.getLowerBound(), axis.getUpperBound(), labels);
+    }
+
+    /**
+     * Whether the marker of the first sample of line {@code line} of stage {@code stage}'s chart, 8 px across at the
+     * centre of the sample's node, lies whole inside the chart's plot, which the chart clips its lines and samples to.
+     */
+    @SuppressWarnings("unchecked")
+    private static boolean wholeInThePlot(Parent root, String stage, int line) {
+        LineChart<Number, Number> chart = WindowForTests.node(root, "stage-chart-" + stage, LineChart.class);
+        Bounds plot = sceneBounds(chart.lookup(".chart-plot-background"));
+        Bounds sample = sceneBounds(chart.getData().get(line).getData().getFirst().getNode());
+        double half = MARKER / 2;
+        return sample.getCenterX() - half >= plot.getMinX() && sample.getCenterX() + half <= plot.getMaxX()
+                && sample.getCenterY() - half >= plot.getMinY() && sample.getCenterY() + half <= plot.getMaxY();
+    }
+
+    /**
+     * A first start's state over the working directory {@code shown}, with {@code other} the one other row of the list
+     * of working directories, as the operator chose both before, and its machine's folder under the test's folder.
+     */
+    private ControlPanelState listing(Path shown, Path other) throws Exception {
+        ControlPanelState state = WindowForTests.aState(folder,
+                new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")));
+        state.useWorkingDirectoryDefault(WorkingDirectoryDefault.of(folder,
+                Map.of("vespera.working-dir", folder.resolve("machine").resolve(".vespera").toString()), Map.of()));
+        WorkingDirectoryList.store(WorkingDirectoryList.besides(LaunchValues.fileIn(folder.resolve("tmp"), USER)),
+                USER, List.of(other), line -> { });
+        state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(), shown.toString(),
+                "", "", "", "", "", ""));
+        return state;
+    }
+
+    /** Chooses {@code working}'s row in the list of working directories, as the operator does. */
+    @SuppressWarnings("unchecked")
+    private static void chooseWorkingDirectory(WindowForTests window, Path working) throws Exception {
+        window.act(root -> {
+            ListView<Path> list = WindowForTests.node(root, "working-directories", ListView.class);
+            Path row = list.getItems().stream()
+                    .filter(each -> ControlPanelState.namesTheSameFolder(each.toString(), working.toString()))
+                    .findFirst().orElseThrow(() -> new AssertionError("the list holds no row for " + working));
+            list.getSelectionModel().select(row);
+        });
+    }
 
     /** One line of a chart: its name, and its points' seconds and values in order. */
     private record Line(String name, List<Double> seconds, List<Double> values) {

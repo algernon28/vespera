@@ -3093,6 +3093,15 @@ public final class Adr {
     public static final String A_QUESTIONS_ANSWERS_ARE_COLOURED_AND_A_BUTTON_GROWS_UNDER_THE_POINTER = FILE
             + "0423-a-question-has-no-header-or-icon-its-answers-are-coloured-by-what-they-do-and-a-button-grows-under-the-pointer.md";
 
+    /**
+     * ADR-425 -- at each reading a stage's chart sets its time axis from the seconds of the samples it holds and its
+     * value axis from their values, nothing of an earlier drawing moving either; an axis of two numbers or more is ranged
+     * as before, one of one number n spans n - d to n + d ticked every d, d the largest power of ten not above |n| or 1,
+     * one of none spans -1 to 1, and no tick below 0 carries a label (amends ADR-382 §5 and ADR-371 §3 and §4).
+     */
+    public static final String EACH_AXIS_IS_SET_FROM_THE_SAMPLES_ITS_CHART_HOLDS = FILE
+            + "0425-a-stages-chart-sets-each-axis-from-the-samples-it-holds-at-each-reading-and-centres-one-of-one-number-or-none.md";
+
     private Adr() {
     }
 }
