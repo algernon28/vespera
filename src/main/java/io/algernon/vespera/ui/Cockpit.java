@@ -4,6 +4,7 @@ import static io.algernon.vespera.ui.Layout.row;
 import static io.algernon.vespera.ui.Layout.tight;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,6 +16,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -40,6 +42,7 @@ import javafx.collections.FXCollections;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 
@@ -86,6 +89,24 @@ final class Cockpit {
     private final TextArea output = new TextArea();
     private final OutputPanel outputPanel = new OutputPanel(output);
     private final TabPane tabs = new TabPane();
+    /** The output's side of the steps and the output: the output above, the ending panel beneath it where it has one (ADR-417 §1). */
+    private final SplitPane outputAndEnding = new SplitPane(output);
+    private final EndingPanel endingPanel = new EndingPanel(this::openTheProfileWindow,
+            this::selectTheReportTab);
+    /** Where the divider above the ending panel stood when the panel was last taken away, as a fraction of the split. */
+    private double endingDivider = 0.7;
+    /** The working directory this window's own child was last started on, and whether its ending is still the last of it. */
+    private Path childFolder;
+    private boolean childIsStillTheLast;
+    private long childSeenPid = -1;
+    /** The ending the window last noticed, and when; the panel's last reading's folder, ending of its own child, and whether it was cleared. */
+    private Ending noticedEnding;
+    private Instant noticedAt = Instant.now();
+    private String endingReadFor;
+    private Ending endingReadOf;
+    private boolean endingCleared;
+    /** Whether the Report tab last drew a report for the ending panel, not for a watched invocation. */
+    private boolean tabDrawnForTheEndingPanel;
     private final Tab inclusionsTab = new Tab("Inclusions");
     private final Accordion sidebar = new Accordion();
     private final Map<String, TitledPane> sections = new LinkedHashMap<>();
@@ -212,11 +233,16 @@ final class Cockpit {
 
         output.setId("output");
         output.getStyleClass().add("output");
-        SplitPane split = new SplitPane(new ScrollPane(steps), output);
+        outputAndEnding.setId("output-and-ending");
+        outputAndEnding.setOrientation(Orientation.VERTICAL);
+        outputAndEnding.getStyleClass().add("output-and-ending");
+        SplitPane split = new SplitPane(new ScrollPane(steps), outputAndEnding);
         split.setOrientation(Orientation.HORIZONTAL);
         split.setDividerPositions(0.5);
         ((ScrollPane) split.getItems().getFirst()).setFitToWidth(true);
         split.getStyleClass().add("steps-and-output");
+        split.setPrefHeight(STEPS_AND_OUTPUT_HEIGHT);
+        Region stepsAndOutputGrip = grip("steps-and-output-grip", split, false, LEAST_STEPS_AND_OUTPUT_HEIGHT);
 
         inclusionsTab.setId("inclusions");
         inclusionsTab.setClosable(false);
@@ -232,12 +258,49 @@ final class Cockpit {
         showTheButtonBesideTheOutcome();
         child.textProperty().addListener((observed, was, now) -> showTheButtonBesideTheOutcome());
         outcome.textProperty().addListener((observed, was, now) -> showTheButtonBesideTheOutcome());
-        VBox main = new VBox(header, outcomeLine, actionCard, split, charts, tabs);
+        VBox main = new VBox(header, outcomeLine, actionCard, split, stepsAndOutputGrip, charts, tabs);
         main.getStyleClass().add("main");
         VBox.setVgrow(tabs, Priority.ALWAYS);
         ScrollPane scroll = new ScrollPane(main);
         scroll.setFitToWidth(true);
         return scroll;
+    }
+
+    /** The least width of the sidebar and the least height of the steps beside the output, as the operator drags their grips (ADR-417 §1). */
+    private static final double LEAST_SIDEBAR_WIDTH = 220;
+    private static final double LEAST_STEPS_AND_OUTPUT_HEIGHT = 150;
+    /**
+     * The sizes each opens at. They are set here and not by the stylesheet, whose rules a size the operator drags to would
+     * not outrank.
+     */
+    private static final double SIDEBAR_WIDTH = 420;
+    private static final double STEPS_AND_OUTPUT_HEIGHT = 300;
+
+    /**
+     * A bar the operator drags to size {@code target}: its width where {@code wide}, else its height, by as much as the
+     * pointer moves, and no less than {@code least} (ADR-417 §1). The size stays as it is left while the window is open.
+     */
+    private Region grip(String id, Region target, boolean wide, double least) {
+        Region bar = new Region();
+        bar.setId(id);
+        bar.getStyleClass().addAll("grip", wide ? "grip-wide" : "grip-high");
+        double[] from = new double[2];
+        bar.setOnMousePressed(event -> {
+            from[0] = wide ? event.getScreenX() : event.getScreenY();
+            from[1] = wide ? target.getWidth() : target.getHeight();
+        });
+        bar.setOnMouseDragged(event -> {
+            double moved = (wide ? event.getScreenX() : event.getScreenY()) - from[0];
+            double size = Math.max(least, from[1] + moved);
+            if (wide) {
+                target.setPrefWidth(size);
+            } else {
+                target.setPrefHeight(size);
+            }
+            root.requestLayout();
+            root.layout();
+        });
+        return bar;
     }
 
     /** The words by which a line says to set a value in the Profile window; the jar's refusals reach the window as text (ADR-389 §6). */
@@ -569,7 +632,9 @@ final class Cockpit {
         ScrollPane scroll = new ScrollPane(sidebar);
         scroll.setFitToWidth(true);
         scroll.getStyleClass().add("sidebar");
-        return scroll;
+        scroll.setPrefWidth(SIDEBAR_WIDTH);
+        HBox sidebarAndGrip = new HBox(scroll, grip("sidebar-grip", scroll, true, LEAST_SIDEBAR_WIDTH));
+        return sidebarAndGrip;
     }
 
     private void section(String id, String title, Node content) {
@@ -627,6 +692,11 @@ final class Cockpit {
             // the rows are the new directory's own, drawn before loadFiles() loads them (ADR-404 section 2)
             readNext();
             loadFiles();
+            if (!sameFolder(Optional.ofNullable(childFolder), workingDirectory())) {
+                // the child's ending is shown only until another working directory is chosen (ADR-417 §2)
+                childIsStillTheLast = false;
+            }
+            showTheEnding();
         });
         VBox pane = new VBox(fieldBox(corpus, "Corpus root", true), workingDirectoryBox(working),
                 fieldBox(deliverable, "Output folder", true));
@@ -1183,6 +1253,7 @@ final class Cockpit {
             readNext();
         }
         readNextWhereAForeignHoldEnded(holders);
+        showTheEnding(runs, ending, holders);
         preflight.draw();
         wasShown = wasShown || showing;
     }
@@ -1217,6 +1288,8 @@ final class Cockpit {
                 && state.watchedHolder(shown).filter(held -> !ownChild.equals(Optional.of(held.pid()))).isPresent();
         if (foreign && shown.isPresent()) {
             foreignHoldSeenOn = shown;
+            // another process held the working directory since: the child's ending is no longer its last (ADR-417 §2)
+            childIsStillTheLast = false;
             return;
         }
         Optional<Path> seen = foreignHoldSeenOn;
@@ -1239,6 +1312,135 @@ final class Cockpit {
             next = Optional.empty();
         }
         wanted.draw(next);
+    }
+
+    // ---- the ending panel (ADR-417)
+
+    /** Reads the ending again where the working directory chosen changed, outside the clock's tick. */
+    private void showTheEnding() {
+        Optional<Path> folder = workingDirectory();
+        showTheEnding(state.childRuns(), state.ending(), state.holders(folder, corpusRoot()));
+    }
+
+    /**
+     * Shows the last ending of the working directory chosen beneath the output, and the report it is read from in the
+     * Report tab (ADR-417 §2): the window's own child's once it has ended, else the ending {@code report.json} records.
+     * Nothing shows while an invocation runs, the window's own or another process's. It reads again only where what it
+     * is read for changed: the window opening, another working directory chosen, a child ended, or a hold gone.
+     */
+    private void showTheEnding(boolean runs, Optional<Ending> ending, ControlPanelState.Holders holders) {
+        if (ending.isPresent() && ending.get() != noticedEnding) {
+            noticedEnding = ending.get();
+            noticedAt = Instant.now();
+        }
+        Optional<Path> folder = workingDirectory();
+        Optional<ControlPanelState.Watched> watchedChild = state.watchedChild();
+        if (watchedChild.isPresent() && watchedChild.get().pid() != childSeenPid) {
+            // a child this window started, seen as it runs or as it has ended: its ending is the last of the working directory now chosen
+            childSeenPid = watchedChild.get().pid();
+            childFolder = folder.orElse(null);
+            childIsStillTheLast = true;
+        }
+        boolean cleared = runs || holders.workingDirectory().isPresent() || folder.isEmpty();
+        Ending own = !cleared && ending.isPresent() && childIsStillTheLast
+                && sameFolder(Optional.ofNullable(childFolder), folder) ? ending.get() : null;
+        String readFor = cleared ? null : folder.get().toAbsolutePath().normalize().toString();
+        if (cleared == endingCleared && own == endingReadOf && Objects.equals(readFor, endingReadFor)) {
+            return;
+        }
+        if (cleared) {
+            endingCleared = true;
+            endingReadOf = own;
+            endingReadFor = readFor;
+            takeTheEndingPanelAway();
+            tabDrawnForTheEndingPanel = false;
+            return;
+        }
+        Optional<EndingPanel.Said> said;
+        if (own != null) {
+            Optional<InvocationReportFile.Report> report = state.watchedChild()
+                    .flatMap(child -> theChildsOwnReport(folder.get(), child));
+            said = Optional.of(EndingPanel.ofTheChild(own, report, noticedAt, ZoneId.systemDefault()));
+            tabDrawnForTheEndingPanel = false;
+        } else {
+            Optional<EndingPanel.Said> earlier;
+            try {
+                Optional<InvocationReportFile.Report> report = theReportAtTheTop(folder.get());
+                earlier = report.flatMap(each -> EndingPanel.ofAnEarlier(each, ZoneId.systemDefault()));
+                if (earlier.isPresent()) {
+                    live.showsAnEarlier(report.get());
+                }
+            } catch (RuntimeException unreadable) {
+                // a report that cannot be read or drawn is no panel, and must not leave the last folder's ending standing
+                earlier = Optional.empty();
+            }
+            said = earlier;
+            if (said.isPresent()) {
+                tabDrawnForTheEndingPanel = true;
+            } else if (tabDrawnForTheEndingPanel) {
+                live.says(LiveReport.WAITING);
+                tabDrawnForTheEndingPanel = false;
+            }
+        }
+        // cached only once the reading is worked out, so a throw above cannot leave a stale reading standing
+        endingCleared = false;
+        endingReadOf = own;
+        endingReadFor = readFor;
+        if (said.isEmpty()) {
+            takeTheEndingPanelAway();
+            return;
+        }
+        endingPanel.shows(said.get());
+        if (!outputAndEnding.getItems().contains(endingPanel.node())) {
+            outputAndEnding.getItems().add(endingPanel.node());
+            outputAndEnding.setDividerPositions(endingDivider);
+        }
+    }
+
+    private void openTheProfileWindow() {
+        profileWindow.open();
+    }
+
+    /** Open report selects the Report tab, which draws the report of the ending the panel shows, and opens nothing outside the window (ADR-417 §4). */
+    private void selectTheReportTab() {
+        tabs.getSelectionModel().select(live.tab());
+    }
+
+    private void takeTheEndingPanelAway() {
+        if (outputAndEnding.getItems().contains(endingPanel.node())) {
+            endingDivider = outputAndEnding.getDividerPositions()[0];
+            outputAndEnding.getItems().remove(endingPanel.node());
+        }
+    }
+
+    /** The working directory's {@code report.json}, empty where it is not there, cannot be read, is not that JSON or is of a format not read. */
+    private static Optional<InvocationReportFile.Report> theReportAtTheTop(Path folder) {
+        try {
+            Path file = folder.resolve(InvocationReportFile.FILE_NAME);
+            if (!Files.isRegularFile(file)) {
+                return Optional.empty();
+            }
+            InvocationReportFile.Report report = InvocationReportFile.read(Files.readString(file, StandardCharsets.UTF_8));
+            if (report.invocation() == null
+                    || report.invocation().started() == null
+                    || report.invocation().writtenAt() == null) {
+                return Optional.empty();
+            }
+            if ((report.steps() != null && report.steps().stream().anyMatch(each -> each == null || each.name() == null))
+                    || (report.faults() != null && report.faults().stream().anyMatch(each -> each == null || each.type() == null))) {
+                return Optional.empty();
+            }
+            return Optional.of(report);
+        } catch (IOException | IllegalArgumentException | UncheckedIOException unreadable) {
+            return Optional.empty();
+        }
+    }
+
+    /** The report at the top of {@code folder} where it is {@code child}'s own, as ADR-362 §8 accepts it. */
+    private static Optional<InvocationReportFile.Report> theChildsOwnReport(Path folder, ControlPanelState.Watched child) {
+        return theReportAtTheTop(folder).filter(report -> report.invocation() != null
+                && report.invocation().pid() == child.pid()
+                && !report.invocation().started().isBefore(child.notBefore().truncatedTo(ChronoUnit.MILLIS)));
     }
 
     /**

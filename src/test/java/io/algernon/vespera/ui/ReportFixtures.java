@@ -15,7 +15,8 @@ import java.util.Map;
  * the window watches, stamped with the child's pid and the instant it is written, since the window draws a report only
  * where it is the watched invocation's. The window tests describe a job as the steps and charts it holds, in the shape
  * {@code {"ended": false, "steps": [{"name", "state", "done", "total"}], "charts": [...]}}, with a {@code "closing"} line and
- * {@code "gates"}, {@code "faults"}, {@code "refusals"} and {@code "analysisReports"} where a test draws them, which this turns into the
+ * {@code "gates"}, {@code "faults"}, {@code "refusals"} and {@code "analysisReports"} where a test draws them, and the
+ * invocation's {@code "endedAt"}, {@code "outcome"} and {@code "exitCode"} where a test ends it, which this turns into the
  * report the jar writes of it, so that each test names the steps and charts it draws and nothing else of the report.
  */
 final class ReportFixtures {
@@ -52,8 +53,9 @@ final class ReportFixtures {
         }
         steps.append(']');
         return "{\"format\":" + InvocationReportFile.FORMAT + ",\"invocation\":{\"id\":\"20261108T000000Z\",\"pid\":" + pid
-                + ",\"command\":\"run\",\"started\":\"" + started + "\",\"ended\":null,\"state\":\""
-                + (ended ? "ended" : "running") + "\",\"outcome\":null,\"exitCode\":null,\"writtenAt\":\"" + writtenAt
+                + ",\"command\":\"run\",\"started\":\"" + started + "\",\"ended\":" + json(shape.get("endedAt"))
+                + ",\"state\":\"" + (ended ? "ended" : "running") + "\",\"outcome\":" + json(shape.get("outcome"))
+                + ",\"exitCode\":" + json(shape.get("exitCode")) + ",\"writtenAt\":\"" + writtenAt
                 + "\",\"interval\":" + interval + "},\"steps\":" + steps + ",\"legs\":[],\"charts\":"
                 + json(shape.get("charts")) + ",\"gates\":" + json(orEmpty(shape.get("gates")))
                 + ",\"refusals\":" + json(orEmpty(shape.get("refusals"))) + ",\"faults\":"
