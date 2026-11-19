@@ -63,9 +63,11 @@ All decisions are append-only: a decision is reopened only by a later ADR that e
 | ADR-048 | 2026-08-21 | Walk and run identity                                                        | Two distinct identities: walk (owns occurrences, filesystem-scoped) and run (owns verdicts, one stage/one config, chained to upstream run ids and implementation version). Continuation vs. minting rule defined.                           |
 | ADR-049 | 2026-08-21 | Verdict rows, and schema versioning without a migration tool                 | Every stage writes a row per occurrence including non-blocking `passed`; verdicts use a surrogate key (multiple rows allowed). Schema via `schema.sql` + version check; migration tool deferred until real data exists.                     |
 
+The rows above are as they were transcribed. Four have been amended since by records with full text, each noted at the head of the record's own file: ADR-020, ADR-022, ADR-027 and ADR-045 by ADR-396, whose top level is a set of topics inferred from the seed set's passages, clustered within, in place of one seed partition per winning seed; and ADR-045's alarm on a seed owning 60% of the corpus by ADR-416, which sets no threshold on a topic's share.
+
 ## Vocabulary reference
 
-Project-specific terms (file occurrence, content identity, ledger, verdict, survivor, seed set, hard negative, winning seed, seed partition, census, observe-before-enforce, profile, gate, walk, walk anomaly, stage, run, invocation, arrangement, synthesis doc, publication-ready artifact, extraction cache, chunk cache) are defined in `CONTEXT.md` in the repo and are binding usage across the codebase and its documentation.
+Project-specific terms (file occurrence, content identity, ledger, verdict, survivor, seed set, hard negative, winning seed, topic, winning topic, subtopic, census, observe-before-enforce, profile, gate, walk, walk anomaly, stage, run, invocation, arrangement, synthesis doc, topic overview, publication-ready artifact, extraction cache, chunk cache) are defined in `CONTEXT.md` in the repo and are binding usage across the codebase and its documentation. The seed partition, which the rows of ADR-022 and ADR-045 rest on, is retired there: ADR-396 put the topic in its place.
 
 ## Open questions
 
