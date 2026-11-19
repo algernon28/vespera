@@ -70,6 +70,8 @@ A rule carrying a name across records, a list of renames the check reads beside 
 
 A comment of a class in a module no stage's version names, or of one outside the eleven modules, says topic from this record on.
 
+**The comment on `clustering.resolution` in the shipped copy of `application.yaml`**, `src/main/beside-the-jar/application.yaml`, which said the documents *under each exemplar*, is reworded with this record in terms of topics: a comment, it lies in no module and moves no run, and since [ADR-397](0397-the-yaml-configuration-lies-beside-the-jar-and-the-jar-writes-its-shipped-copy-where-a-file-is-missing.md) §5 compares `application.yaml` with its shipped copy by its keys, it writes no `.new` beside an operator's file.
+
 ### 5. The vocabulary
 
 **`CONTEXT.md`'s Seed partition entry goes.** Its words stand on the Topic entry's `_Avoid_` line, which lists *seed partition and partition*, says ADR-396 retired them, and names this record as the one by which no name of ours says either but a record's title and the names of the retirement. The Seed partition's page entry stays as ADR-396 left it, retired.
@@ -95,6 +97,7 @@ A comment of a class in a module no stage's version names, or of one outside the
 
 - `pipeline.TheSeedPartitionIsRetiredFromEveryNameTest`, three tests: `…noNameOrTextOfTheJarsCodeSaysTheRetiredWord`, the identifiers and literals of `src/main/java` (§1, §2); `…noNameOfTheTestsSaysTheRetiredWordButARecordsOrItsRetirements`, the identifiers of `src/test/java` but the records' constants and the names saying retire (§1); `…noCommentOfAModuleNoStageNamesSaysTheRetiredWord`, the comments of every class in a module `StageModules` does not name, or in none (§4).
 - `TheVocabularyNamesTopicsAndRetiresTheSeedPartitionTest.theSeedPartitionHasNoEntryAndTheTopicsAvoidLineRetiresIt`: no entry is headed Seed partition, and the Topic entry's one `_Avoid_` line lists the seed partition and names this record (§5). Its `…noDefinitionButTheRetiredOnesNamesASeedPartition` reads the Seed partition's page entry as the one retired entry left.
+- `pipeline.TheGenerationStepCountsItsTopicOverviewsInvocationTest.theTreesTopicsAreCountedUnderTheirOwnLabel`: through 6b over one topic, the tree's counter writes its one line under `Stage 6b (generation, topics written)` (§2).
 - `deliverable.TopicNoSurvivorNamesStopsTheWriterTest.stopsBeforeAnyTopicIsWrittenOrAnnounced`: the progress the writer is handed records every call of every method, and none is made (§2).
 - `docs/check-claims.mjs`'s check of the Tests sections holds §3, as ADR-337 §5 has it.
 

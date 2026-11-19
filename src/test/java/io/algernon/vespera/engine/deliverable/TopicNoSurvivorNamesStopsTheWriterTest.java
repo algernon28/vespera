@@ -117,7 +117,7 @@ class TopicNoSurvivorNamesStopsTheWriterTest {
         claim(
                 "nothing was reported either: the topics are asked for before the survivors are asked for"
                         + " their pictures, so the progress was told nothing at all: no count of survivors, topics,"
-                        + " groups or entries, and no copy",
+                        + " clusters or entries, and no copy",
                 () -> assertThat(events)
                         .as("what the writer reported before it stopped")
                         .isEmpty());
