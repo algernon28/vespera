@@ -180,6 +180,7 @@ deliverable/<run>/<topic>/<group>/index.html  one page per group, its pictures i
 deliverable/<run>/<topic>/<group>/index-<k>.html  a group's further pages, where clusterPageByteCeiling splits it
 deliverable/<run>/<topic>/<group>/<file>      a checked copy of each of the group's documents, under its own name
 deliverable/<run>/vespera-deliverable.txt  which working directory and which run drew this folder
+deliverable/<run>/vespera-run.db  the record of what this folder was drawn from: every file the walk found, every run behind it and its judgements, and its topics, groups and writing, as one SQLite file; Vespera never reads it back
 deliverable/<run>/confluence/pages.json  the Confluence rendering's page list: every page, its title, its body and the files it carries
 deliverable/<run>/confluence/<topic>/<group>/page.xml  each page's body in Confluence's storage format, its pictures' files beside it; a folder deeper, under its subtopic, where its topic is divided; the root page's, each topic's and each subtopic's lie above
 deliverable/<run>/confluence/drawing.txt  how the last drawing of the Confluence rendering went: drawing, drawn or failed

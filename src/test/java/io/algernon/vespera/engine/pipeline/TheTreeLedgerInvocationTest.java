@@ -218,7 +218,7 @@ class TheTreeLedgerInvocationTest {
             claim(
                     "each run's row is the working store's, whole",
                     () -> assertThat(rows(file, "SELECT * FROM run"))
-                            .containsExactlyElementsOf(theWorkingStores("run", inThe(runsDrawnFrom), runsDrawnFrom.toArray())));
+                            .containsExactlyElementsOf(theWorkingStores("run", "id " + inThe(runsDrawnFrom), runsDrawnFrom.toArray())));
             claim(
                     "each table chosen by the walk holds the working store's rows of that walk, whole",
                     () -> assertThat(BY_THE_WALK).allSatisfy(table -> assertThat(rows(file, "SELECT * FROM " + table))
