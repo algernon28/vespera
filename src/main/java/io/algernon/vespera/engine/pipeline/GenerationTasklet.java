@@ -28,7 +28,6 @@ import io.algernon.vespera.engine.deliverable.Deliverable;
 import io.algernon.vespera.engine.deliverable.DeliverableProgress;
 import io.algernon.vespera.engine.deliverable.DeliverableProvenance;
 import io.algernon.vespera.engine.deliverable.DeliverableRoot;
-import io.algernon.vespera.engine.deliverable.TreeLedger;
 import io.algernon.vespera.engine.deliverable.ListedCodeFile;
 import io.algernon.vespera.engine.deliverable.ListedCodeSet;
 import io.algernon.vespera.engine.deliverable.ListedCodeSets;
@@ -42,6 +41,7 @@ import io.algernon.vespera.engine.deliverable.ListedTopic;
 import io.algernon.vespera.engine.deliverable.NamedValue;
 import io.algernon.vespera.engine.deliverable.Plugin;
 import io.algernon.vespera.engine.deliverable.SurvivorPictures;
+import io.algernon.vespera.engine.deliverable.TreeLedger;
 import io.algernon.vespera.engine.synthesis.ArrangedTopic;
 import io.algernon.vespera.engine.synthesis.ClusterFault;
 import io.algernon.vespera.engine.synthesis.ClusterFaultKind;
@@ -171,7 +171,6 @@ class GenerationTasklet implements Tasklet {
     private final LeadingChunks leadingChunks;
     private final ExtractionCacheKeys cacheKeys;
     private final DocumentPictures documentPictures;
-
     private final TreeLedger treeLedger;
     private final ExtractorIdentity extractorIdentity;
     private final DetectedFormats detectedFormats;

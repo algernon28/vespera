@@ -30,7 +30,7 @@ import org.springframework.util.StreamUtils;
  *
  * <p>The rows are read through the application's own connection, one statement per table, row by row through a
  * callback and written as they come, a thousand to a transaction: no class holds a table's rows. Every statement it
- * runs against the working store selects, and none attaches, vacuums into or copies the working store's file, so it
+ * runs against the working store selects, and none attaches, vacuums into or takes the working store's file, so it
  * holds whatever engine the working store is. It names the twenty-four tables of ADR-429 section 3, as the one
  * exception, beside ADR-198's, to ADR-209 section 3: {@code deliverable} owns no table and no stage's version names
  * it, so writing the file moves no run.
@@ -110,28 +110,28 @@ public final class TreeLedger {
             long walk = workingStore.queryForObject(THE_WALK_OF_A_RUN, Long.class, generationRun.value());
             List<String> runs = workingStore.queryForList(THE_RUNS_DRAWN_FROM, String.class, generationRun.value());
             String inTheRuns = "(" + String.join(", ", Collections.nCopies(runs.size(), "?")) + ")";
-            try (Connection file = DriverManager.getConnection("jdbc:sqlite:" + part)) {
+            try (Connection file = DriverManager.getConnection("jdbc:sqlite:" + part.toUri())) {
                 file.setAutoCommit(true);
                 try (Statement pragma = file.createStatement()) {
                     pragma.execute("PRAGMA journal_mode = DELETE");
                     pragma.execute("PRAGMA foreign_keys = OFF");
                 }
                 file.setAutoCommit(false);
-                copy(file, schema, THE_WALK, "SELECT * FROM " + THE_WALK + " WHERE id = ?", new Object[] {walk});
-                copy(file, schema, THE_RUNS, "SELECT * FROM " + THE_RUNS + " WHERE id IN " + inTheRuns, runs.toArray());
+                writeTable(file, schema, THE_WALK, "SELECT * FROM " + THE_WALK + " WHERE id = ?", new Object[] {walk});
+                writeTable(file, schema, THE_RUNS, "SELECT * FROM " + THE_RUNS + " WHERE id IN " + inTheRuns, runs.toArray());
                 for (String table : BY_THE_WALK) {
-                    copy(file, schema, table, "SELECT * FROM " + table + " WHERE walk_id = ?", new Object[] {walk});
+                    writeTable(file, schema, table, "SELECT * FROM " + table + " WHERE walk_id = ?", new Object[] {walk});
                 }
                 for (String table : BY_THE_RUNS) {
                     if (table.equals(WITHOUT_THE_GENERATION_RUNS_OWN_ROWS)) {
                         // The generation run's own finished step is recorded after the tree is drawn (ADR-429 section 3).
                         List<Object> arguments = new ArrayList<>(runs);
                         arguments.add(generationRun.value());
-                        copy(file, schema, table,
+                        writeTable(file, schema, table,
                                 "SELECT * FROM " + table + " WHERE run_id IN " + inTheRuns + " AND run_id <> ?",
                                 arguments.toArray());
                     } else {
-                        copy(file, schema, table, "SELECT * FROM " + table + " WHERE run_id IN " + inTheRuns, runs.toArray());
+                        writeTable(file, schema, table, "SELECT * FROM " + table + " WHERE run_id IN " + inTheRuns, runs.toArray());
                     }
                 }
             }
@@ -153,13 +153,13 @@ public final class TreeLedger {
     }
 
     /** Creates {@code table} in {@code file} as the schema does, then writes each row {@code select} reads into it. */
-    private void copy(Connection file, String schema, String table, String select, Object[] arguments)
+    private void writeTable(Connection file, String schema, String table, String select, Object[] arguments)
             throws SQLException {
         try (Statement create = file.createStatement()) {
             create.execute(creationOf(schema, table));
         }
         file.commit();
-        Copy copy = new Copy(file, table);
+        TableWriter writer = new TableWriter(file, table);
         try {
             workingStore.query(
                     select,
@@ -170,19 +170,19 @@ public final class TreeLedger {
                     },
                     row -> {
                         try {
-                            copy.write(row);
+                            writer.write(row);
                         } catch (SQLException e) {
                             throw new IllegalStateException(e);
                         }
                     });
-            copy.finish();
+            writer.finish();
         } catch (IllegalStateException e) {
             if (e.getCause() instanceof SQLException sql) {
                 throw sql;
             }
             throw e;
         } finally {
-            copy.close();
+            writer.close();
         }
     }
 
@@ -197,7 +197,7 @@ public final class TreeLedger {
     }
 
     /** The rows of one table, written as they are read, a thousand to a transaction. */
-    private static final class Copy {
+    private static final class TableWriter {
 
         private final Connection file;
 
@@ -209,7 +209,7 @@ public final class TreeLedger {
 
         private int pending;
 
-        Copy(Connection file, String table) {
+        TableWriter(Connection file, String table) {
             this.file = file;
             this.table = table;
         }
