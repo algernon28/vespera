@@ -239,9 +239,10 @@ class DeliverableInvocationTest {
                             .containsExactlyInAnyOrder(WHAT_A_CORPUS_DOCUMENT_SAYS, WHAT_THE_OTHER_CORPUS_DOCUMENT_SAYS);
                     assertThat(everyFileIn(theTreeOf(root)))
                             .filteredOn(file -> !copies.contains(file))
-                            .allSatisfy(file -> assertThat(Files.readString(file))
-                                    .doesNotContain(WHAT_A_CORPUS_DOCUMENT_SAYS)
-                                    .doesNotContain(WHAT_THE_OTHER_CORPUS_DOCUMENT_SAYS));
+                            .allSatisfy(file -> assertThat(theDocumentTextsIn(file))
+                                    .as("the documents' text found in %s, whose bytes are searched whatever"
+                                            + " the file is, the tree's ledger among them", file.getFileName())
+                                    .isEmpty());
                 });
         claim(
                 "and every row of the listing says its document was copied",
@@ -267,6 +268,27 @@ class DeliverableInvocationTest {
     /** The index of that tree, which the closing line names (ADR-274 §7). */
     private Path theIndexFileOf(Path root) {
         return theTreeOf(root).resolve(Deliverable.INDEX_FILE_NAME);
+    }
+
+    /**
+     * Which of the two documents' texts {@code file}'s bytes hold, each searched for as its UTF-8 bytes, so a file that
+     * is not text, the tree's ledger among them (ADR-429), is searched as well as a page is.
+     */
+    private static List<String> theDocumentTextsIn(Path file) throws IOException {
+        byte[] held = Files.readAllBytes(file);
+        return java.util.stream.Stream.of(WHAT_A_CORPUS_DOCUMENT_SAYS, WHAT_THE_OTHER_CORPUS_DOCUMENT_SAYS)
+                .filter(text -> holds(held, text.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+                .toList();
+    }
+
+    /** Whether {@code held} holds {@code sought} as a run of consecutive bytes. */
+    private static boolean holds(byte[] held, byte[] sought) {
+        for (int start = 0; start + sought.length <= held.length; start++) {
+            if (java.util.Arrays.equals(held, start, start + sought.length, sought, 0, sought.length)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** What {@code file} holds, read as text. */
