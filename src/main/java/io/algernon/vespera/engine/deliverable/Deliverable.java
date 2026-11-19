@@ -34,7 +34,7 @@ import java.util.stream.Stream;
  *
  * <p><b>Plain values only.</b> This class learns no step, no stage and no {@code Profile} (ADR-110):
  * everything it needs arrives as {@link DeliverableProvenance}, {@link SurvivorPictures} and an {@link
- * ArrangedSurvivors} it asks for one seed partition at a time, which is why {@code pipeline} is the only
+ * ArrangedSurvivors} it asks for one topic at a time, which is why {@code pipeline} is the only
  * module that gathers them. No class holds every cluster or every survivor of the run (ADR-223). It writes no line
  * and declares no logger; it tells its caller what it did through {@link DeliverableProgress} (ADR-274 §4).
  *
@@ -57,7 +57,7 @@ import java.util.stream.Stream;
  * says cluster, holding a value that says group.
  *
  * <p><b>The order is rendered, never re-derived.</b> {@code ArrangedSurvivors} answers already in the order
- * the operator approved (ADR-112), and neither level here is sorted again — a partition's position
+ * the operator approved (ADR-112), and neither level here is sorted again — a topic's position
  * comes from its own {@code topicOrder}, and a cluster's from its own {@code clusterOrder}.
  *
  * <p><b>Each cluster's page is written an entry at a time to {@code index.html.part} in its folder and
@@ -441,7 +441,7 @@ public final class Deliverable {
         // The three totals, announced before the loop over topics. An entry carries a document exactly
         // where a survivor of its cluster is listed, so the entries with a document are the survivors the
         // arrangement arranges (ADR-192 section 5, ADR-223 section 6).
-        progress.toWritePartitions(topics.size());
+        progress.toWriteTopics(topics.size());
         progress.toDrawClusters(topics.stream().mapToLong(ListedTopic::clusterCount).sum());
         progress.toWriteMembershipEntries(source.survivorCount());
 
@@ -557,7 +557,7 @@ public final class Deliverable {
                 // then, and what is held is one topic's (ADR-415 section 2, ADR-409 section 13).
                 writeTopicPage(topicDir, layout, overview, rows, seeAlsoResolver, drawings, language, moves);
                 drawings.topicEnded();
-                progress.partitionWritten();
+                progress.topicWritten();
             }
             theCode.drawn(index);
             IndexPage.close(index);
@@ -750,14 +750,14 @@ public final class Deliverable {
     }
 
     /**
-     * Lists the tree's top level and each partition folder this drawing wrote, and tells {@code progress} once of the
+     * Lists the tree's top level and each topic folder this drawing wrote, and tells {@code progress} once of the
      * folders it did not write: {@code documents/}, which an earlier layout wrote, apart from the rest, which are
      * counted. A file is not counted, and nothing inside a folder this drawing wrote is looked at (ADR-280 §4). A
      * listed folder is one this drawing wrote under another spelling where a key of its path meets a key of a path
      * written beside it and the file system takes the two for one folder (ADR-373 §1, §2).
      *
      * <p>A plugin's folder, {@code confluence/} for one, is a folder every drawing writes, so it is never counted; inside
-     * it, a seed partition's folder and a cluster's folder in one this drawing wrote there are looked at as the tree's
+     * it, a topic's folder and a cluster's folder in one this drawing wrote there are looked at as the tree's
      * are (ADR-312 §4, ADR-333 §2).
      */
     private static void leftBehindBy(

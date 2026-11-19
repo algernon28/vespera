@@ -216,7 +216,7 @@ public final class FixedWords {
         return row.append("</tr>\n").toString();
     }
 
-    /** The heads of a seed partition's table of groups: group, documents, and what the writing is titled. */
+    /** The heads of a topic's table of groups: group, documents, and what the writing is titled. */
     public static List<String> clusterTableHeads(DeliverableLanguage language) {
         return switch (language) {
             case ENGLISH -> List.of("Group", "Documents", "Written up as");
@@ -224,7 +224,7 @@ public final class FixedWords {
         };
     }
 
-    /** The row of heads of a seed partition's table of groups, as the index, the root page and the partition write it. */
+    /** The row of heads of a topic's table of groups, as the index, the root page and the topic write it. */
     public static String clusterTableHeadRow(DeliverableLanguage language) {
         return headRow(clusterTableHeads(language));
     }

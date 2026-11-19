@@ -58,7 +58,7 @@ package io.algernon.vespera.engine.profile;
  * @param relevanceScoreFloor stage 5's relevance threshold (ADR-088, #110): a score on the scale
  *     ADR-020's function produces, below which a scored survivor is {@code below-threshold}. Ships
  *     unset, per <b>observe before enforce</b>, and an unset floor does not stop the run — stage 5
- *     scores every survivor, clusters every partition and writes its reports regardless, removing
+ *     scores every survivor, clusters every topic and writes its reports regardless, removing
  *     nothing. The value is meant to be read off a stratified sample of labelled documents (sixty as shipped), so
  *     it carries a {@link Measurement} pointer at the labelling report the way {@code
  *     degenerateOutputConfidenceFloor} points at the confidence distribution (ADR-075's shape).
