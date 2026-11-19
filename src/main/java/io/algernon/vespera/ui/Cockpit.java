@@ -862,7 +862,10 @@ final class Cockpit {
         showTheListsButtons(state.childRuns());
     }
 
-    /** The tick's own answer is passed in, so the list and Run never disagree on whether the window's child runs (ADR-393 §4). */
+    /**
+     * The tick's own answer is passed in, so the list and Run never disagree on whether the window's child runs
+     * (ADR-393 §4).
+     */
     private void showTheListsButtons(boolean runs) {
         Path chosen = workingDirectoryList.getSelectionModel().getSelectedItem();
         workingDirectoryList.setDisable(runs);
