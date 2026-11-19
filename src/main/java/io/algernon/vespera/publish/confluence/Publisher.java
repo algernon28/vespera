@@ -88,8 +88,8 @@ public class Publisher {
     /** How many characters of a run's id an earlier publish's label carries as its marker (ADR-328 §6). */
     private static final int EARLIER_MARKER_LENGTH = 12;
 
-    /** A place as ADR-328 §3 writes it. */
-    private static final String PLACE = "[1-9][0-9]*(\\.[1-9][0-9]*){0,2}";
+    /** A place as ADR-328 §3 writes it, of at most four numbers (ADR-415 §7). */
+    private static final String PLACE = "[1-9][0-9]*(\\.[1-9][0-9]*){0,3}";
 
     /** A key of ADR-328's tree (ADR-328 §3): its place alone. */
     private static final java.util.regex.Pattern ADR_328_KEY = java.util.regex.Pattern.compile("root|" + PLACE);

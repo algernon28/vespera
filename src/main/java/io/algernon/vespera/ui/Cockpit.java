@@ -514,7 +514,7 @@ final class Cockpit {
 
     /** Stop is confirmed with the one sentence a stop is confirmed by (ADR-278 §6); the child is stopped only on the answer that goes on. */
     private void stopAfterConfirming() {
-        if (dialogs.confirm(Child.STOP_CONFIRMATION, "Stop", "Keep it running")) {
+        if (dialogs.confirm("Stop the invocation", Child.STOP_CONFIRMATION, "Stop", "Keep it running")) {
             stopTheChild();
         }
     }
@@ -540,7 +540,7 @@ final class Cockpit {
     private void shutDownDockerAfterConfirming() {
         String sentence = SHUT_DOWN_WARNING + (state.childRuns()
                 ? " The invocation running now is stopped first. " + Child.STOP_CONFIRMATION : "");
-        if (!dialogs.confirm(sentence, "Shut down Docker", "Keep Docker running")) {
+        if (!dialogs.confirm("Shut down Docker", sentence, "Shut down Docker", "Keep Docker running")) {
             return;
         }
         shuttingDown = true;
@@ -572,11 +572,12 @@ final class Cockpit {
             String refusal;
             try {
                 DockerControl.Said started = state.startDocker();
-                refusal = started.done() ? "" : started.line();
+                refusal = started.line();
             } catch (RuntimeException failed) {
                 refusal = "Docker was not started: " + failed;
             }
             if (!refusal.isEmpty()) {
+                // A refusal's line, or the line of a start that went through with one to say (ADR-421 §6).
                 String line = refusal;
                 Platform.runLater(() -> say(line));
             }
@@ -1420,19 +1421,22 @@ final class Cockpit {
                 return Optional.empty();
             }
             InvocationReportFile.Report report = InvocationReportFile.read(Files.readString(file, StandardCharsets.UTF_8));
-            if (report.invocation() == null
-                    || report.invocation().started() == null
-                    || report.invocation().writtenAt() == null) {
-                return Optional.empty();
-            }
-            if ((report.steps() != null && report.steps().stream().anyMatch(each -> each == null || each.name() == null))
-                    || (report.faults() != null && report.faults().stream().anyMatch(each -> each == null || each.type() == null))) {
-                return Optional.empty();
-            }
-            return Optional.of(report);
+            return isThatJson(report) ? Optional.of(report) : Optional.empty();
         } catch (IOException | IllegalArgumentException | UncheckedIOException unreadable) {
             return Optional.empty();
         }
+    }
+
+    /**
+     * Whether {@code report}, read as of the format, is that JSON as far as the window draws it (ADR-362 §8): an
+     * invocation with its start and its last write, every step named and every fault typed.
+     */
+    private static boolean isThatJson(InvocationReportFile.Report report) {
+        return report.invocation() != null
+                && report.invocation().started() != null
+                && report.invocation().writtenAt() != null
+                && (report.steps() == null || report.steps().stream().allMatch(each -> each != null && each.name() != null))
+                && (report.faults() == null || report.faults().stream().allMatch(each -> each != null && each.type() != null));
     }
 
     /** The report at the top of {@code folder} where it is {@code child}'s own, as ADR-362 §8 accepts it. */
@@ -1516,6 +1520,9 @@ final class Cockpit {
                 return false;
             }
             InvocationReportFile.Report report = InvocationReportFile.read(Files.readString(file, StandardCharsets.UTF_8));
+            if (!isThatJson(report)) {
+                return false;
+            }
             InvocationReportFile.Invocation invocation = report.invocation();
             if (invocation.pid() != who.pid()
                     || invocation.started().isBefore(who.notBefore().truncatedTo(ChronoUnit.MILLIS))) {

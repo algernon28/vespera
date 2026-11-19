@@ -136,6 +136,32 @@ class ManifestCsvTest {
                 () -> assertThat(manifest).contains("\n10,reports/scored.pdf,h10," + THE_SEED.value() + ",0.9,"));
     }
 
+    /**
+     * The header names the topic, the subtopic and their orders, where it named a seed partition, and a survivor of a
+     * topic with no subtopics leaves the subtopic's two cells empty, each holding its place (ADR-415 §6).
+     */
+    @Test
+    @Story("The listing names each document's topic and subtopic")
+    @DisplayName("The listing's header names the topic, the subtopic, the group and their orders, and a document of a topic with no subtopics has empty subtopic cells")
+    @Issue("833")
+    @Link(name = "ADR-415", url = Adr.A_TOPIC_IS_A_PAGE_CARRYING_ITS_OVERVIEW_AND_ITS_SUBTOPICS_ARE_PAGES_BENEATH_IT, type = "adr")
+    void theHeaderNamesTheTopicAndTheSubtopicAndTheirOrders() {
+        String manifest = ListedArrangement.manifestContents(
+                anArrangement(), List.of(survivor(10, "reports/scored.pdf", FIRST_ORDINAL, 0.9)));
+
+        claim(
+                "the header, whole: the document's identity, its score, then the names of its topic, its subtopic and"
+                        + " its group, then their three orders, then its copy",
+                () -> assertThat(manifest.substring(0, manifest.indexOf('\n'))).isEqualTo(
+                        "occurrence_id,path,content_hash,winning_seed,relevance_score,topic,subtopic,cluster,topic_order,"
+                                + "subtopic_order,cluster_order,copy,copy_outcome"));
+        claim(
+                "the document of a topic with no subtopics names its topic, has an empty subtopic and subtopic order,"
+                        + " and names its group and the topic's and group's orders",
+                () -> assertThat(manifest).contains("\n10,reports/scored.pdf,h10," + THE_SEED.value() + ",0.9,"
+                        + ListedTree.topicNameOf(SEED_PATH) + ",,0,1,,1,"));
+    }
+
     /** The line of {@code manifest} that begins with {@code prefix}. */
     private static String rowOf(String manifest, String prefix) {
         return manifest.lines()

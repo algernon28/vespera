@@ -53,6 +53,11 @@ class TheShutDownDockerButtonTest {
 
     private static final String KEEP = "Keep Docker running";
 
+    /** The titles the warning and the question of closing the window are asked under (ADR-423 §1). */
+    private static final String WARNINGS_TITLE = "Shut down Docker";
+
+    private static final String CLOSINGS_TITLE = "Close the control panel";
+
     /** A start the jar refused, in the words of its line for an engine that would not start (ADR-323 §8). */
     private static final String START_REFUSED = "the Docker engine is not running and Vespera could not start it:"
             + " systemctl --no-ask-password start docker exited 1: Failed to start docker.service: Access denied."
@@ -64,6 +69,12 @@ class TheShutDownDockerButtonTest {
             + " Access denied. Stop Docker yourself, or leave it running.";
 
     private static final DockerControl.Said STARTED = new DockerControl.Said(true, "");
+
+    /** A start that went through having written {@code .wslconfig}, in the words of its line (ADR-421 §5). */
+    private static final String WSLCONFIG_WRITTEN = "Vespera wrote C:\\Users\\operator\\.wslconfig, setting"
+            + " instanceIdleTimeout=-1 under [general], so that WSL does not shut its distribution down while idle, and"
+            + " Docker and the sidecars with it. It applies from WSL's next start; if WSL is running now, wsl --shutdown"
+            + " starts it afresh, and stops every WSL distribution and the containers in them.";
 
     @TempDir
     Path folder;
@@ -88,7 +99,31 @@ class TheShutDownDockerButtonTest {
         }
     }
 
+    /**
+     * A start that went through and said something, as the start does on Windows where it wrote {@code .wslconfig}
+     * (ADR-421 §6), shows its line where the window says what happened, as a refused start's is shown.
+     */
     @Test
+    @Link(name = "ADR-421", url = Adr.ON_WINDOWS_VESPERA_WRITES_WSLCONFIG_WHERE_THERE_IS_NONE, type = "adr")
+    @Issue("881")
+    @Story("The control panel starts the Docker engine as its window opens")
+    @DisplayName("A start of the Docker engine that went through with a line to say shows that line where the window says what happened")
+    void aStartThatWentThroughShowsTheLineItSaid() throws Exception {
+        RecordingDockerControl docker = new RecordingDockerControl(
+                new DockerControl.Said(true, WSLCONFIG_WRITTEN), STARTED);
+        ControlPanelState state = aState(SleepingJar.runtime(), docker);
+
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            String said = window.awaiting(TheShutDownDockerButtonTest::outcome, WSLCONFIG_WRITTEN::equals);
+
+            claim("the window shows the line of the start that went through where it says what happened",
+                    () -> assertThat(said).isEqualTo(WSLCONFIG_WRITTEN));
+        }
+    }
+
+    @Test
+    @Link(name = "ADR-423", url = Adr.A_QUESTIONS_ANSWERS_ARE_COLOURED_AND_A_BUTTON_GROWS_UNDER_THE_POINTER,
+            type = "adr")
     @Story("A button stops the sidecars and then the Docker engine")
     @DisplayName("Shut down Docker stands after Stop, warns first in the record's words, and runs nothing when the operator keeps Docker running")
     void theButtonWarnsFirstAndRunsNothingWhenKept() throws Exception {
@@ -105,16 +140,18 @@ class TheShutDownDockerButtonTest {
             claim("the button reads Shut down Docker and stands in Stop's row right after it",
                     () -> assertThat(List.of(text, row.indexOf("shut-down-docker") - row.indexOf("stop")))
                             .containsExactly(GO_ON, 1));
-            claim("pressed, it asked one question: the warning, with Shut down Docker to go on and Keep Docker"
-                            + " running not to",
+            claim("pressed, it asked one question, titled Shut down Docker: the warning, with Shut down Docker to go on"
+                            + " and Keep Docker running not to",
                     () -> assertThat(window.dialogs.asked)
-                            .containsExactly(new AnsweringDialogs.Asked(WARNING, GO_ON, KEEP)));
+                            .containsExactly(new AnsweringDialogs.Asked(WARNINGS_TITLE, WARNING, GO_ON, KEEP)));
             claim("and, kept running, Docker was asked to shut nothing down",
                     () -> assertThat(docker.of("shut-down")).isEmpty());
         }
     }
 
     @Test
+    @Link(name = "ADR-423", url = Adr.A_QUESTIONS_ANSWERS_ARE_COLOURED_AND_A_BUTTON_GROWS_UNDER_THE_POINTER,
+            type = "adr")
     @Story("A button stops the sidecars and then the Docker engine")
     @DisplayName("With an invocation running, Shut down Docker says it is stopped first, stops it, then shuts Docker down and shows the line it said")
     void withAChildRunningItIsStoppedFirstThenTheShutDownsLineIsShown() throws Exception {
@@ -137,10 +174,10 @@ class TheShutDownDockerButtonTest {
                             !WindowForTests.node(root, "run", Button.class).isDisabled()),
                     both -> !both.contains(false));
 
-            claim("it asked one question: the warning, then that the running invocation is stopped first, in Stop's"
-                            + " words",
+            claim("it asked one question, titled Shut down Docker: the warning, then that the running invocation is"
+                            + " stopped first, in Stop's words",
                     () -> assertThat(window.dialogs.asked).containsExactly(
-                            new AnsweringDialogs.Asked(WARNING + " " + THE_CHILD_FIRST, GO_ON, KEEP)));
+                            new AnsweringDialogs.Asked(WARNINGS_TITLE, WARNING + " " + THE_CHILD_FIRST, GO_ON, KEEP)));
             claim("Docker was asked to shut down once, after the invocation had been stopped",
                     () -> assertThat(docker.of("shut-down")).containsExactly(
                             new RecordingDockerControl.Call("shut-down", Optional.empty(), false)));
@@ -153,6 +190,8 @@ class TheShutDownDockerButtonTest {
     }
 
     @Test
+    @Link(name = "ADR-423", url = Adr.A_QUESTIONS_ANSWERS_ARE_COLOURED_AND_A_BUTTON_GROWS_UNDER_THE_POINTER,
+            type = "adr")
     @Story("Closing the control panel stops the sidecars")
     @DisplayName("Closing the window, its running invocation stopped as the operator confirms, stops the sidecars and not the Docker engine")
     void closingTheWindowStopsTheSidecarsAndNotTheEngine() throws Exception {
@@ -173,9 +212,10 @@ class TheShutDownDockerButtonTest {
             });
             boolean closed = WindowForTests.within(() -> !docker.of("stop-sidecars").isEmpty() && !showing(window));
 
-            claim("closing asked one question, Stop's own, as it does today",
+            claim("closing asked one question, Stop's own sentence titled Close the control panel, with Stop and close"
+                            + " to go on and Keep the window not to",
                     () -> assertThat(window.dialogs.asked).containsExactly(new AnsweringDialogs.Asked(
-                            Child.STOP_CONFIRMATION, "Stop and close", "Keep the window")));
+                            CLOSINGS_TITLE, Child.STOP_CONFIRMATION, "Stop and close", "Keep the window")));
             claim("the window was still shown at the moment the sidecars' stop was called",
                     () -> assertThat(docker.shownAtEachStop).containsExactly(Optional.of(true)));
             claim("and it closed once the sidecars were stopped", () -> assertThat(closed).isTrue());

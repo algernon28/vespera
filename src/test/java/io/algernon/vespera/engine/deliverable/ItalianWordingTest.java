@@ -9,6 +9,7 @@ import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
 import io.algernon.vespera.engine.synthesis.Unwritten;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
+import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.util.Arrays;
@@ -18,7 +19,8 @@ import org.junit.jupiter.api.Test;
 /**
  * The Italian of an Italian deliverable's fixed words, held to the record word for word and to the rules every English
  * sentence keeps (ADR-321 §4, §5): the eight sentences of ADR-174 and ADR-319, a copy's outcome, the line on pictures not
- * shown, the index's code sets and the index's paragraph, whose sentence on {@code seed_partition} ADR-409 §10 words.
+ * shown, the index's code sets and the index's paragraph, whose sentence on the {@code topic} and {@code subtopic}
+ * columns ADR-415 §6 words, and the words of a topic's and a subtopic's page (ADR-415 §10).
  * The pages these land on are held by {@link AnItalianTreeIsDrawnInItalianTest}; a split cluster's Confluence title moved with the Confluence rendering into {@code confluence} (ADR-333 §1), where
  * {@code TheConfluenceRenderingIsDrawnInItalianTest} holds it.
  *
@@ -58,11 +60,36 @@ class ItalianWordingTest {
                 () -> assertThat(Arrays.stream(Unwritten.values()).map(why -> UnwrittenSentences.of(why, ITALIAN)))
                         .containsExactlyInAnyOrderElementsOf(ItalianWordingOnRecord.EVERY_SENTENCE));
         claim(
-                "and the index's paragraph is the record's Italian, word for word, saying that the seed_partition"
-                        + " column holds the name of a topic and that each numbered folder beside the index is a"
-                        + " topic's",
+                "and the index's paragraph is the record's Italian, word for word, saying that the topic column holds"
+                        + " the name of a topic, the subtopic column that of a subtopic, and that each numbered folder"
+                        + " beside the index is a topic's, holding its page",
                 () -> assertThat(FixedWords.indexParagraph(ITALIAN))
                         .isEqualTo(ItalianWordingOnRecord.THE_INDEXS_PARAGRAPH));
+    }
+
+    @Test
+    @Story("An Italian deliverable draws a topic's and a subtopic's page in Italian")
+    @DisplayName("The heads of a topic's tables, a subtopic's line, and the See also heading and sentence are the record's Italian")
+    @Issue("833")
+    @Link(name = "ADR-415", url = Adr.A_TOPIC_IS_A_PAGE_CARRYING_ITS_OVERVIEW_AND_ITS_SUBTOPICS_ARE_PAGES_BENEATH_IT, type = "adr")
+    void theTopicsAndSubtopicsPagesWordsAreTheRecordsItalian() {
+        claim(
+                "the heads of a topic's or a subtopic's table of groups put the group's number first, in Italian",
+                () -> assertThat(FixedWords.topicTableHeads(ITALIAN))
+                        .containsExactlyElementsOf(ItalianWordingOnRecord.THE_TOPICS_TABLE_OF_CLUSTERS));
+        claim(
+                "the heads of a divided topic's table of subtopics are the record's Italian",
+                () -> assertThat(FixedWords.subtopicTableHeads(ITALIAN))
+                        .containsExactlyElementsOf(ItalianWordingOnRecord.THE_TABLE_OF_SUBTOPICS));
+        claim(
+                "a subtopic's page names its topic after the record's Italian words",
+                () -> assertThat(FixedWords.inTheTopic(ITALIAN)).isEqualTo(ItalianWordingOnRecord.IN_THE_TOPIC));
+        claim(
+                "and the See also heading and its sentence are the record's Italian, word for word",
+                () -> {
+                    assertThat(FixedWords.seeAlso(ITALIAN)).isEqualTo(ItalianWordingOnRecord.SEE_ALSO);
+                    assertThat(FixedWords.seeAlsoSentence(ITALIAN)).isEqualTo(ItalianWordingOnRecord.THE_SEE_ALSO_SENTENCE);
+                });
     }
 
     /** {@code html} as a reader reads it: the five entities read back, so an escaped apostrophe reads as one. */

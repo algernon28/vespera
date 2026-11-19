@@ -117,6 +117,7 @@ public class SidecarStarter {
         if (aSidecarIsOnAnotherMachine()) {
             return Outcome.ON_ANOTHER_MACHINE;
         }
+        seeToTheWslconfig();
         if (bothAnswer()) {
             return Outcome.ALREADY_ANSWERING;
         }
@@ -144,6 +145,27 @@ public class SidecarStarter {
             waitForBoth();
             return Outcome.STARTED;
         }
+    }
+
+    /**
+     * On Windows, with both base URLs on this machine, sees to {@code .wslconfig} and logs its line at WARN (ADR-421
+     * §1, §5). Runs no command and takes no lock. What the control panel's window calls before it starts the engine.
+     *
+     * @return the line, empty where the file sets the setting, the system is not Windows, or a base URL names another
+     *     machine
+     */
+    Optional<String> keepTheWslDistributionUp() {
+        if (host != HostSystem.WINDOWS || !isOnThisMachine(settings.doclingBaseUrl())
+                || !isOnThisMachine(settings.ollamaBaseUrl())) {
+            return Optional.empty();
+        }
+        Optional<String> line = WslIdleTimeout.keepTheDistributionUp(settings.profileFolder());
+        line.ifPresent(said -> log.warn("{}", said));
+        return line;
+    }
+
+    private void seeToTheWslconfig() {
+        keepTheWslDistributionUp();
     }
 
     private boolean aSidecarIsOnAnotherMachine() {

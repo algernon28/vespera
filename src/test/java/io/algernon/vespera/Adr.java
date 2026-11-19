@@ -3045,6 +3045,17 @@ public final class Adr {
             + "0414-the-analysis-reports-open-in-a-reports-window-of-their-own-a-tab-each-and-the-cockpit-keeps-its-list-and-two-tabs.md";
 
     /**
+     * ADR-415 -- each rendering draws a topic as a page carrying its overview, its citations linking its clusters'
+     * pages, its placeholder or disclosure, its table of clusters by number or of subtopics, and a see-also list linking
+     * the clusters of survivors placed under other topics that fit it; a crowded topic's subtopics are a folder and a
+     * page each, its clusters a level down numbered over the topic; every slug folds accents; documents.csv names topic,
+     * subtopic and their orders; Confluence keys a subtopic's page P.S and its clusters P.S.C (amends ADR-112, ADR-274,
+     * ADR-276, ADR-321, ADR-328, ADR-333, ADR-396 and ADR-409).
+     */
+    public static final String A_TOPIC_IS_A_PAGE_CARRYING_ITS_OVERVIEW_AND_ITS_SUBTOPICS_ARE_PAGES_BENEATH_IT = FILE
+            + "0415-a-topic-is-a-page-carrying-its-overview-its-subtopics-are-pages-beneath-it-and-a-see-also-link-lands-on-a-groups-page.md";
+
+    /**
      * ADR-416 -- a twelfth analysis report, topics, written at 6a once the topics are named: one row of counts a topic,
      * the topics no survivor is placed under with each seed feeding them and its passages, and the seeds feeding no
      * topic; cluster-sizes gains a row a subtopic under a divided topic, with its own numbers and spread, and a share of
@@ -3075,6 +3086,34 @@ public final class Adr {
      */
     public static final String EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS = FILE
             + "0418-every-stages-chart-is-written-empty-as-the-job-of-vespera-run-begins-and-frozen-only-within-its-invocation.md";
+
+    /**
+     * ADR-421 -- on Windows, each start of the sidecars that looks for them on this machine, and the control panel's
+     * start as its window opens, write {@code .wslconfig} in the profile folder ({@code user.home}) as {@code [general]}
+     * and {@code instanceIdleTimeout=-1} where no file of that name is there, and read one that is there without ever
+     * changing it; each outcome but a file that sets it is one line at WARN, none refuses a start, and nothing runs
+     * {@code wsl --shutdown} (amends ADR-390 §1, §4 and §5 and ADR-323 §3).
+     */
+    public static final String ON_WINDOWS_VESPERA_WRITES_WSLCONFIG_WHERE_THERE_IS_NONE = FILE
+            + "0421-on-windows-vespera-writes-wslconfig-with-no-idle-timeout-where-there-is-none-and-changes-no-file-that-is-there.md";
+
+    /**
+     * ADR-422 -- a line of a stage's chart whose file holds one sample draws it as a marker in the line's colour, the
+     * latest sample's marker, holding its value, on a frozen chart too and there dimmed as its lines are; a frozen line
+     * of two samples or more still marks none, and the legend is kept (amends ADR-382 §6 and ADR-365 §3).
+     */
+    public static final String A_LINE_OF_ONE_SAMPLE_IS_DRAWN_AS_A_MARKER = FILE
+            + "0422-a-line-of-one-sample-is-drawn-as-a-marker-in-its-colour-on-a-frozen-chart-too.md";
+
+    /**
+     * ADR-423 -- a question of the control panel is a plain dialog under a title its caller names, with no header and
+     * no icon; the answer that ends something is drawn in a muted red and the one that keeps it in a muted green, in
+     * both themes, a choice's first answer keeping and its second ending; every button, a question's answers among
+     * them, is drawn at once in a lighter fill and 1.04 times its size under the pointer, and a disabled one is not
+     * (amends ADR-344 §7, ADR-379 §3 and §4, ADR-389 §4 and ADR-390 §5).
+     */
+    public static final String A_QUESTIONS_ANSWERS_ARE_COLOURED_AND_A_BUTTON_GROWS_UNDER_THE_POINTER = FILE
+            + "0423-a-question-has-no-header-or-icon-its-answers-are-coloured-by-what-they-do-and-a-button-grows-under-the-pointer.md";
 
     private Adr() {
     }

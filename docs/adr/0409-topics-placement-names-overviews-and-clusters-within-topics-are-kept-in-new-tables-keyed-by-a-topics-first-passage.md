@@ -1,5 +1,7 @@
 # ADR-409 — Topics, placement, names, overviews and clusters within topics are kept in new tables keyed by a topic's first passage
 
+> **Partly amended — see [ADR-415](0415-a-topic-is-a-page-carrying-its-overview-its-subtopics-are-pages-beneath-it-and-a-see-also-link-lands-on-a-groups-page.md).** §10, what the renderings draw until #833, is replaced but for `winning_seed`'s item and the numbering of a crowded topic's clusters in one sequence: a topic and a subtopic each have a page, a crowded topic's clusters lie in a folder for each subtopic, the overview and the see-also links are drawn, and `documents.csv` names `topic`, `subtopic` and their orders.
+
 > **Partly amended — see [ADR-416](0416-a-topics-report-lists-the-topics-with-no-document-and-the-seeds-feeding-none-and-cluster-sizes-gain-a-row-a-subtopic.md).** Of §8: `cluster-sizes.html` keeps one row a topic, and a divided topic's row is followed by a row for each of its subtopics, with its own five numbers and the spread of its own graph; every row holds the subtopic, empty on a topic's, and its share of the documents grouped; `cluster-sizes.json` is of format 3, and the window reads it at 3. The topics no survivor is placed under, with their seeds, and the seeds feeding no topic are shown by the `topics` analysis report that record adds at 6a. The rest of this record stands.
 
 - **Date**: 2026-11-17

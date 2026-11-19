@@ -6,6 +6,7 @@ import io.algernon.vespera.engine.ledger.RunId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.function.Consumer;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -87,6 +88,49 @@ public class Placements {
                         List.of(Long.MIN_VALUE),
                         last -> List.of(last.value()),
                         (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("occurrence_id")))
+                .eachPage(page);
+    }
+
+    /**
+     * One survivor that fits a topic other than the one it is placed under: its occurrence, the topic it is placed under,
+     * and the cluster it is a member of there (ADR-415 section 5).
+     */
+    public record SeeAlsoRow(OccurrenceId occurrence, TopicKey placedUnder, OptionalInt subtopic, int clusterOrdinal) {}
+
+    /**
+     * Hands {@code page} the documents that fit {@code fitted}, other than the topic they are placed under, and are
+     * placed under {@code placedUnder}, each with the cluster it is a member of there, a page of up to {@value
+     * KeysetPages#ROWS_IN_A_PAGE} at a time in occurrence order, each once its statement has finished (ADR-415 section 5,
+     * ADR-409 section 12). Each page begins after the last occurrence of the one before; it is read by the index on the
+     * run, the topic and the occurrence, which gives the rows in occurrence order and sorts nothing, and the cluster is
+     * found by the primary key of the memberships. A document no clustering placed has no cluster and is not handed on.
+     */
+    public void eachPageOfSeeAlso(
+            RunId runId, TopicKey fitted, TopicKey placedUnder, Consumer<List<SeeAlsoRow>> page) {
+        SeedPassage under = placedUnder.firstPassage();
+        new KeysetPages<SeeAlsoRow>(
+                        jdbcTemplate,
+                        "SELECT s.occurrence_id, c.subtopic_ordinal, c.cluster_ordinal FROM see_also s"
+                                + " JOIN cluster_member c ON c.occurrence_id = s.occurrence_id AND c.run_id = s.run_id"
+                                + " WHERE s.run_id = ? AND s.topic_seed_path = ? AND s.topic_chunk_index = ?"
+                                + " AND +c.topic_seed_path = ? AND +c.topic_chunk_index = ? AND s.occurrence_id > ?"
+                                + " ORDER BY s.occurrence_id",
+                        List.of(
+                                runId.value(),
+                                fitted.firstPassage().seedPath(),
+                                fitted.firstPassage().chunkIndex(),
+                                under.seedPath(),
+                                under.chunkIndex()),
+                        List.of(Long.MIN_VALUE),
+                        last -> List.of(last.occurrence().value()),
+                        (resultSet, rowNumber) -> {
+                            int subtopic = resultSet.getInt("subtopic_ordinal");
+                            return new SeeAlsoRow(
+                                    new OccurrenceId(resultSet.getLong("occurrence_id")),
+                                    placedUnder,
+                                    subtopic == DocumentClusters.NO_SUBTOPIC ? OptionalInt.empty() : OptionalInt.of(subtopic),
+                                    resultSet.getInt("cluster_ordinal"));
+                        })
                 .eachPage(page);
     }
 

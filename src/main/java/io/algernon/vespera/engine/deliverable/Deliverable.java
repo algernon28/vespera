@@ -6,6 +6,7 @@ import io.algernon.vespera.engine.synthesis.ClusterSlot;
 import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
 import io.algernon.vespera.engine.synthesis.SynthesisDoc;
+import io.algernon.vespera.engine.synthesis.TopicKey;
 import io.algernon.vespera.engine.synthesis.Unwritten;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
@@ -448,24 +450,31 @@ public final class Deliverable {
         Path indexPart = tree.resolve(INDEX_FILE_NAME + PART_SUFFIX);
         try (Writer index = Files.newBufferedWriter(indexPart, StandardCharsets.UTF_8)) {
             IndexPage.open(index, provenance, language);
+            SeeAlsoResolver seeAlsoResolver = new SeeAlsoResolver(source, topics);
             for (ListedTopic topic : topics) {
-                List<RecordedCluster> clusters = inOneSequence(source.clustersOf(topic));
+                List<ListedSubtopic> subtopics = source.subtopicsOf(topic);
+                TopicLayout layout =
+                        new TopicLayout(topic, topics.size(), subtopics, inOneSequence(source.clustersOf(topic)));
+                ListedOverview overview = source.overviewOf(topic);
+                List<RecordedCluster> clusters = layout.clusters();
                 List<ListedSurvivor> survivors = source.survivorsOf(topic);
                 Map<ClusterSlot, List<ListedSurvivor>> membersByCluster = new HashMap<>();
                 for (ListedSurvivor survivor : survivors) {
                     membersByCluster.computeIfAbsent(survivor.slot(), key -> new ArrayList<>()).add(survivor);
                 }
-                String topicName = IndexPage.topicDirectoryName(topic, topics.size());
+                String topicName = layout.topicFolder();
                 Path topicDir = tree.resolve(topicName);
                 Files.createDirectories(topicDir);
                 written.add(topicName);
-                int clusterWidth = IndexPage.widthOf(topic.clusterCount());
+                for (ListedSubtopic subtopic : subtopics) {
+                    written.add(topicName + "/" + layout.subtopicFolder(subtopic));
+                }
                 // The topic's copies are made before its pages, so each page states what stands (ADR-274 §2.2); a
                 // cluster's names are worked out from its members before its first copy (ADR-280 §2) and let go after
                 // it: what stays is a folder for the cluster and a name for each copy a collision changed (see
                 // Copies). No picture is held past its entry (ADR-286 §2).
                 for (RecordedCluster recorded : clusters) {
-                    String clusterName = IndexPage.clusterFolderName(recorded, clusterWidth);
+                    String clusterName = layout.clusterFolderInTopic(recorded);
                     written.add(topicName + "/" + clusterName);
                     Path clusterFolder = topicDir.resolve(clusterName);
                     Files.createDirectories(clusterFolder);
@@ -473,13 +482,26 @@ public final class Deliverable {
                             membersByCluster.getOrDefault(ClusterSlot.of(recorded), List.of());
                     copies.copyAll(clusterFolder, members);
                 }
-                IndexPage.topicHeading(index, topic, language);
-                drawings.topicStarted(topic, topics.size());
+                IndexPage.topicHeading(index, layout, language);
+                drawings.topicStarted(topic, topics.size(), subtopics, overview);
+                List<TopicPages.Row> rows = new ArrayList<>();
+                List<TopicPages.Row> subtopicRows = new ArrayList<>();
+                ListedSubtopic openSubtopic = null;
                 for (RecordedCluster recorded : clusters) {
                     ClusterSlot slot = ClusterSlot.of(recorded);
+                    Optional<ListedSubtopic> subtopic = layout.subtopicOf(recorded);
+                    if (subtopic.isPresent() && !subtopic.get().equals(openSubtopic)) {
+                        if (openSubtopic != null) {
+                            IndexPage.tableEnd(index);
+                            writeSubtopicPage(topicDir, layout, openSubtopic, subtopicRows, language, moves);
+                        }
+                        openSubtopic = subtopic.get();
+                        subtopicRows = new ArrayList<>();
+                        IndexPage.subtopicHeading(index, layout, openSubtopic, language);
+                    }
                     // One read of the cluster's synthesis doc serves its page and its row of the index (ADR-241).
                     Optional<SynthesisDoc> doc = source.writtenOver(slot);
-                    Path clusterFolder = topicDir.resolve(IndexPage.clusterFolderName(recorded, clusterWidth));
+                    Path clusterFolder = topicDir.resolve(layout.clusterFolderInTopic(recorded));
                     List<ListedSurvivor> members = membersByCluster.getOrDefault(slot, List.of());
                     SynthesisDoc writing = doc.orElse(null);
                     Unwritten why = doc.isEmpty() ? source.whyUnwritten(slot).orElse(null) : null;
@@ -522,9 +544,18 @@ public final class Deliverable {
                     sizes.drawn(onePageSize, ends.count(), pageCount, pagesOver);
                     filesLeft[0] += filesLeftIn(clusterFolder, members, copies, pageCount);
                     progress.clusterDrawn();
-                    IndexPage.clusterRow(index, topic, topics.size(), recorded, doc, language);
+                    TopicPages.Row row = new TopicPages.Row(recorded, doc.map(SynthesisDoc::title));
+                    rows.add(row);
+                    subtopicRows.add(row);
+                    IndexPage.clusterRow(index, layout, recorded, row.title(), language);
                 }
-                IndexPage.topicEnd(index);
+                IndexPage.tableEnd(index);
+                if (openSubtopic != null) {
+                    writeSubtopicPage(topicDir, layout, openSubtopic, subtopicRows, language, moves);
+                }
+                // The topic's page is written once its last cluster is drawn: its overview and its rows are known by
+                // then, and what is held is one topic's (ADR-415 section 2, ADR-409 section 13).
+                writeTopicPage(topicDir, layout, overview, rows, seeAlsoResolver, drawings, language, moves);
                 drawings.topicEnded();
                 progress.partitionWritten();
             }
@@ -532,6 +563,111 @@ public final class Deliverable {
             IndexPage.close(index);
         }
         return indexPart;
+    }
+
+    /** Writes a subtopic's page beside its target and moves it into place (ADR-415 section 3). */
+    private static void writeSubtopicPage(
+            Path topicDir,
+            TopicLayout layout,
+            ListedSubtopic subtopic,
+            List<TopicPages.Row> rows,
+            DeliverableLanguage language,
+            ReplacingMove moves)
+            throws IOException {
+        Path folder = topicDir.resolve(layout.subtopicFolder(subtopic));
+        Path part = folder.resolve(CLUSTER_PAGE_NAME + PART_SUFFIX);
+        try (Writer page = Files.newBufferedWriter(part, StandardCharsets.UTF_8)) {
+            TopicPages.writeSubtopicPage(page, layout, subtopic, rows, language);
+        }
+        moves.intoPlace(part, folder.resolve(CLUSTER_PAGE_NAME));
+    }
+
+    /**
+     * Writes a topic's page beside its target and moves it into place (ADR-415 section 2), handing each page of its
+     * see-also lines to {@code drawings} as it is written.
+     */
+    private static void writeTopicPage(
+            Path topicDir,
+            TopicLayout layout,
+            ListedOverview overview,
+            List<TopicPages.Row> rows,
+            SeeAlsoResolver resolver,
+            PluginDrawings drawings,
+            DeliverableLanguage language,
+            ReplacingMove moves)
+            throws IOException {
+        Path part = topicDir.resolve(CLUSTER_PAGE_NAME + PART_SUFFIX);
+        try (Writer page = Files.newBufferedWriter(part, StandardCharsets.UTF_8)) {
+            TopicPages.writeTopicPage(
+                    page, layout, overview, rows, language,
+                    handOn -> resolver.eachPageOf(layout, lines -> {
+                        handOn.accept(lines);
+                        drawings.seeAlso(layout.topic(), lines);
+                    }));
+        }
+        moves.intoPlace(part, topicDir.resolve(CLUSTER_PAGE_NAME));
+    }
+
+    /**
+     * Resolves each see-also line the source hands to the cluster it lands on (ADR-415 section 5), holding the layout of
+     * the one topic the last line lay in, since the lines go by topic.
+     */
+    private static final class SeeAlsoResolver {
+
+        private final ArrangedSurvivors source;
+        private final List<ListedTopic> topics;
+        private TopicLayout held;
+
+        SeeAlsoResolver(ArrangedSurvivors source, List<ListedTopic> topics) {
+            this.source = source;
+            this.topics = topics;
+        }
+
+        void eachPageOf(TopicLayout own, Consumer<List<SeeAlsoLine>> page) {
+            source.eachPageOfSeeAlso(own.topic(), raw -> {
+                List<SeeAlsoLine> lines = new ArrayList<>();
+                for (ListedSeeAlso line : raw) {
+                    TopicLayout layout = layoutOf(own, line.cluster().topic());
+                    if (layout == null) {
+                        continue;
+                    }
+                    Optional<RecordedCluster> cluster = layout.clusterAt(line.cluster());
+                    if (cluster.isEmpty()) {
+                        continue;
+                    }
+                    ClusterSlot slot = line.cluster();
+                    lines.add(new SeeAlsoLine(
+                            line.path(),
+                            layout.topic(),
+                            layout.subtopicOf(cluster.get()),
+                            layout.subtopics().size(),
+                            cluster.get(),
+                            layout.clusterFolder(cluster.get()),
+                            () -> source.writtenOver(slot).map(SynthesisDoc::title)));
+                }
+                if (!lines.isEmpty()) {
+                    page.accept(lines);
+                }
+            });
+        }
+
+        /** The layout of the topic {@code key} names, or null where no topic drawn has that key, which has no folder. */
+        private TopicLayout layoutOf(TopicLayout own, TopicKey key) {
+            if (own.topic().topic().equals(key)) {
+                return own;
+            }
+            if (held != null && held.topic().topic().equals(key)) {
+                return held;
+            }
+            for (ListedTopic topic : topics) {
+                if (topic.topic().equals(key)) {
+                    held = new TopicLayout(
+                            topic, topics.size(), source.subtopicsOf(topic), inOneSequence(source.clustersOf(topic)));
+                    return held;
+                }
+            }
+            return null;
+        }
     }
 
     /**
@@ -641,12 +777,26 @@ public final class Deliverable {
                     others++;
                 }
             }
-            // A partition's folder, and a plugin's, are looked into one level; a plugin's own partition folders one
-            // level more, as the tree's are (ADR-312 §4).
+            // A topic's folder, and a plugin's, are looked into one level; a plugin's own topic folders one level
+            // more, as the tree's are (ADR-312 §4). A subtopic's folder, in the tree and in a plugin's folder, is
+            // looked into too: it is the folder of a topic's in which this drawing wrote another folder (a cluster's),
+            // where a cluster's folder, which holds only what was written in it, is not (ADR-415 §3).
+            Set<String> holdingFolders = new HashSet<>();
+            for (String name : written) {
+                int slash = name.lastIndexOf('/');
+                if (slash > 0) {
+                    holdingFolders.add(name.substring(0, slash));
+                }
+            }
             for (String folder : written.stream()
-                    .filter(name -> name.indexOf('/') < 0
-                            || pluginFolders.stream().anyMatch(plugin -> name.startsWith(plugin + "/")
-                                    && name.indexOf('/', plugin.length() + 1) < 0))
+                    .filter(name -> {
+                        long depth = name.chars().filter(c -> c == '/').count();
+                        boolean inPlugin = pluginFolders.stream().anyMatch(plugin -> name.startsWith(plugin + "/"));
+                        if (depth <= (inPlugin ? 1 : 0)) {
+                            return true;
+                        }
+                        return depth == (inPlugin ? 2 : 1) && holdingFolders.contains(name);
+                    })
                     .toList()) {
                 WrittenHere here = new WrittenHere(tree, folder + "/", written);
                 try (Stream<Path> inside = Files.list(tree.resolve(folder))) {

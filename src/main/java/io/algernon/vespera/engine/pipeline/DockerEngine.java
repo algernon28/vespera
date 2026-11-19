@@ -26,10 +26,13 @@ public final class DockerEngine {
     private final Duration waitAtMost;
     private final Path lockFolder;
 
-    private DockerEngine(String wslDistribution, Duration waitAtMost, Path lockFolder) {
+    private final Path profileFolder;
+
+    private DockerEngine(String wslDistribution, Duration waitAtMost, Path lockFolder, Path profileFolder) {
         this.wslDistribution = wslDistribution == null ? "" : wslDistribution;
         this.waitAtMost = waitAtMost;
         this.lockFolder = lockFolder;
+        this.profileFolder = profileFolder;
     }
 
     /**
@@ -37,9 +40,21 @@ public final class DockerEngine {
      *     alone
      * @param waitAtMost the bound of every start and stop command and of the wait for the engine
      * @param lockFolder the folder {@code sidecars.lock} lies in
+     * @param profileFolder the Windows profile folder {@code .wslconfig} lies in, null where none is known (ADR-421)
      */
-    public static DockerEngine of(String wslDistribution, Duration waitAtMost, Path lockFolder) {
-        return new DockerEngine(wslDistribution, waitAtMost, lockFolder);
+    public static DockerEngine of(String wslDistribution, Duration waitAtMost, Path lockFolder, Path profileFolder) {
+        return new DockerEngine(wslDistribution, waitAtMost, lockFolder, profileFolder);
+    }
+
+    /**
+     * On Windows, with both base URLs on this machine, writes {@code .wslconfig} where there is none and reads one that
+     * is there (ADR-421). Runs no command and takes no lock.
+     *
+     * @return the line to show; empty where the file sets the setting, the system is not Windows, or a base URL names
+     *     another machine
+     */
+    public Optional<String> keepTheWslDistributionUp(URI doclingBaseUrl, URI ollamaBaseUrl) {
+        return starter(doclingBaseUrl, ollamaBaseUrl).keepTheWslDistributionUp();
     }
 
     /**
@@ -75,7 +90,7 @@ public final class DockerEngine {
 
     private SidecarStarter starter(URI doclingBaseUrl, URI ollamaBaseUrl) {
         SidecarStartSettings settings =
-                new SidecarStartSettings(doclingBaseUrl, ollamaBaseUrl, "", waitAtMost, wslDistribution);
+                new SidecarStartSettings(doclingBaseUrl, ollamaBaseUrl, "", waitAtMost, wslDistribution, profileFolder);
         return new SidecarStarter(
                 settings,
                 new SystemProcessRunner(Path.of(System.getProperty("java.io.tmpdir"))),

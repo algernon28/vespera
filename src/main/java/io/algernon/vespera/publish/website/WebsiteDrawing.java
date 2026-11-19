@@ -8,10 +8,16 @@ import io.algernon.vespera.engine.deliverable.Entries;
 import io.algernon.vespera.engine.deliverable.FixedWords;
 import io.algernon.vespera.engine.deliverable.Html;
 import io.algernon.vespera.engine.deliverable.IndexPage;
+import io.algernon.vespera.engine.deliverable.ListedOverview;
+import io.algernon.vespera.engine.deliverable.ListedSubtopic;
 import io.algernon.vespera.engine.deliverable.ListedTopic;
 import io.algernon.vespera.engine.deliverable.ListedSurvivor;
+import io.algernon.vespera.engine.deliverable.SeeAlsoLine;
+import io.algernon.vespera.engine.deliverable.TopicLayout;
+import io.algernon.vespera.engine.deliverable.TopicPages;
 import io.algernon.vespera.engine.ledger.ReplacingMove;
 import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
+import io.algernon.vespera.engine.synthesis.OverviewUnwritten;
 import io.algernon.vespera.engine.synthesis.RecordedCluster;
 import io.algernon.vespera.engine.synthesis.SynthesisDoc;
 import io.algernon.vespera.engine.synthesis.Unwritten;
@@ -73,9 +79,18 @@ final class WebsiteDrawing implements Drawing {
     /** One entry of the search's index (ADR-333 §9): the name of a document as its page shows it, and where it is. */
     record SearchEntry(String name, String link) {}
 
-    /** One cluster of the search's index (ADR-333 §9); the title and the writing are empty where nothing was written. */
-    record SearchCluster(String partition, String title, String label, String writing, String link,
+    /**
+     * One cluster of the search's index (ADR-333 §9, ADR-415 §8): its topic's name and its subtopic's, which is empty
+     * where its topic has none; the title and the writing are empty where nothing was written.
+     */
+    record SearchCluster(String topic, String subtopic, String title, String label, String writing, String link,
             List<SearchEntry> entries) {}
+
+    /** What a page's content is written by, between the website's opening and its closing. */
+    @FunctionalInterface
+    private interface Content {
+        void writeTo(Appendable page) throws IOException;
+    }
 
     private final Path directory;
     private final ReplacingMove moves;
@@ -87,9 +102,17 @@ final class WebsiteDrawing implements Drawing {
     private boolean firstSearchRow = true;
     private boolean firstListed = true;
 
-    /** The topic being drawn: its folder and its name. */
+    /** The topic being drawn: its folder, its name and what its page and its subtopics' pages are written from. */
+    private ListedTopic topicDrawn;
+    private int topicCount;
     private String topicFolder;
     private String topicName;
+    private ListedOverview overview;
+    private List<ListedSubtopic> subtopics = List.of();
+    private final List<RecordedCluster> clustersDrawn = new ArrayList<>();
+    private final List<TopicPages.Row> rows = new ArrayList<>();
+    private final List<List<SeeAlsoLine>> seeAlsoPages = new ArrayList<>();
+    private ListedSubtopic openSubtopic;
 
     /**
      * Opens the rendering in {@code tree}, writing the index's opening, and adds every folder it writes to {@code
@@ -117,15 +140,61 @@ final class WebsiteDrawing implements Drawing {
         search.append("globalThis.VESPERA_SEARCH_INDEX = [\n");
     }
 
-    /** Starts a topic's heading and table in the index, and its folder, named as the HTML tree's (ADR-409 section 10). */
+    /** Starts a topic with no subtopic and no overview, which a drawing that is handed neither is left to answer. */
     @Override
     public void topicStarted(ListedTopic topic, int topicCount) throws IOException {
-        topicFolder = IndexPage.topicDirectoryName(topic, topicCount);
-        topicName = topic.name();
+        topicStarted(topic, topicCount, List.of(), new ListedOverview.Unwritten(OverviewUnwritten.NOT_REACHED));
+    }
+
+    /**
+     * Starts a topic's heading in the index, linking its page, and its folder, and a folder for each subtopic, named as
+     * the HTML tree's (ADR-415 §4, §8); the table of a topic with no subtopics is opened, a divided topic's subtopics'
+     * as their first cluster comes.
+     */
+    @Override
+    public void topicStarted(
+            ListedTopic topic, int topicCount, List<ListedSubtopic> subtopics, ListedOverview overview)
+            throws IOException {
+        this.topicDrawn = topic;
+        this.topicCount = topicCount;
+        this.topicFolder = IndexPage.topicDirectoryName(topic, topicCount);
+        this.topicName = topic.name();
+        this.overview = overview;
+        this.subtopics = List.copyOf(subtopics);
+        this.openSubtopic = null;
+        clustersDrawn.clear();
+        rows.clear();
+        seeAlsoPages.clear();
         Files.createDirectories(directory.resolve(topicFolder));
         written.add(DIRECTORY_NAME + "/" + topicFolder);
-        index.append("<h2>").append(Html.escape(topic.name())).append("</h2>\n<table>\n")
-                .append(FixedWords.clusterTableHeadRow(language));
+        for (ListedSubtopic subtopic : this.subtopics) {
+            String folder = topicFolder + "/" + IndexPage.subtopicDirectoryName(subtopic, this.subtopics.size());
+            Files.createDirectories(directory.resolve(folder));
+            written.add(DIRECTORY_NAME + "/" + folder);
+        }
+        index.append("<h2><a href=\"").append(Html.escape(topicFolder + "/" + Deliverable.INDEX_FILE_NAME))
+                .append("\">").append(Html.escape(topic.name())).append("</a></h2>\n");
+        if (this.subtopics.isEmpty()) {
+            index.append("<table>\n").append(FixedWords.clusterTableHeadRow(language));
+        }
+    }
+
+    /** The subtopic {@code recorded} lies in, null where its topic has none. */
+    private ListedSubtopic subtopicOf(RecordedCluster recorded) {
+        if (recorded.cluster().subtopic().isEmpty()) {
+            return null;
+        }
+        int number = recorded.cluster().subtopic().getAsInt();
+        return subtopics.stream()
+                .filter(subtopic -> subtopic.subtopic() == number)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "a cluster lies in subtopic " + number + ", which the topic's subtopics do not include"));
+    }
+
+    /** The folder of {@code subtopic} from the website's root. */
+    private String subtopicFolderPath(ListedSubtopic subtopic) {
+        return topicFolder + "/" + IndexPage.subtopicDirectoryName(subtopic, subtopics.size());
     }
 
     /**
@@ -164,8 +233,21 @@ final class WebsiteDrawing implements Drawing {
         // The entries this drawing's own entriesOf returned (ADR-333 §2).
         WebsiteEntries entries = (WebsiteEntries) handedBack;
         entries.close();
+        ListedSubtopic within = subtopicOf(recorded);
+        if (within != null && !within.equals(openSubtopic)) {
+            if (openSubtopic != null) {
+                index.append("</table>\n");
+            }
+            openSubtopic = within;
+            index.append("<h3><a href=\"")
+                    .append(Html.escape(subtopicFolderPath(within) + "/" + Deliverable.INDEX_FILE_NAME))
+                    .append("\">").append(Html.escape(within.name())).append("</a></h3>\n<table>\n")
+                    .append(FixedWords.clusterTableHeadRow(language));
+        }
         String folderPath = clusterFolderPath(topic, recorded);
         Path folder = directory.resolve(folderPath);
+        // The way up from a group's page to the website's root: its folder, its subtopic's where it has one, its topic's.
+        String up = "../".repeat(within == null ? 2 : 3);
         int pages = breaks.map(ClusterPage.PageBreaks::pages).orElse(1);
         for (int page = 1; page <= pages; page++) {
             String name = ClusterPage.nameOfPage(page);
@@ -174,7 +256,7 @@ final class WebsiteDrawing implements Drawing {
             try (OutputStream out = Files.newOutputStream(part)) {
                 files = WebsitePage.write(
                         out, recorded, doc.orElse(null), why, entryCount, entries, breaks.orElse(null), page,
-                        writingFinished, "../../", language);
+                        writingFinished, up, language);
             }
             String digest = ListedFile.sha256Of(part);
             long size = Files.size(part);
@@ -195,6 +277,7 @@ final class WebsiteDrawing implements Drawing {
         String link = folderPath + "/" + ClusterPage.nameOfPage(1);
         search.append(firstSearchRow ? "" : ",\n").append(JSON.writeValueAsString(new SearchCluster(
                 topicName,
+                within == null ? "" : within.name(),
                 doc.map(SynthesisDoc::title).orElse(""),
                 recorded.label().value(),
                 doc.map(SynthesisDoc::prose).orElse(""),
@@ -209,12 +292,52 @@ final class WebsiteDrawing implements Drawing {
                         ? "<em>" + Html.escape(FixedWords.nothingWasWrittenOverIt(language)) + "</em>"
                         : Html.escape(doc.get().title()))
                 .append("</td></tr>\n");
+        clustersDrawn.add(recorded);
+        rows.add(new TopicPages.Row(recorded, doc.map(SynthesisDoc::title)));
     }
 
-    /** Closes the table of the topic just drawn. */
+    /** Holds one page of the topic's see-also lines until its page is written (ADR-415 §5, §8). */
+    @Override
+    public void seeAlso(ListedTopic topic, List<SeeAlsoLine> lines) {
+        seeAlsoPages.add(List.copyOf(lines));
+    }
+
+    /**
+     * Closes the table of the topic just drawn, and writes its page and each of its subtopics' under the website's
+     * opening and closing, each listed as a page (ADR-415 §2, §3, §8).
+     */
     @Override
     public void topicEnded() throws IOException {
         index.append("</table>\n");
+        TopicLayout layout = new TopicLayout(topicDrawn, topicCount, subtopics, clustersDrawn);
+        for (ListedSubtopic subtopic : subtopics) {
+            List<TopicPages.Row> inIt = rows.stream()
+                    .filter(row -> subtopic.equals(subtopicOf(row.recorded())))
+                    .toList();
+            writePage(subtopicFolderPath(subtopic), subtopic.name(), "../../",
+                    page -> TopicPages.subtopicContent(page, layout, subtopic, inIt, language));
+        }
+        writePage(topicFolder, topicName, "../",
+                page -> TopicPages.topicContent(
+                        page, layout, overview, rows, language, handOn -> seeAlsoPages.forEach(handOn)));
+    }
+
+    /**
+     * Writes the page {@code index.html} of {@code folder} under the website's opening and closing, {@code up} being the
+     * way from it up to the website's root, and lists it as a page.
+     */
+    private void writePage(String folder, String title, String up, Content content) throws IOException {
+        Path part = directory.resolve(folder).resolve(Deliverable.INDEX_FILE_NAME + Deliverable.PART_SUFFIX);
+        try (Writer page = Files.newBufferedWriter(part, StandardCharsets.UTF_8)) {
+            page.append(WebsitePage.opening(title, up, language));
+            content.writeTo(page);
+            page.append(WebsitePage.closing());
+        }
+        String digest = ListedFile.sha256Of(part);
+        long size = Files.size(part);
+        moves.intoPlace(part, directory.resolve(folder).resolve(Deliverable.INDEX_FILE_NAME));
+        String path = folder + "/" + Deliverable.INDEX_FILE_NAME;
+        listed(new ListedFile(path, path, size, digest, ListedFile.PAGE));
     }
 
     /**
@@ -258,8 +381,11 @@ final class WebsiteDrawing implements Drawing {
         rest.close();
     }
 
+    /** The folder of {@code recorded} from the website's root: in its subtopic's where it has one, otherwise its topic's. */
     private String clusterFolderPath(ListedTopic topic, RecordedCluster recorded) {
-        return topicFolder + "/" + IndexPage.clusterFolderName(recorded, IndexPage.widthOf(topic.clusterCount()));
+        ListedSubtopic within = subtopicOf(recorded);
+        return (within == null ? topicFolder : subtopicFolderPath(within)) + "/"
+                + IndexPage.clusterFolderName(recorded, IndexPage.widthOf(topic.clusterCount()));
     }
 
     /** Moves the {@code .part} of {@code name} into place and lists it. */
