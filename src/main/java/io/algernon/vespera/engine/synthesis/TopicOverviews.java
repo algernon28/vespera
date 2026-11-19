@@ -107,6 +107,24 @@ public class TopicOverviews {
         }
     }
 
+    /**
+     * How many overviews are recorded under {@code generation}, written and turned down (ADR-416 section 7): the rows of
+     * {@code topic_overview} and of {@code topic_overview_fault}, counted by the database, none read.
+     *
+     * @param written the rows of {@code topic_overview}
+     * @param turnedDown the rows of {@code topic_overview_fault}
+     */
+    public record Counted(int written, int turnedDown) {}
+
+    /** The overviews recorded under {@code generation}, counted. */
+    public Counted countedUnder(RunId generation) {
+        Integer written = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM topic_overview WHERE run_id = ?", Integer.class, generation.value());
+        Integer turnedDown = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM topic_overview_fault WHERE run_id = ?", Integer.class, generation.value());
+        return new Counted(written == null ? 0 : written, turnedDown == null ? 0 : turnedDown);
+    }
+
     /** Records that the overview of {@code topic} was turned down, with how many answers were asked for. */
     public void recordTurnedDown(RunId generation, TopicKey topic, TopicOverviewOutcome.TurnedDown turnedDown) {
         jdbcTemplate.update(

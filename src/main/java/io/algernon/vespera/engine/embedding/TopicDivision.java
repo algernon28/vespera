@@ -3,6 +3,7 @@ package io.algernon.vespera.engine.embedding;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * How one topic's survivors divide (ADR-406): into subtopics where the topic is crowded, and into clusters, within
@@ -12,11 +13,22 @@ import java.util.List;
  * topic as {@link Communities} numbers them. {@code clusterOf} is each survivor's cluster, numbered from 0 within its
  * subtopic where it has one, else within the topic. Both are in the order the survivors were visited in.
  */
-record TopicDivision(List<Integer> subtopicOf, List<Integer> clusterOf) {
+record TopicDivision(
+        List<Integer> subtopicOf, List<Integer> clusterOf, List<Optional<RetainedEdgeSpread>> subtopicSpreads) {
 
+    /**
+     * {@code subtopicSpreads} is each subtopic's spread, by its number, taken from the graph its clusters were found
+     * over (ADR-096, ADR-416 section 5); empty where the topic has no subtopics.
+     */
     TopicDivision {
         subtopicOf = List.copyOf(subtopicOf);
         clusterOf = List.copyOf(clusterOf);
+        subtopicSpreads = List.copyOf(subtopicSpreads);
+    }
+
+    /** A division whose subtopic spreads are not held. */
+    TopicDivision(List<Integer> subtopicOf, List<Integer> clusterOf) {
+        this(subtopicOf, clusterOf, List.of());
     }
 
     /** Whether the topic was divided into subtopics. */
@@ -92,15 +104,17 @@ record TopicDivision(List<Integer> subtopicOf, List<Integer> clusterOf) {
             members.get(communities[survivor]).add(survivor);
         }
         Integer[] clusterOf = new Integer[count];
+        List<Optional<RetainedEdgeSpread>> spreads = new ArrayList<>();
         for (List<Integer> survivors : members) {
             NearestNeighbourGraph.Graph own =
                     NearestNeighbourGraph.build(new View(topic, survivors), neighbours, blockSize);
+            spreads.add(RetainedEdgeSpread.over(own));
             int[] clusters = Communities.of(own, resolution);
             for (int place = 0; place < survivors.size(); place++) {
                 clusterOf[survivors.get(place)] = clusters[place];
             }
         }
-        return new TopicDivision(boxed(communities), List.of(clusterOf));
+        return new TopicDivision(boxed(communities), List.of(clusterOf), spreads);
     }
 
     private static List<Integer> boxed(int[] numbers) {

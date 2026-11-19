@@ -24,7 +24,7 @@ import tools.jackson.databind.json.JsonMapper;
  * {@code report.json} is of format 2 once the translation step, its verdict and its report are gone (ADR-392 §5): the
  * jar writes 2, its schema says 2 and the window reads 2, in one change, as ADR-362 §3 raises the format for a field
  * removed; no field of the schema names the kind, the step or the report; and the analysis reports are eleven, in the
- * jar's list and in the window's.
+ * jar's list and in the window's, and twelve since ADR-416 §4 adds the topics', which leaves the format at 2.
  *
  * <p>Each claim fails while the translation step's step, kind or report is in the report or its schema, or while the
  * jar, the schema and the window disagree on the format.
@@ -47,15 +47,17 @@ class TheReportIsOfFormatTwoTest {
     /** What every name of the translation step's step, kind and report begins with. */
     private static final String TRANSLATION = "translation";
 
-    /** The jar's eleven analysis reports, in the order the report lists them. */
-    private static final List<String> THE_JARS_ELEVEN = List.of("format-mix", "extraction-failures",
+    /** The jar's twelve analysis reports, in the order the report lists them, the topics' before the arrangement's. */
+    private static final List<String> THE_JARS_TWELVE = List.of("format-mix", "extraction-failures",
             "extraction-survivors", "confidence-distribution", "word-count-distribution", "document-frequency",
-            "seed-corpus-comparison", "relevance-labelling", "cluster-sizes", "arrangement", "cluster-page-sizes");
+            "seed-corpus-comparison", "relevance-labelling", "cluster-sizes", "topics", "arrangement",
+            "cluster-page-sizes");
 
-    /** The window's eleven analysis reports, in the order its Reports section lists them. */
-    private static final List<String> THE_WINDOWS_ELEVEN = List.of("format-mix", "extraction-failures",
+    /** The window's twelve analysis reports, in the order its Reports section lists them. */
+    private static final List<String> THE_WINDOWS_TWELVE = List.of("format-mix", "extraction-failures",
             "extraction-survivors", "confidence-distribution", "document-frequency", "word-count-distribution",
-            "seed-corpus-comparison", "cluster-sizes", "relevance-labelling", "arrangement", "cluster-page-sizes");
+            "seed-corpus-comparison", "cluster-sizes", "relevance-labelling", "topics", "arrangement",
+            "cluster-page-sizes");
 
     @Test
     @Story("The report says which format it is in")
@@ -87,11 +89,12 @@ class TheReportIsOfFormatTwoTest {
 
     @Test
     @Story("The report says which format it is in")
-    @DisplayName("The analysis reports are eleven, in the jar's list and in the window's, each in its own order, and the translations report is in neither")
-    void theAnalysisReportsAreEleven() {
-        claim("the report lists the eleven analysis reports, from the format mix to the group page sizes, in its order",
-                () -> assertThat(InvocationReport.ANALYSIS_REPORTS).containsExactlyElementsOf(THE_JARS_ELEVEN));
-        claim("and the window's Reports section lists the same eleven, in its own order",
-                () -> assertThat(Reports.ALL).containsExactlyElementsOf(THE_WINDOWS_ELEVEN));
+    @DisplayName("The analysis reports are twelve, in the jar's list and in the window's, each in its own order, and the translations report is in neither")
+    void theAnalysisReportsAreTwelve() {
+        claim("the report lists the twelve analysis reports, from the format mix to the group page sizes, the topics"
+                        + " before the grouping to approve, in its order",
+                () -> assertThat(InvocationReport.ANALYSIS_REPORTS).containsExactlyElementsOf(THE_JARS_TWELVE));
+        claim("and the window's Reports section lists the same twelve, in its own order",
+                () -> assertThat(Reports.ALL).containsExactlyElementsOf(THE_WINDOWS_TWELVE));
     }
 }

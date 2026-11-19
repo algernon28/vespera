@@ -401,7 +401,7 @@ class GenerationTasklet implements Tasklet {
                                 generation.value(),
                                 ArrangementGate.shortNameOf(arrangement),
                                 repeatedFaults.standing(),
-                                repeatedFaults.describe(),
+                                repeatedFaults.describe() + overviewsCounted(generation),
                                 drawn.map(tree -> " -- the deliverable tree is at " + tree).orElse(""));
                         return true;
                     }
@@ -441,16 +441,23 @@ class GenerationTasklet implements Tasklet {
                             "The generation step finished under {}, over the arrangement approved as {}:"
                                     + " {} synthesis doc(s) written under model {} in a window of {}, {}"
                                     + " already recorded by an earlier invocation of this run and left as"
-                                    + " they were -- the deliverable tree is at {}",
+                                    + " they were{} -- the deliverable tree is at {}",
                             generation.value(),
                             ArrangementGate.shortNameOf(arrangement),
                             finished.written(),
                             modelName,
                             contextWindow,
                             finished.alreadyWritten(),
+                            overviewsCounted(generation),
                             tree);
                     return true;
                 });
+    }
+
+    /** What 6b's closing lines say of the overviews recorded under {@code generation} (ADR-416 section 7). */
+    private String overviewsCounted(RunId generation) {
+        TopicOverviews.Counted counted = topicOverviews.countedUnder(generation);
+        return "; " + counted.written() + " topic overview(s) written and " + counted.turnedDown() + " turned down";
     }
 
     /**

@@ -23,14 +23,17 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * {@code cluster-sizes.html} and its JSON say topic where they said exemplar (ADR-409 §8): its rows are topics, so
  * every word that spoke of a document matched to an exemplar speaks of a document placed under a topic, and the JSON's
- * keys that named a partition or an exemplar name a topic, its format raised to 2 for them (ADR-362 §9).
+ * keys that named a partition or an exemplar name a topic, its format raised to 2 for them (ADR-362 §9), and to 3 for
+ * the subtopic's column and the share's (ADR-416 §5).
  *
  * <p>Drawn by {@link ClusterSizeReport} alone, over one topic of two groups and over none.
  */
 @Epic("Relevance")
 @Feature("Topics")
 @Issue("832")
+@Issue("834")
 @Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
+@Link(name = "ADR-416", url = Adr.THE_TOPICS_ANALYSIS_REPORT_LISTS_WHAT_FEEDS_EACH_TOPIC, type = "adr")
 @Link(name = "ADR-362", url = Adr.AN_INVOCATIONS_REPORT_IS_ONE_JSON_FILE, type = "adr")
 class TheClusterSizesPageSpeaksOfTopicsTest {
 
@@ -94,8 +97,9 @@ class TheClusterSizesPageSpeaksOfTopicsTest {
         AnalysisReportJson.write(json, document);
         AnalysisReportJson.Table table = document.sections().getFirst().table();
 
-        claim("the table's first column is headed Topic",
-                () -> assertThat(page).contains("<tr><th>Topic</th><th>Documents</th>"));
+        claim("the table's first column is headed Topic, before the subtopic, the documents and their share",
+                () -> assertThat(page).contains(
+                        "<tr><th>Topic</th><th>Subtopic</th><th>Documents</th><th>Share of documents</th>"));
         claim("under How to read this, groups of one, the middle group, the strongest link and a single document are"
                         + " each said of a topic",
                 () -> assertThat(page).contains(
@@ -112,8 +116,9 @@ class TheClusterSizesPageSpeaksOfTopicsTest {
         claim("its sections are topics, how-to-read and what-this-page-cannot-see",
                 () -> assertThat(document.sections().stream().map(AnalysisReportJson.Section::id).toList())
                         .containsExactly("topics", "how-to-read", "what-this-page-cannot-see"));
-        claim("its format is 2: a key renamed and a column's meaning changed are a break (ADR-362 section 9)",
-                () -> assertThat(List.of(document.format(), ClusterSizeReport.FORMAT)).containsExactly(2, 2));
+        claim("its format is 3: a key renamed and a column's meaning changed were a break, and a column inserted for"
+                        + " the subtopic is another (ADR-362 section 9)",
+                () -> assertThat(List.of(document.format(), ClusterSizeReport.FORMAT)).containsExactly(3, 3));
         claim("and no word of the page or of its JSON speaks of an exemplar",
                 () -> assertThat(List.of(page, Files.readString(json, StandardCharsets.UTF_8)))
                         .allSatisfy(written -> assertThat(written).doesNotContainIgnoringCase("exemplar")));

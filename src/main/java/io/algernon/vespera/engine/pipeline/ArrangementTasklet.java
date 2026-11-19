@@ -120,6 +120,12 @@ class ArrangementTasklet implements Tasklet {
      */
     static final String ARRANGEMENT_FILE_NAME = "arrangement.html";
 
+    /** The topics report's page, written beside it once the names stand (ADR-416 section 1). */
+    static final String TOPICS_FILE_NAME = "topics.html";
+
+    /** The topics analysis report's JSON, written beside {@link #TOPICS_FILE_NAME} (ADR-362 section 9). */
+    static final String TOPICS_JSON_FILE_NAME = "topics.json";
+
     /** Its JSON, beside it, written from the same values (ADR-362 section 9). */
     static final String ARRANGEMENT_JSON_FILE_NAME = "arrangement.json";
 
@@ -254,6 +260,7 @@ class ArrangementTasklet implements Tasklet {
                     List<TopicKey> recordedTopics = TimedStatement.of(
                             STAGE, "reading", "read", "the topics of the arrangement",
                             () -> clusters.keysOf(arrangement));
+                    writeTopicsAnalysisReport(scoring, arrangement, preamble, memberCounts);
                     writePage(scoring, arrangement, recordedTopics, scoresRead, gathered, false);
                 },
                 () -> clusters.discardForRun(arrangement),
@@ -271,6 +278,7 @@ class ArrangementTasklet implements Tasklet {
                         return false;
                     }
                     List<TopicKey> inOrder = Arrangement.topicsInOrder(memberCounts);
+                    writeTopicsAnalysisReport(scoring, arrangement, preamble, memberCounts);
                     int clustersArranged = writePage(scoring, arrangement, inOrder, scoresRead, gathered, true);
                     LOG.info(
                             "The arrangement step finished under {}: {} topic(s), {} cluster(s), {}"
@@ -281,6 +289,80 @@ class ArrangementTasklet implements Tasklet {
                             members);
                     return true;
                 });
+    }
+
+    /**
+     * Writes {@code topics.json} and then {@code topics.html} once every topic's name stands under {@code arrangement}
+     * (ADR-416 section 1): one row a topic in the arrangement's order, then the topics no survivor is placed under in
+     * key order, each with its seeds, and the seeds feeding no topic. Each read is of one topic at a time, none held past
+     * the topic's row, and a topic's linked survivors are counted a page of 1,000 at a time (ADR-416 section 8).
+     */
+    private void writeTopicsAnalysisReport(
+            RunId scoring,
+            RunId arrangement,
+            StageFiveGates.Preamble preamble,
+            Map<TopicKey, Integer> memberCounts) {
+        Map<io.algernon.vespera.engine.embedding.TopicKey, Integer> standing = TimedStatement.of(
+                STAGE, "reading", "read", "the topics kept", () -> topicLedger.passageCountsUnder(scoring));
+        Map<OccurrenceId, SeedChunks> seedChunks = TaskletSteps.seedContentHashes(
+                STAGE,
+                seeds -> StageProgress.over("Stage 6a (arrangement, seed passages counted)", seeds),
+                preamble.seedWalk().orElseThrow(),
+                stageRuns.seedMeasurement(),
+                ledger,
+                unusableSeeds,
+                cacheKeys,
+                hybridChunker);
+        Map<String, SeedChunks> chunksByPath = new HashMap<>();
+        ledger.occurrences().pathsOf(seedChunks.keySet())
+                .forEach((occurrence, path) -> chunksByPath.put(path.value(), seedChunks.get(occurrence)));
+        long seedPassages = Topics.seedPassagesOf(chunksByPath);
+
+        List<TopicKey> inOrder = new ArrayList<>(Arrangement.topicsInOrder(memberCounts));
+        standing.keySet().stream()
+                .map(ArrangementTasklet::keyOf)
+                .filter(key -> !memberCounts.containsKey(key))
+                .forEach(inOrder::add);
+        List<TopicsAnalysisReport.Topic> topics = new ArrayList<>();
+        for (TopicKey key : inOrder) {
+            io.algernon.vespera.engine.embedding.TopicKey held = embeddingKey(key);
+            if (!standing.containsKey(held)) {
+                continue;
+            }
+            List<TopicsAnalysisReport.Seed> seeds = topicLedger.seedsOf(scoring, held).stream()
+                    .map(seed -> new TopicsAnalysisReport.Seed(seed.seedPath(), seed.passages()))
+                    .toList();
+            int[] linked = {0};
+            clustering.eachPageLinkedTo(
+                    scoring, held, page -> linked[0] += ledger.verdicts().survivingAmong(scoring, page).size());
+            String name = topicNames
+                    .ofTopic(arrangement, key)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "no name is recorded for topic " + key.shown() + " under arrangement " + arrangement.value()))
+                    .name();
+            topics.add(new TopicsAnalysisReport.Topic(
+                    name,
+                    key.seedPath(),
+                    key.chunkIndex(),
+                    seeds,
+                    memberCounts.getOrDefault(key, 0),
+                    linked[0]));
+        }
+        List<String> feedingNone = topicLedger.seedsFeedingNoTopic(scoring);
+
+        // The JSON is moved into place before the page (ADR-362 section 9).
+        try {
+            Files.createDirectories(workingDirectory);
+            AnalysisReportJson.write(
+                    workingDirectory.resolve(TOPICS_JSON_FILE_NAME),
+                    TopicsAnalysisReport.document(seedPassages, topics, feedingNone, Instant.now()));
+            Path part = workingDirectory.resolve(TOPICS_FILE_NAME + ".part");
+            Files.writeString(
+                    part, TopicsAnalysisReport.render(seedPassages, topics, feedingNone), StandardCharsets.UTF_8);
+            ReplacingMove.ATOMIC.intoPlace(part, workingDirectory.resolve(TOPICS_FILE_NAME));
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not write the topics analysis report in " + workingDirectory, e);
+        }
     }
 
     /**

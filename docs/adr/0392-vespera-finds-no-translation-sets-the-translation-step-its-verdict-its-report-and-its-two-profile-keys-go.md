@@ -1,5 +1,7 @@
 # ADR-392 — Vespera finds no translation sets: the translation step, its verdict, its report and its two profile keys go
 
+> **Partly amended — see [ADR-416](0416-a-topics-report-lists-the-topics-with-no-document-and-the-seeds-feeding-none-and-cluster-sizes-gain-a-row-a-subtopic.md).** Of §5: the analysis reports are twelve, `topics` among them, after `cluster-sizes` in `InvocationReport`'s list and after `relevance-labelling` in `Reports.ALL`, each before `arrangement`; `report.json` stays of format 2. The Tests row of `theAnalysisReportsAreEleven` is corrected in place for its new name, `theAnalysisReportsAreTwelve` (ADR-337 §5). The rest of this record stands.
+
 > **Partly amended — see [ADR-394](0394-the-relevance-leg-runs-through-the-relevance-floor-and-the-clustering-leg-is-the-clustering-and-the-relevance-report.md).** Of §3: `relevance` also holds `relevance-scoring` and `relevance-floor`, `clustering` holding `clustering` and `relevance-report`, and the boundary inside stage 5 lies after `relevance-floor`. Of *What this does not decide*: the regrouping of `clustering` is ADR-394's. The rest of this record stands.
 
 - **Date**: 2026-11-14
@@ -140,7 +142,7 @@ A relevance label is keyed by its path and its seed set, and not by a run (ADR-0
 | `ui.TheSecondLegIsRelevanceTest.theFourLegsAreDeduplicationRelevanceClusteringAndGeneration` | `Legs.ALL`'s four names and their steps, §3's table; `pipeline.TheControlPanelsLegsAreTheReportsTest` holds the report's to it (§3) |
 | `pipeline.TheReportIsOfFormatTwoTest.theJarTheSchemaAndTheWindowSayFormatTwo` | `InvocationReport.FORMAT`, the schema's `format` and `InvocationReportFile.FORMAT` are 2 (§5) |
 | `pipeline.TheReportIsOfFormatTwoTest.noFieldOfTheSchemaNamesACopyInAnotherLanguage` | the schema names no `translation-of`, no `translations` and no `translation`, and `docs/report/translations.schema.json` is gone (§5) |
-| `pipeline.TheReportIsOfFormatTwoTest.theAnalysisReportsAreEleven` | `InvocationReport.ANALYSIS_REPORTS` and the window's `Reports.ALL` are the eleven, each in its own order (§5) |
+| `pipeline.TheReportIsOfFormatTwoTest.theAnalysisReportsAreTwelve` | `InvocationReport.ANALYSIS_REPORTS` and the window's `Reports.ALL` are the eleven, each in its own order (§5), twelve since ADR-416 |
 | `profile.TheRetiredKeysTest.aProfileNamingARetiredKeyLoadsWithEveryOtherAnswer` | a file holding both keys loads, its other answers as written (§4) |
 | `profile.TheRetiredKeysTest.aRetiredKeyHoldingAValueIsToldOfInOneLineOnce` | both holding a value: one line at WARN in §4's words, naming both, and none at a second load of the file (§4) |
 | `profile.TheRetiredKeysTest.aRetiredKeyHoldingAValueIsNamedAloneBesideOneUnset` | the languages holding a value and the floor unset: the line names `preferredLanguages` alone, *it is ignored* (§4) |

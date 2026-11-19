@@ -75,6 +75,23 @@ public class Placements {
     }
 
     /**
+     * Hands the documents with a link to {@code topic} under {@code runId} to {@code page}, a page of up to {@value
+     * KeysetPages#ROWS_IN_A_PAGE} at a time in occurrence order, by the index on the run, the topic and the occurrence,
+     * sorting nothing (ADR-416 section 8). Each page is handed over once its statement has finished.
+     */
+    public void eachPageLinkedTo(RunId runId, TopicKey topic, Consumer<List<OccurrenceId>> page) {
+        new KeysetPages<OccurrenceId>(
+                        jdbcTemplate,
+                        "SELECT occurrence_id FROM see_also WHERE run_id = ? AND topic_seed_path = ?"
+                                + " AND topic_chunk_index = ? AND occurrence_id > ? ORDER BY occurrence_id",
+                        List.of(runId.value(), topic.firstPassage().seedPath(), topic.firstPassage().chunkIndex()),
+                        List.of(Long.MIN_VALUE),
+                        last -> List.of(last.value()),
+                        (resultSet, rowNumber) -> new OccurrenceId(resultSet.getLong("occurrence_id")))
+                .eachPage(page);
+    }
+
+    /**
      * One survivor that fits a topic other than the one it is placed under: its occurrence, the topic it is placed under,
      * and the cluster it is a member of there (ADR-415 section 5).
      */

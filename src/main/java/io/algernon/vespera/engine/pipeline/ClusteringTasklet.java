@@ -31,6 +31,7 @@ import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import io.algernon.vespera.engine.ledger.RunId;
+import io.algernon.vespera.engine.synthesis.Arrangement;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -200,7 +201,7 @@ class ClusteringTasklet implements Tasklet {
                         StageProgress keysRead = StageProgress.over(
                                 "Stage 5f (clustering, cache keys read, topic " + place + " of " + of + ")",
                                 members.size());
-                        Optional<RetainedEdgeSpread> spread = clustering.clusterAndRecord(
+                        Clustering.Spreads spreads = clustering.clusterAndRecordWithSubtopicSpreads(
                                 scoring,
                                 topic,
                                 contentHashesOf(extractionRun, members, keysRead),
@@ -219,14 +220,37 @@ class ClusteringTasklet implements Tasklet {
                         // what the arithmetic meant to write.
                         // The sizes are let go once the five numbers the page shows are taken from them
                         // (ADR-223 section 2).
-                        reported.add(ClusterSizeReport.Topic.of(
-                                topic.firstPassage().seedPath(),
-                                topic.firstPassage().chunkIndex(),
-                                TimedStatement.of(
-                                        STAGE, "reading", "read",
-                                        "the cluster sizes of " + whichTopic,
-                                        () -> documentClusters.sizesFor(scoring, topic)),
-                                spread));
+                        // A divided topic's row is followed by a row for each subtopic, most survivors first
+                        // (ADR-416 section 5), each with the sizes of its own clusters and the spread of its own graph.
+                        Map<Integer, Integer> survivorsOfSubtopics = TimedStatement.of(
+                                STAGE, "reading", "read",
+                                "the subtopics of " + whichTopic,
+                                () -> documentClusters.survivorsOfSubtopics(scoring, topic));
+                        if (survivorsOfSubtopics.isEmpty()) {
+                            reported.add(ClusterSizeReport.Topic.of(
+                                    topic.firstPassage().seedPath(),
+                                    topic.firstPassage().chunkIndex(),
+                                    TimedStatement.of(
+                                            STAGE, "reading", "read",
+                                            "the cluster sizes of " + whichTopic,
+                                            () -> documentClusters.sizesFor(scoring, topic)),
+                                    spreads.topic()));
+                        } else {
+                            List<ClusterSizeReport.Subtopic> subtopics = new ArrayList<>();
+                            for (int subtopic : Arrangement.subtopicsInOrder(survivorsOfSubtopics)) {
+                                subtopics.add(ClusterSizeReport.Subtopic.of(
+                                        TimedStatement.of(
+                                                STAGE, "reading", "read",
+                                                "the cluster sizes of subtopic " + subtopic + " of " + whichTopic,
+                                                () -> documentClusters.sizesFor(scoring, topic, subtopic)),
+                                        spreads.subtopics().getOrDefault(subtopic, Optional.empty())));
+                            }
+                            reported.add(ClusterSizeReport.Topic.divided(
+                                    topic.firstPassage().seedPath(),
+                                    topic.firstPassage().chunkIndex(),
+                                    subtopics,
+                                    spreads.topic()));
+                        }
                         topicsDone.itemDone();
                     }
 

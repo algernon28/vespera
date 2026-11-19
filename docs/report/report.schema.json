@@ -1091,7 +1091,7 @@
     },
     "analysisReports": {
       "type": "array",
-      "description": "The eleven analysis reports.",
+      "description": "The twelve analysis reports.",
       "items": {
         "type": "object",
         "description": "One analysis report.",
@@ -1109,6 +1109,7 @@
               "seed-corpus-comparison",
               "relevance-labelling",
               "cluster-sizes",
+              "topics",
               "arrangement",
               "cluster-page-sizes"
             ]
