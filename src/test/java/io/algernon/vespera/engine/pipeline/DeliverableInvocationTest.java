@@ -245,6 +245,11 @@ class DeliverableInvocationTest {
                                     .isEmpty());
                 });
         claim(
+                "with no deliverable root named, the tree in the working directory's deliverable folder holds its ledger"
+                        + " at its top, as a tree at a named root does",
+                () -> assertThat(theTreeOf(root).resolve(io.algernon.vespera.engine.deliverable.TreeLedger.FILE_NAME))
+                        .isRegularFile());
+        claim(
                 "and every row of the listing says its document was copied",
                 () -> assertThat(columnOfTheListing(root, THE_COPY_OUTCOME_COLUMN).values())
                         .hasSize(TWO_DOCUMENTS)
