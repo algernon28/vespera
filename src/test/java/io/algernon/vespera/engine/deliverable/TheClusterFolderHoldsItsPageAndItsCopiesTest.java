@@ -39,7 +39,7 @@ import org.junit.jupiter.api.io.TempDir;
  * the cluster's survivors under its original's own name, the page's pictures inlined in it (ADR-286), and {@code
  * documents/} is no longer written. A copy at its name is trusted unread, one whose name is too long in bytes is not copied, the
  * listing names it in its folder, an entry links it by its name percent-encoded, the survey counts the copies past Windows' limit, and the writer reports what an earlier
- * drawing left at the top of the tree and in each partition folder.
+ * drawing left at the top of the tree and in each topic folder.
  *
  * <p>Each test lays out {@code <base>/archive} as the corpus root and {@code <base>/work} as the working directory,
  * the tree drawn at the working directory's {@code deliverable/} folder. How each name is worked out is {@code
@@ -58,10 +58,10 @@ class TheClusterFolderHoldsItsPageAndItsCopiesTest {
     /** The cluster most fixtures here arrange, written over from both its survivors. */
     private static final RecordedCluster THE_CLUSTER = cluster(THE_SEED, 0, "Fire doors", 1, 2);
 
-    /** That cluster's folder, from the tree's root: the partition's place and slug, then the cluster's. */
+    /** That cluster's folder, from the tree's root: the topic's place and slug, then the cluster's. */
     private static final String THE_FOLDER = "1-fire-safety/1-fire-doors";
 
-    /** A second cluster of the same partition, for the listing's paths. */
+    /** A second cluster of the same topic, for the listing's paths. */
     private static final RecordedCluster THE_OTHER_CLUSTER = cluster(THE_SEED, 1, "Smoke dampers", 2, 1);
 
     /** And its folder. */
@@ -213,7 +213,7 @@ class TheClusterFolderHoldsItsPageAndItsCopiesTest {
         reported.clear();
         Path anEarlierLayoutsCopy = Files.createDirectories(tree.resolve("documents")).resolve("42-q3.pdf");
         Files.writeString(anEarlierLayoutsCopy, "an earlier layout's copy", StandardCharsets.UTF_8);
-        Path anEarlierPartition = Files.createDirectories(tree.resolve("2-an-earlier-partition"));
+        Path anEarlierTopic = Files.createDirectories(tree.resolve("2-an-earlier-topic"));
         Path anEarlierCluster = Files.createDirectories(tree.resolve("1-fire-safety").resolve("9-an-earlier-group"));
         Path anEarlierPage = Files.writeString(
                 tree.resolve("1-fire-safety").resolve("1-fire-doors.html"), "an earlier layout's page", StandardCharsets.UTF_8);
@@ -226,8 +226,8 @@ class TheClusterFolderHoldsItsPageAndItsCopiesTest {
                 "the first drawing, over an empty tree, reports once that nothing was left behind",
                 () -> assertThat(afterTheFirst).containsExactly("documents folder false, other folders 0"));
         claim(
-                "the second reports once the documents folder, and counts 2 other folders: the partition folder"
-                        + " at the top and the group's folder in the partition, which this drawing did not write;"
+                "the second reports once the documents folder, and counts 2 other folders: the topic folder"
+                        + " at the top and the group's folder in the topic, which this drawing did not write;"
                         + " a file is not counted, and a folder inside a group's folder this drawing wrote is not"
                         + " looked at",
                 () -> assertThat(reported).containsExactly("documents folder true, other folders 2"));
@@ -235,7 +235,7 @@ class TheClusterFolderHoldsItsPageAndItsCopiesTest {
                 "and every one of them is where it was: nothing beneath the tree is deleted",
                 () -> {
                     assertThat(anEarlierLayoutsCopy).hasContent("an earlier layout's copy");
-                    assertThat(anEarlierPartition).isDirectory();
+                    assertThat(anEarlierTopic).isDirectory();
                     assertThat(anEarlierCluster).isDirectory();
                     assertThat(anEarlierPage).hasContent("an earlier layout's page");
                     assertThat(aFolderInsideAWrittenOne).isDirectory();

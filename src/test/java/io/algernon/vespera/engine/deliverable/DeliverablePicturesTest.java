@@ -80,8 +80,8 @@ class DeliverablePicturesTest {
     /** The seed document's own filename, whose stem names the topic, and so the topic's directory. */
     private static final String SEED_PATH = "seeds/Industrial Safety Standards.docx";
 
-    /** The one partition directory these fixtures write. */
-    private static final String THE_PARTITION_DIRECTORY = "1-industrial-safety-standards";
+    /** The one topic directory these fixtures write. */
+    private static final String THE_TOPIC_DIRECTORY = "1-industrial-safety-standards";
 
     /** What stage 6a called the cluster most fixtures arrange. */
     private static final String THE_LABEL = "Fire Suppression Retrofits";
@@ -169,7 +169,7 @@ class DeliverablePicturesTest {
                         aMemberOf(10, "reports/first.docx", A_HIGH_SCORE, FIRST_ORDINAL),
                         aMemberOf(20, "reports/second.docx", A_HIGH_SCORE, SECOND_ORDINAL)),
                 pictures);
-        Path partition = tree.resolve(THE_PARTITION_DIRECTORY);
+        Path topic = tree.resolve(THE_TOPIC_DIRECTORY);
 
         claim(
                 "the letterhead both documents carry is shown on neither page, although each page holds only"
@@ -179,11 +179,11 @@ class DeliverablePicturesTest {
         claim(
                 "while the diagram only the first document carries is still shown on the first page, so leaving"
                         + " out the shared picture costs its neighbour nothing",
-                () -> assertThat(sourcesOn(partition.resolve(THE_CLUSTER_PAGE))).containsExactly(shown(diagram)));
+                () -> assertThat(sourcesOn(topic.resolve(THE_CLUSTER_PAGE))).containsExactly(shown(diagram)));
         claim(
                 "and the second group's page, whose document carried nothing but the shared letterhead, shows no"
                         + " picture",
-                () -> assertThat(Files.readString(partition.resolve(THE_OTHER_CLUSTER_PAGE))).doesNotContain("<img"));
+                () -> assertThat(Files.readString(topic.resolve(THE_OTHER_CLUSTER_PAGE))).doesNotContain("<img"));
     }
 
     @Test
@@ -200,8 +200,8 @@ class DeliverablePicturesTest {
                 List.of(),
                 List.of(aMember(10, A_HOSTILE_DOCUMENT_NAME, A_HIGH_SCORE)),
                 pictures);
-        Path partition = tree.resolve(THE_PARTITION_DIRECTORY);
-        Path page = partition.resolve(THE_HOSTILE_LABELS_PAGE_STEM).resolve("index.html");
+        Path topic = tree.resolve(THE_TOPIC_DIRECTORY);
+        Path page = topic.resolve(THE_HOSTILE_LABELS_PAGE_STEM).resolve("index.html");
 
         claim(
                 "the picture's source is its media type and its own bytes in base64, made only of the base64"
@@ -216,12 +216,12 @@ class DeliverablePicturesTest {
                         + " letters, digits and hyphens, and the topic's own page beside that folder are the only files"
                         + " written anywhere beneath the topic: neither the document's name nor the label climbed out"
                         + " of the tree or named a file of its own",
-                () -> assertThat(allFilesUnder(partition))
-                        .containsExactlyInAnyOrder(page, partition.resolve("index.html")));
+                () -> assertThat(allFilesUnder(topic))
+                        .containsExactlyInAnyOrder(page, topic.resolve("index.html")));
         claim(
                 "and the topic's page carries no picture's source: a picture is shown on its document's group's page"
                         + " alone",
-                () -> assertThat(sourcesOn(partition.resolve("index.html"))).isEmpty());
+                () -> assertThat(sourcesOn(topic.resolve("index.html"))).isEmpty());
     }
 
     @Test
@@ -305,7 +305,7 @@ class DeliverablePicturesTest {
     }
 
     private static Path thePageOf(Path tree) {
-        return tree.resolve(THE_PARTITION_DIRECTORY).resolve(THE_CLUSTER_PAGE);
+        return tree.resolve(THE_TOPIC_DIRECTORY).resolve(THE_CLUSTER_PAGE);
     }
 
     /** Every image source on {@code page}, in the order the page gives them. */

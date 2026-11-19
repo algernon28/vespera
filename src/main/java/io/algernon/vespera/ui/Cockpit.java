@@ -1171,7 +1171,14 @@ final class Cockpit {
 
     /** The list cannot be changed while the window's own child runs, as Run cannot be pressed (ADR-393 \u00a74). */
     private void showTheListsButtons() {
-        boolean runs = state.childRuns();
+        showTheListsButtons(state.childRuns());
+    }
+
+    /**
+     * The tick's own answer is passed in, so the list and Run never disagree on whether the window's child runs
+     * (ADR-393 §4).
+     */
+    private void showTheListsButtons(boolean runs) {
         Path chosen = workingDirectoryList.getSelectionModel().getSelectedItem();
         workingDirectoryList.setDisable(runs);
         workingDirectoryNew.setDisable(runs);
@@ -1259,13 +1266,14 @@ final class Cockpit {
     private void showModelsInUse() {
         namingModel.setText(modelInUse("vespera.naming.model"));
         labelModel.setText(modelInUse("vespera.label.model"));
+        options.showPresets(state.effectiveValues(folders.workingDirectory()));
     }
 
     /** What the working directory's file says of the model {@code key} names, or that the jar has not said yet. */
     private String modelInUse(String key) {
         return state.effectiveValues(folders.workingDirectory()).flatMap(values -> values.named(key))
                 .map(ProfileRow::modelInUseOf)
-                .orElse("The jar has not said yet what it would use; run an invocation to see it.");
+                .orElse(ProfileRow.NOT_SAID_YET);
     }
 
     /** The label model's line is shown only while its field stands blank (ADR-334 section 2). */
@@ -1525,9 +1533,9 @@ final class Cockpit {
         }
         showDatabaseSize();
         state.workingDirectories().keepWhatWasMade();
-        showTheListsButtons();
-        boolean runs = state.childRuns();
         Optional<Ending> ending = state.ending();
+        boolean runs = runs(ending);
+        showTheListsButtons(runs);
         ending.ifPresent(this::warnOfTheParentsTitle);
         ControlPanelState.Holders holders = state.holders(workingDirectory(), corpusRoot());
         runsNow = runs;
@@ -1566,6 +1574,15 @@ final class Cockpit {
         showTheEnding(runs, ending, holders);
         preflight.draw();
         wasShown = wasShown || showing;
+    }
+
+    /**
+     * Whether the child runs, by {@code ending}, the one look at it the window draws from: a look of its own asking
+     * whether it runs, taken a moment before, could find running a child the look at its ending then finds ended, and
+     * the tick draw it running beside its own ending (ADR-278 section 5).
+     */
+    private boolean runs(Optional<Ending> ending) {
+        return ending.isEmpty() && state.childWasStarted();
     }
 
     private String childWords(boolean runs, Optional<Ending> ending) {
@@ -1629,7 +1646,8 @@ final class Cockpit {
     /** Reads the ending again where the working directory chosen changed, outside the clock's tick. */
     private void showTheEnding() {
         Optional<Path> folder = workingDirectory();
-        showTheEnding(state.childRuns(), state.ending(), state.holders(folder, corpusRoot()));
+        Optional<Ending> ending = state.ending();
+        showTheEnding(runs(ending), ending, state.holders(folder, corpusRoot()));
     }
 
     /**

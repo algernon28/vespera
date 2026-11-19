@@ -50,15 +50,15 @@ class TreeWhoseIndexIsRefusedForAMomentIsStillPutInPlaceTest {
         String corpusRoot = base.resolve("archive").toString();
         Path unrefused = ListedArrangement.writeTo(
                 base.resolve("unrefused"),
-                ThreePartitions.provenance(corpusRoot),
-                ThreePartitions.arrangement(),
-                ThreePartitions.written(),
-                ThreePartitions.survivors(),
+                ThreeTopics.provenance(corpusRoot),
+                ThreeTopics.arrangement(),
+                ThreeTopics.written(),
+                ThreeTopics.survivors(),
                 SurvivorPictures.none(),
-                ThreePartitions.unwritten());
+                ThreeTopics.unwritten());
         List<String> moved = new ArrayList<>();
         int[] indexRefusals = {0};
-        String theTreesName = ThreePartitions.provenance(corpusRoot).runId();
+        String theTreesName = ThreeTopics.provenance(corpusRoot).runId();
         ReplacingMove refusingTheIndexTwice = new ReplacingMove(
                 (part, target) -> {
                     boolean atTheTop = target.getParent().getFileName().toString().equals(theTreesName);
@@ -79,12 +79,12 @@ class TreeWhoseIndexIsRefusedForAMomentIsStillPutInPlaceTest {
         Throwable thrown = catchThrowable(() -> tree[0] = Deliverable.writeTo(
                 base.resolve("work"),
                 DeliverableRoot.UNNAMED,
-                ThreePartitions.provenance(corpusRoot),
+                ThreeTopics.provenance(corpusRoot),
                 ListedArrangement.of(
-                        ThreePartitions.arrangement(),
-                        ThreePartitions.written(),
-                        ThreePartitions.survivors(),
-                        ThreePartitions.unwritten()),
+                        ThreeTopics.arrangement(),
+                        ThreeTopics.written(),
+                        ThreeTopics.survivors(),
+                        ThreeTopics.unwritten()),
                 SurvivorPictures.none(),
                 DeliverableProgress.NONE,
                 refusingTheIndexTwice));

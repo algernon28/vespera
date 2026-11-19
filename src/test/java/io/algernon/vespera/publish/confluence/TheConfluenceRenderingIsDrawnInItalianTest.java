@@ -75,7 +75,7 @@ class TheConfluenceRenderingIsDrawnInItalianTest {
                 .collect(Collectors.toMap(page -> tree.relativize(page).toString(), page -> asRead(textOf(page))));
 
         claim(
-                "the Confluence rendering's pages are drawn: the root page's, the seed partition's, the written group's"
+                "the Confluence rendering's pages are drawn: the root page's, the topic's, the written group's"
                         + " five and the unwritten group's one",
                 () -> assertThat(pages).hasSize(1 + 1 + FIVE_ENTRIES + 1));
         claim(
@@ -107,7 +107,7 @@ class TheConfluenceRenderingIsDrawnInItalianTest {
                 () -> assertThat(list.path("language").asString("")).isEqualTo("it"));
         claim(
                 "in the list's order, each page keyed by it and its place and titled with its place and it: the root"
-                        + " page, the seed partition's, the written group's five, its later four saying pagina, and the"
+                        + " page, the topic's, the written group's five, its later four saying pagina, and the"
                         + " unwritten group's one",
                 () -> assertThat(pages).containsExactlyElementsOf(expected));
     }

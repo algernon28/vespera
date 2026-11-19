@@ -67,7 +67,7 @@ class TheTreeIsHtmlTest {
     private static final String SEED_PATH = "seeds/Fire Safety.docx";
 
     /** The topic's folder: its place, 1 of 1, and its name as a slug. */
-    private static final String PARTITION_FOLDER = "1-fire-safety";
+    private static final String TOPIC_FOLDER = "1-fire-safety";
 
     /** The cluster written over, placed first. */
     private static final RecordedCluster WRITTEN = cluster(THE_SEED, 0, "Fire doors", 1, 2);
@@ -172,7 +172,7 @@ class TheTreeIsHtmlTest {
             copiesByFolder.computeIfAbsent(copy.substring(0, copy.lastIndexOf('/')), folder -> new ArrayList<>())
                     .add(copy.substring(copy.lastIndexOf('/') + 1));
         }
-        for (String folder : List.of(PARTITION_FOLDER + "/1-fire-doors", PARTITION_FOLDER + "/2-smoke-dampers")) {
+        for (String folder : List.of(TOPIC_FOLDER + "/1-fire-doors", TOPIC_FOLDER + "/2-smoke-dampers")) {
             List<String> expected = new ArrayList<>(copiesByFolder.getOrDefault(folder, List.of()));
             expected.add("index.html");
             claim(
@@ -386,7 +386,7 @@ class TheTreeIsHtmlTest {
                             + "<script src=\"https://example.invalid/its.js\"></script><style></style><style></style>"
                             + "</head><body><a href=\"../../../outside-the-tree.html\">out</a>"
                             + "<img src=\"its-own-picture.png\"></body></html>\n";
-                    Path cluster = Files.createDirectories(folder.resolve(PARTITION_FOLDER).resolve("1-fire-doors"));
+                    Path cluster = Files.createDirectories(folder.resolve(TOPIC_FOLDER).resolve("1-fire-doors"));
                     Files.writeString(folder.resolve("index.html"), page, StandardCharsets.UTF_8);
                     Files.writeString(cluster.resolve("index.html"), page, StandardCharsets.UTF_8);
                 }

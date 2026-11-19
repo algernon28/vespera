@@ -92,7 +92,7 @@ class CensusInvocationTest {
                         + " steps, then the seed set stage 5 scores against, then how far that seed set"
                         + " resembles the documents still standing, then every vector gate 3 embeds, then"
                         + " every survivor's relevance score, then the threshold that removes what"
-                        + " scored under it, then each seed partition grouped into clusters, then the page"
+                        + " scored under it, then each topic grouped into clusters, then the page"
                         + " and the questions a person needs in order to choose a cut, then the groups that"
                         + " page is written from, and last the step that writes over the groups a person"
                         + " approved -- so each pass only ever measures what the cheaper passes"

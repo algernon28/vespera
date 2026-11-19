@@ -271,7 +271,7 @@ class NextAction {
      * @param documentsFolderLeftBehind whether the tree holds a {@code documents/} folder an earlier layout wrote and
      *     this drawing did not (ADR-280 §4)
      * @param foldersLeftBehind how many other folders this drawing did not write the tree holds, at its top or in a
-     *     partition folder this drawing wrote (ADR-280 §4)
+     *     topic folder this drawing wrote (ADR-280 §4)
      * @param filesLeftBehind how many files an earlier drawing left in the cluster folders this drawing wrote (ADR-286
      *     §4)
      * @param codeFilesNotCopied how many files of code have no copy standing in the tree this invocation wrote, or

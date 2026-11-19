@@ -56,6 +56,15 @@ class TheGenerationStepCountsItsTopicOverviewsInvocationTest {
     /** The writing model of the approval whose overview is turned down, so that its generation run is another. */
     private static final String ANOTHER_WRITING_MODEL = "another-named-writing-model:8b";
 
+    /** The writing model of the approval whose tree's counter is read, so that its generation run is a third. */
+    private static final String A_THIRD_WRITING_MODEL = "a-third-named-writing-model:8b";
+
+    /** The label of the tree's counter of the topics written (ADR-426 §2). */
+    private static final String TOPICS_WRITTEN = "Stage 6b (generation, topics written)";
+
+    /** How many topics the arrangement holds: one seed of one passage gives one. */
+    private static final long ONE_TOPIC = 1;
+
     /** What the generation step's line on finishing opens with. */
     private static final String THE_FINISHING_LINE = "The generation step finished under ";
 
@@ -143,6 +152,27 @@ class TheGenerationStepCountsItsTopicOverviewsInvocationTest {
                 () -> assertThat(cli.getExitCode()).isZero());
         claim("the step's line on finishing counts no topic overview written and 1 turned down, then names the tree",
                 () -> assertThat(finishingLines()).singleElement().asString().contains(ONE_TURNED_DOWN));
+    }
+
+    /**
+     * The tree's counter of topics written is labelled for topics (ADR-426 §2): over the one topic its one line, at 1 of
+     * 1, under that label and no other.
+     */
+    @Test
+    @Link(name = "ADR-426", url = Adr.THE_SEED_PARTITIONS_NAMES_ARE_RETIRED_FROM_THE_CODE_AND_THE_TESTS, type = "adr")
+    @Issue("895")
+    @Story("The writing step reports how far it has got")
+    @DisplayName("The writing step counts the topics of the tree it writes, under a label that says topics")
+    void theTreesTopicsAreCountedUnderTheirOwnLabel() {
+        approvedUnder(A_THIRD_WRITING_MODEL);
+
+        cli.run("run", theRoot.toString());
+
+        claim("the invocation that writes reports success", () -> assertThat(cli.getExitCode()).isZero());
+        claim("the counter of the topics written writes its one line over the arrangement's " + ONE_TOPIC + " topic,"
+                        + " labelled " + TOPICS_WRITTEN,
+                () -> assertThat(ProgressLines.of(applicationLines.list, TOPICS_WRITTEN))
+                        .containsExactlyElementsOf(ProgressLines.expected(TOPICS_WRITTEN, ONE_TOPIC)));
     }
 
     /** The lines of the generation step's finishing this test heard. */

@@ -12,7 +12,7 @@ import static io.algernon.vespera.publish.website.WebsiteFixture.DOOR_SURVEY;
 import static io.algernon.vespera.publish.website.WebsiteFixture.FIRST_SENTENCE;
 import static io.algernon.vespera.publish.website.WebsiteFixture.GONE;
 import static io.algernon.vespera.publish.website.WebsiteFixture.INSPECTION_LOG;
-import static io.algernon.vespera.publish.website.WebsiteFixture.PARTITION_NAME;
+import static io.algernon.vespera.publish.website.WebsiteFixture.TOPIC_NAME;
 import static io.algernon.vespera.publish.website.WebsiteFixture.SEARCH_INDEX;
 import static io.algernon.vespera.publish.website.WebsiteFixture.SECOND_SENTENCE;
 import static io.algernon.vespera.publish.website.WebsiteFixture.filesUnder;
@@ -85,7 +85,7 @@ class TheSearchIndexHoldsNoExtractedTextTest {
                 "the doors are named by their topic, by no subtopic, their topic being undivided, by their title and by"
                         + " their label, and by nothing under the retired word partition",
                 () -> {
-                    assertThat(doors.path("topic").asString()).contains(PARTITION_NAME);
+                    assertThat(doors.path("topic").asString()).contains(TOPIC_NAME);
                     assertThat(doors.path("subtopic").asString()).isEmpty();
                     assertThat(doors.has("partition")).isFalse();
                     assertThat(doors.path("title").asString()).isEqualTo(DOORS_TITLE);

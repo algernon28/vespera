@@ -64,8 +64,8 @@ vespera:
     # below the five failures in a row that stop the step. It enters the extraction run where it is not 3.
     timeouts-in-a-row: 3
   clustering:
-    # How finely the documents under each exemplar divide into groups (ADR-087, ADR-330): the modularity resolution
-    # of the communities, a finite number above 0, higher finding smaller groups. The profile's clusterResolution
+    # How finely the documents under each topic, or each subtopic of a crowded topic, divide into clusters (ADR-087,
+    # ADR-330): the modularity resolution of the communities, a finite number above 0, higher finding smaller clusters. The profile's clusterResolution
     # overrides it for one corpus. It enters the embedding-scoring run, which the clusters are keyed by, where it is
     # not 1.0, and `cluster-sizes.html` shows what it did.
     resolution: 1.0

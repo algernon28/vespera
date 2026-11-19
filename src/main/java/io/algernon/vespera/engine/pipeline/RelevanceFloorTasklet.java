@@ -30,7 +30,7 @@ import org.springframework.stereotype.Component;
  * verdict is written.
  *
  * <p><b>It runs before clustering, and that ordering is the whole of ADR-087's "costs nothing".</b>
- * A document removed here is not a survivor by the time the clustering step reads the partition, so
+ * A document removed here is not a survivor by the time the clustering step reads the topic, so
  * it is never clustered, never given an ordinal, and never occupies a page. Ordered the other way the
  * run would cluster documents it was about to remove. Clustering follows a later change of this step's
  * decision too: it forms its clusters again where they are not of the survivors as they now stand (ADR-230).
