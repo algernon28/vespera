@@ -28,6 +28,7 @@ import io.algernon.vespera.engine.deliverable.Deliverable;
 import io.algernon.vespera.engine.deliverable.DeliverableProgress;
 import io.algernon.vespera.engine.deliverable.DeliverableProvenance;
 import io.algernon.vespera.engine.deliverable.DeliverableRoot;
+import io.algernon.vespera.engine.deliverable.TreeLedger;
 import io.algernon.vespera.engine.deliverable.ListedCodeFile;
 import io.algernon.vespera.engine.deliverable.ListedCodeSet;
 import io.algernon.vespera.engine.deliverable.ListedCodeSets;
@@ -170,6 +171,8 @@ class GenerationTasklet implements Tasklet {
     private final LeadingChunks leadingChunks;
     private final ExtractionCacheKeys cacheKeys;
     private final DocumentPictures documentPictures;
+
+    private final TreeLedger treeLedger;
     private final ExtractorIdentity extractorIdentity;
     private final DetectedFormats detectedFormats;
     private final ClusterGeneration clusterGeneration;
@@ -238,6 +241,7 @@ class GenerationTasklet implements Tasklet {
         // touches extraction_cache for it). A Spring-managed bean would force every invocation test that
         // already @Imports this class to name it too.
         this.documentPictures = new DocumentPictures(jdbcTemplate);
+        this.treeLedger = new TreeLedger(jdbcTemplate);
         this.ledger = ledger;
         this.profileStore = profileStore;
         this.modelPull = modelPull;
@@ -680,6 +684,9 @@ class GenerationTasklet implements Tasklet {
         Path tree = writeDeliverable(
                 copies, generation, walkId, byteLevelReductionRun, canonicalRoot, arrangement, scoring, arranged,
                 places, foundThisRun, writingFinished);
+        // The tree's ledger, written once the tree is, on every path that draws it (ADR-429 section 2); a failure
+        // to write it fails the drawing, as a tree that cannot be written does.
+        treeLedger.writeInto(tree, generation);
         LOG.info(
                 "Stage 6b (generation, copies): {} copied, {} already standing, {} changed since they were"
                         + " read, {} gone, {} with no room left on the drive, {} not copied for another reason;"
