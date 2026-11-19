@@ -225,11 +225,14 @@ class TheTreeLedgerInvocationTest {
                             .as(table)
                             .containsExactlyElementsOf(theWorkingStores(table, "walk_id = ?", walk))));
             claim(
-                    "each table chosen by the runs holds the working store's rows under those runs, whole, and no other run's",
+                    "each table chosen by the runs holds the working store's rows under those runs, whole, and no other run's,"
+                            + " the record of finished steps without the generation run's own",
                     () -> assertThat(BY_THE_RUNS).allSatisfy(table -> assertThat(rows(file, "SELECT * FROM " + table))
                             .as(table)
-                            .containsExactlyElementsOf(
-                                    theWorkingStores(table, "run_id " + inThe(runsDrawnFrom), runsDrawnFrom.toArray()))));
+                            .containsExactlyElementsOf(theWorkingStoresUnderTheRuns(table, runsDrawnFrom, generation))));
+            claim(
+                    "it holds no finished step of the generation run, which was not yet recorded finished as the tree was drawn",
+                    () -> assertThat(finishedStepsOf(file, generation)).isEmpty());
             claim(
                     "so the verdict written under the first stage's run of the tree is in it, and the removal written under a"
                             + " run no tree was drawn from is not",
@@ -263,7 +266,12 @@ class TheTreeLedgerInvocationTest {
 
         cli.run("run", corpusRoot.toString());
 
-        List<String> runsDrawnFrom = runsDrawnFrom(new RunsOver(jdbcTemplate, corpusRoot).latest("generation"));
+        RunId generation = new RunsOver(jdbcTemplate, corpusRoot).latest("generation");
+        List<String> runsDrawnFrom = runsDrawnFrom(generation);
+        claim(
+                "the generation run's step is recorded finished in the working store when its tree is drawn again, so the"
+                        + " claim below that the file holds no such row is about a redrawing that could have copied it",
+                () -> assertThat(finishedStepsOf(jdbcTemplate, generation)).isNotEmpty());
         claim(
                 "the second invocation exits " + ENDED + ": a root holding its own tree, its ledger at its top, is accepted at"
                         + " the start and at the drawing",
@@ -287,7 +295,34 @@ class TheTreeLedgerInvocationTest {
                     "and its occurrences are the walk's, whole",
                     () -> assertThat(rows(file, "SELECT * FROM file_occurrence"))
                             .containsExactlyElementsOf(theWorkingStores("file_occurrence", "walk_id = ?", walk)));
+            claim(
+                    "and it holds no finished step of the generation run, as at the first drawing, so the file is the same"
+                            + " whichever drawing wrote it",
+                    () -> assertThat(finishedStepsOf(file, generation)).isEmpty());
+            claim(
+                    "while every other run's finished steps are in it as the working store holds them",
+                    () -> assertThat(rows(file, "SELECT * FROM finished_step"))
+                            .containsExactlyElementsOf(theWorkingStoresUnderTheRuns("finished_step", runsDrawnFrom, generation)));
         });
+    }
+
+    /** The steps {@code store} records finished under {@code run}. */
+    private static List<String> finishedStepsOf(JdbcTemplate store, RunId run) {
+        return store.queryForList("SELECT step FROM finished_step WHERE run_id = ?", String.class, run.value());
+    }
+
+    /**
+     * The working store's rows of {@code table} under {@code runs}, by ADR-429 section 3's rule: every row, but the
+     * generation run's own finished steps, which the file never holds.
+     */
+    private List<String> theWorkingStoresUnderTheRuns(String table, List<String> runs, RunId generation) {
+        List<Object> arguments = new ArrayList<>(runs);
+        String condition = "run_id " + inThe(runs);
+        if (table.equals("finished_step")) {
+            condition += " AND run_id <> ?";
+            arguments.add(generation.value());
+        }
+        return theWorkingStores(table, condition, arguments.toArray());
     }
 
     /** The folder named as the deliverable root for the whole class. */
