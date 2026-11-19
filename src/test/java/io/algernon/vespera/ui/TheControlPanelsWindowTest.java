@@ -325,6 +325,34 @@ class TheControlPanelsWindowTest {
                 () -> assertThat(formerNames).isEmpty());
     }
 
+    /**
+     * ADR-424 §5: the corpus root typed as a folder not relevant is refused with a line that calls the label file's
+     * entries documents to label, not questions.
+     */
+    @Test
+    @Story("The label commands stand in the sidebar")
+    @DisplayName("The corpus root typed as a folder not relevant is refused because it holds every document to label")
+    @Issue("879")
+    @Link(name = "ADR-424", url = Adr.NO_TEXT_FOR_THE_OPERATOR_CALLS_A_LABEL_AN_ANSWER, type = "adr")
+    void theCorpusRootAsAFolderNotRelevantIsRefusedInLabelsWords(@TempDir Path folder) throws Exception {
+        Path working = Files.createDirectories(folder.resolve("working"));
+        ControlPanelState state = WindowForTests.aState(folder, SleepingJar.runtime());
+        state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(), working.toString(),
+                "", "", "", "", "", ""));
+        String refused;
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            refused = addedAsNotRelevant(window, THE_CORPUS_ROOT_ITSELF);
+        }
+
+        claim("the corpus root itself is not added, the line saying it holds every document to label and asking for a"
+                        + " folder below it",
+                () -> assertThat(refused).isEqualTo("the folder " + THE_CORPUS_ROOT_ITSELF + " is not added: the corpus"
+                        + " root holds every document to label; name a folder below it"));
+    }
+
+    /** The corpus root, typed as a folder not relevant by the path from itself. */
+    private static final String THE_CORPUS_ROOT_ITSELF = ".";
+
     /** Types {@code typed} as a folder not relevant, presses Add, and answers the line the pane then says. */
     private static String addedAsNotRelevant(WindowForTests window, String typed) throws Exception {
         window.act(root -> {

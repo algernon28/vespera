@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §1: the first line is `Report: <path>`, naming `report.html`. Of §2: `PageOpener` and `SystemPageOpener` go, and nothing is opened. Of §3: `vespera label` writes the report, its answers in its `label` field, drawn in `report.html`. Of §5: the README says so. The rest of this record stands.
 
+> **Partly amended — see [ADR-424](0424-the-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md).** Of §3: the last count of `vespera label --auto` is `labelled by a person`.
+
 - **Date**: 2026-10-16
 - **Status**: accepted on 2026-10-16.
 - **Amends**: [ADR-265](0265-vespera-run-rewrites-a-progress-page-in-the-working-directory-while-it-runs.md), in these places and no others: §2's sentence "`vespera label` starts no job and writes no page; a page an earlier `vespera run` left is left as it is", which §3 below replaces; and §6, whose README sentence §5 below replaces.

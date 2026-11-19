@@ -1,5 +1,7 @@
 # ADR-169 — The label file shows the answers already recorded, and a changed answer replaces the old one and is reported
 
+> **Partly amended — see [ADR-424](0424-the-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md).** Of §3: `vespera label`'s line counts labels and the documents still blank, *recorded ‹n› label(s) about the seed set at ‹p›: …; ‹n› document(s) are still blank*. Of §4: the refusal of a file about another seed set ends *labels about one seed set are not labels about another, so nothing in it was recorded*.
+
 - **Date**: 2026-09-28
 - **Status**: accepted
 - **Amends**: [ADR-088](0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md) — its "a YAML label file, one entry per sampled document **with the answer left blank**" becomes: one entry per sampled document, carrying the answer already recorded for it where there is one and blank where there is none. The file also names the seed set it was generated under, beside the run and the embedder identity, and a file naming a seed set other than the profile's is refused (§4). Everything else in that paragraph stands: a file offered against a different sample is refused rather than partially matched.

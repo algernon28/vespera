@@ -3044,6 +3044,17 @@ public final class Adr {
     public static final String THE_ANALYSIS_REPORTS_OPEN_IN_A_REPORTS_WINDOW_OF_THEIR_OWN = FILE
             + "0414-the-analysis-reports-open-in-a-reports-window-of-their-own-a-tab-each-and-the-cockpit-keeps-its-list-and-two-tabs.md";
 
+    /**
+     * ADR-424 -- no text written for the operator calls a relevance label an answer or an entry of the label file a
+     * question: {@code vespera label}'s usage, the jar's lines, refusals and closing lines, {@code report.html}, {@code
+     * relevance-labelling.html} and its JSON's titles, the window's texts that said question, the README and {@code
+     * docs/running-stage-by-stage.md} say label; the prefix {@code vespera label recorded nothing:}, every stored key and
+     * id and every name of ours stay; {@code CONTEXT.md}'s Relevance label is defined with no answer (amends ADR-169 §3
+     * and §4, ADR-197 §6, ADR-266 §3, ADR-295 §6, ADR-334 §6 and ADR-413).
+     */
+    public static final String NO_TEXT_FOR_THE_OPERATOR_CALLS_A_LABEL_AN_ANSWER = FILE
+            + "0424-the-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md";
+
     private Adr() {
     }
 }
