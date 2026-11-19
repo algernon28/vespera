@@ -62,7 +62,7 @@ class AClusterPageIsOneFileWithItsPicturesInlinedTest {
     /** The cluster every drawing here arranges. */
     private static final RecordedCluster THE_CLUSTER = cluster(THE_SEED, 0, "Fire doors", 1, 2);
 
-    /** That cluster's folder, from the tree's root: the partition's place and slug, then the cluster's. */
+    /** That cluster's folder, from the tree's root: the topic's place and slug, then the cluster's. */
     private static final String THE_FOLDER = "1-fire-safety/1-fire-doors";
 
     /** The page, in its folder. */

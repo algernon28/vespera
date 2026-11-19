@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The tree stage 6b writes one seed partition and one page of survivors at a time (ADR-223 sections 6 and 7) does
+ * The tree stage 6b writes one topic and one page of survivors at a time (ADR-223 sections 6 and 7) does
  * not depend on where the pages fall: the index, the manifest and every cluster page are byte for byte the ones
  * written with every survivor handed over at once.
  *
@@ -30,8 +30,8 @@ import org.junit.jupiter.api.io.TempDir;
  * is HTML now and that capture describes nothing it writes, so the claim compares two writings of the same lists:
  * two survivors a page, and all eleven in one.
  *
- * <p><b>What the three partitions put to the test.</b> Occurrence order cuts across the partitions, which the
- * manifest keeps and a partition's loop does not have. Two partitions hold as many survivors as one another.
+ * <p><b>What the three topics put to the test.</b> Occurrence order cuts across the topics, which the
+ * manifest keeps and a topic's loop does not have. Two topics hold as many survivors as one another.
  * Two survivors of a cluster score alike, in three clusters, where the page keeps the order they arrive in.
  * One cluster was written from two of its three survivors, neither the highest-scoring and not in occurrence
  * order, so its page is numbered from what its call was recorded as sending. And of the four clusters with no
@@ -42,11 +42,11 @@ import org.junit.jupiter.api.io.TempDir;
  * Each writing has its own working directory and the same corpus root, so the index states the same root.
  *
  * <p>Pure: no database. The survivors are handed over two at a time, so a page of them never falls on a
- * partition's edge by design.
+ * topic's edge by design.
  *
  * <p><b>The HTML tree alone.</b> These writings go through the ways in that take no plugin, which draw none, since
- * {@code deliverable} names no plugin (ADR-333 §1). That the Confluence rendering is the same written a partition at a
- * time is held in {@code confluence.TheConfluenceRenderingIsTheSameWrittenAPartitionAtATimeTest}, over the same lists.
+ * {@code deliverable} names no plugin (ADR-333 §1). That the Confluence rendering is the same written a topic at a
+ * time is held in {@code confluence.TheConfluenceRenderingIsTheSameWrittenATopicAtATimeTest}, over the same lists.
  */
 @Epic("The deliverable")
 @Feature("The tree the operator is handed")
@@ -54,9 +54,9 @@ import org.junit.jupiter.api.io.TempDir;
 @Link(name = "ADR-223", url = Adr.THE_LAST_THREE_STAGES_GO_THROUGH_ONE_SEED_PARTITION_AT_A_TIME, type = "adr")
 @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
 @Link(name = "ADR-274", url = Adr.THE_DELIVERABLE_IS_HTML_WITH_A_VERIFIED_COPY_OF_EVERY_SURVIVOR, type = "adr")
-class TreeIsTheSameWrittenAPartitionAtATimeTest {
+class TreeIsTheSameWrittenATopicAtATimeTest {
 
-    /** How many survivors the source hands over at once: fewer than any partition here holds. */
+    /** How many survivors the source hands over at once: fewer than any topic here holds. */
     private static final int TWO_SURVIVORS_IN_A_PAGE = 2;
 
     /**
@@ -83,24 +83,24 @@ class TreeIsTheSameWrittenAPartitionAtATimeTest {
         Path paged = Deliverable.writeTo(
                 pagedWork,
                 DeliverableRoot.UNNAMED,
-                ThreePartitions.provenance(corpusRoot),
+                ThreeTopics.provenance(corpusRoot),
                 ListedArrangement.of(
-                        ThreePartitions.arrangement(),
-                        ThreePartitions.written(),
-                        ThreePartitions.survivors(),
-                        ThreePartitions.unwritten(),
+                        ThreeTopics.arrangement(),
+                        ThreeTopics.written(),
+                        ThreeTopics.survivors(),
+                        ThreeTopics.unwritten(),
                         TWO_SURVIVORS_IN_A_PAGE),
                 SurvivorPictures.none(),
                 DeliverableProgress.NONE);
         Path whole = Deliverable.writeTo(
                 wholeWork,
                 DeliverableRoot.UNNAMED,
-                ThreePartitions.provenance(corpusRoot),
+                ThreeTopics.provenance(corpusRoot),
                 ListedArrangement.of(
-                        ThreePartitions.arrangement(),
-                        ThreePartitions.written(),
-                        ThreePartitions.survivors(),
-                        ThreePartitions.unwritten()),
+                        ThreeTopics.arrangement(),
+                        ThreeTopics.written(),
+                        ThreeTopics.survivors(),
+                        ThreeTopics.unwritten()),
                 SurvivorPictures.none(),
                 DeliverableProgress.NONE);
 
@@ -144,10 +144,10 @@ class TreeIsTheSameWrittenAPartitionAtATimeTest {
                 });
     }
 
-    /** The marker a tree drawn for {@code work} under {@link ThreePartitions}' generation carries (ADR-276 §3). */
+    /** The marker a tree drawn for {@code work} under {@link ThreeTopics}' generation carries (ADR-276 §3). */
     private static String markerFor(Path work) throws IOException {
         return "working-directory=" + work.toRealPath() + "\n"
-                + "generation-run=" + ThreePartitions.provenance("").runId() + "\n";
+                + "generation-run=" + ThreeTopics.provenance("").runId() + "\n";
     }
 
     /** Every file beneath {@code tree}, by its path relative to it with {@code /} between segments. */

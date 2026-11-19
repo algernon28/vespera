@@ -747,7 +747,7 @@ class GenerationTasklet implements Tasklet {
         return new DeliverableProgress() {
             private StageProgress toCopy = StageProgress.over("Stage 6b (generation, survivors copied)", 0);
             private StageProgress pictures;
-            private StageProgress partitions;
+            private StageProgress topics;
             private StageProgress files;
             private StageProgress entries;
             private StageProgress manifest;
@@ -919,13 +919,13 @@ class GenerationTasklet implements Tasklet {
             }
 
             @Override
-            public void toWritePartitions(long total) {
-                partitions = StageProgress.over("Stage 6b (generation, partitions written)", total);
+            public void toWriteTopics(long total) {
+                topics = StageProgress.over("Stage 6b (generation, topics written)", total);
             }
 
             @Override
-            public void partitionWritten() {
-                partitions.itemDone();
+            public void topicWritten() {
+                topics.itemDone();
             }
 
             @Override
@@ -967,15 +967,15 @@ class GenerationTasklet implements Tasklet {
      *
      * <p>{@code deliverable} may not read {@code Profile}, a stage, or {@code ledger}'s own tables
      * (ADR-110, ADR-274 section 4), so everything {@link Deliverable#writeTo} asks for is gathered here as plain values, a
-     * seed partition at a time (ADR-223 section 6): every key of the profile, read off its record, and, as
-     * the tree comes to them, each partition's clusters and survivors, with a survivor's path, content hash
+     * topic at a time (ADR-223 section 6): every key of the profile, read off its record, and, as
+     * the tree comes to them, each topic's clusters and survivors, with a survivor's path, content hash
      * and score, and a cluster's writing and the reason it has none. {@link ArrangedSurvivors#reading} takes
      * them as functions so that this class adds no class of its own.
      *
      * <p>The content hash is the key {@code extraction} recorded for each survivor, the one its conversion
      * is cached under (ADR-151, ADR-206). Stage 1 hashes only within size-matched groups, so its own record
      * covers only some survivors, and stage 2's covers every one. It is read again each time a survivor is
-     * listed, in the first pass, the partition's listing and the manifest, with the survivor's score and path,
+     * listed, in the first pass, the topic's listing and the manifest, with the survivor's score and path,
      * each a page of survivors at a time (ADR-240). Each survivor's original is opened, read only, by {@code deliverable}
      * to copy it (ADR-274 section 2).
      */

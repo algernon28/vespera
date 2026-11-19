@@ -23,14 +23,14 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * What a write of the tree that fails partway leaves of {@code index.html} and {@code documents.csv} (ADR-223
  * section 6): each is written beside its target and moved into place once it is whole, so a write that stops
- * at its second seed partition leaves both as the write before left them, or leaves neither.
+ * at its second topic leaves both as the write before left them, or leaves neither.
  *
  * <p>Until ADR-223 each was composed whole in memory and written in one call, so neither could be found half
  * written. Written as their rows come, either could be, and a reader opening an index that lists one
- * partition of three has no way to know the other two exist.
+ * topic of three has no way to know the other two exist.
  *
  * <p><b>The failure is the source's.</b> The second write is handed a source whose read of the second
- * partition's clusters throws, which is where a statement that fails would throw. It is also handed no
+ * topic's clusters throws, which is where a statement that fails would throw. It is also handed no
  * synthesis doc at all, so an index it had finished would differ from the first write's in two rows, and an
  * index left as it was is told apart from one written again.
  *
@@ -46,7 +46,7 @@ class TreeThatFailsPartwayLeavesTheOldIndexAndManifestTest {
     /** The topic whose clusters cannot be read: the second of three. */
     private static final int THE_SECOND_TOPIC = 2;
 
-    private static final String WHAT_THE_READ_SAID = "the second partition's clusters could not be read";
+    private static final String WHAT_THE_READ_SAID = "the second topic's clusters could not be read";
 
     @Test
     @Story("A write that fails partway leaves the index and the listing whole")
@@ -55,20 +55,20 @@ class TreeThatFailsPartwayLeavesTheOldIndexAndManifestTest {
         String corpusRoot = base.resolve("archive").toString();
         Path tree = ListedArrangement.writeTo(
                 base.resolve("work"),
-                ThreePartitions.provenance(corpusRoot),
-                ThreePartitions.arrangement(),
-                ThreePartitions.written(),
-                ThreePartitions.survivors(),
+                ThreeTopics.provenance(corpusRoot),
+                ThreeTopics.arrangement(),
+                ThreeTopics.written(),
+                ThreeTopics.survivors(),
                 SurvivorPictures.none(),
-                ThreePartitions.unwritten());
+                ThreeTopics.unwritten());
         String theIndexBefore = Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME), StandardCharsets.UTF_8);
         String theManifestBefore = Files.readString(tree.resolve(Deliverable.MANIFEST_FILE_NAME), StandardCharsets.UTF_8);
 
         Throwable thrown = catchThrowable(() -> Deliverable.writeTo(
                 base.resolve("work"),
                 DeliverableRoot.UNNAMED,
-                ThreePartitions.provenance(corpusRoot),
-                aSourceThatFailsAtItsSecondPartition(),
+                ThreeTopics.provenance(corpusRoot),
+                aSourceThatFailsAtItsSecondTopic(),
                 SurvivorPictures.none(),
                 DeliverableProgress.NONE));
 
@@ -88,12 +88,12 @@ class TreeThatFailsPartwayLeavesTheOldIndexAndManifestTest {
     }
 
     /**
-     * {@link ThreePartitions}'s arrangement and survivors with no synthesis doc and no reason, behind a source
-     * whose read of the second partition's clusters throws.
+     * {@link ThreeTopics}'s arrangement and survivors with no synthesis doc and no reason, behind a source
+     * whose read of the second topic's clusters throws.
      */
-    private static ArrangedSurvivors aSourceThatFailsAtItsSecondPartition() {
+    private static ArrangedSurvivors aSourceThatFailsAtItsSecondTopic() {
         ArrangedSurvivors whole =
-                ListedArrangement.of(ThreePartitions.arrangement(), List.of(), ThreePartitions.survivors(), Map.of());
+                ListedArrangement.of(ThreeTopics.arrangement(), List.of(), ThreeTopics.survivors(), Map.of());
         return ArrangedSurvivors.reading(
                 whole::topics,
                 whole::survivorCount,

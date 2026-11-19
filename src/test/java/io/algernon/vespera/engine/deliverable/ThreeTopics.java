@@ -30,7 +30,7 @@ import java.util.OptionalInt;
  * <p>Public, as {@link ListedTree} is, so that {@code confluence}'s tests draw the same lists through a plugin
  * (ADR-333 §2).
  */
-public final class ThreePartitions {
+public final class ThreeTopics {
 
     static final OccurrenceId ALPHA = new OccurrenceId(1);
 
@@ -44,7 +44,7 @@ public final class ThreePartitions {
 
     static final String GAMMA_PATH = "seeds/gamma.docx";
 
-    private ThreePartitions() {}
+    private ThreeTopics() {}
 
     public static DeliverableProvenance provenance(String corpusRoot) {
         return new DeliverableProvenance(

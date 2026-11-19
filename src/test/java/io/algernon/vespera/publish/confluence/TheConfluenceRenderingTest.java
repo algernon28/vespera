@@ -140,7 +140,7 @@ class TheConfluenceRenderingTest {
         List<Path> bodies = bodiesUnder(tree.resolve(ConfluencePages.DIRECTORY_NAME));
 
         claim(
-                "four bodies are drawn, the root page's, the seed partition's and each group's",
+                "four bodies are drawn, the root page's, the topic's and each group's",
                 () -> assertThat(bodies).hasSize(4));
         claim(
                 "each parses as XML inside an element declaring ac and ri, its escaped ampersands, CDATA and"
@@ -215,7 +215,7 @@ class TheConfluenceRenderingTest {
                 .toList();
 
         claim(
-                "in the list's order: the root page Vespera_en, the seed partition's page its seed's stem, place and"
+                "in the list's order: the root page Vespera_en, the topic's page its seed's stem, place and"
                         + " code, and each group's page its title, or its label where nothing was written, its place"
                         + " and code",
                 () -> assertThat(titles).containsExactly(

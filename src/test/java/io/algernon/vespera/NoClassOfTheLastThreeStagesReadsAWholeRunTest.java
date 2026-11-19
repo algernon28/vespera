@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>A method that reads a whole run cannot be called by {@code src/main} once it is not there, which is a
  * shorter thing to hold than every caller's text. What replaced each is held where it can be exercised: a
- * topic's rows and a cluster's by key in {@code synthesis.PartitionsOfAnArrangementTest} and {@code
+ * topic's rows and a cluster's by key in {@code synthesis.TopicsOfAnArrangementTest} and {@code
  * synthesis.AClusterIsAskedForByItsKeyTest}. Since ADR-409 the tables are {@code cluster_member}, {@code
  * arranged_cluster}, {@code cluster_synthesis_doc} and {@code standing_cluster_fault}, read through the same four
  * classes, and stages 5f, 6a and 6b go through one topic at a time (ADR-409 section 13).

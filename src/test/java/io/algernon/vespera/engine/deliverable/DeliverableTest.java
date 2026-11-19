@@ -113,7 +113,7 @@ class DeliverableTest {
     /** The second place in that order. */
     private static final int SECOND_PLACE = 2;
 
-    /** The third place, which no partition order of a fixture here shares with its cluster order. */
+    /** The third place, which no topic order of a fixture here shares with its cluster order. */
     private static final int THIRD_PLACE = 3;
 
     /** The prefix the only member of a level of one carries: one digit, because the count is one. */

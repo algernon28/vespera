@@ -58,7 +58,7 @@ class EverySurvivorIsCopiedTest {
 
     private static final byte[] FIRST_BYTES = "the first survivor".getBytes(StandardCharsets.UTF_8);
 
-    /** The folder of the one cluster, from the tree's root: the partition's place and slug, then the cluster's. */
+    /** The folder of the one cluster, from the tree's root: the topic's place and slug, then the cluster's. */
     private static final String THE_FOLDER = "1-fire-safety/1-fire-doors";
 
     /** The first survivor's copy: its original's own name, as written, in its cluster's folder. */

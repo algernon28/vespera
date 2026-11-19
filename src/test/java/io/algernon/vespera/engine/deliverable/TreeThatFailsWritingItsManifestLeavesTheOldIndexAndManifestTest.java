@@ -28,7 +28,7 @@ import org.junit.jupiter.api.io.TempDir;
  * would leave a new index beside the old manifest, or beside no manifest at all.
  *
  * <p>{@code TreeThatFailsPartwayLeavesTheOldIndexAndManifestTest} fails the write at its second seed
- * partition, before the index is whole. This fails it after: the manifest's read hands its first page of
+ * topic, before the index is whole. This fails it after: the manifest's read hands its first page of
  * survivors and then throws, which is where a statement that fails would throw. The source is handed no
  * synthesis doc at all, so an index it had moved into place would differ from the first write's, and an index
  * left as it was is told apart from one written again.
@@ -57,19 +57,19 @@ class TreeThatFailsWritingItsManifestLeavesTheOldIndexAndManifestTest {
         String corpusRoot = base.resolve("archive").toString();
         Path tree = ListedArrangement.writeTo(
                 base.resolve("work"),
-                ThreePartitions.provenance(corpusRoot),
-                ThreePartitions.arrangement(),
-                ThreePartitions.written(),
-                ThreePartitions.survivors(),
+                ThreeTopics.provenance(corpusRoot),
+                ThreeTopics.arrangement(),
+                ThreeTopics.written(),
+                ThreeTopics.survivors(),
                 SurvivorPictures.none(),
-                ThreePartitions.unwritten());
+                ThreeTopics.unwritten());
         String theIndexBefore = Files.readString(tree.resolve(Deliverable.INDEX_FILE_NAME), StandardCharsets.UTF_8);
         String theManifestBefore = Files.readString(tree.resolve(Deliverable.MANIFEST_FILE_NAME), StandardCharsets.UTF_8);
 
         Throwable thrown = catchThrowable(() -> Deliverable.writeTo(
                 base.resolve("work"),
                 DeliverableRoot.UNNAMED,
-                ThreePartitions.provenance(corpusRoot),
+                ThreeTopics.provenance(corpusRoot),
                 aSourceThatFailsAtTheManifestsSecondPage(),
                 SurvivorPictures.none(),
                 DeliverableProgress.NONE));
@@ -90,13 +90,13 @@ class TreeThatFailsWritingItsManifestLeavesTheOldIndexAndManifestTest {
     }
 
     /**
-     * {@link ThreePartitions}'s arrangement and survivors with no synthesis doc and no reason, behind a source
+     * {@link ThreeTopics}'s arrangement and survivors with no synthesis doc and no reason, behind a source
      * whose manifest read hands its first page of {@link #SURVIVORS_IN_A_PAGE} survivors and throws at its
      * second. Every other read, the pictures' read of every survivor among them, answers in full.
      */
     private static ArrangedSurvivors aSourceThatFailsAtTheManifestsSecondPage() {
         ArrangedSurvivors whole = ListedArrangement.of(
-                ThreePartitions.arrangement(), List.of(), ThreePartitions.survivors(), Map.of(), SURVIVORS_IN_A_PAGE);
+                ThreeTopics.arrangement(), List.of(), ThreeTopics.survivors(), Map.of(), SURVIVORS_IN_A_PAGE);
         return ArrangedSurvivors.reading(
                 whole::topics,
                 whole::survivorCount,

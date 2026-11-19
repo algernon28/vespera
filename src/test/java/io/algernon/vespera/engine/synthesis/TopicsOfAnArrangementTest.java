@@ -44,7 +44,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-241", url = Adr.THE_MANIFEST_ASKS_A_PAGES_PLACES_AND_A_SYNTHESIS_DOC_IS_READ_ONCE, type = "adr")
 @Link(name = "ADR-112", url = Adr.THE_ARRANGEMENT_IS_ORDERED_BY_SIZE_AND_MEAN_SCORE, type = "adr")
 @Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
-class PartitionsOfAnArrangementTest {
+class TopicsOfAnArrangementTest {
 
     /** The topic recorded first and placed second: two clusters, no subtopics. */
     private static final TopicKey FIRST = new TopicKey("seeds/first.docx", 0);
@@ -79,7 +79,7 @@ class PartitionsOfAnArrangementTest {
     void twoTopicsWrittenOutOfOrder() {
         clusters = new Clusters(jdbcTemplate);
         Ledger ledger = new Ledger(jdbcTemplate);
-        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-partitions-" + System.nanoTime()));
+        WalkId walk = ledger.walks().startWalk(Path.of("C:/corpus-topics-" + System.nanoTime()));
         arrangement = ledger.runs().startRun("arrangement", "a" + System.nanoTime(), "{}", walk, List.of());
         RunId another = ledger.runs().startRun("arrangement", "b" + System.nanoTime(), "{}", walk, List.of());
 
