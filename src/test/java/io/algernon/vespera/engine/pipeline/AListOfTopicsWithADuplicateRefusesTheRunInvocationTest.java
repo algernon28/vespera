@@ -12,6 +12,7 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -48,6 +49,13 @@ class AListOfTopicsWithADuplicateRefusesTheRunInvocationTest {
     /** The whole of what a refusal shows the operator: one line. */
     private static final int ONE_LINE = 1;
 
+    /**
+     * Standard error's own charset, which the jar's lines are written in (logback-spring.xml): a line is held as the
+     * bytes that charset gives it, read back as the captured stream is, so that a console unable to write an accented
+     * letter, as Windows' can be, shows the same line the test expects.
+     */
+    private static final Charset STANDARD_ERROR = Charset.forName(System.getProperty("stderr.encoding", "UTF-8"));
+
     @TempDir
     static Path workingDirectory;
 
@@ -78,10 +86,10 @@ class AListOfTopicsWithADuplicateRefusesTheRunInvocationTest {
         claim("the invocation exits " + REFUSED, () -> assertThat(cli.getExitCode()).isEqualTo(REFUSED));
         claim("and says why in " + ONE_LINE + " line on standard error, naming the third line as the first line's topic"
                         + " again",
-                () -> assertThat(printed.lines().toList()).containsExactly("vespera run refused the topics in"
-                        + " profile.yaml: line 3, \"qualita\", is the topic \"Qualità\" of line 1 again, two names being"
-                        + " one topic where they differ only in case, accents or the spaces around them. Remove one of"
-                        + " them."));
+                () -> assertThat(printed.lines().toList()).containsExactly(asStandardErrorWritesIt("vespera run refused"
+                        + " the topics in profile.yaml: line 3, \"qualita\", is the topic \"Qualità\" of line 1 again,"
+                        + " two names being one topic where they differ only in case, accents or the spaces around"
+                        + " them. Remove one of them.")));
         claim("nothing was walked", () -> assertThat(walksOver(corpusRoot)).isZero());
     }
 
@@ -116,5 +124,10 @@ class AListOfTopicsWithADuplicateRefusesTheRunInvocationTest {
     private long walksOver(Path corpusRoot) {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM walk WHERE root = ?", Long.class, Walk.canonicalRoot(corpusRoot).toString());
+    }
+
+    /** A line as standard error's charset writes it and the captured stream reads it back. */
+    private static String asStandardErrorWritesIt(String line) {
+        return new String(line.getBytes(STANDARD_ERROR), StandardCharsets.UTF_8);
     }
 }
