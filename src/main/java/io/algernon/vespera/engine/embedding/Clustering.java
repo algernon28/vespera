@@ -13,19 +13,19 @@ import org.springframework.stereotype.Component;
  * {@code pipeline}'s only way into {@code embedding} for ADR-087's clustering (#109), the same shape
  * {@link RelevanceScoring} already gives it for ADR-020's scoring.
  *
- * <p><b>One partition at a time, and within a partition, two blocks of vectors at a time.</b> A seed
- * partition is what ADR-045 bounds the work to; the blocks are what make the ceiling independent of
- * how large that partition turns out to be. Nothing here ever holds a partition's vectors whole, and
- * the mean vectors it compares are computed and discarded (ADR-087) — no table stores one, and a
- * stored copy would be a cache nothing reads that has to be invalidated whenever the chunking or the
- * model changes.
+ * <p><b>One topic at a time, and within a topic, two blocks of vectors at a time.</b> A topic, or
+ * a subtopic of a crowded one, is what the work is bounded to (ADR-045, ADR-396); the blocks are what
+ * make the ceiling independent of how large that topic turns out to be. Nothing here ever holds a
+ * topic's vectors whole, and the mean vectors it compares are computed and discarded (ADR-087) — no
+ * table stores one, and a stored copy would be a cache nothing reads that has to be invalidated
+ * whenever the chunking or the model changes.
  *
- * <p><b>What a partition is, is what scoring already recorded.</b> ADR-087 clusters a partition's
+ * <p><b>What a topic holds is what scoring and placement already recorded.</b> ADR-087 clusters a topic's
  * <em>survivors</em>, which is one rule covering both states of a threshold that ships unset: a
  * document with a blocking verdict under a run upstream of the scoring run is never scored, so it has
- * no score row, so it is not in any partition here and costs nothing. A {@code below-threshold}
+ * no score row, so it is not in any topic here and costs nothing. A {@code below-threshold}
  * verdict is written under the scoring run itself after the score, so its document is still in the
- * partition this reads; {@code ClusteringTasklet} drops it by reading the scoring run's survivors
+ * topic this reads; {@code ClusteringTasklet} drops it by reading the scoring run's survivors
  * (ADR-156), without a line of code here changing.
  */
 @Component
@@ -51,7 +51,7 @@ public class Clustering {
      * nobody has picked yet. So the count is capped by a byte budget as well, set at exactly the size
      * ADR-087's table gives a block at its widest dimension. Below that dimension the count binds and
      * above it the bytes do; either way two blocks are 128 MiB whatever the model and whatever the
-     * partition, which is the claim the ADR makes and the one this discharges.
+     * topic, which is the claim the ADR makes and the one this discharges.
      */
     static final long BLOCK_BUDGET_BYTES = 64L * 1024 * 1024;
 
@@ -329,7 +329,7 @@ public class Clustering {
     }
 
     /**
-     * A partition's document mean vectors, read from {@code vector} a block at a time.
+     * A topic's or a subtopic's document mean vectors, read from {@code vector} a block at a time.
      *
      * <p>The roster this holds is one content hash per document, not one vector per document: what
      * ADR-085 forbids being resident is the vectors, and the roster is what makes a block addressable
@@ -369,11 +369,11 @@ public class Clustering {
         }
 
         /**
-         * How wide one vector is, taken from the partition's first document.
+         * How wide one vector is, taken from the topic's first document.
          *
          * <p>One document is enough: every vector under one embedder identity has the model's own
          * dimension (ADR-084), so this is a lookup of a property of the model rather than a survey of
-         * the partition.
+         * the topic.
          */
         int dimension() {
             return meanOf(0).length;
@@ -383,7 +383,7 @@ public class Clustering {
          * One document's mean vector, computed from its chunk vectors and returned to be discarded.
          *
          * <p>Throws rather than treating a document with no stored vectors as a point at the origin:
-         * every document in a partition is there because it was scored, and scoring already refuses a
+         * every document in a topic is there because it was scored, and scoring already refuses a
          * survivor with no chunks (#108). A zero vector here would silently place it in whichever
          * cluster the arithmetic put the origin in.
          */

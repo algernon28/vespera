@@ -16,6 +16,7 @@ import io.algernon.vespera.engine.extraction.ExtractorIdentity;
 import io.algernon.vespera.engine.extraction.LeadingChunks;
 import io.algernon.vespera.engine.extraction.PicturePlace;
 import io.algernon.vespera.engine.ledger.Ledger;
+import io.algernon.vespera.engine.profile.TopicsValue;
 import io.algernon.vespera.engine.ledger.OccurrenceFacts;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.OccurrencePath;
@@ -621,9 +622,27 @@ class GenerationTasklet implements Tasklet {
 
     /** One row a topic, kept for the tree as well as for the walk (ADR-223 section 5, ADR-409 section 13). */
     private List<ArrangedTopic> readTopics(RunId arrangement) {
-        return TimedStatement.of(
+        List<ArrangedTopic> arranged = TimedStatement.of(
                 STAGE, "reading", "read", "the topics of the arrangement",
                 () -> clusters.topicsOf(arrangement));
+        Optional<List<String>> listed = stageRuns.listedTopics();
+        if (listed.isEmpty()) {
+            return arranged;
+        }
+        // A listed topic no document is placed under has no cluster, and is drawn at its place all the same
+        // (ADR-435 section 8); a listed topic's place is its place in the list.
+        List<ArrangedTopic> withEveryListed = new ArrayList<>(arranged);
+        List<String> names = listed.get();
+        for (int place = 1; place <= names.size(); place++) {
+            TopicKey key = new TopicKey(
+                    TopicsValue.identityOf(names.get(place - 1)),
+                    io.algernon.vespera.engine.embedding.TopicKey.LISTED_CHUNK_INDEX);
+            if (arranged.stream().noneMatch(topic -> topic.topic().equals(key))) {
+                withEveryListed.add(new ArrangedTopic(key, place, 0, 0));
+            }
+        }
+        withEveryListed.sort(java.util.Comparator.comparingInt(ArrangedTopic::topicOrder));
+        return withEveryListed;
     }
 
     /**
@@ -1112,6 +1131,9 @@ class GenerationTasklet implements Tasklet {
             ListedTopic topic,
             Map<ClusterSlot, Unwritten> foundThisRun,
             boolean writingFinished) {
+        if (topic.clusterCount() == 0) {
+            return new ListedOverview.Unwritten(OverviewUnwritten.NO_DOCUMENT_PLACED);
+        }
         Optional<TopicOverviews.RecordedOverview> written = topicOverviews.writtenFor(generation, topic.topic());
         if (written.isPresent()) {
             return new ListedOverview.Written(written.get().writing(), written.get().clustersSent());

@@ -50,10 +50,16 @@ public final class ControlPanelWindow extends Application {
                 uri -> getHostServices().showDocument(uri)));
     }
 
+    /** The version the manifest of the jar this runs from names, or {@code unknown}; read with this package's own code (ADR-431 §4). */
+    private static String releaseVersion() {
+        String named = ControlPanelWindow.class.getPackage().getImplementationVersion();
+        return named == null || named.isBlank() ? "unknown" : named.strip();
+    }
+
     /** Draws {@code state} on {@code stage}, asks through {@code dialogs} and shows it: what {@link #start} does, for a test to do too. */
     static void shownOn(Stage stage, ControlPanelState state, Dialogs dialogs) {
         Cockpit cockpit = drawn(state, dialogs);
-        stage.setTitle("Vespera control panel");
+        stage.setTitle("Vespera control panel " + releaseVersion());
         stage.setScene(new Scene(cockpit.root(), WIDTH, HEIGHT));
         java.util.concurrent.atomic.AtomicBoolean closing = new java.util.concurrent.atomic.AtomicBoolean();
         stage.setOnCloseRequest(event -> {

@@ -38,8 +38,15 @@ final class ClusterSizeReport {
             + " grouped among themselves by how alike they are, within each of its subtopics where a crowded topic"
             + " is divided. Nobody said how many groups to look for: the groups are whatever the documents turned"
             + " out to form, and this page is what they turned out to be. Nothing here was removed, merged or"
-            + " renamed. Each topic's row names it by the seed document its first passage is in, and that"
+            + " renamed. ";
+
+    /** The last sentence of the first paragraph where the topics are inferred. */
+    private static final String KEY_OF_AN_INFERRED_TOPIC =
+            "Each topic's row names it by the seed document its first passage is in, and that"
             + " passage's number, counted from 0.";
+
+    /** The last sentence of the first paragraph where the profile lists the topics (ADR-435 section 10). */
+    private static final String KEY_OF_A_LISTED_TOPIC = "Each topic's row names it as your profile lists it.";
 
     private static final String NONE =
             "No document was placed under a topic, so there was nothing to group.";
@@ -106,7 +113,8 @@ final class ClusterSizeReport {
      * keeps a row for each topic, taken over its clusters across its subtopics, and under a divided topic a row for
      * each subtopic (ADR-416 section 5).
      *
-     * @param key the topic, by its key as ADR-407 section 9's lines write it, {@code <path> chunk <i>}
+     * @param key the topic, by its key as ADR-407 section 9's lines write it, {@code <path> chunk <i>}, or by its name
+     *     as listed where the profile lists the topics (ADR-435 section 10)
      * @param documentCount how many documents its clusters hold between them
      * @param clusterCount how many clusters it holds
      * @param largest how many documents its largest cluster holds
@@ -125,7 +133,20 @@ final class ClusterSizeReport {
             int median,
             int singletons,
             Optional<RetainedEdgeSpread> spread,
-            List<Subtopic> subtopics) {
+            List<Subtopic> subtopics,
+            boolean listed) {
+
+        /**
+         * The row for a topic the profile lists, whose clusters hold {@code sizes}: named by its name as listed.
+         */
+        static Topic ofListed(String name, List<Integer> sizes, Optional<RetainedEdgeSpread> spread) {
+            return of(name, true, sizes, List.of(), spread);
+        }
+
+        /** The row for a divided topic the profile lists, named by its name as listed. */
+        static Topic dividedListed(String name, List<Subtopic> subtopics, Optional<RetainedEdgeSpread> spread) {
+            return dividedUnder(name, true, subtopics, spread);
+        }
 
         /**
          * The row for a topic whose clusters hold {@code sizes}, in subtopic and cluster order. The middle cluster by
@@ -134,7 +155,7 @@ final class ClusterSizeReport {
          * upper. A topic not divided has no subtopic row.
          */
         static Topic of(String seedPath, int chunkIndex, List<Integer> sizes, Optional<RetainedEdgeSpread> spread) {
-            return of(seedPath, chunkIndex, sizes, List.of(), spread);
+            return of(seedPath + " chunk " + chunkIndex, false, sizes, List.of(), spread);
         }
 
         /**
@@ -144,6 +165,11 @@ final class ClusterSizeReport {
          */
         static Topic divided(
                 String seedPath, int chunkIndex, List<Subtopic> subtopics, Optional<RetainedEdgeSpread> spread) {
+            return dividedUnder(seedPath + " chunk " + chunkIndex, false, subtopics, spread);
+        }
+
+        private static Topic dividedUnder(
+                String key, boolean listed, List<Subtopic> subtopics, Optional<RetainedEdgeSpread> spread) {
             List<Integer> sizes = new ArrayList<>();
             subtopics.forEach(subtopic -> sizes.addAll(subtopic.sizes()));
             // The sizes are taken over once here and each subtopic is then kept without its own, so a divided
@@ -152,25 +178,26 @@ final class ClusterSizeReport {
             for (int place = 0; place < subtopics.size(); place++) {
                 placed.add(subtopics.get(place).withoutSizes(place + 1));
             }
-            return of(seedPath, chunkIndex, sizes, placed, spread);
+            return of(key, listed, sizes, placed, spread);
         }
 
         private static Topic of(
-                String seedPath,
-                int chunkIndex,
+                String key,
+                boolean listed,
                 List<Integer> sizes,
                 List<Subtopic> subtopics,
                 Optional<RetainedEdgeSpread> spread) {
             Numbers numbers = Numbers.of(sizes);
             return new Topic(
-                    seedPath + " chunk " + chunkIndex,
+                    key,
                     numbers.documents(),
                     numbers.groups(),
                     numbers.largest(),
                     numbers.median(),
                     numbers.singletons(),
                     spread,
-                    List.copyOf(subtopics));
+                    List.copyOf(subtopics),
+                    listed);
         }
     }
 
@@ -273,7 +300,7 @@ final class ClusterSizeReport {
      * as a dash is {@code null}, and one it shows to two places is those two places.
      */
     static AnalysisReportJson.Document document(List<Topic> topics, Instant writtenAt) {
-        List<String> intro = new ArrayList<>(List.of(plain(INTRO)));
+        List<String> intro = new ArrayList<>(List.of(plain(introOf(topics))));
         List<AnalysisReportJson.Section> sections = new ArrayList<>();
         if (topics.isEmpty()) {
             intro.add(plain(NONE));
@@ -345,6 +372,11 @@ final class ClusterSizeReport {
         return value == null ? null : Double.valueOf(String.format(Locale.ROOT, "%.2f", value));
     }
 
+    /** The first paragraph: its last sentence says how a topic's row names it, as the topics are listed or inferred. */
+    private static String introOf(List<Topic> topics) {
+        return INTRO + (topics.stream().anyMatch(Topic::listed) ? KEY_OF_A_LISTED_TOPIC : KEY_OF_AN_INFERRED_TOPIC);
+    }
+
     /** A paragraph of the page as the words a reader reads: its markup taken off, its dash as a dash. */
     private static String plain(String html) {
         return html.replaceAll("<[^>]*>", "").replace("&mdash;", "\u2014");
@@ -353,7 +385,7 @@ final class ClusterSizeReport {
     static String render(List<Topic> topics) {
         StringBuilder body = new StringBuilder();
         body.append(ReportPage.heading(1, TITLE))
-                .append(ReportPage.paragraph(INTRO));
+                .append(ReportPage.paragraph(introOf(topics)));
 
         if (topics.isEmpty()) {
             return ReportPage.render(

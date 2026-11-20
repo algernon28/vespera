@@ -140,6 +140,9 @@ package io.algernon.vespera.engine.profile;
  *     corpus root, separated by the system's path separator. Ships unset; unset or unreadable, every folder is read.
  *     It enters byte-level reduction's identity, a walk that leaves a folder out being another walk. No
  *     {@link Measurement} pointer.
+ * @param topics the topics the operator lists, by name (ADR-435 §1): one string, one name a line. Ships unset; unset
+ *     or blank, the topics are inferred from the seed set's passages. It enters the embedding-scoring run's identity
+ *     where it names a topic. No {@link Measurement} pointer.
  * @param confluenceBaseUrl the Confluence site's address a publish sends to (ADR-359 section 1), read where the
  *     shell sets none. Ships unset, enters no run's identity and is no gate: no stage reads it.
  * @param confluenceSpaceKey the space's key (ADR-359 section 1); as {@code confluenceBaseUrl}.
@@ -171,6 +174,7 @@ public record Profile(
         NumericValue clusterResolution,
         FoldersValue codeSetFolders,
         CorpusFoldersValue foldersNotWalked,
+        TopicsValue topics,
         TextValue confluenceBaseUrl,
         TextValue confluenceSpaceKey,
         TextValue confluenceFolderId,
@@ -203,6 +207,7 @@ public record Profile(
         clusterResolution = clusterResolution == null ? NumericValue.unset() : clusterResolution;
         codeSetFolders = codeSetFolders == null ? FoldersValue.unset() : codeSetFolders;
         foldersNotWalked = foldersNotWalked == null ? CorpusFoldersValue.unset() : foldersNotWalked;
+        topics = topics == null ? TopicsValue.unset() : topics;
         confluenceBaseUrl = confluenceBaseUrl == null ? TextValue.unset() : confluenceBaseUrl;
         confluenceSpaceKey = confluenceSpaceKey == null ? TextValue.unset() : confluenceSpaceKey;
         confluenceFolderId = confluenceFolderId == null ? TextValue.unset() : confluenceFolderId;
@@ -256,7 +261,7 @@ public record Profile(
     static Profile skeleton() {
         return new Profile(
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -282,6 +287,7 @@ public record Profile(
                 clusterResolution,
                 codeSetFolders,
                 foldersNotWalked,
+                topics,
                 confluenceBaseUrl,
                 confluenceSpaceKey,
                 confluenceFolderId,
@@ -317,6 +323,7 @@ public record Profile(
                 clusterResolution,
                 codeSetFolders,
                 foldersNotWalked,
+                topics,
                 confluenceBaseUrl,
                 confluenceSpaceKey,
                 confluenceFolderId,
@@ -348,6 +355,7 @@ public record Profile(
                 clusterResolution,
                 codeSetFolders,
                 foldersNotWalked,
+                topics,
                 confluenceBaseUrl,
                 confluenceSpaceKey,
                 confluenceFolderId,
@@ -382,6 +390,7 @@ public record Profile(
                 clusterResolution,
                 codeSetFolders,
                 foldersNotWalked,
+                topics,
                 confluenceBaseUrl,
                 confluenceSpaceKey,
                 confluenceFolderId,
@@ -421,6 +430,7 @@ public record Profile(
                 clusterResolution,
                 codeSetFolders,
                 foldersNotWalked,
+                topics,
                 confluenceBaseUrl,
                 confluenceSpaceKey,
                 confluenceFolderId,
@@ -455,6 +465,7 @@ public record Profile(
                 clusterResolution,
                 codeSetFolders,
                 foldersNotWalked,
+                topics,
                 confluenceBaseUrl,
                 confluenceSpaceKey,
                 confluenceFolderId,
@@ -486,6 +497,7 @@ public record Profile(
                 clusterResolution,
                 codeSetFolders,
                 foldersNotWalked,
+                topics,
                 confluenceBaseUrl,
                 confluenceSpaceKey,
                 confluenceFolderId,
@@ -517,6 +529,7 @@ public record Profile(
                 clusterResolution,
                 codeSetFolders,
                 foldersNotWalked,
+                topics,
                 confluenceBaseUrl,
                 confluenceSpaceKey,
                 confluenceFolderId,
@@ -548,6 +561,7 @@ public record Profile(
                 clusterResolution,
                 codeSetFolders,
                 foldersNotWalked,
+                topics,
                 confluenceBaseUrl,
                 confluenceSpaceKey,
                 confluenceFolderId,
@@ -579,6 +593,7 @@ public record Profile(
                 clusterResolution,
                 codeSetFolders,
                 foldersNotWalked,
+                topics,
                 confluenceBaseUrl,
                 confluenceSpaceKey,
                 confluenceFolderId,

@@ -271,6 +271,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "ModelPullSettings",
             // ADR-375: refuses a cloud or remote model at the start of vespera run; decides no verdict, key, cluster or text.
             "ModelsAtTheStart",
+            // ADR-435 §3: refuses a list of topics holding a blank or a duplicate at the start of vespera run, naming the
+            // entry; the list's reading is profile's, and it decides no verdict, cache key, cluster or text.
+            "ListedTopicsAtTheStart",
             "StageFiveGates",
             "StageModules",
             "StageProgress",

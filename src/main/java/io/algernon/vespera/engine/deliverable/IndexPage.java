@@ -51,7 +51,7 @@ public final class IndexPage {
                 .append("\">")
                 .append(Html.escape(layout.topic().name()))
                 .append("</a></h2>\n");
-        if (!layout.divided()) {
+        if (!layout.divided() && !layout.clusters().isEmpty()) {
             index.append("<table>\n").append(FixedWords.clusterTableHeadRow(language));
         }
     }
@@ -210,8 +210,8 @@ public final class IndexPage {
     }
 
     /** Everything of the page after its last table. */
-    static void close(Appendable index) throws IOException {
-        index.append(Html.tail());
+    static void close(Appendable index, DeliverableLanguage language) throws IOException {
+        index.append("<p>").append(Html.escape(FixedWords.madeWith(language))).append("</p>\n").append(Html.tail());
     }
 
     /** {@code ordinal}, zero-padded to {@code width} digits (ADR-112). */

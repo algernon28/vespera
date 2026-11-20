@@ -10,8 +10,8 @@ import java.util.List;
  * ledger} and nothing else horizontal (ADR-110) — they live in {@code embedding}, and {@code
  * pipeline} is what hands them down.
  *
- * @param ordinal the cluster's ordinal within its seed partition, which is its identity and never
- *     changes when the order does
+ * @param ordinal the cluster's ordinal within its subtopic, or within its topic where it has none, which
+ *     is its identity there and never changes when the order does
  * @param memberScores every member's relevance score, one per survivor in the cluster
  */
 public record Cluster(int ordinal, List<Double> memberScores) {

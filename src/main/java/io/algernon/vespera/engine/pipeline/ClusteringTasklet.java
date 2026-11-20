@@ -227,14 +227,18 @@ class ClusteringTasklet implements Tasklet {
                                 "the subtopics of " + whichTopic,
                                 () -> documentClusters.survivorsOfSubtopics(scoring, topic));
                         if (survivorsOfSubtopics.isEmpty()) {
-                            reported.add(ClusterSizeReport.Topic.of(
-                                    topic.firstPassage().seedPath(),
-                                    topic.firstPassage().chunkIndex(),
-                                    TimedStatement.of(
-                                            STAGE, "reading", "read",
-                                            "the cluster sizes of " + whichTopic,
-                                            () -> documentClusters.sizesFor(scoring, topic)),
-                                    spreads.topic()));
+                            List<Integer> sizes = TimedStatement.of(
+                                    STAGE, "reading", "read",
+                                    "the cluster sizes of " + whichTopic,
+                                    () -> documentClusters.sizesFor(scoring, topic));
+                            Optional<String> listedName = stageRuns.listedNameOf(topic);
+                            reported.add(listedName.isPresent()
+                                    ? ClusterSizeReport.Topic.ofListed(listedName.get(), sizes, spreads.topic())
+                                    : ClusterSizeReport.Topic.of(
+                                            topic.firstPassage().seedPath(),
+                                            topic.firstPassage().chunkIndex(),
+                                            sizes,
+                                            spreads.topic()));
                         } else {
                             List<ClusterSizeReport.Subtopic> subtopics = new ArrayList<>();
                             for (int subtopic : Arrangement.subtopicsInOrder(survivorsOfSubtopics)) {
@@ -245,11 +249,14 @@ class ClusteringTasklet implements Tasklet {
                                                 () -> documentClusters.sizesFor(scoring, topic, subtopic)),
                                         spreads.subtopics().getOrDefault(subtopic, Optional.empty())));
                             }
-                            reported.add(ClusterSizeReport.Topic.divided(
-                                    topic.firstPassage().seedPath(),
-                                    topic.firstPassage().chunkIndex(),
-                                    subtopics,
-                                    spreads.topic()));
+                            Optional<String> listedName = stageRuns.listedNameOf(topic);
+                            reported.add(listedName.isPresent()
+                                    ? ClusterSizeReport.Topic.dividedListed(listedName.get(), subtopics, spreads.topic())
+                                    : ClusterSizeReport.Topic.divided(
+                                            topic.firstPassage().seedPath(),
+                                            topic.firstPassage().chunkIndex(),
+                                            subtopics,
+                                            spreads.topic()));
                         }
                         topicsDone.itemDone();
                     }

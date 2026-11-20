@@ -31,7 +31,7 @@ public final class Reports {
             "seed-corpus-comparison", "Your documents compared with your seed documents",
             "cluster-sizes", "Group sizes",
             "relevance-labelling", "Choosing the relevance cut-off",
-            "topics", "Topics found in your seed documents",
+            "topics", "Topics",
             "arrangement", "Grouping to approve",
             "cluster-page-sizes", "Group page sizes");
 

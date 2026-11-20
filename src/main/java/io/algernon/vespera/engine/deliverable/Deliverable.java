@@ -549,7 +549,9 @@ public final class Deliverable {
                     subtopicRows.add(row);
                     IndexPage.clusterRow(index, layout, recorded, row.title(), language);
                 }
-                IndexPage.tableEnd(index);
+                if (!clusters.isEmpty()) {
+                    IndexPage.tableEnd(index);
+                }
                 if (openSubtopic != null) {
                     writeSubtopicPage(topicDir, layout, openSubtopic, subtopicRows, language, moves);
                 }
@@ -560,7 +562,7 @@ public final class Deliverable {
                 progress.topicWritten();
             }
             theCode.drawn(index);
-            IndexPage.close(index);
+            IndexPage.close(index, language);
         }
         return indexPart;
     }

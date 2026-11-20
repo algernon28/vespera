@@ -30,7 +30,7 @@ import org.junit.jupiter.api.io.TempDir;
 class ChildRuntimeTest {
 
     /** The Spring Boot jar's file name, as the build names it. */
-    private static final String JAR_NAME = "vespera-0.0.1-SNAPSHOT.jar";
+    private static final String JAR_NAME = "vespera-0-SNAPSHOT.jar";
 
     /** A Java home, made up: nothing here starts it, and its {@code java} need not exist. */
     private static final Path JAVA_HOME = Path.of("jdk-26").toAbsolutePath();

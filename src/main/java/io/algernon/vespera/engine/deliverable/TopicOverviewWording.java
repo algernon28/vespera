@@ -47,6 +47,7 @@ public final class TopicOverviewWording {
                     + " any of its groups.";
             case NOT_REACHED -> "No overview has been written for this topic yet: writing stopped before it reached"
                     + " this topic. Running the same command again carries the writing on.";
+            case NO_DOCUMENT_PLACED -> "No overview was written for this topic: no document was placed under it.";
         };
     }
 
@@ -67,6 +68,8 @@ public final class TopicOverviewWording {
             case NOT_REACHED -> "Per questo argomento non è ancora stata scritta una panoramica: la scrittura si è"
                     + " fermata prima di arrivare a questo argomento. Eseguire di nuovo lo stesso comando fa proseguire"
                     + " la scrittura.";
+            case NO_DOCUMENT_PLACED -> "Per questo argomento non è stata scritta alcuna panoramica: nessun documento è"
+                    + " stato collocato sotto di esso.";
         };
     }
 }

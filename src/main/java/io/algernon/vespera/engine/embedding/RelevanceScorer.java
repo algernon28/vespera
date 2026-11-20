@@ -112,6 +112,22 @@ class RelevanceScorer {
                                 + " which a non-empty pair of chunk lists should never do"));
     }
 
+    /**
+     * Hands {@code tally} the cosine of each survivor chunk to each listed name's vector (ADR-435 section 5): the
+     * name's vector is the topic's centroid, so no divisor is taken. The names are visited in the order of the map.
+     */
+    void cosinesToNames(
+            List<float[]> survivorChunkVectors,
+            Map<TopicKey, float[]> nameVectors,
+            ListedTopicPlacement.Tally tally) {
+        for (int survivorChunk = 0; survivorChunk < survivorChunkVectors.size(); survivorChunk++) {
+            float[] survivorVector = survivorChunkVectors.get(survivorChunk);
+            for (Map.Entry<TopicKey, float[]> name : nameVectors.entrySet()) {
+                tally.add(survivorChunk, name.getKey(), cosineSimilarity(survivorVector, name.getValue()));
+            }
+        }
+    }
+
     static double cosineSimilarity(float[] a, float[] b) {
         double dot = 0;
         double normA = 0;

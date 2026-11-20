@@ -40,7 +40,7 @@ public enum EmbeddingStatement {
      */
     ARRANGED_OCCURRENCES_FOR_PICTURES,
 
-    /** The same read, made again for the manifest after the tree's last partition (ADR-223 section 8). */
+    /** The same read, made again for the manifest after the tree's last topic (ADR-223 section 8). */
     ARRANGED_OCCURRENCES_FOR_THE_MANIFEST;
 
     private final OptionalInt stepsPerRow;

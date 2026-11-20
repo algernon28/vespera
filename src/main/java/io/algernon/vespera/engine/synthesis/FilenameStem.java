@@ -2,8 +2,9 @@ package io.algernon.vespera.engine.synthesis;
 
 /**
  * A filename without its folders or its extension, written once (ADR-213 §4). {@link ClusterLabel}
- * names a cluster from it where the lead document has no title, and {@code deliverable} names a partition
- * folder, a picture folder and a copy from it (ADR-274 §4).
+ * names a cluster from it where the lead document has no title, and {@link TopicFallbackName} a topic or
+ * a subtopic where the model's name is turned down and the strongest document has no title (ADR-407
+ * section 7).
  */
 public final class FilenameStem {
 

@@ -264,6 +264,15 @@ public final class FixedWords {
         };
     }
 
+    /** The line at the foot of a top page: which version of Vespera drew it (ADR-431 §5). */
+    public static String madeWith(DeliverableLanguage language) {
+        String version = io.algernon.vespera.engine.ledger.ReleaseVersion.ofThisJar().value();
+        return switch (language) {
+            case ENGLISH -> "Made with Vespera " + version + ".";
+            case ITALIAN -> "Realizzato con Vespera " + version + ".";
+        };
+    }
+
     /** The root page's one sentence (ADR-315 §2). */
     public static String rootSentence(DeliverableLanguage language) {
         return switch (language) {
