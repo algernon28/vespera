@@ -3170,6 +3170,15 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER = FILE
             + "0430-the-control-panel-checks-docker-the-containers-and-the-models-and-starts-nothing-until-start-docker-is-pressed.md";
 
+    /**
+     * ADR-433 -- a Docling or an Ollama Vespera runs on this machine is a container, and what the operator reads of one
+     * on another machine names it; no name of ours says the earlier word, but the earlier settings' names, which are
+     * still read where the new ones are not set and said in one line each, and the earlier lock file, which, held by
+     * another, refuses a start (amends ADR-430 §8 and §9, ADR-323 §6 and §7, and ADR-390 §1).
+     */
+    public static final String DOCLING_AND_OLLAMA_ARE_CONTAINERS_WHERE_VESPERA_RUNS_THEM = FILE
+            + "0433-docling-and-ollama-are-containers-where-vespera-runs-them-and-never-sidecars-and-the-earlier-names-are-still-honoured.md";
+
     private Adr() {
     }
 }

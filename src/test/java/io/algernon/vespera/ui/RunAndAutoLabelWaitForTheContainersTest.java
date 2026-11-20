@@ -86,6 +86,8 @@ class RunAndAutoLabelWaitForTheContainersTest {
     }
 
     @Test
+    @Link(name = "ADR-433", url = Adr.DOCLING_AND_OLLAMA_ARE_CONTAINERS_WHERE_VESPERA_RUNS_THEM, type = "adr")
+    @Issue("891")
     @Story("Run waits for the containers")
     @DisplayName("Run is off until the first check has come back, while Docker and the containers start and while Docker shuts down, its caption saying which, before the rows that are not OK")
     void runsCaptionSaysItWaitsForTheFirstCheckAndForAStartOrAShutDown() throws Exception {
@@ -127,10 +129,10 @@ class RunAndAutoLabelWaitForTheContainersTest {
             shutDownReleased.countDown();
         }
 
-        claim("before the first check has come back, Run is off and its caption reads: Off until the containers have"
-                        + " been checked.",
+        claim("before the first check has come back, Run is off and its caption reads: Off until Docling and Ollama"
+                        + " have been checked.",
                 () -> assertThat(List.of(beforeTheFirstCheck.runEnabled(), beforeTheFirstCheck.runCaption()))
-                        .containsExactly(false, "Off until the containers have been checked."));
+                        .containsExactly(false, "Off until Docling and Ollama have been checked."));
         claim("once it has, the daemon KO, its caption names the daemon",
                 () -> assertThat(daemonDown.runCaption()).isEqualTo("Off until Docker daemon shows OK."));
         claim("while Start Docker's start runs, Run is off and its caption reads: Off while Docker and the containers"
