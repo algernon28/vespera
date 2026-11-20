@@ -12,6 +12,8 @@
 
 > **Partly amended — see [ADR-434](0434-the-profiles-outputs-choose-what-stage-6b-draws-and-a-retrieval-plugin-draws-records-and-vectors-into-a-jsonl-file.md).** Of §4: stage 6b draws the plugins the profile's `outputs` names, `confluence` and `website` where it is unset, and not every plugin compiled in; of the refused alternative *Plugins enabled by the profile*: they are, and the key moves no run. Of §1 and §2: `Plugin` gains `drawsFromTheTree`, true unless a plugin says otherwise, and `records`, by which a plugin reads retrieval records through `RetrievalRecords`, a seam beside `Drawing`. Of §5: the HTML tree is still no plugin, and is drawn where `outputs` names `tree`; a plugin that draws from it, named without it, stops `vespera run` at its start. A third plugin, `retrieval`, draws one JSONL file of retrieval records and their vectors and sends nothing. The rest of this record stands.
 
+> **Partly amended — see [ADR-436](0436-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md).** Of §8's *"else `.vespera` under `user.dir`"*: `vespera serve` naming no working directory is refused, exit 1, in a line of its own, before its other refusals. The rest of this record stands.
+
 - **Date**: 2026-11-02
 - **Status**: accepted on 2026-11-02.
 - **Decided**: by the operator on 2026-11-02: the ruling in bold at the head of each of §1 to §12, the order of §13 and the refusals under Alternatives refused marked as theirs. What a section adds beneath its ruling is what building it needs, and Decided here lists each such choice.

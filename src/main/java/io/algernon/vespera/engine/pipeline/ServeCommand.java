@@ -27,13 +27,15 @@ import picocli.CommandLine.Command;
  * names no class of that module.
  *
  * <p><b>What it reads, itself.</b> The working directory resolves as the shipped configuration line for it does,
- * {@code ${db-dir:${user.dir}/.vespera}} (ADR-054): {@value #WORKING_DIR_PROPERTY} where it is set, else {@code db-dir},
- * which {@code --db-dir=<path>} sets, else {@code .vespera} under {@code user.dir}. Each value is read from the command's
+ * {@code ${db-dir:}} (ADR-436 §1): {@value #WORKING_DIR_PROPERTY} where it is set, else {@code db-dir},
+ * which {@code --db-dir=<path>} sets, and none else: where neither is set, or a blank {@code --db-dir=} is all it is given,
+ * it refuses before every other refusal of its own, making nothing, and no {@code .vespera} under {@code user.dir} is
+ * guessed. Each value is read from the command's
  * arguments, then the JVM's system properties, then the environment, which is Spring's order for those three sources;
  * {@value #PORT_PROPERTY} is read from the same three. No file of configuration is read, so a value set only in one does
  * not reach it. It reads no OCR preset, so a placeholder nothing resolves does not stop it.
  *
- * <p>It refuses in one line, exit 1, creating nothing: a {@code --db-dir} that disagrees with a set working directory (by
+ * <p>It refuses in one line, exit 1, creating nothing: no working directory named, a {@code --db-dir} that disagrees with a set working directory (by
  * {@link WorkingDirectoryOption#disagreement}, the line every command gives), a working directory that is not there, a
  * working directory whose website folder holds no {@code vespera-website.json}, and a port in use. A value for the port
  * that is no port is refused too, in a line of the same shape.
@@ -51,7 +53,12 @@ public final class ServeCommand {
 
     private static final String WORKING_DIR_PROPERTY = WorkingDirectoryPreparer.PROPERTY;
     private static final String DB_DIR_PROPERTY = "db-dir";
-    private static final String DEFAULT_FOLDER = ".vespera";
+
+    /** The line it refuses a start naming no working directory in, whole (ADR-436 §1). */
+    static final String NO_WORKING_DIRECTORY = "vespera serve has nothing to serve: no working directory is named. Name"
+            + " one with --db-dir=<path>, the environment variable VESPERA_WORKING_DIR or the system property"
+            + " vespera.working-dir.";
+
     private static final String WEBSITE_FOLDER = "website";
     private static final String WEBSITE_LIST = "vespera-website.json";
     private static final int LOWEST_PORT = 1;
@@ -101,7 +108,12 @@ public final class ServeCommand {
             err.println(unreadable.getMessage());
             return CommandLine.ExitCode.USAGE;
         }
-        Path workingDirectory = workingDirectory(arguments);
+        Optional<Path> named = workingDirectory(arguments);
+        if (named.isEmpty()) {
+            err.println(NO_WORKING_DIRECTORY);
+            return CommandLine.ExitCode.SOFTWARE;
+        }
+        Path workingDirectory = named.get();
         String disagreement = ((VesperaCommand.Serve) parsed.subcommand().commandSpec().userObject())
                 .databaseDirectory()
                 .disagreement(workingDirectory);
@@ -146,15 +158,14 @@ public final class ServeCommand {
     }
 
     /**
-     * The working directory: {@value #WORKING_DIR_PROPERTY} where any source sets it, else {@code db-dir}, else {@code
-     * .vespera} under {@code user.dir}.
+     * The working directory: {@value #WORKING_DIR_PROPERTY} where any source sets it, else {@code db-dir}, and none
+     * where neither does (ADR-436 §1): no folder is guessed.
      */
-    Path workingDirectory(String... arguments) {
+    Optional<Path> workingDirectory(String... arguments) {
         Function<String, Optional<String>> read = name -> valueOf(name, arguments);
         return read.apply(WORKING_DIR_PROPERTY)
                 .or(() -> read.apply(DB_DIR_PROPERTY))
-                .map(Path::of)
-                .orElseGet(() -> Path.of(systemProperties.getProperty("user.dir", "."), DEFAULT_FOLDER));
+                .map(Path::of);
     }
 
     /**

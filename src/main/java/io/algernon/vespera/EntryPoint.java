@@ -3,7 +3,9 @@ package io.algernon.vespera;
 import io.algernon.vespera.engine.pipeline.BesideTheJar;
 import io.algernon.vespera.engine.pipeline.BesideTheJarUnwritableException;
 import io.algernon.vespera.engine.pipeline.DisplayPresence;
+import io.algernon.vespera.engine.pipeline.HelpAndVersion;
 import io.algernon.vespera.engine.pipeline.MachineLock;
+import io.algernon.vespera.engine.pipeline.NoWorkingDirectoryNamedException;
 import io.algernon.vespera.engine.pipeline.ServeCommand;
 import io.algernon.vespera.ui.ControlPanel;
 import java.io.PrintStream;
@@ -94,6 +96,11 @@ public final class EntryPoint {
                       Function<MachineLock.Kind, Optional<String>> machine, Supplier<ControlPanel.Opening> window,
                       Consumer<String[]> commandLine, PrintStream err, IntConsumer exit) {
         if (chosen(arguments) == Started.COMMAND_LINE) {
+            // --help and --version are handed over before Spring and before the machine lock (ADR-436 section 1).
+            if (HelpAndVersion.asks(passedOn(arguments))) {
+                exit.accept(new HelpAndVersion(System.out).call(passedOn(arguments)));
+                return;
+            }
             Optional<MachineLock.Kind> kind = MachineLock.Kind.ofTheCommand(passedOn(arguments));
             if (kind.isPresent()) {
                 Optional<String> refusal = machine.apply(kind.get());
@@ -136,7 +143,7 @@ public final class EntryPoint {
     }
 
     /**
-     * Hands the arguments to the command line. A folder beside the jar it cannot write is thrown as Spring starts,
+     * Hands the arguments to the command line. A folder beside the jar it cannot write, or no working directory named (ADR-436 §1), is thrown as Spring starts,
      * before its logging is configured, so a log line would be dropped: its one line goes on standard error as it
      * stands, and the exit is 1 (ADR-397 §3).
      */
@@ -144,7 +151,7 @@ public final class EntryPoint {
                                        IntConsumer exit) {
         try {
             commandLine.accept(arguments);
-        } catch (BesideTheJarUnwritableException refused) {
+        } catch (BesideTheJarUnwritableException | NoWorkingDirectoryNamedException refused) {
             err.println(refused.getMessage());
             exit.accept(REFUSED);
         }

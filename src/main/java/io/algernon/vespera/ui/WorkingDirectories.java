@@ -10,7 +10,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 /**
- * The working directories the window lists (ADR-393 §4): the machine's folder first, then the folders the file
+ * The working directories the window lists (ADR-393 §4): the sources' folder first where a source names one (ADR-436 §3), then the folders the file
  * {@link WorkingDirectoryList} keeps, this window's folder started last on top and the others in the file's order, a folder the launch values file names and the file
  * does not added second. A folder named twice is listed once, compared as {@link ControlPanelState#namesTheSameFolder}
  * compares. Nothing here deletes, moves or archives a working directory.
@@ -20,7 +20,8 @@ final class WorkingDirectories {
     private final Path file;
     private final String userName;
     private final Consumer<String> said;
-    private final Path theDefault;
+    /** The sources' folder (ADR-436 §2), empty where no source names one. */
+    private final Optional<Path> theDefault;
     private final List<Path> rows = new ArrayList<>();
     /** The folders New… added that no Save has made yet: the file is written once their folder exists. */
     private final Set<Path> toBeCreated = new HashSet<>();
@@ -28,12 +29,17 @@ final class WorkingDirectories {
     private final List<Path> removed = new ArrayList<>();
 
     /**
-     * The list as the file and the launch value give it; where the file cannot be read, the machine's folder and the
-     * launch value's alone, with one line to {@code said}.
+     * The list as the file and the launch value give it; where the file cannot be read, the sources' folder, where a
+     * source names one, and the launch value's alone, with one line to {@code said}.
      *
      * @param launchValue the launch value {@code vespera.working-dir}, empty where it is
      */
     WorkingDirectories(Path file, String userName, Path theDefault, String launchValue, Consumer<String> said) {
+        this(file, userName, Optional.of(theDefault), launchValue, said);
+    }
+
+    /** As above, where {@code theDefault} is empty if no source names a folder (ADR-436 §2). */
+    WorkingDirectories(Path file, String userName, Optional<Path> theDefault, String launchValue, Consumer<String> said) {
         this.file = file;
         this.userName = userName;
         this.said = said;
@@ -48,17 +54,22 @@ final class WorkingDirectories {
         kept.forEach(this::addNamed);
     }
 
-    /** The machine's folder, then the others, as listed. */
+    /** The sources' folder where a source names one, then the others, as listed. */
     synchronized List<Path> rows() {
         List<Path> all = new ArrayList<>();
-        all.add(theDefault);
+        theDefault.ifPresent(all::add);
         all.addAll(rows);
         return List.copyOf(all);
     }
 
-    /** Whether {@code folder} is the machine's folder, the list's first row. */
+    /** Whether {@code folder} is the sources' folder, the list's first row where there is one. */
     boolean isTheDefault(Path folder) {
-        return same(theDefault, folder);
+        return theDefault.isPresent() && same(theDefault.get(), folder);
+    }
+
+    /** The sources' folder, empty where no source names one. */
+    Optional<Path> theDefault() {
+        return theDefault;
     }
 
     /** Adds {@code folder} as the first row after the machine's; {@code notThereYet} where New… adds it and no Save made it. */
@@ -74,7 +85,7 @@ final class WorkingDirectories {
         }
     }
 
-    /** Takes {@code folder} off the list, the machine's folder excepted, and writes the file. */
+    /** Takes {@code folder} off the list, the sources' folder excepted, and writes the file. */
     synchronized void remove(Path folder) {
         if (isTheDefault(folder)) {
             return;
@@ -85,7 +96,7 @@ final class WorkingDirectories {
         keep();
     }
 
-    /** As an invocation starts in {@code folder}: it moves to the top, the machine's folder excepted, and the file is written. */
+    /** As an invocation starts in {@code folder}: it moves to the top, the sources' folder excepted, and the file is written. */
     synchronized void started(Path folder) {
         if (!isTheDefault(folder)) {
             add(folder, false);

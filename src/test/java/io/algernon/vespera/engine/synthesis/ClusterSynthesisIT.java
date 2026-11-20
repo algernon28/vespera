@@ -14,9 +14,11 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -24,6 +26,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.ollama.OllamaContainer;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -71,6 +75,15 @@ import tools.jackson.databind.json.JsonMapper;
 @Link(name = "ADR-108", url = Adr.SIX_B_SENDS_ONE_EXEMPLAR_FIRST_CALL_PER_CLUSTER, type = "adr")
 @Link(name = "ADR-110", url = Adr.PIPELINE_HANDS_SYNTHESIS_ITS_INPUTS, type = "adr")
 class ClusterSynthesisIT {
+
+    /** The working directory this context names, since the jar names none (ADR-436 §1). */
+    @TempDir
+    static Path workingDirectory;
+
+    @DynamicPropertySource
+    static void theWorkingDirectory(DynamicPropertyRegistry registry) {
+        registry.add("vespera.working-dir", workingDirectory::toString);
+    }
 
     /**
      * Small enough to pull inside a test, and trained well past the window under test — so the engine
