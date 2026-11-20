@@ -8,6 +8,7 @@ import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import io.algernon.vespera.engine.pipeline.BesideTheJarUnwritableException;
 import io.algernon.vespera.engine.pipeline.DisplayPresence;
+import io.algernon.vespera.engine.pipeline.NoWorkingDirectoryNamedException;
 import io.algernon.vespera.ui.ControlPanel;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -197,5 +198,75 @@ class EntryPointTest {
                         .containsExactly(refusal.getMessage()));
         claim("and the process exits 1, once", () -> assertThat(exits).as("the exit codes asked for")
                 .containsExactly(1));
+    }
+
+    @Test
+    @Story("A command names its working directory")
+    @DisplayName("A command line refused for naming no working directory says the refusal's one line on standard error and exits 1")
+    @Issue("905")
+    @Link(name = "ADR-436", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
+    void aStartNamingNoWorkingDirectorySaysItsLineOnStandardErrorAndExitsOne() {
+        NoWorkingDirectoryNamedException refusal = new NoWorkingDirectoryNamedException();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        List<Integer> exits = new ArrayList<>();
+
+        Throwable escaped = org.assertj.core.api.Assertions.catchThrowable(() -> EntryPoint.start(
+                new String[] {"run", "a corpus root of this test's"}, () -> {
+                    throw new AssertionError("a start of the command line asks for no display");
+                }, kind -> java.util.Optional.empty(), () -> {
+                    throw new AssertionError("a start of the command line opens no window");
+                }, passed -> {
+                    throw refusal;
+                }, new PrintStream(err, true, StandardCharsets.UTF_8), exits::add));
+        String said = err.toString(StandardCharsets.UTF_8);
+
+        claim("the refusal does not escape the start as a stack trace",
+                () -> assertThat(escaped).as("what escaped the start").isNull());
+        claim("standard error holds exactly the refusal's one line, saying no working directory is named",
+                () -> assertThat(said.lines().toList()).as("the lines said on standard error")
+                        .containsExactly(refusal.getMessage()));
+        claim("and the process exits 1, once", () -> assertThat(exits).as("the exit codes asked for")
+                .containsExactly(1));
+    }
+
+    @Test
+    @Story("A command names its working directory")
+    @DisplayName("Help and version are answered before Spring and before the machine lock, and a command still reaches the command line")
+    @Issue("905")
+    @Link(name = "ADR-436", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
+    void helpAndVersionAreAnsweredBeforeSpringAndTheMachineLock() {
+        List<String> locksAsked = new ArrayList<>();
+        List<List<String>> commandLines = new ArrayList<>();
+        List<Integer> exits = new ArrayList<>();
+        for (String[] arguments : List.of(new String[] {"--help"}, new String[] {"--headless", "--version"},
+                new String[] {"-h"})) {
+            EntryPoint.start(arguments, () -> {
+                throw new AssertionError("a start of the command line asks for no display");
+            }, kind -> {
+                locksAsked.add(String.join(" ", arguments));
+                return java.util.Optional.empty();
+            }, () -> {
+                throw new AssertionError("a start of the command line opens no window");
+            }, passed -> commandLines.add(List.of(passed)), new PrintStream(new ByteArrayOutputStream(), true,
+                    StandardCharsets.UTF_8), exits::add);
+        }
+        List<List<String>> beforeTheCommand = List.copyOf(commandLines);
+        EntryPoint.start(new String[] {"run", "a corpus root of this test's"}, () -> {
+            throw new AssertionError("a start of the command line asks for no display");
+        }, kind -> java.util.Optional.empty(), () -> {
+            throw new AssertionError("a start of the command line opens no window");
+        }, passed -> commandLines.add(List.of(passed)), new PrintStream(new ByteArrayOutputStream(), true,
+                StandardCharsets.UTF_8), code -> {
+        });
+
+        claim("--help, --headless --version and -h each exit 0, once",
+                () -> assertThat(exits).containsExactly(0, 0, 0));
+        claim("none of them asked for the machine lock or ran the command line, where Spring is built",
+                () -> {
+                    assertThat(locksAsked).isEmpty();
+                    assertThat(beforeTheCommand).isEmpty();
+                });
+        claim("and run with a corpus root still reaches the command line, its arguments whole",
+                () -> assertThat(commandLines).containsExactly(List.of("run", "a corpus root of this test's")));
     }
 }

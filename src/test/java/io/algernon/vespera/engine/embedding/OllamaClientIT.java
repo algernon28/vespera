@@ -10,12 +10,16 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.ollama.OllamaContainer;
 
 /**
@@ -47,6 +51,15 @@ import org.testcontainers.ollama.OllamaContainer;
 @Link(name = "ADR-084", url = Adr.THE_EMBEDDING_MODEL_IS_A_PROFILE_GATE, type = "adr")
 @Link(name = "ADR-091", url = Adr.THERE_IS_NO_TOKENIZER, type = "adr")
 class OllamaClientIT {
+
+    /** The working directory this context names, since the jar names none (ADR-436 §1). */
+    @TempDir
+    static Path workingDirectory;
+
+    @DynamicPropertySource
+    static void theWorkingDirectory(DynamicPropertyRegistry registry) {
+        registry.add("vespera.working-dir", workingDirectory::toString);
+    }
 
     /** Small enough to pull inside a test, and one of the three the decision's measurement covered. */
     private static final String MODEL = "all-minilm:latest";

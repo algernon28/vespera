@@ -9,7 +9,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * The window's {@link Dialogs} as a test answers them (ADR-342 §6): no native dialog opens and nothing is handed to the
  * system. Each question the window asks is kept with its two answers' words and answered with {@link #answer}; each
- * address handed to the system is kept; no folder and no file is ever chosen.
+ * address handed to the system is kept; no file is ever chosen, and a folder only where the test sets
+ * {@link #folderChosen}.
  */
 final class AnsweringDialogs implements Dialogs {
 
@@ -76,9 +77,17 @@ final class AnsweringDialogs implements Dialogs {
         return entered;
     }
 
+    /** The title of every folder dialog the window opened, in order (ADR-436 §5). */
+    final List<String> foldersAsked = new CopyOnWriteArrayList<>();
+
+    /** What the next folder dialog is answered: the folder chosen, or empty where none is (ADR-436 §5). */
+    volatile Optional<Path> folderChosen = Optional.empty();
+
+    /** Keeps the folder dialog's title and gives {@link #folderChosen}, none unless a test sets one. */
     @Override
     public Optional<Path> folder(String title, String initial) {
-        return Optional.empty();
+        foldersAsked.add(title);
+        return folderChosen;
     }
 
     @Override

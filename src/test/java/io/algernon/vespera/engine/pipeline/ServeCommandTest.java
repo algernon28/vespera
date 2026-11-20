@@ -8,6 +8,7 @@ import io.algernon.vespera.TheShippedCopy;
 import io.algernon.vespera.VesperaApplication;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
+import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.ByteArrayOutputStream;
@@ -149,6 +150,40 @@ class ServeCommandTest {
                 });
         claim("and the working directory was not made",
                 () -> assertThat(notThere).doesNotExist());
+    }
+
+    /** The line {@code vespera serve} refuses a start naming no working directory in, whole (ADR-436 §1). */
+    private static final String NO_WORKING_DIRECTORY = "vespera serve has nothing to serve: no working directory is"
+            + " named. Name one with --db-dir=<path>, the environment variable VESPERA_WORKING_DIR or the system property"
+            + " vespera.working-dir.";
+
+    @Test
+    @Timeout(value = A_REFUSAL_SECONDS, unit = TimeUnit.SECONDS)
+    @Story("The website is served on loopback alone")
+    @DisplayName("Nothing naming a working directory, or a blank --db-dir=, is refused, exit 1, in one line, and no .vespera is made where it was started")
+    @Issue("905")
+    @Link(name = "ADR-436", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
+    void nothingNamingAWorkingDirectoryIsRefusedInOneLineAndNothingIsMade() {
+        Path startedHere = base.resolve("started-here");
+        Sources nothingSet = sourcesOf(List.of());
+        Sources aBlankDbDir = sourcesOf(List.of());
+
+        int nothingSetExit = nothingSet.command().call();
+        int aBlankDbDirExit = aBlankDbDir.command().call("--db-dir=");
+
+        claim("each ends with exit code 1, having served nothing",
+                () -> assertThat(List.of(nothingSetExit, aBlankDbDirExit)).containsOnly(CommandLine.ExitCode.SOFTWARE));
+        claim("each in the one line saying no working directory is named and what names one, on standard error, the"
+                        + " blank --db-dir= read as unset and not as the folder it was started in, and nothing on"
+                        + " standard output",
+                () -> {
+                    assertThat(nothingSet.errors()).containsExactly(NO_WORKING_DIRECTORY);
+                    assertThat(aBlankDbDir.errors()).containsExactly(NO_WORKING_DIRECTORY);
+                    assertThat(nothingSet.output()).isEmpty();
+                    assertThat(aBlankDbDir.output()).isEmpty();
+                });
+        claim("and nothing was made under the folder it was started in, no .vespera among it",
+                () -> assertThat(startedHere).doesNotExist());
     }
 
     // ---------- helpers ----------
