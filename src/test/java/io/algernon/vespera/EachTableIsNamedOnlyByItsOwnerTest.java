@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -41,10 +42,11 @@ import org.springframework.util.StreamUtils;
  * {@code corpus}'s walk anomalies, {@code similarity}'s resolution reading {@code extraction}'s metrics,
  * and {@code embedding}'s comparison reading them and the two ends of their span.
  *
- * <p>One class is excepted, by name and by table: the invocation account, whose six counting statements
- * ADR-198 section 3 allowed in the module that assembles the job. The exception is held to its bounds
- * here, so an eighth table, a second class, or a statement of the account's that does more than count
- * fails this test.
+ * <p>Two classes are excepted, each by name and by table. The invocation account, whose six counting statements
+ * ADR-198 section 3 allowed in the module that assembles the job. And the class that writes a tree's ledger
+ * (ADR-429 section 4), which reads the rows of the twenty-four tables that file holds, by name, so that a tree carries
+ * the ledger of the runs it was drawn from. Each exception is held to its bounds here, so another table, a second
+ * class, or a statement that does more than the exception allows fails this test.
  */
 @Epic("Architecture")
 @Feature("Module boundaries")
@@ -52,6 +54,7 @@ import org.springframework.util.StreamUtils;
 @Link(name = "ADR-209", url = Adr.THE_LEDGER_IS_FOUR_RECORDS_AND_A_TABLES_SQL_IS_ITS_OWNERS, type = "adr")
 @Link(name = "ADR-041", url = Adr.LEDGER_OWNS_IDENTITY_AND_VERDICTS, type = "adr")
 @Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
+@Link(name = "ADR-429", url = Adr.EVERY_TREE_HOLDS_THE_LEDGER_OF_THE_RUNS_IT_WAS_DRAWN_FROM, type = "adr")
 class EachTableIsNamedOnlyByItsOwnerTest {
 
     /** The line that says whose a table is, which stands directly above the table's {@code CREATE TABLE}. */
@@ -91,6 +94,60 @@ class EachTableIsNamedOnlyByItsOwnerTest {
             "standing_cluster_fault",
             "cluster_synthesis_doc");
 
+    /**
+     * The class ADR-429 section 4 lets read, by name, the tables a tree's ledger holds: it lies in {@code deliverable},
+     * which owns no table and which no stage's version names.
+     */
+    private static final String THE_CLASS_THAT_WRITES_THE_TREES_LEDGER = "io.algernon.vespera.engine.deliverable.TreeLedger";
+
+    /** The start of the name of every class of {@code deliverable}, which the claim that the writer ships lists. */
+    private static final String IN_DELIVERABLE = "io.algernon.vespera.engine.deliverable.";
+
+    /**
+     * The twenty-four tables a tree's ledger holds (ADR-429 section 3), and no more: the ledger's nine but its schema
+     * version, the six of {@code embedding} that the topics, the placement and the clusters are kept in, and the nine of
+     * {@code synthesis}.
+     */
+    private static final Set<String> TABLES_THE_TREES_LEDGER_HOLDS = Set.of(
+            "walk",
+            "walk_folder",
+            "walk_folder_not_walked",
+            "walk_folder_not_entered",
+            "file_occurrence",
+            "run",
+            "run_upstream",
+            "finished_step",
+            "verdict",
+            "topic",
+            "topic_passage",
+            "seed_feeding_no_topic",
+            "winning_topic",
+            "see_also",
+            "cluster_member",
+            "arranged_cluster",
+            "topic_name",
+            "subtopic_name",
+            "cluster_synthesis_doc",
+            "cluster_call_exemplar",
+            "standing_cluster_fault",
+            "topic_overview",
+            "topic_overview_source",
+            "topic_overview_fault");
+
+    /** How many tables a tree's ledger holds: twenty-four. */
+    private static final int TABLES_IN_A_TREES_LEDGER = 24;
+
+    /**
+     * Words of statements only SQLite knows, which would make the writer depend on the working store being a SQLite
+     * file: attaching or detaching another file, vacuuming into one, and the driver's own backup and restore.
+     */
+    private static final Pattern A_STATEMENT_ONLY_SQLITE_KNOWS =
+            Pattern.compile("\\b(?:ATTACH|DETACH|VACUUM|BACKUP|RESTORE)\\b", Pattern.CASE_INSENSITIVE);
+
+    /** Words of a statement that changes what it names. */
+    private static final Pattern A_WORD_THAT_WRITES =
+            Pattern.compile("\\b(?:INSERT|UPDATE|DELETE|REPLACE|DROP|ALTER|CREATE)\\b", Pattern.CASE_INSENSITIVE);
+
     @Test
     @Story("A table is reached only through the module that owns it")
     @DisplayName("The schema says which module owns each table it creates")
@@ -116,7 +173,7 @@ class EachTableIsNamedOnlyByItsOwnerTest {
 
     @Test
     @Story("A table is reached only through the module that owns it")
-    @DisplayName("No shipped class asks the database about a table another module owns, but the one that counts for the invocation's account")
+    @DisplayName("No shipped class asks the database about a table another module owns, but the two excepted")
     void noClassNamesATableAnotherModuleOwns() throws Exception {
         Map<String, String> owners = ownersByTable(schema());
         Map<String, List<String>> strings = ShippedClasses.stringsByClass();
@@ -131,7 +188,9 @@ class EachTableIsNamedOnlyByItsOwnerTest {
             }
             for (String table : named) {
                 boolean excepted = THE_CLASS_THAT_COUNTS_FOR_THE_ACCOUNT.equals(shipped.getKey())
-                        && TABLES_THE_ACCOUNT_COUNTS.contains(table);
+                                && TABLES_THE_ACCOUNT_COUNTS.contains(table)
+                        || THE_CLASS_THAT_WRITES_THE_TREES_LEDGER.equals(shipped.getKey())
+                                && TABLES_THE_TREES_LEDGER_HOLDS.contains(table);
                 if (!owners.get(table).equals(module) && !excepted) {
                     reachingAcross.add(shipped.getKey() + " names " + table + ", which is " + owners.get(table) + "'s");
                 }
@@ -143,8 +202,8 @@ class EachTableIsNamedOnlyByItsOwnerTest {
                 .toList();
 
         claim(
-                "the one class allowed to name other modules' tables names them only in statements that"
-                        + " count: each begins with SELECT and carries COUNT(*), so it writes nothing and"
+                "the class that counts for the invocation's account names other modules' tables only in statements"
+                        + " that count: each begins with SELECT and carries COUNT(*), so it writes nothing and"
                         + " carries no row out, which is the bound its exception was given",
                 () -> assertThat(statementsOfTheAccount)
                         .allMatch(text -> text.startsWith("SELECT ") && text.contains("COUNT(*)")));
@@ -160,6 +219,54 @@ class EachTableIsNamedOnlyByItsOwnerTest {
                         + " writes or deletes rows whose shape another module decides, and the check on module"
                         + " boundaries does not see it, because a statement is text and not a reference to a type",
                 () -> assertThat(reachingAcross).isEmpty());
+    }
+
+    @Test
+    @Story("A tree carries the ledger of the runs it was drawn from")
+    @DisplayName("The class that writes a tree's ledger names exactly the tables that file holds, only reads them, and asks nothing only SQLite knows")
+    void theClassThatWritesATreesLedgerOnlyReadsTheTablesItHolds() throws Exception {
+        Map<String, String> owners = ownersByTable(schema());
+        Map<String, List<String>> strings = ShippedClasses.stringsByClass();
+        List<String> textsOfTheWriter = strings.getOrDefault(THE_CLASS_THAT_WRITES_THE_TREES_LEDGER, List.of());
+        Set<String> named = tablesNamedIn(textsOfTheWriter, owners.keySet());
+        List<String> statementsNamingATable = textsOfTheWriter.stream()
+                .filter(text -> !owners.containsKey(text))
+                .filter(text -> !tablesNamedIn(List.of(text), owners.keySet()).isEmpty())
+                .toList();
+        List<String> onlySqlite = textsOfTheWriter.stream()
+                .filter(text -> A_STATEMENT_ONLY_SQLITE_KNOWS.matcher(text).find())
+                .toList();
+
+        claim(
+                "the class that writes a tree's ledger ships, in the deliverable module, so the claims below are about"
+                        + " its texts and not about a class that is not there",
+                () -> assertThat(strings.keySet())
+                        .filteredOn(name -> name.startsWith(IN_DELIVERABLE))
+                        .contains(THE_CLASS_THAT_WRITES_THE_TREES_LEDGER));
+        claim(
+                "the list of tables a tree's ledger holds is " + TABLES_IN_A_TREES_LEDGER + " long, and every one is a"
+                        + " table the schema creates",
+                () -> {
+                    assertThat(TABLES_THE_TREES_LEDGER_HOLDS).hasSize(TABLES_IN_A_TREES_LEDGER);
+                    assertThat(owners.keySet()).containsAll(TABLES_THE_TREES_LEDGER_HOLDS);
+                });
+        claim(
+                "it names exactly the " + TABLES_IN_A_TREES_LEDGER + " tables the file holds: one fewer is a table the"
+                        + " file goes without, and one more is a table of the working store carried into a tree that"
+                        + " nobody decided it should carry, a cache, the vectors or the labels a person gave among them",
+                () -> assertThat(named).containsExactlyInAnyOrderElementsOf(TABLES_THE_TREES_LEDGER_HOLDS));
+        claim(
+                "a statement of its own that names one of them reads, beginning with SELECT or WITH, and holds no word"
+                        + " that writes, alters or deletes: it reads the working store's rows and changes nothing there",
+                () -> assertThat(statementsNamingATable)
+                        .allMatch(text -> text.toUpperCase(Locale.ROOT).startsWith("SELECT ")
+                                || text.toUpperCase(Locale.ROOT).startsWith("WITH "))
+                        .noneMatch(text -> A_WORD_THAT_WRITES.matcher(text).find()));
+        claim(
+                "and no text of it attaches, detaches, vacuums, backs up or restores a database, so it reads rows through"
+                        + " the application's connection and never copies the working store as a file, whatever engine"
+                        + " holds it",
+                () -> assertThat(onlySqlite).isEmpty());
     }
 
     /** The tables {@code texts} name, among {@code tables}: after a statement's keyword, or as the whole text. */

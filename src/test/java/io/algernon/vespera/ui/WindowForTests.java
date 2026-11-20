@@ -224,13 +224,13 @@ final class WindowForTests implements AutoCloseable {
         return kind.cast(found);
     }
 
-    /** The folder of the Inclusions tab's tree reached from the corpus root by {@code names}, each opened on the way. */
+    /** The folder of the Folders section's tree reached from the corpus root by {@code names}, each opened on the way. */
     @SuppressWarnings("unchecked")
     static CheckBoxTreeItem<String> folder(Parent root, String... names) {
         TreeView<String> tree = node(root, "inclusions-tree", TreeView.class);
         TreeItem<String> at = tree.getRoot();
         if (at == null) {
-            throw new AssertionError("the Inclusions tab draws no tree");
+            throw new AssertionError("the Folders section draws no tree");
         }
         for (String name : names) {
             at.setExpanded(true);
@@ -261,11 +261,13 @@ final class WindowForTests implements AutoCloseable {
         return Optional.of(new ReportTab(tab.get().isSelected()));
     }
 
-    /** The ids of the tabs of the pane the Inclusions tab stands in, in their order. */
+    /**
+     * The ids of the tabs of every pane of tabs the window holds, in their order; none where it holds no such pane, as
+     * the cockpit holds none since ADR-432 §8.
+     */
     static List<String> tabIds(Parent root) {
-        Tab inclusions = HeadlessToolkit.tabWithId(root, "inclusions")
-                .orElseThrow(() -> new AssertionError("the window holds no Inclusions tab"));
-        return inclusions.getTabPane().getTabs().stream().map(Tab::getId).toList();
+        return HeadlessToolkit.everyNodeUnder(root).stream().filter(TabPane.class::isInstance)
+                .flatMap(pane -> ((TabPane) pane).getTabs().stream()).map(Tab::getId).toList();
     }
 
     // ---- the Reports window (ADR-414)

@@ -73,8 +73,8 @@ class TheProfileWindowTest {
     private static final List<String> THE_SECTIONS = List.of("profile", "preflight", "folders", "services",
             "seed-folder", "topics", "labels", "code-sets", "command-options", "reports");
 
-    /** The tabs the cockpit opens with: the Report tab and Inclusions. */
-    private static final List<String> THE_TABS = List.of("live-report", "inclusions");
+    /** The tabs the cockpit holds: none (ADR-432 §8). */
+    private static final List<String> THE_TABS = List.of();
 
     private static final String PROFILE = "Profile";
 
@@ -160,7 +160,7 @@ class TheProfileWindowTest {
 
     @Test
     @Story("The profile is edited in a window of its own")
-    @DisplayName("Profile is the first of the sidebar's ten sections, the tabs are the Report and Inclusions alone, and Open profile opens one window apart from the control panel's, brought back rather than opened again")
+    @DisplayName("Profile is the first of the sidebar's ten sections, the window holds no tab, and Open profile opens one window apart from the control panel's, brought back rather than opened again")
     @Link(name = "ADR-413", url = Adr.THE_LABEL_COMMANDS_ARE_A_LABELS_SECTION_OF_THE_SIDEBAR, type = "adr")
     @Link(name = "ADR-435", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
     void theProfileIsTheSidebarsFirstSectionAndOpensOneWindowOfItsOwn(@TempDir Path folder) throws Exception {
@@ -212,8 +212,7 @@ class TheProfileWindowTest {
                     assertThat(title).isEqualTo(PROFILE);
                     assertThat(holdsTheButton).isTrue();
                 });
-        claim("the tabs are the Report tab and Inclusions, in that order, and the control panel's window holds no part"
-                        + " of the profile's form",
+        claim("the control panel's window holds no tab and no part of the profile's form",
                 () -> {
                     assertThat(tabs).containsExactlyElementsOf(THE_TABS);
                     assertThat(formInTheCockpit).isFalse();

@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-430](0430-the-control-panel-checks-docker-the-containers-and-the-models-and-starts-nothing-until-start-docker-is-pressed.md).** Of §1: Save my labels and Auto Label each stand on a wrapper carrying its caption, shown on mouse over; `label-words` and `label-auto-words` are no longer texts of the section. §3's words are the captions, unchanged. The rest of this record stands.
 
+> **Partly amended — see [ADR-432](0432-each-step-has-a-chart-beneath-its-legs-bars-the-output-spans-the-column-above-the-legs-and-the-cockpit-holds-no-tabs.md).** Of `label <file>`'s reason it quotes: the window sets the labels in the Folders section, by folder; and the words beneath the Inclusions tab's tree stand beneath the Folders section's, the tab gone. The rest of this record stands.
+
 - **Date**: 2026-11-17
 - **Status**: accepted on 2026-11-17.
 - **Decided**: by the operator, on [#857](https://github.com/algernon28/vespera/issues/857): that the button starting `vespera label` is named **Save my labels** and the one starting `vespera label --auto` **Auto Label** (§2); that the two, each with its caption, leave the action card for the sidebar, with the other sections of configuration (§1); that every other text of the window saying *answers*, *Record my answers* or *Let the local model answer* is worded in terms of labels, Save my labels' caption saying that it reads `relevance-labels.yaml` in the working directory (§3); and that the two start the commands they start, no label file passed (§2). Under the operator's delegation: that the two are a section of their own, titled Labels, after Seed folder (§1); the words of each text reworded, and which texts the rule reaches (§3); that the ids stay (§4); and the tests.
