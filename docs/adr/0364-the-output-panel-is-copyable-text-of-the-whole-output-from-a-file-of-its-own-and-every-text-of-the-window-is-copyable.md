@@ -249,7 +249,7 @@ The first column is the step of §10 whose green the test holds. The suite holds
 | 1 | `pipeline.AModelOllamaDoesNotServeIsPulledInvocationTest`, `pipeline.GenerationRefusesAModelNotServedHereInvocationTest` | read the closing line's level from the stream it is on, standard error, since the line is its words alone |
 | 1 | `pipeline.TheReportLinesInvocationTest`, `pipeline.InvocationReportInvocationTest`, `pipeline.PublishWritesTheReportInvocationTest` | attach their appender to the operator logger as well, where the report lines and the closing lines are logged |
 | 3 | `PipelineHoldsOnlyTheRulesOnRecordTest` | lists `InvocationOutput` and `InvocationOutputAppender` as holding no rule |
-| 5 | `ui.PublishToConfluenceAsksForTheTokenTest`, `ui.TheLiveReportTest`, `ui.TheAnalysisReportsOpenNativelyTest`, `ui.InvocationReportFileTest` | read a text as a `TextInputControl` where they read a `Label` |
+| 5 | `ui.PublishToConfluenceAsksForTheTokenTest`, `ui.TheLiveReportTest` (renamed `ui.TheInvocationsStatusLineTest` by ADR-432, #914), `ui.TheAnalysisReportsOpenNativelyTest`, `ui.InvocationReportFileTest` | read a text as a `TextInputControl` where they read a `Label` |
 | ADR-362's 6 | `ui.TheControlPanelLinksNoClassOfTheJarTest.noClassOfTheControlPanelNamesJavaFxWeb` (removed) | removed, to keep the suite within ADR-368's ceiling as the copy's test is added: its claim is held twice, by `PackagedJarIT.theJarCarriesTheControlPanelAndJavaFxAndStartsAtTheEntryPoint`, the jar holding no `javafx-web` or `jdk-jsobject`, and by the compiler, the class path holding no type of either for a class of the control panel to name; ADR-362's row of it says so |
 
 ## What the implementation owes
