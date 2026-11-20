@@ -443,7 +443,7 @@ class MachineLockTest {
     private static String refusal(String holder, String then) {
         return "another Vespera is running on this machine (" + holder + "); wait for it to end, or stop it or close its"
                 + " control panel, then " + then + ". One Vespera runs on a machine at a time, so that none stops the"
-                + " sidecars another is using.";
+                + " containers another is using.";
     }
 
     private static String unavailable(Path folder, String reason, String then) {

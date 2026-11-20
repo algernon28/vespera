@@ -13,13 +13,13 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * The two read-only questions the launch page asks of the sidecars (ADR-302 §5; ADR-179 §1 to §3): which image Docling
+ * The two read-only questions the launch page asks of Docling and Ollama (ADR-302 §5; ADR-179 §1 to §3): which image Docling
  * runs, from {@code GET /version}, and which models Ollama serves, from {@code GET /api/tags}. Each is one
  * {@link HttpURLConnection} of {@code java.base} with a connect and a read timeout of 2 seconds, its answer read by
  * {@link JsonReader}; nothing is started, stopped or pulled, and a check that cannot be made is a result, never a
  * refusal of anything.
  */
-final class SidecarChecks {
+final class ServiceChecks {
 
     /** The connect and the read timeout, each. */
     static final int TIMEOUT_MILLIS = 2000;
@@ -66,7 +66,7 @@ final class SidecarChecks {
     record Checks(Check docling, Check ollama) {
     }
 
-    private SidecarChecks() {
+    private ServiceChecks() {
     }
 
     /**
@@ -104,7 +104,7 @@ final class SidecarChecks {
             return new Check(Result.MATCHES, List.of(), List.of(), running);
         }
         String ran = running.isEmpty() ? "no image" : running;
-        return new Check(Result.ANOTHER_IMAGE, List.of("the Docling sidecar at " + baseUrl + " runs " + ran
+        return new Check(Result.ANOTHER_IMAGE, List.of("Docling at " + baseUrl + " runs " + ran
                 + ", where " + imageNamed + " is named, and the jar stops before it converts anything under another"
                 + " image"), List.of(), running);
     }

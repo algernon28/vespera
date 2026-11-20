@@ -8,7 +8,7 @@ import io.algernon.vespera.engine.extraction.DoclingExtractor;
 import io.algernon.vespera.engine.extraction.DoclingResponse;
 import io.algernon.vespera.engine.extraction.FailureCategory;
 import io.algernon.vespera.engine.extraction.PathScriptedExtractor;
-import io.algernon.vespera.engine.extraction.SidecarVersionReport;
+import io.algernon.vespera.engine.extraction.DoclingVersionReport;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -297,7 +297,7 @@ class SeedScriptedExtractionBeans {
 
             @Override
             public Map<String, String> version() {
-                return SidecarVersionReport.runningImage(configuredImage);
+                return DoclingVersionReport.runningImage(configuredImage);
             }
         };
     }

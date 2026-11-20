@@ -22,7 +22,7 @@ import java.util.function.Supplier;
  */
 final class RecordingDockerControl implements DockerControl {
 
-    /** One call: {@code start}, {@code shut-down} or {@code stop-sidecars}, its values, and whether a child ran then. */
+    /** One call: {@code start}, {@code shut-down} or {@code stop-containers}, its values, and whether a child ran then. */
     record Call(String kind, Optional<LaunchValues> values, boolean childRan) {
     }
 
@@ -51,7 +51,7 @@ final class RecordingDockerControl implements DockerControl {
 
     private final Said startSays;
     private final Said shutDownSays;
-    /** Whether the window was shown at each stop of the sidecars, in order; empty where it could not be asked. */
+    /** Whether the window was shown at each stop of the containers, in order; empty where it could not be asked. */
     final List<Optional<Boolean>> shownAtEachStop = new CopyOnWriteArrayList<>();
 
     private volatile BooleanSupplier childRuns = () -> false;
@@ -63,7 +63,7 @@ final class RecordingDockerControl implements DockerControl {
     private volatile CountDownLatch shutDownHeldUntil = new CountDownLatch(0);
     private volatile CountDownLatch checkHeldUntil = new CountDownLatch(0);
 
-    /** Answers a start with {@code startSays}, a shut-down with {@code shutDownSays}, and a stop of the sidecars as done. */
+    /** Answers a start with {@code startSays}, a shut-down with {@code shutDownSays}, and a stop of the containers as done. */
     RecordingDockerControl(Said startSays, Said shutDownSays) {
         this.startSays = startSays;
         this.shutDownSays = shutDownSays;
@@ -80,7 +80,7 @@ final class RecordingDockerControl implements DockerControl {
         return this;
     }
 
-    /** Asks {@code shown} whether the window is shown, at each stop of the sidecars, as the stop is called. */
+    /** Asks {@code shown} whether the window is shown, at each stop of the containers, as the stop is called. */
     RecordingDockerControl askingWhetherShown(Supplier<Optional<Boolean>> shown) {
         windowShown = shown;
         return this;
@@ -153,9 +153,9 @@ final class RecordingDockerControl implements DockerControl {
     }
 
     @Override
-    public Said stopTheSidecars(LaunchValues values) {
+    public Said stopTheContainers(LaunchValues values) {
         shownAtEachStop.add(windowShown.get());
-        calls.add(new Call("stop-sidecars", Optional.of(values), childRuns.getAsBoolean()));
+        calls.add(new Call("stop-containers", Optional.of(values), childRuns.getAsBoolean()));
         return new Said(true, "");
     }
 
@@ -186,8 +186,8 @@ final class RecordingDockerControl implements DockerControl {
     static DockerCheck everyRow(DockerCheck.Mark daemon, DockerCheck.Mark docling, DockerCheck.Mark ollama,
             DockerCheck.Mark embeddingModel, DockerCheck.Mark generativeModel) {
         return new DockerCheck(daemon,
-                new DockerCheck.Container(docling, DockerCheck.Where.THIS_MACHINE, DOCLING_HERE),
-                new DockerCheck.Container(ollama, DockerCheck.Where.THIS_MACHINE, OLLAMA_HERE),
+                new DockerCheck.Service(docling, DockerCheck.Where.THIS_MACHINE, DOCLING_HERE),
+                new DockerCheck.Service(ollama, DockerCheck.Where.THIS_MACHINE, OLLAMA_HERE),
                 embeddingModel, generativeModel);
     }
 
@@ -195,8 +195,8 @@ final class RecordingDockerControl implements DockerControl {
     static DockerCheck bothElsewhere(String docling, DockerCheck.Mark doclingMark, String ollama,
             DockerCheck.Mark ollamaMark, DockerCheck.Mark embeddingModel, DockerCheck.Mark generativeModel) {
         return new DockerCheck(DockerCheck.Mark.NOT_ASKED,
-                new DockerCheck.Container(doclingMark, DockerCheck.Where.ANOTHER_MACHINE, docling),
-                new DockerCheck.Container(ollamaMark, DockerCheck.Where.ANOTHER_MACHINE, ollama),
+                new DockerCheck.Service(doclingMark, DockerCheck.Where.ANOTHER_MACHINE, docling),
+                new DockerCheck.Service(ollamaMark, DockerCheck.Where.ANOTHER_MACHINE, ollama),
                 embeddingModel, generativeModel);
     }
 

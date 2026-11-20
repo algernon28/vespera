@@ -58,8 +58,8 @@ class ExtractionFaultsTest {
     /** The category the eight containers on the real corpus came back under, and the one that means none. */
     private static final String UNCATEGORISED = "unknown";
 
-    /** A category that is genuinely about the sidecar, so the column is shown telling two refusals apart. */
-    private static final String THE_SIDECAR_WAS_FULL = "capacity";
+    /** A category that is genuinely about the container, so the column is shown telling two refusals apart. */
+    private static final String THE_CONTAINER_WAS_FULL = "capacity";
 
     /** The converter's own message, kept word for word so nobody has to convert the file again to read it. */
     private static final String DETAIL = "An unexpected error occurred while opening the document document.xls.";
@@ -85,7 +85,7 @@ class ExtractionFaultsTest {
         RunId run = aRun(occurrence);
         RunId anotherRun = aRun(occurrence);
         faults.write(occurrence, run, UNCATEGORISED, DETAIL);
-        faults.write(occurrence, anotherRun, THE_SIDECAR_WAS_FULL, ANOTHER_DETAIL);
+        faults.write(occurrence, anotherRun, THE_CONTAINER_WAS_FULL, ANOTHER_DETAIL);
 
         faults.discardForRun(run);
 

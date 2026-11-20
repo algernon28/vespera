@@ -7,7 +7,7 @@ import java.util.List;
  * The Docker engine answers, but the {@code docker} client it is reached through has no Compose, no buildx, or neither
  * (ADR-410 §3). The line says what is missing, where, and the command that installs it on that system.
  */
-final class ComposeOrBuildxIsNotInstalledException extends SidecarStartRefusedException {
+final class ComposeOrBuildxIsNotInstalledException extends ContainerStartRefusedException {
 
     ComposeOrBuildxIsNotInstalledException(
             HostSystem host, String wslDistribution, boolean composeMissing, boolean buildxMissing) {
@@ -21,7 +21,7 @@ final class ComposeOrBuildxIsNotInstalledException extends SidecarStartRefusedEx
         String where = host != HostSystem.WINDOWS
                 ? "on this machine"
                 : named.isEmpty() ? "in WSL's default distribution" : "in the WSL distribution " + named;
-        return "Vespera cannot start the sidecars: the Docker engine answers, but " + missing + (both ? " are" : " is")
+        return "Vespera cannot start the containers: the Docker engine answers, but " + missing + (both ? " are" : " is")
                 + " not installed " + where + ". Install " + (both ? "them" : "it") + " with "
                 + install(host, named, composeMissing, buildxMissing) + ", and run the same command again.";
     }

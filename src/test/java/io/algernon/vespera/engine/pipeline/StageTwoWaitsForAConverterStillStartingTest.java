@@ -35,7 +35,7 @@ import org.springframework.web.client.ResourceAccessException;
  *
  * <p>The converter is a client whose two health questions are scripted: the one check through the conversion client,
  * which throws what the transport or the converter said, and the quick question the wait asks, which answers yes or
- * no. The wait is the production {@link SidecarRecovery} on a clock short enough to run.
+ * no. The wait is the production {@link DoclingRecovery} on a clock short enough to run.
  */
 @Epic("Extraction")
 @Feature("Stage 2 step")
@@ -122,7 +122,7 @@ class StageTwoWaitsForAConverterStillStartingTest {
     }
 
     private static ExtractionHealthCheckListener listener(ScriptedConverter converter) {
-        return new ExtractionHealthCheckListener(converter, new SidecarRecovery(converter, WAIT_AT_MOST, CHECK_EVERY));
+        return new ExtractionHealthCheckListener(converter, new DoclingRecovery(converter, WAIT_AT_MOST, CHECK_EVERY));
     }
 
     private List<String> lines(Level level) {

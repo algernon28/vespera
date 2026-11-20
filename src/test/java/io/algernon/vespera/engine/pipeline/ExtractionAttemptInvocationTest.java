@@ -38,7 +38,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * again (ADR-185, #386).
  *
  * <p>Every test runs a first invocation over {@link ConverterStopsPartwayBeans}, then scripts it afresh
- * with nothing, which is the sidecar having recovered: every occurrence it is asked about from then on
+ * with nothing, which is the container having recovered: every occurrence it is asked about from then on
  * converts. As in {@code ServiceScopeRefusalInvocationTest}, <b>nothing empties {@code extraction_cache}
  * between invocations</b>, so the converter's count reads exactly what a later invocation could not be
  * answered about from the cache. The profile names nothing else, so stage 4's gate stays shut and every

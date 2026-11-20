@@ -88,12 +88,12 @@ class NoCommandOpensAnythingTest {
             "java/lang/ProcessBuilder",
             "io/algernon/vespera/engine/pipeline/ProcessRunner",
             "io/algernon/vespera/engine/pipeline/SystemProcessRunner",
-            "io/algernon/vespera/engine/pipeline/SidecarStarter");
+            "io/algernon/vespera/engine/pipeline/ContainerStarter");
 
     /** Engine checks the engine fails before it answers, so Vespera starts it. */
     private static final int ENGINE_CHECKS_FAILED = 2;
 
-    private static final ScriptedSidecarHealth HEALTH = ScriptedSidecarHealth.neitherAnswering();
+    private static final ScriptedContainerHealth HEALTH = ScriptedContainerHealth.neitherAnswering();
 
     private static volatile ScriptedDocker docker = ScriptedDocker.engineRunning();
 
@@ -144,9 +144,9 @@ class NoCommandOpensAnythingTest {
     static class AStarterOnAMacWhereTheEngineIsDown {
 
         @Bean
-        SidecarStarter sidecarStarter() {
+        ContainerStarter containerStarter() {
             Path repository = Path.of("").toAbsolutePath();
-            SidecarStartSettings settings = new SidecarStartSettings(
+            ContainerStartSettings settings = new ContainerStartSettings(
                     URI.create("http://localhost:5001"),
                     URI.create("http://localhost:11434"),
                     ComposeFiles.in(repository).cpuImage(),
@@ -163,7 +163,7 @@ class NoCommandOpensAnythingTest {
                     return docker.runToTheEnd(command, eachLine);
                 }
             };
-            return new SidecarStarter(settings, theCurrentScript, HEALTH, HostSystem.MAC,
+            return new ContainerStarter(settings, theCurrentScript, HEALTH, HostSystem.MAC,
                     () -> ComposeFiles.in(repository), lockFolder, Duration.ofMillis(20));
         }
     }

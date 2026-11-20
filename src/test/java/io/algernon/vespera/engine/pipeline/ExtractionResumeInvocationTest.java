@@ -35,7 +35,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * A stage 2 that stopped partway resumes under its own run id from what its committed chunks recorded,
  * and does only the rest (ADR-181, #379).
  *
- * <p>Most tests stop stage 2 the way the sidecar going away stops it: {@link ConverterStopsPartwayBeans}
+ * <p>Most tests stop stage 2 the way the container going away stops it: {@link ConverterStopsPartwayBeans}
  * answers {@link #ANSWERED_BEFORE_THE_STOP} conversions and refuses every later one with the connection
  * failure the real client lets through. That failure is not a skip, so the chunk it lands in rolls back
  * and the step fails. The reader dispatches sixteen occurrences beyond the chunk being read (ADR-176),

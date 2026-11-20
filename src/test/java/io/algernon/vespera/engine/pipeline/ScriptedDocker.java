@@ -12,7 +12,7 @@ import java.util.function.Consumer;
  * A {@link ProcessRunner} that runs nothing: it records every command it is given, in order, and answers each from a
  * script (ADR-323). The engine check answers exit 1 until it has been asked {@link #engineAnswersAfter} times and exit
  * 0 after; a start command answers what {@link #answering} set for it, and any other command {@link #otherCommandsExiting}, exit 1 unless set; {@code up} answers {@link
- * #upAnswers}, and on exit 0 runs {@link #whenUpSucceeds}, which is how a test has the sidecars answer once they are
+ * #upAnswers}, and on exit 0 runs {@link #whenUpSucceeds}, which is how a test has the containers answer once they are
  * up. Not installed, every command it is given throws as {@code ProcessBuilder.start} does for a program that is not
  * there. A command {@link #outputFileFails} names throws as the runner does where the temporary file its output goes to
  * cannot be created or read (ADR-326).

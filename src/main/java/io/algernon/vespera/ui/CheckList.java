@@ -89,10 +89,10 @@ final class CheckList {
         markOf("embedding-model", check == null ? null : check.embeddingModel());
         markOf("generative-model", check == null ? null : check.generativeModel());
         caption("docker-daemon", check != null && check.daemon() == DockerCheck.Mark.NOT_ASKED
-                ? "Docker daemon: not asked, both containers are on another machine"
+                ? "Docker daemon: not asked, Docling and Ollama are both on another machine"
                 : "Docker daemon: the Docker engine the containers on this machine run in");
-        caption("docling", containerWords("Docling", check == null ? null : check.docling()));
-        caption("ollama", containerWords("Ollama", check == null ? null : check.ollama()));
+        caption("docling", serviceWords("Docling", check == null ? null : check.docling()));
+        caption("ollama", serviceWords("Ollama", check == null ? null : check.ollama()));
         caption("embedding-model", modelWords("Embedding model", models.embedding(),
                 check == null ? null : check.embeddingModel()));
         caption("generative-model", modelWords("Generative model", models.generative(),
@@ -124,14 +124,14 @@ final class CheckList {
         rows.get(id).caption().setText(words);
     }
 
-    /** What a container's row says it is and where it was found (ADR-430 §8, §10). */
-    private static String containerWords(String name, DockerCheck.Container container) {
-        if (container == null) {
+    /** What the row of Docling or Ollama says it is and where it was found (ADR-430 §8, §10). */
+    private static String serviceWords(String name, DockerCheck.Service service) {
+        if (service == null) {
             return name + ": not checked yet";
         }
-        String host = hostOf(container.address());
-        return switch (container.where()) {
-            case THIS_MACHINE -> name + ": this machine, " + container.address();
+        String host = hostOf(service.address());
+        return switch (service.where()) {
+            case THIS_MACHINE -> name + ": this machine, " + service.address();
             case ANOTHER_MACHINE -> name + ": " + host + ", another machine; Vespera does not start it";
             case NOT_RESOLVED -> name + ": " + host + " cannot be resolved; Vespera does not ask it or start it";
         };

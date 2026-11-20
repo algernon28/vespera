@@ -63,7 +63,7 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
     private final ExtractorIdentity extractorIdentity;
     private final ExtractionMetrics extractionMetrics;
     private final SeedGate.SeedWalk seedWalk;
-    private final SidecarRecovery sidecarRecovery;
+    private final DoclingRecovery doclingRecovery;
 
     /**
      * Stage 5a's progress line (ADR-093). The denominator is the seed walk's occurrence count and not a
@@ -78,8 +78,8 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
             ExtractorIdentity extractorIdentity,
             ExtractionMetrics extractionMetrics,
             SeedGate seedGate,
-            SidecarRecovery sidecarRecovery) {
-        this.sidecarRecovery = sidecarRecovery;
+            DoclingRecovery doclingRecovery) {
+        this.doclingRecovery = doclingRecovery;
         this.ledger = ledger;
         this.extractor = extractor;
         this.extractorIdentity = extractorIdentity;
@@ -134,7 +134,7 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
     }
 
     /**
-     * Converts one seed, waiting for a sidecar that dropped the connection and asking once more, as
+     * Converts one seed, waiting for a Docling that dropped the connection and asking once more, as
      * stage 2 does (ADR-175 section 6). What differs is what a seed still failing earns. A seed is an
      * input the operator chose, and no verdict is ever written against one, so a seed the converter
      * rejects, or drops the connection under twice, stops the step, with the seed named.
@@ -144,7 +144,7 @@ class SeedExtractionItemProcessor implements ItemProcessor<OccurrenceId, SeedExt
             try {
                 return SeedConversions.convert(extractor, file, contentHash, extractorIdentity);
             } catch (DoclingConnectionLostException lost) {
-                sidecarRecovery.awaitHealthy();
+                doclingRecovery.awaitHealthy();
                 return SeedConversions.convert(extractor, file, contentHash, extractorIdentity);
             }
         } catch (DoclingConnectionLostException | DoclingCallRejectedException failed) {

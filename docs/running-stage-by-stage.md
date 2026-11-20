@@ -2,7 +2,7 @@
 
 [`README.md`](../README.md) tells you how to drive the tool: five invocations, and the value each one stops for. This page goes one level down. For each stage it says what you run, what has to be in place, what the stage leaves behind, where it stops, and what happens when you run the command again after a stop, a crash or a change of mind.
 
-Read the README first if you have not set the tool up. The sidecars, the models and the build are described there and not repeated here.
+Read the README first if you have not set the tool up. The containers, the models and the build are described there and not repeated here.
 
 ## The one rule
 
@@ -57,7 +57,7 @@ One invocation runs these fifteen steps. The names are the ones the log prints.
 
 ## Before the first invocation
 
-1. Build the jar, start the sidecars and give Ollama its models, as the README's "Running it" describes.
+1. Build the jar, start the containers and give Ollama its models, as the README's "Running it" describes.
 2. Create the working directory and write `seedFolder` into `profile.yaml` in it, as the README's "Step 0" describes.
 3. Decide where the working directory is, and name it with `--db-dir=<path>`, or with `VESPERA_WORKING_DIR` or `vespera.working-dir` in `application.yaml` beside the jar. Nothing names one for you: a command naming none refuses in one line and starts nothing. **Pass the same `--db-dir` on every invocation**, to `vespera label` too. A different working directory is a different, empty ledger, and the run starts from nothing there.
 
@@ -98,7 +98,7 @@ A walk that has not finished is never used by a later stage. Nothing downstream 
 
 **Optional values.** `degenerateOutputConfidenceFloor` (left unset, nothing is removed for extracting badly), `degenerateOutputWordFloor` (left unset, nothing is removed for having too few words; set, a file whose text holds fewer words is removed as holding nothing to read, whatever its kind) and `extractionAttempt` (see below).
 
-**Where it stops.** It does not stop for a value. It stops if the converter is not there, runs a different image from the one Vespera was told, or stays away for more than three minutes. The message says which. Fix the sidecar and run the same command again.
+**Where it stops.** It does not stop for a value. It stops if the converter is not there, runs a different image from the one Vespera was told, or stays away for more than three minutes. The message says which. Fix the converter and run the same command again.
 
 **Resume.** Extraction commits a small batch of files at a time, and a committed batch is final.
 
@@ -133,7 +133,7 @@ A walk that has not finished is never used by a later stage. Nothing downstream 
 
 **Where it stops.** With the floor unset, or holding something that is not a number, both steps are gated, the log says `stage 4 (content redundancy) is gated`, and nothing after them can run. Set the value and run again.
 
-**Resume.** Each of the two steps is recorded on its own. Interrupted, a step discards its own rows and does its work again; the other step's finished work stays. The signatures are recomputed from the stored text, with no call to a sidecar.
+**Resume.** Each of the two steps is recorded on its own. Interrupted, a step discards its own rows and does its work again; the other step's finished work stays. The signatures are recomputed from the stored text, with no call to Docling or Ollama.
 
 **Disk space.** The second step builds an index and sorts a great many rows. The drive that holds the working directory needs free space while it runs; the README's "Where things live" says how the temporary files behave.
 
@@ -167,7 +167,7 @@ Stage 5 is eight steps and spans three invocations, with `vespera label` between
 
 **What it does.** Once `relevanceScoreFloor` is set, removes the documents scoring below it. This is the first step that removes anything for being irrelevant.
 
-**Resume.** This step is never recorded as finished. On every invocation it withdraws the removals it made under this scoring and decides again, because the labels you recorded with `vespera label` can change what it should do without changing anything else. It calls no sidecar. When a label changes what it removes, the groups are formed again (5f) and the arrangement is a different one (6a).
+**Resume.** This step is never recorded as finished. On every invocation it withdraws the removals it made under this scoring and decides again, because the labels you recorded with `vespera label` can change what it should do without changing anything else. It calls neither Docling nor Ollama. When a label changes what it removes, the groups are formed again (5f) and the arrangement is a different one (6a).
 
 ### 5f — the groups
 
@@ -251,7 +251,7 @@ Three things to know about this table:
 
 ### The archive changed
 
-A file added, removed, moved or modified makes the next walk a new observation. Every stage runs again over it, and the arrangement has to be approved again. It costs far less than the first time: unchanged files are read back from the conversion store and their vectors from the vector store, so only new or changed content reaches a sidecar. Your recorded labels still apply.
+A file added, removed, moved or modified makes the next walk a new observation. Every stage runs again over it, and the arrangement has to be approved again. It costs far less than the first time: unchanged files are read back from the conversion store and their vectors from the vector store, so only new or changed content reaches Docling or Ollama. Your recorded labels still apply.
 
 ### The build changed
 
@@ -268,8 +268,8 @@ Run the same command again once the cause is fixed. Nothing recorded is lost.
 | a refusal naming `--db-dir` | pass the working directory this command actually opened, or none |
 | a line naming the command that holds the working directory | another `vespera` is running there; wait for it or stop it |
 | the database file is held by another process | close whatever else has `vespera.db` open |
-| the converter runs another image | set `VESPERA_DOCLING_IMAGE`, or start the sidecars with the other files |
-| the converter did not come back | start the sidecars, then run again; extraction continues where it stopped |
+| the converter runs another image | set `VESPERA_DOCLING_IMAGE`, or start the containers with the other files |
+| the converter did not come back | bring the converter back, then run again; extraction continues where it stopped |
 | the model did not answer | check Ollama is up and the model is pulled, then run again |
 | the embedding model was pulled again while its vectors were being computed | run again; do not pull the model while the command runs |
 | a walk that no longer agrees with its checkpoint | the archive changed while a walk was unfinished; Vespera will not continue that walk, and running again gives the same refusal until the tree is as the walk left it |

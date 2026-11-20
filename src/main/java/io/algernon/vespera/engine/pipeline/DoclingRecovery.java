@@ -6,20 +6,21 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.convert.DurationStyle;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
  * Waits for {@code docling-serve} to answer its health check again after it dropped a connection
- * (ADR-175 section 2). The sidecar restarts by itself (ADR-164), so a dropped connection is first read
- * as a sidecar on its way back, and the call that lost it is placed once more when it is.
+ * (ADR-175 section 2). Docling restarts by itself (ADR-164), so a dropped connection is first read
+ * as a Docling on its way back, and the call that lost it is placed once more when it is.
  *
  * <p>One instance for both steps that convert, stage 2 and seed extraction, so they wait the same way.
  */
 @Component
-class SidecarRecovery {
+class DoclingRecovery {
 
-    private static final Logger log = LoggerFactory.getLogger(SidecarRecovery.class);
+    private static final Logger log = LoggerFactory.getLogger(DoclingRecovery.class);
 
     /** How long between two health checks while waiting. */
     private static final Duration POLL_EVERY = Duration.ofSeconds(2);
@@ -28,21 +29,21 @@ class SidecarRecovery {
     private final Duration waitAtMost;
     private final Duration pollEvery;
 
-    /** The bound is the application property, one for every wait for a sidecar (ADR-323 §7). */
+    /** The bound is the application property, one for every wait for a Docling (ADR-323 §7). */
     @Autowired
-    SidecarRecovery(DoclingClient client, @Value("${" + SidecarStartSettings.WAIT_AT_MOST_PROPERTY + ":" + SidecarStartSettings.DEFAULT_WAIT_AT_MOST + "}") Duration waitAtMost) {
-        this(client, waitAtMost, POLL_EVERY);
+    DoclingRecovery(DoclingClient client, Environment environment) {
+        this(client, DurationStyle.detectAndParse(ContainerStartSettings.waitAtMostIn(environment)), POLL_EVERY);
     }
 
     /** The seam a test needs: the same wait, on a clock short enough to run. */
-    SidecarRecovery(DoclingClient client, Duration waitAtMost, Duration pollEvery) {
+    DoclingRecovery(DoclingClient client, Duration waitAtMost, Duration pollEvery) {
         this.client = client;
         this.waitAtMost = waitAtMost;
         this.pollEvery = pollEvery;
     }
 
     /**
-     * Returns once the sidecar answers its health check, at once if it already does.
+     * Returns once Docling answers its health check, at once if it already does.
      *
      * @throws DoclingDidNotComeBackException if it has not answered within the bound
      */
@@ -63,13 +64,13 @@ class SidecarRecovery {
                 Duration.ofNanos(System.nanoTime() - started).toSeconds());
     }
 
-    /** The bound a wait for a sidecar lasts. */
+    /** The bound a wait for a Docling lasts. */
     Duration waitAtMost() {
         return waitAtMost;
     }
 
     /**
-     * Waits for a sidecar that has not yet answered its first health check, which is a sidecar still starting
+     * Waits for a Docling that has not yet answered its first health check, which is a Docling still starting
      * (ADR-323 §7): asks on the same clock as {@link #awaitHealthy}, and says nothing itself, because the caller
      * says what it is waiting for.
      *

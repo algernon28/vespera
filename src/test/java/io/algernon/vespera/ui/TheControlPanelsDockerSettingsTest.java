@@ -23,12 +23,12 @@ import org.yaml.snakeyaml.Yaml;
 
 /**
  * Where the control panel's Docker code takes its settings from (ADR-390 §4): the WSL distribution and {@code
- * vespera.sidecars.wait-at-most} from the sources the window's fields start from, the environment over {@code .env}
+ * vespera.containers.wait-at-most} from the sources the window's fields start from, the environment over {@code .env}
  * over the jar's {@code application.yaml}; and the two addresses from the launch values held, a blank one being the
  * address the environment, {@code .env} or the jar's {@code application.yaml} names.
  *
  * <p>No Docker command is run. The start is given a lock folder that is a file, so that a start that went for the
- * sidecar lock, which it takes before it runs any command, is refused there with the lock's line and runs nothing:
+ * container lock, which it takes before it runs any command, is refused there with the lock's line and runs nothing:
  * the line is what tells a start that did nothing from one that would have run Docker.
  */
 @Epic("Operation")
@@ -37,15 +37,15 @@ import org.yaml.snakeyaml.Yaml;
 @Link(name = "ADR-390", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
 class TheControlPanelsDockerSettingsTest {
 
-    private static final String DISTRIBUTION_VARIABLE = "VESPERA_SIDECARS_WSL_DISTRIBUTION";
+    private static final String DISTRIBUTION_VARIABLE = "VESPERA_CONTAINERS_WSL_DISTRIBUTION";
 
-    private static final String WAIT_VARIABLE = "VESPERA_SIDECARS_WAIT_AT_MOST";
+    private static final String WAIT_VARIABLE = "VESPERA_CONTAINERS_WAIT_AT_MOST";
 
     private static final String DOCLING_VARIABLE = "VESPERA_DOCLING_BASE_URL";
 
-    private static final String DISTRIBUTION_PROPERTY = "vespera.sidecars.wsl-distribution";
+    private static final String DISTRIBUTION_PROPERTY = "vespera.containers.wsl-distribution";
 
-    private static final String WAIT_PROPERTY = "vespera.sidecars.wait-at-most";
+    private static final String WAIT_PROPERTY = "vespera.containers.wait-at-most";
 
     private static final String OLLAMA_VARIABLE = "SPRING_AI_OLLAMA_BASE_URL";
 
@@ -142,13 +142,13 @@ class TheControlPanelsDockerSettingsTest {
      * since §10 each container is judged on its own: so both are named, on another machine and then on loopback ports
      * where nothing answers. The compose files are the repository's own, named in the settings (§12), and the image the
      * one {@code compose.yaml} builds, named in the environment, so the start that goes on passes the image's check and
-     * is refused at the sidecar lock in the folder that is a file, before any command, in the lock's line.
+     * is refused at the container lock in the folder that is a file, before any command, in the lock's line.
      */
     @Test
     @Link(name = "ADR-430", url = Adr.THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER, type = "adr")
     @Issue("889")
     @Story("Start Docker starts Docker and the containers")
-    @DisplayName("With the launch values blank and the environment naming both containers on another machine, the window's start runs nothing, and naming them here it is refused at the sidecar lock")
+    @DisplayName("With the launch values blank and the environment naming both containers on another machine, the window's start runs nothing, and naming them here it is refused at the container lock")
     void aConverterTheEnvironmentNamesOnAnotherMachineStartsNothingWhereTheLaunchValuesAreBlank() throws IOException {
         Path notAFolder = Files.createFile(folder.resolve("a-file-where-the-lock-folder-would-be"));
         Path profileFolder = Files.createDirectory(folder.resolve("profile"));
@@ -159,7 +159,7 @@ class TheControlPanelsDockerSettingsTest {
                 notAFolder, profileFolder, REPOSITORY, remote)).start(BLANK);
 
         claim("the start went through and said nothing: the blank addresses were read as the environment's, on another"
-                        + " machine, so the sidecar lock was not taken and no command was run",
+                        + " machine, so the container lock was not taken and no command was run",
                 () -> assertThat(said).isEqualTo(new DockerControl.Said(true, "")));
         claim("and nothing was written in the profile folder it was given", () -> {
             try (Stream<Path> written = Files.list(profileFolder)) {
@@ -171,7 +171,7 @@ class TheControlPanelsDockerSettingsTest {
         DockerControl.Said here = DockerControl.inProcess(new DockerControl.Settings("", Duration.ofSeconds(1),
                 notAFolder, anotherProfile, REPOSITORY, nothingAnsweringHere())).start(BLANK);
         claim("named on this machine where nothing answers, the same start goes on, passes the image's check, and is"
-                        + " refused at the sidecar lock in the folder that is a file, in the lock's line, whole",
+                        + " refused at the container lock in the folder that is a file, in the lock's line, whole",
                 () -> assertThat(here).isEqualTo(new DockerControl.Said(false, theLocksRefusal(notAFolder))));
     }
 
@@ -185,10 +185,10 @@ class TheControlPanelsDockerSettingsTest {
                 Map.of(), Map.of());
     }
 
-    /** The line a start refused at a sidecar lock in {@code notAFolder}, a file, gives (ADR-395 §6). */
+    /** The line a start refused at a container lock in {@code notAFolder}, a file, gives (ADR-395 §6). */
     private static String theLocksRefusal(Path notAFolder) {
-        return "the sidecars are not answering and Vespera cannot start them: the lock file "
-                + notAFolder.resolve("sidecars.lock").toAbsolutePath() + " cannot be opened (" + notAFolder
+        return "the containers are not answering and Vespera cannot start them: the lock file "
+                + notAFolder.resolve("containers.lock").toAbsolutePath() + " cannot be opened (" + notAFolder
                 + "). Make its folder writable, or name another with vespera.corpus-root-lock-folder, and run the same"
                 + " command again.";
     }
@@ -235,7 +235,7 @@ class TheControlPanelsDockerSettingsTest {
                         + " ended by CR LF",
                 () -> assertThat(Files.readString(profileFolder.resolve(".wslconfig")))
                         .isEqualTo("[general]\r\ninstanceIdleTimeout=-1\r\n"));
-        claim("and the start was refused at the sidecar lock, in the lock's line, whole, which is the one line it gives",
+        claim("and the start was refused at the container lock, in the lock's line, whole, which is the one line it gives",
                 () -> assertThat(said).isEqualTo(new DockerControl.Said(false, theLocksRefusal(notAFolder))));
     }
 }

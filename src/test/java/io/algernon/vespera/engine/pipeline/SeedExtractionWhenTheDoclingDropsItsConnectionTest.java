@@ -41,7 +41,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * as stage 2 does. What differs is what a seed still failing earns: a seed is an input the operator
  * chose, so it stops the step, and the closing line names the seed.
  *
- * <p>The sidecar is a {@link LoopbackSidecar}, so both failures reach the step as the production
+ * <p>The docling is a {@link LoopbackDocling}, so both failures reach the step as the production
  * {@code DoclingClient} really raises them. The corpus document goes through it too, in stage 2, and is
  * converted: its text names no document number, so no script applies to it.
  */
@@ -52,10 +52,10 @@ import org.springframework.test.context.DynamicPropertySource;
 @Issue("326")
 @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
 @Link(name = "ADR-083", url = Adr.THE_SEED_SET_IS_EXTRACTED_BY_STAGE_5, type = "adr")
-class SeedExtractionWhenTheSidecarDropsItsConnectionTest {
+class SeedExtractionWhenTheDoclingDropsItsConnectionTest {
 
-    /** A loopback port that was free when the class loaded; the test's sidecar listens on it. */
-    private static final int SIDECAR_PORT = LoopbackSidecar.aFreePort();
+    /** A loopback port that was free when the class loaded; the test's docling listens on it. */
+    private static final int DOCLING_PORT = LoopbackDocling.aFreePort();
 
     /** The logger every operator-facing line in this application is written through. */
     private static final String APPLICATION_LOGGER = "io.algernon.vespera";
@@ -91,9 +91,9 @@ class SeedExtractionWhenTheSidecarDropsItsConnectionTest {
     static Path workingDirectory;
 
     @DynamicPropertySource
-    static void sidecarAndWorkingDirectory(DynamicPropertyRegistry registry) {
+    static void doclingAndWorkingDirectory(DynamicPropertyRegistry registry) {
         registry.add("vespera.working-dir", workingDirectory::toString);
-        registry.add("vespera.docling.base-url", () -> "http://127.0.0.1:" + SIDECAR_PORT);
+        registry.add("vespera.docling.base-url", () -> "http://127.0.0.1:" + DOCLING_PORT);
     }
 
     @Autowired
@@ -113,11 +113,11 @@ class SeedExtractionWhenTheSidecarDropsItsConnectionTest {
 
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger applicationLogger;
-    private LoopbackSidecar sidecar;
+    private LoopbackDocling docling;
 
     @BeforeEach
-    void startTheSidecarAndCaptureOperatorLines() throws IOException {
-        sidecar = LoopbackSidecar.startedOn(SIDECAR_PORT, configuredImage);
+    void startTheDoclingAndCaptureOperatorLines() throws IOException {
+        docling = LoopbackDocling.startedOn(DOCLING_PORT, configuredImage);
         logged = new ListAppender<>();
         logged.start();
         applicationLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(APPLICATION_LOGGER);
@@ -126,11 +126,11 @@ class SeedExtractionWhenTheSidecarDropsItsConnectionTest {
     }
 
     @AfterEach
-    void stopTheSidecarAndReleaseOperatorLines() {
+    void stopTheDoclingAndReleaseOperatorLines() {
         applicationLogger.detachAppender(logged);
         ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(logged);
         logged.stop();
-        sidecar.close();
+        docling.close();
     }
 
     @Test
@@ -141,7 +141,7 @@ class SeedExtractionWhenTheSidecarDropsItsConnectionTest {
         Files.writeString(root.resolve("corpus.txt"), "a corpus file, for the seed that drops once");
         writeSeeds(seeds, "drops once");
         profile(seeds);
-        sidecar.dropping(THE_FAILING_SEED, 1);
+        docling.dropping(THE_FAILING_SEED, 1);
 
         cli.run("run", root.toString());
 
@@ -153,14 +153,14 @@ class SeedExtractionWhenTheSidecarDropsItsConnectionTest {
                         + " retry, and each of the other " + (SEEDS - 1) + " once",
                 () -> {
                     for (int seed = 1; seed <= SEEDS; seed++) {
-                        assertThat(sidecar.callsPerDocument()).containsEntry(seed, seed == THE_FAILING_SEED ? TWICE : ONCE);
+                        assertThat(docling.callsPerDocument()).containsEntry(seed, seed == THE_FAILING_SEED ? TWICE : ONCE);
                     }
                 });
         claim(
                 "between the dropped call and its retry the converter was asked whether it was healthy again: "
                         + HEALTH_CHECKS_WITH_ONE_RECOVERY + " checks in all, one more than the "
                         + HEALTH_CHECKS_WITH_NO_RECOVERY + " an invocation makes before stage 2",
-                () -> assertThat(sidecar.healthChecks()).isEqualTo(HEALTH_CHECKS_WITH_ONE_RECOVERY));
+                () -> assertThat(docling.healthChecks()).isEqualTo(HEALTH_CHECKS_WITH_ONE_RECOVERY));
         claim(
                 "and seed extraction is recorded as finished under the one measurement run over this corpus",
                 () -> assertThat(measurementRunsOver(root))
@@ -181,7 +181,7 @@ class SeedExtractionWhenTheSidecarDropsItsConnectionTest {
         Files.writeString(root.resolve("corpus.txt"), "a corpus file, for the seed that drops twice");
         writeSeeds(seeds, "drops twice");
         profile(seeds);
-        sidecar.dropping(THE_FAILING_SEED, (int) TWICE);
+        docling.dropping(THE_FAILING_SEED, (int) TWICE);
 
         cli.run("run", root.toString());
 
@@ -200,7 +200,7 @@ class SeedExtractionWhenTheSidecarDropsItsConnectionTest {
         claim(
                 "seed " + THE_FAILING_SEED + " was posted " + TWICE + " times, the dropped call and one"
                         + " retry, and not a third time",
-                () -> assertThat(sidecar.callsPerDocument()).containsEntry(THE_FAILING_SEED, TWICE));
+                () -> assertThat(docling.callsPerDocument()).containsEntry(THE_FAILING_SEED, TWICE));
         claim(
                 "and no measurement run was minted, because nothing saw the whole seed folder",
                 () -> assertThat(measurementRunsOver(root)).isEmpty());

@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 @Feature("Stage 2 step")
 @Issue("326")
 @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
-class SidecarRecoveryTest {
+class DoclingRecoveryTest {
 
     /** The OCR preset the application ships (vespera.docling.ocr-preset). */
     private static final String OCR_PRESET = "rapidocr";
@@ -47,7 +47,7 @@ class SidecarRecoveryTest {
     @DisplayName("A converter that does not come back within the bound fails the wait, and the failure says how long was waited")
     void aConverterThatStaysGoneFailsTheWait() {
         ScriptedHealth converter = unhealthyFor(NEVER);
-        SidecarRecovery recovery = new SidecarRecovery(converter, WAIT_AT_MOST, CHECK_EVERY);
+        DoclingRecovery recovery = new DoclingRecovery(converter, WAIT_AT_MOST, CHECK_EVERY);
 
         claim(
                 "the wait ends in a failure of its own, saying the converter dropped the connection and did"

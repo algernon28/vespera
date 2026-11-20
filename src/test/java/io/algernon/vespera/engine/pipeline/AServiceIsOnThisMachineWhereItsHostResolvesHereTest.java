@@ -38,10 +38,10 @@ import org.junit.jupiter.api.io.TempDir;
  * hosts alone, none of which reaches a resolver of the network.
  */
 @Epic("Pipeline")
-@Feature("The sidecars")
+@Feature("The containers")
 @Issue("889")
 @Link(name = "ADR-430", url = Adr.THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER, type = "adr")
-class AContainerIsOnThisMachineWhereItsHostResolvesHereTest {
+class AServiceIsOnThisMachineWhereItsHostResolvesHereTest {
 
     /** This machine's own address on its network, as {@code NetworkInterface} would give it. */
     private static final InetAddress OWN = InetAddress.ofLiteral("192.168.1.20");
@@ -113,8 +113,8 @@ class AContainerIsOnThisMachineWhereItsHostResolvesHereTest {
     void aHostThatCannotBeResolvedIsNeitherAndAnInvalidOneIsNeverLookedUp() {
         Resolving resolver = new Resolving();
         ThisMachine thisMachine = new ThisMachine(resolver, () -> List.of(OWN));
-        List<String> invalid = List.of("http://sidecars.invalid:5001", "http://Docling.INVALID:5001",
-                "http://sidecars.invalid.:11434");
+        List<String> invalid = List.of("http://containers.invalid:5001", "http://Docling.INVALID:5001",
+                "http://containers.invalid.:11434");
 
         ThisMachine.Where unknown = thisMachine.where(URI.create("http://docling.example.lan:5001"));
         ThisMachine.Where noHost = thisMachine.where(URI.create("file:///no/host"));
@@ -133,12 +133,12 @@ class AContainerIsOnThisMachineWhereItsHostResolvesHereTest {
     @Story("The control panel checks Docker and starts nothing as it opens")
     @DisplayName("The control panel asks the same rule through the Docker engine's class, and containers that cannot be resolved are neither asked nor started")
     void theControlPanelAsksTheSameRuleThroughTheDockerEngine() throws IOException {
-        URI doclingNowhere = URI.create("http://sidecars.invalid:5001");
-        URI ollamaNowhere = URI.create("http://sidecars.invalid:11434");
+        URI doclingNowhere = URI.create("http://containers.invalid:5001");
+        URI ollamaNowhere = URI.create("http://containers.invalid:11434");
         Path notAFolder = Files.createFile(folder.resolve("a-file-where-the-lock-folder-would-be"));
         DockerEngine engine = DockerEngine.of("", Duration.ofSeconds(1), notAFolder, null);
         List<Optional<Boolean>> where = new ArrayList<>();
-        for (String url : List.of("http://localhost:5001", "http://127.0.0.1:11434", "http://sidecars.invalid:5001")) {
+        for (String url : List.of("http://localhost:5001", "http://127.0.0.1:11434", "http://containers.invalid:5001")) {
             where.add(DockerEngine.isOnThisMachine(URI.create(url)));
         }
 
@@ -149,7 +149,7 @@ class AContainerIsOnThisMachineWhereItsHostResolvesHereTest {
                 () -> assertThat(where).containsExactly(Optional.of(true), Optional.of(true), Optional.empty()));
         claim("with neither container on this machine, the daemon is not asked",
                 () -> assertThat(answers).isEmpty());
-        claim("and Start Docker's start does nothing and says nothing, never reaching the sidecar lock in a folder that"
+        claim("and Start Docker's start does nothing and says nothing, never reaching the container lock in a folder that"
                         + " is a file", () -> assertThat(started).isEmpty());
     }
 }

@@ -88,7 +88,7 @@ What a converted file occurrence holds when it holds usable text, a letter or a 
 _Avoid_: unreadable (a profile value nobody can act on, under Operation), textless (ADR-105's word for no letter or digit at all, which is tier 1 alone), meaningful text, real text
 
 **Extraction fault**:
-A file occurrence stage 2 got no answer about: the converter blamed the failure on itself, or ran out of time on several files in a row, so nothing was measured and nothing was decided at the time. A file the converter answered about and could not convert is not one — that is `extraction-failed` at once (ADR-143). Recorded as a row of its own, never a verdict when it is written — and, where the step it happened in went on to complete, resolved into `extraction-failed` at the end of that step, because the sidecar answering for its neighbours is the evidence that the refusal was about this file (ADR-139). Distinct from an unusable seed, which is the same converter response on the side of the system where nothing is ever removed.
+A file occurrence stage 2 got no answer about: the converter blamed the failure on itself, or ran out of time on several files in a row, so nothing was measured and nothing was decided at the time. A file the converter answered about and could not convert is not one — that is `extraction-failed` at once (ADR-143). Recorded as a row of its own, never a verdict when it is written — and, where the step it happened in went on to complete, resolved into `extraction-failed` at the end of that step, because the converter answering for its neighbours is the evidence that the refusal was about this file (ADR-139). Distinct from an unusable seed, which is the same converter response on the side of the system where nothing is ever removed.
 _Avoid_: skip, error, failed document. Also "unreadable" **for this state**: that word names a profile value nobody can act on, under Operation below.
 
 **Control conversion**:
@@ -277,8 +277,14 @@ The operating system's lock `vespera run` takes on a file named for its corpus r
 _Avoid_: root mutex, archive lock (nothing is written into the archive)
 
 **Machine lock**:
-The operating system's lock on `machine.lock`, in the folder the corpus-root locks lie in, taken before anything else by a control panel and by `vespera run`, `vespera label` and `vespera publish`, and held until its process ends, so that one Vespera runs on a machine at a time and none stops the sidecars another is using (ADR-395). The control panel's own child is let through, its parent being the holder, and holds `machine-child.lock` while it runs. `vespera serve` takes none.
+The operating system's lock on `machine.lock`, in the folder the corpus-root locks lie in, taken before anything else by a control panel and by `vespera run`, `vespera label` and `vespera publish`, and held until its process ends, so that one Vespera runs on a machine at a time and none stops the containers another is using (ADR-395). The control panel's own child is let through, its parent being the holder, and holds `machine-child.lock` while it runs. `vespera serve` takes none.
 _Avoid_: mutex, pidfile, single-instance lock
+
+**Container**:
+A Docling or an Ollama that Vespera runs on this machine through Docker, started from the compose files in the folder beside the jar, asked whether it answers, waited for and stopped; it is on this machine where its address resolves here (ADR-430 §10). Where Docling or Ollama runs on another machine, Vespera runs no container there, and what the operator reads names it Docling, Ollama or the services (ADR-433).
+_Avoid_: sidecar, the word ADR-011 gave and ADR-433 retired from every name of ours, which settled records keep as written
+_Renders as_: **container** where Vespera runs it; where Docling or Ollama runs on another machine, **Docling**, **Ollama** or **the services**, never container.
+_Not to be confused with_: the containing document of a **containment**, and a file format's container, as of a video (ADR-168), which keep the word.
 
 **Invocation account**:
 The one file an invocation that started the job wrote for a hosted model to read, in the working directory's `logs` folder (ADR-270): each step and how it ended, durations, counts, progress lines, and a failed step's exception types, built from typed values and an allow-list (ADR-198). No invocation writes it: the invocation report's copy, `logs/report-<invocation>.json`, replaces it, and the class that wrote it hands the counts to the report (ADR-362 §4). A file an earlier version wrote stays where it lies, and nothing reads it.
@@ -342,14 +348,14 @@ _Avoid_: parameter, setting, config
 **Preset**:
 The value of a technical choice that ships in `application.yaml`, in its shipped copy, in place of a constant of the code, where a machine's own configuration, the file beside the jar among it, may override it and, for one a record gives a profile key, the profile does (ADR-298, ADR-330, ADR-397). Not a measured floor: a floor read off a corpus ships unset, pointing at its measurement. One that decides what a run produces enters that run's identity, written only where it differs from what runs were minted under before it was a preset, or as an identity already named it, so that introducing it moves no recorded configuration.
 _Avoid_: knob, tunable, parameter, option
-_Not to be confused with_: a **launch value**, which names where things are on one machine; the **profile**, which is authored per corpus; Docling's `ocr_preset`, a name its sidecar resolves, which Vespera names on every conversion from the preset `vespera.docling.ocr-preset` and never leaves to the sidecar's `auto` (ADR-090, ADR-330).
+_Not to be confused with_: a **launch value**, which names where things are on one machine; the **profile**, which is authored per corpus; Docling's `ocr_preset`, a name docling-serve resolves, which Vespera names on every conversion from the preset `vespera.docling.ocr-preset` and never leaves to docling-serve's `auto` (ADR-090, ADR-330).
 
 **Effective values**:
 What `effective-values.properties` says, which the jar writes for the control panel as an invocation starts: what would apply where the profile names nothing, each with where it came from, from a closed list holding no credential and no path (ADR-330). What lies beneath the profile, never what the profile names; what is in use is the profile's value where it names one, and this where it does not.
 _Avoid_: current settings, resolved config, runtime config
 
 **Folder beside the jar**:
-The folder the Vespera jar lies in, which holds the configuration Spring reads, `application.yaml` and the operator's optional `application-local.yaml` over it, and the files the sidecars start from, `compose.yaml`, `compose.gpu.yaml` and their `docker/` build context (ADR-397). A run from compiled classes, an IDE's or a test's, takes the folder above them, where the build writes the jar. `--spring.config.location` or `SPRING_CONFIG_LOCATION` moves where Spring reads; the compose files are read here whatever it names.
+The folder the Vespera jar lies in, which holds the configuration Spring reads, `application.yaml` and the operator's optional `application-local.yaml` over it, and the files the containers start from, `compose.yaml`, `compose.gpu.yaml` and their `docker/` build context (ADR-397). A run from compiled classes, an IDE's or a test's, takes the folder above them, where the build writes the jar. `--spring.config.location` or `SPRING_CONFIG_LOCATION` moves where Spring reads; the compose files are read here whatever it names.
 _Avoid_: install folder, home folder, config folder
 _Not to be confused with_: a working directory, which holds one corpus's database and `profile.yaml`; the current directory, which the folder is only for a code source that is neither a jar nor compiled classes.
 

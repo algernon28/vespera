@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 /**
  * The README and {@code docs/running-stage-by-stage.md} call no relevance label an answer and no entry of the label
  * file a question (ADR-424 §2, §6): each text ADR-424's tables reword is in the document as it is, and not as it was.
- * A sidecar's, the converter's or a model's answer, which no table rewords, is not read here.
+ * A container's, the converter's or a model's answer, which no table rewords, is not read here.
  */
 @Epic("Relevance")
 @Feature("Labelling")

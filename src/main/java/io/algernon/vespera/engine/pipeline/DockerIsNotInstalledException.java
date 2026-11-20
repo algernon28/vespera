@@ -1,7 +1,7 @@
 package io.algernon.vespera.engine.pipeline;
 
 /** The engine check's program, {@code docker} or {@code wsl} on Windows, is not on this machine (ADR-390 §6). */
-final class DockerIsNotInstalledException extends SidecarStartRefusedException {
+final class DockerIsNotInstalledException extends ContainerStartRefusedException {
 
     DockerIsNotInstalledException(String program) {
         super("Vespera cannot start Docker: no " + program + " command was found. Install Docker Engine -- in a WSL 2"

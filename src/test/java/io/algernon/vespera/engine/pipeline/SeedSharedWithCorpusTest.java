@@ -41,7 +41,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * conversions at that seam would prove nothing about caching, however many the count came to. This
  * class alone wires the real extractor over the real cache and counts one layer lower, at the client
  * ({@code CountingDoclingBeans}) — so the number it asserts is the number of conversions that would
- * have been HTTP calls to a live sidecar.
+ * have been HTTP calls to a live container.
  *
  * <p>The corpus holds exactly one document, deliberately: a total conversion count is only readable as
  * a per-document claim when there is one document to count.

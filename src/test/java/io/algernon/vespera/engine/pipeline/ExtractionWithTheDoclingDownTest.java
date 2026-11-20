@@ -49,27 +49,27 @@ import org.springframework.test.context.DynamicPropertySource;
  * What stage 2 says, and what it leaves behind, when {@code docling-serve} cannot be used at the start
  * of the step: unreachable, unhealthy, or healthy but refusing {@code /version} (#319).
  *
- * <p>{@link ExtractionHealthCheckListener#beforeStep} throws when the sidecar does not answer its
+ * <p>{@link ExtractionHealthCheckListener#beforeStep} throws when the docling does not answer its
  * health check, so the step fails before it opens its reader (ADR-071). Spring Batch still calls every
  * listener's {@code afterStep} from a {@code finally}, and then closes every stream the step
  * registered ({@code AbstractStep.execute}, spring-batch-core 6.0.5). Until #319 was fixed, both of
  * those built step-scoped beans the step never needed: {@link ExtractionFaultRecorder} asked for stage 2's run
  * in its constructor, and closing the reader built {@link ConversionDispatch}, which asked for the
  * extractor identity, and the survivors reader beneath it, which asked for the run. Asking for the run
- * asks for the identity, and composing the identity calls the sidecar's {@code /version}.
+ * asks for the identity, and composing the identity calls the docling's {@code /version}.
  *
  * <ul>
- *   <li>With the sidecar <b>unreachable</b>, that call threw inside {@code afterStep}. {@code
+ *   <li>With the docling <b>unreachable</b>, that call threw inside {@code afterStep}. {@code
  *       CompositeStepExecutionListener} stops at the first listener that throws, so {@link
  *       ExtractionHealthCheckListener#afterStep}, which writes stage 2's closing line (#311), never ran.
  *       The operator got a second and a third stack trace and no line saying what to do.
- *   <li>With the sidecar <b>answering but not healthy</b>, the same path succeeded and minted stage 2's
+ *   <li>With the docling <b>answering but not healthy</b>, the same path succeeded and minted stage 2's
  *       run behind the health check that had just failed. #319 asks that no run be minted behind that
  *       failed check, which is ADR-080's rule for a gate applied to this check.
- *   <li>With the sidecar <b>healthy but refusing {@code /version}</b>, the health check passes and the
+ *   <li>With the docling <b>healthy but refusing {@code /version}</b>, the health check passes and the
  *       step fails while opening its reader, because building the survivors reader asks for the run and
  *       the run asks for the identity. Closing the reader then built the survivors reader a second
- *       time, which asked the sidecar again and threw again.
+ *       time, which asked the docling again and threw again.
  * </ul>
  *
  * <p>{@link ConversionDispatch#close} now closes the delegate only if {@link ConversionDispatch#open}
@@ -79,7 +79,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * third fails, because it is the one case that starts opening the reader and does not finish. Both
  * were measured.
  *
- * <p>The unreachable sidecar is a real one: the client is the production {@link DoclingClient}, pointed
+ * <p>The unreachable docling is a real one: the client is the production {@link DoclingClient}, pointed
  * at a loopback port nothing listens on, so the refusal is the operating system's and the message is
  * the one an operator would read. The other two are a small HTTP server on that same port, answering
  * {@code /health} and {@code /version} with the statuses each test names. The extractor is a {@link
@@ -95,7 +95,7 @@ import org.springframework.test.context.DynamicPropertySource;
  */
 @CascadeSliceTest
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-@Import(ExtractionWithTheSidecarDownTest.UnreachableSidecarBeans.class)
+@Import(ExtractionWithTheDoclingDownTest.UnreachableDoclingBeans.class)
 @Epic("Pipeline")
 @Feature("Progress reporting")
 @Issue("319")
@@ -104,7 +104,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-093", url = Adr.LOGGING_IS_EXPLICIT_AND_PROCESS_SCOPED, type = "adr")
 @Link(name = "ADR-157", url = Adr.A_STAGE_ASKS_FOR_ITS_RUN_AFTER_ITS_OWN_GATE, type = "adr")
 @Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
-class ExtractionWithTheSidecarDownTest {
+class ExtractionWithTheDoclingDownTest {
 
     /** How long these tests wait for a converter that gives no answer: half a second, so the wait runs out quickly. */
     private static final Duration WAIT_AT_MOST = Duration.ofMillis(500);
@@ -112,19 +112,19 @@ class ExtractionWithTheSidecarDownTest {
     /** How often they ask it meanwhile. */
     private static final Duration CHECK_EVERY = Duration.ofMillis(20);
 
-    /** A loopback port nothing listens on unless a test starts a sidecar on it. */
-    private static final int SIDECAR_PORT = aFreePort();
+    /** A loopback port nothing listens on unless a test starts a docling on it. */
+    private static final int DOCLING_PORT = aFreePort();
 
-    /** Where the client looks for the sidecar, and so what a failure to reach it names. */
-    private static final String SIDECAR = "http://127.0.0.1:" + SIDECAR_PORT;
+    /** Where the client looks for the docling, and so what a failure to reach it names. */
+    private static final String DOCLING = "http://127.0.0.1:" + DOCLING_PORT;
 
     /** How stage 2's closing line opens when the step did not complete. */
     private static final String STAGE_2_FAILED = "Stage 2 (extraction) failed";
 
-    /** The status a sidecar answers with when it has what was asked for. */
+    /** The status a docling answers with when it has what was asked for. */
     private static final int OK = 200;
 
-    /** The status a sidecar answers its health check with when it is up but not ready to convert. */
+    /** The status a docling answers its health check with when it is up but not ready to convert. */
     private static final int UNAVAILABLE = 503;
 
     /** What the operator should be told to do once the cause is fixed, in the words every closing line uses. */
@@ -136,7 +136,7 @@ class ExtractionWithTheSidecarDownTest {
     /** What Spring Batch logs when closing a step's reader throws. */
     private static final String CLOSING_THREW = "Exception while closing step execution resources";
 
-    /** The stages recorded ahead of stage 2: census mints no run, and stage 1 has no sidecar to lose. */
+    /** The stages recorded ahead of stage 2: census mints no run, and stage 1 has no docling to lose. */
     private static final List<String> BEFORE_STAGE_2 = List.of(StageModules.BYTE_LEVEL_REDUCTION.stage());
 
     @TempDir
@@ -155,7 +155,7 @@ class ExtractionWithTheSidecarDownTest {
 
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger rootLogger;
-    private HttpServer sidecar;
+    private HttpServer docling;
 
     /**
      * On the root logger rather than the application's own, because what must not appear is Spring
@@ -171,21 +171,21 @@ class ExtractionWithTheSidecarDownTest {
     }
 
     @AfterEach
-    void releaseEveryLineAndTheSidecar() {
+    void releaseEveryLineAndTheDocling() {
         rootLogger.detachAppender(logged);
         ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(logged);
         logged.stop();
-        if (sidecar != null) {
-            sidecar.stop(0);
+        if (docling != null) {
+            docling.stop(0);
         }
     }
 
     @Test
     @Story("A converter that fails its check leaves no record of work behind it")
     @DisplayName("When the document converter answers but reports itself unhealthy as extraction starts, no extraction is recorded, and the closing line says the stage failed")
-    void anUnhealthySidecarLeavesNoRunBehindItsCheck(@TempDir Path root) throws IOException {
+    void anUnhealthyDoclingLeavesNoRunBehindItsCheck(@TempDir Path root) throws IOException {
         Files.writeString(root.resolve("document.txt"), "content of the one document");
-        sidecar = aSidecarAnswering(UNAVAILABLE, OK);
+        docling = aDoclingAnswering(UNAVAILABLE, OK);
 
         cli.run("run", root.toString());
 
@@ -206,12 +206,12 @@ class ExtractionWithTheSidecarDownTest {
     }
 
     /**
-     * A sidecar on {@link #SIDECAR_PORT} that answers its health check with {@code healthStatus} and
-     * {@code /version} with {@code versionStatus}, carrying a version report in the real sidecar's shape
+     * A docling on {@link #DOCLING_PORT} that answers its health check with {@code healthStatus} and
+     * {@code /version} with {@code versionStatus}, carrying a version report in the real docling's shape
      * whenever that status is {@link #OK}.
      */
-    private static HttpServer aSidecarAnswering(int healthStatus, int versionStatus) throws IOException {
-        HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), SIDECAR_PORT), 0);
+    private static HttpServer aDoclingAnswering(int healthStatus, int versionStatus) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), DOCLING_PORT), 0);
         server.createContext("/health", exchange -> {
             exchange.sendResponseHeaders(healthStatus, -1);
             exchange.close();
@@ -249,20 +249,20 @@ class ExtractionWithTheSidecarDownTest {
         try (ServerSocket probe = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
             return probe.getLocalPort();
         } catch (IOException e) {
-            throw new UncheckedIOException("no loopback port could be reserved for the sidecar", e);
+            throw new UncheckedIOException("no loopback port could be reserved for the docling", e);
         }
     }
 
     /**
-     * The production {@link DoclingClient} pointed at {@link #SIDECAR}, an extractor with nothing
+     * The production {@link DoclingClient} pointed at {@link #DOCLING}, an extractor with nothing
      * queued, and the wait for the converter on a short clock. {@code @TestConfiguration}, for the reason {@link StubbedExtractionBeans} gives.
      */
     @TestConfiguration
-    static class UnreachableSidecarBeans {
+    static class UnreachableDoclingBeans {
 
         @Bean
         DoclingClient doclingClient(@Value("${vespera.docling.ocr-preset}") String ocrPreset) {
-            return new DoclingClient(SIDECAR, ocrPreset);
+            return new DoclingClient(DOCLING, ocrPreset);
         }
 
         @Bean
@@ -273,8 +273,8 @@ class ExtractionWithTheSidecarDownTest {
         /** The wait for a converter that gives no answer, on a clock short enough to run (ADR-323 §7). */
         @Bean
         @Primary
-        SidecarRecovery sidecarRecoveryOnAShortClock(DoclingClient client) {
-            return new SidecarRecovery(client, WAIT_AT_MOST, CHECK_EVERY);
+        DoclingRecovery doclingRecoveryOnAShortClock(DoclingClient client) {
+            return new DoclingRecovery(client, WAIT_AT_MOST, CHECK_EVERY);
         }
     }
 }

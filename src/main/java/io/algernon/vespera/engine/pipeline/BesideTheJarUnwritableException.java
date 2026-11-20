@@ -14,7 +14,7 @@ public class BesideTheJarUnwritableException extends RuntimeException {
 
     public BesideTheJarUnwritableException(String name, Path folder, Throwable reason) {
         super("Vespera cannot write " + name + " in the folder beside the jar, " + folder + " ("
-                + oneLine(SidecarLockUnavailableException.reasonOf(reason))
+                + oneLine(ContainerLockUnavailableException.reasonOf(reason))
                 + "); make that folder one this user can write, and start Vespera again.", reason);
     }
 

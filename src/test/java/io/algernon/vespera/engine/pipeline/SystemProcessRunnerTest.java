@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test;
  * the test runs the same on every system. The runner is built on a folder of each test's own.
  */
 @Epic("Pipeline")
-@Feature("The sidecars")
+@Feature("The containers")
 @Issue("652")
 @Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
 class SystemProcessRunnerTest {

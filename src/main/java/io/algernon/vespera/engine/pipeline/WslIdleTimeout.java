@@ -28,7 +28,7 @@ final class WslIdleTimeout {
     private static final String WRITTEN = "[general]\r\ninstanceIdleTimeout=-1\r\n";
 
     private static final String THE_COST = "so WSL may shut its distribution down while idle, and Docker and the"
-            + " sidecars with it, in the middle of a run.";
+            + " containers with it, in the middle of a run.";
 
     private static final String THE_RESTART =
             "then run wsl --shutdown, which stops every WSL distribution and the containers in them.";
@@ -46,7 +46,7 @@ final class WslIdleTimeout {
         if (profileFolder == null) {
             return Optional.of("Vespera cannot tell where the Windows profile folder is, so it cannot see whether"
                     + " %UserProfile%\\.wslconfig sets instanceIdleTimeout=-1 under [general]; without it WSL may"
-                    + " shut its distribution down while idle, and Docker and the sidecars with it, in the middle of"
+                    + " shut its distribution down while idle, and Docker and the containers with it, in the middle of"
                     + " a run. See that it does, " + THE_RESTART);
         }
         Path file = profileFolder.resolve(NAME_IN_THE_PROFILE_FOLDER);
@@ -55,7 +55,7 @@ final class WslIdleTimeout {
                 Files.writeString(file, WRITTEN, StandardCharsets.US_ASCII, StandardOpenOption.CREATE_NEW,
                         StandardOpenOption.WRITE);
                 return Optional.of("Vespera wrote " + file + ", setting instanceIdleTimeout=-1 under [general], so"
-                        + " that WSL does not shut its distribution down while idle, and Docker and the sidecars with"
+                        + " that WSL does not shut its distribution down while idle, and Docker and the containers with"
                         + " it. It applies from WSL's next start; if WSL is running now, wsl --shutdown starts it"
                         + " afresh, and stops every WSL distribution and the containers in them.");
             } catch (FileAlreadyExistsException appeared) {
@@ -71,7 +71,7 @@ final class WslIdleTimeout {
         } catch (IOException | RuntimeException cannotRead) {
             return Optional.of("Vespera could not read " + file + " (" + reason(cannotRead) + ") to see whether it"
                     + " sets instanceIdleTimeout=-1 under [general]; without it WSL may shut its distribution down"
-                    + " while idle, and Docker and the sidecars with it, in the middle of a run. See that it does, "
+                    + " while idle, and Docker and the containers with it, in the middle of a run. See that it does, "
                     + THE_RESTART);
         }
         if (sets(text)) {
