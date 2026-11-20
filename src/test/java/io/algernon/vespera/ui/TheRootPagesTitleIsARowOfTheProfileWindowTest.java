@@ -26,7 +26,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The root page's title is a row of the Profile window (ADR-398 §7): the control panel's table names {@code
- * confluenceRootTitle} last, a text entering no run with no value beneath the profile, with its own words; its field
+ * confluenceRootTitle} last but one, before {@code outputs} (ADR-434 §2), a text entering no run with no value beneath the profile, with its own words; its field
  * follows the email's among the Confluence values; and a title typed and saved is written into {@code profile.yaml}
  * with the provenance a value set in the control panel is saved with (ADR-343 §2).
  *
@@ -84,13 +84,14 @@ class TheRootPagesTitleIsARowOfTheProfileWindowTest {
 
     @Test
     @Story("The operator names the root page's title")
-    @DisplayName("The control panel's last profile key is the Confluence top page title: text, entering no run, with nothing beneath the profile, and its own hint, example, title, description and tooltip")
+    @DisplayName("The control panel's last profile key but one, before the outputs, is the Confluence top page title: text, entering no run, with nothing beneath the profile, and its own hint, example, title, description and tooltip")
+    @Link(name = "ADR-434", url = Adr.THE_PROFILES_OUTPUTS_CHOOSE_WHAT_IS_DRAWN_AND_RETRIEVAL_RECORDS_ARE_ONE_JSONL_FILE, type = "adr")
     void itsRowIsATextEnteringNoRunWithItsWords() {
         Optional<ProfileKey> key = ProfileKey.named(THE_KEY);
 
-        claim("the control panel's table of profile keys names confluenceRootTitle last",
-                () -> assertThat(Arrays.stream(ProfileKey.values()).map(ProfileKey::key).toList()).last()
-                        .isEqualTo(THE_KEY));
+        claim("the control panel's table of profile keys names confluenceRootTitle last but one, outputs last",
+                () -> assertThat(Arrays.stream(ProfileKey.values()).map(ProfileKey::key).toList())
+                        .endsWith(THE_KEY, "outputs"));
         claim("its value is text, its change enters no run, and nothing beneath the profile gives it a value",
                 () -> assertThat(key.map(it -> List.of(it.kind().name(), it.earliestRun().isPresent(),
                         it.hasAValueBeneath()))).isEqualTo(Optional.of(List.of("TEXT", false, false))));

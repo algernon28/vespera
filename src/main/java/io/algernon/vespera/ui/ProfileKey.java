@@ -85,7 +85,11 @@ public enum ProfileKey {
     CONFLUENCE_ROOT_TITLE("confluenceRootTitle", Kind.TEXT, null,
             "the title of the top page the others go under, {language} standing for the language's code; empty is"
                     + " Vespera_{language}",
-            "Vespera_{language}");
+            "Vespera_{language}"),
+    OUTPUTS("outputs", Kind.TEXT, null,
+            "what is drawn: tree for the HTML pages and each plugin by its name, separated by commas; empty is tree,"
+                    + " confluence, website",
+            "tree, confluence, website");
 
     /** The type of a key's value, which is how the jar reads it. */
     public enum Kind { TEXT, NUMBER, NAME_ENDINGS, FOLDERS, CORPUS_FOLDERS, TOPICS }

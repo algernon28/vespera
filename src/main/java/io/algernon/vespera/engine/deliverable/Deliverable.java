@@ -337,7 +337,31 @@ public final class Deliverable {
                 usableSpace);
     }
 
-    /** As above, with the plugins (ADR-333). */
+    /**
+     * As above, with the outputs the profile names and the inputs that compose retrieval records (ADR-434): only the
+     * plugins {@code outputs} names are drawn, the tree only where it names {@code tree}, and a plugin reading
+     * retrieval records is handed them as the topics are gone through. {@code inputs} may be null where no plugin
+     * reads them.
+     */
+    public static Path writeTo(
+            Path workingDirectory,
+            DeliverableRoot root,
+            DeliverableProvenance provenance,
+            ArrangedSurvivors source,
+            ListedCodeSets code,
+            SurvivorPictures pictures,
+            ClusterPageCeiling ceiling,
+            List<Plugin> plugins,
+            Outputs outputs,
+            RecordInputs inputs,
+            DeliverableProgress progress) {
+        Path tree = root.treeOf(workingDirectory, provenance.runId());
+        return writeTo(
+                workingDirectory, root, provenance, source, code, pictures, ceiling, plugins, outputs, inputs, progress,
+                ReplacingMove.ATOMIC, () -> usableBytesAt(tree));
+    }
+
+    /** As above, with every plugin given drawn and the tree (ADR-333). */
     static Path writeTo(
             Path workingDirectory,
             DeliverableRoot root,
@@ -350,8 +374,32 @@ public final class Deliverable {
             DeliverableProgress progress,
             ReplacingMove moves,
             LongSupplier usableSpace) {
+        return writeTo(
+                workingDirectory, root, provenance, source, code, pictures, ceiling, plugins, Outputs.everyOf(plugins),
+                null, progress, moves, usableSpace);
+    }
+
+    /** As above, with the outputs and the inputs of the retrieval records (ADR-434). */
+    static Path writeTo(
+            Path workingDirectory,
+            DeliverableRoot root,
+            DeliverableProvenance provenance,
+            ArrangedSurvivors source,
+            ListedCodeSets code,
+            SurvivorPictures pictures,
+            ClusterPageCeiling ceiling,
+            List<Plugin> allPlugins,
+            Outputs outputs,
+            RecordInputs inputs,
+            DeliverableProgress progress,
+            ReplacingMove moves,
+            LongSupplier usableSpace) {
+        List<Plugin> plugins = allPlugins.stream().filter(outputs::draws).toList();
         Path tree = root.treeOf(workingDirectory, provenance.runId());
         List<ListedTopic> topics = source.topics();
+        if (!outputs.drawsTheTree()) {
+            return writeWithNoTree(workingDirectory, provenance, source, plugins, inputs, progress, moves, tree, topics);
+        }
         try {
             Files.createDirectories(tree);
             DeliverableRoot.markTree(tree, workingDirectory, provenance.runId());
@@ -376,12 +424,12 @@ public final class Deliverable {
             List<String> pluginFolders = List.of();
             ClusterPageSizes sizes = new ClusterPageSizes(ceiling);
             try (PluginDrawings drawings = new PluginDrawings(
-                    plugins, tree, provenance.runId(), moves, written, source.language(), progress)) {
+                    plugins, true, tree, provenance.runId(), moves, written, source.language(), progress)) {
                 pluginFolders = drawings.names();
                 Path indexPart =
                         writeIndexAndClusterPages(
                                 tree, provenance, topics, source, entryPictures, copies, written, filesLeft, moves,
-                                progress, ceiling, sizes, drawings,
+                                progress, ceiling, sizes, drawings, inputs,
                                 index -> listingPart[0] =
                                         codeCopies.draw(code, index, written, source.language()));
                 progress.copiesAtALongPath(copies.copiesAtALongPath() + codeCopies.copiesAtALongPath());
@@ -411,6 +459,41 @@ public final class Deliverable {
         }
     }
 
+
+    /**
+     * Draws no tree (ADR-434 §9): the marker and each named plugin's folder, and the retrieval records handed to the
+     * plugins that read them, going through the topics all the same. Nothing is read from the archive.
+     */
+    private static Path writeWithNoTree(
+            Path workingDirectory,
+            DeliverableProvenance provenance,
+            ArrangedSurvivors source,
+            List<Plugin> plugins,
+            RecordInputs inputs,
+            DeliverableProgress progress,
+            ReplacingMove moves,
+            Path tree,
+            List<ListedTopic> topics) {
+        try {
+            Files.createDirectories(tree);
+            DeliverableRoot.markTree(tree, workingDirectory, provenance.runId());
+            progress.toWriteTopics(topics.size());
+            try (PluginDrawings drawings = new PluginDrawings(
+                    plugins, false, tree, provenance.runId(), moves, new HashSet<>(), source.language(), progress)) {
+                RecordComposer composer = new RecordComposer(
+                        source, inputs, drawings, provenance.runId(), source.language(), topics.size());
+                for (ListedTopic topic : topics) {
+                    composer.compose(topic);
+                    progress.topicWritten();
+                }
+                drawings.finish(null);
+            }
+            return tree;
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not write the deliverable at " + tree, e);
+        }
+    }
+
     /** How many bytes the drive {@code directory} lies on has free; none where that cannot be told, so no copy is made. */
     static long usableBytesAt(Path directory) {
         try {
@@ -436,6 +519,7 @@ public final class Deliverable {
             ClusterPageCeiling ceiling,
             ClusterPageSizes sizes,
             PluginDrawings drawings,
+            RecordInputs inputs,
             TheCode theCode)
             throws IOException {
         // The three totals, announced before the loop over topics. An entry carries a document exactly
@@ -447,6 +531,8 @@ public final class Deliverable {
 
         boolean writingFinished = source.writingFinished();
         DeliverableLanguage language = source.language();
+        RecordComposer composer =
+                new RecordComposer(source, inputs, drawings, provenance.runId(), language, topics.size());
         Path indexPart = tree.resolve(INDEX_FILE_NAME + PART_SUFFIX);
         try (Writer index = Files.newBufferedWriter(indexPart, StandardCharsets.UTF_8)) {
             IndexPage.open(index, provenance, language);
@@ -559,6 +645,7 @@ public final class Deliverable {
                 // then, and what is held is one topic's (ADR-415 section 2, ADR-409 section 13).
                 writeTopicPage(topicDir, layout, overview, rows, seeAlsoResolver, drawings, language, moves);
                 drawings.topicEnded();
+                composer.compose(topic);
                 progress.topicWritten();
             }
             theCode.drawn(index);

@@ -68,10 +68,11 @@ class TheProfileWindowTest {
 
     /**
      * The sidebar's sections, in their order: the profile's first, then the seven the cockpit had, with the topics'
-     * and then the label commands' after Seed folder (ADR-413 §1, ADR-435 §9).
+     * and then the label commands' after Seed folder, and the outputs' after Code sets (ADR-413 §1, ADR-435 §9,
+     * ADR-434 §11).
      */
     private static final List<String> THE_SECTIONS = List.of("profile", "preflight", "folders", "services",
-            "seed-folder", "topics", "labels", "code-sets", "command-options", "reports");
+            "seed-folder", "topics", "labels", "code-sets", "outputs", "command-options", "reports");
 
     /** The tabs the cockpit holds: none (ADR-432 §8). */
     private static final List<String> THE_TABS = List.of();
@@ -160,9 +161,10 @@ class TheProfileWindowTest {
 
     @Test
     @Story("The profile is edited in a window of its own")
-    @DisplayName("Profile is the first of the sidebar's ten sections, the window holds no tab, and Open profile opens one window apart from the control panel's, brought back rather than opened again")
+    @DisplayName("Profile is the first of the sidebar's eleven sections, the window holds no tab, and Open profile opens one window apart from the control panel's, brought back rather than opened again")
     @Link(name = "ADR-413", url = Adr.THE_LABEL_COMMANDS_ARE_A_LABELS_SECTION_OF_THE_SIDEBAR, type = "adr")
     @Link(name = "ADR-435", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
+    @Link(name = "ADR-434", url = Adr.THE_PROFILES_OUTPUTS_CHOOSE_WHAT_IS_DRAWN_AND_RETRIEVAL_RECORDS_ARE_ONE_JSONL_FILE, type = "adr")
     void theProfileIsTheSidebarsFirstSectionAndOpensOneWindowOfItsOwn(@TempDir Path folder) throws Exception {
         List<String> sections;
         String title;
@@ -204,8 +206,8 @@ class TheProfileWindowTest {
             stillMinimized = HeadlessToolkit.onTheToolkit(opened::isIconified);
         }
 
-        claim("the sidebar holds ten sections, Profile first, then the seven it held before in their order, with Topics"
-                        + " and then Labels after Seed folder",
+        claim("the sidebar holds eleven sections, Profile first, then the seven it held before in their order, with"
+                        + " Topics and then Labels after Seed folder, and Outputs after Code sets",
                 () -> assertThat(sections).containsExactlyElementsOf(THE_SECTIONS));
         claim("the Profile section is titled Profile and holds the Open profile button",
                 () -> {

@@ -216,7 +216,8 @@ final class ProfileRow {
             };
             control = spaced(shown, opens);
         } else if (key == ProfileKey.CODE_SET_FOLDERS
-                || ((key == ProfileKey.SEED_FOLDER || key == ProfileKey.FOLDERS_NOT_WALKED) && opensSection != null)) {
+                || ((key == ProfileKey.SEED_FOLDER || key == ProfileKey.FOLDERS_NOT_WALKED || key == ProfileKey.OUTPUTS)
+                && opensSection != null)) {
             SelectableText.Line shown = SelectableText.line("");
             shown.setId(id);
             Hyperlink opens = new Hyperlink("Edit it in its section");

@@ -140,6 +140,7 @@ final class Cockpit {
     private final PreflightPane preflight;
     private final CodeSetsPane codeSets;
     private final TopicsPane topics;
+    private final OutputsPane outputs;
     private final InclusionsPane inclusions;
     private final ProfileForm profile;
     private final ProfileWindow profileWindow;
@@ -199,6 +200,7 @@ final class Cockpit {
         this.preflight = new PreflightPane(state, folders, property -> fields.get(property).text());
         this.codeSets = new CodeSetsPane(state, dialogs, folders, this::foldersToKeepApart, this::loadFiles);
         this.topics = new TopicsPane(state, folders, this::loadFiles);
+        this.outputs = new OutputsPane(state, folders, this::loadFiles);
         this.inclusions = new InclusionsPane(state, dialogs, folders, this::loadFiles);
         this.profile = new ProfileForm(state, dialogs, folders, this::pointTo, this::openReport, this::loadFiles,
                 profileOpen);
@@ -954,6 +956,7 @@ final class Cockpit {
         section("topics", "Topics", topics.pane());
         section("labels", "Labels", labelsPane());
         section("code-sets", "Code sets", codeSets.pane());
+        section("outputs", "Outputs", outputs.pane());
         section("command-options", "Command options", options.pane());
         section("reports", "Reports", reports.pane());
         sidebar.setExpandedPane(sections.get("folders"));
@@ -1404,6 +1407,7 @@ final class Cockpit {
             case FOLDERS_NOT_WALKED -> "folders";
             case SEED_FOLDER -> "seed-folder";
             case TOPICS -> "topics";
+            case OUTPUTS -> "outputs";
             default -> "code-sets";
         }));
     }
@@ -1541,6 +1545,7 @@ final class Cockpit {
         }
         codeSets.load(stated);
         topics.load(stated);
+        outputs.load(stated);
         inclusions.draw();
         reports.draw();
         where();

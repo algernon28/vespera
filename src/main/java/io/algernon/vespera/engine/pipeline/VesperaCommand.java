@@ -201,6 +201,7 @@ public class VesperaCommand implements Callable<Integer> {
         private EffectiveValuesFile effectiveValues;
         private Presets presets;
         private ModelsAtTheStart modelsAtTheStart;
+        private OutputsAtTheStart outputsAtTheStart;
         private InvocationReport report;
         private String[] arguments = new String[0];
 
@@ -303,6 +304,15 @@ public class VesperaCommand implements Callable<Integer> {
             this.modelsAtTheStart = modelsAtTheStart;
         }
 
+        /**
+         * The reading of {@code outputs} made at the start (ADR-434 §3); a command built without it, as some tests build
+         * it, reads none.
+         */
+        @Autowired(required = false)
+        void refuseOutputsNoDrawingCanDrawWith(OutputsAtTheStart outputsAtTheStart) {
+            this.outputsAtTheStart = outputsAtTheStart;
+        }
+
         /** The report this invocation writes, provided by the application; a command built without one writes none (ADR-362 section 3). */
         @Autowired(required = false)
         void writeTheReportWith(InvocationReport report) {
@@ -379,6 +389,13 @@ public class VesperaCommand implements Callable<Integer> {
                 Optional<String> refusedTopics = new ListedTopicsAtTheStart(profileStore).refusal();
                 if (refusedTopics.isPresent()) {
                     return refuse(refusedTopics.get(), CommandLine.ExitCode.SOFTWARE);
+                }
+            }
+            // Outputs no drawing can draw stop it at the same place, after the refusals above (ADR-434 §3).
+            if (outputsAtTheStart != null) {
+                Optional<String> undrawable = outputsAtTheStart.refusal();
+                if (undrawable.isPresent()) {
+                    return refuse(undrawable.get(), CommandLine.ExitCode.SOFTWARE);
                 }
             }
             if (corpusRootLock != null) {
@@ -458,7 +475,7 @@ public class VesperaCommand implements Callable<Integer> {
                 }
             }
             return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null, null, null, null);
         }
 
         /**

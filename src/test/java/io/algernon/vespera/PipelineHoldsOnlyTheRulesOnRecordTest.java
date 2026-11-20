@@ -274,6 +274,12 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-435 §3: refuses a list of topics holding a blank or a duplicate at the start of vespera run, naming the
             // entry; the list's reading is profile's, and it decides no verdict, cache key, cluster or text.
             "ListedTopicsAtTheStart",
+            // ADR-434 §3: refuses outputs no drawing can draw at the start of vespera run; the key's reading is
+            // deliverable's, and it decides no verdict, cache key, cluster or text.
+            "OutputsAtTheStart",
+            // ADR-434 §4, §7: hands a drawing the scoring run's embedder identity, a writing's vector and a member's
+            // stored passages; it reads what the scoring run stored and decides no verdict, cache key, cluster or text.
+            "RecordInputsOf",
             "StageFiveGates",
             "StageModules",
             "StageProgress",

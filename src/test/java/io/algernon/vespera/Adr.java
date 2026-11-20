@@ -3216,6 +3216,18 @@ public final class Adr {
             + "0433-docling-and-ollama-are-containers-where-vespera-runs-them-and-never-sidecars-and-the-earlier-names-are-still-honoured.md";
 
     /**
+     * ADR-434 -- the profile's {@code outputs} names what stage 6b draws, {@code tree} for the HTML tree and each
+     * plugin by its name, {@code tree, confluence, website} where unset, in no run's identity, {@code vespera run}
+     * stopping at its start on a name that is no output or a plugin drawing from the tree named without it; beside
+     * {@code Drawing} a plugin may read retrieval records, a synthesis doc, a topic overview or a member passage with
+     * its vector under the scoring run's embedder identity and its place, keyed by the SHA-256 of its content key; and
+     * the {@code retrieval} plugin draws them into {@code retrieval/records.jsonl} and sends nothing (amends ADR-333
+     * §1, §2, §4 and §5, ADR-312 §2, ADR-301 §1 and §2, ADR-214 §2 and ADR-435 §9).
+     */
+    public static final String THE_PROFILES_OUTPUTS_CHOOSE_WHAT_IS_DRAWN_AND_RETRIEVAL_RECORDS_ARE_ONE_JSONL_FILE = FILE
+            + "0434-the-profiles-outputs-choose-what-stage-6b-draws-and-a-retrieval-plugin-draws-records-and-vectors-into-a-jsonl-file.md";
+
+    /**
      * ADR-435 -- {@code profile.yaml}'s {@code topics} lists the topics by name, one a line; unset, they are inferred as
      * before; a name's identity is the name made plain, a blank or duplicate entry refusing {@code vespera run} at its
      * start; each name is embedded alone and a survivor placed by ADR-400's rule with the name's vector as the

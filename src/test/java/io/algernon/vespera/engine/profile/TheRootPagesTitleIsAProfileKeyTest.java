@@ -22,8 +22,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The root page's title is a key of the profile (ADR-398 §1): {@code confluenceRootTitle}, the record's last component,
- * a text value shipped unset; loaded and saved, {@code profile.yaml} keeps its value and the provenance the operator
+ * The root page's title is a key of the profile (ADR-398 §1): {@code confluenceRootTitle}, the record's last component
+ * but one, before {@code outputs} (ADR-434 §2), a text value shipped unset; loaded and saved, {@code profile.yaml} keeps its value and the provenance the operator
  * wrote beside it; and, a value of the publish and not of how the deliverable was made, the deliverable's index does
  * not state it, as it states none of the other Confluence values (ADR-359 §7).
  */
@@ -44,14 +44,16 @@ class TheRootPagesTitleIsAProfileKeyTest {
 
     @Test
     @Story("The operator names the root page's title")
-    @DisplayName("The root page's title is the last key of the profile, a text value, unset in a profile drafted afresh")
+    @DisplayName("The root page's title is the profile's last key but one, before the outputs, a text value, unset in a profile drafted afresh")
+    @Link(name = "ADR-434", url = Adr.THE_PROFILES_OUTPUTS_CHOOSE_WHAT_IS_DRAWN_AND_RETRIEVAL_RECORDS_ARE_ONE_JSONL_FILE, type = "adr")
     void itIsTheLastKeyOfTheProfileATextShippedUnset(@TempDir Path workingDirectory) {
         Optional<RecordComponent> component = Arrays.stream(Profile.class.getRecordComponents())
                 .filter(each -> each.getName().equals(THE_KEY)).findFirst();
         Profile drafted = new ProfileStore(workingDirectory).load();
 
-        claim("confluenceRootTitle is the profile's last key, after the email of the Confluence account",
-                () -> assertThat(ProfileKeys.everyKey()).last().isEqualTo(THE_KEY));
+        claim("confluenceRootTitle is the profile's last key but one, after the email of the Confluence account and"
+                        + " before outputs, the last (ADR-434 §2)",
+                () -> assertThat(ProfileKeys.everyKey()).endsWith(THE_KEY, "outputs"));
         claim("its value is text", () -> assertThat(component.map(RecordComponent::getType))
                 .isEqualTo(Optional.of(TextValue.class)));
         claim("and a profile drafted afresh leaves it unanswered: no value, no provenance, no pointer",

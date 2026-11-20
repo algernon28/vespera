@@ -82,8 +82,8 @@ class ProfileKeyTest {
 
     /**
      * Each key's cost, written out by hand from the records' tables: fourteen keys draw the sample again, the seed
-     * folder alone refuses the labels, the four generation keys close no approval, and the page ceiling and where the
-     * models run (ADR-384), which enters no run, cost nothing.
+     * folder alone refuses the labels, the four generation keys close no approval, and the page ceiling, where the
+     * models run (ADR-384), which enters no run, and the outputs drawn (ADR-434) cost nothing.
      */
     private static final Map<String, Cost> COST_OF_EACH_KEY = costOfEachKey();
 
@@ -93,6 +93,7 @@ class ProfileKeyTest {
     @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
     @Link(name = "ADR-398", url = Adr.THE_CONFLUENCE_ROOT_PAGES_TITLE_IS_A_PROFILE_VALUE, type = "adr")
     @Link(name = "ADR-435", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
+    @Link(name = "ADR-434", url = Adr.THE_PROFILES_OUTPUTS_CHOOSE_WHAT_IS_DRAWN_AND_RETRIEVAL_RECORDS_ARE_ONE_JSONL_FILE, type = "adr")
     void aChangeCostsItsRunAndEveryLaterOne() {
         Map<String, Cost> costs = new LinkedHashMap<>();
         for (ProfileKey key : ProfileKey.values()) {
@@ -107,7 +108,7 @@ class ProfileKeyTest {
         claim("a change of each key costs its earliest run and every later one; it closes the approval only where the"
                         + " arrangement is among them, refuses the labels only for the seed folder, and draws the"
                         + " sample again for the fifteen whose runs include embedding scoring; the page ceiling, where the"
-                        + " models run and the six values of a publish cost no run, close no approval, refuse no labels"
+                        + " models run, the six values of a publish and the outputs drawn cost no run, close no approval, refuse no labels"
                         + " and draw no sample",
                 () -> assertThat(costs).containsExactlyEntriesOf(COST_OF_EACH_KEY));
     }
@@ -140,6 +141,8 @@ class ProfileKeyTest {
                 "confluenceFolderTitle", "confluenceEmail", "confluenceRootTitle")) {
             costs.put(publishes, new Cost(List.of(), false, false, false));
         }
+        // ADR-434 section 13: which outputs are drawn enters no run, so a change costs nothing.
+        costs.put("outputs", new Cost(List.of(), false, false, false));
         return costs;
     }
 }

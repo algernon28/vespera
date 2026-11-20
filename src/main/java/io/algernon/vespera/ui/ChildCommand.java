@@ -64,6 +64,7 @@ public final class ChildCommand {
     private static Map<String, String> destinationLists() {
         Map<String, String> lists = new LinkedHashMap<>();
         lists.put("confluence", "pages.json");
+        lists.put("retrieval", "records.jsonl");
         lists.put("website", "files.json");
         return Collections.unmodifiableMap(lists);
     }

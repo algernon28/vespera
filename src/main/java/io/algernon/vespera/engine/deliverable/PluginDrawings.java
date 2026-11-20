@@ -46,6 +46,8 @@ final class PluginDrawings implements AutoCloseable {
         final Plugin plugin;
         final Path folder;
         Drawing drawing;
+        RetrievalRecords records;
+        boolean takesPassages;
         boolean active = true;
         boolean closed;
 
@@ -62,11 +64,13 @@ final class PluginDrawings implements AutoCloseable {
     }
 
     /**
-     * Opens the drawing of each of {@code plugins}, in the order of their names, each in its folder at the tree's root,
-     * which it adds to {@code written}.
+     * Opens the drawing of each of {@code plugins} that draws from the tree, where {@code drawsTheTree}, and the
+     * reading of the retrieval records of each that reads them, in the order of their names, each in its folder at the
+     * tree's root, which it adds to {@code written} (ADR-434 §4).
      */
     PluginDrawings(
             List<Plugin> plugins,
+            boolean drawsTheTree,
             Path tree,
             String generationRun,
             ReplacingMove moves,
@@ -83,8 +87,15 @@ final class PluginDrawings implements AutoCloseable {
                     Files.createDirectories(slot.folder);
                     written.add(plugin.name());
                     writeState(slot, DRAWING);
-                    slot.drawing = plugin.drawing(
-                            new Plugin.DrawingContext(tree, generationRun, moves, written, language));
+                    Plugin.DrawingContext context =
+                            new Plugin.DrawingContext(tree, generationRun, moves, written, language);
+                    if (drawsTheTree && plugin.drawsFromTheTree()) {
+                        slot.drawing = plugin.drawing(context);
+                    }
+                    slot.records = plugin.records(context).orElse(null);
+                    if (slot.records != null) {
+                        slot.takesPassages = slot.records.takesMemberPassages();
+                    }
                 } catch (IOException | RuntimeException e) {
                     fail(slot, e);
                 }
@@ -103,14 +114,14 @@ final class PluginDrawings implements AutoCloseable {
     void topicStarted(
             ListedTopic topic, int topicCount, List<ListedSubtopic> subtopics, ListedOverview overview) {
         for (Slot slot : slots) {
-            call(slot, () -> slot.drawing.topicStarted(topic, topicCount, subtopics, overview));
+            callDrawing(slot, () -> slot.drawing.topicStarted(topic, topicCount, subtopics, overview));
         }
     }
 
     /** One page of a topic's see-also lines, handed to every plugin still drawing. */
     void seeAlso(ListedTopic topic, List<SeeAlsoLine> lines) {
         for (Slot slot : slots) {
-            call(slot, () -> slot.drawing.seeAlso(topic, lines));
+            callDrawing(slot, () -> slot.drawing.seeAlso(topic, lines));
         }
     }
 
@@ -120,7 +131,7 @@ final class PluginDrawings implements AutoCloseable {
             Copies copies) {
         Fanned fanned = new Fanned();
         for (Slot slot : slots) {
-            if (!slot.active) {
+            if (!slot.active || slot.drawing == null) {
                 continue;
             }
             Entries[] own = new Entries[1];
@@ -146,21 +157,29 @@ final class PluginDrawings implements AutoCloseable {
         for (int at = 0; at < fanned.slots.size(); at++) {
             Slot slot = fanned.slots.get(at);
             Entries own = fanned.own.get(at);
-            call(slot, () -> slot.drawing.clusterDrawn(
+            callDrawing(slot, () -> slot.drawing.clusterDrawn(
                     topic, recorded, doc, why, entryCount, breaks, own, writingFinished));
         }
     }
 
     void topicEnded() {
         for (Slot slot : slots) {
-            call(slot, () -> slot.drawing.topicEnded());
+            callDrawing(slot, () -> slot.drawing.topicEnded());
         }
     }
 
-    /** Finishes each drawing once {@code documents.csv} stands, then closes it; a drawing that gets so far is drawn. */
+    /**
+     * Finishes each drawing once {@code documents.csv} stands, {@code manifest} being null where no tree is drawn, and
+     * each reading of the records, then closes them; a plugin that gets so far is drawn.
+     */
     void finish(Path manifest) {
         for (Slot slot : slots) {
-            call(slot, () -> slot.drawing.finish(manifest));
+            callDrawing(slot, () -> slot.drawing.finish(manifest));
+            call(slot, () -> {
+                if (slot.records != null) {
+                    slot.records.finish();
+                }
+            });
         }
         for (Slot slot : slots) {
             if (!slot.active) {
@@ -168,7 +187,12 @@ final class PluginDrawings implements AutoCloseable {
             }
             slot.closed = true;
             try {
-                slot.drawing.close();
+                if (slot.drawing != null) {
+                    slot.drawing.close();
+                }
+                if (slot.records != null) {
+                    slot.records.close();
+                }
                 writeStateOrFail(slot, DRAWN);
             } catch (IOException | RuntimeException e) {
                 fail(slot, e);
@@ -181,6 +205,41 @@ final class PluginDrawings implements AutoCloseable {
     public void close() {
         for (Slot slot : slots) {
             closeQuietly(slot);
+        }
+    }
+
+    /** Whether some plugin still active reads retrieval records. */
+    boolean readsRecords() {
+        return slots.stream().anyMatch(slot -> slot.active && slot.records != null);
+    }
+
+    /** Whether some plugin still active reading retrieval records takes member passages. */
+    boolean takesMemberPassages() {
+        return slots.stream().anyMatch(slot -> slot.active && slot.records != null && slot.takesPassages);
+    }
+
+    /** Hands {@code record} to each plugin still active that reads it, in the order of their names. */
+    void take(RetrievalRecord record) {
+        boolean passage = record.kind() == RetrievalRecord.Kind.MEMBER_PASSAGE;
+        for (Slot slot : slots) {
+            if (slot.records != null && (!passage || slot.takesPassages)) {
+                call(slot, () -> slot.records.take(record));
+            }
+        }
+    }
+
+    /** Stops each plugin still active that reads retrieval records, composing them having failed. */
+    void recordsFailed(Exception thrown) {
+        for (Slot slot : slots) {
+            if (slot.records != null) {
+                fail(slot, thrown);
+            }
+        }
+    }
+
+    private void callDrawing(Slot slot, DrawingCall call) {
+        if (slot.drawing != null) {
+            call(slot, call);
         }
     }
 
@@ -225,14 +284,23 @@ final class PluginDrawings implements AutoCloseable {
     }
 
     private static void closeQuietly(Slot slot) {
-        if (slot.closed || slot.drawing == null) {
+        if (slot.closed) {
             return;
         }
         slot.closed = true;
-        try {
-            slot.drawing.close();
-        } catch (IOException | RuntimeException swallowed) {
-            // What closing a stopped drawing throws is not told (ADR-333 §11).
+        if (slot.drawing != null) {
+            try {
+                slot.drawing.close();
+            } catch (IOException | RuntimeException swallowed) {
+                // What closing a stopped drawing throws is not told (ADR-333 §11).
+            }
+        }
+        if (slot.records != null) {
+            try {
+                slot.records.close();
+            } catch (IOException | RuntimeException swallowed) {
+                // As above.
+            }
         }
     }
 

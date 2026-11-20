@@ -4,6 +4,7 @@ import io.algernon.vespera.engine.ledger.ReplacingMove;
 import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -30,8 +31,21 @@ public interface Plugin {
     /** The file of its rendering, in that folder, a publish finds the rendering by: pages.json, files.json. */
     String listName();
 
-    /** Opens this plugin's drawing of the tree being drawn. */
+    /**
+     * Whether this plugin draws from the HTML tree, so that outputs naming it must name {@code tree} (ADR-434 §1): true
+     * unless it says otherwise.
+     */
+    default boolean drawsFromTheTree() {
+        return true;
+    }
+
+    /** Opens this plugin's drawing of the tree being drawn; never called on a plugin that draws from no tree. */
     Drawing drawing(DrawingContext context) throws IOException;
+
+    /** Opens this plugin's reading of the retrieval records, empty where it reads none (ADR-434 §4). */
+    default Optional<RetrievalRecords> records(DrawingContext context) throws IOException {
+        return Optional.empty();
+    }
 
     /** Delivers the rendering in {@code rendering} of {@code generationRun} to this plugin's destination. */
     Delivery deliver(Path rendering, String generationRun, Path workingDirectory, Consumer<String> out);

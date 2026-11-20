@@ -76,8 +76,10 @@ public class ChunkEmbedder {
 
     /**
      * Embeds {@code text} alone under {@code modelName}, exactly as written and as a chunk is sent, with no instruction,
-     * prefix or template, and stores nothing: a listed topic's name is one call held for the step and cached nowhere
-     * (ADR-435 section 5). A call the embedder does not answer reaches the caller.
+     * prefix or template and {@code truncate: false}, split and averaged as ADR-144 has it where it is refused as too
+     * long, and stores nothing: a listed topic's name is one call held for the step and cached nowhere (ADR-435 section
+     * 5), and a synthesis doc or a topic overview is embedded whole for its retrieval record (ADR-434 §7). A call the
+     * embedder does not answer reaches the caller.
      */
     public float[] embedAlone(String text, String modelName) {
         return embedRejectingOverflow(text, modelName);
