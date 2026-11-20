@@ -24,7 +24,7 @@ import java.util.stream.Stream;
 
 /**
  * Holds the machine for the length of the process, so that one Vespera runs on a machine at a time and none stops the
- * sidecars another is using (ADR-395).
+ * containers another is using (ADR-395).
  *
  * <p>The same shape as {@link CorpusRootLock}: an operating-system lock on one byte far past the end of {@code
  * machine.lock}, so the holder's line stays readable while it is held; released by the operating system however the

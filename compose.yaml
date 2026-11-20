@@ -60,7 +60,7 @@ services:
       - ALL
     security_opt:
       - 'no-new-privileges:true'
-    # This is the sidecar measured to crash (ADR-164): after a segmentation fault it answers /health
+    # This is the container measured to crash (ADR-164): after a segmentation fault it answers /health
     # again about 17 seconds later, with no operator having to notice and run `docker start`.
     restart: unless-stopped
     # docling-serve answers 504 once a conversion has waited this long, queue time included, and

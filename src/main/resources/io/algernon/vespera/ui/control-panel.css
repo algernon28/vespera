@@ -578,6 +578,11 @@
     -fx-cursor: v-resize;
 }
 
+/* A line of the topics the jar would refuse, drawn in the error colour (ADR-435 section 9). */
+.refused .selectable-text {
+    -fx-text-fill: -vespera-bad;
+}
+
 /*
  * The check in the header (ADR-430 section 2): five rows in two columns, in a smaller font than the titles, no taller than
  * they are. Each name and each mark stands at a width of its own, so that a mark that grows to KO and its percent moves

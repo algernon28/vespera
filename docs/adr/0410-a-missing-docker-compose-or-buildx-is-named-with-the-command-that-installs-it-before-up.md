@@ -147,12 +147,12 @@ On macOS, with Compose missing:
 
 Amended:
 
-- **`pipeline.SidecarStartTest.theEngineIsStartedByItsSystemsOneCommandThenUpRecreatesNothing`**: on each system, the check for Compose and the check for buildx come between the wait's last engine check and `up`, inside the distribution on Windows, each given 30 s.
-- **`pipeline.SidecarStartTest.theControlPanelsStartStartsTheEngineAloneAndAsksNoSidecar`**: the two checks follow the wait's checks, and no `up`.
+- **`pipeline.ContainerStartTest.theEngineIsStartedByItsSystemsOneCommandThenUpRecreatesNothing` (named for the container by ADR-433, #891)**: on each system, the check for Compose and the check for buildx come between the wait's last engine check and `up`, inside the distribution on Windows, each given 30 s.
+- **`pipeline.ContainerStartTest.theControlPanelsStartStartsTheEngineAloneAndAsksNoContainer` (named for the container by ADR-433, #891)**: the two checks follow the wait's checks, and no `up`.
 - **`ScriptedDocker`** gains the two checks, `withoutCompose` and `withoutBuildx`.
 - **`PipelineHoldsOnlyTheRulesOnRecordTest`** lists the new exception.
 
-`pipeline.DockerShutDownTest`'s claims, each listing a stop's commands whole, hold that neither stop runs a check. `SidecarStartTest.bothAnsweringRunsNothing` and `dockerNotInstalledNamesTheEngineChecksProgramOnEachSystem` hold that sidecars answering, or no `docker`, run neither.
+`pipeline.DockerShutDownTest`'s claims, each listing a stop's commands whole, hold that neither stop runs a check. `ContainerStartTest.bothAnsweringRunsNothing` (named for the container by ADR-433, #891) and `dockerNotInstalledNamesTheEngineChecksProgramOnEachSystem` hold that sidecars answering, or no `docker`, run neither.
 
 What no unit test shows is what a `docker` client without Compose answers, which A stands for.
 

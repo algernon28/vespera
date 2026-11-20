@@ -1,5 +1,7 @@
 # ADR-413 — Save my labels and Auto Label are a Labels section of the sidebar, and the window calls no label an answer
 
+> **Partly amended — see [ADR-435](0435-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §1: the sidebar is ten sections, `topics`, titled Topics, standing after `seed-folder` and before `labels`. The rest of this record stands.
+
 > **Partly amended — see [ADR-424](0424-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md).** Of *What this does not decide*: `vespera label`'s usage, the jar's lines, the invocation report, the README's sections on the command and the label file, `CONTEXT.md`'s Relevance label and the window's *question* call no label an answer and no document to label a question; and the README's section on the control panel names Auto Label where it still named Let the local model answer.
 
 > **Partly amended — see [ADR-430](0430-the-control-panel-checks-docker-the-containers-and-the-models-and-starts-nothing-until-start-docker-is-pressed.md).** Of §1: Save my labels and Auto Label each stand on a wrapper carrying its caption, shown on mouse over; `label-words` and `label-auto-words` are no longer texts of the section. §3's words are the captions, unchanged. The rest of this record stands.

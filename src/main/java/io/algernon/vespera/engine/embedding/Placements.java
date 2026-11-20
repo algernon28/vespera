@@ -53,8 +53,21 @@ public class Placements {
         }
     }
 
+    /**
+     * Records the score of {@code occurrenceId} at its winning listed topic under {@code runId}, beside its {@code
+     * winning_topic} row and under the same key (ADR-435 sections 4 and 5).
+     */
+    public void recordScore(OccurrenceId occurrenceId, RunId runId, double score) {
+        jdbcTemplate.update(
+                "INSERT INTO winning_topic_score (occurrence_id, run_id, score) VALUES (?, ?, ?)",
+                occurrenceId.value(),
+                runId.value(),
+                score);
+    }
+
     /** Deletes every placement recorded under {@code runId}, with the scores of the same step. */
     public void discardForRun(RunId runId) {
+        jdbcTemplate.update("DELETE FROM winning_topic_score WHERE run_id = ?", runId.value());
         jdbcTemplate.update("DELETE FROM see_also WHERE run_id = ?", runId.value());
         jdbcTemplate.update("DELETE FROM winning_topic WHERE run_id = ?", runId.value());
     }

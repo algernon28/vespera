@@ -58,7 +58,7 @@ public class WritingEmbedder {
      * vector's own length must match: an {@link IllegalStateException} where it does not.
      */
     public float[] embedAndKeep(String writing, String modelName, String embedderIdentity) {
-        float[] vector = chunkEmbedder.embedWhole(writing, modelName);
+        float[] vector = chunkEmbedder.embedAlone(writing, modelName);
         java.util.regex.Matcher dimension = DIMENSION.matcher(embedderIdentity);
         if (dimension.find() && Integer.parseInt(dimension.group(1)) != vector.length) {
             throw new IllegalStateException("a writing embedded to " + vector.length + " components, and the scoring"

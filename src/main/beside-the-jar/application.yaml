@@ -18,13 +18,13 @@ vespera:
   # The folder the deliverable is drawn at, with index.html at its top (ADR-276); empty draws it in the
   # working directory's deliverable folder. Set per machine, as VESPERA_DELIVERABLE_ROOT.
   deliverable-root:
-  sidecars:
+  containers:
     # The WSL 2 distribution Docker Engine runs in, read on Windows alone (ADR-390 section 1): every docker command is
     # run inside it, as `wsl -d <distribution> -u root --exec docker`. Empty passes no -d and uses WSL's default
-    # distribution. Set it per machine, as VESPERA_SIDECARS_WSL_DISTRIBUTION. An application property and no
+    # distribution. Set it per machine, as VESPERA_CONTAINERS_WSL_DISTRIBUTION. An application property and no
     # profile value: it says where Docker runs on one machine, not what has been judged about a corpus.
     wsl-distribution: ""
-    # How long any wait for the Docker engine or a sidecar lasts: after the engine is started, after `up`, at
+    # How long any wait for the Docker engine or a container lasts: after the engine is started, after `up`, at
     # stage 2's start for a converter that gives no answer yet, and after a dropped connection (ADR-323 §7,
     # amending ADR-175 §2). 180 seconds covers the restarts measured at 6 to 9 seconds and a first start that loads
     # its models.
@@ -41,24 +41,24 @@ vespera:
   # How often report.json and report.html are rewritten in the working directory while an invocation runs (ADR-265, ADR-362).
   progress-interval: 5s
   docling:
-    # docling-serve is a managed sidecar (ADR-011), same as Ollama, but unlike it
+    # docling-serve is a managed container (ADR-011), same as Ollama, but unlike it
     # carries no Spring Boot auto-configuration or ServiceConnection support -- there is no
     # published connection-details factory for it to derive a URL from a running container the way
     # Spring AI's starter does for Ollama. compose.yaml pins its host port to match, so this
-    # default is correct for `vespera run` against the sidecar compose.yaml declares; a test
+    # default is correct for `vespera run` against the container compose.yaml declares; a test
     # overrides it from the Testcontainers-mapped port instead (see TestcontainersConfiguration).
     base-url: http://localhost:5001
-    # The image compose.yaml runs the sidecar from, which the extractor identity carries (ADR-147):
+    # The image compose.yaml runs the container from, which the extractor identity carries (ADR-147):
     # two images reporting the same versions were measured to convert the same PDF differently. The
     # image reports its own name in /version, and a step that would record conversions under this one
-    # stops when the sidecar runs another (ADR-179). The tag names the PDF parser pinned in place of the
+    # stops when docling-serve runs another (ADR-179). The tag names the PDF parser pinned in place of the
     # base's own, docling-parse 7.17.0, because that changes conversions too (ADR-163), and the revision
     # of Vespera's own layers, -r2. Keep in step with compose.yaml and TestcontainersConfiguration.
     image: vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0-r2
     # The OCR preset every conversion names, never docling-serve's `auto`, which resolves to whichever engine's models
     # are cached on the machine and is reported in no response (ADR-090, ADR-330). It decides which engine reads the
     # pictures of a document, and it is the preset in the extractor identity (ocr_preset=...): another one is another
-    # extractor, so it enters the extraction run and every run after it, and every conversion is asked of the sidecar
+    # extractor, so it enters the extraction run and every run after it, and every conversion is asked of docling-serve
     # again. A name of letters, digits, '-', '_' and '.', and never auto; `vespera run` refuses anything else.
     ocr-preset: rapidocr
     # How many timeouts in a row make the converter, and not the document, the fault: below it a timeout is the

@@ -353,7 +353,8 @@ final class ConfluencePages implements Drawing {
                         .append(drawn.clusters).append("</td><td>").append(drawn.documents).append("</td></tr>\n");
             }
             body.append("</tbody></table>\n");
-        } else {
+        } else if (topicDrawn.clusterCount() > 0) {
+            // A listed topic no document is placed under has no table (ADR-435 section 8).
             body.append(clusterTable(FixedWords.topicTableHeadRow(language), topicPageRows));
         }
         if (seeAlsoItems.length() > 0) {
@@ -368,7 +369,7 @@ final class ConfluencePages implements Drawing {
                 root.append("<h3>").append(link(drawn.title, drawn.subtopic.name())).append("</h3>\n")
                         .append(clusterTable(FixedWords.clusterTableHeadRow(language), drawn.indexRows));
             }
-        } else {
+        } else if (topicDrawn.clusterCount() > 0) {
             root.append(clusterTable(FixedWords.clusterTableHeadRow(language), topicIndexRows));
         }
         listed(new ListedPage(topicKey, rootKey(), topicTitle, topicFolder + "/" + BODY_NAME, topicDigest, List.of()));
@@ -430,6 +431,7 @@ final class ConfluencePages implements Drawing {
      */
     @Override
     public void finish(Path manifest) throws IOException {
+        root.append("<p>").append(Html.escape(FixedWords.madeWith(language))).append("</p>\n");
         root.close();
         rest.close();
         Path rootPart = directory.resolve(BODY_NAME + Deliverable.PART_SUFFIX);

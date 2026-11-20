@@ -68,6 +68,15 @@ class TheVocabularyNamesTopicsAndRetiresTheSeedPartitionTest {
     /** The retired term, which its plural "seed partitions" also holds. */
     private static final String THE_RETIRED_TERM = "seed partition";
 
+    /** How the topic's definition says a topic may be the operator's (ADR-435 section 13). */
+    private static final String LISTED_IN_THE_PROFILE = "listed by the operator in the profile's `topics`, by name";
+
+    /** The record that lets the operator list the topics. */
+    private static final String THE_RECORD_LETTING_IT_BE_LISTED = "ADR-435";
+
+    /** What the definition said before ADR-435, which no longer holds. */
+    private static final String NEVER_SET_BY_THE_OPERATOR = "never set by the operator";
+
     /** Each entry's name, in the order the vocabulary gives them, to the lines beneath its heading. */
     private static final Map<String, List<String>> ENTRIES = entries();
 
@@ -149,5 +158,20 @@ class TheVocabularyNamesTopicsAndRetiresTheSeedPartitionTest {
                         + " names",
                 () -> assertThat(topicsAvoidLines).singleElement().satisfies(line -> assertThat(line)
                         .contains(THE_RETIRED_TERM, THE_RECORD_RETIRING_ITS_NAMES)));
+    }
+
+    @Test
+    @Link(name = "ADR-435", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
+    @Issue("898")
+    @Story("A topic may be listed by the operator")
+    @DisplayName("The glossary's topic may be listed by the operator in the profile, by name, and no longer says it is never set by the operator")
+    void aTopicMayBeListedInTheProfile() {
+        String definition = definitionOf(ENTRIES.get(TOPIC));
+
+        claim("The topic's definition says a topic is listed by the operator in the profile's topics, by name, citing the"
+                        + " record that lets it be",
+                () -> assertThat(definition).contains(LISTED_IN_THE_PROFILE, THE_RECORD_LETTING_IT_BE_LISTED));
+        claim("and it no longer says a topic is never set by the operator",
+                () -> assertThat(definition).doesNotContain(NEVER_SET_BY_THE_OPERATOR));
     }
 }

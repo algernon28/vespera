@@ -136,6 +136,19 @@ public class Runs {
     }
 
     /**
+     * Records that {@code releaseVersion} minted or continued {@code runId} (ADR-431 §11).
+     *
+     * <p>{@code OR IGNORE}: a run keeps each release that worked under it once. Written after the id
+     * is derived and never read to derive one.
+     */
+    public void recordRelease(RunId runId, String releaseVersion) {
+        jdbcTemplate.update(
+                "INSERT OR IGNORE INTO run_release (run_id, release_version) VALUES (?, ?)",
+                runId.value(),
+                releaseVersion);
+    }
+
+    /**
      * Whether {@code step}'s work under {@code runId} is entirely recorded.
      *
      * <p>False for a step that has never run under this run, failed partway through, or has not been

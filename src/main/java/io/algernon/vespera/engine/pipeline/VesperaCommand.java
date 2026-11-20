@@ -63,6 +63,7 @@ import picocli.CommandLine.Spec;
 @Command(
         name = "vespera",
         mixinStandardHelpOptions = true,
+        versionProvider = VesperaCommand.ReleaseVersionProvider.class,
         subcommands = {
             VesperaCommand.Run.class,
             VesperaCommand.Label.class,
@@ -71,6 +72,14 @@ import picocli.CommandLine.Spec;
         },
         description = "Curates a local archive into a publication-ready knowledge base.")
 public class VesperaCommand implements Callable<Integer> {
+
+    /** What {@code --version} prints: one line, {@code Vespera} and the release version (ADR-431 §5). */
+    static final class ReleaseVersionProvider implements picocli.CommandLine.IVersionProvider {
+        @Override
+        public String[] getVersion() {
+            return new String[] {"Vespera " + io.algernon.vespera.engine.ledger.ReleaseVersion.ofThisJar().value()};
+        }
+    }
 
     private final Run run;
     private final Label label;
@@ -188,7 +197,7 @@ public class VesperaCommand implements Callable<Integer> {
         private final String deliverableRoot;
         private final ProfileStore profileStore;
         private CorpusRootLock corpusRootLock;
-        private SidecarStarter sidecarStarter;
+        private ContainerStarter containerStarter;
         private EffectiveValuesFile effectiveValues;
         private Presets presets;
         private ModelsAtTheStart modelsAtTheStart;
@@ -260,12 +269,12 @@ public class VesperaCommand implements Callable<Integer> {
         }
 
         /**
-         * The starter of the sidecars, provided only by {@code VesperaApplication.main} (ADR-323 §1): a context built
+         * The starter of the containers, provided only by {@code VesperaApplication.main} (ADR-323 §1): a context built
          * by Spring's test support has none, and this is then not called.
          */
         @Autowired(required = false)
-        void startSidecarsWith(SidecarStarter sidecarStarter) {
-            this.sidecarStarter = sidecarStarter;
+        void startContainersWith(ContainerStarter containerStarter) {
+            this.containerStarter = containerStarter;
         }
 
         /**
@@ -357,7 +366,7 @@ public class VesperaCommand implements Callable<Integer> {
                 return refuse(misplacedDeliverableRoot.get(), CommandLine.ExitCode.SOFTWARE);
             }
             // A preset no run can be made under, named by configuration, in one line and no stack trace: before the
-            // corpus-root lock is taken, the sidecars started and the job started, so that nothing is walked, no run is
+            // corpus-root lock is taken, the containers started and the job started, so that nothing is walked, no run is
             // minted and the file of ADR-330 §1 is not written (ADR-330 §9). vespera label and vespera publish, which
             // read no preset, are not stopped by one.
             if (presets != null) {
@@ -367,14 +376,22 @@ public class VesperaCommand implements Callable<Integer> {
                 }
             }
             // A profile whose modelsRunOn is not local stops the invocation here, right after the presets' refusal and
-            // before the corpus-root lock, the sidecars and the job: nothing is asked of Ollama (ADR-384 §2).
+            // before the corpus-root lock, the containers and the job: nothing is asked of Ollama (ADR-384 §2).
             if (modelsAtTheStart != null) {
                 Optional<String> notLocal = modelsAtTheStart.refusal();
                 if (notLocal.isPresent()) {
                     return refuse(notLocal.get(), CommandLine.ExitCode.SOFTWARE);
                 }
             }
-            // Outputs no drawing can draw stop it at the same place, after that refusal (ADR-434 §3).
+            // A list of topics holding a blank entry or a duplicate stops it here too, right after that check and before
+            // the corpus root is locked: nothing is walked and no run is minted (ADR-435 section 3).
+            if (profileStore != null) {
+                Optional<String> refusedTopics = new ListedTopicsAtTheStart(profileStore).refusal();
+                if (refusedTopics.isPresent()) {
+                    return refuse(refusedTopics.get(), CommandLine.ExitCode.SOFTWARE);
+                }
+            }
+            // Outputs no drawing can draw stop it at the same place, after the refusals above (ADR-434 §3).
             if (outputsAtTheStart != null) {
                 Optional<String> undrawable = outputsAtTheStart.refusal();
                 if (undrawable.isPresent()) {
@@ -389,10 +406,10 @@ public class VesperaCommand implements Callable<Integer> {
                 }
             }
             // After the root is taken and before the job starts: a run refused for its root starts nothing (ADR-323 §1).
-            if (sidecarStarter != null) {
+            if (containerStarter != null) {
                 try {
-                    sidecarStarter.ensureRunning();
-                } catch (SidecarStartRefusedException refused) {
+                    containerStarter.ensureRunning();
+                } catch (ContainerStartRefusedException refused) {
                     return refuse(refused.getMessage(), CommandLine.ExitCode.SOFTWARE);
                 }
             }
@@ -458,7 +475,7 @@ public class VesperaCommand implements Callable<Integer> {
                 }
             }
             return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null, null, null, null);
         }
 
         /**
@@ -535,7 +552,7 @@ public class VesperaCommand implements Callable<Integer> {
         private final NextAction nextAction;
         private final Path workingDirectoryInUse;
         private final ObjectProvider<AutoLabelling> autoLabelling;
-        private SidecarStarter sidecarStarter;
+        private ContainerStarter containerStarter;
         private EffectiveValuesFile effectiveValues;
         private ModelsAtTheStart modelsAtTheStart;
         private InvocationReport report;
@@ -580,10 +597,10 @@ public class VesperaCommand implements Callable<Integer> {
             this.autoLabelling = autoLabelling;
         }
 
-        /** As {@link Run#startSidecarsWith}: {@code --auto} asks Ollama's model, so it asks the starter first (ADR-323 §1). */
+        /** As {@link Run#startContainersWith}: {@code --auto} asks Ollama's model, so it asks the starter first (ADR-323 §1). */
         @Autowired(required = false)
-        void startSidecarsWith(SidecarStarter sidecarStarter) {
-            this.sidecarStarter = sidecarStarter;
+        void startContainersWith(ContainerStarter containerStarter) {
+            this.containerStarter = containerStarter;
         }
 
         /** As {@link Run#refuseModelsNotLocalWith}: {@code --auto} reads {@code modelsRunOn} first (ADR-384 §3). */
@@ -692,7 +709,7 @@ public class VesperaCommand implements Callable<Integer> {
 
         private int recordTheAnswers() {
             if (auto) {
-                // Before the sidecars and before the labeller is asked anything: a profile saying cloud ends it here
+                // Before the containers and before the labeller is asked anything: a profile saying cloud ends it here
                 // (ADR-384 §3).
                 if (modelsAtTheStart != null) {
                     Optional<String> notLocal = modelsAtTheStart.refusalOfLabelAuto();
@@ -701,10 +718,10 @@ public class VesperaCommand implements Callable<Integer> {
                         return refuse(notLocal.get(), CommandLine.ExitCode.SOFTWARE);
                     }
                 }
-                if (sidecarStarter != null) {
+                if (containerStarter != null) {
                     try {
-                        sidecarStarter.ensureRunning();
-                    } catch (SidecarStartRefusedException refused) {
+                        containerStarter.ensureRunning();
+                    } catch (ContainerStartRefusedException refused) {
                         endedAs = "refused";
                         return refuse(refused.getMessage(), CommandLine.ExitCode.SOFTWARE);
                     }

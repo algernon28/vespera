@@ -8,7 +8,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.dataformat.yaml.YAMLMapper;
 
 /**
- * The compose files Vespera starts the sidecars from, and the Docling image each builds (ADR-323 §2, §4).
+ * The compose files Vespera starts the containers from, and the Docling image each builds (ADR-323 §2, §4).
  *
  * <p>The files lie beside the jar (ADR-397 §6), where the build context {@code compose.yaml} names relative to itself
  * resolves. They are read where they lie, and {@link #close} deletes none of them.
@@ -66,7 +66,7 @@ final class ComposeFiles implements AutoCloseable {
         } catch (NoSuchFileException notThere) {
             throw new ComposeFileUnreadableException(composeFile, "it is not there", notThere);
         } catch (IOException | RuntimeException unreadable) {
-            throw new ComposeFileUnreadableException(composeFile, SidecarLockUnavailableException.reasonOf(unreadable),
+            throw new ComposeFileUnreadableException(composeFile, ContainerLockUnavailableException.reasonOf(unreadable),
                     unreadable);
         }
         JsonNode tree;
@@ -74,7 +74,7 @@ final class ComposeFiles implements AutoCloseable {
             tree = YAML.readTree(text);
         } catch (RuntimeException doesNotLoad) {
             throw new ComposeFileUnreadableException(composeFile,
-                    "it does not load as YAML: " + SidecarLockUnavailableException.reasonOf(doesNotLoad), doesNotLoad);
+                    "it does not load as YAML: " + ContainerLockUnavailableException.reasonOf(doesNotLoad), doesNotLoad);
         }
         JsonNode image = tree.path("services").path("docling-serve").path("image");
         if (!image.isString()) {

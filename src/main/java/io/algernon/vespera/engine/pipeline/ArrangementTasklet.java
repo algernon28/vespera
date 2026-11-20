@@ -210,6 +210,12 @@ class ArrangementTasklet implements Tasklet {
         }
 
         RunId scoring = stageRuns.embeddingScoring();
+        // The topics the profile listed when the scoring run was minted, in the list's order, none where they are
+        // inferred (ADR-435 section 4): their places are the topics' places on the page and in the tree.
+        List<Topics.ListedName> listedNames = TimedStatement.of(
+                STAGE, "reading", "read", "the listed topics", () -> topicLedger.listedUnder(scoring));
+        Map<TopicKey, Integer> listedPlaces = new LinkedHashMap<>();
+        listedNames.forEach(listed -> listedPlaces.put(keyOf(listed.key()), listed.place()));
         // The topics that hold a clustered survivor, and how many documents sit under each: a count a topic, so that
         // the topics are ordered without reading a document of any of them (ADR-223 section 3, ADR-409 section 13).
         // Made on both branches, before the step knows which it is on.
@@ -260,14 +266,22 @@ class ArrangementTasklet implements Tasklet {
                     List<TopicKey> recordedTopics = TimedStatement.of(
                             STAGE, "reading", "read", "the topics of the arrangement",
                             () -> clusters.keysOf(arrangement));
-                    writeTopicsAnalysisReport(scoring, arrangement, preamble, memberCounts);
-                    writePage(scoring, arrangement, recordedTopics, scoresRead, gathered, false);
+                    writeTopicsAnalysisReport(scoring, arrangement, preamble, memberCounts, listedNames);
+                    writePage(
+                            scoring,
+                            arrangement,
+                            inTheListsOrder(recordedTopics, listedPlaces),
+                            listedPlaces,
+                            scoresRead,
+                            gathered,
+                            false);
                 },
                 () -> clusters.discardForRun(arrangement),
                 () -> {
                     // The topics are named first, before anything is ordered, labelled or recorded (ADR-407 section 1);
                     // a name is recorded as soon as it is given, and one the run already holds is read back.
-                    Optional<String> stopped = nameTheTopics(scoring, arrangement, preamble, namingModel, language);
+                    Optional<String> stopped =
+                            nameTheTopics(scoring, arrangement, preamble, namingModel, language, listedNames);
                     if (stopped.isPresent()) {
                         // The step fails without throwing, so that the names given before it are kept (ADR-409
                         // section 6): an exception would roll back the step's transaction, the run among it.
@@ -277,9 +291,12 @@ class ArrangementTasklet implements Tasklet {
                         contribution.setExitStatus(ExitStatus.FAILED.addExitDescription(stopped.get()));
                         return false;
                     }
-                    List<TopicKey> inOrder = Arrangement.topicsInOrder(memberCounts);
-                    writeTopicsAnalysisReport(scoring, arrangement, preamble, memberCounts);
-                    int clustersArranged = writePage(scoring, arrangement, inOrder, scoresRead, gathered, true);
+                    List<TopicKey> inOrder = listedPlaces.isEmpty()
+                            ? Arrangement.topicsInOrder(memberCounts)
+                            : inTheListsOrder(memberCounts.keySet(), listedPlaces);
+                    writeTopicsAnalysisReport(scoring, arrangement, preamble, memberCounts, listedNames);
+                    int clustersArranged =
+                            writePage(scoring, arrangement, inOrder, listedPlaces, scoresRead, gathered, true);
                     LOG.info(
                             "The arrangement step finished under {}: {} topic(s), {} cluster(s), {}"
                                     + " document(s)",
@@ -301,7 +318,12 @@ class ArrangementTasklet implements Tasklet {
             RunId scoring,
             RunId arrangement,
             StageFiveGates.Preamble preamble,
-            Map<TopicKey, Integer> memberCounts) {
+            Map<TopicKey, Integer> memberCounts,
+            List<Topics.ListedName> listedNames) {
+        if (!listedNames.isEmpty()) {
+            writeTheListedTopicsAnalysisReport(scoring, memberCounts, listedNames);
+            return;
+        }
         Map<io.algernon.vespera.engine.embedding.TopicKey, Integer> standing = TimedStatement.of(
                 STAGE, "reading", "read", "the topics kept", () -> topicLedger.passageCountsUnder(scoring));
         Map<OccurrenceId, SeedChunks> seedChunks = TaskletSteps.seedContentHashes(
@@ -366,6 +388,50 @@ class ArrangementTasklet implements Tasklet {
     }
 
     /**
+     * Writes {@code topics.json} and then {@code topics.html} where the profile lists the topics (ADR-435 section 10):
+     * one row a listed topic in the list's order, each with the documents placed under it and the documents linked from
+     * it, and no seed passage, seed document or topic's key. A listed topic's name is its name as listed.
+     */
+    private void writeTheListedTopicsAnalysisReport(
+            RunId scoring, Map<TopicKey, Integer> memberCounts, List<Topics.ListedName> listedNames) {
+        List<TopicsAnalysisReport.ListedTopic> topics = new ArrayList<>();
+        for (Topics.ListedName listed : listedNames) {
+            int[] linked = {0};
+            clustering.eachPageLinkedTo(
+                    scoring,
+                    listed.key(),
+                    page -> linked[0] += ledger.verdicts().survivingAmong(scoring, page).size());
+            topics.add(new TopicsAnalysisReport.ListedTopic(
+                    listed.name(), memberCounts.getOrDefault(keyOf(listed.key()), 0), linked[0]));
+        }
+        // The JSON is moved into place before the page (ADR-362 section 9).
+        try {
+            Files.createDirectories(workingDirectory);
+            AnalysisReportJson.write(
+                    workingDirectory.resolve(TOPICS_JSON_FILE_NAME),
+                    TopicsAnalysisReport.documentListed(topics, Instant.now()));
+            Path part = workingDirectory.resolve(TOPICS_FILE_NAME + ".part");
+            Files.writeString(part, TopicsAnalysisReport.renderListed(topics), StandardCharsets.UTF_8);
+            ReplacingMove.ATOMIC.intoPlace(part, workingDirectory.resolve(TOPICS_FILE_NAME));
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not write the topics analysis report in " + workingDirectory, e);
+        }
+    }
+
+    /**
+     * {@code topics} in the order the profile lists them, a topic with no place last, in the order handed over; the
+     * order handed over where the topics are inferred.
+     */
+    private static List<TopicKey> inTheListsOrder(
+            java.util.Collection<TopicKey> topics, Map<TopicKey, Integer> listedPlaces) {
+        List<TopicKey> ordered = new ArrayList<>(topics);
+        if (!listedPlaces.isEmpty()) {
+            ordered.sort(java.util.Comparator.comparingInt(topic -> listedPlaces.getOrDefault(topic, Integer.MAX_VALUE)));
+        }
+        return ordered;
+    }
+
+    /**
      * Stops the step on a naming model Ollama does not serve on this machine, and says why, as generation's stop
      * does: nothing is asked and no run is minted (ADR-407 section 1).
      */
@@ -397,7 +463,8 @@ class ArrangementTasklet implements Tasklet {
             RunId arrangement,
             StageFiveGates.Preamble preamble,
             String namingModel,
-            DeliverableLanguage language) {
+            DeliverableLanguage language,
+            List<Topics.ListedName> listedNames) {
         List<Topic> topics = TimedStatement.of(
                 STAGE, "reading", "read", "the topics kept", () -> topicLedger.standingUnder(scoring));
         RunId measurementRun = stageRuns.seedMeasurement();
@@ -430,6 +497,21 @@ class ArrangementTasklet implements Tasklet {
         for (int place = 1; place <= topics.size(); place++) {
             Topic topic = topics.get(place - 1);
             TopicKey key = keyOf(topic.key());
+            if (topic.key().isListed()) {
+                // A listed topic's name is the operator's, as written: never asked of the model, never translated, with
+                // no fallback, and in no comparison of ADR-407 section 8; no line is logged for it (ADR-435 section 7).
+                if (topicNames.ofTopic(arrangement, key).isEmpty()) {
+                    String listed = listedNames.stream()
+                            .filter(each -> each.key().equals(topic.key()))
+                            .findFirst()
+                            .orElseThrow(() -> new IllegalStateException(
+                                    "topic " + key.shown() + " is listed under no place in scoring run " + scoring.value()))
+                            .name();
+                    topicNames.recordTopic(
+                            arrangement, key, new GivenName(listed, NameOrigin.LISTED, Optional.empty()));
+                }
+                continue;
+            }
             Optional<GivenName> kept = topicNames.ofTopic(arrangement, key);
             if (kept.isPresent()) {
                 names.add(kept.get());
@@ -455,7 +537,7 @@ class ArrangementTasklet implements Tasklet {
             try {
                 name = topicNaming.nameOne(call, taken, namingModel, language);
             } catch (RuntimeException noAnswer) {
-                return Optional.of(noAnswerLine(OptionalInt.empty(), key, noAnswer));
+                return Optional.of(noAnswerLine(OptionalInt.empty(), shownTopic(key), noAnswer));
             }
             topicNames.recordTopic(arrangement, key, name);
             names.add(name);
@@ -469,12 +551,14 @@ class ArrangementTasklet implements Tasklet {
                     originWord(name));
         }
         long written = names.stream().filter(name -> name.origin() != NameOrigin.FALLBACK).count();
-        LOG.info(
-                "The arrangement step named {} topic(s) under {}: {} written, {} fell back",
-                names.size(),
-                namingModel,
-                written,
-                names.size() - written);
+        if (listedNames.isEmpty()) {
+            LOG.info(
+                    "The arrangement step named {} topic(s) under {}: {} written, {} fell back",
+                    names.size(),
+                    namingModel,
+                    written,
+                    names.size() - written);
+        }
 
         // Each crowded topic's subtopics, topic by topic in key order, each topic's in ADR-406 section 4's order.
         RunId extractionRun = stageRuns.upstream(StageModules.EXTRACTION);
@@ -549,16 +633,15 @@ class ArrangementTasklet implements Tasklet {
             try {
                 name = topicNaming.nameOne(call, taken, namingModel, language);
             } catch (RuntimeException noAnswer) {
-                return Optional.of(noAnswerLine(OptionalInt.of(subtopic), key, noAnswer));
+                return Optional.of(noAnswerLine(OptionalInt.of(subtopic), shownTopic(key), noAnswer));
             }
             topicNames.recordSubtopic(arrangement, key, subtopic, name);
             taken.add(name.name());
             NAMES.info(
-                    "{} subtopic {} of topic {} chunk {} named \"{}\" ({})",
+                    "{} subtopic {} of topic {} named \"{}\" ({})",
                     STAGE,
                     subtopic,
-                    key.seedPath(),
-                    key.chunkIndex(),
+                    shownTopic(key),
                     name.name(),
                     originWord(name));
         }
@@ -569,19 +652,27 @@ class ArrangementTasklet implements Tasklet {
      * The step's closing line where the serving engine gave no answer (ADR-409 section 6), naming what was being named,
      * the topic's key as ADR-407 section 9's line writes it, and what the engine said, word for word.
      */
-    private static String noAnswerLine(OptionalInt subtopicNumber, TopicKey key, RuntimeException noAnswer) {
+    /**
+     * The topic as a line or a page writes it: {@code <path> chunk <i>}, or, for a topic the profile lists, its name as
+     * listed between quotation marks (ADR-435 section 10).
+     */
+    private String shownTopic(TopicKey key) {
+        return stageRuns.listedNameOf(embeddingKey(key)).map(name -> "\"" + name + "\"").orElse(key.shown());
+    }
+
+    private static String noAnswerLine(OptionalInt subtopicNumber, String topic, RuntimeException noAnswer) {
         if (subtopicNumber.isPresent()) {
             return OperatorLines.format(
                     "the arrangement step stopped: the naming model gave no answer for subtopic {} of topic {} -- {};"
                             + " the names given before it are kept, and the next invocation asks only for the rest",
                     subtopicNumber.getAsInt(),
-                    key.shown(),
+                    topic,
                     noAnswer.getMessage());
         }
         return OperatorLines.format(
                 "the arrangement step stopped: the naming model gave no answer for topic {} -- {}; the names given"
                         + " before it are kept, and the next invocation asks only for the rest",
-                key.shown(),
+                topic,
                 noAnswer.getMessage());
     }
 
@@ -590,6 +681,7 @@ class ArrangementTasklet implements Tasklet {
             case WRITTEN -> "written";
             case WRITTEN_WHEN_ASKED_AGAIN -> "asked again";
             case FALLBACK -> "fallback";
+            case LISTED -> "listed";
         };
     }
 
@@ -610,6 +702,7 @@ class ArrangementTasklet implements Tasklet {
             RunId scoring,
             RunId arrangement,
             List<TopicKey> topics,
+            Map<TopicKey, Integer> listedPlaces,
             StageProgress scoresRead,
             StageProgress gathered,
             boolean recording) {
@@ -619,6 +712,7 @@ class ArrangementTasklet implements Tasklet {
         Path jsonPart = workingDirectory.resolve(ARRANGEMENT_JSON_FILE_NAME + ".part");
         int clustersShown = 0;
         long documentsShown = 0;
+        boolean listed = !listedPlaces.isEmpty();
         try {
             Files.createDirectories(workingDirectory);
             try (Writer page = Files.newBufferedWriter(part, StandardCharsets.UTF_8);
@@ -627,13 +721,17 @@ class ArrangementTasklet implements Tasklet {
                             jsonPage,
                             ArrangementGate.shortNameOf(arrangement),
                             Walk.canonicalRoot(root).toString(),
-                            Instant.now())) {
+                            Instant.now(),
+                            listed)) {
                 ArrangementReport.open(
-                        page, ArrangementGate.shortNameOf(arrangement), Walk.canonicalRoot(root).toString());
+                        page, ArrangementGate.shortNameOf(arrangement), Walk.canonicalRoot(root).toString(), listed);
                 StageProgress topicsDrawn = StageProgress.over("Stage 6a (arrangement, page topics)", topics.size());
-                int of = topics.size();
-                for (int place = 1; place <= of; place++) {
-                    TopicKey key = topics.get(place - 1);
+                // A listed topic's place is its place in the list and the list's length is how many there are, a topic
+                // no document lands under having no heading and keeping its place (ADR-435 sections 7 and 8).
+                int of = listed ? listedPlaces.size() : topics.size();
+                for (int drawn = 1; drawn <= topics.size(); drawn++) {
+                    TopicKey key = topics.get(drawn - 1);
+                    int place = listed ? listedPlaces.get(key) : drawn;
                     String whichTopic = "topic " + place + " of " + of;
                     List<DocumentCluster> read = TimedStatement.of(
                             STAGE, "reading", "read", "the members of " + whichTopic,
@@ -656,8 +754,8 @@ class ArrangementTasklet implements Tasklet {
                     ArrangementReport.topic(page, shown);
                     topicsDrawn.itemDone();
                 }
-                ArrangementReport.closeJson(json, of, clustersShown, documentsShown);
-                ArrangementReport.close(page, of);
+                ArrangementReport.closeJson(json, topics.size(), clustersShown, documentsShown);
+                ArrangementReport.close(page, topics.size(), listed);
             }
             // The JSON is moved into place before the page is (ADR-362 section 9): a JSON that cannot be moved
             // leaves the earlier pair, and a page that cannot be moved leaves the new JSON beside the earlier page.

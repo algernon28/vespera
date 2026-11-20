@@ -19,10 +19,10 @@ import org.slf4j.LoggerFactory;
  * Sends the control conversion (ADR-184): the one call stage 2 makes that is about no file occurrence.
  * {@code extraction} owns the interface, the count that asks for it and the reading of its answer
  * (ADR-189); sending it stays here because it waits for {@link PendingConversions} and {@link
- * SidecarRecovery}, which are {@code pipeline}'s, and its PDF is a {@code pipeline} resource.
+ * DoclingRecovery}, which are {@code pipeline}'s, and its PDF is a {@code pipeline} resource.
  *
  * <p>The step thread asks, and in this order (ADR-184 section 2): it waits until every call dispatched
- * and not yet taken has finished, so that the control conversion is the only call the sidecar is handling
+ * and not yet taken has finished, so that the control conversion is the only call Docling is handling
  * and cannot be killed by another file's; it waits for {@code /health}; and it sends the shipped PDF alone,
  * as a PDF with no subtype -- the options stage 2 sends a born-digital PDF (ADR-100) -- through {@link
  * DoclingExtractor#convertUncached}, which reads and writes no cache. The PDF is never a file occurrence:
@@ -43,12 +43,12 @@ class DoclingControlConversion implements ControlConversion {
     private static final String RESOURCE = "control-conversion.pdf";
 
     private final DoclingExtractor extractor;
-    private final SidecarRecovery sidecarRecovery;
+    private final DoclingRecovery doclingRecovery;
     private final PendingConversions pending;
 
-    DoclingControlConversion(DoclingExtractor extractor, SidecarRecovery sidecarRecovery, PendingConversions pending) {
+    DoclingControlConversion(DoclingExtractor extractor, DoclingRecovery doclingRecovery, PendingConversions pending) {
         this.extractor = extractor;
-        this.sidecarRecovery = sidecarRecovery;
+        this.doclingRecovery = doclingRecovery;
         this.pending = pending;
     }
 
@@ -70,7 +70,7 @@ class DoclingControlConversion implements ControlConversion {
     @Override
     public Optional<DoclingResponse> send() {
         pending.awaitAllDispatched();
-        sidecarRecovery.awaitHealthy();
+        doclingRecovery.awaitHealthy();
         Path file = null;
         try {
             file = Files.createTempFile("vespera-control-conversion-", ".pdf");

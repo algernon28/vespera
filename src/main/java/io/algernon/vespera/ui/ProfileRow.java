@@ -198,7 +198,24 @@ final class ProfileRow {
         small.getStyleClass().add("small");
         Titles titles = new Titles(column, node, title, small);
         Node control;
-        if (key == ProfileKey.CODE_SET_FOLDERS
+        if (key == ProfileKey.TOPICS) {
+            // One line of the names, the file's value held apart from it so that nothing here rewrites its line breaks.
+            SelectableText.Line shown = SelectableText.line("");
+            shown.setId(id);
+            String[] held = {""};
+            Hyperlink opens = new Hyperlink("Edit it in its section");
+            opens.setOnAction(event -> opensSection.accept(key));
+            value = () -> held[0];
+            setValue = text -> {
+                held[0] = text == null ? "" : text;
+                shown.setText(String.join("; ", TopicEntries.linesOf(held[0]).stream().map(String::strip).toList()));
+                node.getStyleClass().remove("refused");
+                if (TopicEntries.isRefused(held[0])) {
+                    node.getStyleClass().add("refused");
+                }
+            };
+            control = spaced(shown, opens);
+        } else if (key == ProfileKey.CODE_SET_FOLDERS
                 || ((key == ProfileKey.SEED_FOLDER || key == ProfileKey.FOLDERS_NOT_WALKED || key == ProfileKey.OUTPUTS)
                 && opensSection != null)) {
             SelectableText.Line shown = SelectableText.line("");
@@ -410,7 +427,7 @@ final class ProfileRow {
         return switch (key.kind()) {
             case NUMBER -> numberControl();
             case NAME_ENDINGS -> listControl();
-            case FOLDERS, CORPUS_FOLDERS -> SelectableText.line("");
+            case FOLDERS, CORPUS_FOLDERS, TOPICS -> SelectableText.line("");
             case TEXT -> switch (key) {
                 case EMBEDDING_MODEL, GENERATION_MODEL -> choice(models);
                 case ARRANGEMENT_APPROVED -> choice(List.of("auto"));

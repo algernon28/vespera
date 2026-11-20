@@ -140,6 +140,33 @@ final class ArrangementReport {
             + " are shown here to read: they are not part of what you approve, and they cannot be changed here. Every"
             + " group's name below was taken from a document you can open.";
 
+    /**
+     * The page's first paragraph where the profile lists the topics (ADR-435 section 10), and the first string of its
+     * JSON's {@code overview} section: the topics are the operator's and in the operator's order, under the names they
+     * gave; the subtopics' names alone were written by the model.
+     */
+    static final String OPENING_WITH_LISTED_TOPICS = "Every document that survived is here, placed under one topic and"
+            + " in the group it formed with the documents nearest it. Nothing has been removed, merged or renamed to"
+            + " produce this page. The topics are the ones your profile lists, in its order, under the names you gave"
+            + " them; the names of the subtopics a crowded topic is divided into were written by the naming model from"
+            + " the documents' own words, except where a paragraph under a name says otherwise. They are shown here to"
+            + " read: they are not part of what you approve, and they cannot be changed here. Every group's name below"
+            + " was taken from a document you can open.";
+
+    /** The first paragraph under {@code How to read this} where the topics are inferred. */
+    private static final String ORDER_OF_INFERRED_TOPICS = "Topics are in order of how much of the archive sits under"
+            + " them, largest first, so the substantial part of what you have is at the top, and a crowded topic's"
+            + " subtopics are in the same order within it. Within each topic, or within each of its subtopics where it"
+            + " is divided, groups holding several documents come before groups holding one, and within those two"
+            + " tiers the groups whose documents scored highest for relevance come first.";
+
+    /** The first paragraph under {@code How to read this} where the profile lists the topics (ADR-435 section 10). */
+    private static final String ORDER_OF_LISTED_TOPICS = "Topics are in the order your profile lists them, and a crowded"
+            + " topic's subtopics are in order of how much of the archive sits under them, largest first. Within each"
+            + " topic, or within each of its subtopics where it is divided, groups holding several documents come"
+            + " before groups holding one, and within those two tiers the groups whose documents scored highest for"
+            + " relevance come first.";
+
     /** What the page and its JSON say where no document was placed under a topic. */
     private static final String NOTHING_PLACED = "No document was placed under a topic, so there is nothing to arrange.";
 
@@ -148,9 +175,14 @@ final class ArrangementReport {
      * page is written as its topics come, so none is needed to begin it (ADR-223 section 3).
      */
     static void open(Appendable page, String approvalName, String corpusRoot) throws IOException {
+        open(page, approvalName, corpusRoot, false);
+    }
+
+    /** As {@link #open(Appendable, String, String)}, its first paragraph the one for topics the profile lists where {@code listed}. */
+    static void open(Appendable page, String approvalName, String corpusRoot, boolean listed) throws IOException {
         page.append(ReportPage.head(TITLE))
                 .append(ReportPage.heading(1, TITLE))
-                .append(ReportPage.paragraph(OPENING))
+                .append(ReportPage.paragraph(listed ? OPENING_WITH_LISTED_TOPICS : OPENING))
                 .append(ReportPage.paragraph("The documents themselves are still in <code>"
                         + ReportPage.escape(corpusRoot)
                         + "</code>. They have not been moved or copied."))
@@ -213,18 +245,18 @@ final class ArrangementReport {
      * sentence that there is nothing to arrange.
      */
     static void close(Appendable page, int topicsWritten) throws IOException {
+        close(page, topicsWritten, false);
+    }
+
+    /** As {@link #close(Appendable, int)}, the order's paragraph the one for topics the profile lists where {@code listed}. */
+    static void close(Appendable page, int topicsWritten, boolean listed) throws IOException {
         if (topicsWritten == 0) {
             page.append(ReportPage.paragraph(NOTHING_PLACED))
                     .append(ReportPage.tail());
             return;
         }
         page.append(ReportPage.heading(2, "How to read this"))
-                .append(ReportPage.paragraph("Topics are in order of how much of the archive sits under them, largest"
-                        + " first, so the substantial part of what you have is at the top, and a crowded topic's"
-                        + " subtopics are in the same order within it. Within each topic, or within each of its"
-                        + " subtopics where it is divided, groups holding several documents come before groups"
-                        + " holding one, and within those two tiers the groups whose documents scored highest for"
-                        + " relevance come first."))
+                .append(ReportPage.paragraph(listed ? ORDER_OF_LISTED_TOPICS : ORDER_OF_INFERRED_TOPICS))
                 .append(ReportPage.paragraph("<em>Named after</em> is the document each group's name was taken from"
                         + " — the one in the group that scored highest for relevance, and a link straight to where it"
                         + " already sits. Open a few. If a name does not describe the group it heads, that is what this"
@@ -253,12 +285,19 @@ final class ArrangementReport {
      */
     static AnalysisReportJson openJson(Writer json, String approvalName, String corpusRoot, Instant writtenAt)
             throws IOException {
+        return openJson(json, approvalName, corpusRoot, writtenAt, false);
+    }
+
+    /** As {@link #openJson(Writer, String, String, Instant)}, its first paragraph the one for topics the profile lists where {@code listed}. */
+    static AnalysisReportJson openJson(
+            Writer json, String approvalName, String corpusRoot, Instant writtenAt, boolean listed)
+            throws IOException {
         AnalysisReportJson report = AnalysisReportJson.begin(json, FORMAT, NAME, TITLE, writtenAt);
         report.section(
                 "overview",
                 TITLE,
                 List.of(
-                        OPENING,
+                        listed ? OPENING_WITH_LISTED_TOPICS : OPENING,
                         "The documents themselves are still in " + corpusRoot + ". They have not been moved or copied."),
                 null,
                 null);

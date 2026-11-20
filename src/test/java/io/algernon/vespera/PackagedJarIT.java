@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The packaged jar carries no Spring compose support (ADR-158, ADR-179), it carries the compose files its own
- * starter brings the sidecars up from (ADR-323), and it carries the control panel, started at its entry point with no
+ * starter brings the containers up from (ADR-323), and it carries the control panel, started at its entry point with no
  * argument (ADR-342).
  *
  * <p>Spring Boot's Docker Compose support reconciles running containers to the files it is given and stops them at
@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
  * {@code true} by default, strips {@code spring-boot-docker-compose} whatever its scope.
  * {@code includeOptional}, {@code false} by default, leaves out every {@code <optional>} dependency.
  * Since ADR-179 neither {@code spring-boot-docker-compose} nor {@code spring-ai-spring-boot-docker-compose}
- * is in {@code pom.xml} at all, so no entry point starts a sidecar; this test guards against either
+ * is in {@code pom.xml} at all, so no entry point starts a container; this test guards against either
  * coming back into the jar. A compose support in the jar looks for a {@code compose.yaml} wherever it
  * is launched from, and starts or stops containers on every command. That reverses the decision
  * without a word.
@@ -44,7 +44,7 @@ import org.junit.jupiter.api.Test;
  * needs no Docker daemon, and it launches nothing.
  */
 @Epic("Architecture")
-@Feature("Sidecars")
+@Feature("Containers")
 @Issue("304")
 @Link(name = "ADR-158", url = Adr.THE_PACKAGED_JAR_STARTS_NO_SIDECAR, type = "adr")
 @Link(name = "ADR-011", url = Adr.THE_TOOL_OWNS_ITS_SIDECARS, type = "adr")
@@ -52,7 +52,7 @@ import org.junit.jupiter.api.Test;
 class PackagedJarIT {
 
     /** The packaged, executable jar the operator runs, at the path README.md names. */
-    private static final Path EXECUTABLE_JAR = Path.of("target", "vespera-0.0.1-SNAPSHOT.jar");
+    private static final Path EXECUTABLE_JAR = Path.of("target", "vespera-0-SNAPSHOT.jar");
 
     /** Where the Boot plugin puts the application's own classes. */
     private static final String CLASSES = "BOOT-INF/classes/";
@@ -99,7 +99,7 @@ class PackagedJarIT {
             List.of("spring-boot-docker-compose-", "spring-ai-spring-boot-docker-compose-");
 
     @Test
-    @Story("The operator starts the sidecars, and the jar starts none")
+    @Story("The operator starts the containers, and the jar starts none")
     @DisplayName("The packaged jar carries no Docker Compose support, so running it starts no container")
     void carriesNoComposeSupport() throws IOException {
         claim("the packaged jar exists, since this test reads it and needs verify to have built it",

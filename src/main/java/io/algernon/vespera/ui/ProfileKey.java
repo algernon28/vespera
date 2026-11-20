@@ -67,6 +67,10 @@ public enum ProfileKey {
             "which folders outside the corpus root hold code that is read with the corpus", "D:\\code\\billing"),
     FOLDERS_NOT_WALKED("foldersNotWalked", Kind.CORPUS_FOLDERS, Run.BYTE_LEVEL_REDUCTION,
             "which folders of the corpus hold nothing you want read", "archive/old-flows"),
+    TOPICS("topics", Kind.TOPICS, Run.EMBEDDING_SCORING,
+            "which topics the deliverable is made of, one name a line, where you give them; empty, they are found in"
+                    + " your seed documents",
+            "Pagamenti"),
     CONFLUENCE_BASE_URL("confluenceBaseUrl", Kind.TEXT, null,
             "the address of your Confluence Cloud site, where you publish to it", "https://wiki.example.com"),
     CONFLUENCE_SPACE_KEY("confluenceSpaceKey", Kind.TEXT, null,
@@ -88,7 +92,7 @@ public enum ProfileKey {
             "tree, confluence, website");
 
     /** The type of a key's value, which is how the jar reads it. */
-    public enum Kind { TEXT, NUMBER, NAME_ENDINGS, FOLDERS, CORPUS_FOLDERS }
+    public enum Kind { TEXT, NUMBER, NAME_ENDINGS, FOLDERS, CORPUS_FOLDERS, TOPICS }
 
     /** The runs a key can enter, in the cascade's order. */
     public enum Run {

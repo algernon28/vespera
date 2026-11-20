@@ -88,7 +88,7 @@ What a converted file occurrence holds when it holds usable text, a letter or a 
 _Avoid_: unreadable (a profile value nobody can act on, under Operation), textless (ADR-105's word for no letter or digit at all, which is tier 1 alone), meaningful text, real text
 
 **Extraction fault**:
-A file occurrence stage 2 got no answer about: the converter blamed the failure on itself, or ran out of time on several files in a row, so nothing was measured and nothing was decided at the time. A file the converter answered about and could not convert is not one — that is `extraction-failed` at once (ADR-143). Recorded as a row of its own, never a verdict when it is written — and, where the step it happened in went on to complete, resolved into `extraction-failed` at the end of that step, because the sidecar answering for its neighbours is the evidence that the refusal was about this file (ADR-139). Distinct from an unusable seed, which is the same converter response on the side of the system where nothing is ever removed.
+A file occurrence stage 2 got no answer about: the converter blamed the failure on itself, or ran out of time on several files in a row, so nothing was measured and nothing was decided at the time. A file the converter answered about and could not convert is not one — that is `extraction-failed` at once (ADR-143). Recorded as a row of its own, never a verdict when it is written — and, where the step it happened in went on to complete, resolved into `extraction-failed` at the end of that step, because the converter answering for its neighbours is the evidence that the refusal was about this file (ADR-139). Distinct from an unusable seed, which is the same converter response on the side of the system where nothing is ever removed.
 _Avoid_: skip, error, failed document. Also "unreadable" **for this state**: that word names a profile value nobody can act on, under Operation below.
 
 **Control conversion**:
@@ -119,7 +119,7 @@ _Avoid_: language duplicates, localised copies, language variants, translation c
 ### Relevance
 
 **Seed set**:
-The operator-supplied folder of known-relevant documents. The sole carrier of domain knowledge in the system: it defines relevance, scored against each of its documents, and its passages are what the topics at the top level of the arrangement are inferred from (ADR-396). It names no topic itself: one seed may feed several topics, several seeds one, and a seed may feed none.
+The operator-supplied folder of known-relevant documents. The sole carrier of domain knowledge in the system: it defines relevance, scored against each of its documents, and, where the profile lists no topic, its passages are what the topics at the top level of the arrangement are inferred from (ADR-396, ADR-435). It names no topic itself: one seed may feed several topics, several seeds one, and a seed may feed none.
 _Avoid_: training set, examples, ground truth
 
 **Unusable seed**:
@@ -143,15 +143,15 @@ The one seed document that produced a file occurrence's relevance score. Stored,
 _Avoid_: best match, nearest seed
 
 **Topic**:
-One of the subjects the seed set's passages fall into, found across the passages of every seed rather than taken one per seed file, so that one seed may feed several topics and several seeds one (ADR-396). The top level of the arrangement, and the unit clustering runs within, or its subtopics where it is crowded (ADR-406). How many there are is inferred from the passages and never set by the operator; a topic whose share of all seed passages is under a measured floor is not one, and a seed whose passages all fall under it feeds no topic. The same seed set, models and configuration give the same topics every run. Named by the local model, but its name is a rendering stored under its run, never its identity. Not a judgement: nothing is removed for the topic it lands in, and relevance is still scored against the seeds, not the topics. A topic no survivor is placed under has no folder, and is reported.
+One of the subjects the top level of the arrangement is made of: listed by the operator in the profile's `topics`, by name, or, where none is listed, found across the passages of every seed rather than taken one per seed file, so that one seed may feed several topics and several seeds one (ADR-396, ADR-435). The unit clustering runs within, or its subtopics where it is crowded (ADR-406). A listed topic is its name: its identity is the name made plain, without case, accents or the spaces around it; it is shown as listed, in the list's order, and places survivors by its name's embedding; and every listed topic stands, whatever lands under it. Inferred, how many there are comes from the passages; a topic whose share of all seed passages is under a measured floor is not one, and a seed whose passages all fall under it feeds no topic; it is named by the local model, its name a rendering stored under its run, never its identity. The same list, or the same seed set, with the same models and configuration, gives the same topics and placement every run. Not a judgement: nothing is removed for the topic it lands in, and relevance is still scored against the seeds, not the topics. A topic no survivor is placed under is reported; listed, it has a page with no cluster, and inferred, no folder.
 _Avoid_: seed partition and partition (retired by ADR-396, a topic being no one seed's: no name of ours says either but a decision record's title and the names of the retirement, ADR-426), bucket, category, theme (a cluster's rejected word), class
 
 **Winning topic**:
-The one topic a survivor is placed under: where it is arranged, clustered and copied, once (ADR-280, ADR-396). Chosen by a placement step of its own, apart from the relevance score, whose provenance stays the winning seed (ADR-020). Every survivor has one, a survivor no topic fits well taking its nearest (ADR-105); each other topic it fits carries a link to it, and no second copy.
+The one topic a survivor is placed under: where it is arranged, clustered and copied, once (ADR-280, ADR-396). Chosen by a placement step of its own, apart from the relevance score, whose provenance stays the winning seed (ADR-020): the topic the survivor's chunks are nearest on average, a listed topic being near by its name's embedding and an inferred one by its passages' (ADR-400, ADR-435). Every survivor has one, a survivor no topic fits well taking its nearest (ADR-105); each other topic it fits carries a link to it, and no second copy.
 _Avoid_: best topic, assigned topic, home topic, primary topic, the winning seed's topic (a seed may feed several topics, or none)
 
 **Topic name**:
-What a topic is called: written by the local model that names the topics, from the topic's strongest passages, in the deliverable language, at the head of stage 6a and before its gate (ADR-407). Where the model's answer is turned down, the Docling title of the topic's strongest contributing seed, the seed feeding it the most passages, stands in, then that seed's filename stem. Stored under the arrangement run as it is given, with where it came from, read back by every invocation that arrives at that run and never asked for again under it, and shown at the 6a gate read-only, a name that fell back marked with why the model's was not used (ADR-409). Distinct from the names of the topics beside it where a second asking makes it so. A rendering, never the topic's identity, which is its key. The level between a topic and its clusters is named under the same rules.
+What a topic is called. A topic the profile lists is called as listed, never by a model and never translated, and is recorded with the origin `LISTED` (ADR-435). An inferred topic's name is written by the local model that names the topics, from the topic's strongest passages, in the deliverable language, at the head of stage 6a and before its gate (ADR-407). Where the model's answer is turned down, the Docling title of the topic's strongest contributing seed, the seed feeding it the most passages, stands in, then that seed's filename stem. Stored under the arrangement run as it is given, with where it came from, read back by every invocation that arrives at that run and never asked for again under it, and shown at the 6a gate read-only, a name that fell back marked with why the model's was not used (ADR-409). Distinct from the names of the topics beside it where a second asking makes it so. A rendering, never the topic's identity, which is its key. The level between a topic and its clusters is named under the same rules.
 _Avoid_: topic label (a label is derived and a cluster's, ADR-106), topic title (a title is written at 6b, over a cluster), heading
 
 **Subtopic**:
@@ -277,8 +277,14 @@ The operating system's lock `vespera run` takes on a file named for its corpus r
 _Avoid_: root mutex, archive lock (nothing is written into the archive)
 
 **Machine lock**:
-The operating system's lock on `machine.lock`, in the folder the corpus-root locks lie in, taken before anything else by a control panel and by `vespera run`, `vespera label` and `vespera publish`, and held until its process ends, so that one Vespera runs on a machine at a time and none stops the sidecars another is using (ADR-395). The control panel's own child is let through, its parent being the holder, and holds `machine-child.lock` while it runs. `vespera serve` takes none.
+The operating system's lock on `machine.lock`, in the folder the corpus-root locks lie in, taken before anything else by a control panel and by `vespera run`, `vespera label` and `vespera publish`, and held until its process ends, so that one Vespera runs on a machine at a time and none stops the containers another is using (ADR-395). The control panel's own child is let through, its parent being the holder, and holds `machine-child.lock` while it runs. `vespera serve` takes none.
 _Avoid_: mutex, pidfile, single-instance lock
+
+**Container**:
+A Docling or an Ollama that Vespera runs on this machine through Docker, started from the compose files in the folder beside the jar, asked whether it answers, waited for and stopped; it is on this machine where its address resolves here (ADR-430 §10). Where Docling or Ollama runs on another machine, Vespera runs no container there, and what the operator reads names it Docling, Ollama or the services (ADR-433).
+_Avoid_: sidecar, the word ADR-011 gave and ADR-433 retired from every name of ours, which settled records keep as written
+_Renders as_: **container** where Vespera runs it; where Docling or Ollama runs on another machine, **Docling**, **Ollama** or **the services**, never container.
+_Not to be confused with_: the containing document of a **containment**, and a file format's container, as of a video (ADR-168), which keep the word.
 
 **Invocation account**:
 The one file an invocation that started the job wrote for a hosted model to read, in the working directory's `logs` folder (ADR-270): each step and how it ended, durations, counts, progress lines, and a failed step's exception types, built from typed values and an allow-list (ADR-198). No invocation writes it: the invocation report's copy, `logs/report-<invocation>.json`, replaces it, and the class that wrote it hands the counts to the report (ADR-362 §4). A file an earlier version wrote stays where it lies, and nothing reads it.
@@ -342,20 +348,26 @@ _Avoid_: parameter, setting, config
 **Preset**:
 The value of a technical choice that ships in `application.yaml`, in its shipped copy, in place of a constant of the code, where a machine's own configuration, the file beside the jar among it, may override it and, for one a record gives a profile key, the profile does (ADR-298, ADR-330, ADR-397). Not a measured floor: a floor read off a corpus ships unset, pointing at its measurement. One that decides what a run produces enters that run's identity, written only where it differs from what runs were minted under before it was a preset, or as an identity already named it, so that introducing it moves no recorded configuration.
 _Avoid_: knob, tunable, parameter, option
-_Not to be confused with_: a **launch value**, which names where things are on one machine; the **profile**, which is authored per corpus; Docling's `ocr_preset`, a name its sidecar resolves, which Vespera names on every conversion from the preset `vespera.docling.ocr-preset` and never leaves to the sidecar's `auto` (ADR-090, ADR-330).
+_Not to be confused with_: a **launch value**, which names where things are on one machine; the **profile**, which is authored per corpus; Docling's `ocr_preset`, a name docling-serve resolves, which Vespera names on every conversion from the preset `vespera.docling.ocr-preset` and never leaves to docling-serve's `auto` (ADR-090, ADR-330).
 
 **Effective values**:
 What `effective-values.properties` says, which the jar writes for the control panel as an invocation starts: what would apply where the profile names nothing, each with where it came from, from a closed list holding no credential and no path (ADR-330). What lies beneath the profile, never what the profile names; what is in use is the profile's value where it names one, and this where it does not.
 _Avoid_: current settings, resolved config, runtime config
 
 **Folder beside the jar**:
-The folder the Vespera jar lies in, which holds the configuration Spring reads, `application.yaml` and the operator's optional `application-local.yaml` over it, and the files the sidecars start from, `compose.yaml`, `compose.gpu.yaml` and their `docker/` build context (ADR-397). A run from compiled classes, an IDE's or a test's, takes the folder above them, where the build writes the jar. `--spring.config.location` or `SPRING_CONFIG_LOCATION` moves where Spring reads; the compose files are read here whatever it names.
+The folder the Vespera jar lies in, which holds the configuration Spring reads, `application.yaml` and the operator's optional `application-local.yaml` over it, and the files the containers start from, `compose.yaml`, `compose.gpu.yaml` and their `docker/` build context (ADR-397). A run from compiled classes, an IDE's or a test's, takes the folder above them, where the build writes the jar. `--spring.config.location` or `SPRING_CONFIG_LOCATION` moves where Spring reads; the compose files are read here whatever it names.
 _Avoid_: install folder, home folder, config folder
 _Not to be confused with_: a working directory, which holds one corpus's database and `profile.yaml`; the current directory, which the folder is only for a code source that is neither a jar nor compiled classes.
 
 **Shipped copy**:
 The jar's own copy of a file of the folder beside the jar, carried under `beside-the-jar/`, where Spring's configuration loading never reads, so that the jar carries no configuration Spring reads (ADR-397). It is written beside the jar where the file is missing, and as `<name>.new` beside a file that differs from it, which is never written over; the jar says which keys differ, or for a file of the build context that its bytes do, in its log and in the control panel. `application-local.yaml` has none.
 _Avoid_: template, default config, bundled config
+
+**Release version**:
+The version of Vespera itself, SemVer `MAJOR.MINOR.PATCH`, given by the `v` tag the operator pushes to cut a release, and `0-SNAPSHOT` in every build no tag made; the jar reads it from its manifest, and says `unknown` where none names one (ADR-431). Provenance only: `vespera --version`, the control panel's title, `report.json`, the deliverable's marker and the foot of each tree's top page show it, the ledger keeps each that minted or continued a run in `run_release`, and it enters no run id, configuration consumed, implementation version or cache key.
+_Avoid_: build version, app version, product version
+_Not to be confused with_: a stage's implementation version, the last commit touching its modules, which a run id is hashed from (ADR-058); a module's schema version (ADR-059); `report.json`'s `format`.
+_Renders as_: **version**.
 
 ### Output
 
@@ -369,7 +381,7 @@ _Avoid_: summary, digest, abstract, introduction, topic synthesis doc (a synthes
 
 **Arrangement**:
 The shape stage 6a gives the survivors: topics at the top, each survivor under its winning topic, and clusters beneath them within each topic, with subtopics between the two where a topic is crowded, and no other level (ADR-396, ADR-406). An order over survivors, never a copy of them — a document is arranged where it belongs, not moved there. Ordered in both senses: the levels are a structure, and each level is also a sequence, chosen rather than inherited from the filesystem. The sequence is part of what the operator approves at the gate, so nothing downstream re-sorts it; the topics, the subtopics, and their names are shown there read-only, as topic › subtopic › clusters, and are neither approved nor edited. Code is not arranged: it is not a survivor, and is held in code sets instead (ADR-284), which the deliverable copies whole under `code/` (ADR-296).
-_Avoid_: page tree, hierarchy, taxonomy (the topics are inferred from the seed set's passages, not a taxonomy anyone names; the arrangement is the shape they and the clusters give the survivors)
+_Avoid_: page tree, hierarchy, taxonomy (the topics, listed in the profile or inferred from the seed set's passages, are topics whichever they are, ADR-435; the arrangement is the shape they and the clusters give the survivors)
 
 **Cluster label**:
 What stage 6a calls a cluster: derived from the cluster's own members — the title of its highest-scoring document, and how many documents it holds. Derived rather than written, so it exists before anything is generated and can be checked against a document anyone can open. Never unique and never edited by hand: a cluster is identified by its ordinal, not by what it is called.

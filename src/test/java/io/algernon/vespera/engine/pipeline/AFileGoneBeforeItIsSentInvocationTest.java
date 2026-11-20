@@ -63,7 +63,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p>Every file here is the same length, so stage 1 hashes all of them and stage 2 hashes none: the
  * failure each test makes is met where the call is placed, never where a file is hashed. The files are
  * taken away when stage 2 asks the converter for its health, which it does once, after stage 1 has
- * finished and before it reads anything (seam: {@link LoopbackSidecar#beforeEachHealthCheck}). Taking
+ * finished and before it reads anything (seam: {@link LoopbackDocling#beforeEachHealthCheck}). Taking
  * them away between two invocations would not do: the next walk would see them gone, and they would not
  * be read at all. The whole folder, in the one test that takes it away, goes later: just before stage 2
  * places its first call ({@link AMomentBeforeTheFirstCallIsPlaced}), because a folder already gone when
@@ -77,7 +77,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * the whole file is held; elsewhere its read permission is removed, and the test is skipped where that
  * does not stop a read, as it does not for the superuser.
  *
- * <p>The sidecar is real HTTP, as in {@link ExtractionWhenTheSidecarDropsItsConnectionTest}, whose
+ * <p>The docling is real HTTP, as in {@link ExtractionWhenTheDoclingDropsItsConnectionTest}, whose
  * conventions this follows. Every test that needs files in a row learns the order stage 2 reads in
  * first, because that order is the file system's and not the names'.
  */
@@ -91,11 +91,11 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-184", url = Adr.FIVE_FAILURES_IN_A_ROW_STOP_STAGE_2_ONLY_AFTER_A_FAILED_CONTROL_CONVERSION, type = "adr")
 class AFileGoneBeforeItIsSentInvocationTest {
 
-    /** A loopback port that was free when the class loaded; the test's sidecar listens on it. */
-    private static final int SIDECAR_PORT = LoopbackSidecar.aFreePort();
+    /** A loopback port that was free when the class loaded; the test's docling listens on it. */
+    private static final int DOCLING_PORT = LoopbackDocling.aFreePort();
 
-    /** Where the client looks for the sidecar. */
-    private static final String SIDECAR = "http://127.0.0.1:" + SIDECAR_PORT;
+    /** Where the client looks for the docling. */
+    private static final String DOCLING = "http://127.0.0.1:" + DOCLING_PORT;
 
     /** How many files in a row stop extraction, when the converter then fails the control conversion too. */
     private static final int FIVE_IN_A_ROW = 5;
@@ -125,9 +125,9 @@ class AFileGoneBeforeItIsSentInvocationTest {
     static Path workingDirectory;
 
     @DynamicPropertySource
-    static void sidecarAndWorkingDirectory(DynamicPropertyRegistry registry) {
+    static void doclingAndWorkingDirectory(DynamicPropertyRegistry registry) {
         registry.add("vespera.working-dir", workingDirectory::toString);
-        registry.add("vespera.docling.base-url", () -> SIDECAR);
+        registry.add("vespera.docling.base-url", () -> DOCLING);
     }
 
     @Autowired
@@ -141,11 +141,11 @@ class AFileGoneBeforeItIsSentInvocationTest {
 
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger rootLogger;
-    private LoopbackSidecar sidecar;
+    private LoopbackDocling docling;
 
     @BeforeEach
-    void startTheSidecarAndCaptureEveryLine() throws IOException {
-        sidecar = LoopbackSidecar.startedOn(SIDECAR_PORT, configuredImage);
+    void startTheDoclingAndCaptureEveryLine() throws IOException {
+        docling = LoopbackDocling.startedOn(DOCLING_PORT, configuredImage);
         logged = new ListAppender<>();
         logged.start();
         rootLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
@@ -154,11 +154,11 @@ class AFileGoneBeforeItIsSentInvocationTest {
     }
 
     @AfterEach
-    void stopTheSidecarAndReleaseEveryLine() {
+    void stopTheDoclingAndReleaseEveryLine() {
         rootLogger.detachAppender(logged);
         ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(logged);
         logged.stop();
-        sidecar.close();
+        docling.close();
     }
 
     @Test
@@ -173,9 +173,9 @@ class AFileGoneBeforeItIsSentInvocationTest {
         int readLast = asRead.get(SIX_FILES - 1);
         // Were the five counted as files that crashed the converter, they would be five in a row, and a
         // control conversion that does not convert would then stop the stage.
-        sidecar.droppingTheControlConversion();
-        sidecar.beforeEachHealthCheck(() -> gone.forEach(file -> deleteIfThere(root.resolve(nameOf(file)))));
-        int checksBefore = sidecar.healthChecks();
+        docling.droppingTheControlConversion();
+        docling.beforeEachHealthCheck(() -> gone.forEach(file -> deleteIfThere(root.resolve(nameOf(file)))));
+        int checksBefore = docling.healthChecks();
 
         cli.run("run", root.toString());
 
@@ -192,15 +192,15 @@ class AFileGoneBeforeItIsSentInvocationTest {
         claim(
                 "the converter was never asked to convert the control document: files that could not be read"
                         + " say nothing about the converter, so they are not a row of failures to check it for",
-                () -> assertThat(sidecar.controlConversions()).isZero());
+                () -> assertThat(docling.controlConversions()).isZero());
         claim(
                 "and nothing waited for the converter: its health was asked once, before the stage read"
                         + " anything, and never again after a file that could not be sent",
-                () -> assertThat(sidecar.healthChecks() - checksBefore).isEqualTo(ONLY_THE_CHECK_BEFORE_THE_STAGE));
+                () -> assertThat(docling.healthChecks() - checksBefore).isEqualTo(ONLY_THE_CHECK_BEFORE_THE_STAGE));
         claim(
                 "the file read last, which was still there, was posted once (and, being none of the "
                         + FIVE_IN_A_ROW + " removed above, kept)",
-                () -> assertThat(sidecar.callsPerDocument()).containsEntry(readLast, ONCE));
+                () -> assertThat(docling.callsPerDocument()).containsEntry(readLast, ONCE));
     }
 
     /**
@@ -212,8 +212,8 @@ class AFileGoneBeforeItIsSentInvocationTest {
 
         @Bean
         @Primary
-        SidecarRecovery sidecarRecoveryOnAShortClock(DoclingClient client) {
-            return new SidecarRecovery(client, WAIT_AT_MOST, CHECK_EVERY);
+        DoclingRecovery doclingRecoveryOnAShortClock(DoclingClient client) {
+            return new DoclingRecovery(client, WAIT_AT_MOST, CHECK_EVERY);
         }
     }
 
@@ -282,9 +282,9 @@ class AFileGoneBeforeItIsSentInvocationTest {
      * health check. The next invocation finds the same walk and stage 1 finished (ADR-115).
      */
     private List<Integer> theOrderTheStageReadsIn(Path root) {
-        sidecar.answeringItsHealthCheck(false);
+        docling.answeringItsHealthCheck(false);
         cli.run("run", root.toString());
-        sidecar.answeringItsHealthCheck(true);
+        docling.answeringItsHealthCheck(true);
         logged.list.clear();
         return jdbcTemplate
                 .queryForList(
@@ -310,7 +310,7 @@ class AFileGoneBeforeItIsSentInvocationTest {
 
     /**
      * Names the folder above the one being read, so that no test's file is a cache hit for another
-     * test's; says {@code document N of}, which is how the sidecar tells the files apart.
+     * test's; says {@code document N of}, which is how the docling tells the files apart.
      */
     private static String textOf(int file, Path root) {
         return "corpus document %02d of %d, written for the gone-before-it-is-sent test under %s"

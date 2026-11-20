@@ -30,7 +30,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 /**
- * The folder beside the jar (ADR-397): the configuration Vespera reads and the compose files it starts the sidecars
+ * The folder beside the jar (ADR-397): the configuration Vespera reads and the compose files it starts the containers
  * from lie there, written from the jar's shipped copies where they are missing and never over a file already there.
  *
  * <p>As a listener it hears that a start has begun, before Spring prepares its environment, and prepares the folder
@@ -203,7 +203,7 @@ public final class BesideTheJar implements ApplicationListener<ApplicationEvent>
                 line = said + "; this jar's is written beside it as " + name + NEW_SUFFIX;
             } catch (IOException | RuntimeException unwritten) {
                 line = said + "; this jar's cannot be written beside it as " + name + NEW_SUFFIX + " ("
-                        + SidecarLockUnavailableException.reasonOf(unwritten) + ")";
+                        + ContainerLockUnavailableException.reasonOf(unwritten) + ")";
             }
             differences.add(new Difference(name, keys, line));
         }

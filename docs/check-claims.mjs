@@ -423,7 +423,7 @@ function readmeSection(heading, name) {
     } else {
       // Each component is typed by the kind of answer its key takes (ADR-120), so the match is on
       // any of the value types rather than on the one name they used to share.
-      const real = [...record[1].matchAll(/(?:NumericValue|TextValue|NameEndingsValue|LanguagesValue|FoldersValue) (\w+)/g)].map((k) => k[1]).sort();
+      const real = [...record[1].matchAll(/(?:NumericValue|TextValue|NameEndingsValue|LanguagesValue|FoldersValue|TopicsValue) (\w+)/g)].map((k) => k[1]).sort();
       const wrong = [];
       for (const k of named) if (!real.includes(k)) wrong.push(`${k} is documented and is not a profile key`);
       for (const k of real) if (!named.includes(k)) wrong.push(`${k} is a profile key and is documented nowhere`);
@@ -499,7 +499,7 @@ function readmeSection(heading, name) {
 
 /* ---------- how README.md says to run it ---------- */
 
-// "Running it" once said that Vespera starts its own sidecars, and the packaged jar has never
+// "Running it" once said that Vespera starts its own containers, and the packaged jar has never
 // carried the compose support that would do it (#304, ADR-158). The section now names a build, a
 // compose file, two services, a build context, two ports, a model and a jar path. Each of
 // those is a value some file in the tree holds, so each is read out of the section and
@@ -534,7 +534,10 @@ function readmeSection(heading, name) {
     const project = pom.slice(pom.indexOf("</parent>"));
     const artifact = /<artifactId>([^<]+)<\/artifactId>/.exec(project);
     const version = /<version>([^<]+)<\/version>/.exec(project);
-    const jar = artifact && version ? `target/${artifact[1]}-${version[1]}.jar` : null;
+    // ADR-431 §2: the pom's version is ${revision}, whose default is the property of that name.
+    const revision = /<revision>([^<]+)<\/revision>/.exec(pom);
+    const built = version && version[1] === "${revision}" && revision ? revision[1] : version && version[1];
+    const jar = artifact && built ? `target/${artifact[1]}-${built}.jar` : null;
     const launched = [...section.matchAll(/java -jar (\S+?)`?(?:\s|$)/g)].map((m) => m[1]);
     if (!jar) wrong.push(`could not read the project's artifactId and version from ${POM}`);
     else {
@@ -1027,7 +1030,7 @@ const UNCHECKED = [
   'whether following "Running it" gets an invocation past stage 2 — that needs Docker, and this starts nothing',
   "that Step 0's profile.yaml example parses — this compares its keys with the value types, and never runs ProfileStore",
   "a test a record names outside its Tests section, as ADR-094's Consequences and the \"What pins it\" of ADR-147 to ADR-216 do, or in a form other than the three the Tests check reads",
-  'that the packaged jar nests no Docker Compose artifact and runs no Spring compose support — PackagedJarIT holds that, under ./mvnw verify, not this; what the jar does start (ADR-323) is held by SidecarStartTest',
+  'that the packaged jar nests no Docker Compose artifact and runs no Spring compose support — PackagedJarIT holds that, under ./mvnw verify, not this; what the jar does start (ADR-323) is held by ContainerStartTest',
 ];
 
 /* ---------- report ---------- */

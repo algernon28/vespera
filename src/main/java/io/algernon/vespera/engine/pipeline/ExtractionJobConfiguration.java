@@ -70,11 +70,11 @@ public class ExtractionJobConfiguration {
 
     /**
      * Spring Batch's own cumulative skip limit — a generous backstop against a slowly-degrading
-     * sidecar over a very long run, deliberately not the circuit breaker (ADR-071's own distinction).
+     * Docling over a very long run, deliberately not the circuit breaker (ADR-071's own distinction).
      * An implementer's default: large enough that it is not what fires during a healthy run, however
      * long, since {@link ExtractionCircuitBreaker}'s consecutive-streak count is the mechanism that
-     * actually protects a run against a sidecar that answers only with failures. A sidecar that drops
-     * connections is stopped by {@link SidecarRecovery}'s bound when it is gone, and by {@link
+     * actually protects a run against a Docling that answers only with failures. A Docling that drops
+     * connections is stopped by {@link DoclingRecovery}'s bound when it is gone, and by {@link
      * FailuresInARow#CONSECUTIVE_DROPPED_TWICE_COUNT} when it is up and converts nothing
      * (ADR-175).
      */
@@ -89,7 +89,7 @@ public class ExtractionJobConfiguration {
      * {@code ExtractionConcurrencyTest}.
      *
      * <p>Eight, and not sixteen or thirty-two, because the win from raising it is close to linear in the
-     * width while the cost of raising it too far is not. Measured against the pinned sidecar
+     * width while the cost of raising it too far is not. Measured against the pinned Docling
      * (docling-serve-cpu:v1.32.0 / docling 2.124.0), throughput rises roughly 0.5 documents per second
      * per unit of concurrency with no sign of a ceiling through 16 -- so the number is not chosen because
      * higher stops helping. It is chosen because a real corpus's conversion times are lumpy: a measured
@@ -117,7 +117,7 @@ public class ExtractionJobConfiguration {
     static final int LOOKAHEAD = 2 * CONVERSION_CONCURRENCY;
 
     /**
-     * The entry the Docling image adds to the sidecar's {@code /version}, naming the image it was built
+     * The entry the Docling image adds to Docling's {@code /version}, naming the image it was built
      * as (ADR-179 §2). Prefixed so that no docling component can report under the same key.
      */
     static final String IMAGE_ENTRY = "vespera-image";
@@ -230,7 +230,7 @@ public class ExtractionJobConfiguration {
                 contentIdentity,
                 detectedFormats,
                 doclingExtractor,
-                // A provider, read when the reader is opened: the identity asks the sidecar, and this
+                // A provider, read when the reader is opened: the identity asks Docling, and this
                 // bean is also built when a step that failed its health check is closed (#319).
                 extractorIdentity::getObject,
                 stageRuns,
@@ -259,9 +259,9 @@ public class ExtractionJobConfiguration {
     @StepScope
     DoclingControlConversion extractionControlConversion(
             DoclingExtractor doclingExtractor,
-            SidecarRecovery sidecarRecovery,
+            DoclingRecovery doclingRecovery,
             PendingConversions extractionPendingConversions) {
-        return new DoclingControlConversion(doclingExtractor, sidecarRecovery, extractionPendingConversions);
+        return new DoclingControlConversion(doclingExtractor, doclingRecovery, extractionPendingConversions);
     }
 
     /**
@@ -430,27 +430,27 @@ public class ExtractionJobConfiguration {
      * (ADR-012: "the serving runtime is config, not code"; ADR-090 for what "full extractor identity"
      * turned out to mean).
      *
-     * <p>Two parts, and between them they cover what a conversion depends on. The sidecar's whole
+     * <p>Two parts, and between them they cover what a conversion depends on. Docling's whole
      * {@code /version} map says what it is built from — {@code docling} and {@code docling-ibm-models}
      * are what actually convert, and either can move while the serving wrapper stays put. The options
      * this client sends say what was asked of it. An option that is <em>not</em> sent is the server's
      * default, and that default is fixed by the schema of a version the map already pins, so the two
      * parts together need no third.
      *
-     * <p><b>The base URL is deliberately absent.</b> It says where the sidecar is, never what it does:
+     * <p><b>The base URL is deliberately absent.</b> It says where Docling is, never what it does:
      * two instances on the same versions with the same options produce the same text. Keying on it had
-     * this exactly backwards — moving the sidecar's port invalidated the whole extraction cache, while
+     * this exactly backwards — moving Docling's port invalidated the whole extraction cache, while
      * a genuine engine change slipped through unnoticed.
      *
      * <p>Entries are sorted, so an identity never varies with map iteration order. Two runs against
-     * one unchanged sidecar must key the same rows; an identity that reshuffled would re-extract a
+     * one unchanged Docling must key the same rows; an identity that reshuffled would re-extract a
      * corpus for no reason at all.
      *
-     * <p>{@code @Lazy}, because composing this needs the sidecar to answer: an eager singleton would
+     * <p>{@code @Lazy}, because composing this needs Docling to answer: an eager singleton would
      * demand that at context refresh, before {@link ExtractionHealthCheckListener} has established the
-     * sidecar is even there (ADR-071's lazy readiness check). Deferred, it is first built when stage
+     * Docling is even there (ADR-071's lazy readiness check). Deferred, it is first built when stage
      * 2's step asks for it — after that listener has run — and then reused: an ordinary singleton bean,
-     * so nothing that asks for it afterwards costs a second call or needs the sidecar still up.
+     * so nothing that asks for it afterwards costs a second call or needs Docling still up.
      *
      * <p>Not {@code @StepScope}: a scoped bean is injected as a CGLIB proxy, and {@link
      * ExtractorIdentity} is a record and therefore final. That is a fair constraint rather than an
@@ -461,9 +461,9 @@ public class ExtractionJobConfiguration {
      * the versions alone, a cache would serve one image's conversions as the other's. The image is the
      * one {@code compose.yaml} runs, named in {@code vespera.docling.image}.
      *
-     * <p><b>The sidecar says which image it runs, and this checks it first</b> (ADR-179). Our image adds
+     * <p><b>Docling says which image it runs, and this checks it first</b> (ADR-179). Our image adds
      * its own name to {@code /version} as {@code vespera-image}, and that name is compared, character for
-     * character, with the configured one before anything is composed. A sidecar running another image, or
+     * character, with the configured one before anything is composed. A Docling running another image, or
      * not saying which, throws {@link DoclingRunsAnotherImageException} rather than have its conversions
      * recorded under a name that is not its own. The identity still carries the whole map, that entry
      * included.

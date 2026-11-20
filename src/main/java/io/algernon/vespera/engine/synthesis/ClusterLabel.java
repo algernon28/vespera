@@ -29,7 +29,7 @@ public record ClusterLabel(String value) {
      *
      * @param doclingTitle the lead document's Docling-labelled title
      * @param leadDocument the lead document's root-relative path (ADR-051)
-     * @param clusterOrdinal the cluster's ordinal within its seed partition
+     * @param clusterOrdinal the cluster's ordinal within its subtopic, or within its topic where it has none
      */
     public static ClusterLabel derivedFrom(String doclingTitle, OccurrencePath leadDocument, int clusterOrdinal) {
         if (doclingTitle != null && !doclingTitle.isBlank()) {

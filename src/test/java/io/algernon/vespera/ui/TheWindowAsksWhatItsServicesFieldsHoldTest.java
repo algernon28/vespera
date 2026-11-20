@@ -114,12 +114,12 @@ class TheWindowAsksWhatItsServicesFieldsHoldTest {
         List<String> captions;
         List<Boolean> runAndAutoLabel;
         try (WindowForTests window = WindowForTests.shown(state)) {
-            before = window.awaiting(TheWindowAsksWhatItsServicesFieldsHoldTest::containerMarks,
+            before = window.awaiting(TheWindowAsksWhatItsServicesFieldsHoldTest::serviceMarks,
                     marks -> marks.equals(List.of("KO", "KO")));
             runBefore = window.read(root -> WindowForTests.caption(root, "run-captioned"));
 
             window.act(root -> field(root, "vespera.docling.base-url").setText(docling.baseUrl().toString()));
-            doclingCorrected = window.awaiting(TheWindowAsksWhatItsServicesFieldsHoldTest::containerMarks,
+            doclingCorrected = window.awaiting(TheWindowAsksWhatItsServicesFieldsHoldTest::serviceMarks,
                     marks -> marks.getFirst().equals("OK"));
 
             window.act(root -> field(root, "spring.ai.ollama.base-url").setText(ollama.baseUrl().toString()));
@@ -127,7 +127,7 @@ class TheWindowAsksWhatItsServicesFieldsHoldTest {
                             !WindowForTests.node(root, "run", Button.class).isDisabled(),
                             !WindowForTests.node(root, "label-auto", Button.class).isDisabled()),
                     both -> !both.contains(false));
-            bothCorrected = window.read(TheWindowAsksWhatItsServicesFieldsHoldTest::containerMarks);
+            bothCorrected = window.read(TheWindowAsksWhatItsServicesFieldsHoldTest::serviceMarks);
             captions = window.read(root -> List.of(WindowForTests.caption(root, "check-docling"),
                     WindowForTests.caption(root, "check-ollama")));
         }
@@ -176,13 +176,13 @@ class TheWindowAsksWhatItsServicesFieldsHoldTest {
         List<String> blanked;
         boolean runOn;
         try (WindowForTests window = WindowForTests.shown(state)) {
-            before = window.awaiting(TheWindowAsksWhatItsServicesFieldsHoldTest::containerMarks,
+            before = window.awaiting(TheWindowAsksWhatItsServicesFieldsHoldTest::serviceMarks,
                     marks -> marks.equals(List.of("KO", "KO")));
             window.act(root -> {
                 field(root, "vespera.docling.base-url").setText("");
                 field(root, "spring.ai.ollama.base-url").setText("");
             });
-            blanked = window.awaiting(TheWindowAsksWhatItsServicesFieldsHoldTest::containerMarks,
+            blanked = window.awaiting(TheWindowAsksWhatItsServicesFieldsHoldTest::serviceMarks,
                     marks -> marks.equals(List.of("OK", "OK")));
             runOn = window.awaiting(root -> !WindowForTests.node(root, "run", Button.class).isDisabled(),
                     Boolean::booleanValue);
@@ -243,8 +243,8 @@ class TheWindowAsksWhatItsServicesFieldsHoldTest {
                         .isEqualTo(List.of(DOCLING_TYPED, "", StartingValues.DOCLING_IMAGE_GPU)));
         claim("the window closed, and the containers were stopped once, for the launch values held, which neither start"
                         + " changed",
-                () -> assertThat(List.of(closed, docker.of("stop-sidecars"), state.values())).containsExactly(true,
-                        List.of(new RecordingDockerControl.Call("stop-sidecars", Optional.of(held), false)), held));
+                () -> assertThat(List.of(closed, docker.of("stop-containers"), state.values())).containsExactly(true,
+                        List.of(new RecordingDockerControl.Call("stop-containers", Optional.of(held), false)), held));
     }
 
     /** The window's download goes to the Ollama its field names as the download begins, not the one held (§7). */
@@ -288,7 +288,7 @@ class TheWindowAsksWhatItsServicesFieldsHoldTest {
     }
 
     /** What Docling's and Ollama's rows read. */
-    private static List<String> containerMarks(Parent root) {
+    private static List<String> serviceMarks(Parent root) {
         return List.of(WindowForTests.node(root, "check-docling-mark", Labeled.class).getText(),
                 WindowForTests.node(root, "check-ollama-mark", Labeled.class).getText());
     }

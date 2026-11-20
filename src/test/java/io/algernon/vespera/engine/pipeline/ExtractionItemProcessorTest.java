@@ -160,8 +160,8 @@ class ExtractionItemProcessorTest {
                 new ExtractionMetrics(jdbcTemplate, new LanguageDetection()),
                 new DegenerateOutputConfidenceFloor(null),
                 new Shingler(jdbcTemplate),
-                // Nothing here drops a connection, so nothing is waited for: there is no sidecar to ask.
-                new SidecarRecovery(null, java.time.Duration.ZERO, java.time.Duration.ZERO) {
+                // Nothing here drops a connection, so nothing is waited for: there is no docling to ask.
+                new DoclingRecovery(null, java.time.Duration.ZERO, java.time.Duration.ZERO) {
                     @Override
                     void awaitHealthy() {}
                 });

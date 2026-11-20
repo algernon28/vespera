@@ -57,7 +57,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * The whole job, from the command line down to the rows, in a context narrow enough to need neither
- * a live Ollama nor a Docling sidecar: the one slice every whole-job test in this package
+ * a live Ollama nor a Docling docling: the one slice every whole-job test in this package
  * is built on (ADR-153, amending ADR-131).
  *
  * <p><b>What a test adds on top of it is what makes it that test, and nothing else.</b> This carries
@@ -138,7 +138,7 @@ import org.springframework.transaction.annotation.Transactional;
     ExtractionItemWriter.class,
     ExtractionCircuitBreaker.class,
     ExtractionHealthCheckListener.class,
-    SidecarRecovery.class,
+    DoclingRecovery.class,
     ExtractionMetrics.class,
     LanguageDetection.class,
     HybridChunkerBeans.class,

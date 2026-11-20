@@ -68,7 +68,7 @@ public final class ProfileEdit {
     /** §4's line for a value the jar would read as unreadable, ignore or stop on, or for no provenance; else empty. */
     public static Optional<String> refusalOf(ProfileKey key, String value, String provenance) {
         String typed = value == null ? "" : trimmed(key, value);
-        if (typed.chars().anyMatch(c -> c < 0x20)) {
+        if (typed.chars().anyMatch(c -> c < 0x20 && !aLineBreakOfTheTopics(key, c))) {
             return said(key, "a value is one line");
         }
         if (provenance == null || provenance.isBlank()) {
@@ -239,7 +239,7 @@ public final class ProfileEdit {
      */
     public static boolean isReadable(ProfileKey key, String value) {
         String typed = value == null ? "" : trimmed(key, value);
-        if (typed.chars().anyMatch(c -> c < 0x20)) {
+        if (typed.chars().anyMatch(c -> c < 0x20 && !aLineBreakOfTheTopics(key, c))) {
             return false;
         }
         return typed.isEmpty() || key == ProfileKey.SEED_FOLDER || reasonForValue(key, typed).isEmpty();
@@ -310,7 +310,18 @@ public final class ProfileEdit {
         parseForm(text);
     }
 
+    /**
+     * Whether {@code c} is a line break in the value of {@code topics}, which holds one name a line (ADR-435 §1): the one
+     * value that is several lines in one scalar.
+     */
+    private static boolean aLineBreakOfTheTopics(ProfileKey key, int c) {
+        return key == ProfileKey.TOPICS && (c == '\n' || c == '\r');
+    }
+
     private static String normalized(ProfileKey key, String value) {
+        if (key.kind() == ProfileKey.Kind.TOPICS) {
+            return String.join("\n", TopicEntries.linesOf(value).stream().map(String::strip).toList());
+        }
         String typed = trimmed(key, withoutBreaks(value == null ? "" : value));
         if (key.kind() == ProfileKey.Kind.FOLDERS || key.kind() == ProfileKey.Kind.CORPUS_FOLDERS) {
             return String.join(java.io.File.pathSeparator, foldersOf(typed));
@@ -416,6 +427,9 @@ public final class ProfileEdit {
             case FOLDERS_NOT_WALKED -> areFoldersBelowTheCorpusRoot(value) ? Optional.empty()
                     : Optional.of(quoted + " is not a list of folders below the corpus root, written with / between"
                             + " their elements and separated by " + java.io.File.pathSeparator);
+            // The names are the Topics section's, which draws a line the jar would refuse as such; the jar refuses it
+            // at the start of a run (ADR-435 §3, §9).
+            case TOPICS -> Optional.empty();
             case CLUSTER_RESOLUTION -> number(value).filter(number -> number > 0).isPresent() ? Optional.empty()
                     : Optional.of(quoted + " is not a number above 0");
             default -> number(value).isPresent() ? Optional.empty() : Optional.of(quoted + " is not a number");

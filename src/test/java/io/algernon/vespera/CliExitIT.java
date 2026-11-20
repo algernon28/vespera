@@ -49,14 +49,14 @@ class CliExitIT {
     private static final long EXIT_BOUND_SECONDS = 60;
 
     /** The packaged, executable jar the operator actually runs. */
-    private static final Path EXECUTABLE_JAR = Path.of("target", "vespera-0.0.1-SNAPSHOT.jar");
+    private static final Path EXECUTABLE_JAR = Path.of("target", "vespera-0-SNAPSHOT.jar");
 
     /**
-     * Where each launch names both sidecars: a host under {@code .invalid}, which never resolves (RFC 6761), so the
+     * Where each launch names both containers: a host under {@code .invalid}, which never resolves (RFC 6761), so the
      * starter takes them for another machine's and runs no Docker command, and a converter is never reached
      * (ADR-390 §7, ADR-323 §3 step 2).
      */
-    private static final String SIDECARS_ON_NO_MACHINE = "http://sidecars.invalid";
+    private static final String CONTAINERS_ON_NO_MACHINE = "http://containers.invalid";
 
     /** A temp working directory, so the launched jar writes its database nowhere the repo tracks. */
     @TempDir
@@ -204,7 +204,7 @@ class CliExitIT {
      * One Vespera runs on a machine at a time (ADR-395 §4, §5): the packaged jar started as {@code vespera run} while a
      * second process holds the machine as a control panel, in the folder the launch's environment names, is refused
      * before the context starts, so its working directory is never made; and {@code vespera serve}, which uses no
-     * sidecar, is not refused by it. Held here, among this class's launches, because the suite holds at most seven
+     * container, is not refused by it. Held here, among this class's launches, because the suite holds at most seven
      * integration tests (ADR-368).
      */
     @Test
@@ -230,7 +230,7 @@ class CliExitIT {
                             .containsExactly(List.of("another Vespera is running on this machine (" + holder + ");"
                                     + " wait for it to end, or stop it or close its control panel, then run the same"
                                     + " command again. One Vespera runs on a machine at a time, so that none stops the"
-                                    + " sidecars another is using."), List.of()));
+                                    + " containers another is using."), List.of()));
             claim("and the working directory it names was never made, so no lock, database or log of it was written",
                     () -> assertThat(Files.exists(refused.workingDirectory())).isFalse());
 
@@ -259,9 +259,9 @@ class CliExitIT {
                                                 javaExecutable(),
                                                 "--enable-native-access=ALL-UNNAMED",
                                                 "-Dspring.docker.compose.enabled=false",
-                                                "-Dvespera.docling.base-url=" + SIDECARS_ON_NO_MACHINE + ":5001",
-                                                "-Dspring.ai.ollama.base-url=" + SIDECARS_ON_NO_MACHINE + ":11434",
-                                                "-Dvespera.sidecars.wait-at-most=1s",
+                                                "-Dvespera.docling.base-url=" + CONTAINERS_ON_NO_MACHINE + ":5001",
+                                                "-Dspring.ai.ollama.base-url=" + CONTAINERS_ON_NO_MACHINE + ":11434",
+                                                "-Dvespera.containers.wait-at-most=1s",
                                                 "-Dvespera.working-dir=" + launchedIn,
                                                 "-jar",
                                                 EXECUTABLE_JAR.toString()),
@@ -346,8 +346,8 @@ class CliExitIT {
                                                 javaExecutable(),
                                                 "--enable-native-access=ALL-UNNAMED",
                                                 "-Dspring.docker.compose.enabled=false",
-                                                "-Dvespera.docling.base-url=" + SIDECARS_ON_NO_MACHINE + ":5001",
-                                                "-Dspring.ai.ollama.base-url=" + SIDECARS_ON_NO_MACHINE + ":11434",
+                                                "-Dvespera.docling.base-url=" + CONTAINERS_ON_NO_MACHINE + ":5001",
+                                                "-Dspring.ai.ollama.base-url=" + CONTAINERS_ON_NO_MACHINE + ":11434",
                                                 "-Dvespera.working-dir=" + workingDirectory),
                                         jvmOptions.stream(),
                                         Stream.of("-jar", EXECUTABLE_JAR.toString()),

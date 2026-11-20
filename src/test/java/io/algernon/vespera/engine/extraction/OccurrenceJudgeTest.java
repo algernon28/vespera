@@ -64,7 +64,7 @@ class OccurrenceJudgeTest {
     private static final String NO_ANSWER_IN_TIME = "no response from docling-serve within the call timeout";
 
     /** How many timeouts in a row the application ships as the converter's rather than the file's (ADR-330 §8). */
-    private static final int TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR = 3;
+    private static final int TIMEOUTS_THAT_READ_AS_A_DEAD_CONTAINER = 3;
 
     /** One measurement row per answer a document really came back for; a set-aside answer earns none. */
     private static final int METRIC_ROWS_PER_JUDGED_RESPONSE = 1;
@@ -286,12 +286,12 @@ class OccurrenceJudgeTest {
     @DisplayName("Silence about one document is a fact about that document; silence about several in a row is a fact about the converter")
     @Link(name = "ADR-139", url = Adr.A_REFUSED_CONVERSION_LEAVES_A_FAULT_ROW, type = "adr")
     void flipsAConsecutiveRunOfUnansweredCallsToTheConverter() {
-        Judging judging = judging(TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR);
+        Judging judging = judging(TIMEOUTS_THAT_READ_AS_A_DEAD_CONTAINER);
 
         // The two readings ADR-071 folds together, mixed on purpose because they share one count.
         OccurrenceDecision first = judging.answer(0, failing(FailureCategory.TIMEOUT));
         OccurrenceDecision second = judging.judge.timedOut(judging.occurrence(1), NO_ANSWER_IN_TIME);
-        OccurrenceDecision third = judging.answer(TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR - 1, failing(FailureCategory.TIMEOUT));
+        OccurrenceDecision third = judging.answer(TIMEOUTS_THAT_READ_AS_A_DEAD_CONTAINER - 1, failing(FailureCategory.TIMEOUT));
 
         claim(
                 "a converter that ran out of time on one document says that document was too much for the"
@@ -306,7 +306,7 @@ class OccurrenceJudgeTest {
                         + " situation and counts against the same run",
                 () -> assertThat(second).isEqualTo(new OccurrenceDecision.Failed("timeout: " + NO_ANSWER_IN_TIME)));
         claim(
-                "but once " + TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR + " land in a row, that is a statement"
+                "but once " + TIMEOUTS_THAT_READ_AS_A_DEAD_CONTAINER + " land in a row, that is a statement"
                         + " about the converter rather than about any one document, so this document is set"
                         + " aside unjudged instead, carrying the converter's own message and nothing else --"
                         + " not that message with this pass's count of timeouts spliced onto it",
@@ -324,7 +324,7 @@ class OccurrenceJudgeTest {
         final OccurrenceJudge judge;
 
         Judging(OccurrencesUnderARun occurrences) {
-            this(occurrences, TIMEOUTS_THAT_READ_AS_A_DEAD_SIDECAR);
+            this(occurrences, TIMEOUTS_THAT_READ_AS_A_DEAD_CONTAINER);
         }
 
         Judging(OccurrencesUnderARun occurrences, int timeoutsInARow) {

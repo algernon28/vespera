@@ -4,6 +4,7 @@ import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
+import io.algernon.vespera.engine.ledger.ReleaseVersion;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -144,10 +145,14 @@ class TreeIsTheSameWrittenATopicAtATimeTest {
                 });
     }
 
-    /** The marker a tree drawn for {@code work} under {@link ThreeTopics}' generation carries (ADR-276 §3). */
+    /**
+     * The marker a tree drawn for {@code work} under {@link ThreeTopics}' generation carries (ADR-276 §3), its third
+     * line the release version of the code that drew it (ADR-431 §5).
+     */
     private static String markerFor(Path work) throws IOException {
         return "working-directory=" + work.toRealPath() + "\n"
-                + "generation-run=" + ThreeTopics.provenance("").runId() + "\n";
+                + "generation-run=" + ThreeTopics.provenance("").runId() + "\n"
+                + "vespera=" + ReleaseVersion.ofThisJar().value() + "\n";
     }
 
     /** Every file beneath {@code tree}, by its path relative to it with {@code /} between segments. */

@@ -1,5 +1,6 @@
 package io.algernon.vespera.engine.deliverable;
 
+import io.algernon.vespera.engine.ledger.ReleaseVersion;
 import io.algernon.vespera.engine.ledger.ReplacingMove;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -43,6 +44,9 @@ public final class DeliverableRoot {
     private static final String WORKING_DIRECTORY_KEY = "working-directory=";
 
     private static final String GENERATION_RUN_KEY = "generation-run=";
+
+    /** The marker's third line: the release version that drew the tree; a marker of two lines is read as before (ADR-431 §5). */
+    private static final String VERSION_KEY = "vespera=";
 
     private static final String NAME_A_FOLDER_OUTSIDE =
             ". Name a folder outside the corpus root and the seed folder in vespera.deliverable-root.";
@@ -179,7 +183,8 @@ public final class DeliverableRoot {
         }
         Files.writeString(
                 tree.resolve(MARKER_FILE_NAME),
-                WORKING_DIRECTORY_KEY + recorded + "\n" + GENERATION_RUN_KEY + generationRun + "\n",
+                WORKING_DIRECTORY_KEY + recorded + "\n" + GENERATION_RUN_KEY + generationRun + "\n"
+                        + VERSION_KEY + ReleaseVersion.ofThisJar().value() + "\n",
                 StandardCharsets.UTF_8);
     }
 

@@ -19,6 +19,8 @@
 
 > **Partly amended — see [ADR-362](0362-an-invocations-report-is-one-json-file-drawn-as-static-html-through-a-mustache-template-and-no-command-opens-anything.md).** Of §5: the closing line still names `<root>/index.html`, and the generation step hands it to no opener, since no command opens anything; the invocation report's `opened` says so. The rest of this record stands.
 
+> **Partly amended — see [ADR-431](0431-the-release-version-is-the-v-tags-semver-0-snapshot-in-any-other-build-and-enters-no-run-id.md).** Of §3: the marker is three lines, the third `vespera=<release version>`, ending in `\n`; a marker of two lines, as a tree drawn before ADR-431 carries, is read as before, a marker being read by its two keys. The rest of this record stands as the notes above leave it.
+
 - **Date**: 2026-10-18
 - **Status**: accepted on 2026-10-18.
 - **Amends**: [ADR-274](0274-the-deliverable-is-html-with-a-verified-copy-of-every-survivor-it-lists-and-its-rendering-keys-no-run.md), in these places and no others: §1's tree, drawn at `deliverable/<generation run>/`, which is drawn at the deliverable root and gains one file, the marker (§1, §3); §2.5's "the working directory's drive" and the reason it gives, the gibibyte being read on the drive the tree is written to (§4); §2.7's bound of 69 characters on the working directory's path, which for a named root is a bound of 146 on the root's own (§1); §6's "redraws the tree it already had, in place, under the same name", which holds of a named root only where it holds this working directory's tree of the same generation run (§3); and §7's `<absolute path>/index.html`, which is the root's index (§5). Its Decided here 7, a gibibyte left free, stands, read on that drive.

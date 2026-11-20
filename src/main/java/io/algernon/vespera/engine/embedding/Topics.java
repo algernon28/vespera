@@ -86,6 +86,52 @@ public class Topics {
         return List.copyOf(topics);
     }
 
+    /**
+     * A topic the profile lists (ADR-435 section 4): its key, its name as written and its place in the list, counted
+     * from 1.
+     */
+    public record ListedName(TopicKey key, String name, int place) {}
+
+    /**
+     * Records the topics the profile lists under {@code runId} (ADR-435 section 4): one {@code topic} row each, with no
+     * passage, and one {@code listed_topic} row each. Called where {@link #record} is, before the first survivor is
+     * scored, and with no {@code topic_passage} or {@code seed_feeding_no_topic} row.
+     */
+    public void recordListed(RunId runId, List<ListedName> listed) {
+        for (ListedName topic : listed) {
+            SeedPassage key = topic.key().firstPassage();
+            jdbcTemplate.update(
+                    "INSERT INTO topic (run_id, seed_path, chunk_index, passage_count) VALUES (?, ?, ?, 0)",
+                    runId.value(),
+                    key.seedPath(),
+                    key.chunkIndex());
+            jdbcTemplate.update(
+                    "INSERT INTO listed_topic (run_id, topic_seed_path, topic_chunk_index, name, place)"
+                            + " VALUES (?, ?, ?, ?, ?)",
+                    runId.value(),
+                    key.seedPath(),
+                    key.chunkIndex(),
+                    topic.name(),
+                    topic.place());
+        }
+    }
+
+    /**
+     * The topics the profile listed under {@code runId}, in the list's order, by the index of the run and the place,
+     * sorting nothing; empty where the run's topics are inferred (ADR-435 section 4).
+     */
+    public List<ListedName> listedUnder(RunId runId) {
+        return jdbcTemplate.query(
+                "SELECT topic_seed_path, topic_chunk_index, name, place FROM listed_topic WHERE run_id = ?"
+                        + " ORDER BY place",
+                (resultSet, rowNumber) -> new ListedName(
+                        new TopicKey(new SeedPassage(
+                                resultSet.getString("topic_seed_path"), resultSet.getInt("topic_chunk_index"))),
+                        resultSet.getString("name"),
+                        resultSet.getInt("place")),
+                runId.value());
+    }
+
     /** One seed that feeds a topic and how many of the topic's passages are of it (ADR-416 section 2). */
     public record SeedFeed(String seedPath, int passages) {}
 
@@ -157,6 +203,7 @@ public class Topics {
      * rows (ADR-409 section 5).
      */
     public void discardForRun(RunId runId) {
+        jdbcTemplate.update("DELETE FROM listed_topic WHERE run_id = ?", runId.value());
         jdbcTemplate.update("DELETE FROM topic_passage WHERE run_id = ?", runId.value());
         jdbcTemplate.update("DELETE FROM topic WHERE run_id = ?", runId.value());
         jdbcTemplate.update("DELETE FROM seed_feeding_no_topic WHERE run_id = ?", runId.value());

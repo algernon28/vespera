@@ -31,10 +31,11 @@ public interface ClusterExemplars {
      * one under the ordinals they were given (ADR-133): the sent set is not in general a prefix of the
      * members, so nothing downstream could work out which document a citation meant.
      *
-     * <p><b>A member carrying no score stops instead</b>, which is {@code Arrangement.partitionsOf}'s
-     * rule one stage along and for its reason: the order these are sent in <em>is</em> the score, so a
-     * document with none cannot be placed among them. Standing a zero in for it would send it last as
-     * though it had been measured and found least relevant, which is a claim nobody made.
+     * <p><b>A member carrying no score stops instead</b>, which is the arrangement's rule, as {@code
+     * pipeline.ArrangementTasklet} states it, one stage along and for its reason: the order these are
+     * sent in <em>is</em> the score, so a document with none cannot be placed among them. Standing a
+     * zero in for it would send it last as though it had been measured and found least relevant, which
+     * is a claim nobody made.
      *
      * <p>For each member, in the order given: its score is asked for, then its opening chunk, then
      * {@link GenerationProgress#nothingChunkedFrom} where there is none, then {@link

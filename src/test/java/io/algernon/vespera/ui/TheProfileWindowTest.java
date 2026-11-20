@@ -67,11 +67,11 @@ import org.junit.jupiter.api.io.TempDir;
 class TheProfileWindowTest {
 
     /**
-     * The sidebar's sections, in their order: the profile's first, then the seven the cockpit had, with the label
-     * commands' after Seed folder (ADR-413 §1).
+     * The sidebar's sections, in their order: the profile's first, then the seven the cockpit had, with the topics'
+     * and then the label commands' after Seed folder (ADR-413 §1, ADR-435 §9).
      */
     private static final List<String> THE_SECTIONS = List.of("profile", "preflight", "folders", "services",
-            "seed-folder", "labels", "code-sets", "command-options", "reports");
+            "seed-folder", "topics", "labels", "code-sets", "command-options", "reports");
 
     /** The tabs the cockpit holds: none (ADR-432 §8). */
     private static final List<String> THE_TABS = List.of();
@@ -160,8 +160,9 @@ class TheProfileWindowTest {
 
     @Test
     @Story("The profile is edited in a window of its own")
-    @DisplayName("Profile is the first of the sidebar's nine sections, the window holds no tab, and Open profile opens one window apart from the control panel's, brought back rather than opened again")
+    @DisplayName("Profile is the first of the sidebar's ten sections, the window holds no tab, and Open profile opens one window apart from the control panel's, brought back rather than opened again")
     @Link(name = "ADR-413", url = Adr.THE_LABEL_COMMANDS_ARE_A_LABELS_SECTION_OF_THE_SIDEBAR, type = "adr")
+    @Link(name = "ADR-435", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
     void theProfileIsTheSidebarsFirstSectionAndOpensOneWindowOfItsOwn(@TempDir Path folder) throws Exception {
         List<String> sections;
         String title;
@@ -203,8 +204,8 @@ class TheProfileWindowTest {
             stillMinimized = HeadlessToolkit.onTheToolkit(opened::isIconified);
         }
 
-        claim("the sidebar holds nine sections, Profile first, then the seven it held before in their order, with Labels"
-                        + " after Seed folder",
+        claim("the sidebar holds ten sections, Profile first, then the seven it held before in their order, with Topics"
+                        + " and then Labels after Seed folder",
                 () -> assertThat(sections).containsExactlyElementsOf(THE_SECTIONS));
         claim("the Profile section is titled Profile and holds the Open profile button",
                 () -> {
@@ -443,7 +444,7 @@ class TheProfileWindowTest {
             afterCancel = showing(WindowForTests.closeAsTheOperatorDoes(window.stage), profile);
             fileAfterCancel = Files.readAllBytes(profileFile);
             window.dialogs.chosen = Optional.of(SAVE);
-            afterSave = closedOnceTheSidecarsAreStopped(window, profile);
+            afterSave = closedOnceTheContainersAreStopped(window, profile);
             statedAfterSave = spaceIn(profileFile);
             askedOnSave = List.copyOf(window.dialogs.choices);
         }
@@ -459,7 +460,7 @@ class TheProfileWindowTest {
             Stage profile = window.profileWindow();
             typed(window, FIRST_EDIT);
             window.dialogs.chosen = Optional.of(DISCARD);
-            afterDiscard = closedOnceTheSidecarsAreStopped(window, profile);
+            afterDiscard = closedOnceTheContainersAreStopped(window, profile);
             askedOnDiscard = window.dialogs.choices.size();
         }
 
@@ -469,7 +470,7 @@ class TheProfileWindowTest {
         try (WindowForTests window = WindowForTests.shown(aStateOver(unedited))) {
             window.openProfile();
             Stage profile = window.profileWindow();
-            withNoEdit = closedOnceTheSidecarsAreStopped(window, profile);
+            withNoEdit = closedOnceTheContainersAreStopped(window, profile);
             askedWithNoEdit = window.dialogs.choices.size();
         }
 
@@ -1230,7 +1231,7 @@ class TheProfileWindowTest {
      * WindowForTests#closedAsTheOperatorDoesAndAwaited} does. Gives whether the cockpit and the Profile window are each
      * still shown.
      */
-    private static boolean[] closedOnceTheSidecarsAreStopped(WindowForTests window, Stage profile) throws Exception {
+    private static boolean[] closedOnceTheContainersAreStopped(WindowForTests window, Stage profile) throws Exception {
         return showing(window.closedAsTheOperatorDoesAndAwaited(), profile);
     }
 

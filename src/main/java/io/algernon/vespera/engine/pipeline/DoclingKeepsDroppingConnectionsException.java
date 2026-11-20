@@ -3,7 +3,7 @@ package io.algernon.vespera.engine.pipeline;
 /**
  * {@code docling-serve} dropped the connection twice under each of several file occurrences in a row
  * while still answering its health check (ADR-175 section 3a), and the control conversion sent after the
- * fifth did not convert (ADR-184): read as a sidecar that is up and converts nothing. One such file is
+ * fifth did not convert (ADR-184): read as a Docling that is up and converts nothing. One such file is
  * the file's doing, and so is a run of them when the control conversion still converts, in which case
  * this is not thrown. The chunk the stop ends in is rolled back, so none of that chunk's files is
  * removed. Files of the run in a chunk that had already committed stay removed, at most four of them.

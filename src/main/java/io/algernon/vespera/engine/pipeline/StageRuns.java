@@ -12,6 +12,7 @@ import io.algernon.vespera.engine.ledger.RunId;
 import io.algernon.vespera.engine.ledger.WalkId;
 import io.algernon.vespera.engine.profile.Profile;
 import io.algernon.vespera.engine.profile.ProfileStore;
+import io.algernon.vespera.engine.profile.TopicsValue;
 import io.algernon.vespera.engine.similarity.MinHashParameters;
 import io.algernon.vespera.engine.similarity.RedundancyThresholds;
 import io.algernon.vespera.engine.similarity.ShingleParameters;
@@ -20,6 +21,7 @@ import io.algernon.vespera.engine.synthesis.DeliverableLanguage;
 import io.algernon.vespera.engine.synthesis.TopicNaming;
 import io.algernon.vespera.engine.synthesis.TopicOverviewSynthesis;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
@@ -132,6 +134,8 @@ class StageRuns {
     private double topicBreadthFloor;
     private double seeAlsoShare;
     private int subtopicFloor;
+    /** The topics the profile listed when the scoring run was minted, in its order, or {@code null} where none. */
+    private List<String> listedTopics;
     private RunId seedMeasurement;
     private RunId embeddingScoring;
     private String embeddingModelName;
@@ -391,6 +395,10 @@ class StageRuns {
         double topicBreadthFloorValue = presets.topicBreadthFloor();
         double seeAlsoShareValue = presets.seeAlsoShare();
         int subtopicFloorValue = presets.subtopicFloor();
+        // ADR-435 section 11: the list, in its order, from the same load; a refused value never reaches a mint.
+        List<String> listed = profile.topics().reading() instanceof TopicsValue.Answered answered
+                ? answered.names()
+                : null;
         // The artefact is read once, here, beside the floor (ADR-228).
         ModelArtefact artefact = ollamaClient.artefactOf(modelName);
         WalkId walk = runMint.finishedWalk(canonicalRoot, "stage 5");
@@ -412,7 +420,8 @@ class StageRuns {
                         topicNeighboursValue == TOPIC_K_EVERY_EARLIER_RUN ? null : topicNeighboursValue,
                         topicBreadthFloorValue == TOPIC_BREADTH_FLOOR_EVERY_EARLIER_RUN ? null : topicBreadthFloorValue,
                         seeAlsoShareValue == SEE_ALSO_SHARE_EVERY_EARLIER_RUN ? null : seeAlsoShareValue,
-                        subtopicFloorValue == SUBTOPIC_FLOOR_EVERY_EARLIER_RUN ? null : subtopicFloorValue),
+                        subtopicFloorValue == SUBTOPIC_FLOOR_EVERY_EARLIER_RUN ? null : subtopicFloorValue,
+                        listed),
                 walk,
                 Optional.of(measurementRunId));
         this.clusterResolution = resolution;
@@ -425,6 +434,7 @@ class StageRuns {
         this.topicBreadthFloor = topicBreadthFloorValue;
         this.seeAlsoShare = seeAlsoShareValue;
         this.subtopicFloor = subtopicFloorValue;
+        this.listedTopics = listed;
         embeddingModelName = modelName;
         embeddingModelArtefact = artefact;
         this.relevanceScoreFloor = relevanceScoreFloor;
@@ -522,6 +532,28 @@ class StageRuns {
     int subtopicFloor() {
         embeddingScoring();
         return subtopicFloor;
+    }
+
+    /**
+     * The topics the profile listed when the scoring run was minted, in its order (ADR-435 section 11), empty where it
+     * listed none and the topics are inferred. Mints the run if it has not yet been.
+     */
+    Optional<List<String>> listedTopics() {
+        embeddingScoring();
+        return Optional.ofNullable(listedTopics);
+    }
+
+    /**
+     * The name as listed of the topic {@code topic} is the key of, where the scoring run was minted over a list and the
+     * key is a listed topic's (ADR-435 section 4): the name the list gives, of which the key holds the name made plain.
+     */
+    Optional<String> listedNameOf(io.algernon.vespera.engine.embedding.TopicKey topic) {
+        if (!topic.isListed()) {
+            return Optional.empty();
+        }
+        return listedTopics().flatMap(names -> names.stream()
+                .filter(name -> TopicsValue.identityOf(name).equals(topic.firstPassage().seedPath()))
+                .findFirst());
     }
 
     /** The documents each band is asked for, as the scoring run was minted. */
@@ -701,7 +733,10 @@ class StageRuns {
             @JsonInclude(JsonInclude.Include.NON_NULL) Double seeAlsoShare,
             // ADR-406 section 5, ADR-409 section 8: the subtopic floor, after the see-also share, written only where it is
             // not what ships, since the clustering step divides each topic at it.
-            @JsonInclude(JsonInclude.Include.NON_NULL) Integer subtopicFloor) {}
+            @JsonInclude(JsonInclude.Include.NON_NULL) Integer subtopicFloor,
+            // ADR-435 section 11: the topics the profile lists, after subtopicFloor, the names in the list's order, and
+            // written only where it lists some.
+            @JsonInclude(JsonInclude.Include.NON_NULL) List<String> topics) {}
 
     /**
      * Stage 6a's own {@code ConfigConsumed}, extended once (ADR-230 section 3). {@code standingRemovals}

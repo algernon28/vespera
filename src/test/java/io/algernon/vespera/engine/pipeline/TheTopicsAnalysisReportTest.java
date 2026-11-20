@@ -25,7 +25,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The {@code topics} analysis report shows what feeds each topic, the topics no document was placed under with each
- * seed feeding them, and the seeds feeding no topic, as counts, paths, keys and names (ADR-416 §2, §3).
+ * seed feeding them, and the seeds feeding no topic, as counts, paths, keys and names (ADR-416 §2, §3); it is titled
+ * Topics, and its JSON is of format 2 (ADR-435 §10).
  *
  * <p>Drawn by {@link TopicsAnalysisReport} alone. The fixture has {@value #SEED_PASSAGES} seed passages: two topics of
  * three passages each, a third of them, and three passages of the two seeds feeding no topic. The topic on sluice gates
@@ -123,10 +124,10 @@ class TheTopicsAnalysisReportTest {
     void thePageListsEachTopicsCountsInTheOrderGiven() {
         String page = TopicsAnalysisReport.render(SEED_PASSAGES, TWO_TOPICS, TWO_SEEDS_FEEDING_NONE);
 
-        claim("the page is titled Topics found in your seed documents, and opens with the paragraph saying what a"
+        claim("the page is titled Topics, and opens with the paragraph saying what a"
                         + " topic is and what each row gives",
                 () -> assertThat(page).contains(
-                        "<h1>Topics found in your seed documents</h1>\n<p>" + THE_OPENING + "</p>\n"));
+                        "<h1>Topics</h1>\n<p>" + THE_OPENING + "</p>\n"));
         claim("its table is headed by the seven columns, then holds the topic on sluice gates and the one on pumps, in"
                         + " the order given: each with its name, its first passage as the seed's path and the chunk,"
                         + " its 3 passages, a third of the " + SEED_PASSAGES + " seed passages shown to one place, its"
@@ -210,7 +211,7 @@ class TheTopicsAnalysisReportTest {
 
     @Test
     @Story("What feeds each topic is shown before the arrangement is approved")
-    @DisplayName("The topics JSON holds what its page shows, in format 1, and follows its published schema")
+    @DisplayName("The topics JSON holds what its page shows, in format 2, and follows its published schema")
     void theJsonHoldsWhatThePageShowsAndFollowsItsSchema(@TempDir Path folder) throws IOException {
         JsonNode json = written(
                 TopicsAnalysisReport.document(SEED_PASSAGES, TWO_TOPICS, TWO_SEEDS_FEEDING_NONE, WRITTEN_AT), folder);
@@ -218,7 +219,7 @@ class TheTopicsAnalysisReportTest {
 
         claim("its name is topics and its title the page's",
                 () -> assertThat(List.of(json.get("analysisReport").asString(), json.get("title").asString()))
-                        .containsExactly("topics", "Topics found in your seed documents"));
+                        .containsExactly("topics", "Topics"));
         claim("its headline counts the 2 topics, the " + SEED_PASSAGES + " seed passages, the 1 topic with no document"
                         + " and the 2 seed documents feeding none",
                 () -> assertThat(figuresOf(json)).containsExactly(
@@ -271,9 +272,9 @@ class TheTopicsAnalysisReportTest {
                 () -> assertThat(textOf(sectionOf(json, "how-to-read"))).containsExactly(
                         THE_SHARE.replace("<em>", "").replace("</em>", ""),
                         THE_LINKS.replace("<em>", "").replace("</em>", "")));
-        claim("it is of format 1, the format its published schema holds",
+        claim("it is of format 2, the format its published schema holds",
                 () -> assertThat(List.of(json.get("format").asLong(), (long) TopicsAnalysisReport.FORMAT))
-                        .containsExactly(schema.get("properties").get("format").get("const").asLong(), 1L));
+                        .containsExactly(schema.get("properties").get("format").get("const").asLong(), 2L));
         claim("the schema uses only the eight keywords a report's schema may, and describes every position",
                 () -> assertThat(SchemaWalker.keywordProblems(schema)).isEmpty());
         claim("and the JSON follows it: every field it requires, none it does not name, each of its type and among the"

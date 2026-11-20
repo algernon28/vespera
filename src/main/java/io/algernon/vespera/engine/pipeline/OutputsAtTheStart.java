@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
  * The refusal at the start of {@code vespera run} of a profile whose {@code outputs} names what no drawing can draw
  * (ADR-434 §3): a name that is no output, or a plugin that draws from the HTML tree named without {@code tree}. The
  * line has the shape of ADR-384 §2's and is written after that refusal and before the corpus-root lock, so nothing is
- * walked, no run is minted and no sidecar is started.
+ * walked, no run is minted and no container is started.
  *
  * <p>It reads the one key and nothing else. A profile that cannot be read refuses nothing here and is left to the
  * job's own refusal, as {@link ModelsAtTheStart} leaves it. {@code vespera label} and {@code vespera publish} read no

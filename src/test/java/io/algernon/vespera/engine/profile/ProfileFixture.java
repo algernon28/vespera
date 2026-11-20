@@ -77,6 +77,8 @@ public final class ProfileFixture {
 
     private TextValue confluenceRootTitle = TextValue.unset();
 
+    private TextValue outputs = TextValue.unset();
+
     private ProfileFixture() {
     }
 
@@ -113,6 +115,7 @@ public final class ProfileFixture {
         fixture.confluenceFolderTitle = existing.confluenceFolderTitle();
         fixture.confluenceEmail = existing.confluenceEmail();
         fixture.confluenceRootTitle = existing.confluenceRootTitle();
+        fixture.outputs = existing.outputs();
         return fixture;
     }
 
@@ -309,6 +312,15 @@ public final class ProfileFixture {
         return this;
     }
 
+    /**
+     * What stage 6b draws (ADR-434 §2), {@code tree} and the plugins' names separated by commas, written as text, or
+     * unset where {@code value} is null.
+     */
+    public ProfileFixture outputs(String value, String provenance) {
+        this.outputs = value == null ? TextValue.unset() : someText(value, provenance);
+        return this;
+    }
+
     /** The profile itself, through the one constructor {@link Profile} has. */
     public Profile build() {
         return new Profile(
@@ -332,11 +344,13 @@ public final class ProfileFixture {
                 clusterResolution,
                 codeSetFolders,
                 CorpusFoldersValue.unset(),
+                TopicsValue.unset(),
                 confluenceBaseUrl,
                 confluenceSpaceKey,
                 confluenceFolderId,
                 confluenceFolderTitle,
                 confluenceEmail,
-                confluenceRootTitle);
+                confluenceRootTitle,
+                outputs);
     }
 }

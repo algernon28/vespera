@@ -31,7 +31,7 @@ public final class AnalysisReportFile {
             Map.entry("seed-corpus-comparison", 1),
             Map.entry("cluster-sizes", 3),
             Map.entry("relevance-labelling", 1),
-            Map.entry("topics", 1),
+            Map.entry("topics", 2),
             Map.entry("arrangement", 2),
             Map.entry("cluster-page-sizes", 1));
 

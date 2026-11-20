@@ -347,6 +347,7 @@ final class WebsiteDrawing implements Drawing {
      */
     @Override
     public void finish(Path manifest) throws IOException {
+        index.append("<p>").append(Html.escape(FixedWords.madeWith(language))).append("</p>\n");
         index.append(WebsitePage.closing());
         index.close();
         search.append("\n];\n");

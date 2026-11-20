@@ -117,7 +117,7 @@ public class RelevanceScoring {
      *
      * <p>Handed out rather than read where it is used, because the terminal stages may not name this
      * module (ADR-110): the score decides which document leads a cluster (ADR-106), how clusters
-     * within a partition compare (ADR-112) and the order exemplars are sent in (ADR-108), and all
+     * within a topic compare (ADR-112) and the order exemplars are sent in (ADR-108), and all
      * three happen where the passes are assembled.
      *
      * <p>An occurrence with no score row is absent from the result rather than present with a zero. A
@@ -156,6 +156,14 @@ public class RelevanceScoring {
      */
     public void recordTopics(RunId runId, StandingTopics standing) {
         topics.record(runId, standing);
+    }
+
+    /**
+     * Keeps the topics the profile lists under {@code runId} (ADR-435 section 4): called where {@link #recordTopics} is
+     * called where the topics are inferred, before the first survivor is scored.
+     */
+    public void recordListedTopics(RunId runId, List<Topics.ListedName> listed) {
+        topics.recordListed(runId, listed);
     }
 
     /**
@@ -260,6 +268,43 @@ public class RelevanceScoring {
             int topSimilarities,
             TopicPlacement topicPlacement,
             Map<OccurrenceId, String> seedPaths) {
+        return scoreAndRecord(
+                occurrenceId,
+                runId,
+                contentHash,
+                chunkCount,
+                chunkerIdentity,
+                chunkingRuleIdentity,
+                embedderIdentity,
+                residentSeedVectors,
+                topSimilarities,
+                topicPlacement,
+                seedPaths,
+                null,
+                Map.of());
+    }
+
+    /**
+     * As the method above, placing the survivor under the topics the profile lists where {@code listedPlacement} is
+     * given (ADR-435 section 5): the cosine of each survivor chunk to each name's vector, {@code nameVectors}, goes
+     * to a tally of it beside the cosines to the seed passages, which place nothing and are taken for the relevance
+     * score alone. The placement is recorded beside the score under the same key, and the survivor's score at its
+     * winning topic in {@code winning_topic_score}. With no {@code listedPlacement} this is the method above.
+     */
+    public Placement scoreAndRecord(
+            OccurrenceId occurrenceId,
+            RunId runId,
+            String contentHash,
+            int chunkCount,
+            String chunkerIdentity,
+            String chunkingRuleIdentity,
+            String embedderIdentity,
+            Map<OccurrenceId, List<float[]>> residentSeedVectors,
+            int topSimilarities,
+            TopicPlacement topicPlacement,
+            Map<OccurrenceId, String> seedPaths,
+            ListedTopicPlacement listedPlacement,
+            Map<TopicKey, float[]> nameVectors) {
         List<float[]> survivorChunkVectors =
                 vectorCache.vectorsFor(contentHash, chunkerIdentity, chunkingRuleIdentity, embedderIdentity);
         if (survivorChunkVectors.isEmpty() || survivorChunkVectors.size() < chunkCount) {
@@ -273,6 +318,16 @@ public class RelevanceScoring {
                             + "; stage 2 removes a file with no text outside page headers and footers, so a"
                             + " corpus survivor has a chunk -- either no stage ever examined this occurrence,"
                             + " or another pull of the embedding model wrote its vectors");
+        }
+        if (listedPlacement != null) {
+            ListedTopicPlacement.Tally listed = listedPlacement.forSurvivor(survivorChunkVectors.size());
+            scorer.cosinesToNames(survivorChunkVectors, nameVectors, listed);
+            RelevanceScore score = scorer.score(survivorChunkVectors, residentSeedVectors, topSimilarities);
+            scoreCache.record(occurrenceId, runId, score);
+            Placement placement = listed.placement();
+            placements.record(occurrenceId, runId, placement);
+            placements.recordScore(occurrenceId, runId, listed.winningScore());
+            return placement;
         }
         TopicPlacement.Tally tally =
                 topicPlacement == null ? null : topicPlacement.forSurvivor(survivorChunkVectors.size());

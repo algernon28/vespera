@@ -40,7 +40,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * because the converter stopped answering (#306).
  *
  * <p>Found on the first end-to-end run over a real archive: nine seeds of nineteen had converted, the
- * sidecar crashed, the chunk in flight rolled back, and the step failed. The writer's {@code afterStep}
+ * container crashed, the chunk in flight rolled back, and the step failed. The writer's {@code afterStep}
  * runs whether or not the step completed, and it read the outcomes it had been handed as though they
  * were the whole folder. With none handed to it, it took ADR-083's no-usable-seed branch and told the
  * operator that no seed had any text and that the seed folder should be fixed. Every clause of that

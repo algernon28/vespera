@@ -16,7 +16,7 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * Declares Vespera's external sidecars as test-scoped containers.
+ * Declares Vespera's external containers as test-scoped containers.
  * <p>
  * Each {@code @ServiceConnection} bean makes Spring Boot derive the connection properties — host and
  * mapped port — from the running container, so no URL is configured anywhere for tests. The set here
@@ -27,7 +27,7 @@ import org.testcontainers.utility.DockerImageName;
  * <ul>
  *   <li><b>Ollama</b> — the default serving engine for extraction (ADR-013), and the serving runtime
  *       is configuration rather than code (ADR-012).</li>
- *   <li><b>docling-serve</b> — the Docling sidecar (ADR-010, ADR-071). Unlike the one above it has no
+ *   <li><b>docling-serve</b> — the Docling container (ADR-010, ADR-071). Unlike the one above it has no
  *       Spring Boot {@code ServiceConnection} support to derive a URL from, so it is a plain
  *       {@link GenericContainer} with a health-endpoint wait strategy, and its base URL is pushed into
  *       {@code vespera.docling.base-url} by {@link #doclingServeProperties} instead of an
@@ -49,7 +49,7 @@ import org.testcontainers.utility.DockerImageName;
  * <p>
  * Public so an integration test living in its own module's package can {@code @Import} it —
  * {@code extraction}'s {@code DoclingClientIT} is the first — and call {@link #pull}, which every
- * integration test that needs a model in the Ollama sidecar goes through. The {@code @Bean} methods stay
+ * integration test that needs a model in the Ollama container goes through. The {@code @Bean} methods stay
  * package-private, since Spring invokes them reflectively rather than through a compiled call.
  */
 @TestConfiguration(proxyBeanMethods = false)
@@ -63,7 +63,7 @@ public class TestcontainersConfiguration {
      * repository's own {@code Containerfile} rather than pulled (ADR-147, ADR-163). Keep in step with
      * {@code compose.yaml}, which builds and tags the same image, and with {@code vespera.docling.image},
      * which the extractor identity carries. Public so that {@code DoclingClientIT} can check the running
-     * sidecar reports this very name (ADR-179).
+     * container reports this very name (ADR-179).
      */
     public static final String DOCLING_SERVE_IMAGE = "vespera/docling-serve-cpu-libreoffice:v1.32.0-docling-parse-7.17.0-r2";
     /**
@@ -133,21 +133,21 @@ public class TestcontainersConfiguration {
     }
 
     /**
-     * Has the Ollama sidecar pull {@code model}, and fails right there, with Ollama's own words, unless the pull
-     * ended well and the sidecar then lists the model. A pull that failed was once passed over in silence, and the
+     * Has the Ollama container pull {@code model}, and fails right there, with Ollama's own words, unless the pull
+     * ended well and the container then lists the model. A pull that failed was once passed over in silence, and the
      * test failed later and elsewhere, as a model "not pulled on this machine", with nothing said of why (#718's
      * sibling: two runs on CI's Linux runner, each green when run again). The message names the container and the
-     * endpoint it answers at, so a pull into one sidecar and a question to another can be told apart.
+     * endpoint it answers at, so a pull into one container and a question to another can be told apart.
      *
      * <p>The pull is what a test needs before it runs, not what it claims, so a failure is thrown as an error and
-     * not asserted, as {@code DoclingClientIT} does for a command it runs in its sidecar (ADR-052 keeps every
-     * assertion inside a claim). Where Spring shares one sidecar across test classes, the list may name a model an
+     * not asserted, as {@code DoclingClientIT} does for a command it runs in its container (ADR-052 keeps every
+     * assertion inside a claim). Where Spring shares one container across test classes, the list may name a model an
      * earlier class pulled; the pull's own exit is still read fresh each time. There is no test of this method of
-     * its own: it needs a running sidecar, and every integration test that pulls goes through it.
+     * its own: it needs a running container, and every integration test that pulls goes through it.
      */
     public static void pull(OllamaContainer ollama, String model) throws IOException, InterruptedException {
         Container.ExecResult pulled = ollama.execInContainer("ollama", "pull", model);
-        String where = " in the Ollama sidecar " + ollama.getContainerId() + " at " + ollama.getEndpoint();
+        String where = " in the Ollama container " + ollama.getContainerId() + " at " + ollama.getEndpoint();
         if (pulled.getExitCode() != 0) {
             throw new IllegalStateException(String.format(
                     "Ollama could not pull %s%s: it ended with %d.%nWhat it printed:%n%s%nWhat it reported as errors:%n%s",
