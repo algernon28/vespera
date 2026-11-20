@@ -4,11 +4,13 @@ import io.algernon.vespera.engine.pipeline.BesideTheJar;
 import io.algernon.vespera.engine.pipeline.BesideTheJarUnwritableException;
 import io.algernon.vespera.engine.pipeline.CorpusRootLock;
 import io.algernon.vespera.engine.pipeline.MisshapenProfileRefusal;
+import io.algernon.vespera.engine.pipeline.NoWorkingDirectoryNamedException;
 import io.algernon.vespera.engine.pipeline.ProfileShapeCheck;
 import io.algernon.vespera.engine.pipeline.SidecarStarter;
 import io.algernon.vespera.engine.pipeline.TemporaryFilesInTheWorkingDirectory;
 import io.algernon.vespera.engine.pipeline.WorkingDirectoryInUseRefusal;
 import io.algernon.vespera.engine.pipeline.WorkingDirectoryLock;
+import io.algernon.vespera.engine.pipeline.WorkingDirectoryNamedCheck;
 import io.algernon.vespera.engine.pipeline.WorkingDirectoryPreparer;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -33,8 +35,11 @@ public class VesperaApplication {
         // pointed at the two files there among its default properties, the lowest of its sources (section 4).
         BesideTheJar besideTheJar = BesideTheJar.ofThisApplication();
         besideTheJar.pointSpringAt(application);
+        // The check of a working directory named (ADR-436 section 1) declares an order, between the configuration
+        // files' and Logback's, so that a start naming none is refused before a log is opened.
         application.addListeners(
                 besideTheJar,
+                new WorkingDirectoryNamedCheck(),
                 new WorkingDirectoryPreparer(),
                 new WorkingDirectoryLock(),
                 new ProfileShapeCheck(),
@@ -55,7 +60,8 @@ public class VesperaApplication {
         } catch (RuntimeException failure) {
             // A folder beside the jar that cannot be written is thrown before logging is configured, so a log line
             // would be dropped: it goes on, and the entry point says its line on standard error and exits 1 (ADR-397 §3).
-            if (failure instanceof BesideTheJarUnwritableException) {
+            if (failure instanceof BesideTheJarUnwritableException
+                    || failure instanceof NoWorkingDirectoryNamedException) {
                 throw failure;
             }
             if (MisshapenProfileRefusal.refuses(failure)) {

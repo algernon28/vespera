@@ -606,12 +606,12 @@ function readmeSection(heading, name) {
       wrong.push(`it says Vespera does not fetch the models, and ${APPLICATION_YAML} configures a pull strategy`);
     }
 
-    // The default working directory, against the placeholder the property falls back to.
-    const home = /^\s+working-dir: \$\{db-dir:\$\{user\.dir\}\/([^}]+)\}\s*$/m.exec(application);
-    const namedHome = /the working directory is `([^`]+)` under the directory you run/.exec(section);
-    if (!namedHome) wrong.push("it does not say where the working directory defaults to");
-    else if (!home) wrong.push(`${APPLICATION_YAML}'s working-dir no longer defaults under user.dir`);
-    else if (home[1] !== namedHome[1]) wrong.push(`it says ${namedHome[1]}; ${APPLICATION_YAML} defaults to ${home[1]}`);
+    // No working directory is guessed (ADR-436 §1): the shipped line falls back to nothing, and README says a command
+    // naming none refuses.
+    const noDefault = /^\s+working-dir: \$\{db-dir:\}\s*$/m.test(application);
+    const saysItRefuses = /naming none[^.]*refuse/.test(section);
+    if (!noDefault) wrong.push(`${APPLICATION_YAML}'s working-dir is not \${db-dir:}, so a working directory is guessed`);
+    if (!saysItRefuses) wrong.push("it does not say that a command naming no working directory refuses");
 
     if (wrong.length) fail(NAME, wrong.join("; "));
     else pass(NAME, `${jar}; ${services.join(", ")} from ${COMPOSE} on ${published.join(", ")}; built from ${context[1]}; ${configured.join(", ")}`);

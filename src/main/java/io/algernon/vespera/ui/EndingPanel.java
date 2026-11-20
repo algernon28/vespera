@@ -35,6 +35,10 @@ final class EndingPanel {
     static final String STOPPED = "Stopped";
     static final String ENDED = "Ended";
     static final String ENDED_WITHOUT_ITS_LAST_WRITE = "Ended without its last write";
+    /** The kind and the line the panel says while no working directory is chosen (ADR-436 §4). */
+    static final String NO_WORKING_DIRECTORY = "No working directory";
+    static final String NONE_IS_CHOSEN = "No working directory is chosen. Choose one from the list, or press Choose a"
+            + " folder\u2026 to pick a folder.";
     static final String A_BUG_OF_THE_CONTROL_PANEL = "This is a bug of the control panel, not of your settings.";
 
     private static final DateTimeFormatter DAY_AND_MINUTE = DateTimeFormatter.ofPattern("EEE d MMM HH:mm", Locale.ENGLISH);
@@ -187,13 +191,17 @@ final class EndingPanel {
     private final SelectableText.Wrapping facts = SelectableText.wrapping("");
     private final Button openProfile = new Button("Open profile");
     private final Button openReport = new Button("Open report");
+    private final Button chooseAFolder = new Button("Choose a folder\u2026");
     private final Button copy = new Button("Copy details");
     private final Region stripe = new Region();
     private final HBox stripeAndBody = new HBox();
     private final ScrollPane scroll = new ScrollPane(stripeAndBody);
 
-    /** {@code openProfile} opens the Profile window; {@code openReport} selects the Report tab. */
-    EndingPanel(Runnable openProfile, Runnable openReport) {
+    /**
+     * {@code openProfile} opens the Profile window; {@code openReport} selects the Report tab; {@code chooseAFolder}
+     * does what Browse does (ADR-436 §5).
+     */
+    EndingPanel(Runnable openProfile, Runnable openReport, Runnable chooseAFolder) {
         when.setId("ending-when");
         kind.setId("ending-kind");
         line.setId("ending-line");
@@ -201,6 +209,7 @@ final class EndingPanel {
         facts.setId("ending-facts");
         this.openProfile.setId("ending-open-profile");
         this.openReport.setId("ending-open-report");
+        this.chooseAFolder.setId("ending-choose-folder");
         copy.setId("ending-copy");
         stripe.setId("ending-stripe");
         stripe.getStyleClass().add("ending-stripe");
@@ -209,8 +218,10 @@ final class EndingPanel {
         kind.getStyleClass().add("field-name");
         this.openProfile.setOnAction(event -> openProfile.run());
         this.openReport.setOnAction(event -> openReport.run());
+        this.chooseAFolder.setOnAction(event -> chooseAFolder.run());
+        offer(this.chooseAFolder, false);
         copy.setOnAction(event -> copyTheTexts());
-        HBox buttons = new HBox(this.openProfile, this.openReport, copy);
+        HBox buttons = new HBox(this.openProfile, this.openReport, this.chooseAFolder, copy);
         buttons.getStyleClass().add("spaced-row");
         buttons.setAlignment(Pos.CENTER_LEFT);
         VBox body = new VBox(when, kind, line, faults, facts, buttons);
@@ -247,7 +258,17 @@ final class EndingPanel {
         kind.getStyleClass().add(colour);
         offer(openProfile, said.line().contains(THE_PROFILE_WINDOW));
         offer(openReport, said.openReport());
+        offer(chooseAFolder, false);
         offer(copy, true);
+    }
+
+    /**
+     * Says that no working directory is chosen, in place of an ending (ADR-436 §4): the kind and the line, in the error
+     * colour, no date, fault or facts, the button that picks a folder, and Copy details.
+     */
+    void showsThatNoneIsChosen() {
+        shows(new Said("", NO_WORKING_DIRECTORY, NONE_IS_CHOSEN, "", "", true, false));
+        offer(chooseAFolder, true);
     }
 
     private static void text(SelectableText.Wrapping part, String words) {

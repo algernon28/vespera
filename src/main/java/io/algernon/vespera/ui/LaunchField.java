@@ -1,5 +1,6 @@
 package io.algernon.vespera.ui;
 
+import java.nio.file.Path;
 import javafx.scene.control.TextField;
 
 /** A launch value's field: its text, the line saying where it started, and, for a folder, its status (ADR-344 §3, ADR-345 §1). */
@@ -20,7 +21,12 @@ final class LaunchField {
         this.createdByTheJar = createdByTheJar;
         this.starting = StartingValues.of(property, state.sources());
         input.setId(property);
-        input.setText(starting.value());
+        // where nothing names a working directory and a .vespera folder was added to the list as the window opened, it is chosen (ADR-436 §7)
+        String initial = starting.value();
+        if (property.equals("vespera.working-dir") && initial.isBlank() && state.workingDirectoryDefault().isEmpty()) {
+            initial = state.dotVesperaAdded().map(Path::toString).orElse(initial);
+        }
+        input.setText(initial);
         input.setPromptText(LaunchValues.exampleOf(property));
         startingLine.setId("starting-" + property);
         startingLine.setText(startingWords(starting));
@@ -53,7 +59,10 @@ final class LaunchField {
     /** What the field says of its folder; an empty working directory says the folder it stands for (ADR-345 §1). */
     private String statusWords(String text) {
         if (property.equals("vespera.working-dir") && text.isBlank()) {
-            String theDefault = state.workingDirectoryDefault().folder();
+            if (state.workingDirectoryDefault().isEmpty()) {
+                return "No working directory is chosen";
+            }
+            String theDefault = state.workingDirectoryDefault().get().folder();
             return "In use: " + theDefault + " (" + FolderStatus.of(theDefault, true).words() + ")";
         }
         return FolderStatus.of(text, createdByTheJar).words();

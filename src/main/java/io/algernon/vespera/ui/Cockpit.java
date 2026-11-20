@@ -28,6 +28,7 @@ import javafx.scene.Parent;
 import javafx.scene.control.Accordion;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.TextArea;
@@ -115,7 +116,7 @@ final class Cockpit {
     /** The output's side of the steps and the output: the output above, the ending panel beneath it where it has one (ADR-417 §1). */
     private final SplitPane outputAndEnding = new SplitPane(output);
     private final EndingPanel endingPanel = new EndingPanel(this::openTheProfileWindow,
-            this::selectTheReportTab);
+            this::selectTheReportTab, this::browseForTheWorkingDirectory);
     /** Where the divider above the ending panel stood when the panel was last taken away, as a fraction of the split. */
     private double endingDivider = 0.7;
     /** The working directory this window's own child was last started on, and whether its ending is still the last of it. */
@@ -224,6 +225,8 @@ final class Cockpit {
         readModelsInForce();
         readFieldValues();
         refresh();
+        // a .vespera folder of the current directory added to the list as the window opens says so (ADR-436 §7)
+        state.dotVesperaLine().ifPresent(this::say);
         timeline = new Timeline(new KeyFrame(Duration.seconds(1), tick -> refresh()));
         timeline.setCycleCount(Timeline.INDEFINITE);
         timeline.play();
@@ -399,8 +402,8 @@ final class Cockpit {
                 : seedRow.value().stripTrailing();
         Map<String, String> passedOptions = options.passed(sources);
         if (!passed.containsKey("vespera.working-dir")) {
-            // the field left empty stands for the folder the jar would use on this machine (ADR-345 §1)
-            passed.put("vespera.working-dir", state.workingDirectoryDefault().folder());
+            // the field left empty stands for the folder a source names, and for none where none does (ADR-436 §2, §6)
+            state.workingDirectoryDefault().ifPresent(named -> passed.put("vespera.working-dir", named.folder()));
         }
         List<String> ticked = publishTo.getChildren().stream().filter(CheckBox.class::isInstance)
                 .map(CheckBox.class::cast).filter(CheckBox::isSelected)
@@ -1022,7 +1025,7 @@ final class Cockpit {
 
     /**
      * The list in the place of the working directory's field: the field stays, hidden, as the launch value
-     * {@code vespera.working-dir} the row chosen is; the machine's folder, the first row, chosen is the value left empty.
+     * {@code vespera.working-dir} the row chosen is; the sources' folder, the first row where a source names one, chosen is the value left empty.
      */
     private Node workingDirectoryBox(LaunchField working) {
         SelectableText.Line heading = SelectableText.line("Working directory");
@@ -1031,6 +1034,10 @@ final class Cockpit {
         working.input.setManaged(false);
         workingDirectoryList.setId("working-directories");
         workingDirectoryList.setPrefHeight(160);
+        Label none = new Label("No working directory yet. Choose a folder with Browse, or name a new one with New\u2026.");
+        none.setId("working-directories-empty");
+        none.setWrapText(true);
+        workingDirectoryList.setPlaceholder(none);
         workingDirectoryList.setCellFactory(list -> new ListCell<>() {
             @Override
             protected void updateItem(Path folder, boolean empty) {
@@ -1065,18 +1072,14 @@ final class Cockpit {
             }
         });
         workingDirectoryNew.setOnAction(event -> addANewWorkingDirectory());
-        workingDirectoryBrowse.setOnAction(event -> dialogs
-                .folder("Choose the working directory", working.input.getText()).ifPresent(chosen -> {
-                    Path folder = chosen.toAbsolutePath().normalize();
-                    state.workingDirectories().add(folder, false);
-                    drawTheRows(Optional.of(folder));
-                }));
+        workingDirectoryBrowse.setOnAction(event -> browseForTheWorkingDirectory());
         workingDirectoryRemove.setOnAction(event -> {
             Path chosen = workingDirectoryList.getSelectionModel().getSelectedItem();
             if (chosen != null && !state.childRuns()) {
                 state.workingDirectories().remove(chosen);
                 rowsRead.remove(chosen);
-                drawTheRows(Optional.of(state.workingDirectories().rows().getFirst()));
+                // the sources' row is chosen where there is one, and none otherwise (ADR-436 §3)
+                drawTheRows(state.workingDirectories().theDefault());
             }
         });
         showTheListsButtons();
@@ -1091,9 +1094,36 @@ final class Cockpit {
     /** What a row says, on one line: its name and the parts of ADR-393 §5. */
     private String wordsOfRow(Path folder) {
         WorkingDirectoryRow row = rowsRead.computeIfAbsent(folder, each -> WorkingDirectoryRow.read(each, ZoneId.systemDefault()));
-        return (state.workingDirectories().isTheDefault(folder) ? row.name() + " (this machine's folder)" : row.name())
+        return (state.workingDirectories().isTheDefault(folder) ? row.name() + " (from " + sourceWords() + ")" : row.name())
                 + " \u2014 corpus root: " + row.corpusRoot() + "; last invocation: " + row.lastInvocation()
                 + "; reached: " + row.legReached() + "; next: " + row.next();
+    }
+
+    /** Which source named the sources' folder, in the words of ADR-436 §3's table. */
+    private String sourceWords() {
+        return state.workingDirectoryDefault().map(named -> switch (named.source()) {
+            case WorkingDirectoryDefault.SYSTEM_PROPERTY -> "the system property " + named.name();
+            case WorkingDirectoryDefault.ENVIRONMENT -> "the environment variable " + named.name();
+            default -> named.name() + " beside the jar";
+        }).orElse("");
+    }
+
+    /**
+     * Browse, and Choose a folder\u2026 of the ending panel, open the system's folder dialog; the folder chosen is added as
+     * the first row after the sources', chosen, and the list's file is written at once (ADR-436 §5). Vespera makes no
+     * folder for it.
+     */
+    private void browseForTheWorkingDirectory() {
+        if (state.childRuns()) {
+            return;
+        }
+        dialogs.folder("Choose the working directory", workingDirectory().map(Path::toString).orElse(""))
+                .ifPresent(chosen -> {
+                    Path folder = chosen.toAbsolutePath().normalize();
+                    state.workingDirectories().add(folder, false);
+                    state.workingDirectories().keep();
+                    drawTheRows(Optional.of(folder));
+                });
     }
 
     private void readRow(Path folder) {
@@ -1120,10 +1150,27 @@ final class Cockpit {
             choosing = false;
         }
         Path toChoose = chosen.orElse(was);
-        workingDirectoryList.getSelectionModel().clearSelection();
-        workingDirectoryList.getSelectionModel().select(rows.stream()
+        Path target = rows.stream()
                 .filter(each -> toChoose != null && ControlPanelState.namesTheSameFolder(each.toString(), toChoose.toString()))
-                .findFirst().orElse(rows.getFirst()));
+                .findFirst().orElse(null);
+        choosing = true;
+        try {
+            workingDirectoryList.getSelectionModel().clearSelection();
+        } finally {
+            choosing = false;
+        }
+        if (target != null) {
+            workingDirectoryList.getSelectionModel().select(target);
+        } else {
+            // no row is chosen: the launch value is empty and the working directory none (ADR-436 §3)
+            choosing = true;
+            try {
+                fields.get("vespera.working-dir").input.setText("");
+            } finally {
+                choosing = false;
+            }
+            showTheListsButtons();
+        }
     }
 
     /** Chooses the row {@code text}, the launch value, names, adding one (not written) where it names a folder not listed. */
@@ -1132,11 +1179,11 @@ final class Cockpit {
         List<Path> rows = state.workingDirectories().rows();
         Path row = named.flatMap(folder -> rows.stream()
                 .filter(each -> ControlPanelState.namesTheSameFolder(each.toString(), folder.toString())).findFirst())
-                .orElse(named.isEmpty() ? rows.getFirst() : null);
+                .orElse(named.isEmpty() ? state.workingDirectories().theDefault().orElse(null) : null);
         boolean was = choosing;
         choosing = true;
         try {
-            if (row == null) {
+            if (row == null && named.isPresent()) {
                 Path folder = named.get().toAbsolutePath().normalize();
                 state.workingDirectories().add(folder, false);
                 readRow(folder);
@@ -1144,9 +1191,13 @@ final class Cockpit {
                 row = folder;
             }
             Path toSelect = row;
-            workingDirectoryList.getSelectionModel().select(workingDirectoryList.getItems().stream()
-                    .filter(each -> ControlPanelState.namesTheSameFolder(each.toString(), toSelect.toString()))
-                    .findFirst().orElse(null));
+            if (toSelect == null) {
+                workingDirectoryList.getSelectionModel().clearSelection();
+            } else {
+                workingDirectoryList.getSelectionModel().select(workingDirectoryList.getItems().stream()
+                        .filter(each -> ControlPanelState.namesTheSameFolder(each.toString(), toSelect.toString()))
+                        .findFirst().orElse(null));
+            }
         } finally {
             choosing = was;
         }
@@ -1158,9 +1209,10 @@ final class Cockpit {
         if (state.childRuns()) {
             return;
         }
-        Path chosen = workingDirectory().orElse(Path.of("").toAbsolutePath());
-        Path parent = chosen.toAbsolutePath().getParent() == null ? chosen.toAbsolutePath()
-                : chosen.toAbsolutePath().getParent();
+        // with no row chosen the folder is proposed under the user's home folder (ADR-436 §5)
+        Path parent = workingDirectory().map(chosen -> chosen.toAbsolutePath().getParent() == null
+                ? chosen.toAbsolutePath() : chosen.toAbsolutePath().getParent())
+                .orElseGet(() -> Path.of(System.getProperty("user.home")).toAbsolutePath());
         Path proposed = WorkingDirectoryName.proposed(parent, corpusRoot(), Instant.now(), ZoneId.systemDefault());
         dialogs.newWorkingDirectory(proposed).ifPresent(folder -> {
             state.workingDirectories().add(folder, true);
@@ -1328,14 +1380,15 @@ final class Cockpit {
 
     /**
      * The working directory as the field names it now: it is what a Run is passed, whether or not it is ever remembered.
-     * Where the field is empty it stands for the folder the jar would use on this machine (ADR-345 §1).
+     * Where the field is empty it stands for the folder a source names (ADR-345 §1, ADR-436 §2), and for none where none
+     * does.
      */
     private Optional<Path> workingDirectory() {
         LaunchField field = fields.get("vespera.working-dir");
         if (field == null || !field.text().isEmpty()) {
             return folderOf(field);
         }
-        return ControlPanelState.pathOf(state.workingDirectoryDefault().folder());
+        return state.workingDirectoryDefault().flatMap(named -> ControlPanelState.pathOf(named.folder()));
     }
 
     private static Optional<Path> folderOf(LaunchField field) {
@@ -1643,6 +1696,9 @@ final class Cockpit {
 
     // ---- the ending panel (ADR-417)
 
+    /** What {@code endingReadFor} holds while the panel says no working directory is chosen (ADR-436 §4); no path is it. */
+    private static final String NONE_IS_CHOSEN_READ = "\0no working directory is chosen";
+
     /** Reads the ending again where the working directory chosen changed, outside the clock's tick. */
     private void showTheEnding() {
         Optional<Path> folder = workingDirectory();
@@ -1668,6 +1724,21 @@ final class Cockpit {
             childSeenPid = watchedChild.get().pid();
             childFolder = folder.orElse(null);
             childIsStillTheLast = true;
+        }
+        if (folder.isEmpty() && !runs) {
+            // no working directory is chosen, and nothing runs: the panel says so, and what to press (ADR-436 §4)
+            if (!(NONE_IS_CHOSEN_READ.equals(endingReadFor) && !endingCleared)) {
+                endingCleared = false;
+                endingReadOf = null;
+                endingReadFor = NONE_IS_CHOSEN_READ;
+                tabDrawnForTheEndingPanel = false;
+                endingPanel.showsThatNoneIsChosen();
+                if (!outputAndEnding.getItems().contains(endingPanel.node())) {
+                    outputAndEnding.getItems().add(endingPanel.node());
+                    outputAndEnding.setDividerPositions(endingDivider);
+                }
+            }
+            return;
         }
         boolean cleared = runs || holders.workingDirectory().isPresent() || folder.isEmpty();
         Ending own = !cleared && ending.isPresent() && childIsStillTheLast
