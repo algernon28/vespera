@@ -3158,6 +3158,18 @@ public final class Adr {
     public static final String THE_PRESETS_WITH_NO_PROFILE_KEY_ARE_SHOWN_READ_ONLY_IN_COMMAND_OPTIONS = FILE
             + "0428-the-presets-with-no-profile-key-are-shown-read-only-in-command-options-a-list-for-each-run-they-enter.md";
 
+    /**
+     * ADR-430 -- the control panel starts nothing as its window opens: it checks the Docker daemon, the Docling and
+     * Ollama containers and the two models in a list of its header, every 5 s and at once after a start, a shut-down, a
+     * download and an invocation ending, asking no command into a stopped WSL distribution; Start Docker starts them as
+     * {@code vespera run} does and downloads a missing model where pulling is on; Run waits for the containers, a download
+     * panel shows a model's download, explanations are captions on mouse over; and a container is on this machine where
+     * its host resolves to one of this machine's addresses (amends ADR-390 §3, §4, §5 and §7, ADR-421 §1 and §6, ADR-329
+     * §1, ADR-323 §3 and §4, ADR-302 §5, ADR-413 §1 and ADR-331 §8).
+     */
+    public static final String THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER = FILE
+            + "0430-the-control-panel-checks-docker-the-containers-and-the-models-and-starts-nothing-until-start-docker-is-pressed.md";
+
     private Adr() {
     }
 }

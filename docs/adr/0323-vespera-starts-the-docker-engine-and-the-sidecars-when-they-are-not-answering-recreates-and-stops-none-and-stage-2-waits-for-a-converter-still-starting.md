@@ -16,6 +16,8 @@
 
 > **Partly amended — see [ADR-421](0421-on-windows-vespera-writes-wslconfig-with-no-idle-timeout-where-there-is-none-and-changes-no-file-that-is-there.md).** Of §3: between step 2 and step 3, on Windows, `%UserProfile%\.wslconfig` is written, holding `[general]` and `instanceIdleTimeout=-1`, where no file of that name is there, and read where one is, never changed; it runs no command, takes no lock and refuses nothing, a line at WARN saying what it found. The rest of this record stands.
 
+> **Partly amended — see [ADR-430](0430-the-control-panel-checks-docker-the-containers-and-the-models-and-starts-nothing-until-start-docker-is-pressed.md).** Of §3's step 2: a base URL's host is resolved, and its container is on this machine where any address it resolves to is a loopback, a wildcard or one of this machine's own; a host that cannot be resolved, `.invalid` among them and never looked up, starts nothing. Each container is judged on its own: only those on this machine are asked at steps 3 and 5, named to `up` where the other is not here, and waited for at step 8. The rest of this record stands.
+
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.
 - **Decided**: by the operator, who decided that Vespera starts the Docker engine where it is not running, Docker Desktop on Windows and macOS and the service on Linux, then brings the sidecars up with the README's `up` line, `compose.gpu.yaml` included where the configuration asks for the GPU, and never stops them; and that stage 2's start check waits for a converter that is still starting. How the GPU is known, which commands start them, the per-system commands, the bounds, the refusals, the opt-out and the locks are decided under delegation.

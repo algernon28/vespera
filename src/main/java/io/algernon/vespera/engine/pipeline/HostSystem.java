@@ -72,6 +72,26 @@ enum HostSystem {
      * (ADR-390 §1); elsewhere it names each file by its path.
      */
     List<String> composeUp(String wslDistribution, List<Path> composeFiles) {
+        return composeUp(wslDistribution, composeFiles, List.of());
+    }
+
+    /** {@code wsl --list --running --quiet}: the distributions that run, listing which boots none (ADR-430 §3). */
+    List<String> wslRunning() {
+        return List.of("wsl", "--list", "--running", "--quiet");
+    }
+
+    /** {@code wsl --list --verbose}: every distribution, WSL's default marked with {@code *} (ADR-430 §3). */
+    List<String> wslVerbose() {
+        return List.of("wsl", "--list", "--verbose");
+    }
+
+    /** Linux's question whether the engine's service is active, which starts nothing (ADR-430 §3). */
+    List<String> engineServiceActive() {
+        return List.of("systemctl", "is-active", "--quiet", "docker.service");
+    }
+
+    /** {@link #composeUp(String, List)} naming {@code services} after its options, none naming every service. */
+    List<String> composeUp(String wslDistribution, List<Path> composeFiles, List<String> services) {
         List<String> command = new ArrayList<>();
         if (this == WINDOWS) {
             command.addAll(wsl(wslDistribution));
@@ -85,6 +105,7 @@ enum HostSystem {
             command.add(this == WINDOWS ? file.getFileName().toString() : file.toString());
         }
         command.addAll(List.of("up", "-d", "--build", "--no-recreate"));
+        command.addAll(services);
         return List.copyOf(command);
     }
 

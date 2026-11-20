@@ -10,6 +10,8 @@
 
 > **Partly amended — see [ADR-407](0407-topics-are-named-at-the-head-of-the-arrangement-step-by-a-naming-model-of-their-own-from-their-strongest-passages.md).** The arrangement step pulls the naming model, `vespera.naming.model` else the shipped generation default, as the generation step pulls the generation model, under the same check and switch. The rest of this record stands.
 
+> **Partly amended — see [ADR-430](0430-the-control-panel-checks-docker-the-containers-and-the-models-and-starts-nothing-until-start-docker-is-pressed.md).** Of §1: the control panel's download panel also pulls a model the window's check found Ollama has not, when the operator clicks its *KO* or after *Start Docker* where `vespera.models.pull` is ticked, one model at a time, with §4's request and nothing deleted; a download a step makes is not shown there. The rest of this record stands.
+
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.
 - **Decided**: by the operator, who decided that Vespera pulls into Ollama, through `/api/pull` and showing its progress, a model the profile names, or the default, that Ollama does not serve, before the step that needs it: the embedding model for stage 5's scoring step and the generation model for the generation step; that a model Ollama already serves is never pulled again; and that `hf.co/…` GGUF names are covered as Ollama accepts them. Where the pull is made, which commands make it, the opt-out, how progress shows, the bound on the wait, an interrupted pull, the failure lines and the tests are decided under delegation.
