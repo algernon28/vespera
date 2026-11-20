@@ -6,6 +6,8 @@
 
 > **Partly amended — see [ADR-393](0393-a-working-directory-is-named-for-its-corpus-root-and-day-chosen-from-a-list-and-publish-takes-what-the-last-run-reached.md).** Of §1: the folder `WorkingDirectoryDefault` resolves, which the field left empty stood for, is the first row of the window's list of working directories, and chosen it is passed as §1 has it. The rest of this record stands.
 
+> **Partly amended — see [ADR-432](0432-each-step-has-a-chart-beneath-its-legs-bars-the-output-spans-the-column-above-the-legs-and-the-cockpit-holds-no-tabs.md).** Of §2: the tree, its outcome line, Save and Reset and the folders not relevant stand in the sidebar's Folders section, under its three fields, and no Inclusions tab is drawn; what they do is unchanged. The rest of this record stands.
+
 > **Partly amended — see [ADR-436](0436-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md).** Of §1: the folder `WorkingDirectoryDefault` resolves is there only where a source names one, and a state given none of its sources holds no folder, not the one of its current directory. The rest of this record stands.
 
 - **Date**: 2026-11-05

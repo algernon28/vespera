@@ -96,7 +96,7 @@
   },
   "foldersNotWalked": {
     "title": "Folders not read",
-    "short": "Folders Vespera skips completely, so nothing in them reaches your pages; choose them in the Inclusions tab.",
+    "short": "Folders Vespera skips completely, so nothing in them reaches your pages; choose them in the Folders section.",
     "tooltip": "A list of folders inside your documents folder. Leave it empty and every folder is read. Vespera never opens a listed folder, so the folders inside it are skipped too. Its files are not read, not compared with other documents for the same content, and never appear in a page. This is not the same as marking a folder not relevant: Vespera still reads a not-relevant folder and marks each of its files not relevant for you in relevance-labels.yaml. After a change, only files never read before have their text read out. The change applies the next time you start Vespera from the beginning; when you continue a start that was stopped, Vespera keeps the folder list it started with. With the \"Approved grouping\" row set to auto, nothing waits for your approval. Labels you already saved with Save my labels are kept. Code folders outside the documents folder have their own row, the \"Code folders outside the documents folder\" row."
   },
   "confluenceBaseUrl": {

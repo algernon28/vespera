@@ -255,7 +255,7 @@ class TheControlPanelsWindowTest {
               relevant: false
             """;
 
-    /** The words beneath the Inclusions tab's tree, over the list of folders not relevant. */
+    /** The words beneath the Folders section's tree, over the list of folders not relevant. */
     private static final String THE_FOLDERS_NOT_RELEVANT_WORDS = "Folders not relevant are still read: the documents"
             + " of relevance-labels.yaml below them are labelled not relevant, and no run changes.";
 
@@ -295,7 +295,7 @@ class TheControlPanelsWindowTest {
         List<String> formerNames;
         try (WindowForTests window = WindowForTests.shown(state)) {
             beneathTheTree = window.read(root -> {
-                Node tab = HeadlessToolkit.tabWithId(root, "inclusions").orElseThrow().getContent();
+                Node tab = WindowForTests.section(root, "folders").getContent();
                 List<String> said = new java.util.ArrayList<>(textsUnder(tab));
                 said.add(WindowForTests.caption(HeadlessToolkit.nodeWithId((Parent) tab, "not-relevant-list")
                         .orElseThrow()));
@@ -313,10 +313,10 @@ class TheControlPanelsWindowTest {
                 StandardCharsets.UTF_8);
         String next = WorkingDirectoryRow.read(elsewhere, ZoneOffset.UTC).next();
 
-        claim("in the Inclusions tab, the caption of the list of folders not relevant says they label not relevant the"
+        claim("in the Folders section, the caption of the list of folders not relevant says they label not relevant the"
                         + " documents of relevance-labels.yaml below them",
                 () -> assertThat(beneathTheTree).contains(THE_FOLDERS_NOT_RELEVANT_WORDS));
-        claim("and no text of the tab says answer, in any of its forms",
+        claim("and no text of the section says answer, in any of its forms",
                 () -> assertThat(beneathTheTree).noneMatch(text -> AN_ANSWER.matcher(text).find()));
         claim("a folder added as not relevant with no label file says relevance-labels.yaml holds no document to label",
                 () -> assertThat(withNoLabelFile).isEqualTo("the folders not relevant are saved in " + listed

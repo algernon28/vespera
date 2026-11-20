@@ -40,7 +40,7 @@ public final class ChildCommand {
             new Argument("label", "auto", "label-auto",
                     "Passed by Auto Label; Save my labels passes none."),
             new Argument("label", "<file>", "",
-                    "Never passed: the window sets the labels in the Inclusions tab, by folder (ADR-334 §6), in"
+                    "Never passed: the window sets the labels in the Folders section, by folder (ADR-334 §6), in"
                             + " the working directory's label file, which label reads where no file is named; the"
                             + " command line keeps it (ADR-377)."),
             new Argument("label", "db-dir", "vespera.working-dir", "As for run."),

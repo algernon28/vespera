@@ -36,6 +36,9 @@ class InvocationReportFileTest {
 
     private static final String THE_JOB = "{\"ended\": false, \"steps\": [], \"charts\": []}";
 
+    /** What the status line says until the watched invocation's report is read (ADR-362 §8, in the header since ADR-432 §8). */
+    private static final String WAITING = "waiting for this invocation's report";
+
     @Test
     @Story("The window reads only the report format it knows")
     @DisplayName("A report of a format the window does not know is refused, and the window says so in its outcome line and draws nothing of it")
@@ -61,7 +64,7 @@ class InvocationReportFileTest {
                         .hasMessage("the report is of format 3, which this window does not read"));
         claim("the window's outcome line says the report is of format " + ANOTHER_FORMAT + ", which it does not read",
                 () -> assertThat(outcome).isEqualTo("the report is of format 3, which this window does not read"));
-        claim("and the Report tab still says it waits for this invocation's report, nothing of the refused one drawn",
-                () -> assertThat(status).isEqualTo(LiveReport.WAITING));
+        claim("and the status line still says it waits for this invocation's report, nothing of the refused one drawn",
+                () -> assertThat(status).isEqualTo(WAITING));
     }
 }
