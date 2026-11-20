@@ -1,5 +1,7 @@
 # ADR-430 — The control panel checks Docker, the containers and the models, and starts nothing until Start Docker is pressed
 
+> **Partly amended — see [ADR-432](0432-each-step-has-a-chart-beneath-its-legs-bars-the-output-spans-the-column-above-the-legs-and-the-cockpit-holds-no-tabs.md).** Of §8's table, the row of the words above the Inclusions tab's tree: they are the caption of `inclusions-tree` in the sidebar's Folders section, the tab gone. The rest of this record stands.
+
 > **Partly amended — see [ADR-433](0433-docling-and-ollama-are-containers-where-vespera-runs-them-and-never-sidecars-and-the-earlier-names-are-still-honoured.md).** Of §8: the Docker daemon's caption when not asked reads *Docker daemon: not asked, Docling and Ollama are both on another machine*, *Start Docker*'s ends *and where Docling and Ollama are both on another machine.*, and Run's before the first check *Off until Docling and Ollama have been checked.* Of §9: no name of the code says sidecar, `SidecarStarter` being `ContainerStarter`.
 
 - **Date**: 2026-11-19

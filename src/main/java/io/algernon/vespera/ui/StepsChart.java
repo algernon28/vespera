@@ -17,7 +17,7 @@ import javafx.scene.layout.VBox;
 
 /**
  * The steps chart: the four legs, each holding a row for each of its steps, each its own {@code step-<name>} (ADR-344 §1,
- * ADR-361). Each row lays its parts out on its own, so before the rows are laid out every stage and every step name is
+ * ADR-361), and beneath the rows the charts of its steps, {@code leg-charts-<leg>} (ADR-432 §2). Each row lays its parts out on its own, so before the rows are laid out every stage and every step name is
  * given at least the width of the widest of its column, and the bars and the states after them begin at one place on every
  * row. The widths are read from the labels as the stylesheet draws them, so no width is named here.
  */
@@ -39,10 +39,15 @@ final class StepsChart extends VBox {
     private final Set<String> chosenByTheOperator = new HashSet<>();
     private boolean foldingItself;
     private final Runnable stopAsked;
+    private final ProgressCharts charts;
 
-    /** The chart with every leg folded and waiting; {@code stopAsked} runs when the Stop of the running step is pressed. */
-    StepsChart(Runnable stopAsked) {
+    /**
+     * The chart with every leg folded and waiting; {@code stopAsked} runs when the Stop of the running step is pressed,
+     * and {@code charts} gives each leg the pane of its steps' charts, which stands beneath its rows (ADR-432 §2).
+     */
+    StepsChart(Runnable stopAsked, ProgressCharts charts) {
         this.stopAsked = stopAsked;
+        this.charts = charts;
         setId("steps");
         getStyleClass().add("steps");
         for (Legs.Leg leg : Legs.ALL) {
@@ -89,7 +94,10 @@ final class StepsChart extends VBox {
         pane.getStyleClass().add("leg");
         pane.setText("");
         pane.setGraphic(summary);
-        pane.setContent(rows);
+        // the rows of its steps, and beneath them the charts of the same steps (ADR-432 §2)
+        VBox content = new VBox(rows, charts.gridOf(leg));
+        content.setFillWidth(true);
+        pane.setContent(content);
         pane.setAnimated(false);
         pane.setExpanded(false);
         barWithPercent.visibleProperty().bind(pane.expandedProperty().not());

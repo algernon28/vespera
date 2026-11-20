@@ -59,9 +59,10 @@ import org.junit.jupiter.api.io.TempDir;
  * last invocation of the working directory chosen ended and why (§1). It shows every ending, the window's own child's as
  * it ends and an earlier one dated, read as the window opens and as another working directory is chosen, and nothing
  * where the working directory never had an invocation, where its report is not that JSON, or while one runs (§2); what it says of each ending, from the
- * invocation report, the exit code and, where the child wrote no report of its own, its last line of output (§3); its
- * three buttons, Open report selecting the Report tab, which draws the ending's report (§4); its colours, at AA in both themes, and its texts, every one selectable (§5); and the grips that
- * size the sidebar and the steps beside the output (§1).
+ * invocation report, the exit code and, where the child wrote no report of its own, its last line of output (§3), and,
+ * since ADR-432 §8, the gates, the next value and the files of the ending's report, with no Open report (§4); its
+ * colours, at AA in both themes, and its texts, every one selectable (§5); and the grip that sizes the sidebar, the
+ * output and its panel standing above the legs (§1, as ADR-432 §1 has it).
  *
  * <p>Each test draws the window on the Headless platform (ADR-342 §6) through {@link WindowForTests}, and finds the
  * panel's parts by their ids. A child is the window's own: {@link PrintingJars#endingAsTold()} ends as the working
@@ -73,6 +74,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("The control panel")
 @Issue("874")
 @Link(name = "ADR-417", url = Adr.THE_ENDING_PANEL_SAYS_HOW_THE_LAST_INVOCATION_ENDED_AND_WHY, type = "adr")
+@Link(name = "ADR-432", url = Adr.EACH_STEP_HAS_A_CHART_BENEATH_ITS_LEG_AND_THE_COCKPIT_HOLDS_NO_TABS, type = "adr")
 class TheEndingPanelTest {
 
     private static final String USER = System.getProperty("user.name");
@@ -89,9 +91,12 @@ class TheEndingPanelTest {
     private static final String OPEN_PROFILE = "ending-open-profile";
     private static final String OPEN_REPORT = "ending-open-report";
     private static final String COPY = "ending-copy";
+    private static final String GATES = "ending-gates";
+    private static final String NEXT = "ending-next";
+    private static final String FILES = "ending-files";
     private static final String OUTPUT_AND_ENDING = "output-and-ending";
+    private static final String OUTPUT_AND_LEGS = "output-and-legs";
     private static final String SIDEBAR_GRIP = "sidebar-grip";
-    private static final String STEPS_AND_OUTPUT_GRIP = "steps-and-output-grip";
 
     // ---- the words of each kind of ending (§3)
 
@@ -169,11 +174,26 @@ class TheEndingPanelTest {
 
     // ---- the sizes (§1)
 
-    /** How far a grip is dragged, and the least width of the sidebar and height of the steps beside the output. */
+    /** How far a grip is dragged, and the least width of the sidebar. */
     private static final double EIGHTY_PIXELS = 80;
     private static final double FAR_PAST_THE_LEAST = -2000;
     private static final double LEAST_SIDEBAR_WIDTH = 220;
-    private static final double LEAST_STEPS_AND_OUTPUT_HEIGHT = 150;
+
+    // ---- the report of an earlier invocation that ended at a gate, its gate, its next value and its files (§4)
+
+    /** The step the earlier invocation stopped at a gate, the key it wants, and the analysis report the key is read off. */
+    private static final String THE_GATES_STEP = "relevance-floor";
+    private static final String THE_GATES_KEY = "relevanceScoreFloor";
+    private static final String THE_GATES_ANALYSIS_REPORT = "relevance-scores";
+
+    /** The value the next invocation wants, as the report's next value names it. */
+    private static final String THE_NEXT_KEY = "relevanceScoreFloor";
+
+    /** The two files the report says it wrote: their roles and their paths. */
+    private static final String A_FILES_ROLE = "log";
+    private static final String A_FILES_PATH = "logs/vespera.log";
+    private static final String ANOTHER_FILES_ROLE = "report";
+    private static final String ANOTHER_FILES_PATH = "report.html";
 
     /** How far, in pixels, a size may stand from the one expected and still be it. */
     private static final double ONE_PIXEL = 1.0;
@@ -218,13 +238,12 @@ class TheEndingPanelTest {
 
         Shown theRefusal = new Shown(true, "Last invocation, " + DAY_AND_MINUTE.format(THE_REFUSALS_END),
                 FAILED_OR_REFUSED, A_REFUSAL, "",
-                "Stopped before any step · exit " + FAILS + " · ended " + CLOCK.format(THE_REFUSALS_END), false, true,
+                "Stopped before any step · exit " + FAILS + " · ended " + CLOCK.format(THE_REFUSALS_END), false, false,
                 true);
         claim("as the window opens on a working directory whose last invocation was refused after it took the lock, the"
                         + " panel says when, Failed or refused, the refusal once although it is also the closing line,"
-                        + " that it stopped before any step, its exit code and the time it ended; Open report is offered,"
-                        + " the ending having a report of its own, Open profile is not, the line not naming the Profile"
-                        + " window, and Copy details is",
+                        + " that it stopped before any step, its exit code and the time it ended; no Open report is"
+                        + " offered, Open profile is not, the line not naming the Profile window, and Copy details is",
                 () -> assertThat(asOpened).isEqualTo(theRefusal));
         claim("Copy details puts the panel's texts on the clipboard, top to bottom, one to a line",
                 () -> assertThat(copied).isEqualTo(String.join("\n", theRefusal.when(), theRefusal.kind(),
@@ -232,11 +251,10 @@ class TheEndingPanelTest {
         claim("choosing a working directory that never had an invocation shows no panel",
                 () -> assertThat(inTheOneNeverRun.shown()).as("whether the panel shows").isFalse());
         claim("choosing one whose last invocation ended at a gate shows when, Ended, its closing line, the time it ended"
-                        + " and how long it took, and Open report, its report.html not being there and its report.json"
-                        + " being its own",
+                        + " and how long it took, and no Open report",
                 () -> assertThat(atTheGate).isEqualTo(new Shown(true,
                         "Last invocation, " + DAY_AND_MINUTE.format(theGatesEnd()), ENDED, A_GATES_CLOSING, "",
-                        "ended " + CLOCK.format(theGatesEnd()) + " · " + HOW_LONG, false, true, true)));
+                        "ended " + CLOCK.format(theGatesEnd()) + " · " + HOW_LONG, false, false, true)));
         claim("and choosing the first again shows its ending again",
                 () -> assertThat(inTheRefusedAgain).isEqualTo(theRefusal));
     }
@@ -269,10 +287,10 @@ class TheEndingPanelTest {
                 () -> assertThat(asOpened.shown()).as("whether the panel shows").isFalse());
         claim("once the window's own child has failed, the panel shows, undated, Failed or refused, its report's closing"
                         + " line, its fault with its type and causes, that it stopped at extraction, its exit code and"
-                        + " the time its report says it ended, and offers Open report and Copy details",
+                        + " the time its report says it ended, and offers Copy details and no Open report",
                 () -> assertThat(onceItEnded).isEqualTo(new Shown(true, "", FAILED_OR_REFUSED, A_FAILURES_CLOSING,
                         THE_FAULT, "Stopped at extraction · exit " + FAILS + " · ended " + CLOCK.format(ended), false,
-                        true, true)));
+                        false, true)));
     }
 
     @Test
@@ -303,8 +321,7 @@ class TheEndingPanelTest {
         claim("and that it stopped before any step, its exit code and the time the window saw it end",
                 () -> assertThat(onceItEnded.facts())
                         .matches("Stopped before any step · exit " + FAILS + " · ended " + ANY_CLOCK_TIME));
-        claim("Open report is not offered, the report.json in the working directory being the earlier invocation's and"
-                        + " not the child's own, and Copy details is",
+        claim("no Open report is offered, and Copy details is",
                 () -> assertThat(List.of(onceItEnded.openReport(), onceItEnded.copy())).containsExactly(false, true));
     }
 
@@ -371,10 +388,9 @@ class TheEndingPanelTest {
                     assertThat(runsThen).as("whether the child still ran").isTrue();
                 });
         claim("once the operator stops it, the panel shows, undated, Stopped and Stopped by you at the step its report"
-                        + " said was running, nothing about what the next Run does, Open report, the child having written"
-                        + " a report of its own, and Copy details",
+                        + " said was running, nothing about what the next Run does, and Copy details, no Open report",
                 () -> assertThat(onceStopped).isEqualTo(new Shown(true, "", STOPPED, "Stopped by you at extraction",
-                        "", "", false, true, true)));
+                        "", "", false, false, true)));
         claim("its kind is drawn in the accent colour",
                 () -> assertThat(kindDrawnIn).isEqualTo(light.get("-vespera-accent")));
     }
@@ -403,18 +419,19 @@ class TheEndingPanelTest {
 
         claim("once the window's own child has ended, the panel shows, undated, Ended, its report's closing line, the"
                         + " time it ended and how long it took, Open profile, the line naming the Profile window, and"
-                        + " Open report, the child having written a report of its own though no report.html is there",
+                        + " no Open report",
                 () -> assertThat(onceItEnded).isEqualTo(new Shown(true, "", ENDED,
                         A_CLOSING_NAMING_THE_PROFILE_WINDOW, "", "ended " + CLOCK.format(ended) + " · " + HOW_LONG,
-                        true, true, true)));
+                        true, false, true)));
         claim("and Open profile opens the Profile window",
                 () -> assertThat(profileWindowsOpened).as("Profile windows showing").isEqualTo(1));
     }
 
     @Test
     @Story("The window says why the last invocation ended")
-    @DisplayName("The panel lies beneath the output, behind a divider of its own, and the sidebar's width and the height of the steps beside the output are dragged to size, down to a least")
-    void theEndingPanelLiesBeneathTheOutputAndTheSidebarAndTheStepsAreDraggedToSize(@TempDir Path folder)
+    @DisplayName("The panel lies beneath the output, behind a divider of its own, the two above the parts of the job, and the sidebar's width is dragged to size, down to a least")
+    @Link(name = "ADR-432", url = Adr.EACH_STEP_HAS_A_CHART_BENEATH_ITS_LEG_AND_THE_COCKPIT_HOLDS_NO_TABS, type = "adr")
+    void theEndingPanelLiesBeneathTheOutputAboveTheLegsAndTheSidebarIsDraggedToSize(@TempDir Path folder)
             throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
         anEarlierRefusal(working);
@@ -423,7 +440,6 @@ class TheEndingPanelTest {
 
         Placed placed;
         List<Double> widths = new ArrayList<>();
-        List<Double> heights = new ArrayList<>();
         try (WindowForTests window = WindowForTests.shown(state)) {
             window.awaiting(TheEndingPanelTest::seen, Shown::shown);
             placed = window.read(TheEndingPanelTest::placed);
@@ -432,15 +448,10 @@ class TheEndingPanelTest {
             widths.add(window.read(TheEndingPanelTest::sidebarWidth));
             window.act(root -> drag(root, SIDEBAR_GRIP, FAR_PAST_THE_LEAST, 0));
             widths.add(window.read(TheEndingPanelTest::sidebarWidth));
-            heights.add(window.read(TheEndingPanelTest::stepsAndOutputHeight));
-            window.act(root -> drag(root, STEPS_AND_OUTPUT_GRIP, 0, EIGHTY_PIXELS));
-            heights.add(window.read(TheEndingPanelTest::stepsAndOutputHeight));
-            window.act(root -> drag(root, STEPS_AND_OUTPUT_GRIP, 0, FAR_PAST_THE_LEAST));
-            heights.add(window.read(TheEndingPanelTest::stepsAndOutputHeight));
         }
 
-        claim("the steps beside the output stand in their split as before, and the output's side of it is a split of"
-                        + " its own, up and down, the output above and the panel beneath it",
+        claim("the output and its panel are the first item of the split above the legs, and a split of their own, up and"
+                        + " down, the output above and the panel beneath it",
                 () -> assertThat(placed).isEqualTo(new Placed(true, true, true, true)));
         claim("dragging the sidebar's grip 80 px to the right widens the sidebar by 80 px",
                 () -> assertThat(widths.get(1)).as("the sidebar's width after the drag")
@@ -448,12 +459,6 @@ class TheEndingPanelTest {
         claim("dragging it far to the left narrows it to 220 px and no further",
                 () -> assertThat(widths.get(2)).as("the sidebar's width after the drag")
                         .isCloseTo(LEAST_SIDEBAR_WIDTH, within(ONE_PIXEL)));
-        claim("dragging the grip beneath the steps and the output 80 px down makes them 80 px higher",
-                () -> assertThat(heights.get(1)).as("their height after the drag")
-                        .isCloseTo(heights.get(0) + EIGHTY_PIXELS, within(ONE_PIXEL)));
-        claim("dragging it far up makes them 150 px high and no lower",
-                () -> assertThat(heights.get(2)).as("their height after the drag")
-                        .isCloseTo(LEAST_STEPS_AND_OUTPUT_HEIGHT, within(ONE_PIXEL)));
     }
 
     @Test
@@ -529,62 +534,62 @@ class TheEndingPanelTest {
 
     @Test
     @Story("The window says why the last invocation ended")
-    @DisplayName("Open report selects the Report tab, which draws the report of the ending the panel shows, an earlier invocation's too, and follows the window's child again as it starts")
-    void openReportSelectsTheReportTabDrawingTheEndingsReportAndAChildStartingTakesItBack(@TempDir Path folder)
+    @DisplayName("Once an invocation has ended, the panel also shows its report's gates with the value each wants, its next value and the files it wrote, Copy details copies them, and a child starting takes them away")
+    @Issue("914")
+    @Link(name = "ADR-432", url = Adr.EACH_STEP_HAS_A_CHART_BENEATH_ITS_LEG_AND_THE_COCKPIT_HOLDS_NO_TABS, type = "adr")
+    void onceItEndedThePanelShowsTheReportsGatesNextValueAndFilesAndAChildStartingTakesThemAway(@TempDir Path folder)
             throws Exception {
         Path atAGate = Files.createDirectories(folder.resolve("at-a-gate"));
         Path refused = Files.createDirectories(folder.resolve("refused"));
-        anEarlierGate(atAGate);
+        anEarlierGateNamingItsGateNextValueAndFiles(atAGate);
         anEarlierRefusal(refused);
         ControlPanelState state = aStateOver(folder, SleepingJar.runtime());
         WorkingDirectoryList.store(WorkingDirectoryList.besides(LaunchValues.fileIn(folder.resolve("tmp"), USER)),
                 USER, List.of(refused), line -> { });
         state.hold(launchValues(folder, atAGate));
 
-        ReportTab beforeThePress;
-        ReportTab afterThePress;
-        ReportTab inTheRefused;
-        ReportTab whileTheChildRuns;
-        boolean shownWhileTheChildRuns;
+        TheReportsParts atTheGate;
+        boolean openReportAnywhere;
+        String copied;
+        TheReportsParts inTheRefused;
+        Shown whileTheChildRuns;
+        TheReportsParts partsWhileTheChildRuns;
         try (WindowForTests window = WindowForTests.shown(state)) {
             window.awaiting(TheEndingPanelTest::seen, shown -> ENDED.equals(shown.kind()));
-            window.act(root -> {
-                javafx.scene.control.Tab inclusions = HeadlessToolkit.tabWithId(root, "inclusions").orElseThrow();
-                inclusions.getTabPane().getSelectionModel().select(inclusions);
-            });
-            beforeThePress = window.read(TheEndingPanelTest::reportTab);
-            window.act(root -> WindowForTests.node(root, OPEN_REPORT, Button.class).fire());
-            afterThePress = window.awaiting(TheEndingPanelTest::reportTab,
-                    tab -> A_GATES_CLOSING.equals(tab.closing()));
+            atTheGate = window.awaiting(TheEndingPanelTest::theReportsParts, parts -> !parts.gates().isEmpty());
+            openReportAnywhere = window.read(root -> HeadlessToolkit.nodeWithId(root, OPEN_REPORT).isPresent());
+            window.act(root -> WindowForTests.node(root, COPY, Button.class).fire());
+            copied = window.read(root -> Clipboard.getSystemClipboard().getString());
             choose(window, refused);
             window.awaiting(TheEndingPanelTest::seen, shown -> FAILED_OR_REFUSED.equals(shown.kind()));
-            inTheRefused = window.awaiting(TheEndingPanelTest::reportTab, tab -> A_REFUSAL.equals(tab.closing()));
+            inTheRefused = window.read(TheEndingPanelTest::theReportsParts);
             choose(window, atAGate);
             window.awaiting(TheEndingPanelTest::seen, shown -> ENDED.equals(shown.kind()));
             assumeThat(state.start(ControlPanelState.Start.RUN, new ArrayList<>())).as("the child is started").isEmpty();
-            whileTheChildRuns = window.awaiting(TheEndingPanelTest::reportTab,
-                    tab -> LiveReport.WAITING.equals(tab.status()));
-            shownWhileTheChildRuns = window.read(TheEndingPanelTest::seen).shown();
+            whileTheChildRuns = window.awaiting(TheEndingPanelTest::seen, shown -> !shown.shown());
+            partsWhileTheChildRuns = window.read(TheEndingPanelTest::theReportsParts);
         }
 
-        claim("before Open report is pressed, the Inclusions tab is the one selected",
-                () -> assertThat(beforeThePress.selected()).as("whether the Report tab is selected").isFalse());
-        claim("pressing it selects the Report tab, which draws the earlier invocation's report the panel shows: its"
-                        + " closing line, and a status line saying it ended, completed",
+        claim("as the window opens on a working directory whose last invocation ended at a gate, the panel shows the gate:"
+                        + " the step stopped at it, the value it wants and the report that value is read off",
+                () -> assertThat(atTheGate.gates()).contains(THE_GATES_STEP, THE_GATES_KEY, THE_GATES_ANALYSIS_REPORT));
+        claim("the value the next invocation wants",
+                () -> assertThat(atTheGate.next()).contains(THE_NEXT_KEY));
+        claim("and each file the report says it wrote, its role and its path",
+                () -> assertThat(atTheGate.files()).contains(A_FILES_ROLE, A_FILES_PATH, ANOTHER_FILES_ROLE,
+                        ANOTHER_FILES_PATH));
+        claim("no Open report is drawn anywhere in the window",
+                () -> assertThat(openReportAnywhere).as("whether an Open report is drawn").isFalse());
+        claim("Copy details copies the gate, the next value and the files with the panel's other texts",
+                () -> assertThat(copied).contains(THE_GATES_KEY, THE_NEXT_KEY, A_FILES_PATH, ANOTHER_FILES_PATH,
+                        A_GATES_CLOSING));
+        claim("choosing a working directory whose last invocation was refused, at no gate, with no next value and no file"
+                        + " named, shows none of the three",
+                () -> assertThat(inTheRefused).isEqualTo(new TheReportsParts("", "", "")));
+        claim("once the window's child is started, the panel shows nothing, the gate, the next value and the files with it",
                 () -> {
-                    assertThat(afterThePress.selected()).as("whether the Report tab is selected").isTrue();
-                    assertThat(afterThePress.closing()).as("the Report tab's closing line").isEqualTo(A_GATES_CLOSING);
-                    assertThat(afterThePress.status()).as("the Report tab's status line")
-                            .startsWith("run ended: completed");
-                });
-        claim("choosing another working directory, the Report tab draws the report of the ending the panel then shows",
-                () -> assertThat(inTheRefused.closing()).as("the Report tab's closing line").isEqualTo(A_REFUSAL));
-        claim("once the window's child is started, the panel shows nothing and the Report tab follows the child again,"
-                        + " waiting for its report, the earlier closing line gone",
-                () -> {
-                    assertThat(shownWhileTheChildRuns).as("whether the panel shows").isFalse();
-                    assertThat(List.of(whileTheChildRuns.status(), whileTheChildRuns.closing()))
-                            .containsExactly(LiveReport.WAITING, "");
+                    assertThat(whileTheChildRuns.shown()).as("whether the panel shows").isFalse();
+                    assertThat(partsWhileTheChildRuns).isEqualTo(new TheReportsParts("", "", ""));
                 });
     }
 
@@ -603,39 +608,29 @@ class TheEndingPanelTest {
         Shown asOpened;
         Color kindDrawnIn;
         Paint stripeDrawnIn;
-        ReportTab afterThePress;
         boolean markedStale;
         try (WindowForTests window = WindowForTests.shown(state)) {
             asOpened = window.awaiting(TheEndingPanelTest::seen, Shown::shown);
             kindDrawnIn = window.read(root -> inkOf(KIND, root));
             stripeDrawnIn = window.read(root -> innermost(WindowForTests.node(root, STRIPE, Node.class)));
-            window.act(root -> WindowForTests.node(root, OPEN_REPORT, Button.class).fire());
-            afterThePress = window.awaiting(TheEndingPanelTest::reportTab,
-                    tab -> tab.status().contains(LiveReport.UNFINISHED));
             markedStale = window.read(root -> HeadlessToolkit.nodeWithId(root, "report-stale")
-                    .filter(TheEndingPanelTest::shownInTheScene).isPresent());
+                    .filter(node -> shownInTheScene(node) && node.isManaged()).isPresent());
         }
         Map<String, Color> light = theme(stylesheet(), LIGHT_BLOCK);
 
         claim("as the window opens on a working directory whose last report still says it runs and that nobody holds,"
                         + " the panel shows it dated by its last write, Ended without its last write, no line, the step"
-                        + " its report said was running and the time of its last write, with Open report and Copy"
-                        + " details",
+                        + " its report said was running and the time of its last write, with Copy details and no Open"
+                        + " report",
                 () -> assertThat(asOpened).isEqualTo(new Shown(true,
                         "Last invocation, " + DAY_AND_MINUTE.format(THE_UNFINISHEDS_LAST_WRITE), UNFINISHED, "", "",
-                        "At extraction · last written " + CLOCK.format(THE_UNFINISHEDS_LAST_WRITE), false, true,
+                        "At extraction · last written " + CLOCK.format(THE_UNFINISHEDS_LAST_WRITE), false, false,
                         true)));
         claim("its stripe and its kind are drawn in the accent colour",
                 () -> assertThat(List.of(String.valueOf(stripeDrawnIn), String.valueOf(kindDrawnIn)))
                         .containsOnly(String.valueOf(light.get("-vespera-accent"))));
-        claim("Open report selects the Report tab, which says the report ended without its last write and does not mark"
-                        + " it stale",
-                () -> {
-                    assertThat(afterThePress.selected()).as("whether the Report tab is selected").isTrue();
-                    assertThat(afterThePress.status()).as("the Report tab's status line")
-                            .contains(LiveReport.UNFINISHED);
-                    assertThat(markedStale).as("whether the Report tab marks it stale").isFalse();
-                });
+        claim("and no stale mark is shown, no invocation running",
+                () -> assertThat(markedStale).as("whether a stale mark is shown").isFalse());
     }
 
     @Test
@@ -732,21 +727,26 @@ class TheEndingPanelTest {
                         A_GATES_CLOSING));
     }
 
-    // ---- the Report tab
+    // ---- the report's parts the panel shows once it has ended (ADR-432 §8)
 
-    /** What the Report tab shows: whether it is selected, its status line and its closing line. */
-    record ReportTab(boolean selected, String status, String closing) {
+    /** Every text the panel shows of the report's gates, of its next value and of its files, each joined a line apiece. */
+    record TheReportsParts(String gates, String next, String files) {
     }
 
-    private static ReportTab reportTab(Parent root) {
-        boolean selected = HeadlessToolkit.tabWithId(root, LiveReport.ID).map(javafx.scene.control.Tab::isSelected)
-                .orElse(false);
-        return new ReportTab(selected, textIn(root, "report-status"), textIn(root, "report-closing"));
+    private static TheReportsParts theReportsParts(Parent root) {
+        return new TheReportsParts(textsShownUnder(root, GATES), textsShownUnder(root, NEXT), textsShownUnder(root, FILES));
     }
 
-    /** The words of the text {@code id}, shown or not; empty where it is not there. */
-    private static String textIn(Parent root, String id) {
-        return HeadlessToolkit.nodeWithId(root, id).map(node -> ((TextInputControl) node).getText()).orElse("");
+    /** Every text shown under the part {@code id}, a text control's, a label's or a link's, a line apiece; empty where it is not shown. */
+    private static String textsShownUnder(Parent root, String id) {
+        Optional<Node> part = HeadlessToolkit.nodeWithId(root, id).filter(TheEndingPanelTest::shownInTheScene);
+        if (part.isEmpty() || !part.get().isManaged()) {
+            return "";
+        }
+        return HeadlessToolkit.everyNodeUnder(part.get()).stream().filter(Node::isVisible)
+                .map(node -> node instanceof TextInputControl text ? text.getText()
+                        : node instanceof Labeled labeled ? labeled.getText() : null)
+                .filter(text -> text != null && !text.isBlank()).collect(Collectors.joining("\n"));
     }
 
     // ---- what the panel shows
@@ -793,26 +793,23 @@ class TheEndingPanelTest {
     // ---- where it lies
 
     /**
-     * Where the panel lies: whether the split of the steps beside the output holds the steps' scroll first; whether its
-     * second item is {@code output-and-ending}, a split up and down; whether that split's first item is the output;
-     * and whether the panel lies in its second.
+     * Where the panel lies: whether {@code output-and-ending} is the first item of {@code output-and-legs}, above the
+     * legs; whether it is a split up and down; whether its first item is the output; and whether the panel lies in its
+     * second.
      */
-    record Placed(boolean stepsFirst, boolean outputSideSplitUpAndDown, boolean outputAbove, boolean endingPanelBeneath) {
+    record Placed(boolean aboveTheLegs, boolean outputSideSplitUpAndDown, boolean outputAbove, boolean endingPanelBeneath) {
     }
 
     private static Placed placed(Parent root) {
-        SplitPane stepsAndOutput = (SplitPane) root.lookup(".steps-and-output");
-        if (stepsAndOutput == null || stepsAndOutput.getItems().size() != 2) {
-            return new Placed(false, false, false, false);
+        Optional<Node> outputAndLegs = HeadlessToolkit.nodeWithId(root, OUTPUT_AND_LEGS);
+        boolean aboveTheLegs = outputAndLegs.isPresent() && outputAndLegs.get() instanceof SplitPane legsSplit
+                && legsSplit.getOrientation() == Orientation.VERTICAL && legsSplit.getItems().size() == 2
+                && OUTPUT_AND_ENDING.equals(legsSplit.getItems().getFirst().getId());
+        Optional<Node> outputSide = HeadlessToolkit.nodeWithId(root, OUTPUT_AND_ENDING);
+        if (outputSide.isEmpty() || !(outputSide.get() instanceof SplitPane split) || split.getItems().size() != 2) {
+            return new Placed(aboveTheLegs, false, false, false);
         }
-        boolean stepsFirst = stepsAndOutput.getItems().getFirst() instanceof ScrollPane scroll
-                && scroll.getContent() == WindowForTests.node(root, "steps", Node.class);
-        Node outputSide = stepsAndOutput.getItems().get(1);
-        if (!(outputSide instanceof SplitPane split) || !OUTPUT_AND_ENDING.equals(split.getId())
-                || split.getItems().size() != 2) {
-            return new Placed(stepsFirst, false, false, false);
-        }
-        return new Placed(stepsFirst, split.getOrientation() == Orientation.VERTICAL,
+        return new Placed(aboveTheLegs, split.getOrientation() == Orientation.VERTICAL,
                 split.getItems().getFirst() == WindowForTests.node(root, "output", TextArea.class),
                 HeadlessToolkit.everyNodeUnder(split.getItems().get(1)).stream()
                         .anyMatch(node -> ENDING_PANEL.equals(node.getId())));
@@ -826,10 +823,6 @@ class TheEndingPanelTest {
             }
         }
         throw new AssertionError("the sidebar stands in no scroll of its own");
-    }
-
-    private static double stepsAndOutputHeight(Parent root) {
-        return ((Region) root.lookup(".steps-and-output")).getHeight();
     }
 
     /** Drags the grip {@code id} by {@code dx} and {@code dy} with the primary button, as the operator does. */
@@ -958,6 +951,26 @@ class TheEndingPanelTest {
     private static void anEarlierGate(Path working) throws IOException {
         ReportFixtures.write(working, AN_EARLIER_PID, endedJob(ENDS, "completed", theGatesEnd(),
                 steps("census", "finished"), List.of(), "[]", A_GATES_CLOSING), THE_GATES_START, theGatesEnd(), 1);
+    }
+
+    /**
+     * Writes an earlier invocation that ended at a gate, as {@link #anEarlierGate} does, its report naming the gate it
+     * stopped at, the value the next invocation wants and two files written. Written whole, {@link ReportFixtures}
+     * writing no next value and no file.
+     */
+    private static void anEarlierGateNamingItsGateNextValueAndFiles(Path working) throws IOException {
+        Files.writeString(working.resolve(InvocationReportFile.FILE_NAME), "{\"format\":" + InvocationReportFile.FORMAT
+                + ",\"invocation\":{\"id\":\"20261115T090000Z\",\"pid\":" + AN_EARLIER_PID + ",\"command\":\"run\","
+                + "\"started\":" + quoted(THE_GATES_START.toString()) + ",\"ended\":" + quoted(theGatesEnd().toString())
+                + ",\"state\":\"ended\",\"outcome\":\"completed\",\"exitCode\":" + ENDS + ",\"writtenAt\":"
+                + quoted(theGatesEnd().toString()) + ",\"interval\":1},\"steps\":" + steps("census", "finished",
+                        THE_GATES_STEP, "stopped at a gate")
+                + ",\"legs\":[],\"charts\":null,\"gates\":[{\"step\":" + quoted(THE_GATES_STEP) + ",\"key\":"
+                + quoted(THE_GATES_KEY) + ",\"analysisReports\":[" + quoted(THE_GATES_ANALYSIS_REPORT) + "]}],"
+                + "\"refusals\":[],\"faults\":[],\"closing\":" + quoted(A_GATES_CLOSING) + ",\"next\":{\"invocation\":\"run\","
+                + "\"wants\":[" + quoted(THE_NEXT_KEY) + "],\"answer\":false,\"arrangement\":null},\"analysisReports\":[],\"files\":[{\"role\":" + quoted(A_FILES_ROLE)
+                + ",\"path\":" + quoted(A_FILES_PATH) + "},{\"role\":" + quoted(ANOTHER_FILES_ROLE) + ",\"path\":"
+                + quoted(ANOTHER_FILES_PATH) + "}]}", UTF_8);
     }
 
     /**
