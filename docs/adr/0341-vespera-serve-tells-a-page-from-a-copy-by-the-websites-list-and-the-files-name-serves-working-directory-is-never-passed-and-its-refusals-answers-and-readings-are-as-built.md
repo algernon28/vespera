@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-377](0377-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §2, as ADR-345 amends it: the entries never passed are four, `vespera help`, `vespera version`, `serve db-dir` and `label <file>`, Command options offering no label file. The rest of this record stands.
 
+> **Partly amended — see [ADR-432](0432-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md).** Of §4: a blank `--db-dir=` is read as unset and names no working directory, so `vespera serve` refuses it in ADR-432's line, not in the disagreement's. The rest of this record stands.
+
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.
 - **Decided**: here. Each choice is one that building ADR-333's third step needed, which ADR-333's Decided line leaves to its building; none is a ruling of the operator's. §1 settles a gap between ADR-333 §8 and ADR-339 §3 by the reading that keeps ADR-339's list at its format and fields.

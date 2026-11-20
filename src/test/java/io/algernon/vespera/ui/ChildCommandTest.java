@@ -55,8 +55,12 @@ class ChildCommandTest {
             WORKING_DIRECTORY.toString(), "out", "image:v1", "http://docling", "http://ollama", "a-writing-model:14b",
             LAST_SEED_FOLDER);
 
+    /** The working directory as the system property every child is given beside {@code --db-dir} (ADR-432 §6). */
+    private static final String WORKING_DIR_PROPERTY = "-Dvespera.working-dir=" + absolute(WORKING_DIRECTORY);
+
     private static final List<String> BEFORE_THE_COMMAND = List.of(
-            JAVA.toString(), "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8", "-jar", absolute(JAR));
+            JAVA.toString(), "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8", WORKING_DIR_PROPERTY, "-jar",
+            absolute(JAR));
 
     private static final String DB_DIR = "--db-dir=" + absolute(WORKING_DIRECTORY);
 
@@ -208,6 +212,35 @@ class ChildCommandTest {
         claim("and its process builder's environment is the one over the control panel's own",
                 () -> assertThat(typed.processBuilder().environment())
                         .isEqualTo(typed.environmentFrom(System.getenv())));
+    }
+
+    /**
+     * A path written on the working directory's line of a file beside the jar stands over {@code --db-dir}, which Spring
+     * reads only through that line; a system property stands over the file. So every child is given the folder it is
+     * passed as the system property {@code vespera.working-dir} too, and the folder chosen is the one it opens
+     * (ADR-432 §6).
+     */
+    @Test
+    @Story("The control panel passes its launch values to the jar")
+    @DisplayName("Every child is given the working directory it is passed as a system property too, before -jar")
+    @Issue("905")
+    @Link(name = "ADR-432", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
+    void everyChildIsGivenTheFolderItPassesAsTheSystemPropertyToo() {
+        for (ChildCommand command : List.of(ChildCommand.run(JAVA, JAR, EVERY_VALUE),
+                ChildCommand.label(JAVA, JAR, false, EVERY_VALUE),
+                ChildCommand.publish(JAVA, JAR, EVERY_VALUE, List.of(ChildCommand.DESTINATIONS.getFirst())))) {
+            List<String> line = command.command();
+            String which = line.get(BEFORE_THE_COMMAND.size());
+            claim(which + "'s command line carries -Dvespera.working-dir naming the working directory once, after the"
+                            + " two encoding flags and right before -jar, and --db-dir naming the same folder",
+                    () -> {
+                        assertThat(line.stream().filter(each -> each.startsWith("-Dvespera.working-dir="))
+                                .toList()).containsExactly(WORKING_DIR_PROPERTY);
+                        assertThat(line.subList(0, line.indexOf("-jar") + 1)).containsExactly(JAVA.toString(),
+                                "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8", WORKING_DIR_PROPERTY, "-jar");
+                        assertThat(line).contains(DB_DIR);
+                    });
+        }
     }
 
     @Test
