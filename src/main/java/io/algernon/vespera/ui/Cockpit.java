@@ -219,8 +219,6 @@ final class Cockpit {
         readModelsInForce();
         readFieldValues();
         refresh();
-        // a child started, by this window or not through it, is watched at once, not at the clock's next tick (ADR-432 §8)
-        state.whenAChildStarts(() -> Platform.runLater(this::refresh));
         timeline = new Timeline(new KeyFrame(Duration.seconds(1), tick -> refresh()));
         timeline.setCycleCount(Timeline.INDEFINITE);
         timeline.play();
@@ -1817,9 +1815,10 @@ final class Cockpit {
         } else {
             Optional<ControlPanelState.Watched> foreign = state.watchedHolder(folder);
             if (foreign.isEmpty()) {
-                if (lastDrawn != null && !(child.isPresent() && ending.isPresent())) {
-                    live.refreshStale(Instant.now());
-                }
+                // no invocation is watched: its holder let go, or it ended; nothing of it stands in the header (ADR-432 §8)
+                live.hide();
+                watching = null;
+                lastDrawn = null;
                 return;
             }
             who = foreign.get();
@@ -1857,10 +1856,8 @@ final class Cockpit {
         watchedReportDrawn = watchedReportDrawn || drawn;
         if (justEnded) {
             reportedEnding = ending.get();
-            if (!watchedReportDrawn) {
-                // the ending panel says how it ended, from its last line of output (ADR-432 §8)
-                live.hide();
-            }
+            // the ending panel says how it ended, whether or not a report of its own was drawn (ADR-432 §8)
+            live.hide();
         }
     }
 

@@ -341,6 +341,8 @@ final class EndingPanel {
         for (Node each : files.getChildren()) {
             if (each instanceof SelectableText.Wrapping file) {
                 shown.add(file.getText());
+            } else if (each instanceof Hyperlink index) {
+                shown.add(index.getText());
             }
         }
         ClipboardContent content = new ClipboardContent();

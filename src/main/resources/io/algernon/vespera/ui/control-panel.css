@@ -361,6 +361,8 @@
 }
 
 .leg-charts {
+    -fx-hgap: 8px;
+    -fx-vgap: 8px;
     -fx-padding: 0 0 0 8px;
 }
 

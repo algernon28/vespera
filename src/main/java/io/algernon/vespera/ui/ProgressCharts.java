@@ -23,6 +23,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.TilePane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.text.TextAlignment;
 import javafx.util.StringConverter;
@@ -45,10 +46,8 @@ final class ProgressCharts {
     private static final List<String> JUDGING = List.of("byte-level-reduction", "extraction", "content-redundancy",
             "relevance-floor");
 
-    /** A chart's least width and its height, and the space between two of a leg's charts, the stylesheet's {@code .charts} having it too (ADR-432 §2). */
-    private static final double LEAST_WIDTH = 320;
+    /** A row of a leg's charts is this high; the least width and the space between charts are the stylesheet's (ADR-432 §2). */
     private static final double ROW_HEIGHT = 300;
-    private static final double GAP = 8;
 
     /** The finished-at time of a frozen chart's title, in the machine's zone on the 24-hour clock (ADR-432 §6). */
     private static final DateTimeFormatter HOURS_AND_MINUTES =
@@ -85,11 +84,11 @@ final class ProgressCharts {
      * A leg's charts in as many columns as fit at their least width and the space between them, at least one, each
      * column an equal share of the pane's width, filled in step order a row at a time (ADR-432 §2).
      */
-    private static final class Grid extends Pane {
+    private static final class Grid extends TilePane {
 
         Grid(String id) {
             setId(id);
-            getStyleClass().addAll("charts", "leg-charts");
+            getStyleClass().add("leg-charts");
         }
 
         @Override
@@ -97,13 +96,24 @@ final class ProgressCharts {
             return Orientation.HORIZONTAL;
         }
 
-        private static int columnsIn(double width) {
-            return Math.max(1, (int) Math.floor((width + GAP) / (LEAST_WIDTH + GAP)));
+        /** The space between two charts, which the stylesheet sets as the pane's {@code -fx-hgap} and {@code -fx-vgap}. */
+        private double gap() {
+            return getHgap();
+        }
+
+        /** A chart's least width, which the stylesheet sets as its {@code -fx-min-width}. */
+        private double leastWidth() {
+            List<Node> managed = getManagedChildren();
+            return managed.isEmpty() ? 1 : Math.max(1, managed.getFirst().minWidth(-1));
+        }
+
+        private int columnsIn(double width) {
+            return Math.max(1, (int) Math.floor((width + gap()) / (leastWidth() + gap())));
         }
 
         @Override
         protected double computePrefWidth(double height) {
-            return snappedLeftInset() + LEAST_WIDTH + snappedRightInset();
+            return snappedLeftInset() + leastWidth() + snappedRightInset();
         }
 
         @Override
@@ -113,11 +123,11 @@ final class ProgressCharts {
 
         @Override
         protected double computePrefHeight(double width) {
-            double room = width > 0 ? width : getWidth() > 0 ? getWidth() : 3 * (LEAST_WIDTH + GAP);
+            double room = width > 0 ? width : getWidth() > 0 ? getWidth() : 3 * (leastWidth() + gap());
             int columns = columnsIn(room - snappedLeftInset() - snappedRightInset());
             int count = getManagedChildren().size();
             int rows = (count + columns - 1) / columns;
-            return snappedTopInset() + rows * ROW_HEIGHT + Math.max(0, rows - 1) * GAP + snappedBottomInset();
+            return snappedTopInset() + rows * ROW_HEIGHT + Math.max(0, rows - 1) * getVgap() + snappedBottomInset();
         }
 
         @Override
@@ -131,11 +141,11 @@ final class ProgressCharts {
             double top = snappedTopInset();
             double room = getWidth() - left - snappedRightInset();
             int columns = columnsIn(room);
-            double cell = Math.max(1, (room - GAP * (columns - 1)) / columns);
+            double cell = Math.max(1, (room - gap() * (columns - 1)) / columns);
             List<Node> managed = getManagedChildren();
             for (int i = 0; i < managed.size(); i++) {
-                managed.get(i).resizeRelocate(left + (i % columns) * (cell + GAP),
-                        top + (i / columns) * (ROW_HEIGHT + GAP), cell, ROW_HEIGHT);
+                managed.get(i).resizeRelocate(left + (i % columns) * (cell + gap()),
+                        top + (i / columns) * (ROW_HEIGHT + getVgap()), cell, ROW_HEIGHT);
             }
         }
     }
