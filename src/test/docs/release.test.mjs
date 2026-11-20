@@ -12,7 +12,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { indexOf, row } from "./adr-index-fixtures.mjs";
 
 const SCRIPT = fileURLToPath(new URL("../../../docs/release.mjs", import.meta.url));
@@ -20,7 +20,7 @@ const SCRIPT = fileURLToPath(new URL("../../../docs/release.mjs", import.meta.ur
 /** The script's exports; a test fails, rather than the file, where the script is not there yet. */
 async function release() {
   assert.ok(existsSync(SCRIPT), "docs/release.mjs is missing: ADR-431 §8 adds it");
-  return import(SCRIPT);
+  return import(pathToFileURL(SCRIPT).href);
 }
 
 const REPO = "https://github.com/algernon28/vespera/blob";
