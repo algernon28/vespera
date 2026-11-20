@@ -23,7 +23,7 @@ import org.springframework.stereotype.Component;
  * (ADR-434 §7).
  */
 @Component
-class RecordInputsOf {
+class RecordInputsOf implements RecordInputs {
 
     private final StageRuns stageRuns;
     private final RelevanceDistribution relevanceDistribution;
@@ -31,6 +31,8 @@ class RecordInputsOf {
     private final StoredChunks storedChunks;
     private final StoredVectors storedVectors;
     private final WritingEmbedder writingEmbedder;
+    private String identity;
+    private boolean artefactAsked;
 
     RecordInputsOf(
             StageRuns stageRuns,
@@ -47,54 +49,56 @@ class RecordInputsOf {
         this.writingEmbedder = writingEmbedder;
     }
 
-    /** The inputs of one drawing. */
-    RecordInputs forOneDrawing() {
-        return new RecordInputs() {
-            private String identity;
-            private boolean artefactAsked;
+    /**
+     * These inputs for one drawing: the identity is read again and the artefact asked again, since the bean outlives the
+     * drawing (ADR-434 §7).
+     */
+    RecordInputsOf forOneDrawing() {
+        identity = null;
+        artefactAsked = false;
+        return this;
+    }
 
-            @Override
-            public String embedderIdentity() {
-                if (identity == null) {
-                    String model = stageRuns.embeddingModelName();
-                    identity = relevanceDistribution
-                            .embedderIdentityFor(model, stageRuns.embeddingModelArtefact())
-                            .orElseThrow(() -> new IllegalStateException("no vector is stored under the scoring run's"
-                                    + " embedding model " + model + ", so no record has a vector to carry"));
-                }
-                return identity;
-            }
+    @Override
+    public String embedderIdentity() {
+        if (identity == null) {
+            String model = stageRuns.embeddingModelName();
+            identity = relevanceDistribution
+                    .embedderIdentityFor(model, stageRuns.embeddingModelArtefact())
+                    .orElseThrow(() -> new IllegalStateException("no vector is stored under the scoring run's"
+                            + " embedding model " + model + ", so no record has a vector to carry"));
+        }
+        return identity;
+    }
 
-            @Override
-            public float[] vectorOf(String writing) {
-                String embedder = embedderIdentity();
-                return writingEmbedder.kept(writing, embedder).orElseGet(() -> {
-                    String model = stageRuns.embeddingModelName();
-                    if (!artefactAsked) {
-                        ModelArtefact scoring = stageRuns.embeddingModelArtefact();
-                        writingEmbedder.requireArtefact(model, scoring);
-                        artefactAsked = true;
-                    }
-                    return writingEmbedder.embedAndKeep(writing, model, embedder);
-                });
+    @Override
+    public float[] vectorOf(String writing) {
+        String embedder = embedderIdentity();
+        return writingEmbedder.kept(writing, embedder).orElseGet(() -> {
+            String model = stageRuns.embeddingModelName();
+            if (!artefactAsked) {
+                ModelArtefact scoring = stageRuns.embeddingModelArtefact();
+                writingEmbedder.requireArtefact(model, scoring);
+                artefactAsked = true;
             }
+            return writingEmbedder.embedAndKeep(writing, model, embedder);
+        });
+    }
 
-            @Override
-            public void passagesOf(ListedSurvivor member, PassageConsumer passages) throws IOException {
-                String embedder = embedderIdentity();
-                String chunker = hybridChunker.identity();
-                String rule = ChunkingRule.DEFAULT.identity().value();
-                List<Chunk> chunks = storedChunks.of(member.contentHash(), chunker, rule);
-                List<float[]> vectors = storedVectors.of(member.contentHash(), chunker, rule, embedder);
-                if (vectors.size() < chunks.size()) {
-                    throw new IllegalStateException("occurrence " + member.occurrence() + " has " + chunks.size()
-                            + " chunks and " + vectors.size() + " stored vectors under the scoring run's identity");
-                }
-                for (int at = 0; at < chunks.size(); at++) {
-                    Chunk chunk = chunks.get(at);
-                    passages.accept(chunk.ordinal(), chunk.text(), vectors.get(at));
-                }
-            }
-        };
+    @Override
+    public void passagesOf(ListedSurvivor member, PassageConsumer passages) throws IOException {
+        String embedder = embedderIdentity();
+        String chunker = hybridChunker.identity();
+        String rule = ChunkingRule.DEFAULT.identity().value();
+        List<Chunk> chunks = storedChunks.of(member.contentHash(), chunker, rule);
+        List<float[]> vectors = storedVectors.of(member.contentHash(), chunker, rule, embedder);
+        if (vectors.size() < chunks.size()) {
+            throw new IllegalStateException("occurrence " + member.occurrence() + " has " + chunks.size()
+                    + " chunks and " + vectors.size() + " stored vectors under the scoring run's identity");
+        }
+        for (int at = 0; at < chunks.size(); at++) {
+            Chunk chunk = chunks.get(at);
+            passages.accept(chunk.ordinal(), chunk.text(), vectors.get(at));
+        }
     }
 }

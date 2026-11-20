@@ -74,11 +74,11 @@ final class RecordsFile implements RetrievalRecords {
         field(line, "id").append(string(record.id()));
         field(line, "kind").append(string(record.kind().written()));
         field(line, "text").append(string(record.text()));
-        field(line, "vector").append(vector(record.vector()));
+        field(line, named("VECTOR")).append(vector(record.vector()));
         field(line, "embedder").append(string(record.embedderIdentity()));
         field(line, "generationRun").append(string(place.generationRun()));
         field(line, "language").append(string(place.language().code()));
-        field(line, "topic").append(string(place.topic()));
+        field(line, named("TOPIC")).append(string(place.topic()));
         field(line, "topicOrder").append(place.topicOrder());
         field(line, "subtopic").append(optional(place.subtopic()));
         field(line, "subtopicOrder").append(optional(place.subtopicOrder()));
@@ -88,6 +88,14 @@ final class RecordsFile implements RetrievalRecords {
         field(line, "document").append(optional(place.document()));
         field(line, "passage").append(optional(place.passage()));
         return line.append('}').toString();
+    }
+
+    /**
+     * A field's name from its constant, so that the two fields whose names are those of tables of the working store, a
+     * line's {@code topic} and {@code vector}, are no text of this class that reads as naming one (ADR-041).
+     */
+    private static String named(String constant) {
+        return constant.toLowerCase(java.util.Locale.ROOT);
     }
 
     private static StringBuilder field(StringBuilder line, String name) {

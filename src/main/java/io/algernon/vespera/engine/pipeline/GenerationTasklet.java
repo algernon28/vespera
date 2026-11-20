@@ -1096,8 +1096,8 @@ class GenerationTasklet implements Tasklet {
                 ClusterPageByteCeiling.of(profile.clusterPageByteCeiling()).forTheTree(),
                 plugins.orderedStream().toList(),
                 Outputs.read(profile.outputs().value()),
-                // Resolved where the drawing asks for it: a bean no test of this step needs unless a plugin reads records.
-                new LazyRecordInputs(recordInputs),
+                // Absent where the context holds none, as in a slice no plugin reads records in: asked of then, it refuses.
+                recordInputs.stream().findFirst().map(RecordInputsOf::forOneDrawing).orElse(null),
                 treeProgress(copies));
     }
 
