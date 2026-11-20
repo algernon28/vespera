@@ -18,6 +18,8 @@
 
 > **Partly amended — see [ADR-377](0377-a-profile-row-is-one-line-its-provenance-in-a-tooltip-a-list-is-tags-a-code-set-named-by-its-folder-and-no-label-file.md).** Of §8: the rows of `new-name` and `name-<i>`, and of `provenance` and `<key>.provenance`, go: a code set takes no name, and no field holds a value's provenance, which its title's tooltip shows. A profile key's hint stands in no row, which shows the texts `profile-texts.json` gives the key. The rest of what ADR-342 keeps of this record stands.
 
+> **Partly amended — see [ADR-430](0430-the-control-panel-checks-docker-the-containers-and-the-models-and-starts-nothing-until-start-docker-is-pressed.md).** Of §8: a field's one-line hint is the caption of its box, shown on mouse over, and no longer a line beneath the field; its words are unchanged. The rest of this record stands.
+
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the control panel names its own package, `java.base` and `jdk.httpserver` alone, and starts the window by `ProcessBuilder`, `java.desktop` not added (§1). Its §4: one class owns the pages' skeleton, styling and escaping (§3).

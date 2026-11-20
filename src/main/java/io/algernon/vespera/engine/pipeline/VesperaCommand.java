@@ -526,7 +526,7 @@ public class VesperaCommand implements Callable<Integer> {
      * that has to be finished or lost.
      */
     @Component
-    @Command(name = "label", description = "Records the answers written into the relevance label file.")
+    @Command(name = "label", description = "Records the labels set in the relevance label file.")
     public static class Label implements Callable<Integer> {
 
         private static final Logger log = LoggerFactory.getLogger(Label.class);
@@ -542,9 +542,9 @@ public class VesperaCommand implements Callable<Integer> {
 
         @Option(
                 names = "--auto",
-                description = "Have the local model answer the questions in the label file, then set"
-                        + " relevanceScoreFloor by the rule that loses no documentation (ADR-197). An answer a"
-                        + " person gave is never replaced.")
+                description = "Have the local model label the documents in the label file, then set"
+                        + " relevanceScoreFloor by the rule that loses no documentation (ADR-197). A label a"
+                        + " person set is never replaced.")
         private boolean auto;
 
         @Parameters(

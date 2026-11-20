@@ -10,7 +10,9 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -73,6 +75,8 @@ class TheWslconfigIsWrittenOnlyWhereThereIsNoneTest {
     private static final URI OLLAMA_HERE = URI.create("http://127.0.0.1:11434");
 
     private static final URI DOCLING_ELSEWHERE = URI.create("http://docling.example.org:5001");
+
+    private static final URI OLLAMA_ELSEWHERE = URI.create("http://ollama.example.org:11434");
 
     /** How long these tests wait for the engine or a sidecar to answer: one second, so a wait that runs out is quick. */
     private static final Duration WAIT_AT_MOST = Duration.ofSeconds(1);
@@ -255,7 +259,9 @@ class TheWslconfigIsWrittenOnlyWhereThereIsNoneTest {
 
     @Test
     @Story("On Windows, WSL is kept from shutting Docker down while idle")
-    @DisplayName("Off Windows, or with a sidecar looked for on another machine, nothing is written and the control panel's call says nothing")
+    @DisplayName("Off Windows, or with both containers looked for on another machine, nothing is written and the control panel's call says nothing")
+    @Issue("889")
+    @Link(name = "ADR-430", url = Adr.THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER, type = "adr")
     void nothingIsWrittenOffWindowsOrForSidecarsOnAnotherMachine() throws IOException {
         for (HostSystem system : List.of(HostSystem.LINUX, HostSystem.MAC)) {
             Path profile = Files.createDirectory(folder.resolve(system.name()));
@@ -272,17 +278,24 @@ class TheWslconfigIsWrittenOnlyWhereThereIsNoneTest {
         }
 
         Path profile = Files.createDirectory(folder.resolve("elsewhere"));
-        SidecarStarter elsewhere = starter(new SidecarStartSettings(DOCLING_ELSEWHERE, OLLAMA_HERE, cpuImage,
-                WAIT_AT_MOST, "", profile), ScriptedDocker.engineRunning(), new WatchingHealth(null, false),
-                HostSystem.WINDOWS);
+        ScriptedDocker docker = ScriptedDocker.engineRunning();
+        SidecarStarter elsewhere = new SidecarStarter(new SidecarStartSettings(DOCLING_ELSEWHERE, OLLAMA_ELSEWHERE,
+                cpuImage, WAIT_AT_MOST, "", profile), docker, new WatchingHealth(null, false), HostSystem.WINDOWS,
+                () -> ComposeFiles.in(REPOSITORY), folder.resolve("locks"), CHECK_EVERY, new ThisMachine(
+                        name -> switch (name) {
+                            case "docling.example.org" -> new InetAddress[] {InetAddress.ofLiteral("192.0.2.10")};
+                            case "ollama.example.org" -> new InetAddress[] {InetAddress.ofLiteral("192.0.2.11")};
+                            default -> throw new UnknownHostException(name);
+                        }, List::of));
 
         SidecarStarter.Outcome outcome = elsewhere.ensureRunning();
         Optional<String> said = elsewhere.keepTheWslDistributionUp();
 
-        claim("on Windows with docling-serve looked for on another machine, the start starts nothing there, the"
-                        + " control panel's call says nothing, and the profile folder is empty",
-                () -> assertThat(List.of(outcome, said, namesIn(profile))).containsExactly(
-                        SidecarStarter.Outcome.ON_ANOTHER_MACHINE, Optional.empty(), List.of()));
+        claim("on Windows with docling-serve at " + DOCLING_ELSEWHERE + " and Ollama at " + OLLAMA_ELSEWHERE + ", both"
+                        + " resolving to another machine, the start starts nothing and runs no command, the control"
+                        + " panel's call says nothing, and the profile folder is empty (ADR-430 §10)",
+                () -> assertThat(List.of(outcome, docker.commands(), said, namesIn(profile))).containsExactly(
+                        SidecarStarter.Outcome.ON_ANOTHER_MACHINE, List.of(), Optional.empty(), List.of()));
     }
 
     @Test

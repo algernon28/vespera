@@ -24,6 +24,8 @@
 
 > **Partly amended — see [ADR-390](0390-vespera-uses-docker-engine-alone-the-control-panel-starts-it-as-it-opens-and-a-button-stops-the-sidecars-then-the-engine.md).** Of §5: the control panel starts the Docker engine as its window opens, stops the sidecars as it closes, and stops the sidecars and then the engine when the operator presses *Shut down Docker*, each through `DockerEngine` in its own process; its two checks still only read, and nothing is pulled. The rest of this record stands.
 
+> **Partly amended — see [ADR-430](0430-the-control-panel-checks-docker-the-containers-and-the-models-and-starts-nothing-until-start-docker-is-pressed.md).** Of §5, as ADR-390 left it: the window starts nothing as it opens, *Start Docker* starts the engine and the containers, and the window downloads a model, on the operator's click or after *Start Docker* where `vespera.models.pull` is ticked. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the control panel names its own package, `java.base` and `jdk.httpserver` alone; it asks the sidecars through `java.net.HttpURLConnection`, of `java.base`, and reads their JSON with a reader of its own (§5). Its §4: one class of its own owns the skeleton, styling and escaping of its pages (§10).

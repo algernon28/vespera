@@ -80,6 +80,7 @@ public final class ControlPanelWindow extends Application {
         });
         stage.setOnHidden(event -> cockpit.closed());
         stage.show();
-        cockpit.startDocker();
+        // nothing is started as the window opens: it checks Docker, the containers and the models (ADR-430 §1)
+        cockpit.checkAsItOpens();
     }
 }

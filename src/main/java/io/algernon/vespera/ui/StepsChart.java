@@ -25,7 +25,7 @@ final class StepsChart extends VBox {
 
     /** One row of the steps chart: its stage, its name, one bar, its state and, on the running step, its own Stop. */
     private record StepRow(HBox row, SelectableText.Line stage, SelectableText.Line name, ProgressBar bar, Label percent,
-            SelectableText.Line state, SelectableText.Line cost, Button stopHere) {
+            SelectableText.Line state, Button stopHere) {
     }
 
     /** One leg of the steps chart: its pane, and the name, the one bar with its percent and the state its summary holds (ADR-361 §3). */
@@ -121,19 +121,17 @@ final class StepsChart extends VBox {
         StackPane barWithPercent = new StackPane(bar, percent);
         barWithPercent.getStyleClass().add("bar-with-percent");
         SelectableText.Line stateWords = SelectableText.line("waiting");
-        SelectableText.Line costWords = SelectableText.line("A stop here costs " + cost.cost() + ".");
-        costWords.getStyleClass().add("small");
-        costWords.setVisible(false);
-        costWords.setManaged(false);
         Button stopHere = new Button("Stop");
         stopHere.setId("stop-step");
         stopHere.setVisible(false);
         stopHere.setManaged(false);
         stopHere.setOnAction(event -> stopAsked.run());
-        HBox row = new HBox(stage, name, barWithPercent, stateWords, stopHere, costWords);
+        // what a stop here costs is the Stop's caption, no text of the row (ADR-430 §8)
+        Captions.on(stopHere, "A stop here costs " + cost.cost() + ".");
+        HBox row = new HBox(stage, name, barWithPercent, stateWords, stopHere);
         row.setId("step-" + cost.step());
         row.getStyleClass().add("step");
-        StepRow made = new StepRow(row, stage, name, bar, percent, stateWords, costWords, stopHere);
+        StepRow made = new StepRow(row, stage, name, bar, percent, stateWords, stopHere);
         stepRows.put(cost.step(), made);
         return made;
     }
@@ -167,8 +165,6 @@ final class StepsChart extends VBox {
                     ? "running " + Math.min(99L, 100L * step.done() / step.total()) + "%" : words);
             row.stopHere().setVisible(running);
             row.stopHere().setManaged(running);
-            row.cost().setVisible(running);
-            row.cost().setManaged(running);
             if (step != null && step.done() != null && step.total() != null && step.total() > 0) {
                 row.bar().setProgress(Math.min(1.0, (double) step.done() / step.total()));
                 fractions.put(name, row.bar().getProgress());

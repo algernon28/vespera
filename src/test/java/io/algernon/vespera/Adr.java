@@ -1160,11 +1160,11 @@ public final class Adr {
             + "0204-every-line-of-adr-193s-part-b-is-written-out-and-its-table-is-read-again-against-the-code.md";
 
     /**
-     * ADR-205 -- the relevance report's loop over the answers a local model gave gets a counter of its
-     * own, {@code Stage 5 (relevance report, model answers matched)}: one item an answer looked up in this
-     * walk, matched or not, its total the answers a model gave for the seed set, opened after the timed
-     * read of those answers has ended, and writing nothing over none (extends ADR-192 section 4; rests on
-     * ADR-197 section 3 and ADR-204 sections 2 and 7; settles #444).
+     * ADR-205 -- the relevance report's loop over the labels a local model set gets a counter of its own, {@code
+     * Stage 5 (relevance report, model labels matched)} since ADR-424 ({@code model answers matched} before it): one
+     * item a label looked up in this walk, matched or not, its total the labels a model set for the seed set, opened
+     * after the timed read of those labels has ended, and writing nothing over none (extends ADR-192 section 4; rests
+     * on ADR-197 section 3 and ADR-204 sections 2 and 7; settles #444).
      */
     public static final String THE_REPORT_COUNTS_THE_ANSWERS_A_MODEL_GAVE = FILE
             + "0205-the-relevance-report-counts-the-answers-a-model-gave-as-it-looks-each-up.md";
@@ -3116,6 +3116,19 @@ public final class Adr {
             + "0423-a-question-has-no-header-or-icon-its-answers-are-coloured-by-what-they-do-and-a-button-grows-under-the-pointer.md";
 
     /**
+     * ADR-424 -- no text written for the operator calls a relevance label an answer or an entry of the label file a
+     * question: {@code vespera label}'s usage, the jar's lines, refusals and closing lines, stage 5's relevance floor's
+     * and relevance report's reads, counters and finishing line, {@code report.html}, {@code relevance-labelling.html}
+     * and its JSON's titles, the window's texts that said question, the README and {@code
+     * docs/running-stage-by-stage.md} say label; the prefix {@code vespera label recorded nothing:}, the local model's
+     * own answers, every text of {@code embedding}, every stored key and id and every name of ours stay; {@code
+     * CONTEXT.md}'s Relevance label is defined with no answer (amends ADR-169 §3 and §4, ADR-192 §4, ADR-193 §6, ADR-197
+     * §6, ADR-204 §2, §3 and §7, ADR-205, ADR-220 §13, ADR-266 §3, ADR-295 §6, ADR-334 §6 and ADR-413).
+     */
+    public static final String NO_TEXT_FOR_THE_OPERATOR_CALLS_A_LABEL_AN_ANSWER = FILE
+            + "0424-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md";
+
+    /**
      * ADR-425 -- at each reading a stage's chart sets its time axis from the seconds of the samples it holds and its
      * value axis from their values, nothing of an earlier drawing moving either; an axis of two numbers or more is ranged
      * as before, one of one number n spans n - d to n + d ticked every d, d the largest power of ten not above |n| or 1,
@@ -3155,6 +3168,18 @@ public final class Adr {
      */
     public static final String THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME = FILE
             + "0429-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md";
+
+    /**
+     * ADR-430 -- the control panel starts nothing as its window opens: it checks the Docker daemon, the Docling and
+     * Ollama containers and the two models in a list of its header, every 5 s and at once after a start, a shut-down, a
+     * download and an invocation ending, asking no command into a stopped WSL distribution; Start Docker starts them as
+     * {@code vespera run} does and downloads a missing model where pulling is on; Run waits for the containers, a download
+     * panel shows a model's download, explanations are captions on mouse over; and a container is on this machine where
+     * its host resolves to one of this machine's addresses (amends ADR-390 §3, §4, §5 and §7, ADR-421 §1 and §6, ADR-329
+     * §1, ADR-323 §3 and §4, ADR-302 §5, ADR-413 §1 and ADR-331 §8).
+     */
+    public static final String THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER = FILE
+            + "0430-the-control-panel-checks-docker-the-containers-and-the-models-and-starts-nothing-until-start-docker-is-pressed.md";
 
     /**
      * ADR-431 -- Vespera's release version is SemVer from a pushed {@code vMAJOR.MINOR.PATCH} tag, the pom's version

@@ -96,6 +96,8 @@ class LabelFileShowsRecordedAnswersInvocationTest {
     @Test
     @Story("A file of answers about one seed set is refused under another")
     @DisplayName("A file written under one seed folder is refused once the profile names another, and nothing is recorded")
+    @Issue("879")
+    @Link(name = "ADR-424", url = Adr.NO_TEXT_FOR_THE_OPERATOR_CALLS_A_LABEL_AN_ANSWER, type = "adr")
     void aFileWrittenUnderAnotherSeedSetIsRefused(
             CapturedOutput output, @TempDir Path root, @TempDir Path seeds, @TempDir Path otherSeeds)
             throws IOException {
@@ -125,7 +127,7 @@ class LabelFileShowsRecordedAnswersInvocationTest {
                 () -> assertThat(complained)
                         .contains("vespera label recorded nothing: the label file was generated under the seed"
                                 + " set at " + generatedUnder + ", but the profile now names the seed set at "
-                                + nowNamed + "; answers about one seed set are not answers about another, so"
+                                + nowNamed + "; labels about one seed set are not labels about another, so"
                                 + " nothing in it was recorded"));
         claim(
                 "nothing was recorded about the seed set the profile names now",

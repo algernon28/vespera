@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -88,6 +89,12 @@ class EveryTextOfTheWindowCanBeCopiedTest {
 
     /** The window's width where space is tight. */
     private static final double TIGHT_WIDTH = 700;
+
+    /** A sentence the outcome is given, and how many times, so that it is wider on one line than the window. */
+    private static final String A_SENTENCE = "the folders are measured and the containers are checked before anything"
+            + " is started here";
+
+    private static final int SAID_TIMES = 8;
 
     /** Where a node lies in the scene, and how large it is. */
     private record Placed(double x, double y, double width, double height) {
@@ -303,19 +310,19 @@ class EveryTextOfTheWindowCanBeCopiedTest {
     }
 
     private void aSelectableTextIsLaidOutAsTheLabelItReplaces(Path folder) throws Exception {
-        String hint = LaunchValues.hintOf("vespera.working-dir");
+        // the outcome is the wrapping text every window shows (ADR-430 §8 took the hints beneath the fields away)
+        String line = String.join(" ", Collections.nCopies(SAID_TIMES, A_SENTENCE));
         Map<String, Placed> before = new LinkedHashMap<>();
         Map<String, Placed> asLabels = new LinkedHashMap<>();
         Map<String, Placed> after = new LinkedHashMap<>();
         Map<String, Placed> afterAsLabels = new LinkedHashMap<>();
         List<String> twice = new ArrayList<>();
         double oneLine;
+        double unwrapped;
         try (WindowForTests window = WindowForTests.shown(WindowForTests.aState(folder, SleepingJar.runtime()))) {
-            // the hint said three times, so that it wraps in the sidebar whatever the platform's font
-            window.act(root -> WindowForTests.node(root, "hint-vespera.working-dir", TextInputControl.class)
-                    .setText(String.join(" ", hint, hint, hint)));
+            window.act(root -> WindowForTests.node(root, "outcome", TextInputControl.class).setText(line));
             window.act(root -> {
-                for (String id : List.of("where", "hint-vespera.working-dir")) {
+                for (String id : List.of("where", "outcome")) {
                     TextInputControl text = WindowForTests.node(root, id, TextInputControl.class);
                     before.put(id, placed(text));
                     asLabels.put(id, placedAsALabel(root, text));
@@ -323,11 +330,16 @@ class EveryTextOfTheWindowCanBeCopiedTest {
             });
             oneLine = window.read(root -> {
                 Text measure = new Text("Where");
-                measure.setFont(WindowForTests.node(root, "hint-vespera.working-dir", TextInputControl.class).getFont());
+                measure.setFont(WindowForTests.node(root, "outcome", TextInputControl.class).getFont());
                 return measure.getLayoutBounds().getHeight();
             });
+            unwrapped = window.read(root -> {
+                Text measure = new Text(line);
+                measure.setFont(WindowForTests.node(root, "outcome", TextInputControl.class).getFont());
+                return measure.getLayoutBounds().getWidth();
+            });
             window.act(root -> {
-                for (String id : List.of("where", "hint-vespera.working-dir")) {
+                for (String id : List.of("where", "outcome")) {
                     TextInputControl text = WindowForTests.node(root, id, TextInputControl.class);
                     String longer = text.getText() + " " + text.getText();
                     twice.add(longer);
@@ -335,7 +347,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                 }
             });
             window.act(root -> {
-                for (String id : List.of("where", "hint-vespera.working-dir")) {
+                for (String id : List.of("where", "outcome")) {
                     TextInputControl text = WindowForTests.node(root, id, TextInputControl.class);
                     after.put(id, placed(text));
                     afterAsLabels.put(id, placedAsALabel(root, text));
@@ -343,17 +355,19 @@ class EveryTextOfTheWindowCanBeCopiedTest {
             });
         }
 
-        claim("the hint of the working directory, said three times, wraps in the sidebar at the window's 1500 by 960, so"
-                        + " that its height is more than one line's",
-                () -> assertThat(before.get("hint-vespera.working-dir").height()).as(hint).isGreaterThan(oneLine * 1.5));
-        claim("where and the hint are each as wide and as high as a label of the same text, style classes and wrapping,"
-                        + " and in the same place, within a pixel",
+        claim("the outcome, a sentence said " + SAID_TIMES + " times, is wider on one line than the window's 1500, and"
+                        + " wraps beneath the header, so that its height is more than one line's",
+                () -> {
+                    assertThat(unwrapped).as(line).isGreaterThan(1500);
+                    assertThat(before.get("outcome").height()).as(line).isGreaterThan(oneLine * 1.5);
+                });
+        claim("where and the outcome are each as wide and as high as a label of the same text, style classes and"
+                        + " wrapping, and in the same place, within a pixel",
                 () -> assertSame(before, asLabels));
-        claim("and after each text is changed to one twice as long, they still are",
+        claim("and after each text is changed to one twice as long, they still are, the outcome higher than before",
                 () -> {
                     assertThat(twice).hasSize(2);
-                    assertThat(after.get("hint-vespera.working-dir").height())
-                            .isGreaterThan(before.get("hint-vespera.working-dir").height());
+                    assertThat(after.get("outcome").height()).isGreaterThan(before.get("outcome").height());
                     assertSame(after, afterAsLabels);
                 });
     }
@@ -455,20 +469,24 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         Map<String, Class<?>> found = new LinkedHashMap<>();
         try (WindowForTests window = WindowForTests.shown(WindowForTests.aState(folder, SleepingJar.runtime()))) {
             window.act(root -> {
-                for (String id : List.of("where", "outcome", "hint-vespera.working-dir")) {
+                for (String id : List.of("where", "status-vespera.corpus-root", "outcome", "seed-folder-outcome")) {
                     found.put(id, WindowForTests.node(root, id, TextInputControl.class).getClass());
                 }
             });
         }
 
-        claim("where, the outcome and a hint are each a selectable text",
-                () -> assertThat(found.values()).allMatch(SelectableText.class::isAssignableFrom));
-        claim("where is a line, which a text field is",
-                () -> assertThat(found.get("where")).isEqualTo(SelectableText.Line.class));
-        claim("the outcome and the hint, which wrap, are wrapping texts, which a text area is",
+        claim("where, a field's status, the outcome and the seed folder's outcome are each a selectable text",
+                () -> assertThat(found).hasSize(4).allSatisfy((id, type) -> assertThat(type).as(id)
+                        .matches(SelectableText.class::isAssignableFrom, "a selectable text")));
+        claim("where and a field's status are lines, which a text field is",
+                () -> {
+                    assertThat(found.get("where")).isEqualTo(SelectableText.Line.class);
+                    assertThat(found.get("status-vespera.corpus-root")).isEqualTo(SelectableText.Line.class);
+                });
+        claim("the outcome and the seed folder's outcome, which wrap, are wrapping texts, which a text area is",
                 () -> {
                     assertThat(found.get("outcome")).isEqualTo(SelectableText.Wrapping.class);
-                    assertThat(found.get("hint-vespera.working-dir")).isEqualTo(SelectableText.Wrapping.class);
+                    assertThat(found.get("seed-folder-outcome")).isEqualTo(SelectableText.Wrapping.class);
                     assertThat(TextArea.class).isAssignableFrom(SelectableText.Wrapping.class);
                 });
     }

@@ -104,8 +104,12 @@ class TheControlPanelsWindowTest {
     /** The model the label model's field is given, so that Auto Label's caption names it. */
     private static final String A_LABEL_MODEL = "qwen3:8b";
 
-    /** The Labels section's parts, by their ids, in the order the section holds them: each button, then its caption. */
-    private static final List<String> THE_LABEL_PARTS = List.of("label", "label-words", "label-auto", "label-auto-words");
+    /**
+     * The Labels section's parts, by their ids, in the order the section holds them: each button's wrapper, which carries
+     * its caption (ADR-430 §8), then the button.
+     */
+    private static final List<String> THE_LABEL_PARTS = List.of("label-captioned", "label", "label-auto-captioned",
+            "label-auto");
 
     private static final String THE_LABELS_SECTIONS_TITLE = "Labels";
 
@@ -164,15 +168,15 @@ class TheControlPanelsWindowTest {
                                 id -> everyNode.stream().filter(node -> id.equals(node.getId())).count())),
                         List.of(WindowForTests.node(root, "label", Button.class).getText(),
                                 WindowForTests.node(root, "label-auto", Button.class).getText()),
-                        textOf(WindowForTests.node(root, "label-words", Node.class)));
+                        WindowForTests.caption(root, "label-captioned"));
             });
             autoWordsBlank = window.read(root -> {
                 WindowForTests.node(root, "vespera.label.model", TextInputControl.class).setText("");
-                return textOf(WindowForTests.node(root, "label-auto-words", Node.class));
+                return WindowForTests.caption(root, "label-auto-captioned");
             });
             autoWordsNamed = window.read(root -> {
                 WindowForTests.node(root, "vespera.label.model", TextInputControl.class).setText(A_LABEL_MODEL);
-                return textOf(WindowForTests.node(root, "label-auto-words", Node.class));
+                return WindowForTests.caption(root, "label-auto-captioned");
             });
             window.act(root -> WindowForTests.node(root, "label", Button.class).fire());
             afterSave = window.read(root -> textOf(WindowForTests.node(root, "outcome", Node.class)));
@@ -191,7 +195,7 @@ class TheControlPanelsWindowTest {
                     assertThat(section.ofTheSidebar()).isTrue();
                     assertThat(section.title()).isEqualTo(THE_LABELS_SECTIONS_TITLE);
                 });
-        claim("it holds Save my labels, its caption, Auto Label and its caption, in that order",
+        claim("it holds Save my labels on the wrapper carrying its caption, then Auto Label on its own, in that order",
                 () -> assertThat(section.parts()).containsExactlyElementsOf(THE_LABEL_PARTS));
         claim("and each of the four stands once in the whole window, so that none stands beside Run as well",
                 () -> assertThat(section.timesInTheWindow()).containsOnlyKeys(THE_LABEL_PARTS)
@@ -290,9 +294,14 @@ class TheControlPanelsWindowTest {
         String overALabelFile;
         List<String> formerNames;
         try (WindowForTests window = WindowForTests.shown(state)) {
-            beneathTheTree = window.read(root -> textsUnder(
-                    HeadlessToolkit.tabWithId(root, "inclusions").orElseThrow().getContent()));
-            hint = window.read(root -> textOf(WindowForTests.node(root, "hint-vespera.label.model", Node.class)));
+            beneathTheTree = window.read(root -> {
+                Node tab = HeadlessToolkit.tabWithId(root, "inclusions").orElseThrow().getContent();
+                List<String> said = new java.util.ArrayList<>(textsUnder(tab));
+                said.add(WindowForTests.caption(HeadlessToolkit.nodeWithId((Parent) tab, "not-relevant-list")
+                        .orElseThrow()));
+                return said;
+            });
+            hint = window.read(root -> WindowForTests.caption(root, "field-vespera.label.model"));
             withNoLabelFile = addedAsNotRelevant(window, FIRST_FOLDER_NOT_RELEVANT);
             Files.writeString(working.resolve(LabelAnswers.FILE_NAME), A_LABEL_FILE, StandardCharsets.UTF_8);
             overALabelFile = addedAsNotRelevant(window, SECOND_FOLDER_NOT_RELEVANT);
@@ -304,8 +313,8 @@ class TheControlPanelsWindowTest {
                 StandardCharsets.UTF_8);
         String next = WorkingDirectoryRow.read(elsewhere, ZoneOffset.UTC).next();
 
-        claim("beneath the Inclusions tab's tree, the folders not relevant are said to label not relevant the documents"
-                        + " of relevance-labels.yaml below them",
+        claim("in the Inclusions tab, the caption of the list of folders not relevant says they label not relevant the"
+                        + " documents of relevance-labels.yaml below them",
                 () -> assertThat(beneathTheTree).contains(THE_FOLDERS_NOT_RELEVANT_WORDS));
         claim("and no text of the tab says answer, in any of its forms",
                 () -> assertThat(beneathTheTree).noneMatch(text -> AN_ANSWER.matcher(text).find()));
@@ -316,7 +325,7 @@ class TheControlPanelsWindowTest {
                         + " three were labelled, the two in a and b not relevant and the one in c relevant",
                 () -> assertThat(overALabelFile).isEqualTo("the folders not relevant are saved in " + listed
                         + ", and the 3 documents of relevance-labels.yaml labelled: 2 not relevant, 1 relevant"));
-        claim("the label model's hint says it sets the labels when Auto Label is pressed",
+        claim("the label model's hint, the caption of its field, says it sets the labels when Auto Label is pressed",
                 () -> assertThat(hint).isEqualTo(THE_LABEL_MODELS_HINT));
         claim("a working directory whose last report wants the labels saved next shows " + LABELS_TO_SAVE
                         + " as its next value",
@@ -324,6 +333,34 @@ class TheControlPanelsWindowTest {
         claim("and no text of the window names a label command by " + THE_FORMER_NAMES,
                 () -> assertThat(formerNames).isEmpty());
     }
+
+    /**
+     * ADR-424 §5: the corpus root typed as a folder not relevant is refused with a line that calls the label file's
+     * entries documents to label, not questions.
+     */
+    @Test
+    @Story("The label commands stand in the sidebar")
+    @DisplayName("The corpus root typed as a folder not relevant is refused because it holds every document to label")
+    @Issue("879")
+    @Link(name = "ADR-424", url = Adr.NO_TEXT_FOR_THE_OPERATOR_CALLS_A_LABEL_AN_ANSWER, type = "adr")
+    void theCorpusRootAsAFolderNotRelevantIsRefusedInLabelsWords(@TempDir Path folder) throws Exception {
+        Path working = Files.createDirectories(folder.resolve("working"));
+        ControlPanelState state = WindowForTests.aState(folder, SleepingJar.runtime());
+        state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(), working.toString(),
+                "", "", "", "", "", ""));
+        String refused;
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            refused = addedAsNotRelevant(window, THE_CORPUS_ROOT_ITSELF);
+        }
+
+        claim("the corpus root itself is not added, the line saying it holds every document to label and asking for a"
+                        + " folder below it",
+                () -> assertThat(refused).isEqualTo("the folder " + THE_CORPUS_ROOT_ITSELF + " is not added: the corpus"
+                        + " root holds every document to label; name a folder below it"));
+    }
+
+    /** The corpus root, typed as a folder not relevant by the path from itself. */
+    private static final String THE_CORPUS_ROOT_ITSELF = ".";
 
     /** Types {@code typed} as a folder not relevant, presses Add, and answers the line the pane then says. */
     private static String addedAsNotRelevant(WindowForTests window, String typed) throws Exception {

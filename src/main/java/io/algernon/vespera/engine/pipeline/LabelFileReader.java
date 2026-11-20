@@ -61,11 +61,11 @@ final class LabelFileReader {
         String namedRun = text(root, "generatedUnderRun");
         if (namedRun == null) {
             return new Refused("the label file names no run, so there is no way to tell which sample it"
-                    + " was answered against; regenerate it and label the new file");
+                    + " was labelled against; regenerate it and label the new file");
         }
         if (!namedRun.equals(expectedRunId)) {
             return new Refused("the label file was generated under run " + namedRun + ", but the current"
-                    + " sample is run " + expectedRunId + "; answers about one sample are not answers"
+                    + " sample is run " + expectedRunId + "; labels about one sample are not labels"
                     + " about another, so nothing in it was recorded");
         }
 
@@ -83,7 +83,7 @@ final class LabelFileReader {
         }
 
         if (answers.isEmpty()) {
-            return new Refused("the label file has no answers in it yet: " + unanswered + " document(s)"
+            return new Refused("the label file has no labels in it yet: " + unanswered + " document(s)"
                     + " are still waiting, so nothing was recorded");
         }
         return new Answers(embedderIdentity, List.copyOf(answers), unanswered);

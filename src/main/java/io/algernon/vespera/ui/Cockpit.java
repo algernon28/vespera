@@ -31,6 +31,7 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.Tooltip;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SplitPane;
@@ -43,6 +44,7 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 
@@ -77,8 +79,29 @@ final class Cockpit {
     private final SelectableText.Wrapping outcome = SelectableText.wrapping("");
     private final Button run = new Button("Run");
     private final Button stop = new Button("Stop");
+    private final Button startDocker = new Button("Start Docker");
     private final Button shutDownDocker = new Button("Shut down Docker");
+    /** Whether Start Docker's start or Shut down Docker's shut-down runs: the regular check is skipped meanwhile (ADR-430 §4). */
+    private volatile boolean starting;
     private volatile boolean shuttingDown;
+    /** What the last check found, null until the first has come back, and the models it was asked about (ADR-430 §2). */
+    private DockerCheck lastCheck;
+    private DockerControl.Models checkedModels = new DockerControl.Models("", "");
+    /** The models in force now, read on the toolkit's thread for the clock's thread to ask about (ADR-430 §3). */
+    private volatile DockerControl.Models modelsInForce = new DockerControl.Models("", "");
+    /** What the Services fields hold now, read on the toolkit's thread for the check, Start Docker and the download to ask with (ADR-430 §3, §5, §7). */
+    private volatile LaunchValues fieldValues;
+    /** Set where Start Docker's start has returned: the first check begun after it may open the download panel (ADR-430 §5). */
+    private boolean downloadAfterTheStart;
+    private long startReturned;
+    private ControlPanelState.Holders holdersNow = new ControlPanelState.Holders(Optional.empty(), Optional.empty());
+    private boolean runsNow;
+    private final CheckList checkList;
+    private final DownloadPanel downloads;
+    private final CheckClock clock;
+    /** The captions of Run and of Auto Label, whose words follow what holds each. */
+    private Tooltip runCaption;
+    private Tooltip labelAutoCaption;
     private final Button publish = new Button("Publish");
     /** What this window's own child was last started as, and the ending the parent's title warning was last opened for. */
     private ControlPanelState.Start startedKind;
@@ -166,7 +189,14 @@ final class Cockpit {
     Cockpit(ControlPanelState state, Dialogs dialogs) {
         this.state = state;
         this.dialogs = dialogs;
-        this.options = new OptionsPane(state, this::showCommandLines);
+        this.checkList = new CheckList(this::markClicked, this::progressClicked);
+        this.downloads = new DownloadPanel(this::downloadModel, this::checkAtOnce,
+                this::showEnablement, checkList::progress);
+        this.clock = new CheckClock(this::checkTheContainers, () -> starting || shuttingDown);
+        this.options = new OptionsPane(state, () -> {
+            showCommandLines();
+            showEnablement();
+        });
         this.reports = new ReportsPane(folders, this::openReport);
         this.analysisReportsWindow = new AnalysisReportsWindow(root, dialogs, folders, this::say);
         this.live = new LiveReport(this::openReport, dialogs::handToTheSystem);
@@ -184,12 +214,17 @@ final class Cockpit {
         }
         this.profileWindow = new ProfileWindow(profile, root, dialogs);
         root.setLeft(sidebarPane());
-        root.setCenter(mainPane());
+        // the download panel floats over the content at its top right and moves nothing beneath it (ADR-430 §7)
+        StackPane over = new StackPane(mainPane(), downloads.node());
+        over.setPickOnBounds(false);
+        root.setCenter(over);
         readNext();
         loadFiles();
         showModelsInUse();
         showCommandLines();
         showBadges();
+        readModelsInForce();
+        readFieldValues();
         refresh();
         timeline = new Timeline(new KeyFrame(Duration.seconds(1), tick -> refresh()));
         timeline.setCycleCount(Timeline.INDEFINITE);
@@ -205,7 +240,7 @@ final class Cockpit {
     private Node mainPane() {
         VBox titles = new VBox(where, child, databaseSize);
         HBox.setHgrow(titles, Priority.ALWAYS);
-        HBox header = new HBox(titles, ThemeSwitch.of(root, state));
+        HBox header = new HBox(titles, checkList.node(), ThemeSwitch.of(root, state));
         header.setAlignment(Pos.TOP_RIGHT);
         header.getStyleClass().add("header");
         where.setId("where");
@@ -216,6 +251,7 @@ final class Cockpit {
 
         run.setId("run");
         stop.setId("stop");
+        startDocker.setId("start-docker");
         shutDownDocker.setId("shut-down-docker");
         publish.setId("publish");
         label.setId("label");
@@ -225,10 +261,18 @@ final class Cockpit {
         label.setOnAction(event -> begin(ControlPanelState.Start.LABEL, "Save my labels"));
         labelAuto.setOnAction(event -> begin(ControlPanelState.Start.LABEL_AUTO, "Auto Label"));
         stop.setOnAction(event -> stopAfterConfirming());
+        startDocker.setOnAction(event -> startDockerAfterPressing());
         shutDownDocker.setOnAction(event -> shutDownDockerAfterConfirming());
         publishTo.setId("publish-to");
         publishTo.getStyleClass().add("spaced-row");
-        actions.getChildren().addAll(run, stop, shutDownDocker, publishTo);
+        // each button that can be disabled stands on a wrapper that is not, which carries its caption (ADR-430 §8)
+        StackPane runWrapper = captioned(run, "Starts vespera run.");
+        runCaption = (Tooltip) runWrapper.getProperties().get(CAPTION_KEY);
+        actions.getChildren().addAll(runWrapper, captioned(stop, "Stops the running invocation. Asks first."),
+                captioned(startDocker, START_DOCKERS_CAPTION),
+                captioned(shutDownDocker, "Stops the containers, then Docker and every other container it runs. Asks first."),
+                publishTo);
+        actions.setId("actions");
         actions.getStyleClass().add("actions");
         VBox actionCard = new VBox(actions, wanted.node());
         actionCard.getStyleClass().add("card");
@@ -317,16 +361,17 @@ final class Cockpit {
 
     /** The Labels section: Save my labels and Auto Label, each with its caption (ADR-413 section 1). */
     private Node labelsPane() {
-        SelectableText.Wrapping labelWords = SelectableText.wrapping("Reads relevance-labels.yaml in the working directory,"
+        // ADR-413 §3's words, each now the caption of the button it explained (ADR-430 §8)
+        label.setId("label");
+        labelAuto.setId("label-auto");
+        StackPane saveLabels = captioned(label, "Reads relevance-labels.yaml in the working directory,"
                 + " where each document's relevant is set to true or false, and saves those labels for the next Run."
                 + " It reads no document and sets no label itself.");
-        labelWords.setId("label-words");
-        SelectableText.Wrapping autoWords = SelectableText.wrapping("");
-        autoWords.setId("label-auto-words");
+        StackPane autoLabel = captioned(labelAuto, autoSentence(fields.get("vespera.label.model").text()));
+        labelAutoCaption = (Tooltip) autoLabel.getProperties().get(CAPTION_KEY);
         fields.get("vespera.label.model").input.textProperty().addListener(
-                (observed, was, now) -> autoWords.setText(autoSentence(now)));
-        autoWords.setText(autoSentence(fields.get("vespera.label.model").text()));
-        VBox pane = new VBox(label, labelWords, labelAuto, autoWords);
+                (observed, was, now) -> labelAutoCaption.setText(autoSentence(now)));
+        VBox pane = new VBox(saveLabels, tight(autoLabel));
         pane.getStyleClass().add("section");
         return pane;
     }
@@ -546,7 +591,7 @@ final class Cockpit {
             return;
         }
         shuttingDown = true;
-        shutDownDocker.setDisable(true);
+        showEnablement();
         Thread.ofPlatform().daemon().name("the control panel shuts Docker down").start(() -> {
             String line;
             try {
@@ -562,28 +607,50 @@ final class Cockpit {
             Platform.runLater(() -> {
                 say(said);
                 shuttingDown = false;
-                shutDownDocker.setDisable(false);
                 refresh();
+                clock.now();
             });
         });
     }
 
-    /** Starts the Docker engine once, on a thread of its own, as the window opens; a refusal's line is shown (ADR-390 §5). */
-    void startDocker() {
+    /**
+     * Start Docker: on a thread of its own, sees to {@code .wslconfig}, starts the engine and brings the containers on
+     * this machine up and waits for them (ADR-430 §5). A line it gives, a refusal's or {@code .wslconfig}'s, is shown;
+     * the window checks at once after, and where that check finds Ollama OK and a model KO with
+     * {@code vespera.models.pull} ticked, the download panel opens and downloads it.
+     */
+    private void startDockerAfterPressing() {
+        if (starting) {
+            return;
+        }
+        starting = true;
+        showEnablement();
+        readFieldValues();
+        LaunchValues startValues = fieldValues();
         Thread.ofPlatform().daemon().name("the control panel starts Docker").start(() -> {
-            String refusal;
+            String line;
             try {
-                DockerControl.Said started = state.startDocker();
-                refusal = started.line();
+                line = state.startDocker(startValues).line();
             } catch (RuntimeException failed) {
-                refusal = "Docker was not started: " + failed;
+                line = "Docker was not started: " + failed;
             }
-            if (!refusal.isEmpty()) {
-                // A refusal's line, or the line of a start that went through with one to say (ADR-421 §6).
-                String line = refusal;
-                Platform.runLater(() -> say(line));
-            }
+            String said = line;
+            Platform.runLater(() -> {
+                if (!said.isEmpty()) {
+                    say(said);
+                }
+                starting = false;
+                downloadAfterTheStart = true;
+                startReturned = System.nanoTime();
+                showEnablement();
+                clock.now();
+            });
         });
+    }
+
+    /** Opens the window's checking: the first check as it opens, nothing started (ADR-430 §1, §4). */
+    void checkAsItOpens() {
+        clock.start();
     }
 
     /**
@@ -592,6 +659,8 @@ final class Cockpit {
      * not stopped; a line the stop gives is logged, the window being gone through the JDK's own logger, which writes to this process's console, as ADR-364 lets no class but the entry point name a stream (ADR-390 §5).
      */
     void stopTheChildAndTheSidecarsThen(Runnable close) {
+        // a download running is cancelled first (ADR-430 §1)
+        downloads.cancelWhatRuns();
         Thread.ofPlatform().daemon().name("the control panel closes").start(() -> {
             try {
                 state.stop();
@@ -611,6 +680,224 @@ final class Cockpit {
 
     private void say(String line) {
         outcome.setText(line);
+    }
+
+    // ---- the check, the buttons it enables and the download panel (ADR-430)
+
+    private static final String CAPTION_KEY = "javafx.scene.control.Tooltip";
+
+    /** Start Docker's caption: what it starts, and when it is off (ADR-430 §8). */
+    private static final String START_DOCKERS_CAPTION = "Starts Docker and the containers on this machine and waits for"
+            + " them, then downloads a model Ollama lacks where vespera.models.pull is on. Off while they all show OK,"
+            + " while Docker starts or shuts down or a model downloads, while an invocation runs, and where both"
+            + " containers are on another machine.";
+
+    /**
+     * {@code control} standing alone on a wrapper, {@code <id>-captioned}, which carries {@code words} as its caption: a
+     * disabled control shows no caption, and the wrapper is never disabled (ADR-430 §8).
+     */
+    private StackPane captioned(Button control, String words) {
+        StackPane wrapper = new StackPane(control);
+        // hugs its control, at its top left corner, so the control stands where it did before it had a wrapper (§12)
+        wrapper.setAlignment(Pos.TOP_LEFT);
+        wrapper.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        wrapper.setId(control.getId() + "-captioned");
+        Captions.on(wrapper, words);
+        return wrapper;
+    }
+
+    /** One download, bounded by {@code vespera.models.pull-stalled-at-most} as Command options holds it as the download begins (ADR-430 §7). */
+    private DockerControl.Download downloadModel(String model, java.util.function.Consumer<DockerControl.Downloaded> told) {
+        return state.downloadModel(fieldValues(), model, options.stalledAtMost(), told);
+    }
+
+    /** Reads the models in force:the working directory's {@code profile.yaml}'s, else the sources' (ADR-430 §3). */
+    private void readModelsInForce() {
+        String embedding = "";
+        String generative = "";
+        try {
+            Optional<String> text = folders.readFile(ProfileEdit.FILE_NAME);
+            if (text.isPresent()) {
+                Map<ProfileKey, ProfileEdit.Stated> stated = ProfileEdit.read(text.get());
+                embedding = statedModel(stated.get(ProfileKey.EMBEDDING_MODEL));
+                generative = statedModel(stated.get(ProfileKey.GENERATION_MODEL));
+            }
+        } catch (IOException | RuntimeException unreadable) {
+            // a file that cannot be read names no model: the sources' do
+        }
+        StartingValues.Sources sources = state.sources();
+        if (embedding.isEmpty()) {
+            embedding = StartingValues.of("spring.ai.ollama.embedding.options.model", sources).value().strip();
+        }
+        if (generative.isEmpty()) {
+            generative = StartingValues.of("spring.ai.ollama.chat.options.model", sources).value().strip();
+        }
+        DockerControl.Models read = new DockerControl.Models(embedding, generative);
+        if (!read.equals(modelsInForce)) {
+            modelsInForce = read;
+            if (checkList != null) {
+                checkList.show(lastCheck, lastCheck == null ? read : checkedModels);
+            }
+        }
+    }
+
+    private static String statedModel(ProfileEdit.Stated stated) {
+        return stated == null || stated.value() == null ? "" : stated.value().strip();
+    }
+
+    /** One check, on the clock's thread; its answer is drawn on the toolkit's (ADR-430 §4). */
+    private void checkTheContainers() {
+        long began = System.nanoTime();
+        DockerControl.Models asked = modelsInForce;
+        LaunchValues askedValues = fieldValues();
+        DockerCheck found;
+        try {
+            found = state.checkDocker(askedValues, asked);
+        } catch (RuntimeException failed) {
+            log.log(System.Logger.Level.WARNING, "the check of Docker failed: " + failed);
+            return;
+        }
+        Platform.runLater(() -> showTheCheck(found, asked, began));
+    }
+
+    private void showTheCheck(DockerCheck found, DockerControl.Models asked, long began) {
+        lastCheck = found;
+        checkedModels = asked;
+        checkList.show(found, asked);
+        showEnablement();
+        if (downloadAfterTheStart && began - startReturned > 0) {
+            downloadAfterTheStart = false;
+            if (options.modelsPull() && found.ollama().mark() == DockerCheck.Mark.OK) {
+                downloadTheMissingModels();
+            }
+        }
+    }
+
+    /** The check at once, as a download stops (ADR-430 §4). */
+    private void checkAtOnce() {
+        clock.now();
+    }
+
+    private DockerCheck.Mark markOfRow(String row) {
+        return switch (row) {
+            case "embedding-model" -> lastCheck.embeddingModel();
+            case "generative-model" -> lastCheck.generativeModel();
+            default -> DockerCheck.Mark.NOT_ASKED;
+        };
+    }
+
+    /** A click on a model's KO downloads each model the check found missing, one at a time; on a download shown again, brings its panel back. */
+    private void markClicked(String row) {
+        if (!row.endsWith("-model") || lastCheck == null) {
+            return;
+        }
+        if (downloads.hasWork()) {
+            downloads.reopen();
+            return;
+        }
+        if (lastCheck.ollama().mark() == DockerCheck.Mark.OK && markOfRow(row) == DockerCheck.Mark.KO) {
+            downloadTheMissingModels();
+        }
+    }
+
+    private void progressClicked(String row) {
+        downloads.reopen();
+    }
+
+    private void downloadTheMissingModels() {
+        if (lastCheck == null || downloads.running()) {
+            return;
+        }
+        List<DownloadPanel.Wanted> wanted = new ArrayList<>();
+        if (lastCheck.embeddingModel() == DockerCheck.Mark.KO) {
+            wanted.add(new DownloadPanel.Wanted("embedding-model", "Embedding model", checkedModels.embedding()));
+        }
+        if (lastCheck.generativeModel() == DockerCheck.Mark.KO) {
+            wanted.add(new DownloadPanel.Wanted("generative-model", "Generative model", checkedModels.generative()));
+        }
+        if (!wanted.isEmpty()) {
+            downloads.begin(wanted);
+        }
+    }
+
+    /**
+     * Enables Run, Auto Label and Start Docker from what the last check found and what runs (ADR-430 §5, §6), and words
+     * Run's caption with what holds it: the first in the order of ADR-430 §8's table.
+     */
+    private void showEnablement() {
+        boolean runs = runsNow;
+        boolean busy = runs || holdersNow.any();
+        boolean downloading = downloads.running();
+        boolean dockerBusy = starting || shuttingDown || downloading;
+        DockerCheck check = lastCheck;
+        boolean pull = options.modelsPull();
+        String held = whatHoldsRun(runs, check, pull, downloading);
+        run.setDisable(!held.isEmpty());
+        runCaption.setText(held.isEmpty() ? "Starts vespera run." : held);
+        boolean generativeMissing = check != null && check.generativeModel() == DockerCheck.Mark.KO && !pull;
+        labelAuto.setDisable(busy || dockerBusy || check == null || check.ollama().mark() != DockerCheck.Mark.OK
+                || generativeMissing);
+        label.setDisable(busy);
+        publish.setDisable(busy);
+        stop.setDisable(!runs);
+        shutDownDocker.setDisable(shuttingDown);
+        startDocker.setDisable(dockerBusy || runs || startIsOff(check));
+    }
+
+    /** Whether the check leaves Start Docker nothing to do: nothing checked yet, no container on this machine, or all of it answering. */
+    private static boolean startIsOff(DockerCheck check) {
+        if (check == null) {
+            return true;
+        }
+        boolean doclingHere = check.docling().where() == DockerCheck.Where.THIS_MACHINE;
+        boolean ollamaHere = check.ollama().where() == DockerCheck.Where.THIS_MACHINE;
+        if (!doclingHere && !ollamaHere) {
+            return true;
+        }
+        return check.daemon() != DockerCheck.Mark.KO
+                && (!doclingHere || check.docling().mark() == DockerCheck.Mark.OK)
+                && (!ollamaHere || check.ollama().mark() == DockerCheck.Mark.OK);
+    }
+
+    /** The caption of a Run that is off, or empty where it is on: the first of what holds it, in the order of ADR-430 §8. */
+    private String whatHoldsRun(boolean runs, DockerCheck check, boolean pull, boolean downloading) {
+        if (runs) {
+            return "Off while an invocation runs.";
+        }
+        if (holdersNow.any()) {
+            return "Off while another invocation holds the working directory or the corpus root.";
+        }
+        if (downloading) {
+            return "Off until the model downloads finish.";
+        }
+        if (starting) {
+            return "Off while Docker and the containers start.";
+        }
+        if (shuttingDown) {
+            return "Off while Docker shuts down.";
+        }
+        if (check == null) {
+            return "Off until the containers have been checked.";
+        }
+        List<String> notOk = new ArrayList<>();
+        if (check.daemon() == DockerCheck.Mark.KO) {
+            notOk.add("Docker daemon");
+        }
+        if (check.docling().mark() != DockerCheck.Mark.OK) {
+            notOk.add("Docling");
+        }
+        if (check.ollama().mark() != DockerCheck.Mark.OK) {
+            notOk.add("Ollama");
+        }
+        if (!notOk.isEmpty()) {
+            String names = notOk.size() == 1 ? notOk.getFirst()
+                    : String.join(", ", notOk.subList(0, notOk.size() - 1)) + " and " + notOk.getLast();
+            return "Off until " + names + (notOk.size() == 1 ? " shows" : " show") + " OK.";
+        }
+        if (!pull && (check.embeddingModel() == DockerCheck.Mark.KO || check.generativeModel() == DockerCheck.Mark.KO)) {
+            return "Off until the models are downloaded: vespera.models.pull is off, so a run would not download them.";
+        }
+        return "";
     }
 
     // ---- the sidebar
@@ -648,10 +935,37 @@ final class Cockpit {
         sidebar.getPanes().add(pane);
     }
 
+    private static final List<String> SERVICES_PROPERTIES = List.of("vespera.docling.base-url",
+            "spring.ai.ollama.base-url", "vespera.docling.image");
+
+    /**
+     * Reads the Services fields, on the toolkit's thread: Docling's and Ollama's addresses and the converter's image as
+     * the fields hold them, blank staying blank for the control to read from the sources; the other values are those held.
+     */
+    private void readFieldValues() {
+        LaunchValues held = state.values();
+        LaunchField docling = fields.get("vespera.docling.base-url");
+        LaunchField ollama = fields.get("spring.ai.ollama.base-url");
+        LaunchField image = fields.get("vespera.docling.image");
+        fieldValues = new LaunchValues(held.corpusRoot(), held.workingDirectory(), held.deliverableRoot(),
+                image == null ? held.doclingImage() : image.text(),
+                docling == null ? held.doclingBaseUrl() : docling.text(),
+                ollama == null ? held.ollamaBaseUrl() : ollama.text(), held.labelModel(), held.lastSeedFolder());
+    }
+
+    private LaunchValues fieldValues() {
+        LaunchValues read = fieldValues;
+        return read == null ? state.values() : read;
+    }
+
     private LaunchField launchField(String property, boolean folder, boolean createdByTheJar) {
         LaunchField field = new LaunchField(state, property, folder, createdByTheJar, () -> {
             showCommandLines();
             showBadges();
+            if (SERVICES_PROPERTIES.contains(property)) {
+                readFieldValues();
+                clock.now();
+            }
         });
         fields.put(property, field);
         return field;
@@ -660,9 +974,6 @@ final class Cockpit {
     private Node fieldBox(LaunchField field, String name, boolean browse) {
         SelectableText.Line heading = SelectableText.line(name);
         heading.getStyleClass().add("field-name");
-        SelectableText.Wrapping hint = SelectableText.wrapping(LaunchValues.hintOf(field.property));
-        hint.setId("hint-" + field.property);
-        hint.getStyleClass().add("small");
         HBox line = row(field.input);
         HBox.setHgrow(field.input, Priority.ALWAYS);
         if (browse) {
@@ -672,7 +983,10 @@ final class Cockpit {
                     field.input.getText()).ifPresent(chosen -> field.input.setText(chosen.toString())));
             line.getChildren().add(button);
         }
-        VBox box = tight(heading, line, field.status, field.startingLine, hint);
+        VBox box = tight(heading, line, field.status, field.startingLine);
+        box.setId("field-" + field.property);
+        // the field's one-line hint is its box's caption, no line beneath it (ADR-430 §8)
+        Captions.on(box, LaunchValues.hintOf(field.property));
         box.getStyleClass().add("field");
         return box;
     }
@@ -716,9 +1030,6 @@ final class Cockpit {
     private Node workingDirectoryBox(LaunchField working) {
         SelectableText.Line heading = SelectableText.line("Working directory");
         heading.getStyleClass().add("field-name");
-        SelectableText.Wrapping hint = SelectableText.wrapping(LaunchValues.hintOf(working.property));
-        hint.setId("hint-" + working.property);
-        hint.getStyleClass().add("small");
         working.input.setVisible(false);
         working.input.setManaged(false);
         workingDirectoryList.setId("working-directories");
@@ -773,8 +1084,9 @@ final class Cockpit {
         });
         showTheListsButtons();
         HBox buttons = row(workingDirectoryNew, workingDirectoryBrowse, workingDirectoryRemove);
-        VBox box = tight(heading, working.input, workingDirectoryList, buttons, working.status, working.startingLine,
-                hint);
+        VBox box = tight(heading, working.input, workingDirectoryList, buttons, working.status, working.startingLine);
+        box.setId("field-" + working.property);
+        Captions.on(box, LaunchValues.hintOf(working.property));
         box.getStyleClass().add("field");
         return box;
     }
@@ -921,10 +1233,8 @@ final class Cockpit {
         follow.run();
         VBox images = tight(gpu, gpuName, cpu, cpuName, other);
         images.setId("docling-images");
-        SelectableText.Wrapping hint = SelectableText.wrapping(LaunchValues.hintOf(image.property));
-        hint.setId("hint-" + image.property);
-        hint.getStyleClass().add("small");
-        VBox pane = new VBox(SelectableText.line("Converter's image"), images, image.input, image.startingLine, hint,
+        Captions.on(images, LaunchValues.hintOf(image.property));
+        VBox pane = new VBox(SelectableText.line("Converter's image"), images, image.input, image.startingLine,
                 fieldBox(converter, "Converter's address", false), fieldBox(ollama, "Ollama's address", false),
                 labelModelBox(model), namingModelPart());
         pane.getStyleClass().add("section");
@@ -1236,13 +1546,11 @@ final class Cockpit {
         showTheListsButtons(runs);
         ending.ifPresent(this::warnOfTheParentsTitle);
         ControlPanelState.Holders holders = state.holders(workingDirectory(), corpusRoot());
-        boolean busy = runs || holders.any();
-        run.setDisable(busy);
-        label.setDisable(busy);
-        labelAuto.setDisable(busy);
-        publish.setDisable(busy);
-        stop.setDisable(!runs);
-        shutDownDocker.setDisable(shuttingDown);
+        runsNow = runs;
+        holdersNow = holders;
+        readModelsInForce();
+        readFieldValues();
+        showEnablement();
         List<String> drawnDestinations = state.destinationsDrawn(workingDirectory(),
                 fields.get("vespera.deliverable-root").text());
         boolean drawn = !drawnDestinations.isEmpty();
@@ -1258,6 +1566,8 @@ final class Cockpit {
         child.setText(childWords(runs, ending));
         if (ending.isPresent() && ending.get() != wantedFor) {
             wantedFor = ending.get();
+            // the child ended: the check is done at once (ADR-430 §4)
+            clock.now();
             readTheRowsAgain();
             showModelsInUse();
             Map<String, Boolean> written = folders.writtenReports();
@@ -1589,6 +1899,7 @@ final class Cockpit {
     /** Where the window is closed: the clock stops with it. */
     void closed() {
         timeline.stop();
+        clock.stop();
         profileWindow.close();
         analysisReportsWindow.close();
     }
