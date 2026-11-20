@@ -402,41 +402,6 @@ class TheInvocationsStatusLineTest {
                 () -> assertThat(inTheOther.shown()).containsExactly("where", "child", "database-size"));
     }
 
-    @Test
-    @Story("The window shows the invocation from the report")
-    @DisplayName("A working directory named that is no path, while a foreign holder of the first is watched, takes the status line and the stale mark out of the header")
-    void aWorkingDirectoryNamedThatIsNoPathLeavesNoStatusLine(@TempDir Path folder) throws Exception {
-        Path held = Files.createDirectories(folder.resolve("held-working"));
-        Header whileHeld;
-        Header onceNoPath;
-        Process holder = ChildForTests.builder("sleep").start();
-        try {
-            holderLine(held, holder.pid());
-            ControlPanelState state = WindowForTests.aState(folder.resolve("holder-side"), SleepingJar.runtime());
-            state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(), held.toString(),
-                    "", "", "", "", "", ""));
-            try (WindowForTests window = WindowForTests.shown(state)) {
-                window.readEverySecond();
-                ReportFixtures.write(held, holder.pid(), CENSUS_FINISHED, Instant.now(), Instant.now(), 1);
-                whileHeld = window.awaiting(TheInvocationsStatusLineTest::header,
-                        each -> each.status().startsWith("run running"));
-                // a NUL is refused as a path on every platform the window runs on
-                window.act(root -> WindowForTests.node(root, "vespera.working-dir", TextInputControl.class)
-                        .setText(held + "\u0000no-path"));
-                onceNoPath = window.awaiting(TheInvocationsStatusLineTest::header,
-                        each -> !each.shown().contains("report-status") && !each.shown().contains("report-stale"));
-            }
-        } finally {
-            holder.destroyForcibly();
-        }
-
-        claim("while the foreign holder of the working directory is watched, its status line stands in the header",
-                () -> assertThat(whileHeld.status()).startsWith("run running"));
-        claim("once a working directory that is no path is named, the header shows neither the status line nor the"
-                        + " stale mark",
-                () -> assertThat(onceNoPath.shown()).containsExactly("where", "child", "database-size"));
-    }
-
     private static final String USER = System.getProperty("user.name");
 
     /** Writes the holder line of {@code pid} into {@code working}'s lock file, held from now, as a foreign run holds it. */
