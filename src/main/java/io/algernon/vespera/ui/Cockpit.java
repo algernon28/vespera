@@ -174,7 +174,6 @@ final class Cockpit {
     private ControlPanelState.Watched watching;
     /** Whether a report of the watched invocation's own has been drawn since it was first watched. */
     private boolean watchedReportDrawn;
-    private InvocationReportFile.Invocation lastDrawn;
     private boolean sawChild;
     private boolean wasShown;
     private Timeline timeline;
@@ -1889,7 +1888,6 @@ final class Cockpit {
                 // no invocation is watched: its holder let go, or it ended; nothing of it stands in the header (ADR-432 §8)
                 live.hide();
                 watching = null;
-                lastDrawn = null;
                 return;
             }
             who = foreign.get();
@@ -1903,7 +1901,6 @@ final class Cockpit {
             }
             watching = who;
             watchedReportDrawn = false;
-            lastDrawn = null;
             closedAs = null;
             closingOfItsReport = null;
             steps.show(InvocationReportFile.Report.none());
@@ -1961,7 +1958,6 @@ final class Cockpit {
                     ? endingOfItsChild.get().howItEnded() == HowItEnded.STOPPED ? StepsChart.STOPPED : StepsChart.FAILED
                     : null);
             live.shows(report, Instant.now(), childEnded);
-            lastDrawn = invocation;
             return true;
         } catch (InvocationReportFile.FormatNotKnownException notKnown) {
             say(notKnown.getMessage());
