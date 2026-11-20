@@ -204,7 +204,7 @@ class EntryPointTest {
     @Story("A command names its working directory")
     @DisplayName("A command line refused for naming no working directory says the refusal's one line on standard error and exits 1")
     @Issue("905")
-    @Link(name = "ADR-432", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
+    @Link(name = "ADR-436", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
     void aStartNamingNoWorkingDirectorySaysItsLineOnStandardErrorAndExitsOne() {
         NoWorkingDirectoryNamedException refusal = new NoWorkingDirectoryNamedException();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
@@ -233,7 +233,7 @@ class EntryPointTest {
     @Story("A command names its working directory")
     @DisplayName("Help and version are answered before Spring and before the machine lock, and a command still reaches the command line")
     @Issue("905")
-    @Link(name = "ADR-432", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
+    @Link(name = "ADR-436", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
     void helpAndVersionAreAnsweredBeforeSpringAndTheMachineLock() {
         List<String> locksAsked = new ArrayList<>();
         List<List<String>> commandLines = new ArrayList<>();

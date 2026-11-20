@@ -1,6 +1,6 @@
 # ADR-417 — An ending panel beneath the output says how the last invocation of the working directory ended, and why
 
-> **Partly amended — see [ADR-432](0432-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md).** Of §2, §3 and §4: while no working directory is chosen, the panel says so, kind `No working directory` in the error colour, a fixed line of the window's saying what to do, and a fourth button, `ending-choose-folder`, *Choose a folder…*, opening Browse's dialog. Every ending of an invocation is as this record has it. The rest of this record stands.
+> **Partly amended — see [ADR-436](0436-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md).** Of §2, §3 and §4: while no working directory is chosen, the panel says so, kind `No working directory` in the error colour, a fixed line of the window's saying what to do, and a fourth button, `ending-choose-folder`, *Choose a folder…*, opening Browse's dialog. Every ending of an invocation is as this record has it. The rest of this record stands.
 
 - **Date**: 2026-11-18
 - **Status**: accepted on 2026-11-18.

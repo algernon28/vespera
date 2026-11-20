@@ -35,7 +35,7 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.mock.env.MockEnvironment;
 
 /**
- * The jar names no working directory of its own (ADR-432 §1, §2, §8): the shipped {@code application.yaml} reads
+ * The jar names no working directory of its own (ADR-436 §1, §2, §8): the shipped {@code application.yaml} reads
  * {@code working-dir: ${db-dir:}}, so that {@code --db-dir=<path>} still names one and nothing else does, and its
  * comment says the {@code .vespera} folder under the current directory is no longer used; a start of the command line
  * through Spring whose {@code vespera.working-dir} names no folder is refused by {@code WorkingDirectoryNamedCheck},
@@ -48,7 +48,7 @@ import org.springframework.mock.env.MockEnvironment;
 @Epic("Operation")
 @Feature("Shipped configuration")
 @Issue("905")
-@Link(name = "ADR-432", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
+@Link(name = "ADR-436", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
 class NoWorkingDirectoryIsNamedByTheJarTest {
 
     /** The property every command opens its working directory by (ADR-054). */
@@ -57,12 +57,12 @@ class NoWorkingDirectoryIsNamedByTheJarTest {
     /** The property {@code --db-dir=<path>} sets, which the shipped line reads. */
     private static final String DB_DIR = "db-dir";
 
-    /** The line a start naming no working directory is refused in, whole (ADR-432 §1). */
+    /** The line a start naming no working directory is refused in, whole (ADR-436 §1). */
     private static final String NO_WORKING_DIRECTORY = "Vespera is not started: no working directory is named. Name one"
             + " with --db-dir=<path>, the environment variable VESPERA_WORKING_DIR, or vespera.working-dir in"
             + " application.yaml beside the jar.";
 
-    /** The sentence the shipped comment above the line holds, its lines joined by a space (ADR-432 §1). */
+    /** The sentence the shipped comment above the line holds, its lines joined by a space (ADR-436 §1). */
     private static final String THE_COMMENTS_SENTENCE = "When nothing names one, run, label, publish and serve refuse"
             + " to start: the .vespera folder under the current directory, which earlier versions used, is no longer used.";
 

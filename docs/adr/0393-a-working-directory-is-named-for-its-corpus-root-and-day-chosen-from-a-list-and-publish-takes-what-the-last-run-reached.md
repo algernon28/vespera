@@ -2,7 +2,7 @@
 
 > **Partly amended — see [ADR-413](0413-save-my-labels-and-auto-label-are-a-labels-section-of-the-sidebar-and-the-window-calls-no-label-an-answer.md).** Of §5: a row's next value reads `labels to save`, in place of `answers to record`, where `answer` is true. The rest of this record stands.
 
-> **Partly amended — see [ADR-432](0432-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md).** Of §4: the first row is the sources' folder only where a source names one, its words naming the source in place of *(this machine's folder)*; the row chosen as the window opens is the launch value's, else the sources', else none, as after Remove from list where no source names a folder; a list of no row shows `working-directories-empty`; Browse writes the list file as it adds a folder, and with no row chosen New… proposes its folder under the user's home folder. The rest of this record stands.
+> **Partly amended — see [ADR-436](0436-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md).** Of §4: the first row is the sources' folder only where a source names one, its words naming the source in place of *(this machine's folder)*; the row chosen as the window opens is the launch value's, else the sources', else none, as after Remove from list where no source names a folder; a list of no row shows `working-directories-empty`; Browse writes the list file as it adds a folder, and with no row chosen New… proposes its folder under the user's home folder. The rest of this record stands.
 
 - **Date**: 2026-11-14
 - **Status**: accepted on 2026-11-14.

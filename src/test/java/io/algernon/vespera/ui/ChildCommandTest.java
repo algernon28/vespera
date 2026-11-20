@@ -55,7 +55,7 @@ class ChildCommandTest {
             WORKING_DIRECTORY.toString(), "out", "image:v1", "http://docling", "http://ollama", "a-writing-model:14b",
             LAST_SEED_FOLDER);
 
-    /** The working directory as the system property every child is given beside {@code --db-dir} (ADR-432 §6). */
+    /** The working directory as the system property every child is given beside {@code --db-dir} (ADR-436 §6). */
     private static final String WORKING_DIR_PROPERTY = "-Dvespera.working-dir=" + absolute(WORKING_DIRECTORY);
 
     private static final List<String> BEFORE_THE_COMMAND = List.of(
@@ -218,13 +218,13 @@ class ChildCommandTest {
      * A path written on the working directory's line of a file beside the jar stands over {@code --db-dir}, which Spring
      * reads only through that line; a system property stands over the file. So every child is given the folder it is
      * passed as the system property {@code vespera.working-dir} too, and the folder chosen is the one it opens
-     * (ADR-432 §6).
+     * (ADR-436 §6).
      */
     @Test
     @Story("The control panel passes its launch values to the jar")
     @DisplayName("Every child is given the working directory it is passed as a system property too, before -jar")
     @Issue("905")
-    @Link(name = "ADR-432", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
+    @Link(name = "ADR-436", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
     void everyChildIsGivenTheFolderItPassesAsTheSystemPropertyToo() {
         for (ChildCommand command : List.of(ChildCommand.run(JAVA, JAR, EVERY_VALUE),
                 ChildCommand.label(JAVA, JAR, false, EVERY_VALUE),

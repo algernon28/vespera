@@ -25,7 +25,7 @@ import org.junit.jupiter.api.io.TempDir;
  * directory. Each is given here as a map, as {@code ControlPanel.main} gives the JVM's own, so that no test reads the
  * folder the machine running it names.
  *
- * <p>Since ADR-432 §2 nothing is used where no source names a folder, and the window reads the line of
+ * <p>Since ADR-436 §2 nothing is used where no source names a folder, and the window reads the line of
  * {@code application-local.yaml} and {@code application.yaml} beside the jar as Spring reads it, {@code db-dir} only
  * through that line; the three-argument {@code of} reads a folder beside the jar holding the shipped copy alone. Each
  * test writes the files beside the jar it names, under its own folder.
@@ -37,7 +37,7 @@ class WorkingDirectoryDefaultTest {
 
     private static final String ENVIRONMENT = "environment";
 
-    /** The source of a folder a line of a file beside the jar names by its own text or its default (ADR-432 §2). */
+    /** The source of a folder a line of a file beside the jar names by its own text or its default (ADR-436 §2). */
     private static final String FILE = "file";
 
     private static final String APPLICATION_YAML = "application.yaml";
@@ -62,7 +62,7 @@ class WorkingDirectoryDefaultTest {
     @Story("The operator sees the value in use and where it came from")
     @DisplayName("With nothing naming a working directory none is in use, though the current directory holds a .vespera with a database")
     @Issue("905")
-    @Link(name = "ADR-432", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
+    @Link(name = "ADR-436", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
     void nothingSetNamesNoFolderThoughTheCurrentDirectoryHoldsADotVespera() throws Exception {
         Files.createFile(Files.createDirectories(current.resolve(".vespera")).resolve("vespera.db"));
 
@@ -82,7 +82,7 @@ class WorkingDirectoryDefaultTest {
     @Story("The operator sees the value in use and where it came from")
     @DisplayName("A path on the working directory's line beside the jar is read after the property and the variable, and over db-dir, the local file over the other")
     @Issue("905")
-    @Link(name = "ADR-432", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
+    @Link(name = "ADR-436", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
     void aPathOnTheLineBesideTheJarIsReadAfterThePropertyAndTheVariableAndOverDbDir() throws Exception {
         Path besideTheJar = Files.createDirectories(current.resolve("beside-the-jar"));
         Path withALocalFile = Files.createDirectories(current.resolve("beside-another-jar"));
@@ -113,7 +113,7 @@ class WorkingDirectoryDefaultTest {
     @Story("The operator sees the value in use and where it came from")
     @DisplayName("A placeholder on the working directory's line beside the jar is resolved as Spring resolves it")
     @Issue("905")
-    @Link(name = "ADR-432", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
+    @Link(name = "ADR-436", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
     void aPlaceholderOnTheLineIsResolvedAsSpringResolvesIt() throws Exception {
         Path withTheOldLine = Files.createDirectories(current.resolve("an-earlier-jars-file"));
         Path withTheShippedLine = Files.createDirectories(current.resolve("the-shipped-file"));

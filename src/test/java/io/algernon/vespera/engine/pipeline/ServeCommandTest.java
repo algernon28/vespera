@@ -152,7 +152,7 @@ class ServeCommandTest {
                 () -> assertThat(notThere).doesNotExist());
     }
 
-    /** The line {@code vespera serve} refuses a start naming no working directory in, whole (ADR-432 §1). */
+    /** The line {@code vespera serve} refuses a start naming no working directory in, whole (ADR-436 §1). */
     private static final String NO_WORKING_DIRECTORY = "vespera serve has nothing to serve: no working directory is"
             + " named. Name one with --db-dir=<path>, the environment variable VESPERA_WORKING_DIR or the system property"
             + " vespera.working-dir.";
@@ -162,7 +162,7 @@ class ServeCommandTest {
     @Story("The website is served on loopback alone")
     @DisplayName("Nothing naming a working directory, or a blank --db-dir=, is refused, exit 1, in one line, and no .vespera is made where it was started")
     @Issue("905")
-    @Link(name = "ADR-432", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
+    @Link(name = "ADR-436", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
     void nothingNamingAWorkingDirectoryIsRefusedInOneLineAndNothingIsMade() {
         Path startedHere = base.resolve("started-here");
         Sources nothingSet = sourcesOf(List.of());

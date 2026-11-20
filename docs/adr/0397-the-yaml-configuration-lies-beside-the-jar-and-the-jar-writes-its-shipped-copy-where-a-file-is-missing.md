@@ -1,6 +1,6 @@
 # ADR-397 — The YAML configuration lies beside the jar, and the jar writes its shipped copy where a file is missing
 
-> **Partly amended — see [ADR-432](0432-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md).** Of §10: for the working directory alone, the control panel reads the line `vespera.working-dir` of `application-local.yaml` beside the jar over that of `application.yaml`, resolved as Spring resolves it, so that it names the folder the jar would open. Every other starting value stays as §10 has it. The rest of this record stands.
+> **Partly amended — see [ADR-436](0436-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md).** Of §10: for the working directory alone, the control panel reads the line `vespera.working-dir` of `application-local.yaml` beside the jar over that of `application.yaml`, resolved as Spring resolves it, so that it names the folder the jar would open. Every other starting value stays as §10 has it. The rest of this record stands.
 
 - **Date**: 2026-11-15
 - **Status**: accepted on 2026-11-15.

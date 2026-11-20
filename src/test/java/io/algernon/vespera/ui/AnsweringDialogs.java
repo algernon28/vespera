@@ -77,10 +77,10 @@ final class AnsweringDialogs implements Dialogs {
         return entered;
     }
 
-    /** The title of every folder dialog the window opened, in order (ADR-432 §5). */
+    /** The title of every folder dialog the window opened, in order (ADR-436 §5). */
     final List<String> foldersAsked = new CopyOnWriteArrayList<>();
 
-    /** What the next folder dialog is answered: the folder chosen, or empty where none is (ADR-432 §5). */
+    /** What the next folder dialog is answered: the folder chosen, or empty where none is (ADR-436 §5). */
     volatile Optional<Path> folderChosen = Optional.empty();
 
     /** Keeps the folder dialog's title and gives {@link #folderChosen}, none unless a test sets one. */

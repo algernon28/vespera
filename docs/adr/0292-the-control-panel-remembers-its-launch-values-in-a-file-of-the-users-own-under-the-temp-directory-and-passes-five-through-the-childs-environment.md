@@ -10,7 +10,7 @@
 
 > **Partly amended — see [ADR-393](0393-a-working-directory-is-named-for-its-corpus-root-and-day-chosen-from-a-list-and-publish-takes-what-the-last-run-reached.md).** Of §3: the folder holds a third file, `working-directories`, the list of the working directories this user has used, one absolute path a line, most recently started first, written as an invocation starts, after a Save that made a working directory and as a row is removed, and only where the folder is the user's own; it is no launch value, and §1's seven stand, the row chosen being `vespera.working-dir`'s. The rest of this record stands.
 
-> **Partly amended — see [ADR-432](0432-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md).** Of §1's table: the jar has no default for `vespera.working-dir`; a start given none is refused. The rest of this record stands.
+> **Partly amended — see [ADR-436](0436-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md).** Of §1's table: the jar has no default for `vespera.working-dir`; a start given none is refused. The rest of this record stands.
 
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.

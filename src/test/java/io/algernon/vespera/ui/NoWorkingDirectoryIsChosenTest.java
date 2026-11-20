@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The control panel uses no working directory nothing names (ADR-432): the list's first row is the sources' folder only
+ * The control panel uses no working directory nothing names (ADR-436): the list's first row is the sources' folder only
  * where a system property or an environment variable names one, worded by its source (§2, §3); a list of no row points
  * to Browse (§3); while no row is chosen the ending panel says so, with Choose a folder…, and every start is refused in
  * one line (§4); Browse, and Choose a folder…, add the folder chosen, choose it and write the list file at once (§5); the
@@ -44,7 +44,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("905")
-@Link(name = "ADR-432", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
+@Link(name = "ADR-436", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
 class NoWorkingDirectoryIsChosenTest {
 
     private static final String USER = System.getProperty("user.name");
@@ -482,7 +482,7 @@ class NoWorkingDirectoryIsChosenTest {
         return WorkingDirectoryList.besides(launchValuesFile(folder));
     }
 
-    /** The file saying a {@code .vespera} folder was looked for, beside it (ADR-432 §7). */
+    /** The file saying a {@code .vespera} folder was looked for, beside it (ADR-436 §7). */
     private static Path marker(Path folder) {
         return listFile(folder).resolveSibling(LOOKED_FOR);
     }

@@ -6,7 +6,7 @@
 
 > **Partly amended — see [ADR-393](0393-a-working-directory-is-named-for-its-corpus-root-and-day-chosen-from-a-list-and-publish-takes-what-the-last-run-reached.md).** Of *"never derived from the root"*: the control panel proposes a new working directory's folder name from the corpus root, `<the corpus root's folder name>_<yyyyMMdd>`, once, as its New… adds the folder; every invocation still names its working directory, and nothing locates one by its name. Of Consequences' *"No guard against a working directory pointed at the wrong root"*: the window's Run warns in one line, and starts, where the folder it passes is named so for a corpus root of another name; the jar compares no name. The rest of this record stands.
 
-> **Partly amended — see [ADR-432](0432-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md).** Of *"defaulted in `application.yaml`"*: the shipped `application.yaml` names no working directory, `--db-dir=<path>` still naming one through its line, and a start of the command line given none is refused in one line, exit 1. The rest of this record stands.
+> **Partly amended — see [ADR-436](0436-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md).** Of *"defaulted in `application.yaml`"*: the shipped `application.yaml` names no working directory, `--db-dir=<path>` still naming one through its line, and a start of the command line given none is refused in one line, exit 1. The rest of this record stands.
 
 - **Date**: 2026-08-29
 - **Status**: accepted

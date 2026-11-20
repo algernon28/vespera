@@ -22,7 +22,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.IFactory;
 
 /**
- * {@code --help} and {@code --version} are handed over before Spring (ADR-432 §1, §8), as {@code vespera serve} is:
+ * {@code --help} and {@code --version} are handed over before Spring (ADR-436 §1, §8), as {@code vespera serve} is:
  * {@code pipeline.HelpAndVersion} answers a command line whose one argument is {@code --help}, {@code -h},
  * {@code --version} or {@code -V}, and nothing else, printing what picocli prints for that option over
  * {@code VesperaCommand}'s model, built with no application, and exiting 0. That {@code EntryPoint} hands them over
@@ -34,7 +34,7 @@ import picocli.CommandLine.IFactory;
 @Epic("Operation")
 @Feature("Shipped configuration")
 @Issue("905")
-@Link(name = "ADR-432", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
+@Link(name = "ADR-436", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
 class HelpAndVersionTest {
 
     /** The four arguments that ask for the usage or the version alone. */
