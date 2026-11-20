@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * Smoke test: the application context starts, with the sidecars of
+ * Smoke test: the application context starts, with the containers of
  * {@link TestcontainersConfiguration} present.
  * <p>
  * {@code contextLoads} asserts nothing itself — the test fails only if the context cannot be built.
@@ -19,7 +19,7 @@ import org.springframework.test.context.ActiveProfiles;
  * prone to: a starter on the classpath whose auto-configuration demands a schema that does not
  * exist. Requires a running Docker daemon.
  * <p>
- * Starting contacts no sidecar: neither Ollama's clients nor docling-serve's reach anything while the
+ * Starting contacts no container: neither Ollama's clients nor docling-serve's reach anything while the
  * context starts.
  * <p>
  * Module boundaries (ADR-040) are checked separately, by {@link ModuleBoundariesTest}: it runs

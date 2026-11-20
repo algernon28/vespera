@@ -48,8 +48,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * converted. Five files that each kill the converter, or that it refuses every time, are then the files'
  * own failures and are marked; a converter that converts nothing still stops the step.
  *
- * <p>The sidecar is real HTTP: the production {@code DoclingClient}, extractor and cache (through
- * {@link ExtractionBeans}) against a {@link LoopbackSidecar}, which recognises the control conversion by
+ * <p>The docling is real HTTP: the production {@code DoclingClient}, extractor and cache (through
+ * {@link ExtractionBeans}) against a {@link LoopbackDocling}, which recognises the control conversion by
  * the sentence its PDF carries and, unless a test scripts otherwise, converts it.
  *
  * <p>"In a row" is the order stage 2 reads in, which is the order the walk recorded the folder in: the
@@ -70,11 +70,11 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-071", url = Adr.DOCLING_INVOCATION_CONTRACT_IS_ONE_SYNC_CALL, type = "adr")
 class ControlConversionInvocationTest {
 
-    /** A loopback port that was free when the class loaded; the test's sidecar listens on it. */
-    private static final int SIDECAR_PORT = LoopbackSidecar.aFreePort();
+    /** A loopback port that was free when the class loaded; the test's docling listens on it. */
+    private static final int DOCLING_PORT = LoopbackDocling.aFreePort();
 
-    /** Where the client looks for the sidecar. */
-    private static final String SIDECAR = "http://127.0.0.1:" + SIDECAR_PORT;
+    /** Where the client looks for the docling. */
+    private static final String DOCLING = "http://127.0.0.1:" + DOCLING_PORT;
 
     /** How long these tests wait for a converter that dropped a connection to answer its health check. */
     private static final Duration WAIT_AT_MOST = Duration.ofSeconds(1);
@@ -135,9 +135,9 @@ class ControlConversionInvocationTest {
     static Path workingDirectory;
 
     @DynamicPropertySource
-    static void sidecarAndWorkingDirectory(DynamicPropertyRegistry registry) {
+    static void doclingAndWorkingDirectory(DynamicPropertyRegistry registry) {
         registry.add("vespera.working-dir", workingDirectory::toString);
-        registry.add("vespera.docling.base-url", () -> SIDECAR);
+        registry.add("vespera.docling.base-url", () -> DOCLING);
     }
 
     @Autowired
@@ -151,11 +151,11 @@ class ControlConversionInvocationTest {
 
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger rootLogger;
-    private LoopbackSidecar sidecar;
+    private LoopbackDocling docling;
 
     @BeforeEach
-    void startTheSidecarAndCaptureEveryLine() throws IOException {
-        sidecar = LoopbackSidecar.startedOn(SIDECAR_PORT, configuredImage);
+    void startTheDoclingAndCaptureEveryLine() throws IOException {
+        docling = LoopbackDocling.startedOn(DOCLING_PORT, configuredImage);
         logged = new ListAppender<>();
         logged.start();
         rootLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
@@ -164,11 +164,11 @@ class ControlConversionInvocationTest {
     }
 
     @AfterEach
-    void stopTheSidecarAndReleaseEveryLine() {
+    void stopTheDoclingAndReleaseEveryLine() {
         rootLogger.detachAppender(logged);
         ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(logged);
         logged.stop();
-        sidecar.close();
+        docling.close();
     }
 
     @Test
@@ -180,7 +180,7 @@ class ControlConversionInvocationTest {
         writeTheCorpus(root, TEN_BETWEEN_TWO);
         List<Integer> asRead = theOrderTheStageReadsIn(root);
         List<Integer> killers = asRead.subList(1, 1 + TEN_IN_A_ROW);
-        killers.forEach(file -> sidecar.dropping(file, LoopbackSidecar.EVERY_CALL));
+        killers.forEach(file -> docling.dropping(file, LoopbackDocling.EVERY_CALL));
 
         cli.run("run", root.toString());
 
@@ -191,7 +191,7 @@ class ControlConversionInvocationTest {
         claim(
                 "the control PDF was sent " + TWICE + " times, once for each row of " + FIVE_IN_A_ROW
                         + ": the count started again after the first one converted",
-                () -> assertThat(sidecar.controlConversions()).isEqualTo(TWICE));
+                () -> assertThat(docling.controlConversions()).isEqualTo(TWICE));
         claim(
                 "and a line said so each time",
                 () -> assertThat(lines()).filteredOn(THE_CONTROL_CONVERTED::equals).hasSize((int) TWICE));
@@ -205,8 +205,8 @@ class ControlConversionInvocationTest {
 
     /** The two ways a converter converts nothing, each with what the closing line says of the five in a row. */
     static Stream<Arguments> convertersThatConvertNothing() {
-        Consumer<LoopbackSidecar> dropping = LoopbackSidecar::droppingEveryCall;
-        Consumer<LoopbackSidecar> refusing = sidecar -> sidecar.answeringEveryCall(REFUSED_FOR_CAPACITY);
+        Consumer<LoopbackDocling> dropping = LoopbackDocling::droppingEveryCall;
+        Consumer<LoopbackDocling> refusing = docling -> docling.answeringEveryCall(REFUSED_FOR_CAPACITY);
         return Stream.of(
                 Arguments.of(Named.of("a converter that drops every call", dropping), FIVE_DROPPED_TWICE),
                 Arguments.of(Named.of("a converter that refuses every call for want of room", refusing), FIVE_SET_ASIDE));
@@ -219,15 +219,15 @@ class ControlConversionInvocationTest {
     void aControlConversionAnsweredWithoutItsSentenceDidNotConvert(@TempDir Path root) throws IOException {
         writeTheCorpus(root, MORE_THAN_FIVE);
         for (int file = 1; file <= MORE_THAN_FIVE; file++) {
-            sidecar.dropping(file, LoopbackSidecar.EVERY_CALL);
+            docling.dropping(file, LoopbackDocling.EVERY_CALL);
         }
-        sidecar.answeringTheControlConversion(LoopbackSidecar.CONVERTED);
+        docling.answeringTheControlConversion(LoopbackDocling.CONVERTED);
 
         cli.run("run", root.toString());
 
         claim(
                 "the control PDF was sent " + ONCE + " time and answered with a conversion of some other text",
-                () -> assertThat(sidecar.controlConversions()).isEqualTo(ONCE));
+                () -> assertThat(docling.controlConversions()).isEqualTo(ONCE));
         claim(
                 "the invocation failed: a converter that answers without having read the control PDF has not"
                         + " shown that it converts",
@@ -251,8 +251,8 @@ class ControlConversionInvocationTest {
 
         @Bean
         @Primary
-        SidecarRecovery sidecarRecoveryOnAShortClock(DoclingClient client) {
-            return new SidecarRecovery(client, WAIT_AT_MOST, CHECK_EVERY);
+        DoclingRecovery doclingRecoveryOnAShortClock(DoclingClient client) {
+            return new DoclingRecovery(client, WAIT_AT_MOST, CHECK_EVERY);
         }
     }
 
@@ -263,9 +263,9 @@ class ControlConversionInvocationTest {
      * not answering its health check.
      */
     private List<Integer> theOrderTheStageReadsIn(Path root) {
-        sidecar.answeringItsHealthCheck(false);
+        docling.answeringItsHealthCheck(false);
         cli.run("run", root.toString());
-        sidecar.answeringItsHealthCheck(true);
+        docling.answeringItsHealthCheck(true);
         logged.list.clear();
         return jdbcTemplate
                 .queryForList(
@@ -289,7 +289,7 @@ class ControlConversionInvocationTest {
     }
 
     /**
-     * Says which file it is in the words {@link LoopbackSidecar} reads, and names the corpus folder, so
+     * Says which file it is in the words {@link LoopbackDocling} reads, and names the corpus folder, so
      * that no test's file is answered from storage for another test's.
      */
     private static String textOf(int file, int files, Path root) {

@@ -42,7 +42,7 @@ import org.springframework.test.context.DynamicPropertySource;
  *
  * <p>A class of its own because it needs a working directory in which the page's name is taken by a
  * folder, which would break every other test sharing that working directory. The converter is a
- * {@link LoopbackSidecar} that answers one document with an error status, so there is one file to
+ * {@link LoopbackDocling} that answers one document with an error status, so there is one file to
  * count.
  */
 @CascadeSliceTest
@@ -63,8 +63,8 @@ class ReviewListThatCannotBeWrittenTest {
     private static final String THE_LINE_AFTER_THE_READ_OPENS =
             "Stage 2 (extraction) read the occurrences it could not read in ";
 
-    /** A loopback port that was free when the class loaded; the test's sidecar listens on it. */
-    private static final int SIDECAR_PORT = LoopbackSidecar.aFreePort();
+    /** A loopback port that was free when the class loaded; the test's docling listens on it. */
+    private static final int DOCLING_PORT = LoopbackDocling.aFreePort();
 
     /** The corpus: few enough to be one batch. */
     private static final int DOCUMENTS = 3;
@@ -91,9 +91,9 @@ class ReviewListThatCannotBeWrittenTest {
     static Path workingDirectory;
 
     @DynamicPropertySource
-    static void sidecarAndWorkingDirectory(DynamicPropertyRegistry registry) {
+    static void doclingAndWorkingDirectory(DynamicPropertyRegistry registry) {
         registry.add("vespera.working-dir", workingDirectory::toString);
-        registry.add("vespera.docling.base-url", () -> "http://127.0.0.1:" + SIDECAR_PORT);
+        registry.add("vespera.docling.base-url", () -> "http://127.0.0.1:" + DOCLING_PORT);
     }
 
     @Autowired
@@ -104,11 +104,11 @@ class ReviewListThatCannotBeWrittenTest {
 
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger rootLogger;
-    private LoopbackSidecar sidecar;
+    private LoopbackDocling docling;
 
     @BeforeEach
-    void startTheSidecarAndCaptureEveryLine() throws IOException {
-        sidecar = LoopbackSidecar.startedOn(SIDECAR_PORT, configuredImage);
+    void startTheDoclingAndCaptureEveryLine() throws IOException {
+        docling = LoopbackDocling.startedOn(DOCLING_PORT, configuredImage);
         logged = new ListAppender<>();
         logged.start();
         rootLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
@@ -116,10 +116,10 @@ class ReviewListThatCannotBeWrittenTest {
     }
 
     @AfterEach
-    void stopTheSidecarAndReleaseEveryLine() {
+    void stopTheDoclingAndReleaseEveryLine() {
         rootLogger.detachAppender(logged);
         logged.stop();
-        sidecar.close();
+        docling.close();
     }
 
     @Test
@@ -131,7 +131,7 @@ class ReviewListThatCannotBeWrittenTest {
                     root.resolve("document-%02d.txt".formatted(document)),
                     "corpus document %02d of %d, for the page that cannot be written".formatted(document, DOCUMENTS));
         }
-        sidecar.rejecting(THE_REJECTED_DOCUMENT, NOT_FOUND);
+        docling.rejecting(THE_REJECTED_DOCUMENT, NOT_FOUND);
         Path page = Files.createDirectory(workingDirectory.resolve(THE_REVIEW_LIST));
 
         cli.run("run", root.toString());

@@ -412,7 +412,7 @@ final class WindowForTests implements AutoCloseable {
 
     /**
      * Closes the cockpit as the operator does and waits, within the tests' bound, for it to close: since ADR-390 §5 it
-     * stays shown while its child and then the sidecars are stopped, and closes after. Gives whether it is still shown.
+     * stays shown while its child and then the containers are stopped, and closes after. Gives whether it is still shown.
      */
     boolean closedAsTheOperatorDoesAndAwaited() throws Exception {
         closeAsTheOperatorDoes(stage);

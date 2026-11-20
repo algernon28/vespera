@@ -2,20 +2,25 @@ package io.algernon.vespera;
 
 import io.algernon.vespera.engine.pipeline.BesideTheJar;
 import io.algernon.vespera.engine.pipeline.BesideTheJarUnwritableException;
+import io.algernon.vespera.engine.pipeline.ContainerStarter;
 import io.algernon.vespera.engine.pipeline.CorpusRootLock;
+import io.algernon.vespera.engine.pipeline.EarlierSettingNames;
 import io.algernon.vespera.engine.pipeline.MisshapenProfileRefusal;
 import io.algernon.vespera.engine.pipeline.ProfileShapeCheck;
-import io.algernon.vespera.engine.pipeline.SidecarStarter;
 import io.algernon.vespera.engine.pipeline.TemporaryFilesInTheWorkingDirectory;
 import io.algernon.vespera.engine.pipeline.WorkingDirectoryInUseRefusal;
 import io.algernon.vespera.engine.pipeline.WorkingDirectoryLock;
 import io.algernon.vespera.engine.pipeline.WorkingDirectoryPreparer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ConfigurableApplicationContext;
 
 @SpringBootApplication
 public class VesperaApplication {
+
+    private static final Logger LOG = LoggerFactory.getLogger(VesperaApplication.class);
 
     public static void main(String[] args) {
         SpringApplication application = new SpringApplication(VesperaApplication.class);
@@ -45,10 +50,14 @@ public class VesperaApplication {
                 "corpusRootLock",
                 new CorpusRootLock(CorpusRootLock.folderNamedBy(
                         context.getEnvironment().getProperty(CorpusRootLock.FOLDER_PROPERTY)))));
-        // So is the starter of the sidecars (ADR-323 section 1): `run` and `label --auto` ask it, a test context has
+        // So is the starter of the containers (ADR-323 section 1): `run` and `label --auto` ask it, a test context has
         // none, and so no test context starts the Docker engine or a container.
-        application.addInitializers(context -> context.getBeanFactory().registerSingleton(
-                "sidecarStarter", SidecarStarter.forTheApplication(context.getEnvironment())));
+        // Each earlier name of a container setting that is set is said once, at WARN, here (ADR-433 section 5).
+        application.addInitializers(context -> {
+            EarlierSettingNames.linesFor(context.getEnvironment()).forEach(line -> LOG.warn("{}", line));
+            context.getBeanFactory().registerSingleton(
+                    "containerStarter", ContainerStarter.forTheApplication(context.getEnvironment()));
+        });
         ConfigurableApplicationContext context;
         try {
             context = application.run(args);

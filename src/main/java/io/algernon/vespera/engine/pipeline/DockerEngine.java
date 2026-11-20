@@ -10,15 +10,15 @@ import java.util.Optional;
  * the control panel names. It names no type of Spring, of JavaFX or of the control panel, and its public constructors
  * and methods take and give only primitives, types of {@code java.base} and itself.
  *
- * <p>It is built over {@link SidecarStarter}, with {@link HostSystem#current()}, the runner of real processes on
- * {@code java.io.tmpdir} and the health that asks over HTTP, as {@link SidecarStarter#forTheApplication} builds them;
+ * <p>It is built over {@link ContainerStarter}, with {@link HostSystem#current()}, the runner of real processes on
+ * {@code java.io.tmpdir} and the health that asks over HTTP, as {@link ContainerStarter#forTheApplication} builds them;
  * its lines are ADR-323 §8's, ADR-390 §6's and ADR-410 §3's. Its log lines go where this process sends them,
  * its console.
  */
 public final class DockerEngine {
 
-    /** The line of a shut-down that stopped both the sidecars and the engine (ADR-390 §6). */
-    public static final String SHUT_DOWN_DONE = SidecarStarter.SHUT_DOWN_DONE;
+    /** The line of a shut-down that stopped both the containers and the engine (ADR-390 §6). */
+    public static final String SHUT_DOWN_DONE = ContainerStarter.SHUT_DOWN_DONE;
 
     private static final Duration CHECK_EVERY = Duration.ofSeconds(2);
 
@@ -43,7 +43,7 @@ public final class DockerEngine {
      * @param wslDistribution the WSL distribution Docker runs in on Windows, blank for WSL's default; read on Windows
      *     alone
      * @param waitAtMost the bound of every start and stop command and of the wait for the engine
-     * @param lockFolder the folder {@code sidecars.lock} lies in
+     * @param lockFolder the folder {@code containers.lock} lies in
      * @param profileFolder the Windows profile folder {@code .wslconfig} lies in, null where none is known (ADR-421)
      */
     public static DockerEngine of(String wslDistribution, Duration waitAtMost, Path lockFolder, Path profileFolder) {
@@ -82,7 +82,7 @@ public final class DockerEngine {
         try {
             starter(doclingBaseUrl, ollamaBaseUrl).ensureTheEngineRuns();
             return Optional.empty();
-        } catch (SidecarStartRefusedException refused) {
+        } catch (ContainerStartRefusedException refused) {
             return Optional.of(refused.getMessage());
         }
     }
@@ -117,13 +117,13 @@ public final class DockerEngine {
      * @return the refusal's line; empty where started, already answering or nothing was to be done
      */
     public Optional<String> startTheContainers(URI doclingBaseUrl, URI ollamaBaseUrl, String doclingImage) {
-        SidecarStartSettings settings = new SidecarStartSettings(
+        ContainerStartSettings settings = new ContainerStartSettings(
                 doclingBaseUrl, ollamaBaseUrl, doclingImage == null ? "" : doclingImage, waitAtMost, wslDistribution,
                 profileFolder);
-        SidecarStarter starter = new SidecarStarter(
+        ContainerStarter starter = new ContainerStarter(
                 settings,
                 new SystemProcessRunner(Path.of(System.getProperty("java.io.tmpdir"))),
-                new HttpSidecarHealth(settings),
+                new HttpContainerHealth(settings),
                 HostSystem.current(),
                 () -> composeFolder == null
                         ? BesideTheJar.ofThisApplication().composeFiles()
@@ -134,33 +134,33 @@ public final class DockerEngine {
             // .wslconfig is still seen to, but its line was logged by keepTheWslDistributionUp, which the window calls first
             starter.ensureRunning(false);
             return Optional.empty();
-        } catch (SidecarStartRefusedException refused) {
+        } catch (ContainerStartRefusedException refused) {
             return Optional.of(refused.getMessage());
         }
     }
 
     /**
-     * Stops the sidecars alone, where one answers on this machine.
+     * Stops the containers alone, where one answers on this machine.
      *
      * @return the refusal's line; empty where stopped or nothing was to be done
      */
-    public Optional<String> stopTheSidecars(URI doclingBaseUrl, URI ollamaBaseUrl) {
-        return starter(doclingBaseUrl, ollamaBaseUrl).stopTheSidecars();
+    public Optional<String> stopTheContainers(URI doclingBaseUrl, URI ollamaBaseUrl) {
+        return starter(doclingBaseUrl, ollamaBaseUrl).stopTheContainers();
     }
 
-    /** Stops the sidecars and then the engine; the line says what came of it, {@link #SHUT_DOWN_DONE} where both stopped. */
+    /** Stops the containers and then the engine; the line says what came of it, {@link #SHUT_DOWN_DONE} where both stopped. */
     public String shutDown() {
-        return starter(URI.create(SidecarStartSettings.DEFAULT_DOCLING), URI.create(SidecarStartSettings.DEFAULT_OLLAMA))
+        return starter(URI.create(ContainerStartSettings.DEFAULT_DOCLING), URI.create(ContainerStartSettings.DEFAULT_OLLAMA))
                 .shutDown().line();
     }
 
-    private SidecarStarter starter(URI doclingBaseUrl, URI ollamaBaseUrl) {
-        SidecarStartSettings settings =
-                new SidecarStartSettings(doclingBaseUrl, ollamaBaseUrl, "", waitAtMost, wslDistribution, profileFolder);
-        return new SidecarStarter(
+    private ContainerStarter starter(URI doclingBaseUrl, URI ollamaBaseUrl) {
+        ContainerStartSettings settings =
+                new ContainerStartSettings(doclingBaseUrl, ollamaBaseUrl, "", waitAtMost, wslDistribution, profileFolder);
+        return new ContainerStarter(
                 settings,
                 new SystemProcessRunner(Path.of(System.getProperty("java.io.tmpdir"))),
-                new HttpSidecarHealth(settings),
+                new HttpContainerHealth(settings),
                 HostSystem.current(),
                 () -> {
                     throw new UnsupportedOperationException("the control panel writes no compose file out");

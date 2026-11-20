@@ -160,8 +160,8 @@ class ExplanationsAreCaptionsOnMouseOverTest {
     @DisplayName("Each row of the header's check says in its caption what it is, the container's address and where it was found, and the model's name")
     void eachHeaderRowsCaptionSaysWhatItIsAndWhereItWasFound() throws Exception {
         RecordingDockerControl docker = new RecordingDockerControl().checkAnswering(new DockerCheck(OK,
-                new DockerCheck.Container(OK, DockerCheck.Where.THIS_MACHINE, "http://localhost:5001"),
-                new DockerCheck.Container(OK, DockerCheck.Where.ANOTHER_MACHINE, "http://gpu-box.lan:11434"),
+                new DockerCheck.Service(OK, DockerCheck.Where.THIS_MACHINE, "http://localhost:5001"),
+                new DockerCheck.Service(OK, DockerCheck.Where.ANOTHER_MACHINE, "http://gpu-box.lan:11434"),
                 OK, KO));
         List<String> here;
         List<String> elsewhere;
@@ -169,8 +169,8 @@ class ExplanationsAreCaptionsOnMouseOverTest {
             here = window.awaiting(ExplanationsAreCaptionsOnMouseOverTest::rowCaptions,
                     read -> read.get(2) != null && read.get(2).contains("gpu-box.lan"));
             docker.checkAnswering(new DockerCheck(NOT_ASKED,
-                    new DockerCheck.Container(KO, DockerCheck.Where.NOT_RESOLVED, "http://docling.invalid:5001"),
-                    new DockerCheck.Container(KO, DockerCheck.Where.ANOTHER_MACHINE, "http://gpu-box.lan:11434"),
+                    new DockerCheck.Service(KO, DockerCheck.Where.NOT_RESOLVED, "http://docling.invalid:5001"),
+                    new DockerCheck.Service(KO, DockerCheck.Where.ANOTHER_MACHINE, "http://gpu-box.lan:11434"),
                     NOT_ASKED, NOT_ASKED));
             elsewhere = window.awaiting(ExplanationsAreCaptionsOnMouseOverTest::rowCaptions,
                     read -> read.get(1) != null && read.get(1).contains("docling.invalid"));

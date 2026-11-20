@@ -2,7 +2,7 @@ package io.algernon.vespera.engine.pipeline;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-import io.algernon.vespera.engine.extraction.SidecarVersionReport;
+import io.algernon.vespera.engine.extraction.DoclingVersionReport;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
@@ -46,18 +46,18 @@ import java.util.stream.Collectors;
  *
  * <p>One instance per test, holding its own script, so nothing is left for the next test or class.
  */
-final class LoopbackSidecar implements AutoCloseable {
+final class LoopbackDocling implements AutoCloseable {
 
-    /** A clean conversion in the wire shape the sidecar answers with, carrying real text. */
+    /** A clean conversion in the wire shape the docling answers with, carrying real text. */
     static final String CONVERTED = "{\"status\":\"success\",\"errors\":[],\"processing_time\":0.1,"
             + "\"document\":{\"json_content\":{\"texts\":["
             + "{\"text\":\"A Stubbed Document\",\"label\":\"title\"},"
             + "{\"text\":\"stubbed but real content\"}]}}}";
 
-    /** What this sidecar says beside an error status. */
+    /** What this docling says beside an error status. */
     static final String WORDS_BESIDE_AN_ERROR_STATUS = "{\"detail\":\"Task result not found.\"}";
 
-    /** What the JDK client says when the sidecar closes the socket before sending a status line. */
+    /** What the JDK client says when the docling closes the socket before sending a status line. */
     static final String DROPPED_CONNECTION = "HTTP/1.1 header parser received no bytes";
 
     /** A drop count no test's calls can use up: every call for that document is dropped. */
@@ -72,7 +72,7 @@ final class LoopbackSidecar implements AutoCloseable {
     /** The number the control conversion is counted under. */
     static final int CONTROL = -2;
 
-    /** The control conversion converted, in the wire shape the sidecar answers with, its sentence in the text. */
+    /** The control conversion converted, in the wire shape the docling answers with, its sentence in the text. */
     static final String CONVERTED_CONTROL = "{\"status\":\"success\",\"errors\":[],\"processing_time\":0.1,"
             + "\"document\":{\"json_content\":{\"texts\":["
             + "{\"text\":\"" + CONTROL_SENTENCE + "\"}]}}}";
@@ -96,7 +96,7 @@ final class LoopbackSidecar implements AutoCloseable {
     private final AtomicInteger healthChecks = new AtomicInteger();
     private final AtomicReference<Runnable> beforeEachHealthCheck = new AtomicReference<>(() -> {});
 
-    private LoopbackSidecar(HttpServer server, ExecutorService threads) {
+    private LoopbackDocling(HttpServer server, ExecutorService threads) {
         this.server = server;
         this.threads = threads;
     }
@@ -106,24 +106,24 @@ final class LoopbackSidecar implements AutoCloseable {
         try (ServerSocket probe = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
             return probe.getLocalPort();
         } catch (IOException e) {
-            throw new UncheckedIOException("no loopback port could be reserved for the sidecar", e);
+            throw new UncheckedIOException("no loopback port could be reserved for the docling", e);
         }
     }
 
-    /** A healthy sidecar on {@code port}, reporting {@code image} in the real sidecar's shape. */
-    static LoopbackSidecar startedOn(int port, String image) throws IOException {
+    /** A healthy docling on {@code port}, reporting {@code image} in the real docling's shape. */
+    static LoopbackDocling startedOn(int port, String image) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0);
         ExecutorService threads = Executors.newFixedThreadPool(ExtractionJobConfiguration.CONVERSION_CONCURRENCY);
-        LoopbackSidecar sidecar = new LoopbackSidecar(server, threads);
-        String versions = SidecarVersionReport.runningImage(image).entrySet().stream()
+        LoopbackDocling docling = new LoopbackDocling(server, threads);
+        String versions = DoclingVersionReport.runningImage(image).entrySet().stream()
                 .map(component -> "\"" + component.getKey() + "\":\"" + component.getValue() + "\"")
                 .collect(Collectors.joining(",", "{", "}"));
-        server.createContext("/health", sidecar::health);
+        server.createContext("/health", docling::health);
         server.createContext("/version", exchange -> answer(exchange, 200, versions));
-        server.createContext("/v1/convert/file", sidecar::convert);
+        server.createContext("/v1/convert/file", docling::convert);
         server.setExecutor(threads);
         server.start();
-        return sidecar;
+        return docling;
     }
 
     /** Every call for {@code document} is answered with {@code status}. */
@@ -175,12 +175,12 @@ final class LoopbackSidecar implements AutoCloseable {
         dropsLeft.put(document, new AtomicInteger(times));
     }
 
-    /** Whether the sidecar answers its health check from now on. */
+    /** Whether the docling answers its health check from now on. */
     void answeringItsHealthCheck(boolean answering) {
         healthy.set(answering);
     }
 
-    /** From the first connection it drops, the sidecar stops answering its health check. */
+    /** From the first connection it drops, the docling stops answering its health check. */
     void stoppingItsHealthCheckWithADrop() {
         healthDiesWithADrop.set(true);
     }

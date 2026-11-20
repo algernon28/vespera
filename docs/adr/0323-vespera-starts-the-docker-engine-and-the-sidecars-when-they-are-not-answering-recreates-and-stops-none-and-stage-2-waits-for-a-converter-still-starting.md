@@ -271,7 +271,7 @@ Every class this record adds or changes is in `pipeline`: the starter and its co
 
 New, under `src/test`, all in `io.algernon.vespera.pipeline` and needing no Docker:
 
-- **`SidecarStartTest`** (unit). The starter is built with a scripted `ProcessRunner` that records every command and answers each from a script, a scripted `SidecarHealth`, a `HostSystem`, `ComposeFiles` read from the repository's own files, and a short bound:
+- **`ContainerStartTest` (named for the container by ADR-433, #891)** (unit). The starter is built with a scripted `ProcessRunner` that records every command and answers each from a script, a scripted `SidecarHealth`, a `HostSystem`, `ComposeFiles` read from the repository's own files, and a short bound:
   - both sidecars answering: no command is run;
   - `vespera.sidecars.start` false: no sidecar is asked and no command is run;
   - a base URL on another machine: no command is run;
@@ -296,7 +296,7 @@ New, under `src/test`, all in `io.algernon.vespera.pipeline` and needing no Dock
 - **`SystemProcessRunnerTest`** (unit): a command running past its limit is killed and counts as exit -1 with what it printed, the command being the Java running the tests on a class that sleeps until killed; a program that cannot be started throws `IOException`; a command that exits while a process it started keeps its output open returns within its limit, with its own exit code.
 - **`HostSystemTest`** (unit): `Darwin` and `Mac OS X` are macOS, `Windows 11` is Windows, `Linux` is Linux.
 - **`HttpSidecarHealthTest`** (unit): against a loopback server that records each request, a question carries no `Upgrade` header, and a 2xx is an answer and a 503 none.
-- **`NoTestContextStartsTheSidecarsTest`** (`@CascadeSliceTest`): a context Spring's test support builds holds no `SidecarStarter`.
+- **`NoTestContextStartsTheContainersTest` (named for the container by ADR-433, #891)** (`@CascadeSliceTest`): a context Spring's test support builds holds no `SidecarStarter`.
 - **`PackagedJarIT`** gains a claim: the jar carries `compose.yaml`, `compose.gpu.yaml` and every file under `docker/` under `BOOT-INF/classes/sidecars/`, byte for byte.
 - **`ComposeFilesTest`** (unit): the compose files written out from the classpath are the repository's `compose.yaml`, `compose.gpu.yaml` and every file under `docker/`, byte for byte and no other; and each file's Docling image is read as its `docling-serve.image` says.
 - **`SidecarStartSettingsTest`** (unit): `vespera.sidecars.start` is true unless set and false when set so; the bound is 180 s unless `vespera.sidecars.wait-at-most` says otherwise; the image is `vespera.docling.image`; Ollama's URL is `spring.ai.ollama.base-url`, `http://localhost:11434` unless set.
@@ -305,7 +305,7 @@ New, under `src/test`, all in `io.algernon.vespera.pipeline` and needing no Dock
 
 Amended:
 
-- **`ExtractionWithTheSidecarDownTest`**: a `SidecarRecovery` on a short clock, so its unreachable converter is waited for and then fails with the line it has today.
+- **`ExtractionWithTheDoclingDownTest` (named for the container by ADR-433, #891)**: a `SidecarRecovery` on a short clock, so its unreachable converter is waited for and then fails with the line it has today.
 - **`PipelineHoldsOnlyTheRulesOnRecordTest`**: the starter's classes are on record as holding no rule. The two production collaborators the implementation adds, the process runner that starts real processes and the health that asks over HTTP, join the list in the change that adds them.
 - **`ExtractionItemProcessorTest`**: builds its `SidecarRecovery` through the constructor that takes the bound and the interval, since the one that took neither goes.
 - **`ClosingLineOverALockedDatabaseFileTest`**: builds the listener with its new second argument, the wait, which its claims never reach.

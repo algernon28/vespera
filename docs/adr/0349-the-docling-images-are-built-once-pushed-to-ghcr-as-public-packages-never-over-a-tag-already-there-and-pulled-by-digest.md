@@ -208,7 +208,7 @@ Part 2, owed by the change that pins:
 
 - `DoclingSidecarImageTest`: `namesOneImageEverywhere` reads `compose.yaml`'s image up to its `@`, and that, `vespera.docling.image`, `TestcontainersConfiguration.DOCLING_SERVE_IMAGE` and the workflow's processor reference are one; `compose.gpu.yaml`'s, up to its `@`, is the workflow's CUDA reference; both compose images end in `@sha256:` and 64 hexadecimal digits, and `TestcontainersConfiguration.DOCLING_SERVE_DIGEST` is `compose.yaml`'s; `tagsTheImageForItsBaseAndItsParser` and `tagsTheGpuImageApartWithTheSameSuffix` read each tag up to its `@`; `buildsTheImageAndRunsItLockedDown` becomes a claim that the service pulls, has no `build`, and runs locked down as before; `eachComposeFilePassesTheImageItsOwnName` and `buildsTheGpuImageOnCu128AtTheSameRelease` move to `DoclingImageWorkflowTest` (removed: ADR-354), which held them; the revision is `-r3`.
 - `OllamaGpuOverrideTest`: `compose.gpu.yaml`'s `docling-serve` carries exactly `image` and `deploy`.
-- `SidecarStartTest`: every `up` carries `--no-recreate` and no `--build`; an image compared up to its `@`; the refusal for an image no file runs.
+- `ContainerStartTest` (named for the container by ADR-433, #891): every `up` carries `--no-recreate` and no `--build`; an image compared up to its `@`; the refusal for an image no file runs.
 - `ComposeFilesTest` and `PackagedJarIT`: the jar carries the two compose files under `sidecars/` and nothing under `docker/`.
 - `RunIdentityGoldenTest.extraction`: the identity names the `-r3` reference, as `image=` and as `vespera-image=`.
 - `StartingValuesTest`: the GPU preselection is the CUDA reference without its digest.

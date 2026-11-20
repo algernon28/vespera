@@ -42,7 +42,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * was opened, after the closing line; and the refusals after the lock, which print no first line and end on their
  * own line and then the report line.
  *
- * <p>The display is answered by a seam this class gives the application. The sidecar starter is the production one,
+ * <p>The display is answered by a seam this class gives the application. The container starter is the production one,
  * over a health check this class switches, so that one test of the refusal of a start can be made in a class whose
  * other tests start nothing.
  */
@@ -72,13 +72,13 @@ class TheReportLinesInvocationTest {
         registry.add("vespera.working-dir", workingDirectory::toString);
     }
 
-    /** The display the application is given and the sidecars' health, as each test sets them. */
+    /** The display the application is given and the containers' health, as each test sets them. */
     @TestConfiguration
     static class Seams {
 
         static volatile DisplayPresence.Answer answer = new DisplayPresence.Answer(true, "display-variable", null);
 
-        static final AtomicBoolean SIDECARS_ANSWER = new AtomicBoolean(true);
+        static final AtomicBoolean CONTAINERS_ANSWER = new AtomicBoolean(true);
 
         @Bean
         InvocationReport.Display scriptedDisplay() {
@@ -86,25 +86,25 @@ class TheReportLinesInvocationTest {
         }
 
         @Bean
-        SidecarStarter sidecarStarter() {
+        ContainerStarter containerStarter() {
             Path repository = Path.of("").toAbsolutePath();
-            SidecarStartSettings settings = new SidecarStartSettings(
+            ContainerStartSettings settings = new ContainerStartSettings(
                     URI.create("http://localhost:5001"),
                     URI.create("http://localhost:11434"),
                     ComposeFiles.in(repository).cpuImage(),
                     Duration.ofSeconds(1));
-            SidecarHealth health = new SidecarHealth() {
+            ContainerHealth health = new ContainerHealth() {
                 @Override
                 public boolean doclingAnswers() {
-                    return SIDECARS_ANSWER.get();
+                    return CONTAINERS_ANSWER.get();
                 }
 
                 @Override
                 public boolean ollamaAnswers() {
-                    return SIDECARS_ANSWER.get();
+                    return CONTAINERS_ANSWER.get();
                 }
             };
-            return new SidecarStarter(settings, ScriptedDocker.notInstalled(), health, HostSystem.LINUX,
+            return new ContainerStarter(settings, ScriptedDocker.notInstalled(), health, HostSystem.LINUX,
                     () -> ComposeFiles.in(repository), lockFolder, Duration.ofMillis(20));
         }
     }
@@ -122,7 +122,7 @@ class TheReportLinesInvocationTest {
     void captureTheLinesAndSetTheSeams() throws IOException {
         profileStore.save(ProfileFixture.profile().build());
         Seams.answer = new DisplayPresence.Answer(true, "display-variable", null);
-        Seams.SIDECARS_ANSWER.set(true);
+        Seams.CONTAINERS_ANSWER.set(true);
         deleteTheFolders();
         logged = new ListAppender<>();
         logged.start();
@@ -204,7 +204,7 @@ class TheReportLinesInvocationTest {
 
     @Test
     @Story("A refusal after the lock ends on its own line, then the report line")
-    @DisplayName("A missing root, a misplaced code set folder and a sidecar start refused: no first line, the refusal line on standard error, one Report: line after it, and the report's refusals and closing holding it")
+    @DisplayName("A missing root, a misplaced code set folder and a container start refused: no first line, the refusal line on standard error, one Report: line after it, and the report's refusals and closing holding it")
     void aRunRefusedAfterTheLockPrintsNoFirstLineAndEndsOnItsRefusalThenTheReportLine(@TempDir Path root)
             throws IOException {
         Files.writeString(root.resolve("document.txt"), "a corpus document");
@@ -215,10 +215,10 @@ class TheReportLinesInvocationTest {
         Refused misplaced = refused(() -> cli.run("run", root.toString()));
         profileStore.save(ProfileFixture.profile().build());
 
-        Seams.SIDECARS_ANSWER.set(false);
-        Refused noSidecar = refused(() -> cli.run("run", root.toString()));
+        Seams.CONTAINERS_ANSWER.set(false);
+        Refused noContainer = refused(() -> cli.run("run", root.toString()));
 
-        for (Refused each : List.of(missingRoot, misplaced, noSidecar)) {
+        for (Refused each : List.of(missingRoot, misplaced, noContainer)) {
             claim("the refusal is the invocation's closing line, printed whole on standard error as it was",
                     () -> assertThat(each.printed().lines().filter(line -> !line.isBlank()).toList())
                             .containsExactly(each.closing()));
@@ -238,7 +238,7 @@ class TheReportLinesInvocationTest {
                     });
         }
         claim("the three refusals are three different lines",
-                () -> assertThat(List.of(missingRoot.closing(), misplaced.closing(), noSidecar.closing()))
+                () -> assertThat(List.of(missingRoot.closing(), misplaced.closing(), noContainer.closing()))
                         .doesNotHaveDuplicates());
     }
 

@@ -60,6 +60,8 @@ public final class ControlPanel {
         ControlPanelState state = new ControlPanelState(runtime,
                 LaunchValues.fileIn(Path.of(System.getProperty("java.io.tmpdir")), userName), lockFolder, userName,
                 DockerControl.inProcess(dockerSettings(sources, lockFolder, profileFolder)));
+        earlierSettingNames(sources).forEach(line -> System.getLogger(ControlPanel.class.getName())
+                .log(System.Logger.Level.WARNING, line));
         state.useSources(sources);
         state.useBesideTheJarLines(besideTheJarLines);
         Map<String, String> properties = new HashMap<>();
@@ -79,16 +81,48 @@ public final class ControlPanel {
     }
 
     /**
-     * What the Docker engine's code is given (ADR-390 §4): the WSL distribution and {@code vespera.sidecars.wait-at-most}
-     * from the sources the window's fields start from, and the corpus-root lock folder, where {@code sidecars.lock} lies
+     * What the Docker engine's code is given (ADR-390 §4): the WSL distribution and {@code vespera.containers.wait-at-most}
+     * from the sources the window's fields start from, and the corpus-root lock folder, where {@code containers.lock} lies
      * too.
      */
     static DockerControl.Settings dockerSettings(
             StartingValues.Sources sources, Path lockFolder, Path profileFolder) {
-        String distribution = StartingValues.of("vespera.sidecars.wsl-distribution", sources).value();
-        String wait = StartingValues.of("vespera.sidecars.wait-at-most", sources).value();
+        String distribution = containerSetting(DISTRIBUTION_PROPERTY, EARLIER_DISTRIBUTION_PROPERTY, sources);
+        String wait = containerSetting(WAIT_AT_MOST_PROPERTY, EARLIER_WAIT_AT_MOST_PROPERTY, sources);
         java.time.Duration waitAtMost = waitAtMostOf(wait);
         return new DockerControl.Settings(distribution, waitAtMost, lockFolder, profileFolder, null, sources);
+    }
+
+    private static final String DISTRIBUTION_PROPERTY = "vespera.containers.wsl-distribution";
+
+    private static final String EARLIER_DISTRIBUTION_PROPERTY = "vespera.sidecars.wsl-distribution";
+
+    private static final String WAIT_AT_MOST_PROPERTY = "vespera.containers.wait-at-most";
+
+    private static final String EARLIER_WAIT_AT_MOST_PROPERTY = "vespera.sidecars.wait-at-most";
+
+    /** The starting value of a setting under its new name, else under its earlier one, from the same sources (ADR-433 §5). */
+    private static String containerSetting(String now, String earlier, StartingValues.Sources sources) {
+        StartingValues.Starting named = StartingValues.of(now, sources);
+        return named.source() != StartingValues.Source.NONE ? named.value() : StartingValues.of(earlier, sources).value();
+    }
+
+    /**
+     * The line for each earlier name of a Docker setting that some source sets, not blank, the distribution's first
+     * (ADR-433 §5): the jar's own words, which the window does not get from the jar's classes.
+     */
+    static List<String> earlierSettingNames(StartingValues.Sources sources) {
+        List<String> lines = new java.util.ArrayList<>();
+        addTheLine(lines, EARLIER_DISTRIBUTION_PROPERTY, DISTRIBUTION_PROPERTY, sources);
+        addTheLine(lines, EARLIER_WAIT_AT_MOST_PROPERTY, WAIT_AT_MOST_PROPERTY, sources);
+        return lines;
+    }
+
+    private static void addTheLine(List<String> lines, String earlier, String now, StartingValues.Sources sources) {
+        if (StartingValues.of(earlier, sources).source() != StartingValues.Source.NONE) {
+            lines.add(earlier + " is set: it is the earlier name of " + now + ", and is read only where " + now
+                    + " is not set. Rename it: a later major version reads only " + now + ".");
+        }
     }
 
     /**

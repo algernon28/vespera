@@ -13,11 +13,11 @@ import org.springframework.web.client.ResourceAccessException;
 
 /**
  * Checks {@code docling-serve}'s health once, immediately before stage 2's step processes its first
- * occurrence (ADR-071), waiting for a converter that gives no answer yet (ADR-323 §7) — not at job start, since census and stage 1 never touch the sidecar, and not
- * before every call, since a sidecar that dies later fails the call itself. What that failure earns
- * depends on how the call failed (ADR-175): a failure the sidecar answers with, or the timeouts in a
+ * occurrence (ADR-071), waiting for a converter that gives no answer yet (ADR-323 §7) — not at job start, since census and stage 1 never touch Docling, and not
+ * before every call, since a Docling that dies later fails the call itself. What that failure earns
+ * depends on how the call failed (ADR-175): a failure Docling answers with, or the timeouts in a
  * row that the preset sets aside (three as shipped), is skipped and counted by the breaker; a dropped connection is waited out by {@link
- * SidecarRecovery} and the call placed once more.
+ * DoclingRecovery} and the call placed once more.
  *
  * <p>Also carries stage 2's own step start/end logging (ADR-093): the natural place, since it already
  * runs at both boundaries Spring Batch offers a step-scoped listener. The end line says how the step
@@ -25,7 +25,7 @@ import org.springframework.web.client.ResourceAccessException;
  * and otherwise that it failed, with the same counts and what failed it (#311). It ends by telling the
  * operator what to do about that failure: reconnect the archive where the corpus root can no longer be
  * listed (ADR-210), close what holds the database file where one does (ADR-177), and otherwise fix what
- * the line names, bringing the sidecar back if it stopped answering.
+ * the line names, bringing Docling back if it stopped answering.
  */
 @Component
 class ExtractionHealthCheckListener implements StepExecutionListener {
@@ -33,11 +33,11 @@ class ExtractionHealthCheckListener implements StepExecutionListener {
     private static final Logger log = LoggerFactory.getLogger(ExtractionHealthCheckListener.class);
 
     private final DoclingClient doclingClient;
-    private final SidecarRecovery sidecarRecovery;
+    private final DoclingRecovery doclingRecovery;
 
-    ExtractionHealthCheckListener(DoclingClient doclingClient, SidecarRecovery sidecarRecovery) {
+    ExtractionHealthCheckListener(DoclingClient doclingClient, DoclingRecovery doclingRecovery) {
         this.doclingClient = doclingClient;
-        this.sidecarRecovery = sidecarRecovery;
+        this.doclingRecovery = doclingRecovery;
     }
 
     @Override
@@ -48,15 +48,15 @@ class ExtractionHealthCheckListener implements StepExecutionListener {
         } catch (ResourceAccessException noAnswerYet) {
             waitForAConverterStillStarting(noAnswerYet);
         } catch (RuntimeException healthCheckFailed) {
-            log.error("Stage 2 (extraction) sidecar health check failed: {}", healthCheckFailed.toString());
+            log.error("Stage 2 (extraction) Docling health check failed: {}", healthCheckFailed.toString());
             throw healthCheckFailed;
         }
-        log.info("Stage 2 (extraction) sidecar is healthy");
+        log.info("Stage 2 (extraction) Docling is healthy");
     }
 
     /**
      * A converter that gave no answer, the connection refused or reset or closed with no status line or silent past
-     * the timeout, is read as one still starting and waited for under the bound every wait for a sidecar has (ADR-323
+     * the timeout, is read as one still starting and waited for under the bound every wait for a Docling has (ADR-323
      * §7). One that answers with an error status is up and fails the step at once, in {@link #beforeStep}. At the
      * bound the check is asked once more through the conversion client and whatever that throws fails the step, so
      * the message and the closing line are those of a converter that never answered.
@@ -66,8 +66,8 @@ class ExtractionHealthCheckListener implements StepExecutionListener {
                 "Stage 2 (extraction) docling-serve is not answering its health check yet ({}); waiting up to {}"
                         + " seconds for it to start",
                 noAnswerYet.toString(),
-                sidecarRecovery.waitAtMost().toSeconds());
-        Optional<Duration> answeredAfter = sidecarRecovery.awaitStarting();
+                doclingRecovery.waitAtMost().toSeconds());
+        Optional<Duration> answeredAfter = doclingRecovery.awaitStarting();
         if (answeredAfter.isPresent()) {
             log.info(
                     "Stage 2 (extraction) docling-serve answers its health check after {} seconds",
@@ -77,7 +77,7 @@ class ExtractionHealthCheckListener implements StepExecutionListener {
         try {
             doclingClient.checkHealth();
         } catch (RuntimeException healthCheckFailed) {
-            log.error("Stage 2 (extraction) sidecar health check failed: {}", healthCheckFailed.toString());
+            log.error("Stage 2 (extraction) Docling health check failed: {}", healthCheckFailed.toString());
             throw healthCheckFailed;
         }
     }
@@ -85,7 +85,7 @@ class ExtractionHealthCheckListener implements StepExecutionListener {
     /**
      * What the closing line tells the operator to do: reconnect the archive where the corpus root can no
      * longer be listed (ADR-210), close whatever else has the database file open where it is locked
-     * (ADR-177), and otherwise fix what the failure names, the sidecar included.
+     * (ADR-177), and otherwise fix what the failure names, Docling included.
      */
     private static String closingAdvice(StepExecution stepExecution) {
         if (StepFailure.archiveGone(stepExecution)) {
@@ -106,7 +106,7 @@ class ExtractionHealthCheckListener implements StepExecutionListener {
             // RunCompletion makes, so this line says failed only when the step did not complete, and a
             // step that did not complete records no completion; the next invocation redoes this run's
             // work under the same id (ADR-115, ADR-116).
-            // A locked database file is not the sidecar's doing, so the line stops pointing at it (ADR-177).
+            // A locked database file is not Docling's doing, so the line stops pointing at it (ADR-177).
             OperatorLines.error(
                     "Stage 2 (extraction) failed and is not recorded as finished (read={}, written={},"
                             + " skipped={}, filtered={}): {}. {}",

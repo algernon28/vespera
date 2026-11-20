@@ -41,7 +41,7 @@ import org.springframework.web.client.RestClient;
  * {@code errors[]}.
  *
  * <p>Stubbed rather than integrated on purpose: {@code DoclingClientIT} is the one test that needs a
- * real sidecar, because only a real one can contradict the wire shape this code believes in. Nothing
+ * real container, because only a real one can contradict the wire shape this code believes in. Nothing
  * here needs Docling to be real — a timeout with no response cannot be provoked from a healthy
  * service, and a Docling-reported {@code timeout} category cannot be provoked at all without waiting
  * on a document large enough to trip Docling's own budget.
@@ -67,8 +67,8 @@ class DoclingClientTest {
     private static final String CONVERT_ENDPOINT = BASE_URL + "/v1/convert/file";
 
     /**
-     * The OCR engine the application ships for this client to name rather than leaving to the sidecar (ADR-090,
-     * ADR-330). {@code rapidocr} is what the sidecar's own {@code auto} already resolves to in the pinned image, so
+     * The OCR engine the application ships for this client to name rather than leaving to the container (ADR-090,
+     * ADR-330). {@code rapidocr} is what the container's own {@code auto} already resolves to in the pinned image, so
      * naming it changes nothing about what is extracted — only about what the identity can honestly claim.
      */
     private static final String SHIPPED_OCR_PRESET = "rapidocr";

@@ -35,15 +35,15 @@ import org.yaml.snakeyaml.Yaml;
  * container is here and not where none is.
  *
  * <p>No Docker is needed and no name is resolved: the starter is given a {@link ScriptedDocker}, a
- * {@link ScriptedSidecarHealth} and a {@link ThisMachine} whose resolver is the test's. The compose files are the
- * repository's own, as {@code SidecarStartTest} reads them.
+ * {@link ScriptedContainerHealth} and a {@link ThisMachine} whose resolver is the test's. The compose files are the
+ * repository's own, as {@code ContainerStartTest} reads them.
  */
 @Epic("Pipeline")
-@Feature("The sidecars")
+@Feature("The containers")
 @Issue("889")
 @Link(name = "ADR-430", url = Adr.THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER, type = "adr")
 @Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
-class EachContainerIsStartedOnlyWhereItIsOnThisMachineTest {
+class EachServiceIsStartedOnlyWhereItIsOnThisMachineTest {
 
     private static final Path REPOSITORY = Path.of("").toAbsolutePath();
 
@@ -93,16 +93,16 @@ class EachContainerIsStartedOnlyWhereItIsOnThisMachineTest {
     @Story("Vespera starts only the containers on this machine")
     @DisplayName("With Docling on this machine and Ollama on another, only Docling is asked, brought up by an up naming its service, and waited for")
     void onlyTheContainerOnThisMachineIsAskedBroughtUpAndWaitedFor() {
-        ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
+        ScriptedContainerHealth health = ScriptedContainerHealth.neitherAnswering();
         ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
                 .answering(SYSTEMCTL_START, 0, "")
                 .whenUpSucceeds(() -> health.answering(true, false));
 
-        SidecarStarter.Outcome outcome = starter(new SidecarStartSettings(DOCLING_HERE, OLLAMA_ELSEWHERE, cpuImage,
+        ContainerStarter.Outcome outcome = starter(new ContainerStartSettings(DOCLING_HERE, OLLAMA_ELSEWHERE, cpuImage,
                 WAIT_AT_MOST), docker, health, HostSystem.LINUX).ensureRunning();
 
         claim("the start went through, Docling answering and Ollama, on another machine, never waited for",
-                () -> assertThat(outcome).isEqualTo(SidecarStarter.Outcome.STARTED));
+                () -> assertThat(outcome).isEqualTo(ContainerStarter.Outcome.STARTED));
         claim("the commands were, in order and whole, the engine check, its start, the " + ENGINE_CHECKS_FAILED
                         + " checks of the wait, the checks for compose and buildx, and an up naming docling-serve alone",
                 () -> assertThat(docker.commands()).containsExactly(ScriptedDocker.ENGINE_CHECK, SYSTEMCTL_START,
@@ -116,17 +116,17 @@ class EachContainerIsStartedOnlyWhereItIsOnThisMachineTest {
     @Story("Vespera starts only the containers on this machine")
     @DisplayName("Containers named by a name resolving to this machine's own address are started as localhost is, where reading the name as written took them for another machine's")
     void aNameResolvingToThisMachinesOwnAddressIsStartedAsLocalhostIs() {
-        ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
+        ScriptedContainerHealth health = ScriptedContainerHealth.neitherAnswering();
         ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
                 .answering(SYSTEMCTL_START, 0, "")
                 .whenUpSucceeds(() -> health.answering(true, true));
 
-        SidecarStarter.Outcome outcome = starter(new SidecarStartSettings(URI.create("http://" + OWN_NAME + ":5001"),
+        ContainerStarter.Outcome outcome = starter(new ContainerStartSettings(URI.create("http://" + OWN_NAME + ":5001"),
                 URI.create("http://" + OWN_NAME + ":11434"), cpuImage, WAIT_AT_MOST), docker, health, HostSystem.LINUX)
                 .ensureRunning();
 
         claim("the containers named " + OWN_NAME + ", which resolves to this machine's own address, were started",
-                () -> assertThat(outcome).isEqualTo(SidecarStarter.Outcome.STARTED));
+                () -> assertThat(outcome).isEqualTo(ContainerStarter.Outcome.STARTED));
         claim("with the commands a start for localhost runs, whole, and an up naming no service",
                 () -> assertThat(docker.commands()).containsExactly(ScriptedDocker.ENGINE_CHECK, SYSTEMCTL_START,
                         ScriptedDocker.ENGINE_CHECK, ScriptedDocker.ENGINE_CHECK, ScriptedDocker.COMPOSE_CHECK,
@@ -137,26 +137,26 @@ class EachContainerIsStartedOnlyWhereItIsOnThisMachineTest {
     @Story("Vespera starts only the containers on this machine")
     @DisplayName("On Windows .wslconfig is written where one container is on this machine, and nothing is run or written where neither is")
     void onWindowsTheWslconfigIsSeenToWhereOneContainerIsHereAndNotWhereNone() throws IOException {
-        ScriptedSidecarHealth answering = ScriptedSidecarHealth.bothAnswering();
+        ScriptedContainerHealth answering = ScriptedContainerHealth.bothAnswering();
         ScriptedDocker oneHere = ScriptedDocker.engineRunning();
         Path neitherFolder = Files.createDirectory(lockFolder.resolve("another-profile"));
 
-        SidecarStarter.Outcome withOneHere = starter(new SidecarStartSettings(DOCLING_HERE, OLLAMA_ELSEWHERE, cpuImage,
+        ContainerStarter.Outcome withOneHere = starter(new ContainerStartSettings(DOCLING_HERE, OLLAMA_ELSEWHERE, cpuImage,
                 WAIT_AT_MOST, "", profileFolder), oneHere, answering, HostSystem.WINDOWS).ensureRunning();
         ScriptedDocker noneHere = ScriptedDocker.engineRunning();
-        SidecarStarter.Outcome withNoneHere = starter(new SidecarStartSettings(
+        ContainerStarter.Outcome withNoneHere = starter(new ContainerStartSettings(
                 URI.create("http://" + ANOTHER_MACHINE + ":5001"), OLLAMA_ELSEWHERE, cpuImage, WAIT_AT_MOST, "",
-                neitherFolder), noneHere, ScriptedSidecarHealth.neitherAnswering(), HostSystem.WINDOWS).ensureRunning();
+                neitherFolder), noneHere, ScriptedContainerHealth.neitherAnswering(), HostSystem.WINDOWS).ensureRunning();
 
         claim("with Docling here answering, the start found it answering and ran no command",
                 () -> assertThat(List.of(withOneHere, oneHere.commands().size()))
-                        .containsExactly(SidecarStarter.Outcome.ALREADY_ANSWERING, 0));
+                        .containsExactly(ContainerStarter.Outcome.ALREADY_ANSWERING, 0));
         claim("and .wslconfig was written in the profile folder, its two lines whole",
                 () -> assertThat(Files.readString(profileFolder.resolve(".wslconfig"), StandardCharsets.US_ASCII))
                         .isEqualTo(WSLCONFIG));
         claim("with neither container here, the start says they are on another machine and runs no command",
                 () -> assertThat(List.of(withNoneHere, noneHere.commands().size()))
-                        .containsExactly(SidecarStarter.Outcome.ON_ANOTHER_MACHINE, 0));
+                        .containsExactly(ContainerStarter.Outcome.ON_ANOTHER_MACHINE, 0));
         claim("and writes nothing in its profile folder", () -> {
             try (Stream<Path> written = Files.list(neitherFolder)) {
                 assertThat(written).isEmpty();
@@ -165,7 +165,7 @@ class EachContainerIsStartedOnlyWhereItIsOnThisMachineTest {
     }
 
     /** The starter over the repository's compose files, the test's lock folder, and a machine whose own address is {@link #OWN}. */
-    private SidecarStarter starter(SidecarStartSettings settings, ScriptedDocker docker, ScriptedSidecarHealth health,
+    private ContainerStarter starter(ContainerStartSettings settings, ScriptedDocker docker, ScriptedContainerHealth health,
             HostSystem host) {
         ThisMachine thisMachine = new ThisMachine(name -> switch (name) {
             case "localhost" -> new InetAddress[] {InetAddress.ofLiteral("127.0.0.1")};
@@ -173,7 +173,7 @@ class EachContainerIsStartedOnlyWhereItIsOnThisMachineTest {
             case ANOTHER_MACHINE -> new InetAddress[] {InetAddress.ofLiteral("192.168.1.30")};
             default -> throw new UnknownHostException(name);
         }, () -> List.of(OWN));
-        return new SidecarStarter(settings, docker, health, host, () -> ComposeFiles.in(REPOSITORY), lockFolder,
+        return new ContainerStarter(settings, docker, health, host, () -> ComposeFiles.in(REPOSITORY), lockFolder,
                 CHECK_EVERY, thisMachine);
     }
 

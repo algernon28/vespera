@@ -51,7 +51,7 @@ public class CountingDoclingBeans {
 
             @Override
             public Map<String, String> version() {
-                return SidecarVersionReport.runningImage(configuredImage);
+                return DoclingVersionReport.runningImage(configuredImage);
             }
 
             @Override

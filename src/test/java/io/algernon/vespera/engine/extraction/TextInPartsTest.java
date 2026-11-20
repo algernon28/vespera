@@ -52,7 +52,7 @@ import tools.jackson.databind.node.ObjectNode;
  * non-blank line. Its call count lives in the instance each test builds, so nothing carries over from
  * one test to the next.
  *
- * <p>{@link #theMergedAnswerReadsAsTheWholeFileDoes} uses answers recorded from the real sidecar for
+ * <p>{@link #theMergedAnswerReadsAsTheWholeFileDoes} uses answers recorded from the real container for
  * ADR-178, under {@code text-in-parts/}: a small Markdown text, each of its three parts' answers, the
  * whole text's answer, and docling-core's own concatenation of the three.
 
@@ -90,7 +90,7 @@ class TextInPartsTest {
     /** How the second of three parts of the three-part text is named in an answer. */
     private static final String SECOND_OF_THREE = "part 2 of 3 (bytes 8,000,001 to 16,000,000): ";
 
-    /** The small limit the fixture text was cut at for the sidecar, in bytes. */
+    /** The small limit the fixture text was cut at for the container, in bytes. */
     private static final long FIXTURE_LIMIT = 4_096L;
 
     /** Where the fixture's first part ends: the blank line before a fenced block that holds three. */
@@ -209,7 +209,7 @@ class TextInPartsTest {
     @DisplayName("The parts' answers, merged, read as the whole text's answer does, and as docling-core's own concatenation")
     void theMergedAnswerReadsAsTheWholeFileDoes(@TempDir Path dir) throws IOException {
         Path text = dir.resolve("document.md");
-        // Normalised to the line ends the sidecar was sent, whatever a checkout did to them.
+        // Normalised to the line ends the container was sent, whatever a checkout did to them.
         Files.writeString(text, fixture("document.md").replace("\r\n", "\n"), StandardCharsets.UTF_8);
         DoclingResponse whole = answerFrom(fixture("whole.json"));
         List<DoclingResponse> partAnswers =
@@ -222,7 +222,7 @@ class TextInPartsTest {
                 "the fixture text of " + FIXTURE_BYTES + " bytes, cut at " + FIXTURE_LIMIT + " bytes, ends its parts"
                         + " at byte " + FIXTURE_FIRST_END + ", before a fenced block holding blank lines (a cut that"
                         + " ignored the fence would end it at " + FIXTURE_CUT_INSIDE_THE_FENCE + "), and at byte "
-                        + FIXTURE_SECOND_END + ", a line end in a stretch with no blank line: the parts the sidecar"
+                        + FIXTURE_SECOND_END + ", a line end in a stretch with no blank line: the parts the container"
                         + " was sent",
                 () -> assertThat(parts.stream().map(part -> List.of(part.start(), part.end())).toList())
                         .isEqualTo(List.of(

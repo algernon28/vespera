@@ -8,7 +8,7 @@ import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.layout.VBox;
 
-/** The sidebar's Preflight section: what the folders and the sidecars are, and a Check that asks the sidecars (ADR-344 §1). */
+/** The sidebar's Preflight section: what the folders and the containers are, and a Check that asks Docling and Ollama (ADR-344 §1). */
 final class PreflightPane {
 
     private final ControlPanelState state;
@@ -31,19 +31,19 @@ final class PreflightPane {
         preflight.getStyleClass().add("section");
         Button check = new Button("Check");
         check.setId("check");
-        check.setOnAction(event -> askTheSidecars());
+        check.setOnAction(event -> askTheServices());
         VBox pane = new VBox(preflight, check);
         pane.getStyleClass().add("section");
         return pane;
     }
 
-    private void askTheSidecars() {
+    private void askTheServices() {
         String converter = fieldText.apply("vespera.docling.base-url");
         String image = fieldText.apply("vespera.docling.image");
         String ollama = fieldText.apply("spring.ai.ollama.base-url");
         String model = fieldText.apply("vespera.label.model");
-        Thread.ofPlatform().daemon().name("the control panel asks the sidecars").start(() -> {
-            SidecarChecks.Checks asked = SidecarChecks.ask(converter, image, ollama,
+        Thread.ofPlatform().daemon().name("the control panel asks Docling and Ollama").start(() -> {
+            ServiceChecks.Checks asked = ServiceChecks.ask(converter, image, ollama,
                     model.isBlank() ? List.of() : List.of(model));
             Platform.runLater(() -> {
                 state.keepChecks(asked);
@@ -52,7 +52,7 @@ final class PreflightPane {
         });
     }
 
-    private static String describe(SidecarChecks.Result result) {
+    private static String describe(ServiceChecks.Result result) {
         return switch (result) {
             case NOT_CHECKED -> "not checked";
             case MATCHES -> "answers, and runs the image named";
@@ -63,10 +63,10 @@ final class PreflightPane {
         };
     }
 
-    /** Draws a line for each folder, each sidecar, each holder and the free space, then the converter's warnings. */
+    /** Draws a line for each folder, each of Docling and Ollama, each holder and the free space, then the converter's warnings. */
     void draw() {
         ControlPanelState.Holders holders = state.holders(folders.workingDirectory(), folders.corpusRoot());
-        SidecarChecks.Checks checks = state.lastChecks();
+        ServiceChecks.Checks checks = state.lastChecks();
         String working = fieldText.apply("vespera.working-dir");
         List<String> lines = new ArrayList<>(List.of(
                 "Corpus root: " + FolderStatus.of(fieldText.apply("vespera.corpus-root"), false).words(),

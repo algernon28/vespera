@@ -35,7 +35,7 @@ import org.junit.jupiter.api.io.TempDir;
  * the test scripts are given as a reader of single bytes sees them, a NUL after each character.
  */
 @Epic("Pipeline")
-@Feature("The sidecars")
+@Feature("The containers")
 @Issue("889")
 @Link(name = "ADR-430", url = Adr.THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER, type = "adr")
 class TheCheckOfTheDockerDaemonStartsNothingTest {
@@ -134,31 +134,31 @@ class TheCheckOfTheDockerDaemonStartsNothingTest {
     @Test
     @Story("The control panel checks Docker and starts nothing as it opens")
     @DisplayName("With neither container on this machine the daemon is not asked, and the check takes no lock")
-    void neitherContainerHereAsksNothingAndTheCheckTakesNoLock() throws IOException {
+    void neitherServiceHereAsksNothingAndTheCheckTakesNoLock() throws IOException {
         ScriptedDocker elsewhere = ScriptedDocker.engineRunning();
         ScriptedDocker here = ScriptedDocker.engineRunning();
         Path notAFolder = Files.createFile(lockFolder.resolve("a-file-where-the-lock-folder-would-be"));
 
-        Optional<Boolean> notAsked = new SidecarStarter(new SidecarStartSettings(URI.create("http://gpu-box.lan:5001"),
+        Optional<Boolean> notAsked = new ContainerStarter(new ContainerStartSettings(URI.create("http://gpu-box.lan:5001"),
                 URI.create("http://gpu-box.lan:11434"), "", Duration.ofSeconds(1)), elsewhere,
-                ScriptedSidecarHealth.neitherAnswering(), HostSystem.MAC, () -> {
+                ScriptedContainerHealth.neitherAnswering(), HostSystem.MAC, () -> {
                     throw new AssertionError("the check reads no compose file");
                 }, lockFolder, Duration.ofMillis(20), aMachine()).engineAnswersStartingNothing();
-        Optional<Boolean> withNoLock = new SidecarStarter(new SidecarStartSettings(DOCLING_HERE, OLLAMA_HERE, "",
-                Duration.ofSeconds(1)), here, ScriptedSidecarHealth.neitherAnswering(), HostSystem.MAC, () -> {
+        Optional<Boolean> withNoLock = new ContainerStarter(new ContainerStartSettings(DOCLING_HERE, OLLAMA_HERE, "",
+                Duration.ofSeconds(1)), here, ScriptedContainerHealth.neitherAnswering(), HostSystem.MAC, () -> {
                     throw new AssertionError("the check reads no compose file");
                 }, notAFolder, Duration.ofMillis(20), aMachine()).engineAnswersStartingNothing();
 
         claim("both containers on another machine: the daemon is not asked, and no command is run",
                 () -> assertThat(List.of(notAsked, elsewhere.commands())).containsExactly(Optional.empty(), List.of()));
-        claim("both here, with a lock folder that is a file: the daemon is asked and answers, the sidecar lock never"
+        claim("both here, with a lock folder that is a file: the daemon is asked and answers, the container lock never"
                         + " taken", () -> assertThat(withNoLock).isEqualTo(Optional.of(true)));
     }
 
-    private SidecarStarter starter(ScriptedDocker docker, HostSystem host, String distribution) {
-        return new SidecarStarter(
-                new SidecarStartSettings(DOCLING_HERE, OLLAMA_HERE, "", Duration.ofSeconds(1), distribution),
-                docker, ScriptedSidecarHealth.neitherAnswering(), host, () -> {
+    private ContainerStarter starter(ScriptedDocker docker, HostSystem host, String distribution) {
+        return new ContainerStarter(
+                new ContainerStartSettings(DOCLING_HERE, OLLAMA_HERE, "", Duration.ofSeconds(1), distribution),
+                docker, ScriptedContainerHealth.neitherAnswering(), host, () -> {
                     throw new AssertionError("the check reads no compose file");
                 }, lockFolder, Duration.ofMillis(20), aMachine());
     }

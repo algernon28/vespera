@@ -499,7 +499,7 @@ function readmeSection(heading, name) {
 
 /* ---------- how README.md says to run it ---------- */
 
-// "Running it" once said that Vespera starts its own sidecars, and the packaged jar has never
+// "Running it" once said that Vespera starts its own containers, and the packaged jar has never
 // carried the compose support that would do it (#304, ADR-158). The section now names a build, a
 // compose file, two services, a build context, two ports, a model and a jar path. Each of
 // those is a value some file in the tree holds, so each is read out of the section and
@@ -1027,7 +1027,7 @@ const UNCHECKED = [
   'whether following "Running it" gets an invocation past stage 2 — that needs Docker, and this starts nothing',
   "that Step 0's profile.yaml example parses — this compares its keys with the value types, and never runs ProfileStore",
   "a test a record names outside its Tests section, as ADR-094's Consequences and the \"What pins it\" of ADR-147 to ADR-216 do, or in a form other than the three the Tests check reads",
-  'that the packaged jar nests no Docker Compose artifact and runs no Spring compose support — PackagedJarIT holds that, under ./mvnw verify, not this; what the jar does start (ADR-323) is held by SidecarStartTest',
+  'that the packaged jar nests no Docker Compose artifact and runs no Spring compose support — PackagedJarIT holds that, under ./mvnw verify, not this; what the jar does start (ADR-323) is held by ContainerStartTest',
 ];
 
 /* ---------- report ---------- */

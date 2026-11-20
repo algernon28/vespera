@@ -22,7 +22,7 @@ import picocli.CommandLine.Command;
  * argument before {@code VesperaApplication.main} and {@code SpringApplication} are reached: where it is {@value #NAME},
  * {@link #handedOn} gives the arguments after it and {@code main} exits with the code {@link #call} returns. So none of
  * the four listeners {@code VesperaApplication.main} adds runs, no datasource is made, no SQL is run, no pool is opened and no log file is set up: it writes to the console
- * alone, takes neither the working-directory lock nor the corpus-root lock, reads no profile and starts no sidecar, so a
+ * alone, takes neither the working-directory lock nor the corpus-root lock, reads no profile and starts no container, so a
  * publish can refresh the website while it serves. It builds the {@code website} module's server, so the root package
  * names no class of that module.
  *

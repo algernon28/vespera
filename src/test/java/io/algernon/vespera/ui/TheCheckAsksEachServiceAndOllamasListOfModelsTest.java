@@ -43,7 +43,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("The control panel")
 @Issue("889")
 @Link(name = "ADR-430", url = Adr.THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER, type = "adr")
-class TheCheckAsksEachContainerAndOllamasListOfModelsTest {
+class TheCheckAsksEachServiceAndOllamasListOfModelsTest {
 
     /** A container's bound: the check waits this long, at most, for each container's answer (§3). */
     private static final Duration TWO_SECONDS = Duration.ofSeconds(2);
@@ -91,16 +91,16 @@ class TheCheckAsksEachContainerAndOllamasListOfModelsTest {
     @Test
     @Story("The header checks Docker, the containers and the models")
     @DisplayName("A container is OK where it answers 2xx within two seconds, and KO where it answers anything else or later")
-    void aContainerIsOkWhereItAnswersTwoXxWithinTwoSecondsAndKoOtherwise() {
+    void aServiceIsOkWhereItAnswersTwoXxWithinTwoSecondsAndKoOtherwise() {
         docling.answers("/health", new LoopbackService.Answer(204, Duration.ZERO, ""));
 
         DockerCheck answering = check(docling.baseUrl(), ollama.baseUrl(), "", "");
 
         claim("Docling answering 204 and Ollama 200, each is OK, on this machine, at the address held",
                 () -> assertThat(List.of(answering.docling(), answering.ollama())).containsExactly(
-                        new DockerCheck.Container(DockerCheck.Mark.OK, DockerCheck.Where.THIS_MACHINE,
+                        new DockerCheck.Service(DockerCheck.Mark.OK, DockerCheck.Where.THIS_MACHINE,
                                 docling.baseUrl().toString()),
-                        new DockerCheck.Container(DockerCheck.Mark.OK, DockerCheck.Where.THIS_MACHINE,
+                        new DockerCheck.Service(DockerCheck.Mark.OK, DockerCheck.Where.THIS_MACHINE,
                                 ollama.baseUrl().toString())));
         claim("each was asked once, with GET, Docling at /health and Ollama at /api/version", () -> {
             assertThat(docling.requestsTo("/health")).extracting(LoopbackService.Request::method).containsExactly("GET");
@@ -117,9 +117,9 @@ class TheCheckAsksEachContainerAndOllamasListOfModelsTest {
         DockerCheck refusing = check(docling.baseUrl(), ollama.baseUrl(), "", "");
         claim("Docling answering 503 and Ollama 404, each is KO, still on this machine",
                 () -> assertThat(List.of(refusing.docling(), refusing.ollama())).containsExactly(
-                        new DockerCheck.Container(DockerCheck.Mark.KO, DockerCheck.Where.THIS_MACHINE,
+                        new DockerCheck.Service(DockerCheck.Mark.KO, DockerCheck.Where.THIS_MACHINE,
                                 docling.baseUrl().toString()),
-                        new DockerCheck.Container(DockerCheck.Mark.KO, DockerCheck.Where.THIS_MACHINE,
+                        new DockerCheck.Service(DockerCheck.Mark.KO, DockerCheck.Where.THIS_MACHINE,
                                 ollama.baseUrl().toString())));
 
         docling.answers("/health", new LoopbackService.Answer(200, Duration.ofMillis(500), "{}"));
@@ -150,7 +150,7 @@ class TheCheckAsksEachContainerAndOllamasListOfModelsTest {
     @Test
     @Story("The header checks Docker, the containers and the models")
     @DisplayName("A container whose host cannot be resolved is KO and is not asked, and nor are the models")
-    void aContainerWhoseHostCannotBeResolvedIsKoAndNotAsked() throws IOException {
+    void aServiceWhoseHostCannotBeResolvedIsKoAndNotAsked() throws IOException {
         ProxySelector was = ProxySelector.getDefault();
         try (LoopbackService proxy = LoopbackService.started()) {
             ProxySelector.setDefault(new ProxySelector() {
@@ -178,9 +178,9 @@ class TheCheckAsksEachContainerAndOllamasListOfModelsTest {
 
             claim("each container is KO, its host not resolved, at the address held",
                     () -> assertThat(List.of(nowhere.docling(), nowhere.ollama())).containsExactly(
-                            new DockerCheck.Container(DockerCheck.Mark.KO, DockerCheck.Where.NOT_RESOLVED,
+                            new DockerCheck.Service(DockerCheck.Mark.KO, DockerCheck.Where.NOT_RESOLVED,
                                     DOCLING_NOWHERE.toString()),
-                            new DockerCheck.Container(DockerCheck.Mark.KO, DockerCheck.Where.NOT_RESOLVED,
+                            new DockerCheck.Service(DockerCheck.Mark.KO, DockerCheck.Where.NOT_RESOLVED,
                                     OLLAMA_NOWHERE.toString())));
             claim("neither was asked: the proxy holds the test's own question alone",
                     () -> assertThat(proxy.requests()).extracting(LoopbackService.Request::path)

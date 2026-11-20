@@ -22,8 +22,8 @@ import org.springframework.web.client.ResourceAccessException;
  *
  * <p>Once armed with {@link #stopAnsweringAfter}, conversions of files under the named folder are
  * answered that many times and then every later one throws the {@link ResourceAccessException} the
- * real client lets through when the sidecar is gone. Every later one, not just the next: a crashed
- * sidecar does not come back by itself. Files outside that folder, the corpus among them, are always
+ * real client lets through when the docling is gone. Every later one, not just the next: a crashed
+ * docling does not come back by itself. Files outside that folder, the corpus among them, are always
  * answered, so the corpus pass that runs first cannot use up the count.
  *
  * <p>The failure is thrown by the client, one layer below the extractor, so the cache lookup and the
@@ -87,7 +87,7 @@ public class ConverterStopsAnsweringBeans {
         }
     }
 
-    /** Disarms it, which is the sidecar being brought back. */
+    /** Disarms it, which is the docling being brought back. */
     public static void keepAnswering() {
         COUNTED_FOLDER.set(null);
         ANSWERS_LEFT.set(0);
@@ -110,7 +110,7 @@ public class ConverterStopsAnsweringBeans {
 
             @Override
             public Map<String, String> version() {
-                return SidecarVersionReport.runningImage(configuredImage);
+                return DoclingVersionReport.runningImage(configuredImage);
             }
 
             @Override

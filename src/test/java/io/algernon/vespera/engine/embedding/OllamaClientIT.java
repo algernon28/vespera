@@ -19,7 +19,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.ollama.OllamaContainer;
 
 /**
- * {@link OllamaClient} against the real Ollama sidecar (ADR-091): the claim this whole part of the
+ * {@link OllamaClient} against the real Ollama container (ADR-091): the claim this whole part of the
  * decision rests on is that {@code /api/tags} carries a manifest digest and a weight dtype as
  * first-class fields, and that is a claim about a wire nobody here controls.
  *
@@ -62,8 +62,8 @@ class OllamaClientIT {
 
     @Test
     @Story("The runtime reports what it is serving")
-    @DisplayName("A real sidecar reports a manifest digest and a weight dtype for a pulled model")
-    void aRealSidecarReportsADigestAndADtype() throws Exception {
+    @DisplayName("A real container reports a manifest digest and a weight dtype for a pulled model")
+    void aRealContainerReportsADigestAndADtype() throws Exception {
         TestcontainersConfiguration.pull(ollama, MODEL);
 
         ModelArtefact artefact = client.artefactOf(MODEL);

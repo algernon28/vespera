@@ -39,7 +39,7 @@ import org.springframework.web.client.RestClient;
  * The extraction cache keeps an answer only when it is about the document (ADR-183, #383): a
  * conversion or a failure the converter blamed on the document is kept and served, and an answer the
  * converter blamed on itself, or a timeout it reported, is neither kept nor served, so the next read
- * of the same content under the same extractor identity reaches the sidecar again.
+ * of the same content under the same extractor identity reaches the container again.
  *
  * <p>The real {@link DoclingExtractor} over the real {@link ExtractionCache}, against the shipped
  * schema, and a stubbed document service told how many requests to allow, which refuses any beyond
@@ -49,7 +49,7 @@ import org.springframework.web.client.RestClient;
  * <p>The seam covered is {@link DoclingExtractor#convert}, the seed side's and the processor's own path:
  * lookup, call, write, in one method.
  *
- * <p>The test that expects the sidecar to be asked again is what stops the cache from keeping too much. {@link #aDocumentAnswerIsServedFromTheCache} is what stops it from
+ * <p>The test that expects the container to be asked again is what stops the cache from keeping too much. {@link #aDocumentAnswerIsServedFromTheCache} is what stops it from
  * caching too little.
  */
 @JdbcTest

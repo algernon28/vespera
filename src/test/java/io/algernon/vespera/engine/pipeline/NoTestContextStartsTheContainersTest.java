@@ -16,25 +16,25 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Import;
 
 /**
- * A context Spring's test support builds holds no sidecar starter, because only {@code VesperaApplication.main}
+ * A context Spring's test support builds holds no container starter, because only {@code VesperaApplication.main}
  * registers one (ADR-323 §1): so no test that runs a command starts the Docker engine or a container.
  */
 @CascadeSliceTest
 @Import(StubbedExtractionBeans.class)
 @Epic("Pipeline")
-@Feature("The sidecars")
+@Feature("The containers")
 @Issue("652")
 @Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
-class NoTestContextStartsTheSidecarsTest {
+class NoTestContextStartsTheContainersTest {
 
     @Autowired
     private ApplicationContext context;
 
     @Test
-    @Story("A command that uses no sidecar starts none")
-    @DisplayName("A context built for a test holds no sidecar starter")
+    @Story("A command that uses no container starts none")
+    @DisplayName("A context built for a test holds no container starter")
     void aTestContextHoldsNoStarter() {
-        claim("there is no sidecar starter in the context, so a command run in it starts nothing",
-                () -> assertThat(context.getBeanProvider(SidecarStarter.class).getIfAvailable()).isNull());
+        claim("there is no container starter in the context, so a command run in it starts nothing",
+                () -> assertThat(context.getBeanProvider(ContainerStarter.class).getIfAvailable()).isNull());
     }
 }

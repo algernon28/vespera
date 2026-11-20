@@ -77,7 +77,7 @@ A line of its own and not `ComposeFilesUnwritableException`'s, which says the co
 
 Amended, under `src/test`, in `io.algernon.vespera.pipeline` and needing no Docker:
 
-- **`SidecarStartTest`**:
+- **`ContainerStartTest` (named for the container by ADR-433, #891)**:
   - the engine check's output file cannot be written: §3's line, naming the engine check, its reason and its folder, and not Docker not installed; no other command is run;
   - a start command's output file, of a program other than `docker`, cannot be read: §3's line naming that command, not exit 127, and the next start command is not tried.
 - **`ScriptedDocker`**: `outputFileFails`, which has a command throw `CommandOutputFileException` with the folder and reason given.

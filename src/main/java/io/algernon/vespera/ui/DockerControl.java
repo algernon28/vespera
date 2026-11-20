@@ -63,11 +63,11 @@ interface DockerControl {
      */
     Download download(LaunchValues values, String model, Duration stalledAtMost, Consumer<Downloaded> told);
 
-    /** Stops the sidecars and then the engine. */
+    /** Stops the containers and then the engine. */
     Said shutDown();
 
-    /** Stops the sidecars alone, where one answers on this machine, for the addresses {@code values} hold. */
-    Said stopTheSidecars(LaunchValues values);
+    /** Stops the containers alone, where one answers on this machine, for the addresses {@code values} hold. */
+    Said stopTheContainers(LaunchValues values);
 
     /** Runs nothing and answers done with no line, every row of a check OK and every download done: what a state built with no Docker holds. */
     DockerControl NONE = new DockerControl() {
@@ -79,8 +79,8 @@ interface DockerControl {
         @Override
         public DockerCheck check(LaunchValues values, Models models) {
             return new DockerCheck(DockerCheck.Mark.OK,
-                    new DockerCheck.Container(DockerCheck.Mark.OK, DockerCheck.Where.THIS_MACHINE, DEFAULT_DOCLING),
-                    new DockerCheck.Container(DockerCheck.Mark.OK, DockerCheck.Where.THIS_MACHINE, DEFAULT_OLLAMA),
+                    new DockerCheck.Service(DockerCheck.Mark.OK, DockerCheck.Where.THIS_MACHINE, DEFAULT_DOCLING),
+                    new DockerCheck.Service(DockerCheck.Mark.OK, DockerCheck.Where.THIS_MACHINE, DEFAULT_OLLAMA),
                     DockerCheck.Mark.OK, DockerCheck.Mark.OK);
         }
 
@@ -97,7 +97,7 @@ interface DockerControl {
         }
 
         @Override
-        public Said stopTheSidecars(LaunchValues values) {
+        public Said stopTheContainers(LaunchValues values) {
             return new Said(true, "");
         }
     };
@@ -107,7 +107,7 @@ interface DockerControl {
      *
      * @param wslDistribution the WSL distribution, blank for WSL's default
      * @param waitAtMost the bound of every start and stop command
-     * @param lockFolder the folder the corpus-root locks lie in, where {@code sidecars.lock} lies too
+     * @param lockFolder the folder the corpus-root locks lie in, where {@code containers.lock} lies too
      * @param profileFolder the Windows profile folder {@code .wslconfig} lies in (ADR-421 §6)
      * @param composeFolder the folder the compose files are read from, null for the folder beside the jar (ADR-430 §12)
      */
@@ -171,8 +171,8 @@ interface DockerControl {
                 DockerCheck.Mark daemon = daemonAnswers.apply(docling, ollama)
                         .map(answers -> answers ? DockerCheck.Mark.OK : DockerCheck.Mark.KO)
                         .orElse(DockerCheck.Mark.NOT_ASKED);
-                DockerCheck.Container doclingAnswers = container(docling, "/health");
-                DockerCheck.Container ollamaAnswers = container(ollama, "/api/version");
+                DockerCheck.Service doclingAnswers = service(docling, "/health");
+                DockerCheck.Service ollamaAnswers = service(ollama, "/api/version");
                 if (ollamaAnswers.mark() != DockerCheck.Mark.OK) {
                     return new DockerCheck(daemon, doclingAnswers, ollamaAnswers, DockerCheck.Mark.NOT_ASKED,
                             DockerCheck.Mark.NOT_ASKED);
@@ -195,18 +195,18 @@ interface DockerControl {
             }
 
             @Override
-            public Said stopTheSidecars(LaunchValues values) {
-                return said(engine.stopTheSidecars(address(values.doclingBaseUrl(), DOCLING_PROPERTY, DEFAULT_DOCLING),
+            public Said stopTheContainers(LaunchValues values) {
+                return said(engine.stopTheContainers(address(values.doclingBaseUrl(), DOCLING_PROPERTY, DEFAULT_DOCLING),
                         address(values.ollamaBaseUrl(), OLLAMA_PROPERTY, DEFAULT_OLLAMA)));
             }
 
-            /** One container: where its host resolves to and, where it does, whether {@code path} answers 2xx within 2 s (ADR-430 §3). */
-            private DockerCheck.Container container(URI base, String path) {
+            /** One of Docling and Ollama: where its host resolves to and, where it does, whether {@code path} answers 2xx within 2 s (ADR-430 §3). */
+            private DockerCheck.Service service(URI base, String path) {
                 Optional<Boolean> here = DockerEngine.isOnThisMachine(base);
                 if (here.isEmpty()) {
-                    return new DockerCheck.Container(DockerCheck.Mark.KO, DockerCheck.Where.NOT_RESOLVED, base.toString());
+                    return new DockerCheck.Service(DockerCheck.Mark.KO, DockerCheck.Where.NOT_RESOLVED, base.toString());
                 }
-                return new DockerCheck.Container(answersTwoXx(base, path) ? DockerCheck.Mark.OK : DockerCheck.Mark.KO,
+                return new DockerCheck.Service(answersTwoXx(base, path) ? DockerCheck.Mark.OK : DockerCheck.Mark.KO,
                         here.get() ? DockerCheck.Where.THIS_MACHINE : DockerCheck.Where.ANOTHER_MACHINE,
                         base.toString());
             }

@@ -34,8 +34,8 @@ import org.junit.jupiter.api.io.TempDir;
  * What the shut-down runs, the control panel's <i>Shut down Docker</i> behind it, and what it says (ADR-390 §3, §6):
  * {@code docker compose -p vespera stop}, then, only where that exited 0, the engine's one stop, and nothing else, never
  * {@code down}; a refused step is one line, the lock's and an output file's among them; and each stop waits for
- * {@code sidecars.lock} where another holds it. And what closing the window runs: the sidecars' stop alone, only where
- * a container on this machine answers (ADR-390 §5, ADR-430 §10). Once the sidecars are stopped, an engine stop whose
+ * {@code containers.lock} where another holds it. And what closing the window runs: the containers' stop alone, only where
+ * a container on this machine answers (ADR-390 §5, ADR-430 §10). Once the containers are stopped, an engine stop whose
  * output file fails says so (ADR-395 §6).
  *
  * <p>No Docker is needed: the starter is given a {@link ScriptedDocker}, which records every command and its limit. The
@@ -43,7 +43,7 @@ import org.junit.jupiter.api.io.TempDir;
  * {@code systemctl}, as a synthetic refusal: what polkit prints was not measured.
  */
 @Epic("Pipeline")
-@Feature("The sidecars")
+@Feature("The containers")
 @Issue("816")
 @Link(name = "ADR-390", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
 class DockerShutDownTest {
@@ -61,7 +61,7 @@ class DockerShutDownTest {
     /** Why an output file could not be written, in a test: the system's words for a full drive. */
     private static final String DRIVE_FULL = "No space left on device";
 
-    /** How long a test holds the sidecar lock: longer than {@link #WAIT_AT_MOST}, so a bounded wait would have ended. */
+    /** How long a test holds the container lock: longer than {@link #WAIT_AT_MOST}, so a bounded wait would have ended. */
     private static final Duration HELD_FOR = Duration.ofMillis(1500);
 
     /** The bound every command of the shut-down is killed at: one second in these tests. */
@@ -81,7 +81,7 @@ class DockerShutDownTest {
     private static final List<String> IN_WSL = List.of("wsl", "-u", "root", "--exec");
 
     private static final String DONE =
-            "the sidecars and the Docker engine are stopped; Vespera starts them again when it next needs them.";
+            "the containers and the Docker engine are stopped; Vespera starts them again when it next needs them.";
 
     /** What Docker Compose printed last, exit 1, with the daemon down (ADR-390's probe H). */
     private static final String NO_DAEMON = "failed to connect to the docker API at unix:///var/run/docker.sock; check"
@@ -97,9 +97,9 @@ class DockerShutDownTest {
     Path lockFolder;
 
     @Test
-    @Story("A button stops the sidecars and then the Docker engine")
-    @DisplayName("The shut-down stops the sidecars, then the engine, each system with its own one command, and runs nothing else")
-    void theSidecarsAreStoppedThenTheEngineAndNothingElseIsRun() {
+    @Story("A button stops the containers and then the Docker engine")
+    @DisplayName("The shut-down stops the containers, then the engine, each system with its own one command, and runs nothing else")
+    void theContainersAreStoppedThenTheEngineAndNothingElseIsRun() {
         Map<HostSystem, List<List<String>>> expected = new LinkedHashMap<>();
         expected.put(HostSystem.LINUX, List.of(COMPOSE_STOP, SYSTEMCTL_STOP));
         expected.put(HostSystem.MAC, List.of(COMPOSE_STOP, COLIMA_STOP));
@@ -109,10 +109,10 @@ class DockerShutDownTest {
         for (Map.Entry<HostSystem, List<List<String>>> system : expected.entrySet()) {
             ScriptedDocker docker = ScriptedDocker.engineRunning().otherCommandsExiting(0);
 
-            SidecarStarter.ShutDown shutDown = starter(docker, system.getKey()).shutDown();
+            ContainerStarter.ShutDown shutDown = starter(docker, system.getKey()).shutDown();
 
             claim("on " + system.getKey() + ", it said both are stopped",
-                    () -> assertThat(shutDown).isEqualTo(new SidecarStarter.ShutDown(true, DONE)));
+                    () -> assertThat(shutDown).isEqualTo(new ContainerStarter.ShutDown(true, DONE)));
             claim("and ran, in this order and whole, docker compose -p vespera stop and then the system's one stop of"
                             + " the engine, and nothing else: no engine check, no down",
                     () -> assertThat(docker.commands()).containsExactlyElementsOf(system.getValue()));
@@ -123,104 +123,104 @@ class DockerShutDownTest {
     }
 
     @Test
-    @Story("A button stops the sidecars and then the Docker engine")
-    @DisplayName("A stop of the sidecars that fails, or whose docker command is missing, stops no engine and says so in one line")
+    @Story("A button stops the containers and then the Docker engine")
+    @DisplayName("A stop of the containers that fails, or whose docker command is missing, stops no engine and says so in one line")
     void aStopThatFailsLeavesTheEngineAsItWas() {
         ScriptedDocker daemonDown = ScriptedDocker.engineRunning()
                 .answering(COMPOSE_STOP, REFUSED, NO_DAEMON + "\n")
                 .otherCommandsExiting(0);
 
-        SidecarStarter.ShutDown refused = starter(daemonDown, HostSystem.LINUX).shutDown();
+        ContainerStarter.ShutDown refused = starter(daemonDown, HostSystem.LINUX).shutDown();
 
         claim("it said the stop's command, its exit and its last line, and that the engine was not stopped",
-                () -> assertThat(refused).isEqualTo(new SidecarStarter.ShutDown(false,
+                () -> assertThat(refused).isEqualTo(new ContainerStarter.ShutDown(false,
                         "Docker was not shut down: docker compose -p vespera stop exited " + REFUSED + ": " + NO_DAEMON
                                 + ". The Docker engine was not stopped.")));
-        claim("and ran the stop of the sidecars alone: no stop of the engine followed",
+        claim("and ran the stop of the containers alone: no stop of the engine followed",
                 () -> assertThat(daemonDown.commands()).containsExactly(COMPOSE_STOP));
 
         ScriptedDocker none = ScriptedDocker.notInstalled();
-        SidecarStarter.ShutDown missing = starter(none, HostSystem.LINUX).shutDown();
+        ContainerStarter.ShutDown missing = starter(none, HostSystem.LINUX).shutDown();
         claim("with no docker command, the stop counts as exit " + NOT_FOUND + " with the reason, and nothing else is"
                         + " run",
                 () -> assertThat(List.of(missing, none.commands())).containsExactly(
-                        new SidecarStarter.ShutDown(false, "Docker was not shut down: docker compose -p vespera stop"
+                        new ContainerStarter.ShutDown(false, "Docker was not shut down: docker compose -p vespera stop"
                                 + " exited " + NOT_FOUND + ": Cannot run program \"docker\": error=2, No such file or"
                                 + " directory. The Docker engine was not stopped."),
                         List.of(COMPOSE_STOP)));
     }
 
     @Test
-    @Story("A button stops the sidecars and then the Docker engine")
-    @DisplayName("An engine stop that is refused, or whose program is missing, leaves the sidecars stopped and names the command")
-    void anEngineStopRefusedLeavesTheSidecarsStoppedAndSaysSo() {
+    @Story("A button stops the containers and then the Docker engine")
+    @DisplayName("An engine stop that is refused, or whose program is missing, leaves the containers stopped and names the command")
+    void anEngineStopRefusedLeavesTheContainersStoppedAndSaysSo() {
         String polkitRefuses = "Failed to stop docker.socket: Access denied";
         ScriptedDocker linux = ScriptedDocker.engineRunning()
                 .answering(COMPOSE_STOP, 0, " Container vespera-ollama-1 Stopped\n")
                 .answering(SYSTEMCTL_STOP, REFUSED, polkitRefuses + "\n");
 
-        SidecarStarter.ShutDown refused = starter(linux, HostSystem.LINUX).shutDown();
+        ContainerStarter.ShutDown refused = starter(linux, HostSystem.LINUX).shutDown();
 
-        claim("on Linux, it said the sidecars are stopped and the engine is not, naming systemctl's command, its exit"
+        claim("on Linux, it said the containers are stopped and the engine is not, naming systemctl's command, its exit"
                         + " and its last line",
-                () -> assertThat(refused).isEqualTo(new SidecarStarter.ShutDown(false,
-                        "the sidecars are stopped, but the Docker engine is not: systemctl --no-ask-password stop"
+                () -> assertThat(refused).isEqualTo(new ContainerStarter.ShutDown(false,
+                        "the containers are stopped, but the Docker engine is not: systemctl --no-ask-password stop"
                                 + " docker.socket docker.service exited " + REFUSED + ": " + polkitRefuses
                                 + ". Stop Docker yourself, or leave it running.")));
-        claim("and both commands ran, the sidecars' stop first", () -> assertThat(linux.commands())
+        claim("and both commands ran, the containers' stop first", () -> assertThat(linux.commands())
                 .containsExactly(COMPOSE_STOP, SYSTEMCTL_STOP));
 
         ScriptedDocker mac = ScriptedDocker.engineRunning()
                 .answering(COMPOSE_STOP, 0, "")
                 .cannotLaunch(COLIMA_STOP, "Cannot run program \"colima\": error=2, No such file or directory");
-        SidecarStarter.ShutDown noColima = starter(mac, HostSystem.MAC).shutDown();
-        claim("on macOS without Colima, colima stop counts as exit " + NOT_FOUND + " with its reason, the sidecars"
+        ContainerStarter.ShutDown noColima = starter(mac, HostSystem.MAC).shutDown();
+        claim("on macOS without Colima, colima stop counts as exit " + NOT_FOUND + " with its reason, the containers"
                         + " stopped before it",
                 () -> assertThat(List.of(noColima, mac.commands())).containsExactly(
-                        new SidecarStarter.ShutDown(false, "the sidecars are stopped, but the Docker engine is not:"
+                        new ContainerStarter.ShutDown(false, "the containers are stopped, but the Docker engine is not:"
                                 + " colima stop exited " + NOT_FOUND + ": Cannot run program \"colima\": error=2, No"
                                 + " such file or directory. Stop Docker yourself, or leave it running."),
                         List.of(COMPOSE_STOP, COLIMA_STOP)));
     }
 
     @Test
-    @Story("Closing the control panel stops the sidecars")
-    @DisplayName("Closing the window stops the sidecars alone, only where one answers on this machine, and a stop that fails is one line")
-    void closingStopsTheSidecarsAloneWhereTheyAnswer() {
+    @Story("Closing the control panel stops the containers")
+    @DisplayName("Closing the window stops the containers alone, only where one answers on this machine, and a stop that fails is one line")
+    void closingStopsTheContainersAloneWhereTheyAnswer() {
         ScriptedDocker answering = ScriptedDocker.engineRunning().otherCommandsExiting(0);
-        Optional<String> stopped = starter(answering, HostSystem.LINUX).stopTheSidecars();
-        claim("with the sidecars answering, it said nothing and ran docker compose -p vespera stop alone: no engine"
+        Optional<String> stopped = starter(answering, HostSystem.LINUX).stopTheContainers();
+        claim("with the containers answering, it said nothing and ran docker compose -p vespera stop alone: no engine"
                         + " check and no stop of the engine",
                 () -> assertThat(List.of(stopped, answering.commands()))
                         .containsExactly(Optional.empty(), List.of(COMPOSE_STOP)));
 
         ScriptedDocker silent = ScriptedDocker.engineRunning().otherCommandsExiting(0);
-        Optional<String> nothing = starter(silent, HostSystem.LINUX, ScriptedSidecarHealth.neitherAnswering())
-                .stopTheSidecars();
-        claim("with neither sidecar answering, it said nothing and ran no command, so no engine behind its socket is"
+        Optional<String> nothing = starter(silent, HostSystem.LINUX, ScriptedContainerHealth.neitherAnswering())
+                .stopTheContainers();
+        claim("with neither container answering, it said nothing and ran no command, so no engine behind its socket is"
                         + " started by closing the window",
                 () -> assertThat(List.of(nothing, silent.commands())).containsExactly(Optional.empty(), List.of()));
 
         ScriptedDocker failing = ScriptedDocker.engineRunning().answering(COMPOSE_STOP, REFUSED, NO_DAEMON + "\n");
-        Optional<String> refused = starter(failing, HostSystem.LINUX).stopTheSidecars();
+        Optional<String> refused = starter(failing, HostSystem.LINUX).stopTheContainers();
         claim("a stop that exits " + REFUSED + " is said in one line naming the command, its exit and its last line",
-                () -> assertThat(refused).contains("the sidecars were not stopped: docker compose -p vespera stop"
+                () -> assertThat(refused).contains("the containers were not stopped: docker compose -p vespera stop"
                         + " exited " + REFUSED + ": " + NO_DAEMON + "."));
     }
 
     @Test
-    @Story("Closing the control panel stops the sidecars")
+    @Story("Closing the control panel stops the containers")
     @DisplayName("Closing the window stops the containers where one on this machine answers, and runs nothing where none on this machine answers")
     @Issue("818")
     @Issue("889")
     @Link(name = "ADR-430", url = Adr.THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER, type = "adr")
-    void closingStopsTheSidecarsWhereEitherAnswersAndNothingWhereOneIsOnAnotherMachine() {
+    void closingStopsTheContainersWhereEitherAnswersAndNothingWhereOneIsOnAnotherMachine() {
         for (boolean doclingAnswers : List.of(true, false)) {
-            ScriptedSidecarHealth one = ScriptedSidecarHealth.neitherAnswering();
+            ScriptedContainerHealth one = ScriptedContainerHealth.neitherAnswering();
             one.answering(doclingAnswers, !doclingAnswers);
             ScriptedDocker docker = ScriptedDocker.engineRunning().otherCommandsExiting(0);
 
-            Optional<String> stopped = starter(settings(), docker, HostSystem.LINUX, one).stopTheSidecars();
+            Optional<String> stopped = starter(settings(), docker, HostSystem.LINUX, one).stopTheContainers();
 
             String which = doclingAnswers ? "docling-serve alone" : "Ollama alone";
             claim("both on this machine, with " + which + " answering, it said nothing and ran docker compose -p"
@@ -229,13 +229,13 @@ class DockerShutDownTest {
                             .containsExactly(Optional.empty(), List.of(COMPOSE_STOP)));
         }
 
-        for (SidecarStartSettings oneHere : List.of(
-                new SidecarStartSettings(DOCLING_ELSEWHERE, OLLAMA_HERE, AN_IMAGE, WAIT_AT_MOST),
-                new SidecarStartSettings(DOCLING_HERE, OLLAMA_ELSEWHERE, AN_IMAGE, WAIT_AT_MOST))) {
+        for (ContainerStartSettings oneHere : List.of(
+                new ContainerStartSettings(DOCLING_ELSEWHERE, OLLAMA_HERE, AN_IMAGE, WAIT_AT_MOST),
+                new ContainerStartSettings(DOCLING_HERE, OLLAMA_ELSEWHERE, AN_IMAGE, WAIT_AT_MOST))) {
             ScriptedDocker docker = ScriptedDocker.engineRunning().otherCommandsExiting(0);
 
             Optional<String> stopped = starterOnAMachineOfItsOwn(oneHere, docker,
-                    ScriptedSidecarHealth.bothAnswering()).stopTheSidecars();
+                    ScriptedContainerHealth.bothAnswering()).stopTheContainers();
 
             claim("with docling-serve at " + oneHere.doclingBaseUrl() + " and Ollama at " + oneHere.ollamaBaseUrl()
                             + ", one on this machine and answering, it said nothing and ran docker compose -p vespera"
@@ -244,12 +244,12 @@ class DockerShutDownTest {
                             .containsExactly(Optional.empty(), List.of(COMPOSE_STOP)));
         }
 
-        ScriptedSidecarHealth onlyTheOneElsewhere = ScriptedSidecarHealth.neitherAnswering();
+        ScriptedContainerHealth onlyTheOneElsewhere = ScriptedContainerHealth.neitherAnswering();
         onlyTheOneElsewhere.answering(true, false);
         ScriptedDocker hereSilent = ScriptedDocker.engineRunning().otherCommandsExiting(0);
         Optional<String> nothingHere = starterOnAMachineOfItsOwn(
-                new SidecarStartSettings(DOCLING_ELSEWHERE, OLLAMA_HERE, AN_IMAGE, WAIT_AT_MOST), hereSilent,
-                onlyTheOneElsewhere).stopTheSidecars();
+                new ContainerStartSettings(DOCLING_ELSEWHERE, OLLAMA_HERE, AN_IMAGE, WAIT_AT_MOST), hereSilent,
+                onlyTheOneElsewhere).stopTheContainers();
         claim("with docling-serve at " + DOCLING_ELSEWHERE + " answering and Ollama at " + OLLAMA_HERE + ", on this"
                         + " machine, not answering, it said nothing and ran no command: the one that answers is not"
                         + " this machine's to stop",
@@ -258,8 +258,8 @@ class DockerShutDownTest {
 
         ScriptedDocker bothElsewhere = ScriptedDocker.engineRunning().otherCommandsExiting(0);
         Optional<String> nothing = starterOnAMachineOfItsOwn(
-                new SidecarStartSettings(DOCLING_ELSEWHERE, OLLAMA_ELSEWHERE, AN_IMAGE, WAIT_AT_MOST), bothElsewhere,
-                ScriptedSidecarHealth.bothAnswering()).stopTheSidecars();
+                new ContainerStartSettings(DOCLING_ELSEWHERE, OLLAMA_ELSEWHERE, AN_IMAGE, WAIT_AT_MOST), bothElsewhere,
+                ScriptedContainerHealth.bothAnswering()).stopTheContainers();
         claim("with docling-serve at " + DOCLING_ELSEWHERE + " and Ollama at " + OLLAMA_ELSEWHERE + ", both on another"
                         + " machine, it said nothing and ran no command, though both answer",
                 () -> assertThat(List.of(nothing, bothElsewhere.commands()))
@@ -267,106 +267,106 @@ class DockerShutDownTest {
     }
 
     @Test
-    @Story("A button stops the sidecars and then the Docker engine")
-    @DisplayName("A sidecar lock that cannot be opened, or a stop of the sidecars whose output file cannot be written, is said in one line by both stops, and nothing else is run")
+    @Story("A button stops the containers and then the Docker engine")
+    @DisplayName("A container lock that cannot be opened, or a stop of the containers whose output file cannot be written, is said in one line by both stops, and nothing else is run")
     @Issue("818")
-    void anUnusableLockOrOutputFileBeforeTheSidecarsStopIsOneLineOfEachStop() throws IOException {
+    void anUnusableLockOrOutputFileBeforeTheContainersStopIsOneLineOfEachStop() throws IOException {
         Path notAFolder = Files.createFile(lockFolder.resolve("a-file-where-the-folder-would-be"));
-        String lockUnusable = "the lock file " + notAFolder.resolve("sidecars.lock").toAbsolutePath()
+        String lockUnusable = "the lock file " + notAFolder.resolve("containers.lock").toAbsolutePath()
                 + " cannot be opened (" + notAFolder + ")";
 
         ScriptedDocker forTheShutDown = ScriptedDocker.engineRunning().otherCommandsExiting(0);
-        SidecarStarter.ShutDown noLock = new SidecarStarter(settings(), forTheShutDown,
-                ScriptedSidecarHealth.bothAnswering(), HostSystem.LINUX, () -> ComposeFiles.in(REPOSITORY), notAFolder,
+        ContainerStarter.ShutDown noLock = new ContainerStarter(settings(), forTheShutDown,
+                ScriptedContainerHealth.bothAnswering(), HostSystem.LINUX, () -> ComposeFiles.in(REPOSITORY), notAFolder,
                 CHECK_EVERY).shutDown();
         claim("a lock folder that is a file: the shut-down says Docker was not shut down, naming the lock file and"
                         + " why, and runs no command",
                 () -> assertThat(List.of(noLock, forTheShutDown.commands())).containsExactly(
-                        new SidecarStarter.ShutDown(false, "Docker was not shut down: " + lockUnusable + "."),
+                        new ContainerStarter.ShutDown(false, "Docker was not shut down: " + lockUnusable + "."),
                         List.of()));
 
         ScriptedDocker forTheClosing = ScriptedDocker.engineRunning().otherCommandsExiting(0);
-        Optional<String> noLockToStop = new SidecarStarter(settings(), forTheClosing,
-                ScriptedSidecarHealth.bothAnswering(), HostSystem.LINUX, () -> ComposeFiles.in(REPOSITORY), notAFolder,
-                CHECK_EVERY).stopTheSidecars();
-        claim("and the stop of the sidecars alone says they were not stopped, naming the lock file and why, and runs"
+        Optional<String> noLockToStop = new ContainerStarter(settings(), forTheClosing,
+                ScriptedContainerHealth.bothAnswering(), HostSystem.LINUX, () -> ComposeFiles.in(REPOSITORY), notAFolder,
+                CHECK_EVERY).stopTheContainers();
+        claim("and the stop of the containers alone says they were not stopped, naming the lock file and why, and runs"
                         + " no command",
                 () -> assertThat(List.of(noLockToStop, forTheClosing.commands())).containsExactly(
-                        Optional.of("the sidecars were not stopped: " + lockUnusable + "."), List.of()));
+                        Optional.of("the containers were not stopped: " + lockUnusable + "."), List.of()));
 
         String outputUnusable = "the temporary file the output of docker compose -p vespera stop goes to cannot be"
                 + " written or read (" + DRIVE_FULL + ")";
         ScriptedDocker fullForTheShutDown = ScriptedDocker.engineRunning()
                 .outputFileFails(COMPOSE_STOP, lockFolder, DRIVE_FULL)
                 .otherCommandsExiting(0);
-        SidecarStarter.ShutDown noOutput = starter(fullForTheShutDown, HostSystem.LINUX).shutDown();
-        claim("the stop of the sidecars' output file unwritable: the shut-down says Docker was not shut down, naming"
+        ContainerStarter.ShutDown noOutput = starter(fullForTheShutDown, HostSystem.LINUX).shutDown();
+        claim("the stop of the containers' output file unwritable: the shut-down says Docker was not shut down, naming"
                         + " the command and why, and stops no engine",
                 () -> assertThat(List.of(noOutput, fullForTheShutDown.commands())).containsExactly(
-                        new SidecarStarter.ShutDown(false, "Docker was not shut down: " + outputUnusable + "."),
+                        new ContainerStarter.ShutDown(false, "Docker was not shut down: " + outputUnusable + "."),
                         List.of(COMPOSE_STOP)));
 
         ScriptedDocker fullForTheClosing = ScriptedDocker.engineRunning()
                 .outputFileFails(COMPOSE_STOP, lockFolder, DRIVE_FULL)
                 .otherCommandsExiting(0);
-        Optional<String> noOutputToStop = starter(fullForTheClosing, HostSystem.LINUX).stopTheSidecars();
-        claim("and the stop of the sidecars alone says they were not stopped, naming the command and why",
+        Optional<String> noOutputToStop = starter(fullForTheClosing, HostSystem.LINUX).stopTheContainers();
+        claim("and the stop of the containers alone says they were not stopped, naming the command and why",
                 () -> assertThat(List.of(noOutputToStop, fullForTheClosing.commands())).containsExactly(
-                        Optional.of("the sidecars were not stopped: " + outputUnusable + "."), List.of(COMPOSE_STOP)));
+                        Optional.of("the containers were not stopped: " + outputUnusable + "."), List.of(COMPOSE_STOP)));
     }
 
     @Test
-    @Story("A button stops the sidecars and then the Docker engine")
-    @DisplayName("Once the sidecars are stopped, an engine stop whose output file cannot be written says the sidecars were stopped and Docker was not shut down")
+    @Story("A button stops the containers and then the Docker engine")
+    @DisplayName("Once the containers are stopped, an engine stop whose output file cannot be written says the containers were stopped and Docker was not shut down")
     @Issue("818")
     @Link(name = "ADR-395", url = Adr.ONE_VESPERA_RUNS_ON_A_MACHINE_AT_A_TIME, type = "adr")
-    void anEngineStopsUnusableOutputFileSaysTheSidecarsWereStopped() {
+    void anEngineStopsUnusableOutputFileSaysTheContainersWereStopped() {
         ScriptedDocker docker = ScriptedDocker.engineRunning()
                 .outputFileFails(SYSTEMCTL_STOP, lockFolder, DRIVE_FULL)
                 .otherCommandsExiting(0);
 
-        SidecarStarter.ShutDown shutDown = starter(docker, HostSystem.LINUX).shutDown();
+        ContainerStarter.ShutDown shutDown = starter(docker, HostSystem.LINUX).shutDown();
 
-        claim("it said the sidecars were stopped but Docker was not shut down, naming the engine stop's command and"
+        claim("it said the containers were stopped but Docker was not shut down, naming the engine stop's command and"
                         + " why its output file failed",
-                () -> assertThat(shutDown).isEqualTo(new SidecarStarter.ShutDown(false, "The sidecars were stopped,"
+                () -> assertThat(shutDown).isEqualTo(new ContainerStarter.ShutDown(false, "The containers were stopped,"
                         + " but Docker was not shut down: the temporary file the output of systemctl --no-ask-password"
                         + " stop docker.socket docker.service goes to cannot be written or read (" + DRIVE_FULL
                         + ").")));
-        claim("after both commands ran, the sidecars' stop first",
+        claim("after both commands ran, the containers' stop first",
                 () -> assertThat(docker.commands()).containsExactly(COMPOSE_STOP, SYSTEMCTL_STOP));
     }
 
     @Test
-    @Story("Two invocations do not start the sidecars twice")
-    @DisplayName("Both stops wait for a sidecar lock another holds, without a bound of their own, and run their commands once they have it")
+    @Story("Two invocations do not start the containers twice")
+    @DisplayName("Both stops wait for a container lock another holds, without a bound of their own, and run their commands once they have it")
     @Issue("818")
-    void bothStopsWaitForTheSidecarLockAnotherHolds() throws Exception {
+    void bothStopsWaitForTheContainerLockAnotherHolds() throws Exception {
         ScriptedDocker forTheShutDown = ScriptedDocker.engineRunning().otherCommandsExiting(0);
-        SidecarStarter shuttingDown = starter(forTheShutDown, HostSystem.LINUX);
+        ContainerStarter shuttingDown = starter(forTheShutDown, HostSystem.LINUX);
         Object shutDown = whileTheLockIsHeld(() -> shuttingDown.shutDown(), forTheShutDown, "the shut-down");
-        claim("once the holder let go, the shut-down stopped the sidecars and then the engine, and said so",
+        claim("once the holder let go, the shut-down stopped the containers and then the engine, and said so",
                 () -> assertThat(List.of(shutDown, forTheShutDown.commands())).containsExactly(
-                        new SidecarStarter.ShutDown(true, DONE), List.of(COMPOSE_STOP, SYSTEMCTL_STOP)));
+                        new ContainerStarter.ShutDown(true, DONE), List.of(COMPOSE_STOP, SYSTEMCTL_STOP)));
 
         ScriptedDocker forTheClosing = ScriptedDocker.engineRunning().otherCommandsExiting(0);
-        SidecarStarter closing = starter(forTheClosing, HostSystem.LINUX);
-        Object stopped = whileTheLockIsHeld(() -> closing.stopTheSidecars(), forTheClosing,
-                "the stop of the sidecars alone");
-        claim("and the stop of the sidecars alone, once it had the lock, ran docker compose -p vespera stop alone",
+        ContainerStarter closing = starter(forTheClosing, HostSystem.LINUX);
+        Object stopped = whileTheLockIsHeld(() -> closing.stopTheContainers(), forTheClosing,
+                "the stop of the containers alone");
+        claim("and the stop of the containers alone, once it had the lock, ran docker compose -p vespera stop alone",
                 () -> assertThat(List.of(stopped, forTheClosing.commands()))
                         .containsExactly(Optional.empty(), List.of(COMPOSE_STOP)));
     }
 
     /**
-     * Holds {@code sidecars.lock} in this process for {@link #HELD_FOR}, longer than {@link #WAIT_AT_MOST}, while {@code
+     * Holds {@code containers.lock} in this process for {@link #HELD_FOR}, longer than {@link #WAIT_AT_MOST}, while {@code
      * stop} runs on a thread of its own; claims it neither ended nor ran a command meanwhile, lets go, and answers what
      * it came to.
      */
     private Object whileTheLockIsHeld(Supplier<Object> stop, ScriptedDocker docker, String which) throws Exception {
         Files.createDirectories(lockFolder);
         CompletableFuture<Object> running;
-        try (FileChannel held = FileChannel.open(lockFolder.resolve("sidecars.lock"), StandardOpenOption.CREATE,
+        try (FileChannel held = FileChannel.open(lockFolder.resolve("containers.lock"), StandardOpenOption.CREATE,
                         StandardOpenOption.WRITE);
                 FileLock ignored = held.lock(Long.MAX_VALUE - 1, 1, false)) {
             running = CompletableFuture.supplyAsync(stop);
@@ -379,18 +379,18 @@ class DockerShutDownTest {
         return running.get(WAIT_AT_MOST.multipliedBy(5).toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    private SidecarStarter starter(ScriptedDocker docker, HostSystem host) {
-        return starter(docker, host, ScriptedSidecarHealth.bothAnswering());
+    private ContainerStarter starter(ScriptedDocker docker, HostSystem host) {
+        return starter(docker, host, ScriptedContainerHealth.bothAnswering());
     }
 
-    private SidecarStarter starter(ScriptedDocker docker, HostSystem host, ScriptedSidecarHealth health) {
+    private ContainerStarter starter(ScriptedDocker docker, HostSystem host, ScriptedContainerHealth health) {
         return starter(settings(), docker, host, health);
     }
 
-    private SidecarStarter starter(
-            SidecarStartSettings settings, ScriptedDocker docker, HostSystem host, ScriptedSidecarHealth health) {
+    private ContainerStarter starter(
+            ContainerStartSettings settings, ScriptedDocker docker, HostSystem host, ScriptedContainerHealth health) {
         Supplier<ComposeFiles> theRepositorysFiles = () -> ComposeFiles.in(REPOSITORY);
-        return new SidecarStarter(settings, docker, health, host, theRepositorysFiles, lockFolder, CHECK_EVERY);
+        return new ContainerStarter(settings, docker, health, host, theRepositorysFiles, lockFolder, CHECK_EVERY);
     }
 
     /**
@@ -398,20 +398,20 @@ class DockerShutDownTest {
      * resolves to the loopback, the two {@code example.org} hosts to documentation addresses of another machine, and the
      * machine holds no address of its own beyond the loopback.
      */
-    private SidecarStarter starterOnAMachineOfItsOwn(
-            SidecarStartSettings settings, ScriptedDocker docker, ScriptedSidecarHealth health) {
+    private ContainerStarter starterOnAMachineOfItsOwn(
+            ContainerStartSettings settings, ScriptedDocker docker, ScriptedContainerHealth health) {
         ThisMachine thisMachine = new ThisMachine(name -> switch (name) {
             case "localhost" -> new InetAddress[] {InetAddress.ofLiteral("127.0.0.1")};
             case "docling.example.org" -> new InetAddress[] {InetAddress.ofLiteral("192.0.2.10")};
             case "ollama.example.org" -> new InetAddress[] {InetAddress.ofLiteral("192.0.2.11")};
             default -> throw new UnknownHostException(name);
         }, List::of);
-        return new SidecarStarter(settings, docker, health, HostSystem.LINUX, () -> ComposeFiles.in(REPOSITORY),
+        return new ContainerStarter(settings, docker, health, HostSystem.LINUX, () -> ComposeFiles.in(REPOSITORY),
                 lockFolder, CHECK_EVERY, thisMachine);
     }
 
-    private static SidecarStartSettings settings() {
-        return new SidecarStartSettings(DOCLING_HERE, OLLAMA_HERE, AN_IMAGE, WAIT_AT_MOST);
+    private static ContainerStartSettings settings() {
+        return new ContainerStartSettings(DOCLING_HERE, OLLAMA_HERE, AN_IMAGE, WAIT_AT_MOST);
     }
 
     private static List<String> concat(List<String> first, List<String> then) {

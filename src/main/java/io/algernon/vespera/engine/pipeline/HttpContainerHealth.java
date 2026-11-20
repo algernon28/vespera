@@ -8,11 +8,11 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 
 /**
- * The {@link SidecarHealth} that asks over HTTP, each question waiting at most 5 seconds for its answer, the bound
+ * The {@link ContainerHealth} that asks over HTTP, each question waiting at most 5 seconds for its answer, the bound
  * {@code DoclingClient.HEALTH_CHECK_TIMEOUT} sets (ADR-323 §3). Any 2xx is an answer; a refusal, a silence or any
  * other status is none.
  */
-final class HttpSidecarHealth implements SidecarHealth {
+final class HttpContainerHealth implements ContainerHealth {
 
     private static final Duration ANSWER_WITHIN = Duration.ofSeconds(5);
 
@@ -23,7 +23,7 @@ final class HttpSidecarHealth implements SidecarHealth {
     private final URI doclingHealth;
     private final URI ollamaVersion;
 
-    HttpSidecarHealth(SidecarStartSettings settings) {
+    HttpContainerHealth(ContainerStartSettings settings) {
         this.doclingHealth = settings.doclingBaseUrl().resolve("/health");
         this.ollamaVersion = settings.ollamaBaseUrl().resolve("/api/version");
     }

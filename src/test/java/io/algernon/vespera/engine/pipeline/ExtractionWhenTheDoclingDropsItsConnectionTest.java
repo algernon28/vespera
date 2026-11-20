@@ -43,10 +43,10 @@ import org.springframework.test.context.DynamicPropertySource;
 /**
  * What stage 2 does when one document's call fails, and when {@code docling-serve} drops the connection
  * under a call (#326, ADR-175): a problem with one file fails that file and the step goes on, and only a
- * sidecar that stays gone stops the step.
+ * docling that stays gone stops the step.
  *
- * <p>The sidecar is real HTTP: the production {@code DoclingClient} (through {@link ExtractionBeans},
- * with the production extractor and cache around it) pointed at a {@link LoopbackSidecar}, which
+ * <p>The docling is real HTTP: the production {@code DoclingClient} (through {@link ExtractionBeans},
+ * with the production extractor and cache around it) pointed at a {@link LoopbackDocling}, which
  * converts every document except the ones a test scripts otherwise.
  *
  * <p>Every claim about which documents were asked for is made on counts per document, never on which
@@ -60,13 +60,13 @@ import org.springframework.test.context.DynamicPropertySource;
 @Link(name = "ADR-175", url = Adr.A_FILE_THAT_FAILS_IS_MARKED_AND_SKIPPED, type = "adr")
 @Link(name = "ADR-071", url = Adr.DOCLING_INVOCATION_CONTRACT_IS_ONE_SYNC_CALL, type = "adr")
 @Link(name = "ADR-140", url = Adr.STAGE_2_CONVERTS_EIGHT_AT_A_TIME, type = "adr")
-class ExtractionWhenTheSidecarDropsItsConnectionTest {
+class ExtractionWhenTheDoclingDropsItsConnectionTest {
 
-    /** A loopback port that was free when the class loaded; the test's sidecar listens on it. */
-    private static final int SIDECAR_PORT = LoopbackSidecar.aFreePort();
+    /** A loopback port that was free when the class loaded; the test's docling listens on it. */
+    private static final int DOCLING_PORT = LoopbackDocling.aFreePort();
 
-    /** Where the client looks for the sidecar. */
-    private static final String SIDECAR = "http://127.0.0.1:" + SIDECAR_PORT;
+    /** Where the client looks for the docling. */
+    private static final String DOCLING = "http://127.0.0.1:" + DOCLING_PORT;
 
     /** The corpus: few enough to be one batch, so every document is in flight together. */
     private static final int DOCUMENTS = 4;
@@ -111,9 +111,9 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
     static Path workingDirectory;
 
     @DynamicPropertySource
-    static void sidecarAndWorkingDirectory(DynamicPropertyRegistry registry) {
+    static void doclingAndWorkingDirectory(DynamicPropertyRegistry registry) {
         registry.add("vespera.working-dir", workingDirectory::toString);
-        registry.add("vespera.docling.base-url", () -> SIDECAR);
+        registry.add("vespera.docling.base-url", () -> DOCLING);
     }
 
     @Autowired
@@ -130,11 +130,11 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
 
     private ListAppender<ILoggingEvent> logged;
     private ch.qos.logback.classic.Logger rootLogger;
-    private LoopbackSidecar sidecar;
+    private LoopbackDocling docling;
 
     @BeforeEach
-    void startTheSidecarAndCaptureEveryLine() throws IOException {
-        sidecar = LoopbackSidecar.startedOn(SIDECAR_PORT, configuredImage);
+    void startTheDoclingAndCaptureEveryLine() throws IOException {
+        docling = LoopbackDocling.startedOn(DOCLING_PORT, configuredImage);
         logged = new ListAppender<>();
         logged.start();
         rootLogger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
@@ -143,11 +143,11 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
     }
 
     @AfterEach
-    void stopTheSidecarAndReleaseEveryLine() {
+    void stopTheDoclingAndReleaseEveryLine() {
         rootLogger.detachAppender(logged);
         ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OperatorLines.LOGGER_NAME)).detachAppender(logged);
         logged.stop();
-        sidecar.close();
+        docling.close();
     }
 
     @Test
@@ -155,7 +155,7 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
     @DisplayName("When the document converter drops the connection under the same document twice, that document is removed as one that crashed the converter, nothing is stored for it, and every other document is converted")
     void aDocumentWhoseCallDropsTwiceIsRemovedAndTheStepGoesOn(@TempDir Path root) throws IOException {
         writeTheCorpus(root);
-        sidecar.dropping(THE_FAILING_DOCUMENT, LoopbackSidecar.EVERY_CALL);
+        docling.dropping(THE_FAILING_DOCUMENT, LoopbackDocling.EVERY_CALL);
 
         cli.run("run", root.toString());
 
@@ -167,7 +167,7 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
         claim(
                 "document " + THE_FAILING_DOCUMENT + " was posted " + TWICE + " times and no more, the"
                         + " dropped call and one retry, and each of the other " + (DOCUMENTS - 1) + " once",
-                () -> assertThat(sidecar.callsPerDocument())
+                () -> assertThat(docling.callsPerDocument())
                         .hasSize(DOCUMENTS)
                         .allSatisfy((document, calls) ->
                                 assertThat(calls).isEqualTo(document == THE_FAILING_DOCUMENT ? TWICE : ONCE)));
@@ -180,7 +180,7 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
                         .hasEntrySatisfying(nameOf(THE_FAILING_DOCUMENT), reason -> assertThat(reason)
                                 .startsWith("crashed the converter: docling-serve dropped the connection twice"
                                         + " while converting this file: ")
-                                .contains(LoopbackSidecar.DROPPED_CONNECTION)));
+                                .contains(LoopbackDocling.DROPPED_CONNECTION)));
         claim(
                 "nothing was stored for it, so the next run asks the converter again",
                 () -> assertThat(cachedAnswersFor(root, THE_FAILING_DOCUMENT)).isZero());
@@ -195,7 +195,7 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
     @DisplayName("When the document converter drops the connection twice under each of five documents in a row while still answering its health check, extraction stops, says so, and removes none of them")
     void aConverterThatDropsEveryDocumentStopsTheStep(@TempDir Path root) throws IOException {
         writeTheCorpus(root, MORE_THAN_FIVE);
-        sidecar.droppingEveryCall();
+        docling.droppingEveryCall();
 
         cli.run("run", root.toString());
 
@@ -237,8 +237,8 @@ class ExtractionWhenTheSidecarDropsItsConnectionTest {
 
         @Bean
         @Primary
-        SidecarRecovery sidecarRecoveryOnAShortClock(DoclingClient client) {
-            return new SidecarRecovery(client, WAIT_AT_MOST, CHECK_EVERY);
+        DoclingRecovery doclingRecoveryOnAShortClock(DoclingClient client) {
+            return new DoclingRecovery(client, WAIT_AT_MOST, CHECK_EVERY);
         }
     }
 

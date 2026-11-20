@@ -218,7 +218,7 @@ Names that say container of what Vespera runs here keep it: `DockerEngine.startT
 | `pipeline.AnEarlierVersionsLockRefusesAStartTest.theEarlierLockIsKeptForTheLengthOfAStartAndReleasedAfter` | §6: held by this process while the start waits for the containers, free once it is refused |
 | `ui.ExplanationsAreCaptionsOnMouseOverTest.eachHeaderRowsCaptionSaysWhatItIsAndWhereItWasFound` | §2: the daemon's caption, not asked |
 | `ui.ExplanationsAreCaptionsOnMouseOverTest.eachButtonOfTheActionRowStandsOnAWrapperThatCarriesItsCaption` | §2: *Start Docker*'s caption, whole |
-| `ui.RunAndAutoLabelWaitForTheContainersTest.runsCaptionSaysItWaitsForTheFirstCheckAndForAStartOrAShutDown` | §2: Run's caption before the first check |
+| `ui.RunAndAutoLabelWaitForDoclingAndOllamaTest.runsCaptionSaysItWaitsForTheFirstCheckAndForAStartOrAShutDown` (named for the container by ADR-433, #891) | §2: Run's caption before the first check |
 
 What no unit test shows: that the jar logs §5's lines once an invocation, which rests on its one call in `VesperaApplication.main`; that `DoclingRecovery`'s bound and `effective-values.properties` read the earlier wait, which `ContainerStartSettings.from`'s reading does not prove of them; and the words of §2's first table, which §3's test holds only by the word they no longer say.
 

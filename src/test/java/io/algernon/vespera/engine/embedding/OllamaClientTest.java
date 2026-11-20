@@ -31,7 +31,7 @@ import org.springframework.web.client.RestClient;
  *
  * <p>Stubbed rather than integrated, for {@link OllamaClientIT}'s reason in reverse: nothing here
  * needs Ollama to be real, because what is under test is this client's own reading. The wire shape
- * these stubs assert against is what the IT exists to confirm against a live sidecar.
+ * these stubs assert against is what the IT exists to confirm against a live container.
  */
 @Epic("Embedding")
 @Feature("The Ollama client")
@@ -50,7 +50,7 @@ class OllamaClientTest {
     private static final String MODEL = "a-comparing-model:0.6b";
 
     /**
-     * A manifest digest measured against a real sidecar, for {@code qwen3-embedding:0.6b}, and used here as a fixture
+     * A manifest digest measured against a real container, for {@code qwen3-embedding:0.6b}, and used here as a fixture
      * under this test's own name.
      */
     private static final String DIGEST = "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d";
