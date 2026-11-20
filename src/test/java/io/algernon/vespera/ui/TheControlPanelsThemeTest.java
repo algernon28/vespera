@@ -41,8 +41,10 @@ import javafx.scene.control.DialogPane;
 import javafx.scene.control.Labeled;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Accordion;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.control.TitledPane;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
@@ -191,15 +193,19 @@ class TheControlPanelsThemeTest {
 
     private static final String A_STEP = "extraction";
 
-    /** The chart of a stage of six lines, stage 1's, which the window test reads (ADR-382 §1, §2). */
-    private static final String A_CHART = "stage-chart-1";
+    /** The chart of a step of six lines, byte-level reduction's, which the window test reads (ADR-432 §2, §3). */
+    private static final String A_CHART = "step-chart-byte-level-reduction";
+
+    /** The leg that chart stands in, which the test opens, as the operator does, so that the chart is drawn. */
+    private static final String ITS_LEG = "leg-deduplication";
 
     /**
-     * Stage 1's chart as the working directory keeps it (ADR-382 §4), not finished: its counts and its five kinds, two
-     * samples each, so that it draws six lines, each in a series colour of its own.
+     * Byte-level reduction's chart as the working directory keeps it (ADR-432 §4), not finished: its counts and its
+     * five kinds, two samples each, so that it draws six lines, each in a series colour of its own.
      */
-    private static final String STAGE_1_CHART = "{\"format\":1,\"stage\":\"1\",\"key\":{\"byte-level-reduction\":"
-            + "\"aa11bb22cc33dd44ee55ff6600778899aa11bb22cc33dd44ee55ff6600778899\"},\"finishedAt\":null,\"lines\":["
+    private static final String STAGE_1_CHART = "{\"format\":1,\"step\":\"byte-level-reduction\",\"key\":{\"byte-level-reduction\":"
+            + "\"aa11bb22cc33dd44ee55ff6600778899aa11bb22cc33dd44ee55ff6600778899\"},\"finishedAt\":null,"
+            + "\"finishedEarlier\":false,\"lines\":["
             + Stream.of("done", "broken", "duplicate-of", "superseded-by", "out-of-scope", "code")
                     .map(name -> "{\"name\":\"" + name + "\",\"seconds\":[0,10],\"values\":[1,2]}")
                     .collect(java.util.stream.Collectors.joining(","))
@@ -484,13 +490,14 @@ class TheControlPanelsThemeTest {
     @Test
     @Link(name = "ADR-381", url = Adr.EVERY_VIEW_OF_THE_CONTROL_PANELS_WINDOW_FOLLOWS_ITS_THEME, type = "adr")
     @Link(name = "ADR-382", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
+    @Link(name = "ADR-432", url = Adr.EACH_STEP_HAS_A_CHART_BENEATH_ITS_LEG_AND_THE_COCKPIT_HOLDS_NO_TABS, type = "adr")
     @Story("Every view of the window follows its theme")
     @DisplayName("The charts, the steps' bars, a report's own view, and a tooltip and a context menu showing over the window take the theme as the switch flips, nothing reopened")
     void everyViewOfTheWindowAndAPopupShowingOverItTakeTheThemeAsTheSwitchFlips(@TempDir Path folder)
             throws Exception {
         Map<String, Map<String, String>> themes = themes(stylesheet());
         Path working = Files.createDirectories(folder.resolve("working"));
-        Files.writeString(working.resolve("chart-stage-1.json"), STAGE_1_CHART, UTF_8);
+        Files.writeString(working.resolve("chart-step-byte-level-reduction.json"), STAGE_1_CHART, UTF_8);
         ControlPanelState state = WindowForTests.aState(folder, aRuntime(folder));
         state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(), working.toString(),
                 "", "", "", "", "", ""));
@@ -673,24 +680,26 @@ class TheControlPanelsThemeTest {
     }
 
     /**
-     * Hands the window a reading of the steps at extraction running 375 of 1,000, its chart of stage 1 drawing the six
-     * lines of the file {@link #STAGE_1_CHART} the working directory keeps (ADR-382 §4), opens an
-     * analysis report's native view in a tab, scrolled as the window opens one, selects a row of its table and focuses the table,
-     * and shows a sample's tooltip and the table's context menu over the window, its item under the keys.
+     * Hands the window a reading of the steps at extraction running 375 of 1,000, opens the leg of byte-level reduction,
+     * whose chart draws the six lines of the file {@link #STAGE_1_CHART} the working directory keeps (ADR-432 §4), shows
+     * an analysis report's native view in a section of the sidebar, the window holding no tab to show it in (ADR-432
+     * §8), scrolled as the window opens one, selects a row of its table and focuses the table, and shows a sample's
+     * tooltip and the table's context menu over the window, its item under the keys.
      */
     @SuppressWarnings("unchecked")
     private static Popups drawnAndShown(Parent root) {
         InvocationReportFile.Report reading = aReading();
         LineChart<Number, Number> chart = WindowForTests.node(root, A_CHART, LineChart.class);
         WindowForTests.node(root, "steps", StepsChart.class).show(reading);
+        WindowForTests.node(root, ITS_LEG, TitledPane.class).setExpanded(true);
         VBox view = AnalysisReportView.of(AN_ANALYSIS_REPORT, anAnalysisReport(), AN_ANALYSIS_REPORT + ".html",
                 name -> { }, address -> { });
-        TabPane tabs = HeadlessToolkit.tabWithId(root, LiveReport.ID).orElseThrow().getTabPane();
         ScrollPane scroll = new ScrollPane(view);
         scroll.setFitToWidth(true);
-        Tab tab = new Tab("Format mix", scroll);
-        tabs.getTabs().add(tab);
-        tabs.getSelectionModel().select(tab);
+        TitledPane shownIn = new TitledPane("Format mix", scroll);
+        Accordion sidebar = WindowForTests.node(root, "sidebar", Accordion.class);
+        sidebar.getPanes().add(shownIn);
+        sidebar.setExpandedPane(shownIn);
         root.applyCss();
         root.layout();
         TableView<?> table = table(root);

@@ -542,6 +542,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
                             // ADR-333 §1: the plugin beans, handed to Deliverable.writeTo unread.
                             "deliverable.Plugin",
                             "deliverable.SurvivorPictures",
+                            // ADR-429 section 4: writes the tree's ledger once the tree is drawn, and decides nothing.
+                            "deliverable.TreeLedger",
                             // ADR-303: the page ceiling's value, handed to ClusterPageByteCeiling's reading.
                             "profile.NumericValue",
                             "profile.Profile",

@@ -57,8 +57,8 @@ class TheAnalysisReportsWindowTest {
 
     private static final String SECOND = "document-frequency";
 
-    /** The tabs the cockpit holds, before and after any report is opened: the Report tab and Inclusions. */
-    private static final List<String> THE_COCKPITS_TABS = List.of("live-report", "inclusions");
+    /** The tabs the cockpit holds, before and after any report is opened: none (ADR-432 §8). */
+    private static final List<String> THE_COCKPITS_TABS = List.of();
 
     /** The Reports window's title. */
     private static final String ITS_TITLE = "Reports";
@@ -95,7 +95,7 @@ class TheAnalysisReportsWindowTest {
 
     @Test
     @Story("The reports are read in a window of their own")
-    @DisplayName("A report opens in a Reports window apart from the control panel's, a tab each, the control panel keeping its list and its two tabs, and a report already open is brought back rather than opened or read again, its Reload reading it again")
+    @DisplayName("A report opens in a Reports window apart from the control panel's, a tab each, the control panel keeping its list and holding no tab, and a report already open is brought back rather than opened or read again, its Reload reading it again")
     void theAnalysisReportsOpenInOneWindowOfTheirOwnATabEach(@TempDir Path folder) throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
         writeJson(working, FIRST, Reports.TITLES.get(FIRST));
@@ -183,13 +183,13 @@ class TheAnalysisReportsWindowTest {
                 () -> assertThat(titleAfterPressingAgain).isEqualTo(Reports.TITLES.get(FIRST)));
         claim("and its Reload reads it again, its tab then titled as its file is now",
                 () -> assertThat(titleAfterReload).isEqualTo(WRITTEN_SINCE));
-        claim("the control panel's window holds the Report and Inclusions tabs alone, no report's",
+        claim("the control panel's window holds no tab, no report's",
                 () -> assertThat(theCockpitsTabs).containsExactlyElementsOf(THE_COCKPITS_TABS));
     }
 
     @Test
     @Story("The reports are read in a window of their own")
-    @DisplayName("The Report tab's link, a wanted value's link and a cell of a report each open their report in the Reports window, a cell naming a report not written opens nothing and says so, and nothing is handed to the system")
+    @DisplayName("The sidebar's link, a wanted value's link and a cell of a report each open their report in the Reports window, a cell naming a report not written opens nothing and says so, and nothing is handed to the system")
     void everyWayInOpensItsAnalysisReportInTheAnalysisReportsWindow(@TempDir Path folder) throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
         writeJson(working, FIRST, Reports.TITLES.get(FIRST), A_CELL_LEADS_TO, A_CELL_LEADS_TO_NOT_WRITTEN);
@@ -211,9 +211,7 @@ class TheAnalysisReportsWindowTest {
         List<URI> handed;
         try (WindowForTests window = WindowForTests.readingEverySecond(folder)) {
             window.reportWritten(folder, AN_INVOCATION_NAMING_THE_FIRST);
-            window.awaiting(root -> WindowForTests.every(root, "report-analysis", Hyperlink.class).stream()
-                    .map(Hyperlink::getText).toList(), links -> links.contains(FIRST));
-            window.act(root -> WindowForTests.pressReportLink(root, "report-analysis", FIRST));
+            pressInTheList(window, FIRST);
             afterTheReportTab = window.analysisReportTabIds();
             selectedAfterTheReportTab = window.readAnalysisReports(TheAnalysisReportsWindowTest::selectedTab);
             window.act(root -> WindowForTests.pressRowAnalysisReportLink(root, "wanted-", wanted, SECOND));
@@ -232,7 +230,7 @@ class TheAnalysisReportsWindowTest {
             handed = List.copyOf(window.dialogs.handed);
         }
 
-        claim("the report's name in the Report tab opens it in the Reports window, its tab selected",
+        claim("the report's name in the sidebar's list opens it in the Reports window, its tab selected",
                 () -> {
                     assertThat(afterTheReportTab).containsExactly(tabOf(FIRST));
                     assertThat(selectedAfterTheReportTab).isEqualTo(tabOf(FIRST));
@@ -253,7 +251,7 @@ class TheAnalysisReportsWindowTest {
                             tabOf(A_CELL_LEADS_TO));
                     assertThat(said).isEqualTo(A_CELL_LEADS_TO_NOT_WRITTEN + " is not written yet, so it is not opened");
                 });
-        claim("the control panel's window holds the Report and Inclusions tabs alone, and nothing is handed to the system",
+        claim("the control panel's window holds no tab, and nothing is handed to the system",
                 () -> {
                     assertThat(theCockpitsTabs).containsExactlyElementsOf(THE_COCKPITS_TABS);
                     assertThat(handed).isEmpty();

@@ -12,45 +12,44 @@ import java.util.Set;
 import java.util.function.DoubleFunction;
 import java.util.regex.Pattern;
 import javafx.collections.ListChangeListener;
+import javafx.geometry.Orientation;
+import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.Node;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
-import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.TilePane;
 import javafx.scene.layout.StackPane;
-import javafx.scene.layout.VBox;
+import javafx.scene.text.TextAlignment;
 import javafx.util.StringConverter;
 
 /**
- * The cockpit's eight charts, one for each stage, in two rows inside a pane that scrolls sideways where the window is
- * narrower than their least width (ADR-382 §1, §8), each drawn from the file the jar keeps for its stage (ADR-382 §4),
- * with the legend and the values of ADR-365; a chart whose stage has finished is drawn frozen (ADR-382 §6). The window
- * draws what a file holds and decides none of it.
+ * The cockpit's fifteen charts, one for each step, each in the grid of its leg's charts, beneath the leg's bars
+ * (ADR-432 §2), each drawn from the file the jar keeps for its step (ADR-432 §4), with the legend and the values of
+ * ADR-365; a chart whose step has finished is drawn frozen (ADR-432 §6), and one whose step finished in an earlier
+ * invocation or ran and reported no count says so in its plot (ADR-432 §5). The window draws what a file holds and
+ * decides none of it.
  */
-final class ProgressCharts extends ScrollPane {
+final class ProgressCharts {
 
-    /** The stages, in the order their charts stand: the first four in the upper row, the last four in the lower one. */
-    static final List<String> STAGES = List.of("0", "1", "2", "3", "4", "5", "6a", "6b");
+    /** What a chart says where its step finished in an earlier invocation, and where it ran and reported no count (ADR-432 §5). */
+    static final String FINISHED_EARLIER = "finished in an earlier invocation";
 
-    /** Each stage's title: its number and its name as {@code docs/architecture.md} §1.2 names them, brackets left out. */
-    private static final Map<String, String> TITLES = Map.of(
-            "0", "0 \u00b7 Census",
-            "1", "1 \u00b7 Byte-level reduction",
-            "2", "2 \u00b7 Extraction",
-            "3", "3 \u00b7 Content census",
-            "4", "4 \u00b7 Content redundancy",
-            "5", "5 \u00b7 Relevance",
-            "6a", "6a \u00b7 Arrangement",
-            "6b", "6b \u00b7 Generation");
+    static final String NO_COUNT = "no count reported";
 
-    /** The stages that judge, whose chart draws their verdicts by kind beside their counts (ADR-382 §2). */
-    private static final List<String> JUDGING = List.of("1", "2", "4", "5");
+    /** The steps that judge, whose chart draws their verdicts by kind beside their counts (ADR-432 §2). */
+    private static final List<String> JUDGING = List.of("byte-level-reduction", "extraction", "content-redundancy",
+            "relevance-floor");
 
-    /** The finished-at time of a frozen chart's title, in the machine's zone on the 24-hour clock (ADR-382 §6). */
+    /** A row of a leg's charts is this high; the least width and the space between charts are the stylesheet's (ADR-432 §2). */
+    private static final double ROW_HEIGHT = 300;
+
+    /** The finished-at time of a frozen chart's title, in the machine's zone on the 24-hour clock (ADR-432 §6). */
     private static final DateTimeFormatter HOURS_AND_MINUTES =
             DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT).withZone(ZoneId.systemDefault());
 
@@ -63,34 +62,139 @@ final class ProgressCharts extends ScrollPane {
      */
     private static final Pattern A_TIME_AXIS = Pattern.compile("\\s\\(s\\)\\s*$");
 
-    private final Map<String, LineChart<Number, Number>> charts = new LinkedHashMap<>();
+    private final Map<String, StepChart> charts = new LinkedHashMap<>();
+    private final Map<String, Grid> grids = new LinkedHashMap<>();
 
     ProgressCharts() {
-        HBox upper = row("stage-charts-row-1", STAGES.subList(0, 4));
-        HBox lower = row("stage-charts-row-2", STAGES.subList(4, 8));
-        VBox rows = new VBox(upper, lower);
-        rows.getStyleClass().add("charts");
-        setContent(rows);
-        setId("stage-charts");
-        getStyleClass().add("stage-charts");
-        // the rows keep their four charts each and are fitted to the pane's width, scrolling sideways below their
-        // least width, which the charts' own least width gives them (ADR-382 §8)
-        setFitToWidth(true);
-        setHbarPolicy(ScrollBarPolicy.AS_NEEDED);
-        setVbarPolicy(ScrollBarPolicy.NEVER);
-    }
-
-    private HBox row(String id, List<String> stages) {
-        HBox row = new HBox();
-        row.setId(id);
-        row.getStyleClass().add("charts");
-        for (String stage : stages) {
-            row.getChildren().add(chart(stage));
+        for (Legs.Leg leg : Legs.ALL) {
+            Grid grid = new Grid("leg-charts-" + leg.name());
+            for (String step : leg.steps()) {
+                grid.getChildren().add(chart(step));
+            }
+            grids.put(leg.name(), grid);
         }
-        return row;
     }
 
-    private LineChart<Number, Number> chart(String stage) {
+    /** The pane of {@code leg}'s charts, one for each of its steps in step order, which stands beneath the leg's rows (ADR-432 §2). */
+    Pane gridOf(Legs.Leg leg) {
+        return grids.get(leg.name());
+    }
+
+    /**
+     * A leg's charts in as many columns as fit at their least width and the space between them, at least one, each
+     * column an equal share of the pane's width, filled in step order a row at a time (ADR-432 §2).
+     */
+    private static final class Grid extends TilePane {
+
+        Grid(String id) {
+            setId(id);
+            getStyleClass().add("leg-charts");
+        }
+
+        @Override
+        public Orientation getContentBias() {
+            return Orientation.HORIZONTAL;
+        }
+
+        /** The space between two charts, which the stylesheet sets as the pane's {@code -fx-hgap} and {@code -fx-vgap}. */
+        private double gap() {
+            return getHgap();
+        }
+
+        /** A chart's least width, which the stylesheet sets as its {@code -fx-min-width}. */
+        private double leastWidth() {
+            List<Node> managed = getManagedChildren();
+            return managed.isEmpty() ? 1 : Math.max(1, managed.getFirst().minWidth(-1));
+        }
+
+        private int columnsIn(double width) {
+            return Math.max(1, (int) Math.floor((width + gap()) / (leastWidth() + gap())));
+        }
+
+        @Override
+        protected double computePrefWidth(double height) {
+            return snappedLeftInset() + leastWidth() + snappedRightInset();
+        }
+
+        @Override
+        protected double computeMinWidth(double height) {
+            return computePrefWidth(height);
+        }
+
+        @Override
+        protected double computePrefHeight(double width) {
+            double room = width > 0 ? width : getWidth() > 0 ? getWidth() : 3 * (leastWidth() + gap());
+            int columns = columnsIn(room - snappedLeftInset() - snappedRightInset());
+            int count = getManagedChildren().size();
+            int rows = (count + columns - 1) / columns;
+            return snappedTopInset() + rows * ROW_HEIGHT + Math.max(0, rows - 1) * getVgap() + snappedBottomInset();
+        }
+
+        @Override
+        protected double computeMinHeight(double width) {
+            return computePrefHeight(width);
+        }
+
+        @Override
+        protected void layoutChildren() {
+            double left = snappedLeftInset();
+            double top = snappedTopInset();
+            double room = getWidth() - left - snappedRightInset();
+            int columns = columnsIn(room);
+            double cell = Math.max(1, (room - gap() * (columns - 1)) / columns);
+            List<Node> managed = getManagedChildren();
+            for (int i = 0; i < managed.size(); i++) {
+                managed.get(i).resizeRelocate(left + (i % columns) * (cell + gap()),
+                        top + (i / columns) * (ROW_HEIGHT + getVgap()), cell, ROW_HEIGHT);
+            }
+        }
+    }
+
+    /**
+     * A step's chart, with the words it may say laid over the middle of its plot: they stand among the chart's own
+     * children, beside the plot's background, and take no pointer (ADR-432 §5).
+     */
+    private static final class StepChart extends LineChart<Number, Number> {
+
+        private final Label words = new Label();
+
+        StepChart(String step, NumberAxis time, NumberAxis value) {
+            super(time, value);
+            words.setId("step-chart-words-" + step);
+            words.getStyleClass().add("step-chart-words");
+            words.setWrapText(true);
+            words.setTextAlignment(TextAlignment.CENTER);
+            words.setAlignment(Pos.CENTER);
+            words.setMouseTransparent(true);
+            words.setManaged(false);
+            words.setVisible(false);
+            getChartChildren().add(words);
+        }
+
+        /** Says {@code text} in the middle of the plot; nothing where it is empty. */
+        void say(String text) {
+            words.setText(text);
+            words.setVisible(!text.isEmpty());
+            requestLayout();
+        }
+
+        @Override
+        protected void layoutPlotChildren() {
+            // the chart has laid out its plot's background and axes before it lays out the plot's lines
+            super.layoutPlotChildren();
+            Node background = lookup(".chart-plot-background");
+            if (background instanceof Region plot && words.isVisible()) {
+                double room = Math.max(1, plot.getWidth() - 16);
+                double across = Math.min(room, words.prefWidth(-1));
+                double high = words.prefHeight(across);
+                words.resize(across, high);
+                words.relocate(plot.getLayoutX() + (plot.getWidth() - across) / 2,
+                        plot.getLayoutY() + (plot.getHeight() - high) / 2);
+            }
+        }
+    }
+
+    private StepChart chart(String step) {
         NumberAxis time = new NumberAxis();
         // each tick names its own unit, seconds, minutes or hours (ADR-371 §4)
         time.setLabel("Elapsed");
@@ -98,25 +202,24 @@ final class ProgressCharts extends ScrollPane {
         // the unit follows the spacing of the ticks, so that two ticks side by side never read alike
         time.setTickLabelFormatter(drawnAs(tick -> tick < 0 ? "" : timeTick(tick, time.getTickUnit())));
         NumberAxis value = new NumberAxis();
-        value.setLabel(axisOf(stage));
+        value.setLabel(axisOf(step));
         value.setForceZeroInRange(false);
         value.setTickLabelFormatter(drawnAs(tick -> tick < 0 ? "" : tickText(value.getLabel(), tick, value.getTickUnit())));
-        LineChart<Number, Number> chart = new LineChart<>(time, value);
-        chart.setId("stage-chart-" + stage);
-        chart.setTitle(TITLES.get(stage));
+        StepChart chart = new StepChart(step, time, value);
+        chart.setId("step-chart-" + step);
+        chart.setTitle(step);
         chart.setAnimated(false);
         chart.setCreateSymbols(false);
         chart.setLegendSide(Side.TOP);
         chart.setLegendVisible(false);
         chart.getStyleClass().add("progress-chart");
-        HBox.setHgrow(chart, Priority.ALWAYS);
-        charts.put(stage, chart);
+        charts.put(step, chart);
         return chart;
     }
 
-    /** The title of a stage's value axis: its counts, and its verdicts too where it judges (ADR-382 §2). */
-    private static String axisOf(String stage) {
-        return JUDGING.contains(stage) ? "Done and verdicts (count)" : "Done (count)";
+    /** The title of a step's value axis: its counts, and its verdicts too where it judges (ADR-432 §2). */
+    private static String axisOf(String step) {
+        return JUDGING.contains(step) ? "Done and verdicts (count)" : "Done (count)";
     }
 
     /** A formatter that draws each tick as {@code text} writes it; a tick label is never read back. */
@@ -194,30 +297,31 @@ final class ProgressCharts extends ScrollPane {
     }
 
     /**
-     * Draws each stage's chart from the file the working directory keeps for it, or empties it, under its title, where
-     * {@code kept} holds none (ADR-382 §4). A chart whose file gives the instant its stage finished is drawn frozen, its
-     * title ending with that time and no sample marked as the latest (ADR-382 §6).
+     * Draws each step's chart from the file the working directory keeps for it, or empties it, under its title, where
+     * {@code kept} holds none (ADR-432 §4). A chart whose file gives the instant its step finished is drawn frozen, its
+     * title ending with that time and no sample marked as the latest (ADR-432 §6); one whose step finished in an earlier
+     * invocation draws no line and says so, and one that ran and holds no count of its own says it reported none (§5).
      */
-    void show(Map<String, StageChartFile.Chart> kept) {
-        for (Map.Entry<String, LineChart<Number, Number>> entry : charts.entrySet()) {
-            LineChart<Number, Number> chart = entry.getValue();
-            StageChartFile.Chart drawn = kept.get(entry.getKey());
+    void show(Map<String, StepChartFile.Chart> kept) {
+        for (Map.Entry<String, StepChart> entry : charts.entrySet()) {
+            StepChart chart = entry.getValue();
+            StepChartFile.Chart drawn = kept.get(entry.getKey());
             boolean frozen = drawn != null && drawn.finishedAt() != null;
             chart.getData().clear();
-            chart.setTitle(TITLES.get(entry.getKey())
-                    + (frozen ? ", finished at " + HOURS_AND_MINUTES.format(drawn.finishedAt()) : ""));
+            chart.setTitle(entry.getKey() + (frozen ? ", finished at " + HOURS_AND_MINUTES.format(drawn.finishedAt()) : ""));
             if (frozen && !chart.getStyleClass().contains("frozen")) {
                 chart.getStyleClass().add("frozen");
             } else if (!frozen) {
                 chart.getStyleClass().remove("frozen");
             }
+            chart.say(wordsOf(drawn));
             setAxes(chart, drawn);
             if (drawn == null) {
                 chart.setLegendVisible(false);
                 continue;
             }
             List<XYChart.Series<Number, Number>> drawnSeries = new ArrayList<>();
-            for (StageChartFile.Line line : drawn.lines()) {
+            for (StepChartFile.Line line : drawn.lines()) {
                 XYChart.Series<Number, Number> series = new XYChart.Series<>();
                 series.setName(line.name());
                 int count = Math.min(line.values().size(), line.seconds().size());
@@ -241,16 +345,29 @@ final class ProgressCharts extends ScrollPane {
         }
     }
 
+    /** The words a chart says in its plot: none where it is not started, or has a count (ADR-432 §5). */
+    private static String wordsOf(StepChartFile.Chart drawn) {
+        if (drawn == null) {
+            return "";
+        }
+        if (drawn.finishedEarlier()) {
+            return FINISHED_EARLIER;
+        }
+        boolean counted = drawn.lines().stream()
+                .anyMatch(line -> line.name().equals("done") && !line.values().isEmpty());
+        return drawn.started() && !counted ? NO_COUNT : "";
+    }
+
     /**
      * Sets each axis of {@code chart} from the samples {@code drawn} holds now, and from no earlier drawing (ADR-425):
      * two numbers or more, the axis ranges by itself, ticked every 5; one number, or none (0), it runs one power of ten
      * either side of that number, ticked at that step.
      */
-    private static void setAxes(LineChart<Number, Number> chart, StageChartFile.Chart drawn) {
+    private static void setAxes(LineChart<Number, Number> chart, StepChartFile.Chart drawn) {
         Set<Double> seconds = new HashSet<>();
         Set<Double> values = new HashSet<>();
         if (drawn != null) {
-            for (StageChartFile.Line line : drawn.lines()) {
+            for (StepChartFile.Line line : drawn.lines()) {
                 int count = Math.min(line.values().size(), line.seconds().size());
                 for (int i = 0; i < count; i++) {
                     seconds.add(line.seconds().get(i).doubleValue());

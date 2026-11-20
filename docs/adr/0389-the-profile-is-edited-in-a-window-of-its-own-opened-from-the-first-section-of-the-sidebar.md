@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-414](0414-the-analysis-reports-open-in-a-reports-window-of-their-own-a-tab-each-and-the-cockpit-keeps-its-list-and-two-tabs.md).** Of §1: the tabs pane holds `live-report` and `inclusions` alone, no report's tab opening there. Of §2: a report link on a row opens the report's tab in the Reports window, a window of its own. The rest of this record stands.
 
+> **Partly amended — see [ADR-432](0432-each-step-has-a-chart-beneath-its-legs-bars-the-output-spans-the-column-above-the-legs-and-the-cockpit-holds-no-tabs.md).** Of §1: the cockpit holds no tabs pane, and the link from `foldersNotWalked` opens the sidebar's Folders section, as those from `seedFolder` and `codeSetFolders` open theirs. The rest of this record stands.
+
 > **Partly amended — see [ADR-434](0434-the-profiles-outputs-choose-what-stage-6b-draws-and-a-retrieval-plugin-draws-records-and-vectors-into-a-jsonl-file.md).** Of §1: the sidebar is ten sections, `outputs`, titled Outputs and holding a checkbox for each output stage 6b may draw, standing after `code-sets`. The rest of this record stands.
 
 - **Date**: 2026-11-13
@@ -174,7 +176,7 @@ The Profile window is a view of the control panel's, and ADR-381 §1, ADR-374 an
 | `ui.EveryTextOfTheWindowCanBeCopiedTest.everyTextShownOutsideAControlIsSelectableText` | §1, §7: amended so that the walk reaches the Profile window's rows and its problem line, the tabs read Report and Inclusions, the sections Profile first, and a wheel over a row's description scrolls the Profile window's form |
 | `ui.WhereTheModelsRunIsShownAndNotEditedTest.theRowShowsItsValueGreyedOutAndASaveWritesNothingOfIt` | §2: amended to read the row and press Save in the Profile window |
 | `ui.TheProfileRowIsOneLineTest.everyControlOfTheProfileWindowStartsAtOneEdge` | §3: amended to measure ADR-377 §3's one edge in the Profile window at its first size, not made 1500 by 960 first; that no title is cut at that size is `atItsFirstSizeEveryRowsTitleIsShownWhole`'s claim, and leaves this test |
-| `ui.TheLiveReportTest.theReportTabShowsTheInvocationNatively`, `ui.TheAnalysisReportsOpenNativelyTest.anAnalysisReportsLinkOpensItsNativeViewInATabOfTheWindow` and `.aJsonThatCannotBeReadOrIsOfAnotherFormatOpensNothing` | §1: amended to the tabs `live-report` and `inclusions`, a report's tab third |
+| `ui.TheLiveReportTest.theReportTabShowsTheInvocationNatively` (retired by ADR-432, #914), `ui.TheAnalysisReportsOpenNativelyTest.anAnalysisReportsLinkOpensItsNativeViewInATabOfTheWindow` and `.aJsonThatCannotBeReadOrIsOfAnotherFormatOpensNothing` | §1: amended to the tabs `live-report` and `inclusions`, a report's tab third |
 | `confluence.ARefusedPublishSaysWhereToSetWhatIsMissingTest.fromTheControlPanelTheRefusalNamesTheProfileWindowsKeysAndWritesNoTemplate` and `.fromTheControlPanelAParentNamedTwiceAndAnAddressNotASitesNameTheProfilesKeys` | §6: the refusals name the Profile window, the two of ADR-372 whole |
 | `confluence.PublishUpdatesOneTreeInPlaceIT.fromTheControlPanelATitleNamingNoPageOrTwoStopsWithItsOwnCodeNamingTheProfilesKeys` | §6: the two stops' whole lines name the Profile window |
 | `ui.PublishToConfluenceAsksForTheTokenTest.aTitleNamingNoPageAsksForAnotherSavesItAndPublishesAgain` and `.aTitleNamingSeveralAsksTooAndCancelOrBlanksSaveAndStartNothing` | §6: the warning's sentences and the Cancel line, whole, name the Profile window |
