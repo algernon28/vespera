@@ -1,5 +1,7 @@
 # ADR-422 — A line of one sample is drawn as a marker in its colour, on a frozen chart too
 
+> **Partly amended — see [ADR-432](0432-each-step-has-a-chart-beneath-its-legs-bars-the-output-spans-the-column-above-the-legs-and-the-cockpit-holds-no-tabs.md).** Of §1 and its Consequences: a step finished in an earlier invocation draws no sample and no marker, its words in their place; a line of one sample of any other step's chart is drawn as §1 and §2 have it. The rest of this record stands.
+
 - **Date**: 2026-11-18
 - **Status**: accepted on 2026-11-18.
 - **Decided**: by the operator on 2026-11-18: a stage's chart whose lines each hold a single sample, frozen or not, draws a visible marker for each line, holding its value, and keeps its legend. Under the operator's delegation: that the rule is each line's, whatever the chart's other lines hold (§1); the marker's look, and its dimming on a frozen chart (§2); and the tests.
@@ -58,9 +60,9 @@
 
 | Method | What it holds |
 | --- | --- |
-| `ui.EachStageHasAChartTest.aLineOfOneSampleIsDrawnAsAMarkerFrozenOrNot` | §1 to §3: the window opened with no invocation over a working directory keeping stage 1's chart frozen with five lines of one sample each at 0 s and no `done`, as a run put back leaves it; stage 2's frozen with two lines of two samples and one of one; and stage 4's not frozen with two lines of one sample: on stage 1's, frozen, each line shows exactly one marker, drawn in the colour its line is drawn in, 8 px across inside a hit area 24 px across, at opacity 0.85 as its lines are, holding its value alone, *3*, *80*, *1*, *12* and *1,031*, and the legend shown names the five lines in the file's order; on stage 2's, its two lines of two samples show none and its line of one sample one; on stage 4's, each of its two lines one |
+| `ui.EachStageHasAChartTest.aLineOfOneSampleIsDrawnAsAMarkerFrozenOrNot` (renamed `ui.EachStepHasAChartBeneathItsLegTest.aLineOfOneSampleIsDrawnAsAMarkerFrozenOrNot` by ADR-432, #914) | §1 to §3: the window opened with no invocation over a working directory keeping stage 1's chart frozen with five lines of one sample each at 0 s and no `done`, as a run put back leaves it; stage 2's frozen with two lines of two samples and one of one; and stage 4's not frozen with two lines of one sample: on stage 1's, frozen, each line shows exactly one marker, drawn in the colour its line is drawn in, 8 px across inside a hit area 24 px across, at opacity 0.85 as its lines are, holding its value alone, *3*, *80*, *1*, *12* and *1,031*, and the legend shown names the five lines in the file's order; on stage 2's, its two lines of two samples show none and its line of one sample one; on stage 4's, each of its two lines one |
 
-`ui.EachStageHasAChartTest.aFinishedStagesChartIsDrawnFrozenFromItsFileAsTheWindowOpens` holds, unchanged, that a frozen chart whose lines hold several samples marks none of them as the latest, and `ui.EveryBarOfTheStepsCarriesItsPercentTest.everyTextOfTheWindowAndEveryMarkOfItsChartsStandsAtAaInBothThemes` the series colours at 3 : 1 at the opacity a frozen chart draws them at (ADR-374, ADR-382 §9).
+`ui.EachStageHasAChartTest.aFinishedStagesChartIsDrawnFrozenFromItsFileAsTheWindowOpens` (renamed `ui.EachStepHasAChartBeneathItsLegTest.aFinishedStepsChartIsDrawnFrozenFromItsFileAsTheWindowOpens` by ADR-432, #914) holds, unchanged, that a frozen chart whose lines hold several samples marks none of them as the latest, and `ui.EveryBarOfTheStepsCarriesItsPercentTest.everyTextOfTheWindowAndEveryMarkOfItsChartsStandsAtAaInBothThemes` the series colours at 3 : 1 at the opacity a frozen chart draws them at (ADR-374, ADR-382 §9).
 
 ## What the implementation owes
 

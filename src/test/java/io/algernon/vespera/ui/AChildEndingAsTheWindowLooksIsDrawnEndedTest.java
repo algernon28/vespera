@@ -23,8 +23,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The window draws its child, on each tick of its clock, from one look at it: the line above the tab says how the child
- * ended on the tick the Report tab first says so (ADR-278 section 5, ADR-362 section 8). A child that ended between
+ * The window draws its child, on each tick of its clock, from one look at it: the child's line says how the child
+ * ended on the tick the ending panel first says so (ADR-278 section 5, ADR-362 section 8, ADR-417 and ADR-432 section 8,
+ * the Report tab that said so before being gone). A child that ended between
  * the window asking whether it runs and asking how it ended was drawn running beside its own ending for a whole tick.
  *
  * <p>The test makes that ending land where it did by chance on a slow machine: its child, {@link PrintingJars#printing()},
@@ -45,15 +46,15 @@ class AChildEndingAsTheWindowLooksIsDrawnEndedTest {
     private static final String FAILED_OR_REFUSED = "Failed or refused";
 
     /**
-     * What the Report tab's status line and the line above the tab say, and whether the working-directory list can be
-     * changed, read at one instant.
+     * The kind of ending the ending panel says, what the child's line says, and whether the working-directory list can
+     * be changed, read at one instant.
      */
     private record Said(String status, String child, boolean listChangeable) {
     }
 
     @Test
     @Story("The window says how its child ended")
-    @DisplayName("A child that ends while the window looks at it is said to have ended on the tick the Report tab says it wrote no report, never to be running")
+    @DisplayName("A child that ends while the window looks at it is said to have ended on the tick the ending panel says so, never to be running")
     void aChildEndingAsTheWindowLooksIsDrawnEndedOnTheTickItsReportIs(@TempDir Path folder) throws Exception {
         ControlPanelState state = WindowForTests.aState(folder, PrintingJars.printing());
         state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(),
@@ -74,9 +75,8 @@ class AChildEndingAsTheWindowLooksIsDrawnEndedTest {
                     .isTrue();
             caught = caughtLookingAtHowTheChildEnded(toolkit);
             child.destroyForcibly();
-            said = window.awaiting(root -> new Said(textOf(root, "report-status"), textOf(root, "child"),
-                            listChangeable(root)),
-                    each -> LiveReport.NO_REPORT.equals(each.status()));
+            said = window.awaiting(root -> new Said(endingKindOf(root), textOf(root, "child"), listChangeable(root)),
+                    each -> FAILED_OR_REFUSED.equals(each.status()));
         }
         Ending ending = state.ending().orElseThrow();
         String endedAs = state.childCommand() + ": " + FAILED_OR_REFUSED + ", exit " + ending.exitCode() + " ("
@@ -85,11 +85,17 @@ class AChildEndingAsTheWindowLooksIsDrawnEndedTest {
         claim("the window's clock is seen looking at how its child ended while the child still runs, within "
                         + WATCHING.toSeconds() + " seconds, twenty of its ticks, so that the child is killed inside that look",
                 () -> assertThat(caught).isTrue());
-        claim("on the tick the Report tab first says the invocation wrote no report, the line above the tab says the child"
+        claim("on the tick the ending panel first says the child failed or was refused, the child's line says the child"
                         + " failed, with its exit code and its last line of output, and not that it is running; and the"
                         + " working-directory list, with its New and Browse buttons, can be changed again, as Run can be"
-                        + " pressed again (ADR-393 section 4)",
-                () -> assertThat(said).isEqualTo(new Said(LiveReport.NO_REPORT, endedAs, true)));
+                        + " pressed again",
+                () -> assertThat(said).isEqualTo(new Said(FAILED_OR_REFUSED, endedAs, true)));
+    }
+
+    /** The kind of ending the ending panel says, where it shows; empty where it does not. */
+    private static String endingKindOf(Parent root) {
+        return HeadlessToolkit.nodeWithId(root, "ending-kind").filter(javafx.scene.Node::isVisible)
+                .map(node -> ((TextInputControl) node).getText()).orElse("");
     }
 
     /**

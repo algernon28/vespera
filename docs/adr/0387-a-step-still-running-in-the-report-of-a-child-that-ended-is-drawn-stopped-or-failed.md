@@ -1,5 +1,7 @@
 # ADR-387 — A step still running in the report of a child that ended is drawn stopped or failed
 
+> **Partly amended — see [ADR-432](0432-each-step-has-a-chart-beneath-its-legs-bars-the-output-spans-the-column-above-the-legs-and-the-cockpit-holds-no-tabs.md).** Of its What this does not decide, the Report tab: no Report tab is drawn; the status line stands in the header while the child runs and not once it has ended, the ending panel saying how it ended. The rest of this record stands.
+
 - **Date**: 2026-11-13
 - **Status**: accepted on 2026-11-13.
 - **Decided**: under delegation, on [#788](https://github.com/algernon28/vespera/issues/788): what the steps chart draws of a step the last report of the window's own child still says is `running` once that child has ended.

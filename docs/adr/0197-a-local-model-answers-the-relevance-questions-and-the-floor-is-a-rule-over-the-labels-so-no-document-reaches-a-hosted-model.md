@@ -12,6 +12,8 @@
 
 > **Partly amended — see [ADR-424](0424-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md).** Of §6: `--auto`'s refusal reads *the label file holds ‹n› label(s) not yet recorded; run vespera label first*, its line *labelled ‹n› of ‹m› document(s) with …; ‹d› already labelled by a person and left as they are*, and its description *Have the local model label the documents in the label file …*.
 
+> **Partly amended — see [ADR-432](0432-each-step-has-a-chart-beneath-its-legs-bars-the-output-spans-the-column-above-the-legs-and-the-cockpit-holds-no-tabs.md).** Of ADR-377's note above: the control panel sets the labels in the sidebar's Folders section, by folder, the Inclusions tab gone. The rest of this record stands.
+
 - **Date**: 2026-10-05
 - **Status**: accepted
 - **Amends**: [ADR-088](0088-the-relevance-threshold-is-read-off-a-stratified-sample-of-sixty-labels-and-an-unset-floor-does-not-stop-the-run.md) in two sentences. A label is "a person's answer", and becomes: a person's answer, or a local model's answer that says it is one (§3). "Nothing writes the threshold into the profile" becomes: nothing does, except the rule in §4, run on request, over a key that is unset or that the rule itself wrote last (§4).

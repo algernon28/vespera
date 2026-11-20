@@ -59,8 +59,12 @@ class AChildsReportNotThatJsonLeavesTheWindowAsItWasTest {
             + " \"endedAt\": \"%s\", \"steps\": [{\"name\": \"census\", \"state\": \"failed\", \"done\": null,"
             + " \"total\": null}], \"charts\": [], \"closing\": \"" + ITS_LAST_LINE + "\"}";
 
-    /** What the Report tab and the line above it say once the child has ended. */
-    private record Said(String status, String howItEnded, String child) {
+    /**
+     * What the window says once the child has ended: the kind of ending and the line the ending panel says, and the
+     * child's line. Since ADR-432 §8 the ending panel says how a child that wrote no report of its own ended, the Report
+     * tab gone.
+     */
+    private record Said(String kind, String howItEnded, String child) {
     }
 
     @Test
@@ -70,12 +74,12 @@ class AChildsReportNotThatJsonLeavesTheWindowAsItWasTest {
         Said said = saidOnceTheChildEnded(folder, report -> report.replaceFirst("\"started\":\"[^\"]*\"",
                 "\"started\":null"));
 
-        claim("the child's report.json says it started at no time, not that JSON, so once it has ended the status line"
-                        + " says this invocation wrote no report, how it ended its last line of output with the word for"
-                        + " how it ended, and the line above the tab the same",
+        claim("the child's report.json says it started at no time, not that JSON, so once it has ended the ending panel"
+                        + " says it failed or was refused, with its last line of output, as of a child that wrote no"
+                        + " report, and the child's line the same",
                 () -> assertThat(said).satisfies(
-                        each -> assertThat(each.status()).isEqualTo(LiveReport.NO_REPORT),
-                        each -> assertThat(each.howItEnded()).contains(ITS_LAST_LINE, FAILED_OR_REFUSED),
+                        each -> assertThat(each.kind()).isEqualTo(FAILED_OR_REFUSED),
+                        each -> assertThat(each.howItEnded()).contains(ITS_LAST_LINE),
                         each -> assertThat(each.child()).contains(ITS_LAST_LINE)));
     }
 
@@ -87,10 +91,10 @@ class AChildsReportNotThatJsonLeavesTheWindowAsItWasTest {
                 "\"writtenAt\":\"" + THE_LATEST_INSTANT + "\""));
 
         claim("the child's report.json says it was last written at an instant no clock can show, not that JSON, so once"
-                        + " it has ended the status line says this invocation wrote no report, and how it ended is its"
-                        + " last line of output",
-                () -> assertThat(List.of(said.status(), said.howItEnded().contains(ITS_LAST_LINE)))
-                        .containsExactly(LiveReport.NO_REPORT, true));
+                        + " it has ended the ending panel says it failed or was refused, and how it ended is its last"
+                        + " line of output",
+                () -> assertThat(List.of(said.kind(), said.howItEnded().contains(ITS_LAST_LINE)))
+                        .containsExactly(FAILED_OR_REFUSED, true));
     }
 
     @Test
@@ -101,10 +105,10 @@ class AChildsReportNotThatJsonLeavesTheWindowAsItWasTest {
                 "\"ended\":\"" + THE_LATEST_INSTANT + "\""));
 
         claim("the child's report.json says it ended at an instant no clock can show, not that JSON, so once it has"
-                        + " ended the status line says this invocation wrote no report, and how it ended is its last line"
-                        + " of output",
-                () -> assertThat(List.of(said.status(), said.howItEnded().contains(ITS_LAST_LINE)))
-                        .containsExactly(LiveReport.NO_REPORT, true));
+                        + " ended the ending panel says it failed or was refused, and how it ended is its last line of"
+                        + " output",
+                () -> assertThat(List.of(said.kind(), said.howItEnded().contains(ITS_LAST_LINE)))
+                        .containsExactly(FAILED_OR_REFUSED, true));
     }
 
     @Test
@@ -152,9 +156,15 @@ class AChildsReportNotThatJsonLeavesTheWindowAsItWasTest {
         try (WindowForTests window = WindowForTests.shown(state)) {
             window.readEverySecond();
             assumeThat(state.start(ControlPanelState.Start.RUN, new ArrayList<>())).as("the child is started").isEmpty();
-            String status = window.awaiting(root -> textOf(root, "report-status"), LiveReport.NO_REPORT::equals);
-            return window.read(root -> new Said(status, textOf(root, "report-ended"), textOf(root, "child")));
+            String kind = window.awaiting(root -> shownText(root, "ending-kind"), FAILED_OR_REFUSED::equals);
+            return window.read(root -> new Said(kind, shownText(root, "ending-line"), textOf(root, "child")));
         }
+    }
+
+    /** The words of the ending panel's text {@code id} where it is there and shown; empty otherwise. */
+    private static String shownText(Parent root, String id) {
+        return HeadlessToolkit.nodeWithId(root, id).filter(javafx.scene.Node::isVisible)
+                .map(node -> ((TextInputControl) node).getText()).orElse("");
     }
 
     /** Tells the child started in {@code working} to print {@link #ITS_LAST_LINE}, write {@code report}, and fail. */

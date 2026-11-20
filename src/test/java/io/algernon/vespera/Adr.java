@@ -3170,6 +3170,19 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER = FILE
             + "0430-the-control-panel-checks-docker-the-containers-and-the-models-and-starts-nothing-until-start-docker-is-pressed.md";
 
+    /**
+     * ADR-432 -- the output spans the main column above the four legs, in a split up and down the operator sizes, the
+     * legs scrolling on their own; each leg holds a chart for each of its steps beneath its rows, at least 320 × 240 px,
+     * three to a row at the opening size, each plotting its step's own {@code done} and the kinds of verdict it records,
+     * from {@code chart-step-<step>.json}, which the jar writes in place of the stage files; a chart not started is
+     * wordless, a step finished in an earlier invocation says so and a step with no count says so; and the window holds
+     * no tabs, the status line standing in the header, the rest of the report in the ending panel and the inclusions tree
+     * in the Folders section (amends ADR-382 §1, §2, §4, §5, §6 and §8, ADR-418, ADR-422 §1, ADR-425, ADR-361 §3, ADR-362
+     * §8, ADR-345 §2, ADR-417 §1, §3 and §4, ADR-344 §1 and ADR-414 §1 and §3).
+     */
+    public static final String EACH_STEP_HAS_A_CHART_BENEATH_ITS_LEG_AND_THE_COCKPIT_HOLDS_NO_TABS = FILE
+            + "0432-each-step-has-a-chart-beneath-its-legs-bars-the-output-spans-the-column-above-the-legs-and-the-cockpit-holds-no-tabs.md";
+
     private Adr() {
     }
 }

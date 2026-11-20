@@ -69,8 +69,8 @@ class TheAnalysisReportsOpenNativelyTest {
     /** The files the fixture counts: what its headline tile reads, grouped by thousands. */
     private static final String FILES_COUNTED = "51732300";
 
-    /** The tabs the window opens with, before any report is opened. */
-    private static final List<String> THE_FORM_TABS = List.of("live-report", "inclusions");
+    /** The tabs the control panel's window holds, before and after any report is opened: none (ADR-432 §8). */
+    private static final List<String> THE_FORM_TABS = List.of();
 
     private static final String THE_TAB = "analysis-report-" + THE_REPORT;
 
@@ -106,8 +106,8 @@ class TheAnalysisReportsOpenNativelyTest {
             handed = List.copyOf(window.dialogs.handed);
         }
 
-        claim("the report's tab is the Reports window's one tab, by the new id, and the control panel's window keeps the"
-                        + " two tabs it opens with",
+        claim("the report's tab is the Reports window's one tab, by the new id, and the control panel's window holds no"
+                        + " tab",
                 () -> {
                     assertThat(tabs).containsExactly(THE_TAB);
                     assertThat(theCockpitsTabs).containsExactlyElementsOf(THE_FORM_TABS);
