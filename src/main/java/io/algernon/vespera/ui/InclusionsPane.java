@@ -9,11 +9,17 @@ import java.util.Map;
 import java.util.Optional;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
-import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
-/** The Inclusions tab: the corpus root's tree with each folder the profile does not walk unticked, and the folders not relevant (ADR-345 §2). */
-final class InclusionsTab {
+/**
+ * The inclusions in the sidebar's Folders section, under its three fields: the corpus root's tree with each folder the
+ * profile does not walk unticked, its outcome line, Save and Reset, and the folders not relevant (ADR-345 §2, as
+ * ADR-432 §9 places them).
+ */
+final class InclusionsPane {
+
+    /** How high the tree stands in the sidebar. */
+    private static final double TREE_HEIGHT = 240;
 
     private final ControlPanelState state;
     private final WorkingFolders folders;
@@ -24,7 +30,7 @@ final class InclusionsTab {
     private List<String> notWalkedListed = List.of();
 
     /** {@code saved} runs after a Save has written the profile. */
-    InclusionsTab(ControlPanelState state, Dialogs dialogs, WorkingFolders folders, Runnable saved) {
+    InclusionsPane(ControlPanelState state, Dialogs dialogs, WorkingFolders folders, Runnable saved) {
         this.state = state;
         this.folders = folders;
         this.saved = saved;
@@ -43,11 +49,12 @@ final class InclusionsTab {
             inclusionsOutcome.setText("the tree is back to profile.yaml as last saved");
         });
         inclusionsOutcome.setId("inclusions-outcome");
-        VBox.setVgrow(inclusions.view(), Priority.ALWAYS);
+        // the sidebar scrolls, so the tree has a height of its own rather than the rest of one
+        inclusions.view().setPrefHeight(TREE_HEIGHT);
         Captions.on(inclusions.view(), "Untick a folder holding nothing you want. An unticked folder is never read,"
                 + " and a change makes the next walk another, so every run after it is new.");
         VBox content = new VBox(inclusions.view(), inclusionsOutcome, row(save, reset), notRelevant.pane());
-        content.getStyleClass().add("tab-content");
+        content.getStyleClass().add("inclusions");
         return content;
     }
 

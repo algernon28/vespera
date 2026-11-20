@@ -35,8 +35,6 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SplitPane;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.control.TitledPane;
 import javafx.scene.control.ToggleGroup;
 import javafx.collections.FXCollections;
@@ -49,11 +47,12 @@ import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 
 /**
- * The control panel's window as one cockpit (ADR-344 §1): Run and Stop, the job's steps as a bar each beside the
- * child's output, a chart for each stage in two rows (ADR-382), the Report and Inclusions tabs and a sidebar of nine
- * sections in their order, Profile first, which opens the Profile window (ADR-389). Its tabs pane holds the Report tab and
- * Inclusions alone: an analysis report opens, by its name, in a tab of the Reports window, {@link AnalysisReportsWindow},
- * which a change of the working directory and the cockpit's closing close (ADR-414). Every part is found by its id. The cockpit reads and writes only through the {@link ControlPanelState}
+ * The control panel's window as one cockpit (ADR-344 §1, as ADR-432 amends it): Run and Stop, the child's output across
+ * the column above the job's steps as a bar each, each leg holding a chart for each of its steps (ADR-432 §1, §2), behind
+ * a divider the operator drags, and a sidebar of nine sections in their order, Profile first, which opens the Profile
+ * window (ADR-389). The window holds no tabs (ADR-432 §8): an analysis report opens, by its name, in a tab of the Reports
+ * window, {@link AnalysisReportsWindow}, which a change of the working directory and the cockpit's closing close
+ * (ADR-414). Every part is found by its id. The cockpit reads and writes only through the {@link ControlPanelState}
  * it is given, and reads the sources its fields start from from that state (ADR-344 §3), so a cockpit a test draws
  * starts from what the test gives it. Every colour, size and space is the stylesheet's; no node here sets a style.
  * It composes the parts, each its own class, and keeps what they share: the launch fields, the plan a start is given,
@@ -111,11 +110,9 @@ final class Cockpit {
     private final HBox actions = new HBox();
     private final TextArea output = new TextArea();
     private final OutputPanel outputPanel = new OutputPanel(output);
-    private final TabPane tabs = new TabPane();
-    /** The output's side of the steps and the output: the output above, the ending panel beneath it where it has one (ADR-417 §1). */
+    /** The output's side of the column: the output above, the ending panel beneath it where it has one (ADR-417 §1, ADR-432 §1). */
     private final SplitPane outputAndEnding = new SplitPane(output);
-    private final EndingPanel endingPanel = new EndingPanel(this::openTheProfileWindow,
-            this::selectTheReportTab);
+    private final EndingPanel endingPanel;
     /** Where the divider above the ending panel stood when the panel was last taken away, as a fraction of the split. */
     private double endingDivider = 0.7;
     /** The working directory this window's own child was last started on, and whether its ending is still the last of it. */
@@ -128,23 +125,20 @@ final class Cockpit {
     private String endingReadFor;
     private Ending endingReadOf;
     private boolean endingCleared;
-    /** Whether the Report tab last drew a report for the ending panel, not for a watched invocation. */
-    private boolean tabDrawnForTheEndingPanel;
-    private final Tab inclusionsTab = new Tab("Inclusions");
     private final Accordion sidebar = new Accordion();
     private final Map<String, TitledPane> sections = new LinkedHashMap<>();
     private final Map<String, LaunchField> fields = new LinkedHashMap<>();
     private final HBox publishTo = new HBox();
     private final SelectableText.Wrapping seedOutcome = SelectableText.wrapping("");
     private final WorkingFolders folders = new WorkingFolders(this::workingDirectory, this::corpusRoot);
-    private final StepsChart steps = new StepsChart(this::stopAfterConfirming);
     private final ProgressCharts charts = new ProgressCharts();
+    private final StepsChart steps = new StepsChart(this::stopAfterConfirming, charts);
     private final OptionsPane options;
     private final ReportsPane reports;
     private final AnalysisReportsWindow analysisReportsWindow;
     private final PreflightPane preflight;
     private final CodeSetsPane codeSets;
-    private final InclusionsTab inclusions;
+    private final InclusionsPane inclusions;
     private final ProfileForm profile;
     private final ProfileWindow profileWindow;
     private final Button openProfile = new Button("Open profile");
@@ -167,7 +161,8 @@ final class Cockpit {
     /** Set while the list moves the launch value, so that the value's change does not move the list in turn. */
     private boolean choosing;
 
-    private final LiveReport live;
+    /** The status line and the stale mark of the invocation watched, which stand in the header (ADR-432 §8). */
+    private final InvocationsStatusLine live = new InvocationsStatusLine();
     private Ending reportedEnding;
 
     /** The ending the closing line below was read for, and the {@code closing} of the report its child wrote (ADR-362 section 8). */
@@ -198,10 +193,10 @@ final class Cockpit {
         });
         this.reports = new ReportsPane(folders, this::openReport);
         this.analysisReportsWindow = new AnalysisReportsWindow(root, dialogs, folders, this::say);
-        this.live = new LiveReport(this::openReport, dialogs::handToTheSystem);
+        this.endingPanel = new EndingPanel(this::openTheProfileWindow, dialogs::handToTheSystem);
         this.preflight = new PreflightPane(state, folders, property -> fields.get(property).text());
         this.codeSets = new CodeSetsPane(state, dialogs, folders, this::foldersToKeepApart, this::loadFiles);
-        this.inclusions = new InclusionsTab(state, dialogs, folders, this::loadFiles);
+        this.inclusions = new InclusionsPane(state, dialogs, folders, this::loadFiles);
         this.profile = new ProfileForm(state, dialogs, folders, this::pointTo, this::openReport, this::loadFiles,
                 profileOpen);
         this.wanted = new WantedValues(state, dialogs, folders, this::say, this::openReport, this::loadFiles,
@@ -224,6 +219,8 @@ final class Cockpit {
         readModelsInForce();
         readFieldValues();
         refresh();
+        // a child started, by this window or not through it, is watched at once, not at the clock's next tick (ADR-432 §8)
+        state.whenAChildStarts(() -> Platform.runLater(this::refresh));
         timeline = new Timeline(new KeyFrame(Duration.seconds(1), tick -> refresh()));
         timeline.setCycleCount(Timeline.INDEFINITE);
         timeline.play();
@@ -236,7 +233,8 @@ final class Cockpit {
     // ---- the main pane
 
     private Node mainPane() {
-        VBox titles = new VBox(where, child, databaseSize);
+        // the status line and the stale mark stand under the database's size while an invocation is watched (ADR-432 §8)
+        VBox titles = new VBox(where, child, databaseSize, live.statusLine(), live.staleMark());
         HBox.setHgrow(titles, Priority.ALWAYS);
         HBox header = new HBox(titles, checkList.node(), ThemeSwitch.of(root, state));
         header.setAlignment(Pos.TOP_RIGHT);
@@ -280,19 +278,20 @@ final class Cockpit {
         outputAndEnding.setId("output-and-ending");
         outputAndEnding.setOrientation(Orientation.VERTICAL);
         outputAndEnding.getStyleClass().add("output-and-ending");
-        SplitPane split = new SplitPane(new ScrollPane(steps), outputAndEnding);
-        split.setOrientation(Orientation.HORIZONTAL);
-        split.setDividerPositions(0.5);
-        ((ScrollPane) split.getItems().getFirst()).setFitToWidth(true);
-        split.getStyleClass().add("steps-and-output");
-        split.setPrefHeight(STEPS_AND_OUTPUT_HEIGHT);
-        Region stepsAndOutputGrip = grip("steps-and-output-grip", split, false, LEAST_STEPS_AND_OUTPUT_HEIGHT);
-
-        inclusionsTab.setId("inclusions");
-        inclusionsTab.setClosable(false);
-        inclusionsTab.setContent(inclusions.content());
-        tabs.getTabs().addAll(live.tab(), inclusionsTab);
-        tabs.getStyleClass().add("form-tabs");
+        // the output and its ending panel above, the legs below, behind one divider the operator drags (ADR-432 §1)
+        ScrollPane legsArea = new ScrollPane(steps);
+        legsArea.setId("legs-area");
+        legsArea.setFitToWidth(true);
+        legsArea.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        legsArea.getStyleClass().add("legs-area");
+        SplitPane split = new SplitPane(outputAndEnding, legsArea);
+        split.setId("output-and-legs");
+        split.setOrientation(Orientation.VERTICAL);
+        split.getStyleClass().add("output-and-legs");
+        // the split takes what the column leaves, whatever its items would ask for
+        split.setMinHeight(0);
+        split.setPrefHeight(0);
+        openTheOutputAt(split, OUTPUT_HEIGHT);
 
         outcomeOpenProfile.setId("outcome-open-profile");
         outcomeOpenProfile.setOnAction(event -> profileWindow.open());
@@ -302,23 +301,61 @@ final class Cockpit {
         showTheButtonBesideTheOutcome();
         child.textProperty().addListener((observed, was, now) -> showTheButtonBesideTheOutcome());
         outcome.textProperty().addListener((observed, was, now) -> showTheButtonBesideTheOutcome());
-        VBox main = new VBox(header, outcomeLine, actionCard, split, stepsAndOutputGrip, charts, tabs);
+        VBox main = new VBox(header, outcomeLine, actionCard, split);
         main.getStyleClass().add("main");
-        VBox.setVgrow(tabs, Priority.ALWAYS);
-        ScrollPane scroll = new ScrollPane(main);
-        scroll.setFitToWidth(true);
-        return scroll;
+        // the column does not scroll as a whole: the legs area, not the window, scrolls (ADR-432 §1)
+        VBox.setVgrow(split, Priority.ALWAYS);
+        return main;
     }
 
-    /** The least width of the sidebar and the least height of the steps beside the output, as the operator drags their grips (ADR-417 §1). */
+    /**
+     * Stands the divider of {@code split} where its first item is {@code height} high, as the window opens: the split's
+     * own height is known only once it is laid out, so the first height it is given sets it, and the operator's drags
+     * after that are the split's own.
+     */
+    private static void openTheOutputAt(SplitPane split, double height) {
+        Region first = (Region) split.getItems().getFirst();
+        int[] corrections = {0};
+        javafx.beans.value.ChangeListener<Number> opening = new javafx.beans.value.ChangeListener<>() {
+            @Override
+            public void changed(javafx.beans.value.ObservableValue<? extends Number> observed, Number was, Number now) {
+                double splitHeight = split.getHeight();
+                if (splitHeight <= height) {
+                    return;
+                }
+                if (corrections[0] == 0) {
+                    corrections[0] = 1;
+                    split.setDividerPositions(height / splitHeight);
+                    return;
+                }
+                double asItIs = first.getHeight();
+                if (Math.abs(asItIs - height) <= 0.5 || corrections[0] >= MOST_CORRECTIONS || asItIs <= 0) {
+                    // it stands where it opens: what the operator drags after this is the split's own
+                    split.heightProperty().removeListener(this);
+                    first.heightProperty().removeListener(this);
+                    return;
+                }
+                // the divider's position is a fraction of what the split holds but for its dividers, so the position is
+                // corrected by what the item is found to be, until it stands where it opens
+                corrections[0]++;
+                split.setDividerPositions(split.getDividerPositions()[0] * height / asItIs);
+            }
+        };
+        split.heightProperty().addListener(opening);
+        first.heightProperty().addListener(opening);
+    }
+
+    /** How many times the opening height of the output is corrected, which it does by a hundredth of a pixel or so each. */
+    private static final int MOST_CORRECTIONS = 6;
+
+    /** The least width of the sidebar, as the operator drags its grip (ADR-417 §1). */
     private static final double LEAST_SIDEBAR_WIDTH = 220;
-    private static final double LEAST_STEPS_AND_OUTPUT_HEIGHT = 150;
     /**
      * The sizes each opens at. They are set here and not by the stylesheet, whose rules a size the operator drags to would
      * not outrank.
      */
     private static final double SIDEBAR_WIDTH = 420;
-    private static final double STEPS_AND_OUTPUT_HEIGHT = 300;
+    private static final double OUTPUT_HEIGHT = 300;
 
     /**
      * A bar the operator drags to size {@code target}: its width where {@code wide}, else its height, by as much as the
@@ -1013,7 +1050,7 @@ final class Cockpit {
             showTheEnding();
         });
         VBox pane = new VBox(fieldBox(corpus, "Corpus root", true), workingDirectoryBox(working),
-                fieldBox(deliverable, "Output folder", true));
+                fieldBox(deliverable, "Output folder", true), inclusions.content());
         pane.getStyleClass().add("section");
         return pane;
     }
@@ -1310,11 +1347,11 @@ final class Cockpit {
 
     /** Takes the operator to where {@code chosen}, a key the Profile window does not edit, is edited. */
     private void pointTo(ProfileKey chosen) {
-        if (chosen == ProfileKey.FOLDERS_NOT_WALKED) {
-            tabs.getSelectionModel().select(inclusionsTab);
-        } else {
-            sidebar.setExpandedPane(sections.get(chosen == ProfileKey.SEED_FOLDER ? "seed-folder" : "code-sets"));
-        }
+        sidebar.setExpandedPane(sections.get(switch (chosen) {
+            case FOLDERS_NOT_WALKED -> "folders";
+            case SEED_FOLDER -> "seed-folder";
+            default -> "code-sets";
+        }));
     }
 
     private void openReport(String report) {
@@ -1452,28 +1489,31 @@ final class Cockpit {
         reports.draw();
         where();
         showBadges();
-        readStageCharts();
+        readStepCharts();
     }
 
     /**
-     * Reads the eight files the jar keeps the stages' charts in, at the top of the working directory, and draws each
+     * Reads the fifteen files the jar keeps the steps' charts in, at the top of the working directory, and draws each
      * chart from its file: as the window opens, whenever another working directory is named and at each reading of
-     * the report (ADR-382 §4). A file not there, not readable, not that JSON or of another format leaves its chart
-     * empty under its title, and nothing is said.
+     * the report (ADR-432 §4). A file not there, not readable, not that JSON, of another format or naming another step
+     * leaves its chart empty under its title, and nothing is said; a stage's file an earlier version wrote is read by
+     * nothing.
      */
-    private void readStageCharts() {
-        Map<String, StageChartFile.Chart> kept = new HashMap<>();
+    private void readStepCharts() {
+        Map<String, StepChartFile.Chart> kept = new HashMap<>();
         Optional<Path> folder = workingDirectory();
         if (folder.isPresent()) {
-            for (String stage : ProgressCharts.STAGES) {
-                try {
-                    Path file = folder.get().resolve(StageChartFile.nameOf(stage));
-                    if (Files.isRegularFile(file)) {
-                        StageChartFile.read(Files.readString(file, StandardCharsets.UTF_8))
-                                .ifPresent(chart -> kept.put(stage, chart));
+            for (Legs.Leg leg : Legs.ALL) {
+                for (String step : leg.steps()) {
+                    try {
+                        Path file = folder.get().resolve(StepChartFile.nameOf(step));
+                        if (Files.isRegularFile(file)) {
+                            StepChartFile.read(step, Files.readString(file, StandardCharsets.UTF_8))
+                                    .ifPresent(chart -> kept.put(step, chart));
+                        }
+                    } catch (IOException | RuntimeException unreadable) {
+                        // drawn empty under its title
                     }
-                } catch (IOException | RuntimeException unreadable) {
-                    // drawn empty under its title
                 }
             }
         }
@@ -1681,7 +1721,6 @@ final class Cockpit {
             endingReadOf = own;
             endingReadFor = readFor;
             takeTheEndingPanelAway();
-            tabDrawnForTheEndingPanel = false;
             return;
         }
         Optional<EndingPanel.Said> said;
@@ -1689,26 +1728,16 @@ final class Cockpit {
             Optional<InvocationReportFile.Report> report = state.watchedChild()
                     .flatMap(child -> theChildsOwnReport(folder.get(), child));
             said = Optional.of(EndingPanel.ofTheChild(own, report, noticedAt, ZoneId.systemDefault()));
-            tabDrawnForTheEndingPanel = false;
         } else {
             Optional<EndingPanel.Said> earlier;
             try {
                 Optional<InvocationReportFile.Report> report = theReportAtTheTop(folder.get());
                 earlier = report.flatMap(each -> EndingPanel.ofAnEarlier(each, ZoneId.systemDefault()));
-                if (earlier.isPresent()) {
-                    live.showsAnEarlier(report.get());
-                }
             } catch (RuntimeException unreadable) {
                 // a report that cannot be read or drawn is no panel, and must not leave the last folder's ending standing
                 earlier = Optional.empty();
             }
             said = earlier;
-            if (said.isPresent()) {
-                tabDrawnForTheEndingPanel = true;
-            } else if (tabDrawnForTheEndingPanel) {
-                live.says(LiveReport.WAITING);
-                tabDrawnForTheEndingPanel = false;
-            }
         }
         // cached only once the reading is worked out, so a throw above cannot leave a stale reading standing
         endingCleared = false;
@@ -1727,11 +1756,6 @@ final class Cockpit {
 
     private void openTheProfileWindow() {
         profileWindow.open();
-    }
-
-    /** Open report selects the Report tab, which draws the report of the ending the panel shows, and opens nothing outside the window (ADR-417 §4). */
-    private void selectTheReportTab() {
-        tabs.getSelectionModel().select(live.tab());
     }
 
     private void takeTheEndingPanelAway() {
@@ -1813,8 +1837,8 @@ final class Cockpit {
             closedAs = null;
             closingOfItsReport = null;
             steps.show(InvocationReportFile.Report.none());
-            readStageCharts();
-            live.says(LiveReport.WAITING);
+            readStepCharts();
+            live.says(InvocationsStatusLine.WAITING);
             ticksSinceProgress = options.intervalSeconds();
         }
         if (!ownChild) {
@@ -1828,13 +1852,14 @@ final class Cockpit {
         ticksSinceProgress = 0;
         String how = ownChild && ending.isPresent() ? childWords(false, ending)
                 : ownChild ? "" : "held by " + holders.workingDirectory().orElse("another invocation");
-        readStageCharts();
+        readStepCharts();
         boolean drawn = readOnce(folder.get(), who, justEnded, how, ownChild ? ending : Optional.empty());
         watchedReportDrawn = watchedReportDrawn || drawn;
         if (justEnded) {
             reportedEnding = ending.get();
             if (!watchedReportDrawn) {
-                live.wroteNone(how);
+                // the ending panel says how it ended, from its last line of output (ADR-432 §8)
+                live.hide();
             }
         }
     }
@@ -1867,7 +1892,7 @@ final class Cockpit {
             steps.show(report, childEnded && endingOfItsChild.isPresent() && !report.ended()
                     ? endingOfItsChild.get().howItEnded() == HowItEnded.STOPPED ? StepsChart.STOPPED : StepsChart.FAILED
                     : null);
-            live.shows(report, Instant.now(), childEnded, howItEnded);
+            live.shows(report, Instant.now(), childEnded);
             lastDrawn = invocation;
             return true;
         } catch (InvocationReportFile.FormatNotKnownException notKnown) {

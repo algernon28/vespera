@@ -329,36 +329,49 @@
     -fx-spacing: 4px;
 }
 
-.tab-content {
-    -fx-padding: 8px;
+/* The inclusions in the Folders section, under its fields (ADR-432 section 9). */
+.inclusions {
     -fx-spacing: 8px;
 }
 
-.form-tabs {
-    -fx-pref-height: 420px;
+/* The split of the output above the legs takes the column's whole width: no padding of its own (ADR-432 section 1). */
+.output-and-legs {
+    -fx-padding: 0;
+}
+
+/* The legs area: the legs scroll on their own beneath the output (ADR-432 section 1). */
+.legs-area,
+.legs-area > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
 }
 
 /*
- * A stage's chart (ADR-382 section 1, 8): 340 px high and at least 250 px wide, so that its title stands on two lines, a
- * legend of six names in three rows and its plot 150 px high; below four of them the rows scroll sideways.
+ * A step's chart (ADR-432 section 2): at least 320 px wide and 240 px high, its title wrapping where it is too narrow;
+ * the grid of a leg's charts, which sets their sizes and the space between them, sets them in as many equal columns as fit.
  */
 .progress-chart {
-    -fx-pref-height: 340px;
-    -fx-min-width: 250px;
+    -fx-min-width: 320px;
+    -fx-min-height: 240px;
 }
 
 .progress-chart .chart-title {
     -fx-wrap-text: true;
 }
 
-.stage-charts,
-.stage-charts > .viewport {
-    -fx-background-color: transparent;
-    -fx-background-insets: 0;
-    -fx-padding: 0;
+.leg-charts {
+    -fx-padding: 0 0 0 8px;
 }
 
-/* a chart whose stage has finished: its lines and its legend's swatches dimmed, each line thinner (ADR-382 section 6) */
+/* the words a chart says in its plot, in the colour of its title (ADR-432 section 5) */
+.step-chart-words {
+    -fx-text-fill: -vespera-ink;
+    -fx-wrap-text: true;
+    -fx-text-alignment: center;
+}
+
+/* a chart whose step has finished: its lines and its legend's swatches dimmed, each line thinner (ADR-432 section 6) */
 .progress-chart.frozen .chart-series-line {
     -fx-opacity: 0.85;
     -fx-stroke-width: 1.5px;

@@ -620,7 +620,16 @@ final class ControlPanelState {
             pathOf(now.workingDirectory().stripTrailing())
                     .ifPresent(folder -> workingDirectories().started(folder.toAbsolutePath().normalize()));
         }
+        whenAChildStarts.run();
         return Optional.empty();
+    }
+
+    /** What runs as a child has started, which the window sets to draw the invocation it now watches (ADR-432 §8). */
+    private volatile Runnable whenAChildStarts = () -> { };
+
+    /** Sets what runs, on the thread that started it, whenever a child has just been started. */
+    void whenAChildStarts(Runnable drawn) {
+        whenAChildStarts = drawn;
     }
 
     /**
