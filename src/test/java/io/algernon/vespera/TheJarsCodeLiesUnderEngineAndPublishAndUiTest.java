@@ -23,8 +23,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.modulith.core.ApplicationModules;
 
 /**
- * Where the jar's code lies (ADR-367): the eleven capability modules in two folders of the application package,
- * {@code engine} for the nine of the cascade and {@code publish} for the two plugins' modules, the control panel in
+ * Where the jar's code lies (ADR-367): the twelve modules in two folders of the application package,
+ * {@code engine} for the nine of the cascade and {@code publish} for the three plugins' modules (ADR-434 §8), the control panel in
  * {@code ui}, and the application class and the entry point at the root, so the application package holds nothing else.
  *
  * <p>Spring Modulith finds a module as a package carrying {@code @ApplicationModule} (the detection strategy is
@@ -42,6 +42,7 @@ import org.springframework.modulith.core.ApplicationModules;
 @Feature("Module boundaries")
 @Link(name = "ADR-367", url = Adr.THE_JARS_PACKAGES_LIE_UNDER_ENGINE_PUBLISH_AND_UI, type = "adr")
 @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
+@Link(name = "ADR-434", url = Adr.THE_PROFILES_OUTPUTS_CHOOSE_WHAT_IS_DRAWN_AND_RETRIEVAL_RECORDS_ARE_ONE_JSONL_FILE, type = "adr")
 class TheJarsCodeLiesUnderEngineAndPublishAndUiTest {
 
     private static final String ROOT = "io.algernon.vespera";
@@ -54,8 +55,8 @@ class TheJarsCodeLiesUnderEngineAndPublishAndUiTest {
     private static final Set<String> ENGINE_MODULES = Set.of(
             "ledger", "corpus", "extraction", "similarity", "embedding", "synthesis", "deliverable", "profile", "pipeline");
 
-    /** The two plugins' modules (ADR-333 §1). */
-    private static final Set<String> PUBLISH_MODULES = Set.of("confluence", "website");
+    /** The three plugins' modules (ADR-333 §1, ADR-434 §8). */
+    private static final Set<String> PUBLISH_MODULES = Set.of("confluence", "website", "retrieval");
 
     /** The folders of the application package: the two that hold modules, and the control panel's. */
     private static final Set<String> FOLDERS = Set.of("engine", "publish", "ui");
@@ -112,7 +113,7 @@ class TheJarsCodeLiesUnderEngineAndPublishAndUiTest {
         }
 
         claim("each module is found under its own short name, in the folder its kind belongs to: the nine of the cascade"
-                        + " under engine, the two plugins' under publish",
+                        + " under engine, the three plugins' under publish",
                 () -> assertThat(found).containsExactlyInAnyOrderEntriesOf(expected));
         claim("and every package directly under engine or publish is a module found, so none lies there without"
                         + " @ApplicationModule, outside every rule the modules are held to",
@@ -137,6 +138,7 @@ class TheJarsCodeLiesUnderEngineAndPublishAndUiTest {
                     assertThat(namedBy(ENGINE + ".pipeline", PUBLISH)).contains("confluence", "website");
                     assertThat(namedBy(PUBLISH + ".confluence", ENGINE)).contains("deliverable");
                     assertThat(namedBy(PUBLISH + ".website", ENGINE)).contains("deliverable");
+                    assertThat(namedBy(PUBLISH + ".retrieval", ENGINE)).contains("deliverable");
                 });
     }
 

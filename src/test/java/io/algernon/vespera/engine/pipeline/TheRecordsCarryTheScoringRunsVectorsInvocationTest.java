@@ -11,7 +11,6 @@ import io.algernon.vespera.engine.embedding.WritingEmbedder;
 import io.algernon.vespera.engine.extraction.StoredChunks;
 import io.algernon.vespera.engine.profile.ProfileFixture;
 import io.algernon.vespera.engine.profile.ProfileStore;
-import io.algernon.vespera.publish.retrieval.RetrievalPlugin;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -52,7 +51,7 @@ import tools.jackson.databind.json.JsonMapper;
  * call it answers, so that "not embedded again" is a count and not a belief.
  */
 @CascadeSliceTest
-@Import({SeedScriptedExtractionBeans.class, RetrievalPlugin.class, RecordInputsOf.class, StoredChunks.class,
+@Import({SeedScriptedExtractionBeans.class, RecordInputsOf.class, StoredChunks.class,
         StoredVectors.class, WritingEmbedder.class})
 @ExtendWith(OutputCaptureExtension.class)
 @Epic("Synthesis")

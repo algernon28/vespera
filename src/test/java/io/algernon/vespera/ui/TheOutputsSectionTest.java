@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The sidebar's Outputs section (ADR-434 §11): the sidebar is ten sections, Outputs after Code sets; four boxes, HTML
+ * The sidebar's Outputs section (ADR-434 §11): the sidebar is eleven sections, Outputs after Code sets; four boxes, HTML
  * pages, Confluence, Website and Retrieval records, each ticked where {@code outputs}, read as the jar reads it, names
  * it, the first three where it is unset; unticking HTML pages unticks and disables the two drawn from it, ticking it
  * enables them and ticks neither; and Save writes the names ticked into {@code profile.yaml}, in the boxes' order,
@@ -41,7 +41,7 @@ class TheOutputsSectionTest {
     private static final ProfileKey KEY = ProfileKey.OUTPUTS;
 
     private static final List<String> THE_SECTIONS = List.of("profile", "preflight", "folders", "services",
-            "seed-folder", "labels", "code-sets", "outputs", "command-options", "reports");
+            "seed-folder", "topics", "labels", "code-sets", "outputs", "command-options", "reports");
 
     /** The boxes, in the order they stand, by id and by the words beside each. */
     private static final List<String> THEIR_IDS =
@@ -51,7 +51,7 @@ class TheOutputsSectionTest {
 
     @Test
     @Story("The section stands after Code sets")
-    @DisplayName("The sidebar holds ten sections, Outputs after Code sets, and its four boxes are ticked as the key reads: the three of the default where it is unset")
+    @DisplayName("The sidebar holds eleven sections, Outputs after Code sets, and its four boxes are ticked as the key reads: the three of the default where it is unset")
     void theBoxesAreTickedAsTheKeyReads(@TempDir Path folder) throws Exception {
         List<String> sections;
         Map<String, Boolean> unset = new LinkedHashMap<>();
@@ -69,7 +69,7 @@ class TheOutputsSectionTest {
             window.act(root -> THEIR_IDS.forEach(id -> stated.put(id, WindowForTests.node(root, id, CheckBox.class).isSelected())));
         }
 
-        claim("the sidebar holds ten sections in order, Outputs after Code sets",
+        claim("the sidebar holds eleven sections in order, Outputs after Code sets",
                 () -> assertThat(sections).containsExactlyElementsOf(THE_SECTIONS));
         claim("the four boxes stand in order, HTML pages, Confluence, Website and Retrieval records",
                 () -> assertThat(words).containsExactlyElementsOf(THEIR_WORDS));

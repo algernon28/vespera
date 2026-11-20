@@ -42,16 +42,20 @@ import org.springframework.modulith.core.ApplicationModules;
 @Link(name = "ADR-308", url = Adr.VESPERA_PUBLISHES_THE_CONFLUENCE_RENDERING_TO_THE_OPERATORS_SITE, type = "adr")
 @Link(name = "ADR-333", url = Adr.A_PLUGIN_DRAWS_ONE_RENDERING_AND_DELIVERS_IT_TO_ONE_DESTINATION, type = "adr")
 @Link(name = "ADR-367", url = Adr.THE_JARS_PACKAGES_LIE_UNDER_ENGINE_PUBLISH_AND_UI, type = "adr")
+@Link(name = "ADR-434", url = Adr.THE_PROFILES_OUTPUTS_CHOOSE_WHAT_IS_DRAWN_AND_RETRIEVAL_RECORDS_ARE_ONE_JSONL_FILE, type = "adr")
 class ModuleBoundariesTest {
 
-    /** The modules of the plugins compiled into the jar (ADR-333 §1): the Confluence rendering's and the website's. */
-    private static final List<String> PLUGIN_MODULES = List.of("confluence", "website");
+    /**
+     * The modules of the plugins compiled into the jar (ADR-333 §1, ADR-434 §8): the Confluence rendering's, the
+     * website's and the retrieval records'.
+     */
+    private static final List<String> PLUGIN_MODULES = List.of("confluence", "website", "retrieval");
 
     private static final ApplicationModules MODULES = ApplicationModules.of(VesperaApplication.class);
 
     /**
-     * ADR-040's modules, less the one ADR-101 struck, and the ones ADR-274, ADR-308 §7 and ADR-333 §1 added — eleven.
-     * Nine are capability modules; {@code ledger} is what they depend on, and {@code pipeline} is the
+     * ADR-040's modules, less the one ADR-101 struck, and the ones ADR-274, ADR-308 §7, ADR-333 §1 and ADR-434 §8
+     * added — twelve. Ten are capability modules; {@code ledger} is what they depend on, and {@code pipeline} is the
      * composition root that depends on all of them.
      *
      * <p>{@code publication} is deliberately absent (ADR-101, ADR-110): the run ends at the generated
@@ -59,8 +63,8 @@ class ModuleBoundariesTest {
      * those documents are handed over in, and carries it nowhere (ADR-274); {@code confluence} sends its
      * Confluence rendering to the operator's site on {@code vespera publish} alone (ADR-308), and {@code website}
      * draws the website rendering and refreshes the website folder on {@code vespera publish --to website} alone
-     * (ADR-333 §3, §7). This list is an
-     * allow-list, so a struck name left in it is invisible until somebody creates the package it
+     * (ADR-333 §3, §7); {@code retrieval} draws the retrieval records into one file and sends nothing
+     * (ADR-434 §8). This list is an allow-list, so a struck name left in it is invisible until somebody creates the package it
      * permits — which is the one moment it would do harm.
      */
     private static final Set<String> RECORDED_MODULES =
@@ -74,34 +78,36 @@ class ModuleBoundariesTest {
                     "deliverable",
                     "confluence",
                     "website",
+                    "retrieval",
                     "profile",
                     "pipeline");
 
     /**
      * What a capability module is allowed to declare, where that is not {@code ledger} alone.
      *
-     * <p>Four entries, the only horizontal capability-to-capability edges in the tree.
+     * <p>Five entries, the only horizontal capability-to-capability edges in the tree.
      * {@code extraction} names {@code corpus} for the two detection enumerations Docling's pipeline
      * choice is derived from (ADR-100), and, since ADR-226, what a seed the floor stopped is sent as and
      * which detected formats list their pictures, and, since ADR-282, how stage 3 splits the word counts:
      * a wider purpose for the same two types, the declaration
      * unchanged. {@code deliverable} names {@code synthesis} for the records it draws the tree from, the
-     * citation pattern and the filename stem (ADR-274 §4). A plugin's module, {@code confluence} and {@code
-     * website}, names {@code deliverable}, whose seam it implements, and {@code synthesis}, whose records the seam
+     * citation pattern and the filename stem (ADR-274 §4). A plugin's module, {@code confluence}, {@code
+     * website} and {@code retrieval} (ADR-434 §8), names {@code deliverable}, whose seam it implements, and {@code synthesis}, whose records the seam
      * hands it (ADR-333 §1). Recorded here as named exceptions rather than by relaxing the assertion, so that a
-     * fifth module widening its declaration still fails this test, and so does any of the four widening
+     * sixth module widening its declaration still fails this test, and so does any of the five widening
      * beyond what is named here.
      */
     private static final Map<String, List<String>> DECLARED_DEPENDENCIES = Map.of(
             "extraction", List.of("ledger", "corpus"),
             "deliverable", List.of("ledger", "synthesis"),
             "confluence", List.of("ledger", "deliverable", "synthesis"),
-            "website", List.of("ledger", "deliverable", "synthesis"));
+            "website", List.of("ledger", "deliverable", "synthesis"),
+            "retrieval", List.of("ledger", "deliverable", "synthesis"));
 
     /**
-     * The capability modules, derived rather than re-listed: the recorded eleven less {@code ledger},
+     * The capability modules, derived rather than re-listed: the recorded twelve less {@code ledger},
      * which they all depend on, and {@code pipeline}, which is the composition root and may depend on
-     * all of them. Deriving it means a twelfth module added above cannot be forgotten here.
+     * all of them. Deriving it means a thirteenth module added above cannot be forgotten here.
      */
     private static final Set<String> CAPABILITY_MODULES = RECORDED_MODULES.stream()
             .filter(module -> !"ledger".equals(module) && !"pipeline".equals(module))
@@ -194,10 +200,10 @@ class ModuleBoundariesTest {
     }
 
     /**
-     * A package annotated {@code @ApplicationModule} that is not one of the eleven is a module nobody decided
+     * A package annotated {@code @ApplicationModule} that is not one of the twelve is a module nobody decided
      * on. Catching it here is cheaper than finding it once things depend on it. Since ADR-367 a module is a package
      * that carries the annotation, found under {@code engine} or {@code publish}, so a package left without it is
-     * not seen here and {@code TheJarsCodeLiesUnderEngineAndPublishAndUiTest} holds that there is none. And each of the eleven is
+     * not seen here and {@code TheJarsCodeLiesUnderEngineAndPublishAndUiTest} holds that there is none. And each of the twelve is
      * there: the tree the operator is handed is drawn by a module of its own, which no stage's version names
      * (ADR-274 §4, §5), and the one module that opens a connection to Confluence is one of its own too
      * (ADR-308 §7, §10), and so is the website's (ADR-333 §1); what each declares is held above.

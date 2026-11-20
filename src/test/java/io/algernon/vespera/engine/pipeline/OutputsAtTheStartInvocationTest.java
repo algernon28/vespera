@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.corpus.Walk;
 import io.algernon.vespera.engine.profile.ProfileStore;
-import io.algernon.vespera.publish.retrieval.RetrievalPlugin;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -39,7 +38,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * plugins the jar has, and that a key naming only what can be drawn stops nothing.
  */
 @CascadeSliceTest
-@Import({SeedScriptedExtractionBeans.class, OutputsAtTheStart.class, RetrievalPlugin.class})
+@Import(SeedScriptedExtractionBeans.class)
 @ExtendWith(OutputCaptureExtension.class)
 @Epic("Pipeline")
 @Feature("What is drawn")

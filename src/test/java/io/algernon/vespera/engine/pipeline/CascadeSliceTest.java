@@ -40,6 +40,7 @@ import io.algernon.vespera.engine.synthesis.TopicNames;
 import io.algernon.vespera.engine.synthesis.TopicNaming;
 import io.algernon.vespera.engine.synthesis.TopicOverviewSynthesis;
 import io.algernon.vespera.engine.synthesis.TopicOverviews;
+import io.algernon.vespera.publish.retrieval.RetrievalPlugin;
 import io.algernon.vespera.publish.website.WebsitePlugin;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -115,10 +116,11 @@ import org.springframework.transaction.annotation.Transactional;
     Publisher.class,
     // What the publisher reads of the working directory's profile (ADR-359 §5).
     ConfluenceValuesOfTheProfile.class,
-    // The plugins, the Confluence rendering's and the website rendering's, which every drawing draws beside the
-    // tree (ADR-333 §1, §4).
+    // The plugins, the Confluence rendering's, the website rendering's and the retrieval records', each drawn where
+    // the profile's outputs name it (ADR-333 §1, ADR-434 §2, §8).
     ConfluencePlugin.class,
     WebsitePlugin.class,
+    RetrievalPlugin.class,
     NextAction.class,
     VesperaJobConfiguration.class,
     // Every stage from 2 on asks for its run through one holder (ADR-157).
@@ -175,6 +177,8 @@ import org.springframework.transaction.annotation.Transactional;
     ModelPull.class,
     // Checks both models at the start of vespera run (ADR-375).
     ModelsAtTheStart.class,
+    // Checks the profile's outputs at the start of vespera run, after the models' check (ADR-434 §3).
+    OutputsAtTheStart.class,
     RelevanceScoringTasklet.class,
     RelevanceScoringBeans.class,
     RelevanceFloorTasklet.class,
