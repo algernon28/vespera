@@ -110,7 +110,7 @@ public final class TreeLedger {
             long walk = workingStore.queryForObject(THE_WALK_OF_A_RUN, Long.class, generationRun.value());
             List<String> runs = workingStore.queryForList(THE_RUNS_DRAWN_FROM, String.class, generationRun.value());
             String inTheRuns = "(" + String.join(", ", Collections.nCopies(runs.size(), "?")) + ")";
-            try (Connection file = DriverManager.getConnection("jdbc:sqlite:" + part.toUri())) {
+            try (Connection file = DriverManager.getConnection(urlOf(part))) {
                 file.setAutoCommit(true);
                 try (Statement pragma = file.createStatement()) {
                     pragma.execute("PRAGMA journal_mode = DELETE");
@@ -150,6 +150,16 @@ public final class TreeLedger {
                     "The tree's ledger could not be written to " + place + ": " + failure.getMessage(),
                     failure instanceof IOException io ? io : new IOException(failure));
         }
+    }
+
+    /**
+     * The URL the part file is opened by: its plain path, which any path the platform serves is, a network share
+     * included; its {@code file:} URI only where the path holds a question mark, which the driver would otherwise read
+     * as the start of its parameters. On Linux that URI has no host.
+     */
+    private static String urlOf(Path part) {
+        String path = part.toString();
+        return "jdbc:sqlite:" + (path.indexOf('?') >= 0 ? part.toUri().toString() : path);
     }
 
     /** Creates {@code table} in {@code file} as the schema does, then writes each row {@code select} reads into it. */
