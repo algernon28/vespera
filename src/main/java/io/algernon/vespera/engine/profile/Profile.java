@@ -148,7 +148,10 @@ package io.algernon.vespera.engine.profile;
  * @param confluenceEmail the account's email (ADR-359 section 1); as {@code confluenceBaseUrl}. No key holds
  *     the token.
  * @param confluenceRootTitle the title of the Confluence root page, {@code {language}} standing for the language's
- *     code (ADR-398); as {@code confluenceBaseUrl}. The six are the last components, this the last.
+ *     code (ADR-398); as {@code confluenceBaseUrl}. The six are the last components but one.
+ * @param outputs what stage 6b draws (ADR-434 §2): {@code tree} for the HTML tree and each plugin by its name, split
+ *     at commas, {@code tree, confluence, website} where unset or blank. Enters no run's identity, is no gate, has no
+ *     {@link Measurement} pointer and is read by {@code vespera run} alone. The last component.
  */
 public record Profile(
         TextValue seedFolder,
@@ -176,7 +179,8 @@ public record Profile(
         TextValue confluenceFolderId,
         TextValue confluenceFolderTitle,
         TextValue confluenceEmail,
-        TextValue confluenceRootTitle) {
+        TextValue confluenceRootTitle,
+        TextValue outputs) {
 
     public Profile {
         seedFolder = seedFolder == null ? TextValue.unset() : seedFolder;
@@ -209,6 +213,43 @@ public record Profile(
         confluenceFolderTitle = confluenceFolderTitle == null ? TextValue.unset() : confluenceFolderTitle;
         confluenceEmail = confluenceEmail == null ? TextValue.unset() : confluenceEmail;
         confluenceRootTitle = confluenceRootTitle == null ? TextValue.unset() : confluenceRootTitle;
+        outputs = outputs == null ? TextValue.unset() : outputs;
+    }
+
+    /** A profile as it was before {@code outputs}, which is left unset (ADR-434 §2). */
+    public Profile(
+            TextValue seedFolder,
+            NumericValue degenerateOutputConfidenceFloor,
+            NumericValue degenerateOutputWordFloor,
+            NumericValue boilerplateDocumentFrequencyFloor,
+            TextValue embeddingModel,
+            NumericValue relevanceScoreFloor,
+            TextValue arrangementApproved,
+            TextValue generationModel,
+            TextValue modelsRunOn,
+            NumericValue generationContextWindow,
+            NumericValue clusterPageByteCeiling,
+            NumericValue logTimestampShareFloor,
+            NumericValue extractionAttempt,
+            NameEndingsValue codeNameEndings,
+            NameEndingsValue outOfScopeNameEndings,
+            NumericValue configurationSettingShareFloor,
+            TextValue deliverableLanguage,
+            NumericValue clusterResolution,
+            FoldersValue codeSetFolders,
+            CorpusFoldersValue foldersNotWalked,
+            TextValue confluenceBaseUrl,
+            TextValue confluenceSpaceKey,
+            TextValue confluenceFolderId,
+            TextValue confluenceFolderTitle,
+            TextValue confluenceEmail,
+            TextValue confluenceRootTitle) {
+        this(seedFolder, degenerateOutputConfidenceFloor, degenerateOutputWordFloor, boilerplateDocumentFrequencyFloor,
+                embeddingModel, relevanceScoreFloor, arrangementApproved, generationModel, modelsRunOn,
+                generationContextWindow, clusterPageByteCeiling, logTimestampShareFloor, extractionAttempt,
+                codeNameEndings, outOfScopeNameEndings, configurationSettingShareFloor, deliverableLanguage,
+                clusterResolution, codeSetFolders, foldersNotWalked, confluenceBaseUrl, confluenceSpaceKey,
+                confluenceFolderId, confluenceFolderTitle, confluenceEmail, confluenceRootTitle, null);
     }
 
     /**
@@ -256,7 +297,7 @@ public record Profile(
     static Profile skeleton() {
         return new Profile(
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     /** The same profile, with census's pointer to the seed folder's data brought up to date. */
@@ -287,7 +328,8 @@ public record Profile(
                 confluenceFolderId,
                 confluenceFolderTitle,
                 confluenceEmail,
-                confluenceRootTitle);
+                confluenceRootTitle,
+                outputs);
     }
 
     /**
@@ -322,7 +364,8 @@ public record Profile(
                 confluenceFolderId,
                 confluenceFolderTitle,
                 confluenceEmail,
-                confluenceRootTitle);
+                confluenceRootTitle,
+                outputs);
     }
 
     /** The same profile, with stage 3's pointer to {@code word-count-distribution.html} brought up to date (ADR-282). */
@@ -353,7 +396,8 @@ public record Profile(
                 confluenceFolderId,
                 confluenceFolderTitle,
                 confluenceEmail,
-                confluenceRootTitle);
+                confluenceRootTitle,
+                outputs);
     }
 
     /**
@@ -387,7 +431,8 @@ public record Profile(
                 confluenceFolderId,
                 confluenceFolderTitle,
                 confluenceEmail,
-                confluenceRootTitle);
+                confluenceRootTitle,
+                outputs);
     }
 
     /**
@@ -426,7 +471,8 @@ public record Profile(
                 confluenceFolderId,
                 confluenceFolderTitle,
                 confluenceEmail,
-                confluenceRootTitle);
+                confluenceRootTitle,
+                outputs);
     }
 
     /**
@@ -460,7 +506,8 @@ public record Profile(
                 confluenceFolderId,
                 confluenceFolderTitle,
                 confluenceEmail,
-                confluenceRootTitle);
+                confluenceRootTitle,
+                outputs);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-171). */
@@ -491,7 +538,8 @@ public record Profile(
                 confluenceFolderId,
                 confluenceFolderTitle,
                 confluenceEmail,
-                confluenceRootTitle);
+                confluenceRootTitle,
+                outputs);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-256). */
@@ -522,7 +570,8 @@ public record Profile(
                 confluenceFolderId,
                 confluenceFolderTitle,
                 confluenceEmail,
-                confluenceRootTitle);
+                confluenceRootTitle,
+                outputs);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-277 §2). */
@@ -553,7 +602,8 @@ public record Profile(
                 confluenceFolderId,
                 confluenceFolderTitle,
                 confluenceEmail,
-                confluenceRootTitle);
+                confluenceRootTitle,
+                outputs);
     }
 
     /** The same profile, with stage 1's pointer to the format-mix page brought up to date (ADR-287 §7). */
@@ -584,6 +634,7 @@ public record Profile(
                 confluenceFolderId,
                 confluenceFolderTitle,
                 confluenceEmail,
-                confluenceRootTitle);
+                confluenceRootTitle,
+                outputs);
     }
 }

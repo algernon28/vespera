@@ -74,6 +74,14 @@ public class ChunkEmbedder {
         vectorCache.put(contentHash, chunkerIdentity, chunkingRuleIdentity, ordinal, identity.value(), vector);
     }
 
+    /**
+     * The vector of {@code text} embedded whole under {@code modelName}, with no instruction and {@code truncate:
+     * false}, split and averaged as ADR-144 has it where it is refused as too long; nothing is stored (ADR-434 §7).
+     */
+    float[] embedWhole(String text, String modelName) {
+        return embedRejectingOverflow(text, modelName);
+    }
+
     private float[] embedRejectingOverflow(String text, String modelName) {
         try {
             return callOnce(text, modelName);

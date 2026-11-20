@@ -392,6 +392,8 @@ public final class ProfileEdit {
             // Any text: a publish refuses an address that is no Cloud site's itself (ADR-308 §2, ADR-359 §1).
             case CONFLUENCE_BASE_URL, CONFLUENCE_SPACE_KEY, CONFLUENCE_FOLDER_ID, CONFLUENCE_FOLDER_TITLE,
                     CONFLUENCE_EMAIL, CONFLUENCE_ROOT_TITLE -> Optional.empty();
+            // Any text: a run that names what no drawing can draw stops at its start itself (ADR-434 §3).
+            case OUTPUTS -> Optional.empty();
             case ARRANGEMENT_APPROVED -> ARRANGEMENT.matcher(value).matches() || AUTOMATIC.equalsIgnoreCase(value) ? Optional.empty()
                     : Optional.of(quoted + " is not the twelve characters naming an arrangement, each 0 to 9 or a to f,"
                             + " nor " + AUTOMATIC);

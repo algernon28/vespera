@@ -653,6 +653,19 @@ CREATE TABLE IF NOT EXISTS vector (
     PRIMARY KEY (content_hash, chunker_identity, chunking_rule_identity, ordinal, embedder_identity)
 );
 
+-- embedding's own table (ADR-434 section 7): the vector of a WRITING -- a cluster's synthesis doc or a topic's
+-- overview -- beside vector above, keyed by the SHA-256 of the writing's UTF-8 bytes (lowercase hexadecimal) and by the
+-- embedder identity, and by no run, as ADR-085 keys vector: a vector is content under an instrument. The same writing
+-- under the same identity is embedded once and read back at every later drawing. A little-endian float32 BLOB at
+-- full dimension, as vector keeps one. Additive: no module's schema version moves.
+-- owner: embedding
+CREATE TABLE IF NOT EXISTS writing_vector (
+    writing_digest TEXT NOT NULL,
+    embedder_identity TEXT NOT NULL,
+    embedding BLOB NOT NULL,
+    PRIMARY KEY (writing_digest, embedder_identity)
+);
+
 -- embedding's own table (ADR-020, #108): one row per corpus survivor per scoring run -- the relevance
 -- score and the seed occurrence that produced it, ADR-020's argmax over seed documents of the mean of
 -- the top-3 chunk cosine similarities against that seed. Unlike vector above, THIS ONE IS RUN-SCOPED

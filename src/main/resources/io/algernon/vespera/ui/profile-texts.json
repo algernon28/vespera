@@ -128,5 +128,10 @@
     "title": "Confluence top page title",
     "short": "The title of the top page Publish puts all your other pages under; {language} stands for the language's code.",
     "tooltip": "Text, empty by default, which gives the title Vespera_{language}: Vespera_en for pages in English, Vespera_it for pages in Italian. Write {language} where the language's code should go, for example Hand-overs {language}; without it, an underscore and the code are added at the end, so Hand-overs becomes Hand-overs_en. Each language has its own top page, so its title always carries the code. The title can be at most 255 characters once the code is in it; a longer one is refused before anything is sent. After a change, the next Publish renames the top page you published before, keeping its address and the pages under it, and makes no new one. Publishing only to the website copy does not use it."
+  },
+  "outputs": {
+    "title": "What is drawn",
+    "short": "Which renderings a run draws: the HTML pages, Confluence, the website and the retrieval records.",
+    "tooltip": "Text, empty by default, which draws the HTML pages, the Confluence pages and the website. Write the names of what you want drawn, separated by commas: tree for the HTML pages, confluence, website and retrieval for a file of records and vectors for a store of yours to import. Capitals and blanks do not matter and a name written twice counts once. Confluence and the website are drawn from the HTML pages, so they need tree beside them; a run that names a name that is no output, or one of them without tree, stops at its start and tells you so. Retrieval draws retrieval/records.jsonl, a line for each synthesis doc, topic overview and passage of a document, with its vector, and sends nothing anywhere. It is changed in its own section of the sidebar. The value takes part in no run's identity: after a change the next run draws what it now names from what is already stored."
   }
 }

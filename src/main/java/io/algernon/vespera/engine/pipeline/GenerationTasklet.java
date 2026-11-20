@@ -39,7 +39,9 @@ import io.algernon.vespera.engine.deliverable.ListedSubtopic;
 import io.algernon.vespera.engine.deliverable.ListedSurvivor;
 import io.algernon.vespera.engine.deliverable.ListedTopic;
 import io.algernon.vespera.engine.deliverable.NamedValue;
+import io.algernon.vespera.engine.deliverable.Outputs;
 import io.algernon.vespera.engine.deliverable.Plugin;
+import io.algernon.vespera.engine.deliverable.RecordInputs;
 import io.algernon.vespera.engine.deliverable.SurvivorPictures;
 import io.algernon.vespera.engine.deliverable.TreeLedger;
 import io.algernon.vespera.engine.synthesis.ArrangedTopic;
@@ -184,6 +186,7 @@ class GenerationTasklet implements Tasklet {
     private final ProfileStore profileStore;
     private final ModelPull modelPull;
     private final ObjectProvider<Plugin> plugins;
+    private final ObjectProvider<RecordInputsOf> recordInputs;
     private final Path root;
     private final Path workingDirectory;
     private final DeliverableRoot deliverableRoot;
@@ -212,6 +215,7 @@ class GenerationTasklet implements Tasklet {
             ProfileStore profileStore,
             ModelPull modelPull,
             ObjectProvider<Plugin> plugins,
+            ObjectProvider<RecordInputsOf> recordInputs,
             @Value("#{jobParameters['root']}") Path root,
             @Value("${" + WorkingDirectoryPreparer.PROPERTY + "}") Path workingDirectory,
             @Value("${" + VesperaCommand.Run.DELIVERABLE_ROOT_PROPERTY + ":}") String deliverableRoot,
@@ -245,6 +249,7 @@ class GenerationTasklet implements Tasklet {
         this.profileStore = profileStore;
         this.modelPull = modelPull;
         this.plugins = plugins;
+        this.recordInputs = recordInputs;
         this.root = root;
         this.workingDirectory = workingDirectory;
     }
@@ -405,7 +410,7 @@ class GenerationTasklet implements Tasklet {
                                 ArrangementGate.shortNameOf(arrangement),
                                 repeatedFaults.standing(),
                                 repeatedFaults.describe() + overviewsCounted(generation),
-                                drawn.map(tree -> " -- the deliverable tree is at " + tree).orElse(""));
+                                drawn.map(tree -> " -- " + whereTheDeliverableIs(tree)).orElse(""));
                         return true;
                     }
                     if (outcome instanceof GenerationOutcome.LeftUnfinished unfinished) {
@@ -444,7 +449,7 @@ class GenerationTasklet implements Tasklet {
                             "The generation step finished under {}, over the arrangement approved as {}:"
                                     + " {} synthesis doc(s) written under model {} in a window of {}, {}"
                                     + " already recorded by an earlier invocation of this run and left as"
-                                    + " they were{} -- the deliverable tree is at {}",
+                                    + " they were{} -- {}",
                             generation.value(),
                             ArrangementGate.shortNameOf(arrangement),
                             finished.written(),
@@ -452,7 +457,7 @@ class GenerationTasklet implements Tasklet {
                             contextWindow,
                             finished.alreadyWritten(),
                             overviewsCounted(generation),
-                            tree);
+                            whereTheDeliverableIs(tree));
                     return true;
                 });
     }
@@ -967,6 +972,22 @@ class GenerationTasklet implements Tasklet {
     }
 
     /**
+     * What the closing line says of where the drawing landed (ADR-434 §9): the tree, or, where {@code outputs} does not
+     * name {@code tree}, the deliverable with no HTML tree drawn.
+     */
+    private String whereTheDeliverableIs(Path tree) {
+        boolean drawsTheTree;
+        try {
+            drawsTheTree = Outputs.read(profileStore.load().outputs().value()).drawsTheTree();
+        } catch (RuntimeException unreadable) {
+            drawsTheTree = true;
+        }
+        return drawsTheTree
+                ? "the deliverable tree is at " + tree
+                : "the deliverable is at " + tree + ", with no HTML tree drawn";
+    }
+
+    /**
      * Writes the tree the operator is handed, over the whole arrangement as it stands now — every
      * invocation that reached this point writes one, faulted and unsendable clusters included, because
      * the deliverable is the report (ADR-111, ADR-103, #186).
@@ -1074,6 +1095,9 @@ class GenerationTasklet implements Tasklet {
                 survivorPictures(byteLevelReductionRun),
                 ClusterPageByteCeiling.of(profile.clusterPageByteCeiling()).forTheTree(),
                 plugins.orderedStream().toList(),
+                Outputs.read(profile.outputs().value()),
+                // Resolved where the drawing asks for it: a bean no test of this step needs unless a plugin reads records.
+                new LazyRecordInputs(recordInputs),
                 treeProgress(copies));
     }
 
