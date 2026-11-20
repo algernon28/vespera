@@ -1,5 +1,7 @@
 # ADR-192 — Every loop in every stage reports its progress, and no counter floods the log
 
+> **Partly amended — see [ADR-424](0424-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md).** §4's row for `Stage 5 (relevance report, answers matched)`: the label is `Stage 5 (relevance report, labels matched)`, one item a recorded label looked up in this walk, over the labels recorded for the seed set. The row ADR-205 adds, noted below, is `Stage 5 (relevance report, model labels matched)`. The loops, totals and cadence stand.
+
 > **Partly amended — see [ADR-426](0426-the-seed-partitions-names-leave-the-code-and-the-tests-and-a-comment-in-a-stages-module-waits-for-a-re-mint.md).** The table's row for `Stage 6b (generation, partitions written)`: the label is `Stage 6b (generation, topics written)`, over the topics of the arrangement, and `DeliverableProgress`'s two methods are `toWriteTopics` and `topicWritten`.
 
 > **Partly amended — see [ADR-200](0200-stage-1-reads-survivors-by-size-and-holds-one-size-at-a-time.md).** Stage 1 no longer drains its survivors, so two phrases below are no longer true of it: in §4, the total of `Stage 1 (byte-level reduction, sizes read)`, "the survivors the pass drained", which is now the survivors the pass will read; and in §7, "`SurvivorDrain.drain` (both of stage 1's passes)" among the drains left to #411, which no longer exists. Everything else in this record stands.

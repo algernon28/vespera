@@ -11,7 +11,9 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -28,7 +30,7 @@ import org.yaml.snakeyaml.Yaml;
 /**
  * What Vespera runs to bring its two sidecars up when they are not answering, and what it refuses with when it cannot
  * (ADR-323 §2 to §6 and §8, ADR-326), each system starting Docker Engine with its one command (ADR-390 §1, §2); and
- * the control panel's start of the engine alone (ADR-390 §4).
+ * the start of the engine alone (ADR-390 §4), where at least one container is on this machine (ADR-430 §10).
  *
  * <p>No Docker is needed: the starter is given a {@link ScriptedDocker}, which records every command and answers each
  * from a script, and a {@link ScriptedSidecarHealth}. The compose files are the repository's own, read where the tests
@@ -56,6 +58,11 @@ class SidecarStartTest {
     private static final URI DOCLING_HERE = URI.create("http://localhost:5001");
 
     private static final URI OLLAMA_HERE = URI.create("http://127.0.0.1:11434");
+
+    /** Where they are looked for on another machine, resolved by the test's own resolver alone. */
+    private static final URI DOCLING_ELSEWHERE = URI.create("http://docling.example.org:5001");
+
+    private static final URI OLLAMA_ELSEWHERE = URI.create("http://ollama.example.org:11434");
 
     /** An image neither compose file builds. */
     private static final String IMAGE_NO_FILE_BUILDS = "vespera/docling-serve-somebody-elses:v0";
@@ -180,10 +187,12 @@ class SidecarStartTest {
     }
 
     @Test
-    @Story("The control panel starts the Docker engine as its window opens")
-    @DisplayName("The control panel's start makes the engine answer, checks for compose and buildx, and asks no sidecar, and starts nothing where the sidecars are on another machine")
+    @Story("The engine alone is started where a container is on this machine")
+    @DisplayName("The start of the engine alone makes the engine answer, checks for compose and buildx, and asks no container; it starts the engine for Ollama alone on this machine, and nothing where both are on another machine")
     @Issue("816")
+    @Issue("889")
     @Link(name = "ADR-410", url = Adr.A_MISSING_DOCKER_COMPOSE_OR_BUILDX_IS_NAMED_BEFORE_UP, type = "adr")
+    @Link(name = "ADR-430", url = Adr.THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER, type = "adr")
     void theControlPanelsStartStartsTheEngineAloneAndAsksNoSidecar() {
         ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
         ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
@@ -200,14 +209,28 @@ class SidecarStartTest {
                         ScriptedDocker.COMPOSE_CHECK, ScriptedDocker.BUILDX_CHECK));
         claim("and no sidecar was asked anything", () -> assertThat(health.questionsAsked()).isZero());
 
+        ScriptedDocker forOllamaAlone = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
+                .answering(SYSTEMCTL_START, 0, "");
+        SidecarStarter.Outcome ollamaAlone = starterOnAMachineOfItsOwn(
+                new SidecarStartSettings(DOCLING_ELSEWHERE, OLLAMA_HERE, cpuImage, WAIT_AT_MOST), forOllamaAlone,
+                health).ensureTheEngineRuns();
+        claim("with docling-serve at " + DOCLING_ELSEWHERE + ", on another machine, and Ollama at " + OLLAMA_HERE
+                        + ", on this one, the engine was started for Ollama, with the same commands (ADR-430 §10)",
+                () -> assertThat(List.of(ollamaAlone, forOllamaAlone.commands())).containsExactly(
+                        SidecarStarter.Outcome.ENGINE_STARTED,
+                        List.of(ScriptedDocker.ENGINE_CHECK, SYSTEMCTL_START, ScriptedDocker.ENGINE_CHECK,
+                                ScriptedDocker.ENGINE_CHECK, ScriptedDocker.COMPOSE_CHECK,
+                                ScriptedDocker.BUILDX_CHECK)));
+
         ScriptedDocker elsewhere = ScriptedDocker.engineAnsweringAfter(ScriptedDocker.NEVER);
-        SidecarStarter.Outcome onAnother = starter(
-                new SidecarStartSettings(URI.create("http://docling.example.org:5001"), OLLAMA_HERE, cpuImage,
-                        WAIT_AT_MOST),
-                elsewhere, health, HostSystem.LINUX).ensureTheEngineRuns();
-        claim("with docling-serve looked for on another machine, it starts nothing there, and runs nothing",
+        SidecarStarter.Outcome onAnother = starterOnAMachineOfItsOwn(
+                new SidecarStartSettings(DOCLING_ELSEWHERE, OLLAMA_ELSEWHERE, cpuImage, WAIT_AT_MOST), elsewhere,
+                health).ensureTheEngineRuns();
+        claim("with docling-serve at " + DOCLING_ELSEWHERE + " and Ollama at " + OLLAMA_ELSEWHERE + ", both on another"
+                        + " machine, it says so and runs nothing",
                 () -> assertThat(List.of(onAnother, elsewhere.commands()))
                         .containsExactly(SidecarStarter.Outcome.ON_ANOTHER_MACHINE, List.of()));
+        claim("and no container was asked anything, here or there", () -> assertThat(health.questionsAsked()).isZero());
     }
 
     @Test
@@ -278,6 +301,22 @@ class SidecarStartTest {
             SidecarStartSettings settings, ScriptedDocker docker, ScriptedSidecarHealth health, HostSystem host) {
         Supplier<ComposeFiles> theRepositorysFiles = () -> ComposeFiles.in(REPOSITORY);
         return new SidecarStarter(settings, docker, health, host, theRepositorysFiles, lockFolder, CHECK_EVERY);
+    }
+
+    /**
+     * The starter on a machine whose resolver is the test's, so no name is looked up (ADR-430 §10): the two {@code
+     * example.org} hosts resolve to documentation addresses of another machine, and the machine holds no address of its
+     * own beyond the loopback.
+     */
+    private SidecarStarter starterOnAMachineOfItsOwn(
+            SidecarStartSettings settings, ScriptedDocker docker, ScriptedSidecarHealth health) {
+        ThisMachine thisMachine = new ThisMachine(name -> switch (name) {
+            case "docling.example.org" -> new InetAddress[] {InetAddress.ofLiteral("192.0.2.10")};
+            case "ollama.example.org" -> new InetAddress[] {InetAddress.ofLiteral("192.0.2.11")};
+            default -> throw new UnknownHostException(name);
+        }, List::of);
+        return new SidecarStarter(settings, docker, health, HostSystem.LINUX, () -> ComposeFiles.in(REPOSITORY),
+                lockFolder, CHECK_EVERY, thisMachine);
     }
 
     private static SidecarStartSettings settings(String image) {

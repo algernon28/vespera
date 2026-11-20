@@ -28,11 +28,15 @@ public final class DockerEngine {
 
     private final Path profileFolder;
 
-    private DockerEngine(String wslDistribution, Duration waitAtMost, Path lockFolder, Path profileFolder) {
+    private final Path composeFolder;
+
+    private DockerEngine(String wslDistribution, Duration waitAtMost, Path lockFolder, Path profileFolder,
+            Path composeFolder) {
         this.wslDistribution = wslDistribution == null ? "" : wslDistribution;
         this.waitAtMost = waitAtMost;
         this.lockFolder = lockFolder;
         this.profileFolder = profileFolder;
+        this.composeFolder = composeFolder;
     }
 
     /**
@@ -43,23 +47,33 @@ public final class DockerEngine {
      * @param profileFolder the Windows profile folder {@code .wslconfig} lies in, null where none is known (ADR-421)
      */
     public static DockerEngine of(String wslDistribution, Duration waitAtMost, Path lockFolder, Path profileFolder) {
-        return new DockerEngine(wslDistribution, waitAtMost, lockFolder, profileFolder);
+        return of(wslDistribution, waitAtMost, lockFolder, profileFolder, null);
     }
 
     /**
-     * On Windows, with both base URLs on this machine, writes {@code .wslconfig} where there is none and reads one that
-     * is there (ADR-421). Runs no command and takes no lock.
+     * As the four-argument {@code of}, with {@code composeFolder} the folder the compose files are read from, null for
+     * the folder beside the jar (ADR-397 §6, ADR-430 §12).
+     */
+    public static DockerEngine of(String wslDistribution, Duration waitAtMost, Path lockFolder, Path profileFolder,
+            Path composeFolder) {
+        return new DockerEngine(wslDistribution, waitAtMost, lockFolder, profileFolder, composeFolder);
+    }
+
+    /**
+     * On Windows, with at least one container on this machine, writes {@code .wslconfig} where there is none and reads
+     * one that is there (ADR-421, ADR-430 §10). Runs no command and takes no lock.
      *
-     * @return the line to show; empty where the file sets the setting, the system is not Windows, or a base URL names
-     *     another machine
+     * @return the line to show; empty where the file sets the setting, the system is not Windows, or neither container
+     *     is on this machine
      */
     public Optional<String> keepTheWslDistributionUp(URI doclingBaseUrl, URI ollamaBaseUrl) {
         return starter(doclingBaseUrl, ollamaBaseUrl).keepTheWslDistributionUp();
     }
 
     /**
-     * Makes the engine answer where it does not, a base URL on another machine doing nothing; once it answers, asks the
-     * docker client for Compose and buildx (ADR-410 §2). No sidecar is asked and no {@code up} is run.
+     * Makes the engine answer where it does not, doing nothing only where neither container is on this machine; once it
+     * answers, asks the docker client for Compose and buildx (ADR-410 §2). No container is asked and no {@code up} is
+     * run. The control panel's window no longer calls it (ADR-430 §12).
      *
      * @return the refusal's line; empty where the engine answers and both are installed, or where
      *     nothing was to be done
@@ -67,6 +81,58 @@ public final class DockerEngine {
     public Optional<String> startTheEngine(URI doclingBaseUrl, URI ollamaBaseUrl) {
         try {
             starter(doclingBaseUrl, ollamaBaseUrl).ensureTheEngineRuns();
+            return Optional.empty();
+        } catch (SidecarStartRefusedException refused) {
+            return Optional.of(refused.getMessage());
+        }
+    }
+
+    /**
+     * Whether a container's base URL names this machine, its host resolved (ADR-430 §10).
+     *
+     * @return true for this machine, false for another, empty where the host cannot be resolved
+     */
+    public static Optional<Boolean> isOnThisMachine(URI baseUrl) {
+        return switch (ThisMachine.system().where(baseUrl)) {
+            case THIS_MACHINE -> Optional.of(true);
+            case ANOTHER_MACHINE -> Optional.of(false);
+            case NOT_RESOLVED -> Optional.empty();
+        };
+    }
+
+    /**
+     * Asks the Docker daemon and starts nothing (ADR-430 §3).
+     *
+     * @return whether it answers; empty where neither container is on this machine and nothing was asked
+     */
+    public Optional<Boolean> engineAnswers(URI doclingBaseUrl, URI ollamaBaseUrl) {
+        return starter(doclingBaseUrl, ollamaBaseUrl).engineAnswersStartingNothing();
+    }
+
+    /**
+     * What Start Docker does (ADR-430 §5): makes the containers on this machine answer, starting the engine where it
+     * does not and running {@code up} with {@code --no-recreate}. Nothing is done, and no lock is taken, where neither
+     * container is on this machine.
+     *
+     * @return the refusal's line; empty where started, already answering or nothing was to be done
+     */
+    public Optional<String> startTheContainers(URI doclingBaseUrl, URI ollamaBaseUrl, String doclingImage) {
+        SidecarStartSettings settings = new SidecarStartSettings(
+                doclingBaseUrl, ollamaBaseUrl, doclingImage == null ? "" : doclingImage, waitAtMost, wslDistribution,
+                profileFolder);
+        SidecarStarter starter = new SidecarStarter(
+                settings,
+                new SystemProcessRunner(Path.of(System.getProperty("java.io.tmpdir"))),
+                new HttpSidecarHealth(settings),
+                HostSystem.current(),
+                () -> composeFolder == null
+                        ? BesideTheJar.ofThisApplication().composeFiles()
+                        : ComposeFiles.in(composeFolder),
+                lockFolder,
+                CHECK_EVERY);
+        try {
+            // .wslconfig is still seen to, but its line was logged by keepTheWslDistributionUp, which the window calls first
+            starter.ensureRunning(false);
             return Optional.empty();
         } catch (SidecarStartRefusedException refused) {
             return Optional.of(refused.getMessage());

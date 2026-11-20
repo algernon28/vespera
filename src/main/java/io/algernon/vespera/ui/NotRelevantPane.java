@@ -52,9 +52,9 @@ final class NotRelevantPane {
         remove.setId("not-relevant-remove");
         remove.setOnAction(event -> changeNotRelevant(false, notRelevantList.getSelectionModel().getSelectedItem()));
         notRelevantOutcome.setId("not-relevant-outcome");
-        SelectableText.Wrapping words = SelectableText.wrapping("Folders not relevant are still read: the documents of relevance-labels.yaml below them are"
+        Captions.on(notRelevantList, "Folders not relevant are still read: the documents of relevance-labels.yaml below them are"
                 + " labelled not relevant, and no run changes.");
-        VBox pane = new VBox(SelectableText.line("Folders not relevant"), words, notRelevantList,
+        VBox pane = new VBox(SelectableText.line("Folders not relevant"), notRelevantList,
                 row(notRelevantFolder, browse, add, remove), notRelevantOutcome);
         pane.getStyleClass().add("section");
         return pane;
@@ -177,7 +177,7 @@ final class NotRelevantPane {
     private Optional<String> refusalOfNotRelevantFolder(String typed, List<String> listed) {
         String refused = "the folder " + typed + " is not added: ";
         if (typed.equals(".") || typed.equals("./") || typed.equals(".\\") || namesTheCorpusRoot(typed)) {
-            return Optional.of(refused + "the corpus root holds every question; name a folder below it");
+            return Optional.of(refused + "the corpus root holds every document to label; name a folder below it");
         }
         boolean belowACodeSetFolder = NotRelevantFolders.isAbsolute(typed)
                 && codeSetFoldersStated().stream().map(CodeSetFolderChecks::spelt)

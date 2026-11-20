@@ -90,9 +90,39 @@ final class ControlPanelState {
         this.values = LaunchValues.load(launchValuesFile, userName, launchLines::add);
     }
 
-    /** Starts the Docker engine for the launch values held now, once as the window opens (ADR-390 §5). */
+    /**
+     * <i>Start Docker</i>'s start for the launch values held now: {@code .wslconfig}, the engine and the containers on
+     * this machine (ADR-430 §5). Nothing is started as the window opens.
+     */
     DockerControl.Said startDocker() {
-        return docker.start(values);
+        return startDocker(values);
+    }
+
+    /** Start Docker's start for {@code asked}, the values the window's fields hold as it is pressed (ADR-430 §5). */
+    DockerControl.Said startDocker(LaunchValues asked) {
+        return docker.start(asked);
+    }
+
+    /** Checks the daemon, the containers and {@code models}, for the launch values held now, and starts nothing (ADR-430 §3). */
+    DockerCheck checkDocker(DockerControl.Models models) {
+        return checkDocker(values, models);
+    }
+
+    /** Checks for {@code asked}, the values the window's fields hold as the check begins (ADR-430 §3). */
+    DockerCheck checkDocker(LaunchValues asked, DockerControl.Models models) {
+        return docker.check(asked, models);
+    }
+
+    /** Downloads {@code model} into the Ollama the launch values held now name, telling {@code told} as it goes (ADR-430 §7). */
+    DockerControl.Download downloadModel(String model, java.time.Duration stalledAtMost,
+            java.util.function.Consumer<DockerControl.Downloaded> told) {
+        return downloadModel(values, model, stalledAtMost, told);
+    }
+
+    /** Downloads {@code model} into the Ollama {@code asked} names, the values the window's fields hold as it begins (ADR-430 §7). */
+    DockerControl.Download downloadModel(LaunchValues asked, String model, java.time.Duration stalledAtMost,
+            java.util.function.Consumer<DockerControl.Downloaded> told) {
+        return docker.download(asked, model, stalledAtMost, told);
     }
 
     /** Stops the sidecars and then the engine (ADR-390 §3); the child is stopped by the caller, first. */

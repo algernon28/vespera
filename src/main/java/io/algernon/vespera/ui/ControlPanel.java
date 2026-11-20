@@ -88,7 +88,7 @@ public final class ControlPanel {
         String distribution = StartingValues.of("vespera.sidecars.wsl-distribution", sources).value();
         String wait = StartingValues.of("vespera.sidecars.wait-at-most", sources).value();
         java.time.Duration waitAtMost = waitAtMostOf(wait);
-        return new DockerControl.Settings(distribution, waitAtMost, lockFolder, profileFolder, sources);
+        return new DockerControl.Settings(distribution, waitAtMost, lockFolder, profileFolder, null, sources);
     }
 
     /**

@@ -135,6 +135,8 @@ class TheWorkingDirectoryIsChosenFromAListTest {
         String outcome;
         boolean started;
         try (WindowForTests window = WindowForTests.shown(state)) {
+            // Run is enabled once the window's first check of the containers has come back (ADR-430 §6)
+            window.awaiting(root -> !WindowForTests.node(root, "run", Button.class).isDisabled(), Boolean::booleanValue);
             outcome = window.read(root -> {
                 WindowForTests.node(root, "run", Button.class).fire();
                 return WindowForTests.node(root, "outcome", TextInputControl.class).getText();

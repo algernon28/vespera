@@ -64,6 +64,63 @@ final class WindowForTests implements AutoCloseable {
                 Files.createDirectories(folder.resolve("root-locks")), USER);
     }
 
+    /** As {@link #aState(Path, ChildRuntime)}, Docker being {@code docker} (ADR-390 §4, ADR-430 §12). */
+    static ControlPanelState aState(Path folder, ChildRuntime runtime, DockerControl docker) throws IOException {
+        return new ControlPanelState(runtime,
+                LaunchValues.fileIn(Files.createDirectories(folder.resolve("tmp")), USER),
+                Files.createDirectories(folder.resolve("root-locks")), USER, docker);
+    }
+
+    /** The key under which {@code Tooltip.install} keeps a node's caption among its properties, as JavaFX's own code does. */
+    private static final String CAPTION_KEY = "javafx.scene.control.Tooltip";
+
+    /**
+     * The caption {@code node} shows on mouse over (ADR-430 §8): the tooltip installed on it, whether by
+     * {@code Tooltip.install} or as a control's own; null where it carries none.
+     */
+    static String caption(Node node) {
+        Object installed = node instanceof javafx.scene.control.Control control && control.getTooltip() != null
+                ? control.getTooltip() : node.getProperties().get(CAPTION_KEY);
+        return installed instanceof javafx.scene.control.Tooltip tooltip ? tooltip.getText() : null;
+    }
+
+    /** The caption of the node whose id is {@code id}; the test fails where there is no such node. */
+    static String caption(Parent root, String id) {
+        return caption(node(root, id, Node.class));
+    }
+
+    /** Clicks {@code node} with the primary button, once, as the operator does. */
+    static void click(Node node) {
+        node.fireEvent(new javafx.scene.input.MouseEvent(javafx.scene.input.MouseEvent.MOUSE_CLICKED, 0, 0, 0, 0,
+                javafx.scene.input.MouseButton.PRIMARY, 1, false, false, false, false, true, false, false, true, false,
+                true, null));
+    }
+
+    /** Whether the node whose id is {@code id} is in the window and shown, itself and every node above it visible. */
+    static boolean showing(Parent root, String id) {
+        Optional<Node> found = HeadlessToolkit.nodeWithId(root, id);
+        if (found.isEmpty() || found.get().getScene() == null) {
+            return false;
+        }
+        for (Node at = found.get(); at != null; at = at.getParent()) {
+            if (!at.isVisible()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** What every label and text control under the node whose id is {@code id} shows, in order, joined by a space. */
+    static String textUnder(Parent root, String id) {
+        return HeadlessToolkit.everyNodeUnder(node(root, id, Node.class)).stream()
+                .filter(each -> each.isVisible() && (each instanceof javafx.scene.control.Labeled
+                        || each instanceof javafx.scene.control.TextInputControl))
+                .map(each -> each instanceof javafx.scene.control.Labeled labeled ? labeled.getText()
+                        : ((javafx.scene.control.TextInputControl) each).getText())
+                .filter(text -> text != null && !text.isBlank())
+                .collect(java.util.stream.Collectors.joining(" "));
+    }
+
     /** The window of {@code state}, shown on a stage of its own as the control panel shows it, its dialogs answered by the test. */
     static WindowForTests shown(ControlPanelState state) throws Exception {
         AnsweringDialogs dialogs = new AnsweringDialogs();

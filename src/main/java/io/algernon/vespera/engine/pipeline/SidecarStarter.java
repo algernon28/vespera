@@ -1,7 +1,6 @@
 package io.algernon.vespera.engine.pipeline;
 
 import java.io.IOException;
-import java.net.URI;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.channels.OverlappingFileLockException;
@@ -18,8 +17,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
 
 /**
- * Brings the two sidecars up where they are not answering: starts the Docker engine where it is not running, then
- * runs the README's {@code up} with {@code --no-recreate}, and waits for both sidecars (ADR-323). It never removes or
+ * Brings the containers on this machine up where they are not answering: starts the Docker engine where it is not
+ * running, then runs the README's {@code up} with {@code --no-recreate}, and waits for every container on this machine
+ * (ADR-323, ADR-430 §10). It never removes or
  * recreates a container, and stops the sidecars and the engine only when asked to ({@link #stopTheSidecars} and
  * {@link #shutDown}, ADR-390 §3); it does nothing at exit.
  *
@@ -32,11 +32,11 @@ public class SidecarStarter {
 
     /** How a call to {@link #ensureRunning} ended when it did not refuse. */
     enum Outcome {
-        /** A base URL names another machine, which Docker on this one cannot make answer. */
+        /** Neither container is on this machine, so Docker on this one has nothing to make answer. */
         ON_ANOTHER_MACHINE,
-        /** Both sidecars answered, when first asked or when asked again under the lock. */
+        /** Every container on this machine answered, when first asked or when asked again under the lock. */
         ALREADY_ANSWERING,
-        /** The engine was made to answer where it did not, {@code up} was run and both sidecars answer. */
+        /** The engine was made to answer where it did not, {@code up} was run and every container on this machine answers. */
         STARTED,
         /** {@link #ensureTheEngineRuns}: the engine answered when asked, and nothing was started. */
         ENGINE_ANSWERING,
@@ -74,6 +74,7 @@ public class SidecarStarter {
     private final Supplier<ComposeFiles> composeFiles;
     private final Path lockFolder;
     private final Duration checkEvery;
+    private final ThisMachine thisMachine;
 
     SidecarStarter(
             SidecarStartSettings settings,
@@ -83,6 +84,19 @@ public class SidecarStarter {
             Supplier<ComposeFiles> composeFiles,
             Path lockFolder,
             Duration checkEvery) {
+        this(settings, runner, health, host, composeFiles, lockFolder, checkEvery, ThisMachine.system());
+    }
+
+    SidecarStarter(
+            SidecarStartSettings settings,
+            ProcessRunner runner,
+            SidecarHealth health,
+            HostSystem host,
+            Supplier<ComposeFiles> composeFiles,
+            Path lockFolder,
+            Duration checkEvery,
+            ThisMachine thisMachine) {
+        this.thisMachine = thisMachine;
         this.settings = settings;
         this.runner = runner;
         this.health = health;
@@ -109,16 +123,25 @@ public class SidecarStarter {
     }
 
     /**
-     * Makes both sidecars answer where they do not, in the order of ADR-323 §3.
+     * Makes every container on this machine answer where it does not, in the order of ADR-323 §3; where neither
+     * container is on this machine it does nothing (ADR-430 §10).
      *
      * @throws SidecarStartRefusedException when they do not answer and cannot be made to
      */
     Outcome ensureRunning() {
-        if (aSidecarIsOnAnotherMachine()) {
+        return ensureRunning(true);
+    }
+
+    /**
+     * As {@link #ensureRunning()}; {@code logTheWslconfig} false where the caller has already seen to {@code .wslconfig}
+     * through {@link #keepTheWslDistributionUp()} and shown its line, so that line is not logged twice for one press.
+     */
+    Outcome ensureRunning(boolean logTheWslconfig) {
+        if (neitherIsOnThisMachine()) {
             return Outcome.ON_ANOTHER_MACHINE;
         }
-        seeToTheWslconfig();
-        if (bothAnswer()) {
+        seeToTheWslconfig(logTheWslconfig);
+        if (theLocalOnesAnswer()) {
             return Outcome.ALREADY_ANSWERING;
         }
         String cpuImage;
@@ -136,57 +159,140 @@ public class SidecarStarter {
             throw new NoComposeFileBuildsTheImageException(settings.doclingImage(), cpuImage, gpuImage);
         }
         try (SidecarLock lock = takeTheLock()) {
-            if (bothAnswer()) {
+            if (theLocalOnesAnswer()) {
                 return Outcome.ALREADY_ANSWERING;
             }
             makeTheEngineAnswer();
             checkComposeAndBuildx();
             bringUp(withTheGpuFile);
-            waitForBoth();
+            waitForTheLocalOnes();
             return Outcome.STARTED;
         }
     }
 
     /**
-     * On Windows, with both base URLs on this machine, sees to {@code .wslconfig} and logs its line at WARN (ADR-421
-     * §1, §5). Runs no command and takes no lock. What the control panel's window calls before it starts the engine.
+     * On Windows, with at least one container on this machine, sees to {@code .wslconfig} and logs its line at WARN
+     * (ADR-421 §1, §5, ADR-430 §10). Runs no command and takes no lock. What the control panel's window calls before it
+     * starts the containers.
      *
-     * @return the line, empty where the file sets the setting, the system is not Windows, or a base URL names another
-     *     machine
+     * @return the line, empty where the file sets the setting, the system is not Windows, or neither container is on
+     *     this machine
      */
     Optional<String> keepTheWslDistributionUp() {
-        if (host != HostSystem.WINDOWS || !isOnThisMachine(settings.doclingBaseUrl())
-                || !isOnThisMachine(settings.ollamaBaseUrl())) {
+        return seeToTheWslconfig(true);
+    }
+
+    private Optional<String> seeToTheWslconfig(boolean logIt) {
+        if (host != HostSystem.WINDOWS || (!doclingIsHere() && !ollamaIsHere())) {
             return Optional.empty();
         }
         Optional<String> line = WslIdleTimeout.keepTheDistributionUp(settings.profileFolder());
-        line.ifPresent(said -> log.warn("{}", said));
+        if (logIt) {
+            line.ifPresent(said -> log.warn("{}", said));
+        }
         return line;
     }
 
-    private void seeToTheWslconfig() {
-        keepTheWslDistributionUp();
-    }
-
-    private boolean aSidecarIsOnAnotherMachine() {
-        if (!isOnThisMachine(settings.doclingBaseUrl()) || !isOnThisMachine(settings.ollamaBaseUrl())) {
-            log.info("A sidecar is looked for on another machine ({} and {}): Vespera starts none; one that does not"
-                    + " answer fails where it fails", settings.doclingBaseUrl(), settings.ollamaBaseUrl());
+    private boolean neitherIsOnThisMachine() {
+        if (!doclingIsHere() && !ollamaIsHere()) {
+            log.info("The containers are looked for on another machine ({} and {}): Vespera starts none; one that does"
+                    + " not answer fails where it fails", settings.doclingBaseUrl(), settings.ollamaBaseUrl());
             return true;
         }
         return false;
     }
 
+    private boolean doclingIsHere() {
+        return thisMachine.where(settings.doclingBaseUrl()) == ThisMachine.Where.THIS_MACHINE;
+    }
+
+    private boolean ollamaIsHere() {
+        return thisMachine.where(settings.ollamaBaseUrl()) == ThisMachine.Where.THIS_MACHINE;
+    }
+
     /**
-     * Makes the Docker engine answer where it does not and asks no sidecar: ADR-323 §3's step 2, then, under the lock,
+     * Asks the Docker daemon and starts nothing (ADR-430 §3): on Windows the distribution is asked only while it runs,
+     * which {@code wsl --list} says without booting any; on Linux only while {@code docker.service} is active; on
+     * macOS as it is. Takes no lock and reads no compose file.
+     *
+     * @return empty where neither container is on this machine and nothing was asked; else whether the daemon answers
+     */
+    Optional<Boolean> engineAnswersStartingNothing() {
+        if (!doclingIsHere() && !ollamaIsHere()) {
+            return Optional.empty();
+        }
+        return Optional.of(switch (host) {
+            case WINDOWS -> windowsEngineAnswers();
+            case LINUX -> exitsZero(host.engineServiceActive()) && theEngineAnswers();
+            case MAC -> theEngineAnswers();
+        });
+    }
+
+    private boolean windowsEngineAnswers() {
+        String named = settings.wslDistribution() == null ? "" : settings.wslDistribution().strip();
+        if (named.isEmpty()) {
+            ProcessOutcome verbose = runCounting(host.wslVerbose(), COMMAND_LIMIT);
+            if (verbose.exitCode() != 0) {
+                return false;
+            }
+            named = theMarkedDistribution(verbose.output());
+            if (named.isEmpty()) {
+                return false;
+            }
+        }
+        ProcessOutcome running = runCounting(host.wslRunning(), COMMAND_LIMIT);
+        if (running.exitCode() != 0) {
+            return false;
+        }
+        String wanted = named;
+        boolean listed = readFromWsl(running.output()).lines()
+                .map(String::strip)
+                .anyMatch(line -> line.equalsIgnoreCase(wanted));
+        return listed && theEngineAnswers();
+    }
+
+    /** The name on the line {@code wsl --list --verbose} marks with a star, empty where none is. */
+    private static String theMarkedDistribution(String verbose) {
+        return readFromWsl(verbose).lines()
+                .map(String::strip)
+                .filter(line -> line.startsWith("*"))
+                .map(line -> line.substring(1).strip().split("\\s+")[0])
+                .findFirst()
+                .orElse("");
+    }
+
+    /**
+     * What {@code wsl.exe} printed in UTF-16 as a reader of single bytes saw it, its NULs and byte order mark removed:
+     * the UTF-8 decoder the runner uses turns a UTF-16LE mark, {@code FF FE}, into two U+FFFD, so those lead nothing
+     * either, and so does U+FEFF itself.
+     */
+    private static String readFromWsl(String output) {
+        return output.replace("\u0000", "").replaceFirst("^[\\uFEFF\\uFFFD]+", "").replace("﻿", "");
+    }
+
+    private boolean exitsZero(List<String> command) {
+        return runCounting(command, COMMAND_LIMIT).exitCode() == 0;
+    }
+
+    private boolean theEngineAnswers() {
+        try {
+            return engineAnswers();
+        } catch (DockerIsNotInstalledException notInstalled) {
+            return false;
+        }
+    }
+
+    /**
+     * Makes the Docker engine answer where it does not and asks no container: ADR-323 §3's step 2, then, under the lock,
      * the engine's check, its start and the wait (ADR-390 §4), then the checks for Compose and buildx (ADR-410 §2).
-     * What the control panel runs as its window opens.
+     * The control panel's window no longer runs it as it opens (ADR-430 §12); it starts nothing until Start Docker is
+     * pressed.
      *
      * @throws SidecarStartRefusedException when the engine does not answer and cannot be made to, or when it answers
      *     and docker compose or docker buildx is not installed (ADR-410 §3)
      */
     Outcome ensureTheEngineRuns() {
-        if (aSidecarIsOnAnotherMachine()) {
+        if (neitherIsOnThisMachine()) {
             return Outcome.ON_ANOTHER_MACHINE;
         }
         try (SidecarLock lock = takeTheLock()) {
@@ -197,14 +303,15 @@ public class SidecarStarter {
     }
 
     /**
-     * Stops the sidecars alone, only where both base URLs name this machine and either sidecar answers, so that no
+     * Stops the containers alone, only where a container on this machine answers, so that no
      * engine stopped behind its socket is started and no WSL distribution is booted for nothing to stop (ADR-390 §3).
      *
      * @return the line of a refusal, empty where they were stopped or nothing was to be done
      */
     Optional<String> stopTheSidecars() {
-        if (!isOnThisMachine(settings.doclingBaseUrl()) || !isOnThisMachine(settings.ollamaBaseUrl())
-                || !(health.doclingAnswers() || health.ollamaAnswers())) {
+        boolean docling = doclingIsHere();
+        boolean ollama = ollamaIsHere();
+        if (!(docling && health.doclingAnswers()) && !(ollama && health.ollamaAnswers())) {
             return Optional.empty();
         }
         try (SidecarLock lock = takeTheLock()) {
@@ -261,24 +368,11 @@ public class SidecarStarter {
         return runCounting(command, settings.waitAtMost());
     }
 
-    private boolean bothAnswer() {
-        boolean docling = health.doclingAnswers();
-        boolean ollama = health.ollamaAnswers();
+    /** Whether every container on this machine answers; one on another machine is not asked (ADR-430 §10). */
+    private boolean theLocalOnesAnswer() {
+        boolean docling = !doclingIsHere() || health.doclingAnswers();
+        boolean ollama = !ollamaIsHere() || health.ollamaAnswers();
         return docling && ollama;
-    }
-
-    /** A host that is a loopback name or address: {@code localhost}, {@code 127.0.0.0/8}, {@code ::1}. */
-    private static boolean isOnThisMachine(URI baseUrl) {
-        String host = baseUrl.getHost();
-        if (host == null) {
-            return false;
-        }
-        String name = host.toLowerCase(java.util.Locale.ROOT);
-        return name.equals("localhost")
-                || name.matches("127(\\.\\d{1,3}){3}")
-                || name.equals("[::1]")
-                || name.equals("::1")
-                || name.equals("[0:0:0:0:0:0:0:1]");
     }
 
     // ---- the engine (ADR-323 §5)
@@ -364,7 +458,7 @@ public class SidecarStarter {
             List<Path> named = withTheGpuFile
                     ? List.of(files.composeFile(), files.gpuFile())
                     : List.of(files.composeFile());
-            List<String> up = host.composeUp(settings.wslDistribution(), named);
+            List<String> up = host.composeUp(settings.wslDistribution(), named, services());
             log.info("Starting the sidecars: {}", SidecarStartRefusedException.asRun(up));
             ProcessOutcome outcome;
             try {
@@ -380,14 +474,26 @@ public class SidecarStarter {
 
     // ---- the wait after up (ADR-323 §3, step 8)
 
-    private void waitForBoth() {
-        log.info("Waiting up to {} seconds for docling-serve and Ollama to answer", settings.waitAtMost().toSeconds());
+    /** The service {@code up} names where one container is on this machine; none where both are (ADR-430 §10). */
+    private List<String> services() {
+        boolean docling = doclingIsHere();
+        if (docling && ollamaIsHere()) {
+            return List.of();
+        }
+        return List.of(docling ? "docling-serve" : "ollama");
+    }
+
+    private void waitForTheLocalOnes() {
+        boolean askDocling = doclingIsHere();
+        boolean askOllama = ollamaIsHere();
+        String names = askDocling && askOllama ? "docling-serve and Ollama" : askDocling ? "docling-serve" : "Ollama";
+        log.info("Waiting up to {} seconds for {} to answer", settings.waitAtMost().toSeconds(), names);
         long began = System.nanoTime();
         while (true) {
-            boolean docling = health.doclingAnswers();
-            boolean ollama = health.ollamaAnswers();
+            boolean docling = !askDocling || health.doclingAnswers();
+            boolean ollama = !askOllama || health.ollamaAnswers();
             if (docling && ollama) {
-                log.info("docling-serve and Ollama answer after {} seconds", secondsSince(began));
+                log.info("{} answer after {} seconds", names, secondsSince(began));
                 return;
             }
             if (System.nanoTime() - began >= settings.waitAtMost().toNanos()) {

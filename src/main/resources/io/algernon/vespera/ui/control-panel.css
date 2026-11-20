@@ -562,3 +562,91 @@
     -fx-max-height: 6px;
     -fx-cursor: v-resize;
 }
+
+/*
+ * The check in the header (ADR-430 section 2): five rows in two columns, in a smaller font than the titles, no taller than
+ * they are. Each name and each mark stands at a width of its own, so that a mark that grows to KO and its percent moves
+ * nothing. The colours are tokens: OK the keeping green, KO the ending red, a row not asked the dim ink (ADR-423).
+ */
+.header {
+    -fx-spacing: 16px;
+}
+
+.header .docker-check {
+    -fx-hgap: 4px;
+    -fx-vgap: 0px;
+}
+
+.header .docker-check .check-name,
+.header .docker-check .check-mark,
+.header .docker-check .check-progress {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-padding: 0;
+    -fx-font-size: 11px;
+    -fx-alignment: center-left;
+    -fx-min-height: 0;
+    -fx-pref-height: 14px;
+    -fx-max-height: 14px;
+    -fx-scale-x: 1;
+    -fx-scale-y: 1;
+    -fx-opacity: 1;
+}
+
+.header .docker-check .check-name {
+    -fx-text-fill: -vespera-ink;
+    -fx-min-width: 104px;
+    -fx-pref-width: 104px;
+    -fx-max-width: 104px;
+}
+
+.header .docker-check .check-cell {
+    -fx-min-width: 72px;
+    -fx-pref-width: 72px;
+    -fx-max-width: 72px;
+    -fx-spacing: 4px;
+    -fx-alignment: center-left;
+}
+
+.header .docker-check .check-mark.ok {
+    -fx-text-fill: -vespera-keeping;
+    -fx-font-weight: bold;
+}
+
+.header .docker-check .check-mark.ko {
+    -fx-text-fill: -vespera-ending;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.header .docker-check .check-mark.not-asked {
+    -fx-text-fill: -vespera-dim;
+}
+
+.header .docker-check .check-progress {
+    -fx-text-fill: -vespera-ending;
+    -fx-cursor: hand;
+}
+
+.header .docker-check .button:hover,
+.header .docker-check .button:armed,
+.header .docker-check .button:focused {
+    -fx-background-color: transparent;
+    -fx-scale-x: 1;
+    -fx-scale-y: 1;
+}
+
+/* The download panel (ADR-430 section 7): floats at the top right over the content, moving nothing beneath it. */
+.download-panel {
+    -fx-background-color: -vespera-rule, -vespera-surface;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 6px;
+    -fx-padding: 12px;
+    -fx-spacing: 8px;
+    -fx-pref-width: 420px;
+}
+
+.download-row {
+    -fx-spacing: 2px;
+}

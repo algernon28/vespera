@@ -116,7 +116,7 @@ final class RelevanceLabellingReport {
                 new AnalysisReportJson.Figure("lowest", "Lowest score", distribution.lowestScore(), "number"),
                 new AnalysisReportJson.Figure("highest", "Highest score", distribution.highestScore(), "number"),
                 new AnalysisReportJson.Figure("bands", "Bands", distribution.bands().size(), "count"),
-                new AnalysisReportJson.Figure("sampled", "Documents put to a person", distribution.sample().size(), "count"),
+                new AnalysisReportJson.Figure("sampled", "Documents to label", distribution.sample().size(), "count"),
                 new AnalysisReportJson.Figure("judged", "Documents judged so far", spread.labelled(), "count"));
         List<AnalysisReportJson.Section> sections = new ArrayList<>();
         if (ignoredFloor != null) {
@@ -124,8 +124,8 @@ final class RelevanceLabellingReport {
                     "threshold-not-applied",
                     "Your threshold is not being applied",
                     List.of("The profile sets a relevance cut of " + ignoredFloor.value()
-                            + ", and this run kept every document anyway. The answers this number was read off were"
-                            + " given while " + ignoredFloor.calibratedUnder() + " was in use, and the scores below were"
+                            + ", and this run kept every document anyway. The labels this number was read off were"
+                            + " set while " + ignoredFloor.calibratedUnder() + " was in use, and the scores below were"
                             + " produced by " + ignoredFloor.currentIdentity() + ".")));
         }
         sections.add(spreadSection(distribution));
@@ -166,7 +166,7 @@ final class RelevanceLabellingReport {
                         new AnalysisReportJson.Column("from", "From", "number"),
                         new AnalysisReportJson.Column("to", "To", "number"),
                         new AnalysisReportJson.Column("documents", "Documents", "count"),
-                        new AnalysisReportJson.Column("asked", "Being asked about", "count"),
+                        new AnalysisReportJson.Column("asked", "To label", "count"),
                         new AnalysisReportJson.Column("short", "Short by", "count")),
                 rows);
     }
@@ -175,8 +175,8 @@ final class RelevanceLabellingReport {
         if (spread.labelled() == 0) {
             return List.of(prose(
                     "what-the-answers-say-so-far",
-                    "What the answers say so far",
-                    List.of("Nobody has answered any of the questions yet.")));
+                    "What the labels say so far",
+                    List.of("No document has been labelled yet.")));
         }
         List<List<Object>> judgedRows = new ArrayList<>();
         for (LabelledSpread.BandLabels band : spread.bandLabels()) {
@@ -196,7 +196,7 @@ final class RelevanceLabellingReport {
         return List.of(
                 section(
                         "what-the-answers-say-so-far",
-                        "What the answers say so far",
+                        "What the labels say so far",
                         List.of(spread.labelled() + " document(s) judged so far, spread across the bands."),
                         new AnalysisReportJson.Chart("bars", "band", List.of("judged", "relevant")),
                         List.of(
@@ -239,7 +239,7 @@ final class RelevanceLabellingReport {
                 "The documents to judge",
                 List.of(distribution.sample().isEmpty()
                         ? "No document was sampled, because nothing was scored."
-                        : "Each one below is drawn from a band, and the same run always asks about the same documents."),
+                        : "Each one below is drawn from a band, and the same run always draws the same documents."),
                 null,
                 distribution.sample().isEmpty()
                         ? List.of()
@@ -272,7 +272,7 @@ final class RelevanceLabellingReport {
                             + ignoredFloor.value()
                             + "</strong>, and this run kept every document anyway. A cut is a number on"
                             + " a scale, and the scale is whichever model produced the scores. The"
-                            + " answers this number was read off were given while <code>"
+                            + " labels this number was read off were set while <code>"
                             + ReportPage.escape(ignoredFloor.calibratedUnder())
                             + "</code> was in use, and the scores below were produced by <code>"
                             + ReportPage.escape(ignoredFloor.currentIdentity())
@@ -301,11 +301,11 @@ final class RelevanceLabellingReport {
         }
         body.append(ReportPage.table(
                         ReportPage.headerRow(
-                                "Band", "From", "To", "Documents", "Being asked about", "Short by"),
+                                "Band", "From", "To", "Documents", "To label", "Short by"),
                         bandRows.toString()))
                 .append(ReportPage.paragraph("A band holding fewer documents than were asked for"
                         + " supplies what it has, and the difference is shown above rather than made"
-                        + " up from a neighbouring band. A proportion read off four answers is not the"
+                        + " up from a neighbouring band. A proportion read off four labels is not the"
                         + " same evidence as one read off " + eachBandWasAskedFor(distribution)
                         + ", and topping it up from documents"
                         + " that scored differently would hide that."))
@@ -320,8 +320,8 @@ final class RelevanceLabellingReport {
                 .append(answersSoFar(spread))
                 .append(ReportPage.heading(2, "The documents to judge"))
                 .append(ReportPage.paragraph("Each one below is drawn from a band, and the same run"
-                        + " always asks about the same documents, so you can stop and come back. Write"
-                        + " your answers in the label file beside this page."));
+                        + " always draws the same documents, so you can stop and come back. Set"
+                        + " their labels in the label file beside this page."));
 
         if (distribution.sample().isEmpty()) {
             body.append(ReportPage.paragraph("No document was sampled, because nothing was scored."));
@@ -378,11 +378,11 @@ final class RelevanceLabellingReport {
      */
     private static String answersSoFar(LabelledSpread.Spread spread) {
         StringBuilder body = new StringBuilder();
-        body.append(ReportPage.heading(2, "What the answers say so far"));
+        body.append(ReportPage.heading(2, "What the labels say so far"));
         if (spread.labelled() == 0) {
-            return body.append(ReportPage.paragraph("Nobody has answered any of the questions yet. Fill"
+            return body.append(ReportPage.paragraph("No document has been labelled yet. Fill"
                     + " in the label file beside this page, run the tool again, and this section will"
-                    + " say what the answers came to and what each possible cut would cost.")).toString();
+                    + " say what the labels came to and what each possible cut would cost.")).toString();
         }
 
         StringBuilder bandRows = new StringBuilder();

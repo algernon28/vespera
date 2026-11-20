@@ -1,5 +1,7 @@
 # ADR-205 — The relevance report counts the answers a model gave as it looks each up
 
+> **Partly amended — see [ADR-424](0424-command-line-the-jars-reports-and-the-operators-documents-call-no-label-an-answer-and-no-document-to-label-a-question.md).** The counter is `Stage 5 (relevance report, model labels matched)`, its sibling `Stage 5 (relevance report, labels matched)`, and the timed read before it `the labels a model set`, wherever Context, §2 and §3 name them, §3's lines included. §2's reasons hold of the new pair: the label is the sibling's with one word before it, neither begins with the other followed by a colon, and *model* is still ADR-204 §2's word. The loop, its total, where it is opened and its cadence stand; the title and the file name keep their words.
+
 - **Date**: 2026-10-06
 - **Status**: accepted
 - **Extends**: [ADR-192](0192-every-loop-in-every-stage-reports-its-progress-and-no-counter-floods-the-log.md) §4, whose table gains one row, and its Consequences, whose *"The relevance report writes its two counters on every invocation that reaches it"* now reads *three*. ADR-192's rule, its cadence and every other row stand.

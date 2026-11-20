@@ -19,6 +19,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.yaml.snakeyaml.Yaml;
 
 /**
  * Where the control panel's Docker code takes its settings from (ADR-390 §4): the WSL distribution and {@code
@@ -46,8 +47,23 @@ class TheControlPanelsDockerSettingsTest {
 
     private static final String WAIT_PROPERTY = "vespera.sidecars.wait-at-most";
 
-    /** A converter on another machine, as an operator's environment would name it. */
-    private static final String DOCLING_ELSEWHERE = "http://docling.example.org:5001";
+    private static final String OLLAMA_VARIABLE = "SPRING_AI_OLLAMA_BASE_URL";
+
+    private static final String IMAGE_VARIABLE = "VESPERA_DOCLING_IMAGE";
+
+    /** The repository root, where Maven runs the tests from and where the compose files lie, named as their folder. */
+    private static final Path REPOSITORY = Path.of("").toAbsolutePath();
+
+    /** The compose folder the window's settings name: none, which stands for the folder beside the jar (ADR-430 §12). */
+    private static final Path BESIDE_THE_JAR = null;
+
+    /**
+     * A converter and Ollama on another machine, as an operator's environment would name them: an address of the range
+     * kept for documentation (RFC 5737), which is no machine's own and, written out, is never looked up (ADR-430 §10).
+     */
+    private static final String DOCLING_ELSEWHERE = "http://192.0.2.10:5001";
+
+    private static final String OLLAMA_ELSEWHERE = "http://192.0.2.10:11434";
 
     /** The least the wait is: a value under it is raised to it. */
     private static final Duration A_SECOND = Duration.ofSeconds(1);
@@ -81,16 +97,18 @@ class TheControlPanelsDockerSettingsTest {
         DockerControl.Settings read = ControlPanel.dockerSettings(everySource, lockFolder, profileFolder);
 
         claim("the environment's distribution comes before .env's, .env's wait of 5m, three hundred seconds, before"
-                        + " application.yaml's 180s, and the lock folder and the profile folder are the ones given",
+                        + " application.yaml's 180s, the lock folder and the profile folder are the ones given, and the"
+                        + " compose files are the ones beside the jar, which no folder named stands for",
                 () -> assertThat(read).isEqualTo(new DockerControl.Settings(
-                        "Ubuntu-24.04", Duration.ofMinutes(5), lockFolder, profileFolder, everySource)));
+                        "Ubuntu-24.04", Duration.ofMinutes(5), lockFolder, profileFolder, BESIDE_THE_JAR, everySource)));
 
         StartingValues.Sources theJarsOwn = new StartingValues.Sources(Map.of(), Map.of(), Map.of(),
                 Map.of(DISTRIBUTION_PROPERTY, "", WAIT_PROPERTY, "180s"));
         claim("where only the jar's application.yaml names them, the distribution is blank, WSL's default, and the"
                         + " wait is its 180 seconds",
                 () -> assertThat(ControlPanel.dockerSettings(theJarsOwn, lockFolder, profileFolder)).isEqualTo(
-                        new DockerControl.Settings("", Duration.ofSeconds(180), lockFolder, profileFolder, theJarsOwn)));
+                        new DockerControl.Settings("", Duration.ofSeconds(180), lockFolder, profileFolder,
+                                BESIDE_THE_JAR, theJarsOwn)));
     }
 
     /**
@@ -119,20 +137,29 @@ class TheControlPanelsDockerSettingsTest {
                 () -> assertThat(ControlPanel.waitAtMostOf(TOO_LARGE)).isEqualTo(THE_DEFAULT_WAIT));
     }
 
+    /**
+     * Since ADR-430 §5 the window's start is <i>Start Docker</i>'s, which brings the containers on this machine up, and
+     * since §10 each container is judged on its own: so both are named, on another machine and then on loopback ports
+     * where nothing answers. The compose files are the repository's own, named in the settings (§12), and the image the
+     * one {@code compose.yaml} builds, named in the environment, so the start that goes on passes the image's check and
+     * is refused at the sidecar lock in the folder that is a file, before any command, in the lock's line.
+     */
     @Test
-    @Story("The control panel starts the Docker engine as its window opens")
-    @DisplayName("With the launch values blank and the environment naming a converter on another machine, the window's start runs nothing")
+    @Link(name = "ADR-430", url = Adr.THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER, type = "adr")
+    @Issue("889")
+    @Story("Start Docker starts Docker and the containers")
+    @DisplayName("With the launch values blank and the environment naming both containers on another machine, the window's start runs nothing, and naming them here it is refused at the sidecar lock")
     void aConverterTheEnvironmentNamesOnAnotherMachineStartsNothingWhereTheLaunchValuesAreBlank() throws IOException {
         Path notAFolder = Files.createFile(folder.resolve("a-file-where-the-lock-folder-would-be"));
         Path profileFolder = Files.createDirectory(folder.resolve("profile"));
         StartingValues.Sources remote = new StartingValues.Sources(Map.of(),
-                Map.of(DOCLING_VARIABLE, DOCLING_ELSEWHERE), Map.of(), Map.of());
+                Map.of(DOCLING_VARIABLE, DOCLING_ELSEWHERE, OLLAMA_VARIABLE, OLLAMA_ELSEWHERE), Map.of(), Map.of());
 
-        DockerControl.Said said = DockerControl.inProcess(
-                new DockerControl.Settings("", Duration.ofSeconds(1), notAFolder, profileFolder, remote)).start(BLANK);
+        DockerControl.Said said = DockerControl.inProcess(new DockerControl.Settings("", Duration.ofSeconds(1),
+                notAFolder, profileFolder, REPOSITORY, remote)).start(BLANK);
 
-        claim("the start went through and said nothing: the converter's blank address was read as the environment's,"
-                        + " on another machine, so the sidecar lock was not taken and no command was run",
+        claim("the start went through and said nothing: the blank addresses were read as the environment's, on another"
+                        + " machine, so the sidecar lock was not taken and no command was run",
                 () -> assertThat(said).isEqualTo(new DockerControl.Said(true, "")));
         claim("and nothing was written in the profile folder it was given", () -> {
             try (Stream<Path> written = Files.list(profileFolder)) {
@@ -140,29 +167,61 @@ class TheControlPanelsDockerSettingsTest {
             }
         });
 
-        StartingValues.Sources none = StartingValues.Sources.none();
         Path anotherProfile = Files.createDirectory(folder.resolve("another-profile"));
-        DockerControl.Said here = DockerControl.inProcess(
-                new DockerControl.Settings("", Duration.ofSeconds(1), notAFolder, anotherProfile, none)).start(BLANK);
-        claim("where no source names a converter, the same start goes for the sidecar lock in the folder that is a"
-                        + " file, and is refused there, before any command, in the lock's line",
-                () -> assertThat(here).isEqualTo(new DockerControl.Said(false, "the sidecars are not answering and"
-                        + " Vespera cannot start them: the lock file " + notAFolder.resolve("sidecars.lock")
-                        + " cannot be opened (" + notAFolder + "). Make its folder writable, or name another with"
-                        + " vespera.corpus-root-lock-folder, and run the same command again.")));
+        DockerControl.Said here = DockerControl.inProcess(new DockerControl.Settings("", Duration.ofSeconds(1),
+                notAFolder, anotherProfile, REPOSITORY, nothingAnsweringHere())).start(BLANK);
+        claim("named on this machine where nothing answers, the same start goes on, passes the image's check, and is"
+                        + " refused at the sidecar lock in the folder that is a file, in the lock's line, whole",
+                () -> assertThat(here).isEqualTo(new DockerControl.Said(false, theLocksRefusal(notAFolder))));
     }
 
     /**
-     * The window's start sees to {@code .wslconfig} before it starts the engine (ADR-421 §6), in the profile folder its
-     * settings name and never in the machine's own (§7). Guarded to Windows: the system is the one this JVM runs on,
-     * and elsewhere nothing is written. The lock folder is a file, so the engine's start is refused before any
-     * command, and its refusal is the line the start gives.
+     * Both containers named in the environment on loopback ports of this machine where nothing answers, and the image
+     * the one {@code compose.yaml} builds, so that no starting value of the machine or the jar is read.
+     */
+    private static StartingValues.Sources nothingAnsweringHere() throws IOException {
+        return new StartingValues.Sources(Map.of(), Map.of(DOCLING_VARIABLE, "http://127.0.0.1:" + aFreePort(),
+                OLLAMA_VARIABLE, "http://127.0.0.1:" + aFreePort(), IMAGE_VARIABLE, imageComposeYamlBuilds()),
+                Map.of(), Map.of());
+    }
+
+    /** The line a start refused at a sidecar lock in {@code notAFolder}, a file, gives (ADR-395 §6). */
+    private static String theLocksRefusal(Path notAFolder) {
+        return "the sidecars are not answering and Vespera cannot start them: the lock file "
+                + notAFolder.resolve("sidecars.lock").toAbsolutePath() + " cannot be opened (" + notAFolder
+                + "). Make its folder writable, or name another with vespera.corpus-root-lock-folder, and run the same"
+                + " command again.";
+    }
+
+    /** The Docling image the repository's {@code compose.yaml} builds, read from the file as it stands. */
+    @SuppressWarnings("unchecked")
+    private static String imageComposeYamlBuilds() throws IOException {
+        Map<String, Object> compose = new Yaml().load(Files.readString(REPOSITORY.resolve("compose.yaml")));
+        Map<String, Object> services = (Map<String, Object>) compose.get("services");
+        return (String) ((Map<String, Object>) services.get("docling-serve")).get("image");
+    }
+
+    /** A loopback port that was free a moment ago. */
+    private static int aFreePort() throws IOException {
+        try (java.net.ServerSocket probe = new java.net.ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress())) {
+            return probe.getLocalPort();
+        }
+    }
+
+    /**
+     * The window's start sees to {@code .wslconfig} before anything else (ADR-421 §6), in the profile folder its
+     * settings name and never in the machine's own (§7); since ADR-430 §5 the start is <i>Start Docker</i>'s. Guarded to
+     * Windows: the system is the one this JVM runs on, and elsewhere nothing is written. The containers are named on
+     * loopback ports where nothing answers, the compose files are the repository's and the image the one {@code
+     * compose.yaml} builds, and the lock folder is a file, so the start is refused at the lock before any command, and
+     * the lock's line is the one line the start gives.
      */
     @Test
     @Link(name = "ADR-421", url = Adr.ON_WINDOWS_VESPERA_WRITES_WSLCONFIG_WHERE_THERE_IS_NONE, type = "adr")
+    @Link(name = "ADR-430", url = Adr.THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER, type = "adr")
     @Issue("881")
-    @Story("The control panel starts the Docker engine as its window opens")
-    @DisplayName("On Windows the window's start writes .wslconfig in the profile folder it is given before it starts the engine, and a refusal of the engine's start is the line it gives")
+    @Story("Start Docker starts Docker and the containers")
+    @DisplayName("On Windows the window's start writes .wslconfig in the profile folder it is given before anything else, and a refusal is the line it gives")
     void onWindowsTheWindowsStartWritesItInTheProfileFolderItIsGiven() throws IOException {
         org.junit.jupiter.api.Assumptions.assumeTrue(System.getProperty("os.name", "").startsWith("Windows"),
                 "the system is the one this JVM runs on, and WSL is on Windows alone");
@@ -170,16 +229,13 @@ class TheControlPanelsDockerSettingsTest {
         Path profileFolder = Files.createDirectory(folder.resolve("profile"));
 
         DockerControl.Said said = DockerControl.inProcess(new DockerControl.Settings("", Duration.ofSeconds(1),
-                notAFolder, profileFolder, StartingValues.Sources.none())).start(BLANK);
+                notAFolder, profileFolder, REPOSITORY, nothingAnsweringHere())).start(BLANK);
 
         claim("the profile folder given holds .wslconfig, its two lines [general] and instanceIdleTimeout=-1 each"
                         + " ended by CR LF",
                 () -> assertThat(Files.readString(profileFolder.resolve(".wslconfig")))
                         .isEqualTo("[general]\r\ninstanceIdleTimeout=-1\r\n"));
-        claim("and the start was refused at the sidecar lock, in the lock's line, which is the one line it gives",
-                () -> assertThat(said).isEqualTo(new DockerControl.Said(false, "the sidecars are not answering and"
-                        + " Vespera cannot start them: the lock file " + notAFolder.resolve("sidecars.lock")
-                        + " cannot be opened (" + notAFolder + "). Make its folder writable, or name another with"
-                        + " vespera.corpus-root-lock-folder, and run the same command again.")));
+        claim("and the start was refused at the sidecar lock, in the lock's line, whole, which is the one line it gives",
+                () -> assertThat(said).isEqualTo(new DockerControl.Said(false, theLocksRefusal(notAFolder))));
     }
 }

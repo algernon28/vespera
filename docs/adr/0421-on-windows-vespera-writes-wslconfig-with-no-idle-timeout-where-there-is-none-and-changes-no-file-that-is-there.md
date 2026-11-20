@@ -1,5 +1,7 @@
 # ADR-421 — On Windows, Vespera writes `.wslconfig` with no idle timeout where there is none, and changes no file that is there
 
+> **Partly amended — see [ADR-430](0430-the-control-panel-checks-docker-the-containers-and-the-models-and-starts-nothing-until-start-docker-is-pressed.md).** Of §1: the control panel sees to `.wslconfig` when *Start Docker* is pressed, not as its window opens, and its check writes and reads nothing; a start sees to it where at least one container is on this machine, a host now resolved and not read as written. Of §6: `DockerControl.inProcess`'s start calls `keepTheWslDistributionUp` and then `DockerEngine.startTheContainers`. The rest of this record stands.
+
 - **Date**: 2026-11-18
 - **Status**: accepted on 2026-11-18.
 - **Decided**: by the operator, in [#881](https://github.com/algernon28/vespera/issues/881): that on Windows Vespera creates `%UserProfile%\.wslconfig` where it does not exist, holding `[general]` and `instanceIdleTimeout=-1`, in place of leaving it to ADR-390 §1's one-time setup. Under the operator's delegation: where and when it is written (§1); its bytes, and that no file there is written over or changed (§2); what a file that is there is read for (§3); that Vespera runs no `wsl --shutdown` (§4); the lines, and that none refuses a start (§5); what the control panel calls and shows (§6); how a test keeps the real profile folder out (§7).
