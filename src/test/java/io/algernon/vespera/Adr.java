@@ -3170,6 +3170,18 @@ public final class Adr {
     public static final String THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER = FILE
             + "0430-the-control-panel-checks-docker-the-containers-and-the-models-and-starts-nothing-until-start-docker-is-pressed.md";
 
+    /**
+     * ADR-434 -- the profile's {@code outputs} names what stage 6b draws, {@code tree} for the HTML tree and each
+     * plugin by its name, {@code tree, confluence, website} where unset, in no run's identity, {@code vespera run}
+     * stopping at its start on a name that is no output or a plugin drawing from the tree named without it; beside
+     * {@code Drawing} a plugin may read retrieval records, a synthesis doc, a topic overview or a member passage with
+     * its vector under the scoring run's embedder identity and its place, keyed by the SHA-256 of its content key; and
+     * the {@code retrieval} plugin draws them into {@code retrieval/records.jsonl} and sends nothing (amends ADR-333
+     * §1, §2, §4 and §5, ADR-312 §2, ADR-301 §1 and §2, ADR-214 §2 and ADR-389 §1).
+     */
+    public static final String THE_PROFILES_OUTPUTS_CHOOSE_WHAT_IS_DRAWN_AND_RETRIEVAL_RECORDS_ARE_ONE_JSONL_FILE = FILE
+            + "0434-the-profiles-outputs-choose-what-stage-6b-draws-and-a-retrieval-plugin-draws-records-and-vectors-into-a-jsonl-file.md";
+
     private Adr() {
     }
 }

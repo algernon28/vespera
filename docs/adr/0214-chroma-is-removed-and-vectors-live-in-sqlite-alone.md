@@ -1,5 +1,7 @@
 # ADR-214 — Chroma is removed, and vectors live in SQLite alone
 
+> **Partly amended — see [ADR-434](0434-the-profiles-outputs-choose-what-stage-6b-draws-and-a-retrieval-plugin-draws-records-and-vectors-into-a-jsonl-file.md).** Of §2: every vector is still kept in SQLite alone, a chunk's in `vector` and a synthesis doc's or a topic overview's in `writing_vector`, a table of `embedding`'s keyed by the writing's digest and the embedder identity; and the vectors a drawing hands the retrieval plugin are drawn, with their records, into its file under the deliverable. Stages 4 and 5 read SQLite alone, and no vector database is added. The rest of this record stands.
+
 - **Date**: 2026-10-09
 - **Status**: accepted.
 - **Supersedes**: [ADR-142](0142-the-vector-store-connects-to-chroma-when-it-is-first-used.md), whole. There is no vector store left to connect, at start-up or at first use, and its requirement that the store stay configured for a reader still to come is withdrawn (§1).

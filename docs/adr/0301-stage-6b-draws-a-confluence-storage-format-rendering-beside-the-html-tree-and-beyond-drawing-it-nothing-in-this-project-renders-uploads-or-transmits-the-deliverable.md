@@ -4,6 +4,8 @@
 
 > **Partly amended — see [ADR-333](0333-a-plugin-inside-the-jar-draws-one-rendering-and-delivers-it-to-one-destination-a-publish-names-its-destinations-and-the-website-is-refreshed-in-one-folder-and-served-on-loopback.md).** Of §1 as ADR-308 amended it: stage 6b draws every plugin's rendering beside the HTML tree, and a publish delivers each to its destination. §4's parity test holds three renderings. The rest of this record stands.
 
+> **Partly amended — see [ADR-434](0434-the-profiles-outputs-choose-what-stage-6b-draws-and-a-retrieval-plugin-draws-records-and-vectors-into-a-jsonl-file.md).** Of §1 as ADR-308 and ADR-333 left it, and of §2: stage 6b draws the outputs the profile's `outputs` names, the HTML tree among them unless it is left out, so the deliverable may hold no HTML tree; beside it or alone it may hold the retrieval plugin's file of retrieval records and their vectors. Beyond drawing, nothing in this project renders, uploads or transmits the deliverable anywhere but a publish as ADR-308 and ADR-333 have it, and a publish to the retrieval plugin sends nothing. The rest of this record stands.
+
 - **Date**: 2026-10-19
 - **Status**: accepted on 2026-10-19.
 - **Amends**: [ADR-101](0101-the-run-ends-at-the-generated-documents-there-is-no-publication-stage-and-no-publication-target.md), its Decision's opening sentence, which reads as §1 here, and its Context's "rendering the result into a wiki", which stays struck as putting the result into a wiki and not as drawing files for one (§1). Seven stages, stage 7 struck, no `publication` module, no `vespera publish`, and every other section stand.
