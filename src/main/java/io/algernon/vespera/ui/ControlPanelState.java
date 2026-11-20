@@ -62,8 +62,11 @@ final class ControlPanelState {
     private WorkingDirectories workingDirectories;
 
     private volatile StartingValues.Sources sources = StartingValues.Sources.none();
-    private volatile WorkingDirectoryDefault workingDirectoryDefault = WorkingDirectoryDefault.of(Path.of(""), Map.of(),
-            Map.of());
+    private volatile Optional<WorkingDirectoryDefault> workingDirectoryDefault =
+            WorkingDirectoryDefault.of(Path.of(""), Map.of(), Map.of());
+    /** The line saying a {@code .vespera} folder was added to the list as the window opened, and that folder (ADR-436 §7). */
+    private volatile Optional<String> dotVesperaLine = Optional.empty();
+    private volatile Optional<Path> dotVesperaAdded = Optional.empty();
     private volatile LaunchValues values;
     private volatile ServiceChecks.Checks lastChecks = new ServiceChecks.Checks(
             new ServiceChecks.Check(ServiceChecks.Result.NOT_CHECKED),
@@ -187,17 +190,63 @@ final class ControlPanelState {
     }
 
     /**
-     * Hands the state the folder the jar would use on this machine where no source names the working directory
-     * (ADR-340 §6, kept by ADR-345 §1), which {@code ControlPanel.open()} resolves once from its JVM. A state given none
-     * holds the one of the JVM's current directory, with no property or variable.
+     * Hands the state the folder a source names for the working directory (ADR-436 §2, amending ADR-340 §6), empty
+     * where none does, which {@code ControlPanel.open()} resolves once from its JVM. A state given none holds none: no
+     * folder is taken from the current directory.
      */
-    void useWorkingDirectoryDefault(WorkingDirectoryDefault resolved) {
+    void useWorkingDirectoryDefault(Optional<WorkingDirectoryDefault> resolved) {
         this.workingDirectoryDefault = resolved;
     }
 
-    /** The folder an empty working directory field stands for (ADR-345 §1). */
-    WorkingDirectoryDefault workingDirectoryDefault() {
+    /** The folder an empty working directory field stands for (ADR-345 §1), empty where no source names one. */
+    Optional<WorkingDirectoryDefault> workingDirectoryDefault() {
         return workingDirectoryDefault;
+    }
+
+    /** The file whose presence says a {@code .vespera} folder was looked for, beside the launch values (ADR-436 §7). */
+    static final String DOT_VESPERA_LOOKED_FOR = "dot-vespera-looked-for";
+
+    /**
+     * As the window opens, once (ADR-436 §7): where the file saying so is not beside the launch values, looks at
+     * {@code .vespera} under {@code currentDirectory}, and where it holds a {@code vespera.db} adds it to the list
+     * file, first, listed once, and gives the line saying so. Then writes the file, whether or not a folder was added,
+     * where the folder is the user's own; where it cannot be written the next opening looks again.
+     */
+    synchronized Optional<String> listTheDotVesperaFolderOnce(Path currentDirectory) {
+        Path listFile = WorkingDirectoryList.besides(launchValuesFile);
+        Path marker = listFile.resolveSibling(DOT_VESPERA_LOOKED_FOR);
+        if (Files.exists(marker)) {
+            return Optional.empty();
+        }
+        Path dotVespera = currentDirectory.toAbsolutePath().normalize().resolve(".vespera");
+        Optional<String> said = Optional.empty();
+        if (LaunchValues.refusalOfFolder(marker.getParent(), userName).isEmpty()
+                && Files.isRegularFile(dotVespera.resolve("vespera.db"))) {
+            List<Path> listed = new ArrayList<>();
+            listed.add(dotVespera);
+            for (Path each : WorkingDirectoryList.load(listFile, userName, workingDirectoryLines::add).folders()) {
+                if (!namesTheSameFolder(each.toString(), dotVespera.toString())) {
+                    listed.add(each);
+                }
+            }
+            WorkingDirectoryList.store(listFile, userName, listed, workingDirectoryLines::add);
+            dotVesperaAdded = Optional.of(dotVespera);
+            said = Optional.of(dotVespera + " is added to the list of working directories: Vespera used it where"
+                    + " nothing named a working directory, and no longer does so on its own");
+        }
+        WorkingDirectoryList.markLooked(marker, userName);
+        dotVesperaLine = said;
+        return said;
+    }
+
+    /** The line of {@link #listTheDotVesperaFolderOnce}, empty where nothing was added. */
+    Optional<String> dotVesperaLine() {
+        return dotVesperaLine;
+    }
+
+    /** The {@code .vespera} folder added as this window opened, chosen where no other row is (ADR-436 §7). */
+    Optional<Path> dotVesperaAdded() {
+        return dotVesperaAdded;
     }
 
     private static Map<String, String> launchValuesByProperty(LaunchValues held) {
@@ -299,11 +348,12 @@ final class ControlPanelState {
 
     /**
      * The working directories the window lists (ADR-393 §4), read from the file beside the launch values as first asked,
-     * once the machine's folder is resolved and the launch values are held.
+     * once the sources' folder is resolved and the launch values are held.
      */
     synchronized WorkingDirectories workingDirectories() {
         if (workingDirectories == null) {
-            Path theDefault = pathOf(workingDirectoryDefault.folder()).orElse(Path.of(workingDirectoryDefault.folder()));
+            Optional<Path> theDefault = workingDirectoryDefault
+                    .map(each -> pathOf(each.folder()).orElse(Path.of(each.folder())));
             workingDirectories = new WorkingDirectories(WorkingDirectoryList.besides(launchValuesFile), userName,
                     theDefault, values.workingDirectory(), line -> {
                         synchronized (workingDirectoryLines) {
@@ -502,7 +552,8 @@ final class ControlPanelState {
     }
 
     /**
-     * Starts the invocation as ADR-302 §2 does, or gives the line that refuses it: the launch values' own refusal, a
+     * Starts the invocation as ADR-302 §2 does, or gives the line that refuses it: no working directory chosen
+     * (ADR-436 §4), the launch values' own refusal, a
      * folder the system cannot hold or a working directory that is no folder (ADR-331 §6), then the control panel's
      * own child, {@code vespera.lock}, the corpus-root lock. The file of launch values is
      * stored as it starts (ADR-292 §2); a line it gives is returned in {@code stored}.
@@ -563,6 +614,9 @@ final class ControlPanelState {
         }
         LaunchValues held = plan.toKeep();
         LaunchValues now = plan.toPass();
+        if (now.workingDirectory() == null || now.workingDirectory().isBlank()) {
+            return Optional.of(kind.name + " is not started: no working directory is chosen");
+        }
         Optional<String> refusal = kind == Start.RUN ? now.refusalToRun() : now.refusalToLabel();
         if (refusal.isPresent()) {
             return refusal;

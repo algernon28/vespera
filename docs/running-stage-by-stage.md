@@ -59,7 +59,7 @@ One invocation runs these fifteen steps. The names are the ones the log prints.
 
 1. Build the jar, start the containers and give Ollama its models, as the README's "Running it" describes.
 2. Create the working directory and write `seedFolder` into `profile.yaml` in it, as the README's "Step 0" describes.
-3. Decide where the working directory is. It is `.vespera` under the directory you run the command from, unless you pass `--db-dir=<path>`. **Pass the same `--db-dir` on every invocation**, to `vespera label` too. A different working directory is a different, empty ledger, and the run starts from nothing there.
+3. Decide where the working directory is, and name it with `--db-dir=<path>`, or with `VESPERA_WORKING_DIR` or `vespera.working-dir` in `application.yaml` beside the jar. Nothing names one for you: a command naming none refuses in one line and starts nothing. **Pass the same `--db-dir` on every invocation**, to `vespera label` too. A different working directory is a different, empty ledger, and the run starts from nothing there.
 
 ## Stage 0 — census
 
@@ -183,7 +183,7 @@ Stage 5 is eight steps and spans three invocations, with `vespera label` between
 
 ### Between invocations — `vespera label`
 
-**Run:** `vespera label`, with the same `--db-dir` if you moved the working directory.
+**Run:** `vespera label`, with the same `--db-dir` as `vespera run`.
 
 **What it does.** Reads `relevance-labels.yaml` and records every `true` or `false` you wrote. It runs no stage and removes nothing.
 

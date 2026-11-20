@@ -27,6 +27,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * {@link DoclingClient} against the real {@code docling-serve} docling (ADR-071): one synchronous
@@ -62,6 +64,15 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-071", url = Adr.DOCLING_INVOCATION_CONTRACT_IS_ONE_SYNC_CALL, type = "adr")
 @Link(name = "ADR-063", url = Adr.FIXTURES_ARE_GENERATED_IN_TEST, type = "adr")
 class DoclingClientIT {
+
+    /** The working directory this context names, since the jar names none (ADR-436 §1). */
+    @TempDir
+    static Path workingDirectory;
+
+    @DynamicPropertySource
+    static void theWorkingDirectory(DynamicPropertyRegistry registry) {
+        registry.add("vespera.working-dir", workingDirectory::toString);
+    }
 
     /**
      * The one word the PDF fixture's only line of text is written with. Distinctive and single, so

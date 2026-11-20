@@ -4,11 +4,15 @@ import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * Smoke test: the application context starts, with the containers of
@@ -35,6 +39,15 @@ import org.springframework.test.context.ActiveProfiles;
 @Link(name = "ADR-012", url = Adr.EXTRACTION_ENGINE_IS_CONFIGURABLE, type = "adr")
 @Link(name = "ADR-013", url = Adr.OLLAMA_IS_THE_DEFAULT_ENGINE, type = "adr")
 class VesperaApplicationIT {
+
+    /** The working directory this context names, since the jar names none (ADR-436 §1). */
+    @TempDir
+    static Path workingDirectory;
+
+    @DynamicPropertySource
+    static void theWorkingDirectory(DynamicPropertyRegistry registry) {
+        registry.add("vespera.working-dir", workingDirectory::toString);
+    }
 
     @Test
     @Story("The application starts with the services it depends on")

@@ -66,7 +66,9 @@ public final class ControlPanel {
         state.useBesideTheJarLines(besideTheJarLines);
         Map<String, String> properties = new HashMap<>();
         System.getProperties().stringPropertyNames().forEach(name -> properties.put(name, System.getProperty(name)));
-        state.useWorkingDirectoryDefault(WorkingDirectoryDefault.of(Path.of(""), properties, System.getenv()));
+        state.useWorkingDirectoryDefault(
+                WorkingDirectoryDefault.of(Path.of(""), besideTheJar, properties, System.getenv()));
+        state.listTheDotVesperaFolderOnce(Path.of(""));
         endChildWithThisJvm(state);
         ControlPanelWindow.launchedWith(state);
         try {

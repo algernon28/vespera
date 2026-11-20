@@ -1,10 +1,13 @@
 vespera:
   # Where the database and profile.yaml live, together and apart from the corpus (ADR-054). It is
   # explicit operator configuration and never derived from the corpus root, so census can run
-  # against a read-only mount. --db-dir=<path> overrides it for one invocation; it has to be a
-  # property rather than only a CLI option, because the datasource is built from it long before the
-  # command line is parsed.
-  working-dir: ${db-dir:${user.dir}/.vespera}
+  # against a read-only mount. It is named by --db-dir=<path>, the environment variable
+  # VESPERA_WORKING_DIR, the system property vespera.working-dir, or a path written on this line; it
+  # has to be a property rather than only a CLI option, because the datasource is built from it long
+  # before the command line is parsed. When nothing names one, run, label, publish and serve refuse
+  # to start: the .vespera folder under the current directory, which earlier versions used, is no
+  # longer used.
+  working-dir: ${db-dir:}
   # The corpus root `vespera run` walks when the command names none (ADR-066): the argument names it,
   # and this is only the fallback. It ships empty, which the command treats as unset -- it refuses
   # rather than guess, because a census of the wrong tree reports success. A root is one machine's

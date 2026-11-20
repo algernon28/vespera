@@ -23,7 +23,7 @@ final class WorkingFolders {
         this.corpusRoot = corpusRoot;
     }
 
-    /** The working directory the field names; where it is empty, the folder the jar would use (ADR-345 §1). */
+    /** The working directory the field names; where it is empty, the folder a source names (ADR-345 §1, ADR-436 §2), and none where none does. */
     Optional<Path> workingDirectory() {
         return workingDirectory.get();
     }

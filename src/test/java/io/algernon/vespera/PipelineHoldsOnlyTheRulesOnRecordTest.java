@@ -148,6 +148,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "GenerationContextWindow",
             "GenerationModel",
             "GenerationTasklet",
+            // ADR-436 §1: prints picocli's help or version over the command's model before Spring; it decides no
+            // verdict, cache key, cluster or text of the deliverable.
+            "HelpAndVersion",
             "InvocationAccount",
             // ADR-362: writes report.json from typed values the sampler of the job and the commands hand it; it decides no
             // verdict, cache key, cluster or text of the deliverable.
@@ -173,6 +176,10 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // generation model; it names a key, and decides no verdict, cache key, cluster or text of the deliverable.
             "NoNamingModelNamedException",
             "NoUpstreamRunException",
+            // ADR-436 §1: refuses a start through Spring that names no working directory; it decides no verdict,
+            // cache key, cluster or text of the deliverable.
+            "NoWorkingDirectoryNamedException",
+            "WorkingDirectoryNamedCheck",
             "OccurrenceReader",
             "PendingConversions",
             // ADR-330 §9: reads the presets and the profile's resolution; what it resolves names the run.

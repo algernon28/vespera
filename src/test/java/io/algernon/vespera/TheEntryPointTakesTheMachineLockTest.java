@@ -26,7 +26,8 @@ import org.junit.jupiter.api.Test;
  * The jar's entry point takes the machine lock before it hands a start on (ADR-395 §4): as the command for a command
  * line whose first argument, a first {@code --headless} dropped, is {@code run}, {@code label} or {@code publish}, and
  * as the control panel for a start with no argument once a display is found, before the window; a start refused writes
- * its one line on standard error and exits 1, and nothing after it runs.
+ * its one line on standard error and exits 1, and nothing after it runs. {@code --help} and {@code --version} are
+ * answered before the lock is asked and before the command line (ADR-436 §1), so they take none.
  *
  * <p>{@code EntryPoint.start} is given every seam: the display, the lock, the window, the command line, standard error
  * and the exit. Each records what it was asked, in one list, so the order of the lock, the window and the command line
@@ -60,6 +61,9 @@ class TheEntryPointTakesTheMachineLockTest {
     /** The exit code of a refused start (ADR-141). */
     private static final int REFUSED_EXIT = 1;
 
+    /** The exit code of {@code --help} or {@code --version}, answered before Spring (ADR-436 §1). */
+    private static final int ANSWERED_EXIT = 0;
+
     /** The exit code of a window that opened and was closed (ADR-342 §2). */
     private static final int CLOSED_EXIT = 0;
 
@@ -92,6 +96,8 @@ class TheEntryPointTakesTheMachineLockTest {
     @Test
     @Story("One Vespera runs on a machine at a time")
     @DisplayName("Run, label and publish take the machine lock as their kind before the command line starts, and help, version, serve and no command take none")
+    @Issue("905")
+    @Link(name = "ADR-436", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
     void aCommandThatUsesTheContainersTakesTheMachineLockFirst() {
         claim("run, label and publish, named first or after --headless, each take the lock as their kind and then start"
                         + " the command line with the arguments it is given, and nothing exits the process",
@@ -105,15 +111,16 @@ class TheEntryPointTakesTheMachineLockTest {
                                 List.of("lock RUN", "command line [run, D:/corpus]"),
                                 List.of("lock LABEL", "command line [label, --auto]"),
                                 List.of("lock PUBLISH", "command line [publish, --to, website]")));
-        claim("--version, --help, serve and --headless alone take no lock and start the command line as before",
+        claim("--version and --help take no lock and are answered before the command line, exiting " + ANSWERED_EXIT
+                        + "; serve and --headless alone take no lock and start the command line as before",
                 () -> assertThat(List.of(
                                 started(new String[] {"--version"}, A_DISPLAY, Optional.empty()).calls(),
                                 started(new String[] {"--help"}, A_DISPLAY, Optional.empty()).calls(),
                                 started(new String[] {"serve", "--db-dir=D:/work"}, A_DISPLAY, Optional.empty()).calls(),
                                 started(new String[] {"--headless"}, A_DISPLAY, Optional.empty()).calls()))
                         .containsExactly(
-                                List.of("command line [--version]"),
-                                List.of("command line [--help]"),
+                                List.of("exit " + ANSWERED_EXIT),
+                                List.of("exit " + ANSWERED_EXIT),
                                 List.of("command line [serve, --db-dir=D:/work]"),
                                 List.of("command line []")));
     }
@@ -160,17 +167,20 @@ class TheEntryPointTakesTheMachineLockTest {
 
     @Test
     @Story("One Vespera runs on a machine at a time")
-    @DisplayName("A folder of the locks that is no path refuses only a start that takes the lock: version, help and a start with no display take nothing and start as before")
+    @DisplayName("A folder of the locks that is no path refuses only a start that takes the lock: version, help and a start with no display take nothing")
+    @Issue("905")
+    @Link(name = "ADR-436", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
     void aFolderThatIsNoPathRefusesOnlyAStartThatTakesTheLock() {
-        claim("--version and --help, and a start with no argument and no display, never ask the lock and start the"
+        claim("--version and --help never ask the lock and are answered before the command line, exiting "
+                        + ANSWERED_EXIT + ", and a start with no argument and no display never asks it and starts the"
                         + " command line as before",
                 () -> assertThat(List.of(
                                 started(new String[] {"--version"}, A_DISPLAY, Optional.of(NO_PATH_REFUSED)).calls(),
                                 started(new String[] {"--help"}, A_DISPLAY, Optional.of(NO_PATH_REFUSED)).calls(),
                                 started(new String[0], NO_DISPLAY, Optional.of(NO_PATH_REFUSED)).calls()))
                         .containsExactly(
-                                List.of("command line [--version]"),
-                                List.of("command line [--help]"),
+                                List.of("exit " + ANSWERED_EXIT),
+                                List.of("exit " + ANSWERED_EXIT),
                                 List.of("command line []")));
 
         Did run = started(new String[] {"run", "D:/corpus"}, A_DISPLAY, Optional.of(NO_PATH_REFUSED));
