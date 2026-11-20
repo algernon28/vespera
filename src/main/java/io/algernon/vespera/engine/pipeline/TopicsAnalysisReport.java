@@ -20,10 +20,13 @@ final class TopicsAnalysisReport {
     static final String NAME = "topics";
 
     /** The format of {@code topics.json}, raised by a change that removes, renames or retypes a field. */
-    static final int FORMAT = 1;
+    static final int FORMAT = 2;
 
-    /** The page's title and first heading, and its JSON's {@code title} (ADR-377 section 5). */
-    static final String TITLE = "Topics found in your seed documents";
+    /**
+     * The page's title and first heading, and its JSON's {@code title} (ADR-377 section 5), whether or not the topics
+     * are listed: *Topics found in your seed documents* is untrue of a list (ADR-429 section 10).
+     */
+    static final String TITLE = "Topics";
 
     private static final String OPENING =
             "The topics are the subjects the passages of your seed documents fall into, found across every seed"
@@ -33,6 +36,25 @@ final class TopicsAnalysisReport {
             + " counted from 0, how many passages it holds and their share of all the seed passages, how many seed"
             + " documents feed it, how many documents were placed under it, and how many documents placed under"
             + " another topic are linked from it.";
+
+    /**
+     * The first paragraph where the profile lists the topics, until the low-similarity floor ships a value (ADR-429
+     * section 10, section 14): the column and the last clause of the list that count the documents placed with low
+     * similarity are written once the floor is.
+     */
+    private static final String OPENING_WITH_LISTED_TOPICS =
+            "The topics are the ones your profile lists, in its order, under the names you gave them. Every document"
+            + " that survived was placed under the one whose name its passages are nearest to on average. Each"
+            + " topic's row gives its name, how many documents were placed under it, and how many documents placed"
+            + " under another topic are linked from it.";
+
+    private static final String LISTED_WITH_NO_DOCUMENT =
+            "A topic your profile lists that no document was placed under is listed here. It still has its page in what"
+            + " is written, with no group on it.";
+
+    private static final String LISTED_LINKS =
+            "<em>Linked documents</em> are documents placed under another topic that also fit this one: each is copied"
+            + " once, under its own topic, and this topic's page carries a link to it rather than a second copy.";
 
     private static final String WITH_NO_DOCUMENT_HEADING = "Topics no document was placed under";
 
@@ -102,6 +124,15 @@ final class TopicsAnalysisReport {
             return seedPath + " chunk " + chunkIndex;
         }
     }
+
+    /**
+     * One topic the profile lists.
+     *
+     * @param name the name as listed, recorded under the arrangement run
+     * @param documentsPlaced the survivors placed under it that the clustering step grouped
+     * @param linkedDocuments the surviving documents with a link naming it
+     */
+    record ListedTopic(String name, int documentsPlaced, int linkedDocuments) {}
 
     private static String percentage(long passages, long seedPassages) {
         return String.format(Locale.ROOT, "%.1f%%", seedPassages == 0 ? 0.0 : 100.0 * passages / seedPassages);
@@ -269,5 +300,87 @@ final class TopicsAnalysisReport {
         sections.add(new AnalysisReportJson.Section(
                 "how-to-read", "How to read this", List.of(plain(THE_SHARE), plain(THE_LINKS)), null, null));
         return new AnalysisReportJson.Document(FORMAT, NAME, TITLE, writtenAt, headline, sections);
+    }
+
+    /** The page where the profile lists the topics, one row each in the list's order (ADR-429 section 10). */
+    static String renderListed(List<ListedTopic> topics) {
+        StringBuilder body = new StringBuilder();
+        body.append(ReportPage.heading(1, TITLE)).append(ReportPage.paragraph(OPENING_WITH_LISTED_TOPICS));
+
+        StringBuilder rows = new StringBuilder();
+        for (ListedTopic topic : topics) {
+            rows.append(ReportPage.row(
+                    ReportPage.textCell(topic.name()),
+                    ReportPage.numberCell(topic.documentsPlaced()),
+                    ReportPage.numberCell(topic.linkedDocuments())));
+        }
+        body.append(ReportPage.table(
+                ReportPage.headerRow("Topic", "Documents placed", "Linked documents"), rows.toString()));
+
+        body.append(ReportPage.heading(2, WITH_NO_DOCUMENT_HEADING));
+        List<ListedTopic> noDocument = listedWithNoDocument(topics);
+        if (noDocument.isEmpty()) {
+            body.append(ReportPage.paragraph(EVERY_TOPIC_HAS_ONE));
+        } else {
+            StringBuilder noDocumentRows = new StringBuilder();
+            for (ListedTopic topic : noDocument) {
+                noDocumentRows.append(ReportPage.row(ReportPage.textCell(topic.name())));
+            }
+            body.append(ReportPage.paragraph(LISTED_WITH_NO_DOCUMENT))
+                    .append(ReportPage.table(ReportPage.headerRow("Topic"), noDocumentRows.toString()));
+        }
+
+        body.append(ReportPage.heading(2, "How to read this")).append(ReportPage.paragraph(LISTED_LINKS));
+        return ReportPage.render(TITLE, body.toString());
+    }
+
+    /** What {@link #renderListed} shows, as {@code topics.json} holds it (ADR-362 section 9, ADR-429 section 10). */
+    static AnalysisReportJson.Document documentListed(List<ListedTopic> topics, Instant writtenAt) {
+        List<ListedTopic> noDocument = listedWithNoDocument(topics);
+        List<AnalysisReportJson.Figure> headline = List.of(
+                new AnalysisReportJson.Figure("topics", "Topics", (long) topics.size(), "count"),
+                new AnalysisReportJson.Figure(
+                        "topics-with-no-document", "Topics with no document", (long) noDocument.size(), "count"));
+
+        List<List<Object>> topicRows = new ArrayList<>();
+        for (ListedTopic topic : topics) {
+            topicRows.add(new ArrayList<>(List.<Object>of(
+                    topic.name(), (long) topic.documentsPlaced(), (long) topic.linkedDocuments())));
+        }
+        List<AnalysisReportJson.Section> sections = new ArrayList<>();
+        sections.add(new AnalysisReportJson.Section(
+                "topics",
+                TITLE,
+                List.of(plain(OPENING_WITH_LISTED_TOPICS)),
+                null,
+                new AnalysisReportJson.Table(
+                        List.of(
+                                new AnalysisReportJson.Column(TOPIC_COLUMN, "Topic", "text"),
+                                new AnalysisReportJson.Column("documents-placed", "Documents placed", "count"),
+                                new AnalysisReportJson.Column("linked-documents", "Linked documents", "count")),
+                        topicRows)));
+        if (noDocument.isEmpty()) {
+            sections.add(new AnalysisReportJson.Section(
+                    "topics-with-no-document", WITH_NO_DOCUMENT_HEADING, List.of(EVERY_TOPIC_HAS_ONE), null, null));
+        } else {
+            List<List<Object>> noDocumentRows = new ArrayList<>();
+            for (ListedTopic topic : noDocument) {
+                noDocumentRows.add(new ArrayList<>(List.<Object>of(topic.name())));
+            }
+            sections.add(new AnalysisReportJson.Section(
+                    "topics-with-no-document",
+                    WITH_NO_DOCUMENT_HEADING,
+                    List.of(LISTED_WITH_NO_DOCUMENT),
+                    null,
+                    new AnalysisReportJson.Table(
+                            List.of(new AnalysisReportJson.Column(TOPIC_COLUMN, "Topic", "text")), noDocumentRows)));
+        }
+        sections.add(new AnalysisReportJson.Section(
+                "how-to-read", "How to read this", List.of(plain(LISTED_LINKS)), null, null));
+        return new AnalysisReportJson.Document(FORMAT, NAME, TITLE, writtenAt, headline, sections);
+    }
+
+    private static List<ListedTopic> listedWithNoDocument(List<ListedTopic> topics) {
+        return topics.stream().filter(topic -> topic.documentsPlaced() == 0).toList();
     }
 }

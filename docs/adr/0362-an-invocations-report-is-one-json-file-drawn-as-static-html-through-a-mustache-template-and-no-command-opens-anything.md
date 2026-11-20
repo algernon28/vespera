@@ -20,7 +20,7 @@
 
 > **Partly amended — see [ADR-417](0417-an-ending-panel-beneath-the-output-says-how-the-last-invocation-of-the-working-directory-ended-and-why.md).** Of §8: while no invocation runs, the Report tab also draws the report of the ending the ending panel shows, an earlier invocation's among them, as an ended report, never stale, one still `running` said to have ended without its last write, and the panel's Open report selects the tab; as a child starts, the tab follows it again. The rows, the legs and the charts stay the watched invocation's, and `report.html` is still opened nowhere. The rest of this record stands.
 
-> **Partly amended — see [ADR-430](0430-the-release-version-is-the-v-tags-semver-0-snapshot-in-any-other-build-and-enters-no-run-id.md).** Of §3, its row `vespera`: the release version, read from the jar's manifest as ADR-430 §4 reads it, and `unknown` where no manifest names one, so never `null`; `format` stays `2`. The rest of this record stands as the notes above leave it.
+> **Partly amended — see [ADR-431](0431-the-release-version-is-the-v-tags-semver-0-snapshot-in-any-other-build-and-enters-no-run-id.md).** Of §3, its row `vespera`: the release version, read from the jar's manifest as ADR-431 §4 reads it, and `unknown` where no manifest names one, so never `null`; `format` stays `2`. The rest of this record stands as the notes above leave it.
 
 - **Date**: 2026-11-06
 - **Status**: accepted on 2026-11-06.

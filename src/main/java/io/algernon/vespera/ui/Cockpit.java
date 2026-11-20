@@ -121,6 +121,7 @@ final class Cockpit {
     private final AnalysisReportsWindow analysisReportsWindow;
     private final PreflightPane preflight;
     private final CodeSetsPane codeSets;
+    private final TopicsPane topics;
     private final InclusionsTab inclusions;
     private final ProfileForm profile;
     private final ProfileWindow profileWindow;
@@ -171,6 +172,7 @@ final class Cockpit {
         this.live = new LiveReport(this::openReport, dialogs::handToTheSystem);
         this.preflight = new PreflightPane(state, folders, property -> fields.get(property).text());
         this.codeSets = new CodeSetsPane(state, dialogs, folders, this::foldersToKeepApart, this::loadFiles);
+        this.topics = new TopicsPane(state, folders, this::loadFiles);
         this.inclusions = new InclusionsTab(state, dialogs, folders, this::loadFiles);
         this.profile = new ProfileForm(state, dialogs, folders, this::pointTo, this::openReport, this::loadFiles,
                 profileOpen);
@@ -624,6 +626,7 @@ final class Cockpit {
         section("folders", "Folders", foldersPane());
         section("services", "Services", servicesPane());
         section("seed-folder", "Seed folder", seedPane());
+        section("topics", "Topics", topics.pane());
         section("labels", "Labels", labelsPane());
         section("code-sets", "Code sets", codeSets.pane());
         section("command-options", "Command options", options.pane());
@@ -1003,7 +1006,11 @@ final class Cockpit {
         if (chosen == ProfileKey.FOLDERS_NOT_WALKED) {
             tabs.getSelectionModel().select(inclusionsTab);
         } else {
-            sidebar.setExpandedPane(sections.get(chosen == ProfileKey.SEED_FOLDER ? "seed-folder" : "code-sets"));
+            sidebar.setExpandedPane(sections.get(switch (chosen) {
+                case SEED_FOLDER -> "seed-folder";
+                case TOPICS -> "topics";
+                default -> "code-sets";
+            }));
         }
     }
 
@@ -1138,6 +1145,7 @@ final class Cockpit {
             seedRow.offer(state.values().lastSeedFolder());
         }
         codeSets.load(stated);
+        topics.load(stated);
         inclusions.draw();
         reports.draw();
         where();

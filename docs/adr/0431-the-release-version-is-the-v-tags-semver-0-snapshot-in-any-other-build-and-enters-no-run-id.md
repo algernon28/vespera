@@ -1,4 +1,4 @@
-# ADR-430 — The release version is the `v` tag's SemVer, `0-SNAPSHOT` in any other build, and enters no run id
+# ADR-431 — The release version is the `v` tag's SemVer, `0-SNAPSHOT` in any other build, and enters no run id
 
 - **Date**: 2026-11-20
 - **Status**: accepted on 2026-11-20.

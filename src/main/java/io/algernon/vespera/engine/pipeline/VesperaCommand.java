@@ -63,6 +63,7 @@ import picocli.CommandLine.Spec;
 @Command(
         name = "vespera",
         mixinStandardHelpOptions = true,
+        versionProvider = VesperaCommand.ReleaseVersionProvider.class,
         subcommands = {
             VesperaCommand.Run.class,
             VesperaCommand.Label.class,
@@ -71,6 +72,14 @@ import picocli.CommandLine.Spec;
         },
         description = "Curates a local archive into a publication-ready knowledge base.")
 public class VesperaCommand implements Callable<Integer> {
+
+    /** What {@code --version} prints: one line, {@code Vespera} and the release version (ADR-431 §5). */
+    static final class ReleaseVersionProvider implements picocli.CommandLine.IVersionProvider {
+        @Override
+        public String[] getVersion() {
+            return new String[] {"Vespera " + io.algernon.vespera.engine.ledger.ReleaseVersion.ofThisJar().value()};
+        }
+    }
 
     private final Run run;
     private final Label label;
@@ -364,6 +373,14 @@ public class VesperaCommand implements Callable<Integer> {
                     return refuse(notLocal.get(), CommandLine.ExitCode.SOFTWARE);
                 }
             }
+            // A list of topics holding a blank entry or a duplicate stops it here too, right after that check and before
+            // the corpus root is locked: nothing is walked and no run is minted (ADR-429 section 3).
+            if (profileStore != null) {
+                Optional<String> refusedTopics = new ListedTopicsAtTheStart(profileStore).refusal();
+                if (refusedTopics.isPresent()) {
+                    return refuse(refusedTopics.get(), CommandLine.ExitCode.SOFTWARE);
+                }
+            }
             if (corpusRootLock != null) {
                 try {
                     corpusRootLock.take(corpusRoot, workingDirectoryInUse, arguments);
@@ -441,7 +458,7 @@ public class VesperaCommand implements Callable<Integer> {
                 }
             }
             return new Profile(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null, null, null);
         }
 
         /**

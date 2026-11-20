@@ -1,4 +1,4 @@
-// docs/release.mjs holds the rules a release is held to (ADR-430 §6 to §8), so that .github/workflows/release.yml
+// docs/release.mjs holds the rules a release is held to (ADR-431 §6 to §8), so that .github/workflows/release.yml
 // carries none of its own: the tag's version and the tags refused, a version that is no release refused, a jar whose
 // manifest names another version or which could mint no run refused, the previous tag, the release notes read off two
 // copies of the index of records, and whether a commit is reachable from main. The last builds a git repository in a
@@ -19,7 +19,7 @@ const SCRIPT = fileURLToPath(new URL("../../../docs/release.mjs", import.meta.ur
 
 /** The script's exports; a test fails, rather than the file, where the script is not there yet. */
 async function release() {
-  assert.ok(existsSync(SCRIPT), "docs/release.mjs is missing: ADR-430 §8 adds it");
+  assert.ok(existsSync(SCRIPT), "docs/release.mjs is missing: ADR-431 §8 adds it");
   return import(SCRIPT);
 }
 

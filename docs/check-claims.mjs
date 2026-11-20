@@ -423,7 +423,7 @@ function readmeSection(heading, name) {
     } else {
       // Each component is typed by the kind of answer its key takes (ADR-120), so the match is on
       // any of the value types rather than on the one name they used to share.
-      const real = [...record[1].matchAll(/(?:NumericValue|TextValue|NameEndingsValue|LanguagesValue|FoldersValue) (\w+)/g)].map((k) => k[1]).sort();
+      const real = [...record[1].matchAll(/(?:NumericValue|TextValue|NameEndingsValue|LanguagesValue|FoldersValue|TopicsValue) (\w+)/g)].map((k) => k[1]).sort();
       const wrong = [];
       for (const k of named) if (!real.includes(k)) wrong.push(`${k} is documented and is not a profile key`);
       for (const k of real) if (!named.includes(k)) wrong.push(`${k} is a profile key and is documented nowhere`);
@@ -534,7 +534,10 @@ function readmeSection(heading, name) {
     const project = pom.slice(pom.indexOf("</parent>"));
     const artifact = /<artifactId>([^<]+)<\/artifactId>/.exec(project);
     const version = /<version>([^<]+)<\/version>/.exec(project);
-    const jar = artifact && version ? `target/${artifact[1]}-${version[1]}.jar` : null;
+    // ADR-431 §2: the pom's version is ${revision}, whose default is the property of that name.
+    const revision = /<revision>([^<]+)<\/revision>/.exec(pom);
+    const built = version && version[1] === "${revision}" && revision ? revision[1] : version && version[1];
+    const jar = artifact && built ? `target/${artifact[1]}-${built}.jar` : null;
     const launched = [...section.matchAll(/java -jar (\S+?)`?(?:\s|$)/g)].map((m) => m[1]);
     if (!jar) wrong.push(`could not read the project's artifactId and version from ${POM}`);
     else {

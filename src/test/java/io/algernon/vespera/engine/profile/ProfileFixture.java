@@ -332,6 +332,7 @@ public final class ProfileFixture {
                 clusterResolution,
                 codeSetFolders,
                 CorpusFoldersValue.unset(),
+                TopicsValue.unset(),
                 confluenceBaseUrl,
                 confluenceSpaceKey,
                 confluenceFolderId,

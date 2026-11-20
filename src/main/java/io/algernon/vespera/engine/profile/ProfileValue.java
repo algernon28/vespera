@@ -32,7 +32,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
  * the invocation, one stopped the context from starting.
  */
 public sealed interface ProfileValue permits NumericValue, TextValue, NameEndingsValue, FoldersValue,
-        CorpusFoldersValue {
+        CorpusFoldersValue, TopicsValue {
 
     /** What the profile says, exactly as the operator wrote it. */
     String value();

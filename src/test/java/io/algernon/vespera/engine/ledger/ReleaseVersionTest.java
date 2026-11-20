@@ -14,16 +14,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * How the jar reads its release version (ADR-430 §4): from the {@code Implementation-Version} its manifest names, and
+ * How the jar reads its release version (ADR-431 §4): from the {@code Implementation-Version} its manifest names, and
  * {@code unknown} where none is named, which is what classes run outside a jar, these among them, read.
  *
  * <p>{@code ReleaseVersion} is reached by its name rather than linked, so that the suite compiles before it is written;
- * each test fails until it is, ADR-430's "What the implementation owes" giving its four members.
+ * each test fails until it is, ADR-431's "What the implementation owes" giving its four members.
  */
 @Epic("Operation")
 @Feature("Vespera's version")
 @Issue("904")
-@Link(name = "ADR-430", url = Adr.THE_RELEASE_VERSION_IS_THE_TAGS_AND_ENTERS_NO_RUN_ID, type = "adr")
+@Link(name = "ADR-431", url = Adr.THE_RELEASE_VERSION_IS_THE_TAGS_AND_ENTERS_NO_RUN_ID, type = "adr")
 class ReleaseVersionTest {
 
     private static final String THE_TYPE = "io.algernon.vespera.engine.ledger.ReleaseVersion";

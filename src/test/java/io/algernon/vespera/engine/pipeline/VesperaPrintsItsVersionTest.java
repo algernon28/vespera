@@ -16,9 +16,9 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
 /**
- * {@code vespera --version} prints one line, {@code Vespera} and the release version (ADR-430 §5), through a version
+ * {@code vespera --version} prints one line, {@code Vespera} and the release version (ADR-431 §5), through a version
  * provider {@link VesperaCommand} names. The classes under test lie in no jar, so no manifest names a version and the
- * line reads {@code unknown} (ADR-430 §4).
+ * line reads {@code unknown} (ADR-431 §4).
  *
  * <p>The provider is read off the command's annotation and asked directly, so that no Spring context and no
  * subcommand is built.
@@ -26,7 +26,7 @@ import picocli.CommandLine.Command;
 @Epic("Operation")
 @Feature("Vespera's version")
 @Issue("904")
-@Link(name = "ADR-430", url = Adr.THE_RELEASE_VERSION_IS_THE_TAGS_AND_ENTERS_NO_RUN_ID, type = "adr")
+@Link(name = "ADR-431", url = Adr.THE_RELEASE_VERSION_IS_THE_TAGS_AND_ENTERS_NO_RUN_ID, type = "adr")
 class VesperaPrintsItsVersionTest {
 
     /** The one line printed for classes that lie in no jar: the name, a space and the word for no version named. */

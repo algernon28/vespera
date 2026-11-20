@@ -661,7 +661,7 @@ final class InvocationReport {
     private Map<String, Object> tree(Instant writtenAt) {
         Map<String, Object> report = new LinkedHashMap<>();
         report.put("format", (long) FORMAT);
-        report.put("vespera", InvocationReport.class.getPackage().getImplementationVersion());
+        report.put("vespera", io.algernon.vespera.engine.ledger.ReleaseVersion.ofThisJar().value());
         Map<String, Object> invocation = new LinkedHashMap<>();
         invocation.put("id", id);
         invocation.put("pid", pid);

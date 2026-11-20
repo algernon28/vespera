@@ -1,0 +1,62 @@
+name: release
+
+# ADR-431 §6: a release is cut by pushing a vMAJOR.MINOR.PATCH tag on a commit of main. Every rule it
+# refuses by is held in docs/release.mjs (ADR-431 §8), so this file carries none of its own.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish the release
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      # The whole history, so that no module's implementation version is "unknown" (ADR-272), and
+      # the tags, which the previous tag and the notes are read from.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # §8's first and third rules.
+      - name: Refuse a tag that is no release
+        id: tag
+        run: echo "version=$(node docs/release.mjs check "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 26
+          cache: maven
+
+      # As the Linux job of build.yml builds, given the tag's version, so a released jar is one the suite passed.
+      - run: ./mvnw -B verify -DexcludedGroups=confluence -Drevision=${{ steps.tag.outputs.version }}
+
+      # §8's second and fourth rules, read off the jar.
+      - name: Refuse a jar that names another version or could mint no run
+        run: |
+          jar="target/vespera-${{ steps.tag.outputs.version }}.jar"
+          unzip -p "$jar" META-INF/MANIFEST.MF > "$RUNNER_TEMP/manifest.txt"
+          unzip -p "$jar" BOOT-INF/classes/implementation-versions.properties > "$RUNNER_TEMP/implementation-versions.txt"
+          node docs/release.mjs built "$GITHUB_REF_NAME" "$RUNNER_TEMP/manifest.txt" "$RUNNER_TEMP/implementation-versions.txt"
+
+      - name: Write the notes
+        run: node docs/release.mjs notes "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME"
+          "target/vespera-${{ steps.tag.outputs.version }}.jar"
+          --title "$GITHUB_REF_NAME"
+          --notes-file "$RUNNER_TEMP/notes.md"
+          --verify-tag

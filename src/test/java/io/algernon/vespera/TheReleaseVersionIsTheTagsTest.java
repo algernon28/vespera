@@ -28,7 +28,7 @@ import org.w3c.dom.Node;
 
 /**
  * The release version's source is the tag, and the build keeps it apart from the stages' implementation versions
- * (ADR-430 §2, §3): the pom's version is Maven's {@code ${revision}}, whose default, {@code 0-SNAPSHOT}, never changes,
+ * (ADR-431 §2, §3): the pom's version is Maven's {@code ${revision}}, whose default, {@code 0-SNAPSHOT}, never changes,
  * a release build being given the tag's; and {@code implementation-versions.properties}, which a run id is hashed from
  * (ADR-058), names each module by a commit and holds nothing else, so no release version can enter it.
  *
@@ -38,7 +38,7 @@ import org.w3c.dom.Node;
 @Epic("Operation")
 @Feature("Vespera's version")
 @Issue("904")
-@Link(name = "ADR-430", url = Adr.THE_RELEASE_VERSION_IS_THE_TAGS_AND_ENTERS_NO_RUN_ID, type = "adr")
+@Link(name = "ADR-431", url = Adr.THE_RELEASE_VERSION_IS_THE_TAGS_AND_ENTERS_NO_RUN_ID, type = "adr")
 @Link(name = "ADR-058", url = Adr.IMPLEMENTATION_VERSION_IS_THE_LAST_COMMIT, type = "adr")
 class TheReleaseVersionIsTheTagsTest {
 

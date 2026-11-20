@@ -74,7 +74,7 @@ class EveryTableKeyedByARunIsOnRecordTest {
     /**
      * The twenty-six tables ADR-229 states the growth of, and code_set and code_set_member, which ADR-284 adds,
      * twenty-eight; translation_of, which ADR-271 added, schema.sql no longer creates (ADR-392 section 2). ADR-409
-     * section 11 takes out the five keyed by a winning seed and adds the fifteen of the topics: thirty-eight. ADR-430
+     * section 11 takes out the five keyed by a winning seed and adds the fifteen of the topics: thirty-eight. ADR-431
      * adds {@code run_release}, the release versions that minted or continued a run, which with ADR-429's {@code
      * listed_topic} and {@code winning_topic_score}, a listed topic's name and place and a document's score at its
      * winning listed topic, makes forty-one; each with the module that owns it.
@@ -131,7 +131,7 @@ class EveryTableKeyedByARunIsOnRecordTest {
     /**
      * The tables keyed by a run that no shipped statement deletes a row of: since ADR-409 sections 5 and 6, a written
      * cluster's synthesis doc, the names given under an arrangement run, and the overviews' three tables among them;
-     * and since ADR-430, the release versions that minted or continued a run.
+     * and since ADR-431, the release versions that minted or continued a run.
      */
     private static final Set<String> NOTHING_DELETES_FROM = Set.of(
             "shingle",

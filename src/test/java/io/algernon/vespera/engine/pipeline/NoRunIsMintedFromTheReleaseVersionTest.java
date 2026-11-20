@@ -24,13 +24,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The release version enters no run id (ADR-430 §3): no class of a module a stage's implementation version names
+ * The release version enters no run id (ADR-431 §3): no class of a module a stage's implementation version names
  * (ADR-058, ADR-216 §7), and none of the classes a run's id is derived through, names {@code ReleaseVersion} or asks a
  * package for the version its manifest names. So a jar of one commit mints the same runs whatever version it was
  * built as, and a release that touches no stage's module re-runs nothing.
  *
  * <p>{@code RunMint} is not among them: it hands the version to {@code Runs.recordRelease}, which writes it beside the
- * run, as a text, after the id is derived (ADR-430 §5); {@code ARunKeepsEveryReleaseThatMintedOrContinuedItTest}
+ * run, as a text, after the id is derived (ADR-431 §5); {@code ARunKeepsEveryReleaseThatMintedOrContinuedItTest}
  * holds that the id does not move with it.
  *
  * <p>The modules are read from {@link StageModules}, so a stage naming another module brings it under the claim.
@@ -40,7 +40,7 @@ import org.junit.jupiter.api.Test;
 @Epic("Operation")
 @Feature("Vespera's version")
 @Issue("904")
-@Link(name = "ADR-430", url = Adr.THE_RELEASE_VERSION_IS_THE_TAGS_AND_ENTERS_NO_RUN_ID, type = "adr")
+@Link(name = "ADR-431", url = Adr.THE_RELEASE_VERSION_IS_THE_TAGS_AND_ENTERS_NO_RUN_ID, type = "adr")
 @Link(name = "ADR-058", url = Adr.IMPLEMENTATION_VERSION_IS_THE_LAST_COMMIT, type = "adr")
 class NoRunIsMintedFromTheReleaseVersionTest {
 

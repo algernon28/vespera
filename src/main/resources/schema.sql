@@ -150,6 +150,15 @@ CREATE TABLE IF NOT EXISTS finished_step (
     PRIMARY KEY (run_id, step)
 );
 
+-- Each release that minted or continued a run (ADR-431 §11). Written after the run's id is derived
+-- and never read to derive one; nothing deletes from it.
+-- owner: ledger
+CREATE TABLE IF NOT EXISTS run_release (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    release_version TEXT NOT NULL,
+    PRIMARY KEY (run_id, release_version)
+);
+
 -- The verdict row is generic regardless of kind (ADR-057): a kind from the closed vocabulary plus
 -- free-text reason, mirroring walk_anomaly's detail. The occurrence reference a superseded-by
 -- verdict needs belongs to corpus's own content_hash/superseded_by tables below (ADR-067, ADR-069);
@@ -733,6 +742,32 @@ CREATE TABLE IF NOT EXISTS winning_topic (
 -- A topic's members in occurrence order, read, and counted, by the run and the topic and sorting nothing (ADR-409
 -- section 12). The table holds no row when this is first built.
 CREATE INDEX IF NOT EXISTS winning_topic_by_run_topic_and_occurrence ON winning_topic (run_id, topic_seed_path, topic_chunk_index, occurrence_id);
+
+-- embedding's own table (ADR-429 section 4): where the profile lists the topics, each listed topic's name as written and
+-- its place in the list counted from 1, one row a topic, written by 5d with topic's. The topic is keyed by its name
+-- made plain and the chunk index -1, which no passage has, as topic's own row is. A place is held once a run. A run
+-- with no list has no row here.
+-- owner: embedding
+CREATE TABLE IF NOT EXISTS listed_topic (
+    run_id TEXT NOT NULL REFERENCES run (id),
+    topic_seed_path TEXT NOT NULL,
+    topic_chunk_index INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    place INTEGER NOT NULL CHECK (place >= 1),
+    PRIMARY KEY (run_id, topic_seed_path, topic_chunk_index),
+    UNIQUE (run_id, place)
+);
+
+-- embedding's own table (ADR-429 section 4, section 5): a scored document's score at its winning listed topic, the mean
+-- over its chunks of each chunk's cosine to the name's vector, beside its winning_topic row and under the same key. A
+-- score that places, on the embedder's own scale, and no relevance score. A run with no list has no row here.
+-- owner: embedding
+CREATE TABLE IF NOT EXISTS winning_topic_score (
+    occurrence_id INTEGER NOT NULL REFERENCES file_occurrence (id),
+    run_id TEXT NOT NULL REFERENCES run (id),
+    score REAL NOT NULL,
+    PRIMARY KEY (occurrence_id, run_id)
+);
 
 -- embedding's own table (ADR-409 section 2, ADR-400 section 2): a topic other than its winning one that a
 -- document fits, a link and nothing more.

@@ -6,7 +6,7 @@
 
 > **Partly amended — see [ADR-429](0429-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §1, §2, §3, §4, §6 and §8: a listed topic is written in a row as its name made plain and the chunk index `-1`; a new table of the scoring run, `listed_topic`, keeps each listed name and its place, the tables keyed by a run being thirty-nine; `topic_order` is a listed topic's place in the list; `topic_name.origin` may be `LISTED`; and a line or a page writing a topic as `<path> chunk <i>` writes a listed topic by its name. The rest of this record stands.
 
-> **Partly amended — see [ADR-430](0430-the-release-version-is-the-v-tags-semver-0-snapshot-in-any-other-build-and-enters-no-run-id.md).** Of §11: the tables keyed by a run are forty-one, ADR-429's `listed_topic` and `winning_topic_score` and ADR-430's `run_release`, `ledger`'s, a row for each release that minted or continued a run, added to the thirty-eight. The rest of this record stands as the notes above leave it.
+> **Partly amended — see [ADR-431](0431-the-release-version-is-the-v-tags-semver-0-snapshot-in-any-other-build-and-enters-no-run-id.md).** Of §11: the tables keyed by a run are forty-one, ADR-429's `listed_topic` and `winning_topic_score` and ADR-431's `run_release`, `ledger`'s, a row for each release that minted or continued a run, added to the thirty-eight. The rest of this record stands as the notes above leave it.
 
 - **Date**: 2026-11-17
 - **Status**: accepted on 2026-11-17.

@@ -1,6 +1,8 @@
 package io.algernon.vespera.engine.pipeline;
 
 import io.algernon.vespera.engine.embedding.BreadthFloor;
+import io.algernon.vespera.engine.embedding.ChunkEmbedder;
+import io.algernon.vespera.engine.embedding.ListedTopicPlacement;
 import io.algernon.vespera.engine.embedding.Placement;
 import io.algernon.vespera.engine.embedding.RelevanceDistribution;
 import io.algernon.vespera.engine.embedding.RelevanceScoring;
@@ -9,7 +11,9 @@ import io.algernon.vespera.engine.embedding.SeedChunks;
 import io.algernon.vespera.engine.embedding.SeedVectors;
 import io.algernon.vespera.engine.embedding.StandingTopics;
 import io.algernon.vespera.engine.embedding.Topic;
+import io.algernon.vespera.engine.embedding.TopicKey;
 import io.algernon.vespera.engine.embedding.TopicPlacement;
+import io.algernon.vespera.engine.embedding.Topics;
 import io.algernon.vespera.engine.embedding.UnusableSeeds;
 import io.algernon.vespera.engine.extraction.ChunkingRule;
 import io.algernon.vespera.engine.extraction.ExtractionCacheKeys;
@@ -18,6 +22,8 @@ import io.algernon.vespera.engine.ledger.KeysetPages;
 import io.algernon.vespera.engine.ledger.Ledger;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.RunId;
+import io.algernon.vespera.engine.profile.TopicsValue;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -71,6 +77,7 @@ class RelevanceScoringTasklet implements Tasklet {
     private final RelevanceScoring relevanceScoring;
     private final RelevanceDistribution relevanceDistribution;
     private final UnusableSeeds unusableSeeds;
+    private final ChunkEmbedder chunkEmbedder;
     private final ExtractionCacheKeys cacheKeys;
     private final RecordedClosingLines recordedClosingLines;
 
@@ -83,6 +90,7 @@ class RelevanceScoringTasklet implements Tasklet {
             RelevanceScoring relevanceScoring,
             RelevanceDistribution relevanceDistribution,
             UnusableSeeds unusableSeeds,
+            ChunkEmbedder chunkEmbedder,
             JdbcTemplate jdbcTemplate,
             RecordedClosingLines recordedClosingLines) {
         this.recordedClosingLines = recordedClosingLines;
@@ -94,6 +102,7 @@ class RelevanceScoringTasklet implements Tasklet {
         this.hybridChunker = hybridChunker;
         this.relevanceScoring = relevanceScoring;
         this.unusableSeeds = unusableSeeds;
+        this.chunkEmbedder = chunkEmbedder;
         this.cacheKeys = new ExtractionCacheKeys(jdbcTemplate);
     }
 
@@ -169,35 +178,67 @@ class RelevanceScoringTasklet implements Tasklet {
                     // first survivor is scored (ADR-399 section 6), and the breadth floor is applied to them before
                     // any survivor is placed (ADR-401 section 5); the topics that stand are kept under the scoring run
                     // once the floor is applied, and before the first survivor is scored (ADR-409 section 5).
-                    Map<String, SeedVectors> bySeedPath =
-                            TaskletSteps.seedVectorsByPath(ledger, seedContentHashes, residentSeedVectors);
-                    List<Topic> found = TaskletSteps.topicsFound(stageRuns, bySeedPath);
-                    StandingTopics standing = new BreadthFloor(stageRuns.topicBreadthFloor()).of(found, bySeedPath);
-                    List<Topic> topics = standing.topics();
-                    LOG.info("Stage 5d (relevance scoring) found {} topic(s) across the seeds' passages", found.size());
-                    LOG.info(
-                            "Stage 5d (relevance scoring) kept {} of them standing at a breadth floor of {}; {} seed(s)"
-                                    + " feed no topic",
-                            topics.size(),
-                            stageRuns.topicBreadthFloor(),
-                            standing.seedsFeedingNoTopic().size());
-                    Optional<String> refusal =
-                            new BreadthFloor(stageRuns.topicBreadthFloor()).refusal(found, bySeedPath);
-                    if (refusal.isPresent()) {
-                        // ADR-401 section 1: stop as ADR-231 section 1 stops the embedding step, before any survivor is
-                        // counted, scored or placed.
-                        String line = "stage 5's relevance-scoring step stopped: " + refusal.get()
-                                + ". Nothing was scored and the step is not recorded as finished.";
-                        StepExecution stepExecution = chunkContext.getStepContext().getStepExecution();
-                        recordedClosingLines.record(stepExecution, line);
-                        stepExecution.setStatus(BatchStatus.FAILED);
-                        contribution.setExitStatus(ExitStatus.FAILED.addExitDescription(line));
-                        return false;
+                    Optional<List<String>> listed = stageRuns.listedTopics();
+                    TopicPlacement placement = null;
+                    ListedTopicPlacement listedPlacement = null;
+                    Map<TopicKey, float[]> nameVectors = Map.of();
+                    int topicCount;
+                    if (listed.isPresent()) {
+                        // Where the profile lists the topics none is inferred and none is dropped (ADR-429 section 4): each
+                        // name is embedded alone, once, and is the centroid its topic places by (section 5).
+                        List<Topics.ListedName> names = new ArrayList<>();
+                        nameVectors = new LinkedHashMap<>();
+                        for (int place = 1; place <= listed.get().size(); place++) {
+                            String name = listed.get().get(place - 1);
+                            TopicKey key = TopicKey.listed(TopicsValue.identityOf(name));
+                            names.add(new Topics.ListedName(key, name, place));
+                            nameVectors.put(key, chunkEmbedder.embedAlone(name, modelName));
+                        }
+                        LOG.info(
+                                "Stage 5d (relevance scoring) took the {} topic(s) the profile lists, each placed by its"
+                                        + " name",
+                                names.size());
+                        relevanceScoring.recordListedTopics(scoring, names);
+                        listedPlacement = ListedTopicPlacement.of(
+                                names.stream().map(Topics.ListedName::key).toList(), stageRuns.seeAlsoShare());
+                        topicCount = names.size();
+                    } else {
+                        Map<String, SeedVectors> bySeedPath =
+                                TaskletSteps.seedVectorsByPath(ledger, seedContentHashes, residentSeedVectors);
+                        List<Topic> found = TaskletSteps.topicsFound(stageRuns, bySeedPath);
+                        StandingTopics standing = new BreadthFloor(stageRuns.topicBreadthFloor()).of(found, bySeedPath);
+                        List<Topic> topics = standing.topics();
+                        LOG.info(
+                                "Stage 5d (relevance scoring) found {} topic(s) across the seeds' passages",
+                                found.size());
+                        LOG.info(
+                                "Stage 5d (relevance scoring) kept {} of them standing at a breadth floor of {}; {}"
+                                        + " seed(s) feed no topic",
+                                topics.size(),
+                                stageRuns.topicBreadthFloor(),
+                                standing.seedsFeedingNoTopic().size());
+                        Optional<String> refusal =
+                                new BreadthFloor(stageRuns.topicBreadthFloor()).refusal(found, bySeedPath);
+                        if (refusal.isPresent()) {
+                            // ADR-401 section 1: stop as ADR-231 section 1 stops the embedding step, before any survivor
+                            // is counted, scored or placed.
+                            String line = "stage 5's relevance-scoring step stopped: " + refusal.get()
+                                    + ". Nothing was scored and the step is not recorded as finished.";
+                            StepExecution stepExecution = chunkContext.getStepContext().getStepExecution();
+                            recordedClosingLines.record(stepExecution, line);
+                            stepExecution.setStatus(BatchStatus.FAILED);
+                            contribution.setExitStatus(ExitStatus.FAILED.addExitDescription(line));
+                            return false;
+                        }
+                        relevanceScoring.recordTopics(scoring, standing);
+                        // Placement is read in the pass from the cosines the scorer takes (ADR-400 section 5): the
+                        // denominators are taken once here, from the resident vectors.
+                        placement = TopicPlacement.of(topics, bySeedPath, stageRuns.seeAlsoShare());
+                        topicCount = placement.topicCount();
                     }
-                    relevanceScoring.recordTopics(scoring, standing);
-                    // Placement is read in the pass from the cosines the scorer takes (ADR-400 section 5): the
-                    // denominators are taken once here, from the resident vectors.
-                    TopicPlacement placement = TopicPlacement.of(topics, bySeedPath, stageRuns.seeAlsoShare());
+                    TopicPlacement inferredPlacement = placement;
+                    ListedTopicPlacement placedByName = listedPlacement;
+                    Map<TopicKey, float[]> vectorsOfTheNames = nameVectors;
                     Map<OccurrenceId, String> seedPaths = pathsOfResidentSeeds(residentSeedVectors);
 
                     // Counted, and then gone through a page at a time: no set of the corpus survivors is held
@@ -231,14 +272,16 @@ class RelevanceScoringTasklet implements Tasklet {
                             // The number the scoring run was minted under, so the score that is recorded is the one
                             // the run is named by (ADR-330 section 9, ADR-117).
                             topSimilarities,
-                            placement,
+                            inferredPlacement,
                             seedPaths,
+                            placedByName,
+                            vectorsOfTheNames,
                             placed,
                             scored));
                     LOG.info(
                             "Stage 5d (relevance scoring) placed {} survivor(s) under the {} topic(s) that stand",
                             placed.get(),
-                            placement.topicCount());
+                            topicCount);
                     LOG.info("Stage 5d (relevance scoring) finished under scoring run {}", scoring.value());
                     return true;
                 });
@@ -261,6 +304,8 @@ class RelevanceScoringTasklet implements Tasklet {
             int topSimilarities,
             TopicPlacement topicPlacement,
             Map<OccurrenceId, String> seedPaths,
+            ListedTopicPlacement listedPlacement,
+            Map<TopicKey, float[]> nameVectors,
             AtomicLong placed,
             StageProgress scored) {
         Map<OccurrenceId, String> contentHashes = cacheKeys.requireForOccurrences(page, extractionRun);
@@ -279,7 +324,9 @@ class RelevanceScoringTasklet implements Tasklet {
                     residentSeedVectors,
                     topSimilarities,
                     topicPlacement,
-                    seedPaths);
+                    seedPaths,
+                    listedPlacement,
+                    nameVectors);
             if (placement != null) {
                 placed.incrementAndGet();
             }

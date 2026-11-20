@@ -92,7 +92,7 @@ class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
 
     /**
      * Which stages' runs hold rows in each table keyed by a run, as the first invocation of this fixture
-     * leaves them, of every table keyed by a run (ADR-409 section 11, as ADR-429 and ADR-430 add to it, the second's
+     * leaves them, of every table keyed by a run (ADR-409 section 11, as ADR-429 and ADR-431 add to it, the second's
      * {@code run_release} naming the release that minted or continued each run reached). The others hold no row in this
      * fixture:
      * the six of generation, which is not reached, and those a corpus of two texts that share every shingle, one

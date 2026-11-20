@@ -52,7 +52,7 @@ import org.junit.jupiter.api.Test;
 class PackagedJarIT {
 
     /** The packaged, executable jar the operator runs, at the path README.md names. */
-    private static final Path EXECUTABLE_JAR = Path.of("target", "vespera-0.0.1-SNAPSHOT.jar");
+    private static final Path EXECUTABLE_JAR = Path.of("target", "vespera-0-SNAPSHOT.jar");
 
     /** Where the Boot plugin puts the application's own classes. */
     private static final String CLASSES = "BOOT-INF/classes/";

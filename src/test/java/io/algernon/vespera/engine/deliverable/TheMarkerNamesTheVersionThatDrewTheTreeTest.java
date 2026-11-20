@@ -18,17 +18,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The marker at the top of every tree names the version of Vespera that drew it, in a third line (ADR-430 §5,
+ * The marker at the top of every tree names the version of Vespera that drew it, in a third line (ADR-431 §5,
  * amending ADR-276 §3), and a marker is still read by its two keys, so a tree drawn before, whose marker has two lines,
  * is this working directory's as it was.
  *
  * <p>The classes under test lie in no jar, so no manifest names a version and the third line reads {@code unknown}
- * (ADR-430 §4).
+ * (ADR-431 §4).
  */
 @Epic("The deliverable")
 @Feature("Where the tree is drawn")
 @Issue("904")
-@Link(name = "ADR-430", url = Adr.THE_RELEASE_VERSION_IS_THE_TAGS_AND_ENTERS_NO_RUN_ID, type = "adr")
+@Link(name = "ADR-431", url = Adr.THE_RELEASE_VERSION_IS_THE_TAGS_AND_ENTERS_NO_RUN_ID, type = "adr")
 class TheMarkerNamesTheVersionThatDrewTheTreeTest {
 
     /** A generation run's id, made up: the marker records it and nothing here looks it up. */

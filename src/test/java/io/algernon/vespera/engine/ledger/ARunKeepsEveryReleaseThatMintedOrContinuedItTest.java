@@ -22,7 +22,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * The ledger keeps, beside each run, every release version that minted or continued it, in {@code run_release}, and
- * the run's id does not move with it (ADR-430 §3, §5): two jars of one commit built as two releases carry on one run,
+ * the run's id does not move with it (ADR-431 §3, §5): two jars of one commit built as two releases carry on one run,
  * which then names both.
  *
  * <p>{@code Runs.recordRelease} is reached by its name, so that the suite compiles before it is written; each claim
@@ -35,7 +35,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Epic("Operation")
 @Feature("Vespera's version")
 @Issue("904")
-@Link(name = "ADR-430", url = Adr.THE_RELEASE_VERSION_IS_THE_TAGS_AND_ENTERS_NO_RUN_ID, type = "adr")
+@Link(name = "ADR-431", url = Adr.THE_RELEASE_VERSION_IS_THE_TAGS_AND_ENTERS_NO_RUN_ID, type = "adr")
 class ARunKeepsEveryReleaseThatMintedOrContinuedItTest {
 
     /** A stage name for the run rows below. */

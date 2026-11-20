@@ -2,6 +2,7 @@ package io.algernon.vespera.engine.pipeline;
 
 import io.algernon.vespera.engine.ledger.ImplementationVersions;
 import io.algernon.vespera.engine.ledger.Ledger;
+import io.algernon.vespera.engine.ledger.ReleaseVersion;
 import io.algernon.vespera.engine.ledger.RunId;
 import io.algernon.vespera.engine.ledger.WalkId;
 import java.nio.file.Path;
@@ -63,6 +64,7 @@ final class RunMint {
                 configConsumed,
                 walk,
                 upstream.map(List::of).orElseGet(List::of));
+        ledger.runs().recordRelease(runId, ReleaseVersion.ofThisJar().value());
         invocationRuns.record(stage.stage(), runId);
         return runId;
     }

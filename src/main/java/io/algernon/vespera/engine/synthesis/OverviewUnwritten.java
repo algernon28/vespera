@@ -1,7 +1,7 @@
 package io.algernon.vespera.engine.synthesis;
 
 /**
- * Why no overview stands on a topic's page (ADR-402 section 5), the six cases that are no disclosure. The sentence a
+ * Why no overview stands on a topic's page (ADR-402 section 5), the cases that are no disclosure. The sentence a
  * page carries for each is {@code deliverable}'s to word; this module keeps the reasons. Each describes one run, and
  * none is for good: running again may write what was not.
  */
@@ -22,7 +22,9 @@ public enum OverviewUnwritten {
     /** No cluster of the topic has a synthesis doc. */
     NOTHING_WRITTEN_OVER_ANY_CLUSTER,
     /** The step stopped before it reached the topic. */
-    NOT_REACHED;
+    NOT_REACHED,
+    /** The topic is one the profile lists, and no document was placed under it, so it has no cluster (ADR-429 section 8). */
+    NO_DOCUMENT_PLACED;
 
     /**
      * The case a recorded overview fault stands for. An exhaustive {@code switch} with no {@code default}, so a fifth

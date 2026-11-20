@@ -10,7 +10,7 @@
     </parent>
     <groupId>io.algernon</groupId>
     <artifactId>vespera</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>${revision}</version>
     <name>vespera</name>
     <description>vespera</description>
     <url>https://github.com/algernon28/vespera</url>
@@ -27,6 +27,8 @@
         <url>https://github.com/algernon28/vespera</url>
     </scm>
     <properties>
+        <!-- ADR-431 §2: a release build is given -Drevision=<the tag without its v>; every other build is this. -->
+        <revision>0-SNAPSHOT</revision>
         <java.version>26</java.version>
         <spring-ai.version>2.0.0</spring-ai.version>
         <spring-modulith.version>2.1.0</spring-modulith.version>

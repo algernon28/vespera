@@ -49,7 +49,7 @@ class CliExitIT {
     private static final long EXIT_BOUND_SECONDS = 60;
 
     /** The packaged, executable jar the operator actually runs. */
-    private static final Path EXECUTABLE_JAR = Path.of("target", "vespera-0.0.1-SNAPSHOT.jar");
+    private static final Path EXECUTABLE_JAR = Path.of("target", "vespera-0-SNAPSHOT.jar");
 
     /**
      * Where each launch names both sidecars: a host under {@code .invalid}, which never resolves (RFC 6761), so the

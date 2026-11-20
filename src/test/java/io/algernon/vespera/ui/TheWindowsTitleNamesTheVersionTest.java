@@ -15,14 +15,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The control panel's title names the version of Vespera it is (ADR-430 §5), read from its own jar's manifest with its
- * own code, since it links no class of the jar (ADR-430 §4, ADR-285 §3). The classes under test lie in no jar, so no
+ * The control panel's title names the version of Vespera it is (ADR-431 §5), read from its own jar's manifest with its
+ * own code, since it links no class of the jar (ADR-431 §4, ADR-285 §3). The classes under test lie in no jar, so no
  * manifest names a version and the title reads {@code unknown}.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("904")
-@Link(name = "ADR-430", url = Adr.THE_RELEASE_VERSION_IS_THE_TAGS_AND_ENTERS_NO_RUN_ID, type = "adr")
+@Link(name = "ADR-431", url = Adr.THE_RELEASE_VERSION_IS_THE_TAGS_AND_ENTERS_NO_RUN_ID, type = "adr")
 class TheWindowsTitleNamesTheVersionTest {
 
     /** The title for classes that lie in no jar: the window's name, a space and the word for no version named. */

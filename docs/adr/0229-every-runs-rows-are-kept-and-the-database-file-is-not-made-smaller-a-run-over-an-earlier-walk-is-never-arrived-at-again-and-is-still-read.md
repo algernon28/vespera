@@ -8,7 +8,7 @@
 
 > **Partly amended — see [ADR-230](0230-the-clusters-under-a-scoring-run-are-of-its-survivors-as-they-stand-and-the-arrangements-identity-names-the-removals-standing.md).** Two sentences, and nothing this record decides. §1 calls the shipped deletes by a run *"a step discarding its own unfinished work under its own run (ADR-116)"*: two are of work that was finished, the floor's step withdrawing a finished invocation's removals on every invocation (ADR-118) and, by that record, the clustering step forming its clusters again. Each is still a step discarding its own rows under its own run. And Consequences' *"A table that gains or loses a reference to `run` fails `EveryTableKeyedByARunIsOnRecordTest`"* holds only of a reference written `run_id TEXT NOT NULL REFERENCES run (id)`, as *What no test holds* says. Everything else in this record stands.
 
-> **Partly amended — see [ADR-430](0430-the-release-version-is-the-v-tags-semver-0-snapshot-in-any-other-build-and-enters-no-run-id.md).** The tables keyed by a run gain `run_release`, `ledger`'s: a row of two short texts for each run and each release that minted or continued it, from which nothing deletes. The rest of this record stands as the notes above leave it.
+> **Partly amended — see [ADR-431](0431-the-release-version-is-the-v-tags-semver-0-snapshot-in-any-other-build-and-enters-no-run-id.md).** The tables keyed by a run gain `run_release`, `ledger`'s: a row of two short texts for each run and each release that minted or continued it, from which nothing deletes. The rest of this record stands as the notes above leave it.
 
 - **Date**: 2026-10-10
 - **Status**: accepted.

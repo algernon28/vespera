@@ -1,9 +1,9 @@
 {
   "type": "object",
-  "description": "The JSON of the topics report, topics.json, written beside topics.html by the arrangement step once the topics are named (ADR-416), format 1: what feeds each topic, the topics no document was placed under and the seed documents feeding no topic.",
+  "description": "The JSON of the topics report, topics.json, written beside topics.html by the arrangement step once the topics are named (ADR-416, ADR-429), format 2, in one of two shapes: where the topics are inferred, what feeds each topic, the topics no document was placed under and the seed documents feeding no topic; where the profile lists them, each topic with the documents placed under it and the documents linked from it, and the topics no document was placed under.",
   "properties": {
     "format": {
-      "const": 1,
+      "const": 2,
       "description": "The report's own format, raised by a change that removes, renames or retypes a field."
     },
     "analysisReport": {
@@ -20,19 +20,20 @@
     },
     "headline": {
       "type": "array",
-      "description": "The numbers the page states first: the topics, the seed passages, the topics with no document and the seed documents feeding no topic.",
+      "description": "The numbers the page states first. Where the topics are inferred: the topics, the seed passages, the topics with no document and the seed documents feeding no topic. Where the profile lists them: the topics, the topics with no document and, once the low-similarity floor ships a value, the documents placed with low similarity.",
       "items": {
         "type": "object",
         "description": "One figure.",
         "properties": {
           "key": {
             "type": "string",
-            "description": "Its key: topics, seed-passages, topics-with-no-document or seeds-feeding-no-topic.",
+            "description": "Its key: topics, seed-passages, topics-with-no-document, seeds-feeding-no-topic or placed-with-low-similarity.",
             "enum": [
               "topics",
               "seed-passages",
               "topics-with-no-document",
-              "seeds-feeding-no-topic"
+              "seeds-feeding-no-topic",
+              "placed-with-low-similarity"
             ]
           },
           "label": {
@@ -102,7 +103,7 @@
             "properties": {
               "columns": {
                 "type": "array",
-                "description": "Its columns in the page's order. The topics: topic, first-passage, seed-passages, share-of-seed-passages, seed-documents, documents-placed and linked-documents. The topics with no document: topic, first-passage, seed-document and passages. The seed documents feeding no topic: seed-document.",
+                "description": "Its columns in the page's order. The topics: topic, first-passage, seed-passages, share-of-seed-passages, seed-documents, documents-placed and linked-documents. The topics with no document: topic, first-passage, seed-document and passages. The seed documents feeding no topic: seed-document. Where the profile lists the topics: topic, documents-placed, linked-documents and, once the low-similarity floor ships a value, placed-with-low-similarity; and, for the topics with no document, topic alone.",
                 "items": {
                   "type": "object",
                   "description": "One column.",
@@ -118,6 +119,7 @@
                         "seed-documents",
                         "documents-placed",
                         "linked-documents",
+                        "placed-with-low-similarity",
                         "seed-document",
                         "passages"
                       ]
@@ -128,7 +130,7 @@
                     },
                     "kind": {
                       "type": "string",
-                      "description": "Its kind: text for a topic's name and its first passage, path for a seed document, share for the share of seed passages, count for the rest.",
+                      "description": "Its kind: text for a topic's name and its first passage, path for a seed document, share for the share of seed passages, count for the rest, the documents placed with low similarity among them.",
                       "enum": [
                         "text",
                         "path",
