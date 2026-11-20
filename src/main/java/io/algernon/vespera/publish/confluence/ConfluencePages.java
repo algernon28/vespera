@@ -354,7 +354,7 @@ final class ConfluencePages implements Drawing {
             }
             body.append("</tbody></table>\n");
         } else if (topicDrawn.clusterCount() > 0) {
-            // A listed topic no document is placed under has no table (ADR-429 section 8).
+            // A listed topic no document is placed under has no table (ADR-435 section 8).
             body.append(clusterTable(FixedWords.topicTableHeadRow(language), topicPageRows));
         }
         if (seeAlsoItems.length() > 0) {

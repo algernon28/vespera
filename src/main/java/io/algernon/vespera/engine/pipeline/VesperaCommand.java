@@ -374,7 +374,7 @@ public class VesperaCommand implements Callable<Integer> {
                 }
             }
             // A list of topics holding a blank entry or a duplicate stops it here too, right after that check and before
-            // the corpus root is locked: nothing is walked and no run is minted (ADR-429 section 3).
+            // the corpus root is locked: nothing is walked and no run is minted (ADR-435 section 3).
             if (profileStore != null) {
                 Optional<String> refusedTopics = new ListedTopicsAtTheStart(profileStore).refusal();
                 if (refusedTopics.isPresent()) {

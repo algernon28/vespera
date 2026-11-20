@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The sidebar's Topics section (ADR-429 §9): titled Topics, it lists the names {@code topics} states, a row each with
+ * The sidebar's Topics section (ADR-435 §9): titled Topics, it lists the names {@code topics} states, a row each with
  * Remove; its Add stays disabled while the box is blank or holds a listed topic again, the line beneath the box saying
  * why; its Save writes {@code topics} alone, one name a line; and a name the file holds twice is drawn in the error
  * colour. That the section stands after Seed folder is {@code TheProfileWindowTest}'s, which holds the sections' order.
@@ -33,7 +33,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("898")
-@Link(name = "ADR-429", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
+@Link(name = "ADR-435", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
 class TheTopicsSectionTest {
 
     private static final ProfileKey KEY = ProfileKey.TOPICS;

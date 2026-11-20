@@ -15,14 +15,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The control panel links no class of the jar (ADR-285 §3), so it holds ADR-429 §2's rule for a name made plain in a
+ * The control panel links no class of the jar (ADR-285 §3), so it holds ADR-435 §2's rule for a name made plain in a
  * copy of its own, {@code TopicEntries}; this holds the two copies to one answer, so that the window never lets through
  * a list the jar then refuses, nor refuses one the jar would take. A test may name both.
  */
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("898")
-@Link(name = "ADR-429", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
+@Link(name = "ADR-435", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
 class TheWindowAndTheJarMakeANamePlainAlikeTest {
 
     /**

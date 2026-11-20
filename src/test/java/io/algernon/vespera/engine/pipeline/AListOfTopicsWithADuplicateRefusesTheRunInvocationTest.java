@@ -28,7 +28,7 @@ import picocli.CommandLine;
 
 /**
  * {@code vespera run} refuses, at its start and before anything is walked, a list of topics in {@code profile.yaml}
- * holding a name that is an earlier one again, or a blank line, in one line naming it and exit 1 (ADR-429 §3). The
+ * holding a name that is an earlier one again, or a blank line, in one line naming it and exit 1 (ADR-435 §3). The
  * words of the line are {@code TopicsValue}'s, held whole by {@code TheTopicsKeyTest}; here they are held as the
  * operator reads them, alone on standard error.
  *
@@ -40,7 +40,7 @@ import picocli.CommandLine;
 @Epic("Relevance")
 @Feature("Topics")
 @Issue("898")
-@Link(name = "ADR-429", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
+@Link(name = "ADR-435", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
 class AListOfTopicsWithADuplicateRefusesTheRunInvocationTest {
 
     /** The exit code of a refused invocation: 1. */

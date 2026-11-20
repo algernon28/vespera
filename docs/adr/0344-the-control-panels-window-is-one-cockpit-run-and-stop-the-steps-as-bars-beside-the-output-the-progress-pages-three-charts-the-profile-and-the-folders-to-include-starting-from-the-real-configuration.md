@@ -33,7 +33,7 @@
 
 > **Partly amended — see [ADR-423](0423-a-question-has-no-header-or-icon-its-answers-are-coloured-by-what-they-do-and-a-button-grows-under-the-pointer.md).** Of §7: the question asked on closing the window while its child runs is titled *Close the control panel*, with no header and no icon, *Stop and close* drawn in the ending red and *Keep the window* in the keeping green. Of its Tests: the window's questions are answered through `Dialogs.confirm(String, String, String, String)`, its title first. The rest of this record stands.
 
-> **Partly amended — see [ADR-429](0429-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §1, as ADR-389 and ADR-413 left its sidebar: a section `topics`, titled Topics, holding the topics `profile.yaml` lists, stands after Seed folder, the sidebar being ten sections. The rest of this record stands.
+> **Partly amended — see [ADR-435](0435-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §1, as ADR-389 and ADR-413 left its sidebar: a section `topics`, titled Topics, holding the topics `profile.yaml` lists, stands after Seed folder, the sidebar being ten sections. The rest of this record stands.
 
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.

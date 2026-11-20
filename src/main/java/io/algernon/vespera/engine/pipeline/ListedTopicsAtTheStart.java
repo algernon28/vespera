@@ -6,7 +6,7 @@ import java.util.Optional;
 
 /**
  * The refusal at the start of {@code vespera run} of a profile whose {@code topics} holds a blank entry or a duplicate
- * (ADR-429 §3), beside {@link ModelsAtTheStart}'s: after it, and before the corpus root is locked, so that nothing is
+ * (ADR-435 §3), beside {@link ModelsAtTheStart}'s: after it, and before the corpus root is locked, so that nothing is
  * walked, no run is minted and no sidecar is started.
  *
  * <p>It reads the one key and nothing else, and the line it gives is {@link TopicsValue}'s, the reading being the

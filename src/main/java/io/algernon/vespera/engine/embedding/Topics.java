@@ -87,13 +87,13 @@ public class Topics {
     }
 
     /**
-     * A topic the profile lists (ADR-429 section 4): its key, its name as written and its place in the list, counted
+     * A topic the profile lists (ADR-435 section 4): its key, its name as written and its place in the list, counted
      * from 1.
      */
     public record ListedName(TopicKey key, String name, int place) {}
 
     /**
-     * Records the topics the profile lists under {@code runId} (ADR-429 section 4): one {@code topic} row each, with no
+     * Records the topics the profile lists under {@code runId} (ADR-435 section 4): one {@code topic} row each, with no
      * passage, and one {@code listed_topic} row each. Called where {@link #record} is, before the first survivor is
      * scored, and with no {@code topic_passage} or {@code seed_feeding_no_topic} row.
      */
@@ -118,7 +118,7 @@ public class Topics {
 
     /**
      * The topics the profile listed under {@code runId}, in the list's order, by the index of the run and the place,
-     * sorting nothing; empty where the run's topics are inferred (ADR-429 section 4).
+     * sorting nothing; empty where the run's topics are inferred (ADR-435 section 4).
      */
     public List<ListedName> listedUnder(RunId runId) {
         return jdbcTemplate.query(

@@ -211,7 +211,7 @@ class ArrangementTasklet implements Tasklet {
 
         RunId scoring = stageRuns.embeddingScoring();
         // The topics the profile listed when the scoring run was minted, in the list's order, none where they are
-        // inferred (ADR-429 section 4): their places are the topics' places on the page and in the tree.
+        // inferred (ADR-435 section 4): their places are the topics' places on the page and in the tree.
         List<Topics.ListedName> listedNames = TimedStatement.of(
                 STAGE, "reading", "read", "the listed topics", () -> topicLedger.listedUnder(scoring));
         Map<TopicKey, Integer> listedPlaces = new LinkedHashMap<>();
@@ -388,7 +388,7 @@ class ArrangementTasklet implements Tasklet {
     }
 
     /**
-     * Writes {@code topics.json} and then {@code topics.html} where the profile lists the topics (ADR-429 section 10):
+     * Writes {@code topics.json} and then {@code topics.html} where the profile lists the topics (ADR-435 section 10):
      * one row a listed topic in the list's order, each with the documents placed under it and the documents linked from
      * it, and no seed passage, seed document or topic's key. A listed topic's name is its name as listed.
      */
@@ -499,7 +499,7 @@ class ArrangementTasklet implements Tasklet {
             TopicKey key = keyOf(topic.key());
             if (topic.key().isListed()) {
                 // A listed topic's name is the operator's, as written: never asked of the model, never translated, with
-                // no fallback, and in no comparison of ADR-407 section 8; no line is logged for it (ADR-429 section 7).
+                // no fallback, and in no comparison of ADR-407 section 8; no line is logged for it (ADR-435 section 7).
                 if (topicNames.ofTopic(arrangement, key).isEmpty()) {
                     String listed = listedNames.stream()
                             .filter(each -> each.key().equals(topic.key()))
@@ -654,7 +654,7 @@ class ArrangementTasklet implements Tasklet {
      */
     /**
      * The topic as a line or a page writes it: {@code <path> chunk <i>}, or, for a topic the profile lists, its name as
-     * listed between quotation marks (ADR-429 section 10).
+     * listed between quotation marks (ADR-435 section 10).
      */
     private String shownTopic(TopicKey key) {
         return stageRuns.listedNameOf(embeddingKey(key)).map(name -> "\"" + name + "\"").orElse(key.shown());
@@ -727,7 +727,7 @@ class ArrangementTasklet implements Tasklet {
                         page, ArrangementGate.shortNameOf(arrangement), Walk.canonicalRoot(root).toString(), listed);
                 StageProgress topicsDrawn = StageProgress.over("Stage 6a (arrangement, page topics)", topics.size());
                 // A listed topic's place is its place in the list and the list's length is how many there are, a topic
-                // no document lands under having no heading and keeping its place (ADR-429 sections 7 and 8).
+                // no document lands under having no heading and keeping its place (ADR-435 sections 7 and 8).
                 int of = listed ? listedPlaces.size() : topics.size();
                 for (int drawn = 1; drawn <= topics.size(); drawn++) {
                     TopicKey key = topics.get(drawn - 1);

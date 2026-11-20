@@ -6,7 +6,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Placement under the topics the profile lists (ADR-429 section 5): ADR-400's rule, each listed topic's centroid being
+ * Placement under the topics the profile lists (ADR-435 section 5): ADR-400's rule, each listed topic's centroid being
  * its name's vector, so that a chunk's cosine to the topic is its cosine to that vector. A survivor's score at a topic
  * is the mean, over its chunks, of those cosines; its winning topic is the highest score, a tie to the key that comes
  * first (never the list's order); each chunk is nearest the topic of its highest cosine; and the survivor fits each
@@ -110,7 +110,7 @@ public final class ListedTopicPlacement {
 
         /**
          * The survivor's score at its winning topic: the mean over its chunks of each chunk's cosine to the winning
-         * name's vector, the number the placement compared (ADR-429 section 5).
+         * name's vector, the number the placement compared (ADR-435 section 5).
          */
         public double winningScore() {
             placement();

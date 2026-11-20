@@ -18,7 +18,7 @@ import javafx.scene.layout.VBox;
 
 /**
  * The sidebar's Topics section: the names {@code topics} states, one a row in the order the file lists them, and their
- * Save into the working directory (ADR-429 §9). Built as the Code sets section is (ADR-377 §8): it opens with {@code
+ * Save into the working directory (ADR-435 §9). Built as the Code sets section is (ADR-377 §8): it opens with {@code
  * topics}' title, whose tooltip holds the provenance the file states; Add puts a name at the end and is disabled for a
  * blank name and for one that is a listed topic again, saying why; and Save writes {@code topics} by ADR-377 §2 and
  * nothing else, refused where the file changed the value since the section was loaded (ADR-330 §5).
@@ -95,7 +95,7 @@ final class TopicsPane {
         draw();
     }
 
-    /** Sets Add and the line beneath the box by what the box holds against the names listed (ADR-429 §9). */
+    /** Sets Add and the line beneath the box by what the box holds against the names listed (ADR-435 §9). */
     private void check() {
         String typed = name.getText() == null ? "" : name.getText();
         if (typed.isEmpty()) {
@@ -134,7 +134,7 @@ final class TopicsPane {
         check();
     }
 
-    /** Writes {@code topics} by ADR-377 §2, in {@code ProfileRow.save}'s words, and nothing else (ADR-429 §9). */
+    /** Writes {@code topics} by ADR-377 §2, in {@code ProfileRow.save}'s words, and nothing else (ADR-435 §9). */
     private void saveTopics() {
         Optional<Path> folder = folders.workingDirectory();
         if (folder.isEmpty()) {

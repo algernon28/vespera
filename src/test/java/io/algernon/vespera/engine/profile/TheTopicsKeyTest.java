@@ -16,7 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * What the profile's {@code topics} says (ADR-429 §1 to §3): one string of one name a line, read as unset, as the names
+ * What the profile's {@code topics} says (ADR-435 §1 to §3): one string of one name a line, read as unset, as the names
  * in order, or as refused for a blank entry or a duplicate, the line refusing it whole; and a name made plain, by which
  * two names are one topic.
  *
@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 @Epic("Census")
 @Feature("Profile")
 @Issue("898")
-@Link(name = "ADR-429", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
+@Link(name = "ADR-435", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
 class TheTopicsKeyTest {
 
     /** Who wrote each value here. */

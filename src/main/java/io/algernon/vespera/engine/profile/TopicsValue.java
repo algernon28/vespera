@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * The profile key whose answer is the topics the operator lists, one name a line (ADR-429 §1): {@code topics}. The
+ * The profile key whose answer is the topics the operator lists, one name a line (ADR-435 §1): {@code topics}. The
  * string stays one under {@code value}, as every key's does (ADR-061).
  *
  * <p>A line ends at a line feed, a carriage return followed by a line feed, or a carriage return alone. The value with
@@ -36,7 +36,7 @@ public record TopicsValue(String value, String provenance, Measurement measureme
     }
 
     /**
-     * A name made plain (ADR-429 §2): the blanks around it removed, decomposed, its combining marks removed,
+     * A name made plain (ADR-435 §2): the blanks around it removed, decomposed, its combining marks removed,
      * lower-cased under {@link Locale#ROOT}, and composed again. Blanks within the name are kept.
      */
     public static String identityOf(String name) {
@@ -82,7 +82,7 @@ public record TopicsValue(String value, String provenance, Measurement measureme
     /**
      * The list holds a blank entry or a duplicate.
      *
-     * @param line the closing line of {@code vespera run}'s refusal, whole (ADR-429 §3)
+     * @param line the closing line of {@code vespera run}'s refusal, whole (ADR-435 §3)
      */
     public record Refused(String line) implements Reading {}
 

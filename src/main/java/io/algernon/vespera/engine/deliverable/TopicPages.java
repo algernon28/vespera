@@ -61,7 +61,7 @@ public final class TopicPages {
         if (layout.divided()) {
             writeTableOfSubtopics(page, layout, rows, language);
         } else if (!rows.isEmpty()) {
-            // A listed topic no document is placed under has no table (ADR-429 section 8).
+            // A listed topic no document is placed under has no table (ADR-435 section 8).
             writeTableOfClusters(page, layout, rows, language, layout::ownFolder);
         }
         boolean[] heading = {false};

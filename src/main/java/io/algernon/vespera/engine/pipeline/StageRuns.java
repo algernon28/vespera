@@ -395,7 +395,7 @@ class StageRuns {
         double topicBreadthFloorValue = presets.topicBreadthFloor();
         double seeAlsoShareValue = presets.seeAlsoShare();
         int subtopicFloorValue = presets.subtopicFloor();
-        // ADR-429 section 11: the list, in its order, from the same load; a refused value never reaches a mint.
+        // ADR-435 section 11: the list, in its order, from the same load; a refused value never reaches a mint.
         List<String> listed = profile.topics().reading() instanceof TopicsValue.Answered answered
                 ? answered.names()
                 : null;
@@ -535,7 +535,7 @@ class StageRuns {
     }
 
     /**
-     * The topics the profile listed when the scoring run was minted, in its order (ADR-429 section 11), empty where it
+     * The topics the profile listed when the scoring run was minted, in its order (ADR-435 section 11), empty where it
      * listed none and the topics are inferred. Mints the run if it has not yet been.
      */
     Optional<List<String>> listedTopics() {
@@ -545,7 +545,7 @@ class StageRuns {
 
     /**
      * The name as listed of the topic {@code topic} is the key of, where the scoring run was minted over a list and the
-     * key is a listed topic's (ADR-429 section 4): the name the list gives, of which the key holds the name made plain.
+     * key is a listed topic's (ADR-435 section 4): the name the list gives, of which the key holds the name made plain.
      */
     Optional<String> listedNameOf(io.algernon.vespera.engine.embedding.TopicKey topic) {
         if (!topic.isListed()) {
@@ -734,7 +734,7 @@ class StageRuns {
             // ADR-406 section 5, ADR-409 section 8: the subtopic floor, after the see-also share, written only where it is
             // not what ships, since the clustering step divides each topic at it.
             @JsonInclude(JsonInclude.Include.NON_NULL) Integer subtopicFloor,
-            // ADR-429 section 11: the topics the profile lists, after subtopicFloor, the names in the list's order, and
+            // ADR-435 section 11: the topics the profile lists, after subtopicFloor, the names in the list's order, and
             // written only where it lists some.
             @JsonInclude(JsonInclude.Include.NON_NULL) List<String> topics) {}
 

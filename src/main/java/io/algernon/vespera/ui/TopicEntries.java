@@ -10,7 +10,7 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
- * The rule of ADR-429 §2 for a name made plain, and §3's reasons for a line of {@code topics} the jar would refuse,
+ * The rule of ADR-435 §2 for a name made plain, and §3's reasons for a line of {@code topics} the jar would refuse,
  * held in a copy of the control panel's own, since it links no class of the jar (ADR-285 §3). {@code
  * TheWindowAndTheJarMakeANamePlainAlikeTest} holds this copy and the jar's to the same answers.
  */

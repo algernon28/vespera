@@ -26,7 +26,7 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * The {@code topics} analysis report shows what feeds each topic, the topics no document was placed under with each
  * seed feeding them, and the seeds feeding no topic, as counts, paths, keys and names (ADR-416 §2, §3); it is titled
- * Topics, and its JSON is of format 2 (ADR-429 §10).
+ * Topics, and its JSON is of format 2 (ADR-435 §10).
  *
  * <p>Drawn by {@link TopicsAnalysisReport} alone. The fixture has {@value #SEED_PASSAGES} seed passages: two topics of
  * three passages each, a third of them, and three passages of the two seeds feeding no topic. The topic on sluice gates

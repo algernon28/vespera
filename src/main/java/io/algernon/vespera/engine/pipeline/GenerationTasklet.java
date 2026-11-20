@@ -627,7 +627,7 @@ class GenerationTasklet implements Tasklet {
             return arranged;
         }
         // A listed topic no document is placed under has no cluster, and is drawn at its place all the same
-        // (ADR-429 section 8); a listed topic's place is its place in the list.
+        // (ADR-435 section 8); a listed topic's place is its place in the list.
         List<ArrangedTopic> withEveryListed = new ArrayList<>(arranged);
         List<String> names = listed.get();
         for (int place = 1; place <= names.size(); place++) {

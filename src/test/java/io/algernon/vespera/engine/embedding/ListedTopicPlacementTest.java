@@ -16,7 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Where a survivor is placed under the topics the profile lists (ADR-429 §4, §5): a listed topic is keyed by its name
+ * Where a survivor is placed under the topics the profile lists (ADR-435 §4, §5): a listed topic is keyed by its name
  * made plain and the chunk index {@code -1}; a survivor's score at it is the mean, over its chunks, of each chunk's
  * cosine to the name's vector, ADR-400's rule with the name's vector as the centroid; its winning topic is the highest,
  * a tie to the key that comes first by code point; and it fits each other listed topic at least {@value #SHARE} of its
@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
 @Epic("Relevance")
 @Feature("Topics")
 @Issue("898")
-@Link(name = "ADR-429", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
+@Link(name = "ADR-435", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
 @Link(name = "ADR-400", url = Adr.THE_WINNING_TOPIC_IS_THE_CENTROID_ITS_CHUNKS_ARE_NEAREST_ON_AVERAGE, type = "adr")
 class ListedTopicPlacementTest {
 

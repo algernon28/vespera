@@ -1,4 +1,4 @@
-# ADR-429 — The profile may list the topics by name, a survivor going to the name its chunks are nearest, and none listed infers them
+# ADR-435 — The profile may list the topics by name, a survivor going to the name its chunks are nearest, and none listed infers them
 
 - **Date**: 2026-11-20
 - **Status**: accepted on 2026-11-20.
@@ -209,7 +209,7 @@ A reordering alone moves the scoring run too, though it places no document other
 - **A topic's name is only as good as its embedding**: a short or ambiguous name places by what the embedder makes of it, which nothing measured (Context).
 - **A listed run stores one number more a scored document**, in `winning_topic_score`.
 - **Any edit of the list costs a pass of 5d to 5f from the stored vectors, an approval unless `auto`, a new sample to label and a new generation**, a reordering included; no extraction, chunk or seed vector is asked for again.
-- **ADR-229, ADR-344, ADR-396, ADR-399, ADR-400, ADR-401, ADR-402, ADR-407, ADR-409, ADR-413, ADR-415, ADR-416 and ADR-428 carry a note *"Partly amended — see ADR-429"*** at their heads.
+- **ADR-229, ADR-344, ADR-396, ADR-399, ADR-400, ADR-401, ADR-402, ADR-407, ADR-409, ADR-413, ADR-415, ADR-416 and ADR-428 carry a note *"Partly amended — see ADR-435"*** at their heads.
 
 ## What this does not decide
 

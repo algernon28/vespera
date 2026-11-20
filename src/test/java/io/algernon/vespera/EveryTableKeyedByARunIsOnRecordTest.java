@@ -44,7 +44,7 @@ import org.springframework.util.StreamUtils;
 @Link(name = "ADR-229", url = Adr.EVERY_RUNS_ROWS_ARE_KEPT_AND_THE_FILE_IS_NOT_MADE_SMALLER, type = "adr")
 @Link(name = "ADR-116", url = Adr.A_RUNS_COMPLETION_IS_RECORDED_PER_STEP, type = "adr")
 @Link(name = "ADR-409", url = Adr.TOPICS_AND_ALL_ARRANGED_UNDER_THEM_ARE_KEPT_IN_TABLES_KEYED_BY_THE_TOPIC, type = "adr")
-@Link(name = "ADR-429", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
+@Link(name = "ADR-435", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
 class EveryTableKeyedByARunIsOnRecordTest {
 
     private static final Pattern OWNED_TABLE = Pattern.compile(
@@ -75,7 +75,7 @@ class EveryTableKeyedByARunIsOnRecordTest {
      * The twenty-six tables ADR-229 states the growth of, and code_set and code_set_member, which ADR-284 adds,
      * twenty-eight; translation_of, which ADR-271 added, schema.sql no longer creates (ADR-392 section 2). ADR-409
      * section 11 takes out the five keyed by a winning seed and adds the fifteen of the topics: thirty-eight. ADR-431
-     * adds {@code run_release}, the release versions that minted or continued a run, which with ADR-429's {@code
+     * adds {@code run_release}, the release versions that minted or continued a run, which with ADR-435's {@code
      * listed_topic} and {@code winning_topic_score}, a listed topic's name and place and a document's score at its
      * winning listed topic, makes forty-one; each with the module that owns it.
      */

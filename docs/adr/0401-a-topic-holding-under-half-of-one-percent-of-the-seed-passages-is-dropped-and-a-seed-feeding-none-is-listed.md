@@ -1,6 +1,6 @@
 # ADR-401 — A topic holding under half of one percent of the seed passages is dropped, and a seed feeding none is listed
 
-> **Partly amended — see [ADR-429](0429-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §1, §4 and §5: where `profile.yaml` lists topics, no breadth floor is applied, every listed topic stands, and no seed is listed as feeding none. The rest of this record stands, and all of it where no topic is listed.
+> **Partly amended — see [ADR-435](0435-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §1, §4 and §5: where `profile.yaml` lists topics, no breadth floor is applied, every listed topic stands, and no seed is listed as feeding none. The rest of this record stands, and all of it where no topic is listed.
 
 > **Partly amended — see [ADR-428](0428-the-presets-with-no-profile-key-are-shown-read-only-in-command-options-a-list-for-each-run-they-enter.md).** Of §6, as ADR-411 left it: the control panel shows `vespera.topics.breadth-floor` read-only in Command options, so *"the control panel shows it read-only, as ADR-330 §12 shows a preset with no profile key"* holds again. The rest of this record stands.
 

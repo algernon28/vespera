@@ -113,7 +113,7 @@ class RelevanceScorer {
     }
 
     /**
-     * Hands {@code tally} the cosine of each survivor chunk to each listed name's vector (ADR-429 section 5): the
+     * Hands {@code tally} the cosine of each survivor chunk to each listed name's vector (ADR-435 section 5): the
      * name's vector is the topic's centroid, so no divisor is taken. The names are visited in the order of the map.
      */
     void cosinesToNames(

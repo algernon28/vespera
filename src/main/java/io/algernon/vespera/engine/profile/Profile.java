@@ -140,7 +140,7 @@ package io.algernon.vespera.engine.profile;
  *     corpus root, separated by the system's path separator. Ships unset; unset or unreadable, every folder is read.
  *     It enters byte-level reduction's identity, a walk that leaves a folder out being another walk. No
  *     {@link Measurement} pointer.
- * @param topics the topics the operator lists, by name (ADR-429 §1): one string, one name a line. Ships unset; unset
+ * @param topics the topics the operator lists, by name (ADR-435 §1): one string, one name a line. Ships unset; unset
  *     or blank, the topics are inferred from the seed set's passages. It enters the embedding-scoring run's identity
  *     where it names a topic. No {@link Measurement} pointer.
  * @param confluenceBaseUrl the Confluence site's address a publish sends to (ADR-359 section 1), read where the

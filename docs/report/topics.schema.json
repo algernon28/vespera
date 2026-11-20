@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "The JSON of the topics report, topics.json, written beside topics.html by the arrangement step once the topics are named (ADR-416, ADR-429), format 2, in one of two shapes: where the topics are inferred, what feeds each topic, the topics no document was placed under and the seed documents feeding no topic; where the profile lists them, each topic with the documents placed under it and the documents linked from it, and the topics no document was placed under.",
+  "description": "The JSON of the topics report, topics.json, written beside topics.html by the arrangement step once the topics are named (ADR-416, ADR-435), format 2, in one of two shapes: where the topics are inferred, what feeds each topic, the topics no document was placed under and the seed documents feeding no topic; where the profile lists them, each topic with the documents placed under it and the documents linked from it, and the topics no document was placed under.",
   "properties": {
     "format": {
       "const": 2,

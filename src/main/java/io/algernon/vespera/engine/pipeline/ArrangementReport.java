@@ -141,7 +141,7 @@ final class ArrangementReport {
             + " group's name below was taken from a document you can open.";
 
     /**
-     * The page's first paragraph where the profile lists the topics (ADR-429 section 10), and the first string of its
+     * The page's first paragraph where the profile lists the topics (ADR-435 section 10), and the first string of its
      * JSON's {@code overview} section: the topics are the operator's and in the operator's order, under the names they
      * gave; the subtopics' names alone were written by the model.
      */
@@ -160,7 +160,7 @@ final class ArrangementReport {
             + " is divided, groups holding several documents come before groups holding one, and within those two"
             + " tiers the groups whose documents scored highest for relevance come first.";
 
-    /** The first paragraph under {@code How to read this} where the profile lists the topics (ADR-429 section 10). */
+    /** The first paragraph under {@code How to read this} where the profile lists the topics (ADR-435 section 10). */
     private static final String ORDER_OF_LISTED_TOPICS = "Topics are in the order your profile lists them, and a crowded"
             + " topic's subtopics are in order of how much of the archive sits under them, largest first. Within each"
             + " topic, or within each of its subtopics where it is divided, groups holding several documents come"

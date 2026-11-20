@@ -1,6 +1,6 @@
 # ADR-402 — A topic's overview cites its written clusters by number in every sentence, and a citation fault is asked once more
 
-> **Partly amended — see [ADR-429](0429-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §5: a topic `profile.yaml` lists that no document is placed under has a sentence of its own where its overview would be, *No overview was written for this topic: no document was placed under it.*, and in Italian its own. The rest of this record stands.
+> **Partly amended — see [ADR-435](0435-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §5: a topic `profile.yaml` lists that no document is placed under has a sentence of its own where its overview would be, *No overview was written for this topic: no document was placed under it.*, and in Italian its own. The rest of this record stands.
 
 - **Date**: 2026-11-16
 - **Status**: accepted on 2026-11-16.

@@ -31,7 +31,7 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.util.StreamUtils;
 
 /**
- * The two tables ADR-429 §4 adds under the embedding-scoring run, read off the shipped {@code schema.sql} applied to a
+ * The two tables ADR-435 §4 adds under the embedding-scoring run, read off the shipped {@code schema.sql} applied to a
  * database in memory: {@code listed_topic}, a listed topic's name as written and its place in the list, keyed by the run
  * and the topic's two columns; and {@code winning_topic_score}, a scored document's score at its winning listed topic,
  * keyed as {@code winning_topic} is. Both are {@code embedding}'s; a place is counted from 1 and held once a run.
@@ -41,7 +41,7 @@ import org.springframework.util.StreamUtils;
 @Epic("Architecture")
 @Feature("What the database keeps")
 @Issue("898")
-@Link(name = "ADR-429", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
+@Link(name = "ADR-435", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
 class TheListedTopicTablesTest {
 
     /** The line that says whose a table is, which stands directly above the table's {@code CREATE TABLE}. */

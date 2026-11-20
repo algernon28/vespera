@@ -563,7 +563,7 @@
     -fx-cursor: v-resize;
 }
 
-/* A line of the topics the jar would refuse, drawn in the error colour (ADR-429 section 9). */
+/* A line of the topics the jar would refuse, drawn in the error colour (ADR-435 section 9). */
 .refused .selectable-text {
     -fx-text-fill: -vespera-bad;
 }

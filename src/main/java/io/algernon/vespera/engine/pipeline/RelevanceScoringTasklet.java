@@ -184,7 +184,7 @@ class RelevanceScoringTasklet implements Tasklet {
                     Map<TopicKey, float[]> nameVectors = Map.of();
                     int topicCount;
                     if (listed.isPresent()) {
-                        // Where the profile lists the topics none is inferred and none is dropped (ADR-429 section 4): each
+                        // Where the profile lists the topics none is inferred and none is dropped (ADR-435 section 4): each
                         // name is embedded alone, once, and is the centroid its topic places by (section 5).
                         List<Topics.ListedName> names = new ArrayList<>();
                         nameVectors = new LinkedHashMap<>();

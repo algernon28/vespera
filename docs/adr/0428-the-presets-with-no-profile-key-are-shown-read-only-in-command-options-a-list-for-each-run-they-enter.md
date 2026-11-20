@@ -1,6 +1,6 @@
 # ADR-428 — The presets with no profile key are shown read-only in Command options, a list for each run they enter
 
-> **Partly amended — see [ADR-429](0429-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §2: once `vespera.topics.low-similarity-floor` ships, with the record that measures it, the embedding-scoring run's list shows it after the four of the topics, its record ADR-429. The rest of this record stands.
+> **Partly amended — see [ADR-435](0435-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §2: once `vespera.topics.low-similarity-floor` ships, with the record that measures it, the embedding-scoring run's list shows it after the four of the topics, its record ADR-435. The rest of this record stands.
 
 - **Date**: 2026-11-19
 - **Status**: accepted on 2026-11-19.

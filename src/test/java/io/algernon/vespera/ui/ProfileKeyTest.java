@@ -92,7 +92,7 @@ class ProfileKeyTest {
     @DisplayName("A change costs its key's earliest run and every later one; the approval closes where the arrangement is among them, the labels are refused after a seed folder change, and the sample being answered is drawn again for the fifteen values whose runs include embedding scoring")
     @Link(name = "ADR-330", url = Adr.THE_CONTROL_PANEL_EDITS_THE_WHOLE_PROFILE_AND_TEN_TECHNICAL_CHOICES_SHIP_AS_PRESETS, type = "adr")
     @Link(name = "ADR-398", url = Adr.THE_CONFLUENCE_ROOT_PAGES_TITLE_IS_A_PROFILE_VALUE, type = "adr")
-    @Link(name = "ADR-429", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
+    @Link(name = "ADR-435", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
     void aChangeCostsItsRunAndEveryLaterOne() {
         Map<String, Cost> costs = new LinkedHashMap<>();
         for (ProfileKey key : ProfileKey.values()) {
@@ -134,7 +134,7 @@ class ProfileKeyTest {
         costs.put("clusterResolution", scoringAgainFrom(FROM_EMBEDDING_SCORING));
         costs.put("codeSetFolders", scoringAgainFrom(FROM_BYTE_LEVEL_REDUCTION));
         costs.put("foldersNotWalked", scoringAgainFrom(FROM_BYTE_LEVEL_REDUCTION));
-        // ADR-429 section 11: the topics listed enter the embedding-scoring run, so a change draws the sample again.
+        // ADR-435 section 11: the topics listed enter the embedding-scoring run, so a change draws the sample again.
         costs.put("topics", scoringAgainFrom(FROM_EMBEDDING_SCORING));
         for (String publishes : List.of("confluenceBaseUrl", "confluenceSpaceKey", "confluenceFolderId",
                 "confluenceFolderTitle", "confluenceEmail", "confluenceRootTitle")) {

@@ -28,7 +28,7 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * The topics the profile lists enter the identity of the embedding-scoring run, under which placement is written, as
- * its last member, {@code topics}, the names in the list's order (ADR-429 §11): so a list edited, a reordering
+ * its last member, {@code topics}, the names in the list's order (ADR-435 §11): so a list edited, a reordering
  * included, is another scoring run, and the runs after it follow.
  *
  * <p>The list is appended to the profile as text, as the operator would write it, so that this compiles whatever
@@ -40,7 +40,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @Epic("Relevance")
 @Feature("Topics")
 @Issue("898")
-@Link(name = "ADR-429", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
+@Link(name = "ADR-435", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
 class TheListedTopicsEnterTheScoringRunInvocationTest {
 
     /** The names, in the order the profile first lists them. */

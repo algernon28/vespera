@@ -159,7 +159,7 @@ public class RelevanceScoring {
     }
 
     /**
-     * Keeps the topics the profile lists under {@code runId} (ADR-429 section 4): called where {@link #recordTopics} is
+     * Keeps the topics the profile lists under {@code runId} (ADR-435 section 4): called where {@link #recordTopics} is
      * called where the topics are inferred, before the first survivor is scored.
      */
     public void recordListedTopics(RunId runId, List<Topics.ListedName> listed) {
@@ -286,7 +286,7 @@ public class RelevanceScoring {
 
     /**
      * As the method above, placing the survivor under the topics the profile lists where {@code listedPlacement} is
-     * given (ADR-429 section 5): the cosine of each survivor chunk to each name's vector, {@code nameVectors}, goes
+     * given (ADR-435 section 5): the cosine of each survivor chunk to each name's vector, {@code nameVectors}, goes
      * to a tally of it beside the cosines to the seed passages, which place nothing and are taken for the relevance
      * score alone. The placement is recorded beside the score under the same key, and the survivor's score at its
      * winning topic in {@code winning_topic_score}. With no {@code listedPlacement} this is the method above.

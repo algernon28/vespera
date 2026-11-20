@@ -1,6 +1,6 @@
 # ADR-416 — A topics report lists the topics with no document and the seeds feeding none, and cluster sizes gain a row a subtopic
 
-> **Partly amended — see [ADR-429](0429-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §1 to §4: `topics.html` is titled *Topics*; where `profile.yaml` lists topics it shows, a row each in the list's order, the documents placed, the documents linked and those placed with low similarity, its topics with no document by name alone and no seed documents; and `topics.json` is of format 2, read by the window at 2. The rest of this record stands.
+> **Partly amended — see [ADR-435](0435-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §1 to §4: `topics.html` is titled *Topics*; where `profile.yaml` lists topics it shows, a row each in the list's order, the documents placed, the documents linked and those placed with low similarity, its topics with no document by name alone and no seed documents; and `topics.json` is of format 2, read by the window at 2. The rest of this record stands.
 
 - **Date**: 2026-11-18
 - **Status**: accepted on 2026-11-18.

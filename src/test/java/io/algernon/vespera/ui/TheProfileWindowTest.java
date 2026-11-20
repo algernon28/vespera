@@ -68,7 +68,7 @@ class TheProfileWindowTest {
 
     /**
      * The sidebar's sections, in their order: the profile's first, then the seven the cockpit had, with the topics'
-     * and then the label commands' after Seed folder (ADR-413 §1, ADR-429 §9).
+     * and then the label commands' after Seed folder (ADR-413 §1, ADR-435 §9).
      */
     private static final List<String> THE_SECTIONS = List.of("profile", "preflight", "folders", "services",
             "seed-folder", "topics", "labels", "code-sets", "command-options", "reports");
@@ -162,7 +162,7 @@ class TheProfileWindowTest {
     @Story("The profile is edited in a window of its own")
     @DisplayName("Profile is the first of the sidebar's ten sections, the tabs are the Report and Inclusions alone, and Open profile opens one window apart from the control panel's, brought back rather than opened again")
     @Link(name = "ADR-413", url = Adr.THE_LABEL_COMMANDS_ARE_A_LABELS_SECTION_OF_THE_SIDEBAR, type = "adr")
-    @Link(name = "ADR-429", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
+    @Link(name = "ADR-435", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
     void theProfileIsTheSidebarsFirstSectionAndOpensOneWindowOfItsOwn(@TempDir Path folder) throws Exception {
         List<String> sections;
         String title;

@@ -24,7 +24,7 @@ final class TopicsAnalysisReport {
 
     /**
      * The page's title and first heading, and its JSON's {@code title} (ADR-377 section 5), whether or not the topics
-     * are listed: *Topics found in your seed documents* is untrue of a list (ADR-429 section 10).
+     * are listed: *Topics found in your seed documents* is untrue of a list (ADR-435 section 10).
      */
     static final String TITLE = "Topics";
 
@@ -38,7 +38,7 @@ final class TopicsAnalysisReport {
             + " another topic are linked from it.";
 
     /**
-     * The first paragraph where the profile lists the topics, until the low-similarity floor ships a value (ADR-429
+     * The first paragraph where the profile lists the topics, until the low-similarity floor ships a value (ADR-435
      * section 10, section 14): the column and the last clause of the list that count the documents placed with low
      * similarity are written once the floor is.
      */
@@ -302,7 +302,7 @@ final class TopicsAnalysisReport {
         return new AnalysisReportJson.Document(FORMAT, NAME, TITLE, writtenAt, headline, sections);
     }
 
-    /** The page where the profile lists the topics, one row each in the list's order (ADR-429 section 10). */
+    /** The page where the profile lists the topics, one row each in the list's order (ADR-435 section 10). */
     static String renderListed(List<ListedTopic> topics) {
         StringBuilder body = new StringBuilder();
         body.append(ReportPage.heading(1, TITLE)).append(ReportPage.paragraph(OPENING_WITH_LISTED_TOPICS));
@@ -334,7 +334,7 @@ final class TopicsAnalysisReport {
         return ReportPage.render(TITLE, body.toString());
     }
 
-    /** What {@link #renderListed} shows, as {@code topics.json} holds it (ADR-362 section 9, ADR-429 section 10). */
+    /** What {@link #renderListed} shows, as {@code topics.json} holds it (ADR-362 section 9, ADR-435 section 10). */
     static AnalysisReportJson.Document documentListed(List<ListedTopic> topics, Instant writtenAt) {
         List<ListedTopic> noDocument = listedWithNoDocument(topics);
         List<AnalysisReportJson.Figure> headline = List.of(

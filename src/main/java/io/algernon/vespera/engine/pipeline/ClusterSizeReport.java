@@ -45,7 +45,7 @@ final class ClusterSizeReport {
             "Each topic's row names it by the seed document its first passage is in, and that"
             + " passage's number, counted from 0.";
 
-    /** The last sentence of the first paragraph where the profile lists the topics (ADR-429 section 10). */
+    /** The last sentence of the first paragraph where the profile lists the topics (ADR-435 section 10). */
     private static final String KEY_OF_A_LISTED_TOPIC = "Each topic's row names it as your profile lists it.";
 
     private static final String NONE =
@@ -114,7 +114,7 @@ final class ClusterSizeReport {
      * each subtopic (ADR-416 section 5).
      *
      * @param key the topic, by its key as ADR-407 section 9's lines write it, {@code <path> chunk <i>}, or by its name
-     *     as listed where the profile lists the topics (ADR-429 section 10)
+     *     as listed where the profile lists the topics (ADR-435 section 10)
      * @param documentCount how many documents its clusters hold between them
      * @param clusterCount how many clusters it holds
      * @param largest how many documents its largest cluster holds

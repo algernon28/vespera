@@ -3159,17 +3159,6 @@ public final class Adr {
             + "0428-the-presets-with-no-profile-key-are-shown-read-only-in-command-options-a-list-for-each-run-they-enter.md";
 
     /**
-     * ADR-429 -- {@code profile.yaml}'s {@code topics} lists the topics by name, one a line; unset, they are inferred as
-     * before; a name's identity is the name made plain, a blank or duplicate entry refusing {@code vespera run} at its
-     * start; each name is embedded alone and a survivor placed by ADR-400's rule with the name's vector as the
-     * centroid; every listed topic stands, in the list's order, under its name as listed; a sidebar section Topics
-     * edits the list; the list enters the embedding-scoring run's identity (amends ADR-344, ADR-396, ADR-399, ADR-400,
-     * ADR-401, ADR-402, ADR-407, ADR-409, ADR-413, ADR-415 and ADR-416).
-     */
-    public static final String THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME = FILE
-            + "0429-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md";
-
-    /**
      * ADR-430 -- the control panel starts nothing as its window opens: it checks the Docker daemon, the Docling and
      * Ollama containers and the two models in a list of its header, every 5 s and at once after a start, a shut-down, a
      * download and an invocation ending, asking no command into a stopped WSL distribution; Start Docker starts them as
@@ -3192,6 +3181,17 @@ public final class Adr {
      */
     public static final String THE_RELEASE_VERSION_IS_THE_TAGS_AND_ENTERS_NO_RUN_ID = FILE
             + "0431-the-release-version-is-the-v-tags-semver-0-snapshot-in-any-other-build-and-enters-no-run-id.md";
+
+    /**
+     * ADR-435 -- {@code profile.yaml}'s {@code topics} lists the topics by name, one a line; unset, they are inferred as
+     * before; a name's identity is the name made plain, a blank or duplicate entry refusing {@code vespera run} at its
+     * start; each name is embedded alone and a survivor placed by ADR-400's rule with the name's vector as the
+     * centroid; every listed topic stands, in the list's order, under its name as listed; a sidebar section Topics
+     * edits the list; the list enters the embedding-scoring run's identity (amends ADR-344, ADR-396, ADR-399, ADR-400,
+     * ADR-401, ADR-402, ADR-407, ADR-409, ADR-413, ADR-415 and ADR-416).
+     */
+    public static final String THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME = FILE
+            + "0435-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md";
 
     private Adr() {
     }

@@ -311,7 +311,7 @@ public final class ProfileEdit {
     }
 
     /**
-     * Whether {@code c} is a line break in the value of {@code topics}, which holds one name a line (ADR-429 §1): the one
+     * Whether {@code c} is a line break in the value of {@code topics}, which holds one name a line (ADR-435 §1): the one
      * value that is several lines in one scalar.
      */
     private static boolean aLineBreakOfTheTopics(ProfileKey key, int c) {
@@ -426,7 +426,7 @@ public final class ProfileEdit {
                     : Optional.of(quoted + " is not a list of folders below the corpus root, written with / between"
                             + " their elements and separated by " + java.io.File.pathSeparator);
             // The names are the Topics section's, which draws a line the jar would refuse as such; the jar refuses it
-            // at the start of a run (ADR-429 §3, §9).
+            // at the start of a run (ADR-435 §3, §9).
             case TOPICS -> Optional.empty();
             case CLUSTER_RESOLUTION -> number(value).filter(number -> number > 0).isPresent() ? Optional.empty()
                     : Optional.of(quoted + " is not a number above 0");

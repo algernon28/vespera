@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-402", url = Adr.A_TOPICS_OVERVIEW_CITES_ITS_WRITTEN_CLUSTERS, type = "adr")
 class TopicOverviewWordingTest {
 
-    /** Each case's English sentence, as ADR-402 §5 gives it, and ADR-429 §8 for a topic no document is placed under. */
+    /** Each case's English sentence, as ADR-402 §5 gives it, and ADR-435 §8 for a topic no document is placed under. */
     private static final Map<OverviewUnwritten, String> ENGLISH_ON_RECORD = Map.of(
             OverviewUnwritten.FAULT_CITATION_NOT_IN_RANGE,
             "No overview was written for this topic: each time it was asked, the writing model's answer left a sentence"
@@ -52,7 +52,7 @@ class TopicOverviewWordingTest {
             OverviewUnwritten.NO_DOCUMENT_PLACED,
             "No overview was written for this topic: no document was placed under it.");
 
-    /** Each case's Italian sentence, as ADR-402 §5 gives it, and ADR-429 §8 for a topic no document is placed under. */
+    /** Each case's Italian sentence, as ADR-402 §5 gives it, and ADR-435 §8 for a topic no document is placed under. */
     private static final Map<OverviewUnwritten, String> ITALIAN_ON_RECORD = Map.of(
             OverviewUnwritten.FAULT_CITATION_NOT_IN_RANGE,
             "Per questo argomento non è stata scritta alcuna panoramica: ogni volta che è stata chiesta, la risposta del"
@@ -91,7 +91,7 @@ class TopicOverviewWordingTest {
     @Story("A topic's page with no overview says why, in words a reader of the tree can follow")
     @DisplayName("The code gives each case, and the line beneath a partial overview, exactly the record's words")
     @Issue("898")
-    @Link(name = "ADR-429", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
+    @Link(name = "ADR-435", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
     void theCodeSaysWhatTheRecordSays() {
         claim(
                 "every case has the records' English and Italian sentence, word for word, and the cases are the"

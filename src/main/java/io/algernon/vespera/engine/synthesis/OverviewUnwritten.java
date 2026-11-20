@@ -23,7 +23,7 @@ public enum OverviewUnwritten {
     NOTHING_WRITTEN_OVER_ANY_CLUSTER,
     /** The step stopped before it reached the topic. */
     NOT_REACHED,
-    /** The topic is one the profile lists, and no document was placed under it, so it has no cluster (ADR-429 section 8). */
+    /** The topic is one the profile lists, and no document was placed under it, so it has no cluster (ADR-435 section 8). */
     NO_DOCUMENT_PLACED;
 
     /**

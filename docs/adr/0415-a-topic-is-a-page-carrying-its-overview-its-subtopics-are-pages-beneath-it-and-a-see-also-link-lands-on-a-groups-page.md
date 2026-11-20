@@ -1,6 +1,6 @@
 # ADR-415 — A topic is a page carrying its overview, its subtopics are pages beneath it, and a see-also link lands on a group's page
 
-> **Partly amended — see [ADR-429](0429-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §1, §2, §4, §5 and §7: a topic `profile.yaml` lists that no document is placed under is drawn at its place, its page carrying its name, ADR-429's sentence, no table and its see-also list, the index and the root page heading it with no table; and a see-also line naming it is drawn. The rest of this record stands.
+> **Partly amended — see [ADR-435](0435-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §1, §2, §4, §5 and §7: a topic `profile.yaml` lists that no document is placed under is drawn at its place, its page carrying its name, ADR-435's sentence, no table and its see-also list, the index and the root page heading it with no table; and a see-also line naming it is drawn. The rest of this record stands.
 
 - **Date**: 2026-11-18
 - **Status**: accepted on 2026-11-18.

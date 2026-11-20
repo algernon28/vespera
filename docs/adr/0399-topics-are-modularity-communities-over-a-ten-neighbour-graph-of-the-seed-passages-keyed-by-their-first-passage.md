@@ -1,6 +1,6 @@
 # ADR-399 — Topics are modularity communities over a ten-neighbour graph of the seed passages, keyed by their first passage
 
-> **Partly amended — see [ADR-429](0429-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §5 and §6: where `profile.yaml` lists topics, none is inferred, and a listed topic's key is its name made plain, held in the key's path with the chunk index `-1`. The rest of this record stands, and all of it where no topic is listed.
+> **Partly amended — see [ADR-435](0435-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §5 and §6: where `profile.yaml` lists topics, none is inferred, and a listed topic's key is its name made plain, held in the key's path with the chunk index `-1`. The rest of this record stands, and all of it where no topic is listed.
 
 > **Partly amended — see [ADR-428](0428-the-presets-with-no-profile-key-are-shown-read-only-in-command-options-a-list-for-each-run-they-enter.md).** Of §7, as ADR-411 left it: the control panel shows `vespera.topics.neighbours` and `vespera.topics.resolution` read-only in Command options, so *"the control panel shows them read-only, as ADR-330 §12 shows a preset with no profile key"* holds again. The rest of this record stands.
 

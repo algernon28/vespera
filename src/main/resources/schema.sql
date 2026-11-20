@@ -743,7 +743,7 @@ CREATE TABLE IF NOT EXISTS winning_topic (
 -- section 12). The table holds no row when this is first built.
 CREATE INDEX IF NOT EXISTS winning_topic_by_run_topic_and_occurrence ON winning_topic (run_id, topic_seed_path, topic_chunk_index, occurrence_id);
 
--- embedding's own table (ADR-429 section 4): where the profile lists the topics, each listed topic's name as written and
+-- embedding's own table (ADR-435 section 4): where the profile lists the topics, each listed topic's name as written and
 -- its place in the list counted from 1, one row a topic, written by 5d with topic's. The topic is keyed by its name
 -- made plain and the chunk index -1, which no passage has, as topic's own row is. A place is held once a run. A run
 -- with no list has no row here.
@@ -758,7 +758,7 @@ CREATE TABLE IF NOT EXISTS listed_topic (
     UNIQUE (run_id, place)
 );
 
--- embedding's own table (ADR-429 section 4, section 5): a scored document's score at its winning listed topic, the mean
+-- embedding's own table (ADR-435 section 4, section 5): a scored document's score at its winning listed topic, the mean
 -- over its chunks of each chunk's cosine to the name's vector, beside its winning_topic row and under the same key. A
 -- score that places, on the embedder's own scale, and no relevance score. A run with no list has no row here.
 -- owner: embedding

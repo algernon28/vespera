@@ -8,6 +8,6 @@ public enum NameOrigin {
     WRITTEN_WHEN_ASKED_AGAIN,
     /** The model's answer was turned down and the topic took its fallback name (section 7). */
     FALLBACK,
-    /** The operator listed it in the profile: its name as written, never asked of the model (ADR-429 section 7). */
+    /** The operator listed it in the profile: its name as written, never asked of the model (ADR-435 section 7). */
     LISTED
 }

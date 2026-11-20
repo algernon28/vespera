@@ -55,7 +55,7 @@ public class Placements {
 
     /**
      * Records the score of {@code occurrenceId} at its winning listed topic under {@code runId}, beside its {@code
-     * winning_topic} row and under the same key (ADR-429 sections 4 and 5).
+     * winning_topic} row and under the same key (ADR-435 sections 4 and 5).
      */
     public void recordScore(OccurrenceId occurrenceId, RunId runId, double score) {
         jdbcTemplate.update(
