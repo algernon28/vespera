@@ -19,6 +19,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import javafx.scene.Node;
@@ -104,7 +105,8 @@ class TheInvocationsStatusLineTest {
         boolean aPaneOfTabs;
         Header onceItEnded;
         try (WindowForTests window = WindowForTests.readingEverySecond(folder)) {
-            beforeAnyReport = window.read(TheInvocationsStatusLineTest::header);
+            beforeAnyReport = window.awaiting(TheInvocationsStatusLineTest::header,
+                    each -> each.shown().contains("report-status"));
             ControlPanelState.Watched child = window.state.watchedChild().orElseThrow();
             window.reportWritten(folder, CENSUS_FINISHED);
             whileItRuns = window.awaiting(TheInvocationsStatusLineTest::header,
@@ -298,6 +300,129 @@ class TheInvocationsStatusLineTest {
         claim("and reading starts again while a foreign holder line is held: its report's status line is shown in the"
                         + " header",
                 () -> assertThat(statusForTheHolder).startsWith("run running"));
+    }
+
+    @Test
+    @Story("The window shows the invocation from the report")
+    @DisplayName("A foreign holder that lets go of the working directory before its ended report is read takes the status line and the stale mark out of the header")
+    void aForeignHolderLettingGoBeforeItsEndedReportIsReadLeavesNoStatusLine(@TempDir Path folder) throws Exception {
+        Path held = Files.createDirectories(folder.resolve("held-working"));
+        Header whileHeld;
+        Header afterItLetGo;
+        Process holder = ChildForTests.builder("sleep").start();
+        try {
+            holderLine(held, holder.pid());
+            ControlPanelState state = WindowForTests.aState(folder.resolve("holder-side"), SleepingJar.runtime());
+            state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(), held.toString(),
+                    "", "", "", "", "", ""));
+            try (WindowForTests window = WindowForTests.shown(state)) {
+                window.readEverySecond();
+                ReportFixtures.write(held, holder.pid(), CENSUS_FINISHED, Instant.now(), Instant.now(), 1);
+                whileHeld = window.awaiting(TheInvocationsStatusLineTest::header,
+                        each -> each.status().startsWith("run running"));
+                // the holder lets go, its lock file emptied, before any report of it says it ended
+                Files.writeString(held.resolve(WorkingDirectoryWrite.LOCK_FILE_NAME), "", StandardCharsets.UTF_8);
+                afterItLetGo = window.awaiting(TheInvocationsStatusLineTest::header,
+                        each -> !each.shown().contains("report-status") && !each.shown().contains("report-stale"));
+            }
+        } finally {
+            holder.destroyForcibly();
+        }
+
+        claim("while the foreign holder holds the working directory, its report's status line stands in the header",
+                () -> assertThat(whileHeld.status()).startsWith("run running"));
+        claim("once it has let go, no invocation being watched, the header shows neither the status line nor the stale"
+                        + " mark",
+                () -> assertThat(afterItLetGo.shown()).containsExactly("where", "child", "database-size"));
+    }
+
+    @Test
+    @Story("The window shows the invocation from the report")
+    @DisplayName("The window's own child, its report drawn running, whose last report is not that JSON as it ends, leaves no status line or stale mark in the header")
+    void aChildWhoseLastReportIsNotThatJsonLeavesNoStatusLineOnceItHasEnded(@TempDir Path folder) throws Exception {
+        Path working = folder.resolve("working");
+        Header whileItRuns;
+        Header onceItEnded;
+        try (WindowForTests window = WindowForTests.readingEverySecond(folder)) {
+            ControlPanelState.Watched child = window.state.watchedChild().orElseThrow();
+            window.reportWritten(folder, CENSUS_FINISHED);
+            whileItRuns = window.awaiting(TheInvocationsStatusLineTest::header,
+                    each -> each.status().startsWith("run running"));
+            // its last report says it started at no time, which the jar never writes: not that JSON
+            Files.writeString(working.resolve(InvocationReportFile.FILE_NAME), ReportFixtures.reportOf(CENSUS_FINISHED,
+                    child.pid(), child.notBefore().plusMillis(SOME_MILLIS_LATER), Instant.now(), 1)
+                    .replaceFirst("\"started\":\"[^\"]*\"", "\"started\":null"), StandardCharsets.UTF_8);
+            window.state.stop();
+            onceItEnded = window.awaiting(TheInvocationsStatusLineTest::header,
+                    each -> !each.shown().contains("report-status") && !each.shown().contains("report-stale"));
+        }
+
+        claim("while the child runs, its report's status line stands in the header",
+                () -> assertThat(whileItRuns.status()).startsWith("run running"));
+        claim("once it has ended, its last report not that JSON, the header shows neither the status line nor the stale"
+                        + " mark, the ending panel saying how it ended",
+                () -> assertThat(onceItEnded.shown()).containsExactly("where", "child", "database-size"));
+    }
+
+    @Test
+    @Story("The window shows the invocation from the report")
+    @DisplayName("Another working directory named while a foreign holder of the first is watched takes the status line and the stale mark out of the header")
+    void anotherWorkingDirectoryNamedWhileAHolderIsWatchedLeavesNoStatusLine(@TempDir Path folder) throws Exception {
+        Path held = Files.createDirectories(folder.resolve("held-working"));
+        Path another = Files.createDirectories(folder.resolve("another-working"));
+        Header whileHeld;
+        Header inTheOther;
+        Process holder = ChildForTests.builder("sleep").start();
+        try {
+            holderLine(held, holder.pid());
+            ControlPanelState state = WindowForTests.aState(folder.resolve("holder-side"), SleepingJar.runtime());
+            state.useWorkingDirectoryDefault(WorkingDirectoryDefault.of(folder, Map.of("vespera.working-dir",
+                    folder.resolve("machine").resolve(".vespera").toString()), Map.of()));
+            WorkingDirectoryList.store(WorkingDirectoryList.besides(LaunchValues.fileIn(
+                    folder.resolve("holder-side").resolve("tmp"), USER)), USER, List.of(another), line -> { });
+            state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(), held.toString(),
+                    "", "", "", "", "", ""));
+            try (WindowForTests window = WindowForTests.shown(state)) {
+                window.readEverySecond();
+                ReportFixtures.write(held, holder.pid(), CENSUS_FINISHED, Instant.now(), Instant.now(), 1);
+                whileHeld = window.awaiting(TheInvocationsStatusLineTest::header,
+                        each -> each.status().startsWith("run running"));
+                chooseWorkingDirectory(window, another);
+                inTheOther = window.awaiting(TheInvocationsStatusLineTest::header,
+                        each -> !each.shown().contains("report-status") && !each.shown().contains("report-stale"));
+            }
+        } finally {
+            holder.destroyForcibly();
+        }
+
+        claim("while the foreign holder of the first working directory is watched, its status line stands in the header",
+                () -> assertThat(whileHeld.status()).startsWith("run running"));
+        claim("once another working directory, held by nobody, is named, the header shows neither the status line nor"
+                        + " the stale mark",
+                () -> assertThat(inTheOther.shown()).containsExactly("where", "child", "database-size"));
+    }
+
+    private static final String USER = System.getProperty("user.name");
+
+    /** Writes the holder line of {@code pid} into {@code working}'s lock file, held from now, as a foreign run holds it. */
+    private static void holderLine(Path working, long pid) throws java.io.IOException {
+        Instant lockStarted = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        Files.writeString(working.resolve(WorkingDirectoryWrite.LOCK_FILE_NAME), "pid=" + pid + " started="
+                + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(OffsetDateTime.ofInstant(lockStarted,
+                        java.time.ZoneOffset.UTC)) + " command=run\n", StandardCharsets.UTF_8);
+    }
+
+    /** Chooses {@code working}'s row in the list of working directories, as the operator does. */
+    @SuppressWarnings("unchecked")
+    private static void chooseWorkingDirectory(WindowForTests window, Path working) throws Exception {
+        window.act(root -> {
+            javafx.scene.control.ListView<Path> list = WindowForTests.node(root, "working-directories",
+                    javafx.scene.control.ListView.class);
+            Path row = list.getItems().stream()
+                    .filter(each -> ControlPanelState.namesTheSameFolder(each.toString(), working.toString()))
+                    .findFirst().orElseThrow(() -> new AssertionError("the list holds no row for " + working));
+            list.getSelectionModel().select(row);
+        });
     }
 
     // ---- reading the window
