@@ -153,7 +153,7 @@ class AutoLabelling {
             }
         }
         if (unrecorded > 0) {
-            return Outcome.refused("the label file holds " + unrecorded + " answer(s) not yet recorded; run"
+            return Outcome.refused("the label file holds " + unrecorded + " label(s) not yet recorded; run"
                     + " vespera label first");
         }
 
@@ -208,7 +208,7 @@ class AutoLabelling {
             } catch (RuntimeException unreachable) {
                 LOG.error("the local labeller {} did not answer", labeller.identity(), unreachable);
                 return Outcome.refused(labeller.identity() + " did not answer: " + unreachable.getMessage()
-                        + ". Answers recorded before it stopped are kept; run the same command again.");
+                        + ". Labels recorded before it stopped are kept; run the same command again.");
             }
             if (answer.isEmpty()) {
                 blank++;
@@ -235,7 +235,7 @@ class AutoLabelling {
                 .append(relevant + notRelevant)
                 .append(" of ")
                 .append(questions)
-                .append(" question(s) with ")
+                .append(" document(s) with ")
                 .append(labeller.identity())
                 .append(": ")
                 .append(relevant)
@@ -245,14 +245,14 @@ class AutoLabelling {
                 .append(blank)
                 .append(" left blank because no opening could be read or the model gave no answer; ")
                 .append(byAPerson)
-                .append(" already answered by a person and left as they are");
+                .append(" already labelled by a person and left as they are");
         message.append('\n').append(setTheFloor(fileSeedSet, embedder));
         LOG.info("{}", message);
         Map<String, Integer> counts = new java.util.LinkedHashMap<>();
         counts.put("relevant", relevant);
         counts.put("not relevant", notRelevant);
         counts.put("left blank", blank);
-        counts.put("answered by a person", byAPerson);
+        counts.put("labelled by a person", byAPerson);
         return new Outcome(false, message.toString(), counts);
     }
 

@@ -161,7 +161,7 @@ class RelevanceReportTasklet implements Tasklet {
             // The read finished and found no score: that is the gate's answer, not a statement that failed.
             readingTheScores.end();
             LOG.info("stage 5's relevance-report step is gated: no survivor carries a relevance score"
-                    + " under {}, so there is no spread to report. Nothing was put to a person.",
+                    + " under {}, so there is no spread to report. Nothing was drawn to label.",
                     scoring.value());
             ShutGates.in(chunkContext).record(StepNames.RELEVANCE_REPORT);
             return RepeatStatus.FINISHED;
@@ -195,7 +195,7 @@ class RelevanceReportTasklet implements Tasklet {
 
         LabelledSpread.Spread spread = TimedStatement.of(
                 STAGE, "reading", "read",
-                "the scores against the answers",
+                "the scores against the labels",
                 () -> relevanceDistribution.spreadOf(
                         scoring, answers, stageRuns.sampleBands(), stageRuns.sampledPerBand()));
         try {
@@ -226,7 +226,7 @@ class RelevanceReportTasklet implements Tasklet {
 
         LOG.info(
                 "Stage 5 (relevance report) finished under scoring run {}: {} scored document(s) spread"
-                        + " over {} bands, {} put to a person",
+                        + " over {} bands, {} drawn to label",
                 scoring.value(),
                 distribution.scoredDocumentCount(),
                 distribution.bands().size(),
@@ -279,8 +279,8 @@ class RelevanceReportTasklet implements Tasklet {
         }
         Map<OccurrenceId, Boolean> answers = new LinkedHashMap<>();
         List<RelevanceLabel> recorded =
-                TimedStatement.of(STAGE, "reading", "read", "the recorded answers", () -> relevanceLabels.forSeedSet(seedSet));
-        StageProgress matched = StageProgress.over("Stage 5 (relevance report, answers matched)", recorded.size());
+                TimedStatement.of(STAGE, "reading", "read", "the recorded labels", () -> relevanceLabels.forSeedSet(seedSet));
+        StageProgress matched = StageProgress.over("Stage 5 (relevance report, labels matched)", recorded.size());
         for (RelevanceLabel label : recorded) {
             ledger.occurrences().occurrenceId(walk.get(), label.path())
                     .ifPresent(occurrence -> answers.putIfAbsent(occurrence, label.relevant()));
@@ -291,8 +291,8 @@ class RelevanceReportTasklet implements Tasklet {
 
     /**
      * Which of the answers in this walk a local model set, by the model's name (ADR-197 §3). It counts
-     * each lookup under {@code Stage 5 (relevance report, model answers matched)}, over the answers a
-     * model gave for the seed set, matched to this walk or not (ADR-205).
+     * each lookup under {@code Stage 5 (relevance report, model labels matched)}, over the labels a
+     * model set for the seed set, matched to this walk or not (ADR-205).
      */
     private Map<OccurrenceId, String> modelAnswersInThisWalk(String seedSet, RunId runId) {
         Optional<WalkId> walk = ledger.runs().walkOf(runId);
@@ -301,9 +301,9 @@ class RelevanceReportTasklet implements Tasklet {
         }
         Map<OccurrenceId, String> byOccurrence = new LinkedHashMap<>();
         Map<String, String> modelAnswers =
-                TimedStatement.of(STAGE, "reading", "read", "the answers a model gave", () -> relevanceLabels.modelAnswers(seedSet));
+                TimedStatement.of(STAGE, "reading", "read", "the labels a model set", () -> relevanceLabels.modelAnswers(seedSet));
         StageProgress matched =
-                StageProgress.over("Stage 5 (relevance report, model answers matched)", modelAnswers.size());
+                StageProgress.over("Stage 5 (relevance report, model labels matched)", modelAnswers.size());
         for (Map.Entry<String, String> answer : modelAnswers.entrySet()) {
             ledger.occurrences().occurrenceId(walk.get(), new OccurrencePath(answer.getKey()))
                     .ifPresent(occurrence -> byOccurrence.put(occurrence, answer.getValue()));

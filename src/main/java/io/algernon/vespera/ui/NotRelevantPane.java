@@ -177,7 +177,7 @@ final class NotRelevantPane {
     private Optional<String> refusalOfNotRelevantFolder(String typed, List<String> listed) {
         String refused = "the folder " + typed + " is not added: ";
         if (typed.equals(".") || typed.equals("./") || typed.equals(".\\") || namesTheCorpusRoot(typed)) {
-            return Optional.of(refused + "the corpus root holds every question; name a folder below it");
+            return Optional.of(refused + "the corpus root holds every document to label; name a folder below it");
         }
         boolean belowACodeSetFolder = NotRelevantFolders.isAbsolute(typed)
                 && codeSetFoldersStated().stream().map(CodeSetFolderChecks::spelt)
