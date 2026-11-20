@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,8 +27,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * No name of ours says partition for the seed partition ADR-396 retired, and no comment does where rewording it moves
- * no run (ADR-426).
+ * No name of ours says partition for the seed partition ADR-396 retired, and no comment of the jar's code does
+ * (ADR-426, #903).
  *
  * <p>Each Java source is read as what it is made of: its comments, its string and character literals and text blocks,
  * and the code between them, whose identifiers are its names. A word is taken as the seed partition's when it holds
@@ -44,10 +43,8 @@ import org.junit.jupiter.api.Test;
  *   <li>the tests' code: no identifier under {@code src/test/java} says it, but a constant of {@link Adr}, which names
  *       a record by the title it keeps, and a name that also says {@value #RETIRE}, which names the retirement as
  *       ADR-396 §10 allows; a test's literals and comments are not read, since a test may say what is no longer there;
- *   <li>the jar's comments: no comment of a class in a module no stage's version names says it, a module being the
- *       folder below {@code engine} or {@code publish} and the classes outside both lying in none. The modules
- *       {@link StageModules} names are not read: a comment there is reworded only in a change that re-mints the
- *       module for its own reasons (ADR-216 §1 and §7), and ADR-426 lists what is owed there.
+ *   <li>the jar's comments: no comment of any class under {@code src/main/java} says it, in a module a stage's
+ *       version names as in any other, and outside every module (ADR-426 §4, #903).
  * </ul>
  */
 @Epic("Architecture")
@@ -69,9 +66,6 @@ class TheSeedPartitionIsRetiredFromEveryNameTest {
 
     /** The uses of the word that name no seed partition: the MXF header partition's key and its comment. */
     private static final List<String> OTHER_USES_OF_THE_WORD = List.of("MXF_HEADER_PARTITION_KEY", "MXF header partition");
-
-    /** The two folders a module of the jar lies one folder below (ADR-367). */
-    private static final Set<String> MODULE_PARENTS = Set.of("engine", "publish");
 
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_$][A-Za-z0-9_$]*");
 
@@ -117,30 +111,21 @@ class TheSeedPartitionIsRetiredFromEveryNameTest {
     }
 
     @Test
-    @Story("The jar's comments say topic where rewording them moves no run")
-    @DisplayName("No comment of Vespera's code uses the word partition, in every part of it whose change re-runs no stage")
-    void noCommentOfAModuleNoStageNamesSaysTheRetiredWord() {
-        Set<String> namedByAStage = Arrays.stream(StageModules.values())
-                .flatMap(stage -> stage.modules().stream())
-                .collect(Collectors.toSet());
+    @Issue("903")
+    @Story("The jar's comments say topic where they said partition")
+    @DisplayName("No comment of Vespera's code uses the word partition, in any module or outside them")
+    void noCommentOfTheJarsCodeSaysTheRetiredWord() {
         List<String> found = new ArrayList<>();
-        int read = 0;
         for (Path file : javaFilesUnder(THE_JARS_CODE)) {
-            if (moduleOf(file).filter(namedByAStage::contains).isPresent()) {
-                continue;
-            }
-            read++;
             Source.of(file).comments().stream().filter(TheSeedPartitionIsRetiredFromEveryNameTest::saysIt)
                     .forEach(piece -> found.add(piece.where(file) + " says " + piece.text().strip()));
         }
-        int classesRead = read;
 
-        claim("the modules a stage's version names are left out, and every other class is read: there are such classes",
-                () -> assertThat(classesRead).as("how many classes outside the stages' modules were read").isPositive());
-        claim("no comment of a class in a module no stage's version names, nor of one outside every module, says"
-                        + " partition",
+        claim("no comment of any class of the jar's code, in any module or outside them, says partition, the"
+                        + " comment on the MXF header partition's key aside, which is a file format's word and names"
+                        + " nothing of ours",
                 () -> assertThat(found)
-                        .as("the comment lines that say partition, outside the modules %s", namedByAStage)
+                        .as("the comment lines of src/main/java that say partition")
                         .isEmpty());
     }
 
@@ -150,15 +135,6 @@ class TheSeedPartitionIsRetiredFromEveryNameTest {
             text = text.replace(other, "");
         }
         return text.toLowerCase(Locale.ROOT).contains(THE_RETIRED_WORD);
-    }
-
-    /** The module a class of the jar lies in: the folder below {@code engine} or {@code publish}, or none. */
-    private static Optional<String> moduleOf(Path file) {
-        Path relative = THE_JARS_CODE.relativize(file);
-        if (relative.getNameCount() > 2 && MODULE_PARENTS.contains(relative.getName(0).toString())) {
-            return Optional.of(relative.getName(1).toString());
-        }
-        return Optional.empty();
     }
 
     private static List<Path> javaFilesUnder(Path root) {

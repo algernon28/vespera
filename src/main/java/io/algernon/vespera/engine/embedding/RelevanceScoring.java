@@ -117,7 +117,7 @@ public class RelevanceScoring {
      *
      * <p>Handed out rather than read where it is used, because the terminal stages may not name this
      * module (ADR-110): the score decides which document leads a cluster (ADR-106), how clusters
-     * within a partition compare (ADR-112) and the order exemplars are sent in (ADR-108), and all
+     * within a topic compare (ADR-112) and the order exemplars are sent in (ADR-108), and all
      * three happen where the passes are assembled.
      *
      * <p>An occurrence with no score row is absent from the result rather than present with a zero. A

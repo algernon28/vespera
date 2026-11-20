@@ -43,7 +43,7 @@ public class ClusterGeneration {
 
     /**
      * Writes every cluster of {@code clusters}, in the order given, under the run {@code generation}; {@code
-     * clusterCount} is how many there are, since an {@code Iterable} that reads a partition at a time cannot
+     * clusterCount} is how many there are, since an {@code Iterable} that reads a topic at a time cannot
      * say (ADR-223 section 5). Whether a cluster is already written (ADR-115, ADR-116) is asked by its key as
      * the walk comes to it. Writes rows in the caller's transaction. A {@link RuntimeException} other than
      * {@link ClusterFaultException}, from {@code docFor}, from {@code exemplars} or from a write, leaves this

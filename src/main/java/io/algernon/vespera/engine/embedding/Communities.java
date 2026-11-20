@@ -7,13 +7,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Modularity communities over a partition's neighbour graph (ADR-087), written here rather than
+ * Modularity communities over a topic's or a subtopic's neighbour graph (ADR-087), written here rather than
  * imported — this repository already implements its chunker, its MinHash and its union-find in plain
  * Java, and ADR-046 says the pom carries what a decision requires.
  *
  * <p><b>The cluster count is never supplied; it falls out.</b> That is the only property that lets a
- * partition of eleven documents and one of eleven thousand share a code path: any method taking a
- * count would need that number chosen per partition, by something that has never seen the corpus.
+ * topic of eleven documents and one of eleven thousand share a code path: any method taking a
+ * count would need that number chosen per topic, by something that has never seen the corpus.
  *
  * <p><b>Louvain, in its two usual phases.</b> Each document starts alone; documents move one at a
  * time into whichever neighbouring community most improves modularity, and when nothing moves the

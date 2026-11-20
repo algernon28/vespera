@@ -4,13 +4,13 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * How alike the documents on a partition's kept edges actually were — the lowest, the middle and the
- * highest (ADR-096).
+ * How alike the documents on a topic's or a subtopic's kept edges actually were — the lowest, the
+ * middle and the highest (ADR-096).
  *
- * <p>It exists because the size report cannot see this. A partition of forty documents that resemble
- * each other and a partition of forty that share nothing produce the same rows and the same tidy
+ * <p>It exists because the size report cannot see this. A topic of forty documents that resemble
+ * each other and a topic of forty that share nothing produce the same rows and the same tidy
  * table of sizes: k retains a document's fifteen nearest however far away they are, and ADR-087 sets
- * no edge similarity floor on purpose, so both partitions come back clustered. Edges sitting at 0.95
+ * no edge similarity floor on purpose, so both topics come back clustered. Edges sitting at 0.95
  * say the documents were clustered by resemblance. Edges sitting at 0.02 say they were clustered by k.
  *
  * <p><b>An observation, not a threshold.</b> Nothing reads these numbers, nothing gates on them, and
@@ -28,7 +28,7 @@ public record RetainedEdgeSpread(double lowest, double middle, double highest, i
     /**
      * The spread over {@code graph}, or empty where the graph kept no edge at all.
      *
-     * <p>Empty is a partition of one: k floors to zero neighbours, so there is nothing to be alike.
+     * <p>Empty is a topic or subtopic of one: k floors to zero neighbours, so there is nothing to be alike.
      * Reported as absent rather than as zeros, because a lowest of 0.0 reads as documents that
      * resemble nothing when the truth is that there is no pair to resemble anything.
      *
@@ -37,7 +37,7 @@ public record RetainedEdgeSpread(double lowest, double middle, double highest, i
      * in the middle value, and ADR-096 asks for the similarities on the edges the graph kept rather
      * than for the entries in its lists. The second sighting is dropped by scanning the lower-indexed
      * endpoint's own list, which costs k comparisons and no memory — the alternative, a set of every
-     * pair seen, is a per-partition allocation that ADR-085's contract would have to price.
+     * pair seen, is a per-topic allocation that ADR-085's contract would have to price.
      */
     static Optional<RetainedEdgeSpread> over(NearestNeighbourGraph.Graph graph) {
         double[] similarities = new double[totalEntries(graph)];
