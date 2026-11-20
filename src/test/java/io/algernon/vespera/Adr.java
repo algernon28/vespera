@@ -3193,6 +3193,20 @@ public final class Adr {
     public static final String EACH_STEP_HAS_A_CHART_BENEATH_ITS_LEG_AND_THE_COCKPIT_HOLDS_NO_TABS = FILE
             + "0432-each-step-has-a-chart-beneath-its-legs-bars-the-output-spans-the-column-above-the-legs-and-the-cockpit-holds-no-tabs.md";
 
+    /**
+     * ADR-436 -- nothing uses a working directory nothing names: the shipped {@code application.yaml} reads
+     * {@code ${db-dir:}}, a start of the command line naming none is refused in one line before the log is set up and
+     * {@code vespera serve} in its own, {@code --help} and {@code --version} being handed over before Spring; the window
+     * reads the working directory as the jar does, the files beside the jar among its sources, and gives each child the
+     * row chosen as a system property too; its first row is the sources' folder only where one names a folder, a list of
+     * no row points to Browse, the ending panel says no working directory is chosen with Choose a folder…, the starts are
+     * refused while none is, Browse writes the list file at once, and a {@code .vespera} holding a ledger is listed once
+     * (amends ADR-340 §6, ADR-393 §4, ADR-345 §1, ADR-331 §6, ADR-417 §2 to §4, ADR-054, ADR-333 §8, ADR-341 §4, ADR-292
+     * §1 and ADR-397 §10).
+     */
+    public static final String NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES = FILE
+            + "0436-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md";
+
     private Adr() {
     }
 }

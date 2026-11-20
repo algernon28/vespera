@@ -10,6 +10,8 @@
 
 > **Partly amended — see [ADR-393](0393-a-working-directory-is-named-for-its-corpus-root-and-day-chosen-from-a-list-and-publish-takes-what-the-last-run-reached.md).** Of §6's *"the last generation run whose generation step is recorded finished"*: each destination's rendering is that of the generation run the working directory's last `vespera run` arrived at, as `arrivedAt` names it in that invocation's copy in `logs`; a last run that arrived at none, or at one whose step is not finished, is refused with `vespera publish sent nothing to <name>: the last vespera run did not reach the deliverable. Run vespera run to the deliverable, and publish again.`; and the last minted is taken only where no copy of a `vespera run`'s report is kept. §11's check of `drawing.txt` stands. The rest of this record stands.
 
+> **Partly amended — see [ADR-436](0436-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md).** Of §8's *"else `.vespera` under `user.dir`"*: `vespera serve` naming no working directory is refused, exit 1, in a line of its own, before its other refusals. The rest of this record stands.
+
 - **Date**: 2026-11-02
 - **Status**: accepted on 2026-11-02.
 - **Decided**: by the operator on 2026-11-02: the ruling in bold at the head of each of §1 to §12, the order of §13 and the refusals under Alternatives refused marked as theirs. What a section adds beneath its ruling is what building it needs, and Decided here lists each such choice.

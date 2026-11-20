@@ -135,6 +135,36 @@ final class WorkingDirectoryList {
         }
     }
 
+    /**
+     * Writes the empty file {@code marker} in its folder, made as {@link #store} makes it, where the folder is the
+     * user's own (ADR-436 §7). Never throws; true where the file is there.
+     */
+    static boolean markLooked(Path marker, String userName) {
+        Path folder = marker.toAbsolutePath().getParent();
+        try {
+            if (LaunchValues.refusalOfFolder(folder, userName).isPresent()) {
+                return false;
+            }
+            if (Files.notExists(folder)) {
+                if (POSIX) {
+                    Files.createDirectories(folder, PosixFilePermissions.asFileAttribute(
+                            PosixFilePermissions.fromString("rwx------")));
+                } else {
+                    Files.createDirectories(folder);
+                }
+                if (LaunchValues.refusalOfFolder(folder, userName).isPresent()) {
+                    return false;
+                }
+            }
+            if (Files.notExists(marker)) {
+                Files.createFile(marker);
+            }
+            return true;
+        } catch (IOException | RuntimeException cannotBeWritten) {
+            return false;
+        }
+    }
+
     private static String reason(Exception e) {
         return e.getMessage() == null ? e.getClass().getSimpleName()
                 : e.getClass().getSimpleName() + ": " + e.getMessage();

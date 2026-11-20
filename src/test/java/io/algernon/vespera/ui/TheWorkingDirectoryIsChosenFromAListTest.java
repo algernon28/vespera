@@ -78,7 +78,7 @@ class TheWorkingDirectoryIsChosenFromAListTest {
         Path listed = Files.createDirectories(folder.resolve("work").resolve("Letters_20261114"));
         WorkingDirectoryList.store(WorkingDirectoryList.besides(launchValuesFileOf(folder)), USER, List.of(listed),
                 line -> { });
-        Path machine = Path.of(state.workingDirectoryDefault().folder());
+        Path machine = Path.of(state.workingDirectoryDefault().orElseThrow().folder());
 
         List<Path> rows;
         Path chosen;
