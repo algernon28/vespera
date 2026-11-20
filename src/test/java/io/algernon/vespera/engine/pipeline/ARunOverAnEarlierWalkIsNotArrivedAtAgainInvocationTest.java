@@ -92,13 +92,16 @@ class ARunOverAnEarlierWalkIsNotArrivedAtAgainInvocationTest {
 
     /**
      * Which stages' runs hold rows in each table keyed by a run, as the first invocation of this fixture
-     * leaves them: eighteen of the thirty-eight (ADR-409 section 11). The other twenty hold no row in this fixture:
+     * leaves them, of every table keyed by a run (ADR-409 section 11, as ADR-429 and ADR-430 add to it, the second's
+     * {@code run_release} naming the release that minted or continued each run reached). The others hold no row in this
+     * fixture:
      * the six of generation, which is not reached, and those a corpus of two texts that share every shingle, one
      * usable seed, one topic of too few documents to divide and no answer recorded gives nothing to write to, {@code
      * verdict}, {@code see_also}, {@code seed_feeding_no_topic} and {@code subtopic_name} among them.
      */
     private static final Map<String, List<String>> THE_STAGES_WHOSE_RUNS_HOLD_ROWS = new TreeMap<>(Map.ofEntries(
             Map.entry("finished_step", THE_STAGES_REACHED),
+            Map.entry("run_release", THE_STAGES_REACHED),
             Map.entry("run_upstream", THE_STAGES_REACHED.subList(1, THE_STAGES_REACHED.size())),
             Map.entry("content_hash", List.of("byte-level-reduction")),
             Map.entry("detected_format", List.of("byte-level-reduction")),

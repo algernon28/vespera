@@ -3145,6 +3145,29 @@ public final class Adr {
     public static final String THE_PRESETS_WITH_NO_PROFILE_KEY_ARE_SHOWN_READ_ONLY_IN_COMMAND_OPTIONS = FILE
             + "0428-the-presets-with-no-profile-key-are-shown-read-only-in-command-options-a-list-for-each-run-they-enter.md";
 
+    /**
+     * ADR-429 -- {@code profile.yaml}'s {@code topics} lists the topics by name, one a line; unset, they are inferred as
+     * before; a name's identity is the name made plain, a blank or duplicate entry refusing {@code vespera run} at its
+     * start; each name is embedded alone and a survivor placed by ADR-400's rule with the name's vector as the
+     * centroid; every listed topic stands, in the list's order, under its name as listed; a sidebar section Topics
+     * edits the list; the list enters the embedding-scoring run's identity (amends ADR-344, ADR-396, ADR-399, ADR-400,
+     * ADR-401, ADR-402, ADR-407, ADR-409, ADR-413, ADR-415 and ADR-416).
+     */
+    public static final String THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME = FILE
+            + "0429-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md";
+
+    /**
+     * ADR-430 -- Vespera's release version is SemVer from a pushed {@code vMAJOR.MINOR.PATCH} tag, the pom's version
+     * {@code ${revision}} at a default of {@code 0-SNAPSHOT}; it enters no run id, configuration consumed,
+     * implementation version or cache key; {@code ledger.ReleaseVersion} reads the jar's manifest, {@code unknown}
+     * where none names one; it shows in {@code --version}, the control panel's title, {@code report.json}, the
+     * marker's third line and the foot of each tree's top page; a workflow on the tag builds from a full clone and
+     * publishes a GitHub release, refusing another shape of tag, a SNAPSHOT, a commit not on {@code main} and an
+     * {@code unknown} implementation version (amends ADR-362 §3 and ADR-276 §3).
+     */
+    public static final String THE_RELEASE_VERSION_IS_THE_TAGS_AND_ENTERS_NO_RUN_ID = FILE
+            + "0430-the-release-version-is-the-v-tags-semver-0-snapshot-in-any-other-build-and-enters-no-run-id.md";
+
     private Adr() {
     }
 }
