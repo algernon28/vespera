@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-402", url = Adr.A_TOPICS_OVERVIEW_CITES_ITS_WRITTEN_CLUSTERS, type = "adr")
 class TopicOverviewWordingTest {
 
-    /** Each case's English sentence, as ADR-402 §5 gives it. */
+    /** Each case's English sentence, as ADR-402 §5 gives it, and ADR-429 §8 for a topic no document is placed under. */
     private static final Map<OverviewUnwritten, String> ENGLISH_ON_RECORD = Map.of(
             OverviewUnwritten.FAULT_CITATION_NOT_IN_RANGE,
             "No overview was written for this topic: each time it was asked, the writing model's answer left a sentence"
@@ -48,9 +48,11 @@ class TopicOverviewWordingTest {
             "No overview was written for this topic: nothing was written over any of its groups.",
             OverviewUnwritten.NOT_REACHED,
             "No overview has been written for this topic yet: writing stopped before it reached this topic. Running the"
-                    + " same command again carries the writing on.");
+                    + " same command again carries the writing on.",
+            OverviewUnwritten.NO_DOCUMENT_PLACED,
+            "No overview was written for this topic: no document was placed under it.");
 
-    /** Each case's Italian sentence, as ADR-402 §5 gives it. */
+    /** Each case's Italian sentence, as ADR-402 §5 gives it, and ADR-429 §8 for a topic no document is placed under. */
     private static final Map<OverviewUnwritten, String> ITALIAN_ON_RECORD = Map.of(
             OverviewUnwritten.FAULT_CITATION_NOT_IN_RANGE,
             "Per questo argomento non è stata scritta alcuna panoramica: ogni volta che è stata chiesta, la risposta del"
@@ -70,7 +72,10 @@ class TopicOverviewWordingTest {
                     + " nulla.",
             OverviewUnwritten.NOT_REACHED,
             "Per questo argomento non è ancora stata scritta una panoramica: la scrittura si è fermata prima di arrivare"
-                    + " a questo argomento. Eseguire di nuovo lo stesso comando fa proseguire la scrittura.");
+                    + " a questo argomento. Eseguire di nuovo lo stesso comando fa proseguire la scrittura.",
+            OverviewUnwritten.NO_DOCUMENT_PLACED,
+            "Per questo argomento non è stata scritta alcuna panoramica: nessun documento è stato collocato sotto di"
+                    + " esso.");
 
     private static final String DISCLOSURE_IN_ENGLISH = "Written from what was written on %d of the %d groups in this"
             + " topic.";
@@ -85,10 +90,12 @@ class TopicOverviewWordingTest {
     @Test
     @Story("A topic's page with no overview says why, in words a reader of the tree can follow")
     @DisplayName("The code gives each case, and the line beneath a partial overview, exactly the record's words")
+    @Issue("898")
+    @Link(name = "ADR-429", url = Adr.THE_PROFILE_MAY_LIST_THE_TOPICS_BY_NAME, type = "adr")
     void theCodeSaysWhatTheRecordSays() {
         claim(
-                "every case has the record's English and Italian sentence, word for word, and the cases are the"
-                        + " record's six",
+                "every case has the records' English and Italian sentence, word for word, and the cases are the"
+                        + " records' seven, a topic no document is placed under among them",
                 () -> {
                     assertThat(OverviewUnwritten.values()).containsExactlyInAnyOrderElementsOf(ENGLISH_ON_RECORD.keySet());
                     assertThat(OverviewUnwritten.values()).allSatisfy(why -> {

@@ -1,5 +1,7 @@
 # ADR-413 — Save my labels and Auto Label are a Labels section of the sidebar, and the window calls no label an answer
 
+> **Partly amended — see [ADR-429](0429-the-profile-may-list-the-topics-by-name-a-survivor-going-to-the-name-its-chunks-are-nearest-and-none-listed-infers-them.md).** Of §1: the sidebar is ten sections, `topics`, titled Topics, standing after `seed-folder` and before `labels`. The rest of this record stands.
+
 - **Date**: 2026-11-17
 - **Status**: accepted on 2026-11-17.
 - **Decided**: by the operator, on [#857](https://github.com/algernon28/vespera/issues/857): that the button starting `vespera label` is named **Save my labels** and the one starting `vespera label --auto` **Auto Label** (§2); that the two, each with its caption, leave the action card for the sidebar, with the other sections of configuration (§1); that every other text of the window saying *answers*, *Record my answers* or *Let the local model answer* is worded in terms of labels, Save my labels' caption saying that it reads `relevance-labels.yaml` in the working directory (§3); and that the two start the commands they start, no label file passed (§2). Under the operator's delegation: that the two are a section of their own, titled Labels, after Seed folder (§1); the words of each text reworded, and which texts the rule reaches (§3); that the ids stay (§4); and the tests.
