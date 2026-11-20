@@ -212,7 +212,7 @@ public record LaunchValues(String corpusRoot, String workingDirectory, String de
 
     public List<String> warningsToRun() {
         return doclingImage.isEmpty()
-                ? List.of("no Docling image is named, so the jar expects the sidecar to run its own default image,"
+                ? List.of("no Docling image is named, so the jar expects Docling to run its own default image,"
                         + " and stops before converting anything where it runs another")
                 : List.of();
     }

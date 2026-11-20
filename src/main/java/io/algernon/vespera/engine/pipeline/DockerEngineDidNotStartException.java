@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.util.List;
 
 /** The Docker engine was not running and either no command started it or it did not answer in time (ADR-323 §5, §8). */
-final class DockerEngineDidNotStartException extends SidecarStartRefusedException {
+final class DockerEngineDidNotStartException extends ContainerStartRefusedException {
 
     private DockerEngineDidNotStartException(String line) {
         super(line);

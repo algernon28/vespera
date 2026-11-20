@@ -23,6 +23,6 @@ public class AnotherVesperaRunsException extends RuntimeException {
         super("another Vespera is running on this machine ("
                 + (holder == null || holder.isBlank() ? HOLDER_UNREADABLE : holder.strip())
                 + "); wait for it to end, or stop it or close its control panel, then " + kind.then() + ". One Vespera"
-                + " runs on a machine at a time, so that none stops the sidecars another is using.");
+                + " runs on a machine at a time, so that none stops the containers another is using.");
     }
 }

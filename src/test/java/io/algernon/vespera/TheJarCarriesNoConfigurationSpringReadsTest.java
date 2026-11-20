@@ -41,7 +41,7 @@ class TheJarCarriesNoConfigurationSpringReadsTest {
     private static final List<String> PLACES_SPRING_READS = List.of("", "config/");
 
     /** The folder the jar carried the compose files in before they moved beside it. */
-    private static final String THE_OLD_FOLDER = "sidecars";
+    private static final String THE_OLD_FOLDER = "containers";
 
     /** The file beside the jar that has no shipped copy, being the operator's alone. */
     private static final String THE_LOCAL_FILE = "application-local.yaml";

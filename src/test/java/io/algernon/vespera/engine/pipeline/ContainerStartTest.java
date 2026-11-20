@@ -28,12 +28,12 @@ import org.junit.jupiter.api.io.TempDir;
 import org.yaml.snakeyaml.Yaml;
 
 /**
- * What Vespera runs to bring its two sidecars up when they are not answering, and what it refuses with when it cannot
+ * What Vespera runs to bring its two containers up when they are not answering, and what it refuses with when it cannot
  * (ADR-323 §2 to §6 and §8, ADR-326), each system starting Docker Engine with its one command (ADR-390 §1, §2); and
  * the start of the engine alone (ADR-390 §4), where at least one container is on this machine (ADR-430 §10).
  *
  * <p>No Docker is needed: the starter is given a {@link ScriptedDocker}, which records every command and answers each
- * from a script, and a {@link ScriptedSidecarHealth}. The compose files are the repository's own, read where the tests
+ * from a script, and a {@link ScriptedContainerHealth}. The compose files are the repository's own, read where the tests
  * run, so the images a configuration is compared with are the ones the files build. What Docker itself does with the
  * commands is ADR-323's probes, not something a unit test can show.
  *
@@ -41,11 +41,11 @@ import org.yaml.snakeyaml.Yaml;
  * removal among them, fails the claim that lists what it ran.
  */
 @Epic("Pipeline")
-@Feature("The sidecars")
+@Feature("The containers")
 @Issue("652")
 @Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
 @Link(name = "ADR-390", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
-class SidecarStartTest {
+class ContainerStartTest {
 
     /** The repository root, which is where Maven runs the tests from and where the compose files lie. */
     private static final Path REPOSITORY = Path.of("").toAbsolutePath();
@@ -67,7 +67,7 @@ class SidecarStartTest {
     /** An image neither compose file builds. */
     private static final String IMAGE_NO_FILE_BUILDS = "vespera/docling-serve-somebody-elses:v0";
 
-    /** How long these tests wait for the engine or a sidecar to answer: one second, so a wait that runs out is quick. */
+    /** How long these tests wait for the engine or a container to answer: one second, so a wait that runs out is quick. */
     private static final Duration WAIT_AT_MOST = Duration.ofSeconds(1);
 
     /** How often they ask meanwhile. */
@@ -86,7 +86,7 @@ class SidecarStartTest {
     /** How long the engine check may run before it is killed (ADR-323 §5). */
     private static final Duration ENGINE_CHECK_LIMIT = Duration.ofSeconds(30);
 
-    /** How long a test holds the sidecar lock: longer than {@link #WAIT_AT_MOST}, so a bounded wait would have ended. */
+    /** How long a test holds the container lock: longer than {@link #WAIT_AT_MOST}, so a bounded wait would have ended. */
     private static final Duration HELD_FOR = Duration.ofMillis(1500);
 
     /** The Docling image each compose file builds, read from the files as they stand. */
@@ -104,17 +104,17 @@ class SidecarStartTest {
     }
 
     @Test
-    @Story("Vespera starts the sidecars only where they are not answering")
-    @DisplayName("When both sidecars answer, nothing is run: Docker is not asked anything")
+    @Story("Vespera starts the containers only where they are not answering")
+    @DisplayName("When both containers answer, nothing is run: Docker is not asked anything")
     void bothAnsweringRunsNothing() {
         ScriptedDocker docker = ScriptedDocker.engineRunning();
 
-        SidecarStarter.Outcome outcome =
-                starter(settings(cpuImage), docker, ScriptedSidecarHealth.bothAnswering(), HostSystem.LINUX)
+        ContainerStarter.Outcome outcome =
+                starter(settings(cpuImage), docker, ScriptedContainerHealth.bothAnswering(), HostSystem.LINUX)
                         .ensureRunning();
 
-        claim("the starter says the sidecars already answer", () -> assertThat(outcome)
-                .isEqualTo(SidecarStarter.Outcome.ALREADY_ANSWERING));
+        claim("the starter says the containers already answer", () -> assertThat(outcome)
+                .isEqualTo(ContainerStarter.Outcome.ALREADY_ANSWERING));
         claim("and it ran no command at all", () -> assertThat(docker.commands()).isEmpty());
     }
 
@@ -125,14 +125,14 @@ class SidecarStartTest {
         ScriptedDocker docker = ScriptedDocker.engineRunning();
 
         Throwable refused = catchThrowable(() ->
-                starter(settings(IMAGE_NO_FILE_BUILDS), docker, ScriptedSidecarHealth.neitherAnswering(), HostSystem.LINUX)
+                starter(settings(IMAGE_NO_FILE_BUILDS), docker, ScriptedContainerHealth.neitherAnswering(), HostSystem.LINUX)
                         .ensureRunning());
 
         claim("the start is refused, naming the image configured and the image each file builds",
                 () -> assertThat(refused)
                         .isInstanceOf(NoComposeFileBuildsTheImageException.class)
-                        .isInstanceOf(SidecarStartRefusedException.class)
-                        .hasMessage("the sidecars are not answering and Vespera cannot start them for"
+                        .isInstanceOf(ContainerStartRefusedException.class)
+                        .hasMessage("the containers are not answering and Vespera cannot start them for"
                                 + " vespera.docling.image " + IMAGE_NO_FILE_BUILDS + ": compose.yaml builds " + cpuImage
                                 + " and compose.gpu.yaml builds " + gpuImage + ". Set VESPERA_DOCLING_IMAGE to one of"
                                 + " the two, or unset it for the first, and run the same command again."));
@@ -140,7 +140,7 @@ class SidecarStartTest {
     }
 
     @Test
-    @Story("Vespera never recreates, stops or removes a sidecar")
+    @Story("Vespera never recreates, stops or removes a container")
     @DisplayName("With the engine down, each system runs exactly the engine check, its one start, the wait's checks, the checks for compose and buildx and an up that builds and recreates nothing")
     @Issue("816")
     @Link(name = "ADR-410", url = Adr.A_MISSING_DOCKER_COMPOSE_OR_BUILDX_IS_NAMED_BEFORE_UP, type = "adr")
@@ -164,15 +164,15 @@ class SidecarStartTest {
             HostSystem host = system.getKey();
             List<List<String>> starts = List.of(SYSTEMCTL_START, COLIMA_START,
                     concat(IN_WSL, List.of("systemctl", "start", "docker")));
-            ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
+            ScriptedContainerHealth health = ScriptedContainerHealth.neitherAnswering();
             ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
                     .whenUpSucceeds(() -> health.answering(true, true));
             starts.forEach(start -> docker.answering(start, 0, ""));
 
-            SidecarStarter.Outcome outcome = starter(settings(cpuImage), docker, health, host).ensureRunning();
+            ContainerStarter.Outcome outcome = starter(settings(cpuImage), docker, health, host).ensureRunning();
 
-            claim("on " + host + ", the sidecars were started", () -> assertThat(outcome)
-                    .isEqualTo(SidecarStarter.Outcome.STARTED));
+            claim("on " + host + ", the containers were started", () -> assertThat(outcome)
+                    .isEqualTo(ContainerStarter.Outcome.STARTED));
             claim("and the commands run were, in order and whole, the engine check, the system's one start, the "
                             + ENGINE_CHECKS_FAILED + " checks of the wait for the engine, the last answering, the check"
                             + " for compose and the check for buildx, and an up with --build and --no-recreate; none of"
@@ -193,57 +193,57 @@ class SidecarStartTest {
     @Issue("889")
     @Link(name = "ADR-410", url = Adr.A_MISSING_DOCKER_COMPOSE_OR_BUILDX_IS_NAMED_BEFORE_UP, type = "adr")
     @Link(name = "ADR-430", url = Adr.THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER, type = "adr")
-    void theControlPanelsStartStartsTheEngineAloneAndAsksNoSidecar() {
-        ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
+    void theControlPanelsStartStartsTheEngineAloneAndAsksNoContainer() {
+        ScriptedContainerHealth health = ScriptedContainerHealth.neitherAnswering();
         ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
                 .answering(SYSTEMCTL_START, 0, "");
 
-        SidecarStarter.Outcome outcome = starter(settings(cpuImage), docker, health, HostSystem.LINUX)
+        ContainerStarter.Outcome outcome = starter(settings(cpuImage), docker, health, HostSystem.LINUX)
                 .ensureTheEngineRuns();
 
-        claim("the engine was started", () -> assertThat(outcome).isEqualTo(SidecarStarter.Outcome.ENGINE_STARTED));
+        claim("the engine was started", () -> assertThat(outcome).isEqualTo(ContainerStarter.Outcome.ENGINE_STARTED));
         claim("and the commands were the engine check, the service's start, the " + ENGINE_CHECKS_FAILED
                         + " checks of the wait, the check for compose and the check for buildx, and no up",
                 () -> assertThat(docker.commands()).containsExactly(ScriptedDocker.ENGINE_CHECK, SYSTEMCTL_START,
                         ScriptedDocker.ENGINE_CHECK, ScriptedDocker.ENGINE_CHECK,
                         ScriptedDocker.COMPOSE_CHECK, ScriptedDocker.BUILDX_CHECK));
-        claim("and no sidecar was asked anything", () -> assertThat(health.questionsAsked()).isZero());
+        claim("and no container was asked anything", () -> assertThat(health.questionsAsked()).isZero());
 
         ScriptedDocker forOllamaAlone = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
                 .answering(SYSTEMCTL_START, 0, "");
-        SidecarStarter.Outcome ollamaAlone = starterOnAMachineOfItsOwn(
-                new SidecarStartSettings(DOCLING_ELSEWHERE, OLLAMA_HERE, cpuImage, WAIT_AT_MOST), forOllamaAlone,
+        ContainerStarter.Outcome ollamaAlone = starterOnAMachineOfItsOwn(
+                new ContainerStartSettings(DOCLING_ELSEWHERE, OLLAMA_HERE, cpuImage, WAIT_AT_MOST), forOllamaAlone,
                 health).ensureTheEngineRuns();
         claim("with docling-serve at " + DOCLING_ELSEWHERE + ", on another machine, and Ollama at " + OLLAMA_HERE
                         + ", on this one, the engine was started for Ollama, with the same commands (ADR-430 §10)",
                 () -> assertThat(List.of(ollamaAlone, forOllamaAlone.commands())).containsExactly(
-                        SidecarStarter.Outcome.ENGINE_STARTED,
+                        ContainerStarter.Outcome.ENGINE_STARTED,
                         List.of(ScriptedDocker.ENGINE_CHECK, SYSTEMCTL_START, ScriptedDocker.ENGINE_CHECK,
                                 ScriptedDocker.ENGINE_CHECK, ScriptedDocker.COMPOSE_CHECK,
                                 ScriptedDocker.BUILDX_CHECK)));
 
         ScriptedDocker elsewhere = ScriptedDocker.engineAnsweringAfter(ScriptedDocker.NEVER);
-        SidecarStarter.Outcome onAnother = starterOnAMachineOfItsOwn(
-                new SidecarStartSettings(DOCLING_ELSEWHERE, OLLAMA_ELSEWHERE, cpuImage, WAIT_AT_MOST), elsewhere,
+        ContainerStarter.Outcome onAnother = starterOnAMachineOfItsOwn(
+                new ContainerStartSettings(DOCLING_ELSEWHERE, OLLAMA_ELSEWHERE, cpuImage, WAIT_AT_MOST), elsewhere,
                 health).ensureTheEngineRuns();
         claim("with docling-serve at " + DOCLING_ELSEWHERE + " and Ollama at " + OLLAMA_ELSEWHERE + ", both on another"
                         + " machine, it says so and runs nothing",
                 () -> assertThat(List.of(onAnother, elsewhere.commands()))
-                        .containsExactly(SidecarStarter.Outcome.ON_ANOTHER_MACHINE, List.of()));
+                        .containsExactly(ContainerStarter.Outcome.ON_ANOTHER_MACHINE, List.of()));
         claim("and no container was asked anything, here or there", () -> assertThat(health.questionsAsked()).isZero());
     }
 
     @Test
-    @Story("Two invocations do not start the sidecars twice")
-    @DisplayName("A start that finds the sidecar lock held waits for it, without a bound of its own, and asks the sidecars again once it has it")
+    @Story("Two invocations do not start the containers twice")
+    @DisplayName("A start that finds the container lock held waits for it, without a bound of its own, and asks the containers again once it has it")
     void aStartWaitsForTheLockAnotherHolds() throws Exception {
-        ScriptedSidecarHealth health = ScriptedSidecarHealth.neitherAnswering();
+        ScriptedContainerHealth health = ScriptedContainerHealth.neitherAnswering();
         ScriptedDocker docker = ScriptedDocker.engineRunning();
-        SidecarStarter starter = starter(settings(cpuImage), docker, health, HostSystem.LINUX);
+        ContainerStarter starter = starter(settings(cpuImage), docker, health, HostSystem.LINUX);
         java.nio.file.Files.createDirectories(lockFolder);
-        java.util.concurrent.CompletableFuture<SidecarStarter.Outcome> started;
+        java.util.concurrent.CompletableFuture<ContainerStarter.Outcome> started;
         try (java.nio.channels.FileChannel held = java.nio.channels.FileChannel.open(
-                        lockFolder.resolve("sidecars.lock"),
+                        lockFolder.resolve("containers.lock"),
                         java.nio.file.StandardOpenOption.CREATE,
                         java.nio.file.StandardOpenOption.WRITE);
                 java.nio.channels.FileLock ignored = held.lock(Long.MAX_VALUE - 1, 1, false)) {
@@ -257,16 +257,16 @@ class SidecarStartTest {
             health.answering(true, true);
         }
 
-        claim("once the holder let go, the start asked the sidecars again, found them answering, and ran nothing",
+        claim("once the holder let go, the start asked the containers again, found them answering, and ran nothing",
                 () -> assertThat(started.get(WAIT_AT_MOST.multipliedBy(5).toMillis(),
                                 java.util.concurrent.TimeUnit.MILLISECONDS))
-                        .isEqualTo(SidecarStarter.Outcome.ALREADY_ANSWERING));
+                        .isEqualTo(ContainerStarter.Outcome.ALREADY_ANSWERING));
         claim("no command was run at any point", () -> assertThat(docker.commands()).isEmpty());
     }
 
     @Test
-    @Story("Vespera starts the sidecars only where they are not answering")
-    @DisplayName("With no program to ask the engine, docker or wsl on Windows, a start of the sidecars and the control panel's start are each refused as Docker not installed, naming that program")
+    @Story("Vespera starts the containers only where they are not answering")
+    @DisplayName("With no program to ask the engine, docker or wsl on Windows, a start of the containers and the control panel's start are each refused as Docker not installed, naming that program")
     @Issue("818")
     void dockerNotInstalledNamesTheEngineChecksProgramOnEachSystem() {
         Map<HostSystem, List<String>> checks = new java.util.LinkedHashMap<>();
@@ -280,27 +280,27 @@ class SidecarStartTest {
                     + " in a WSL 2 distribution on Windows, with Colima on macOS, as the docker service on Linux -- and"
                     + " run the same command again.";
 
-            ScriptedDocker forTheSidecars = ScriptedDocker.notInstalled();
-            Throwable sidecars = catchThrowable(() -> starter(settings(cpuImage), forTheSidecars,
-                    ScriptedSidecarHealth.neitherAnswering(), system.getKey()).ensureRunning());
-            claim("on " + system.getKey() + ", the start of the sidecars is refused as Docker not installed, in the"
+            ScriptedDocker forTheContainers = ScriptedDocker.notInstalled();
+            Throwable containers = catchThrowable(() -> starter(settings(cpuImage), forTheContainers,
+                    ScriptedContainerHealth.neitherAnswering(), system.getKey()).ensureRunning());
+            claim("on " + system.getKey() + ", the start of the containers is refused as Docker not installed, in the"
                             + " line naming " + program + ", after the engine check alone",
-                    () -> assertThat(List.of(sidecars.getClass(), sidecars.getMessage(), forTheSidecars.commands()))
+                    () -> assertThat(List.of(containers.getClass(), containers.getMessage(), forTheContainers.commands()))
                             .containsExactly(DockerIsNotInstalledException.class, line, List.of(system.getValue())));
 
             ScriptedDocker forTheWindow = ScriptedDocker.notInstalled();
             Throwable engine = catchThrowable(() -> starter(settings(cpuImage), forTheWindow,
-                    ScriptedSidecarHealth.neitherAnswering(), system.getKey()).ensureTheEngineRuns());
+                    ScriptedContainerHealth.neitherAnswering(), system.getKey()).ensureTheEngineRuns());
             claim("and so is the control panel's start of the engine, in the same line, after the same check",
                     () -> assertThat(List.of(engine.getClass(), engine.getMessage(), forTheWindow.commands()))
                             .containsExactly(DockerIsNotInstalledException.class, line, List.of(system.getValue())));
         }
     }
 
-    private SidecarStarter starter(
-            SidecarStartSettings settings, ScriptedDocker docker, ScriptedSidecarHealth health, HostSystem host) {
+    private ContainerStarter starter(
+            ContainerStartSettings settings, ScriptedDocker docker, ScriptedContainerHealth health, HostSystem host) {
         Supplier<ComposeFiles> theRepositorysFiles = () -> ComposeFiles.in(REPOSITORY);
-        return new SidecarStarter(settings, docker, health, host, theRepositorysFiles, lockFolder, CHECK_EVERY);
+        return new ContainerStarter(settings, docker, health, host, theRepositorysFiles, lockFolder, CHECK_EVERY);
     }
 
     /**
@@ -308,19 +308,19 @@ class SidecarStartTest {
      * example.org} hosts resolve to documentation addresses of another machine, and the machine holds no address of its
      * own beyond the loopback.
      */
-    private SidecarStarter starterOnAMachineOfItsOwn(
-            SidecarStartSettings settings, ScriptedDocker docker, ScriptedSidecarHealth health) {
+    private ContainerStarter starterOnAMachineOfItsOwn(
+            ContainerStartSettings settings, ScriptedDocker docker, ScriptedContainerHealth health) {
         ThisMachine thisMachine = new ThisMachine(name -> switch (name) {
             case "docling.example.org" -> new InetAddress[] {InetAddress.ofLiteral("192.0.2.10")};
             case "ollama.example.org" -> new InetAddress[] {InetAddress.ofLiteral("192.0.2.11")};
             default -> throw new UnknownHostException(name);
         }, List::of);
-        return new SidecarStarter(settings, docker, health, HostSystem.LINUX, () -> ComposeFiles.in(REPOSITORY),
+        return new ContainerStarter(settings, docker, health, HostSystem.LINUX, () -> ComposeFiles.in(REPOSITORY),
                 lockFolder, CHECK_EVERY, thisMachine);
     }
 
-    private static SidecarStartSettings settings(String image) {
-        return new SidecarStartSettings(DOCLING_HERE, OLLAMA_HERE, image, WAIT_AT_MOST);
+    private static ContainerStartSettings settings(String image) {
+        return new ContainerStartSettings(DOCLING_HERE, OLLAMA_HERE, image, WAIT_AT_MOST);
     }
 
     /** ADR-323 §4's up, naming {@code files} in the order given. */

@@ -55,10 +55,10 @@ import org.springframework.batch.infrastructure.item.ItemStreamReader;
  * read against {@code spring-batch-core} 6.0.5). What is dispatched and not yet taken is therefore at
  * most one chunk and the window. Verdicts commit chunk by chunk as they always have, and occurrences
  * are returned in the delegate's order, so the processor takes them in that order whatever order their
- * calls finish in. A sidecar that stops answering fails its in-flight calls as a block that the
+ * calls finish in. A Docling that stops answering fails its in-flight calls as a block that the
  * processor then observes consecutively -- which is the order ADR-140 section 2 defines both streaks
- * over. That holds for a sidecar that answers with failures or answers nothing in time. A wave whose
- * connections were dropped is not counted by either streak: the processor waits for the sidecar and
+ * over. That holds for a Docling that answers with failures or answers nothing in time. A wave whose
+ * connections were dropped is not counted by either streak: the processor waits for Docling and
  * places each of those calls once more, itself, on the step thread (ADR-175).
  *
  * <p>The worker threads are named and daemon. {@link #close} does run on every path a step takes, failed
@@ -79,11 +79,11 @@ import org.springframework.batch.infrastructure.item.ItemStreamReader;
  * that could not be read, with the cause, and dispatches no call. The processor finds it there before it
  * hashes anything and gives it its verdict on its turn.
  *
- * <p><b>Nothing here asks for the sidecar or the run until {@link #open}</b> (#319). Spring Batch opens
+ * <p><b>Nothing here asks for Docling or the run until {@link #open}</b> (#319). Spring Batch opens
  * a step's streams only once every {@code beforeStep} has passed, so a step whose health check failed
  * never opens this reader -- but it still closes it, and closing a step-scoped proxy is what first
  * builds the object behind it. Built then with the extractor identity in hand, this class called the
- * sidecar's {@code /version} while closing a step that had just found the sidecar missing; and closing
+ * Docling's {@code /version} while closing a step that had just found Docling missing; and closing
  * the survivors reader beneath it built that one too, which mints stage 2's run behind the failed check
  * -- the rule ADR-080 states for a gate, which #319 asks of this check too. So the identity is read in
  * {@link #open}, and {@link #close} closes the delegate only if opening it succeeded: a delegate that
@@ -102,7 +102,7 @@ class ConversionDispatch implements ItemStreamReader<OccurrenceId> {
     private final PendingConversions pending;
     private final ExecutorService workers;
 
-    /** Read in {@link #open}, once the sidecar has passed its health check; {@code null} until then. */
+    /** Read in {@link #open}, once Docling has passed its health check; {@code null} until then. */
     private ExtractorIdentity extractorIdentity;
 
     /**

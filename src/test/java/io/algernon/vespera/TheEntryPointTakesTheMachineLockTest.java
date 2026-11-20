@@ -44,7 +44,7 @@ class TheEntryPointTakesTheMachineLockTest {
     private static final String REFUSED = "another Vespera is running on this machine (pid=4242 started="
             + "2026-11-15T09:00:00+01:00 command= kind=control-panel); wait for it to end, or stop it or close its"
             + " control panel, then run the same command again. One Vespera runs on a machine at a time, so that none"
-            + " stops the sidecars another is using.";
+            + " stops the containers another is using.";
 
     /**
      * The value of {@code VESPERA_CORPUS_ROOT_LOCK_FOLDER} that is no path on Windows, which refuses every character of
@@ -98,7 +98,7 @@ class TheEntryPointTakesTheMachineLockTest {
     @DisplayName("Run, label and publish take the machine lock as their kind before the command line starts, and help, version, serve and no command take none")
     @Issue("905")
     @Link(name = "ADR-436", url = Adr.NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES, type = "adr")
-    void aCommandThatUsesTheSidecarsTakesTheMachineLockFirst() {
+    void aCommandThatUsesTheContainersTakesTheMachineLockFirst() {
         claim("run, label and publish, named first or after --headless, each take the lock as their kind and then start"
                         + " the command line with the arguments it is given, and nothing exits the process",
                 () -> assertThat(List.of(

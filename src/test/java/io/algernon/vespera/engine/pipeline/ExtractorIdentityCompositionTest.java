@@ -7,7 +7,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.extraction.DoclingClient;
 import io.algernon.vespera.engine.extraction.ExtractorIdentity;
-import io.algernon.vespera.engine.extraction.SidecarVersionReport;
+import io.algernon.vespera.engine.extraction.DoclingVersionReport;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -19,16 +19,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * What the extraction cache keys a conversion by (ADR-090, ADR-147): the sidecar's reported versions,
- * the options the client sends, and the image the sidecar runs.
+ * What the extraction cache keys a conversion by (ADR-090, ADR-147): the docling's reported versions,
+ * the options the client sends, and the image the docling runs.
  *
  * <p>The image is in the key because it was measured to matter where the versions do not say so.
  * On 2026-09-24 the stock image and the one with LibreOffice reported the same {@code /version} map,
  * and 5 of 14 PDFs converted identically on two stock runs and differently on the LibreOffice one.
  *
- * <p>The image in the key is the one configured, and since ADR-179 the sidecar's image reports its own
+ * <p>The image in the key is the one configured, and since ADR-179 the docling's image reports its own
  * name in {@code /version} as {@code vespera-image}. The identity is composed only when the two agree:
- * a sidecar running another image, or not saying which, would otherwise have its conversions recorded
+ * a docling running another image, or not saying which, would otherwise have its conversions recorded
  * under a name that is not theirs, which is what happened to 1,398 of them on 2026-09-30.
  */
 @Epic("Extraction")
@@ -63,7 +63,7 @@ class ExtractorIdentityCompositionTest {
 
     @Test
     @Story("A conversion is keyed by everything that decides it")
-    @DisplayName("Two sidecars reporting the same versions from different images key their conversions apart")
+    @DisplayName("Two Docling reporting the same versions from different images key their conversions apart")
     void keysTheSameVersionsFromTwoImagesApart() {
         ExtractorIdentity stock = identityOf(THE_STOCK_IMAGE);
         ExtractorIdentity withLibreOffice = identityOf(THE_LIBREOFFICE_IMAGE);
@@ -85,15 +85,15 @@ class ExtractorIdentityCompositionTest {
 
     @Test
     @Story("A conversion is recorded only under the image that made it")
-    @DisplayName("A sidecar running another image than the one configured gets no identity, and the refusal names both images")
+    @DisplayName("A docling running another image than the one configured gets no identity, and the refusal names both images")
     @Issue("373")
     @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
-    void composesNoIdentityForASidecarRunningAnotherImage() {
+    void composesNoIdentityForADoclingRunningAnotherImage() {
         Throwable refused = catchThrowable(() -> new ExtractionJobConfiguration()
                 .extractorIdentity(reporting(versionsFrom(THE_GPU_IMAGE)), THE_CPU_IMAGE));
 
         claim(
-                "no identity is composed: the sidecar runs the GPU build while the configuration names the"
+                "no identity is composed: the docling runs the GPU build while the configuration names the"
                         + " processor build, and every conversion would be recorded under the wrong one",
                 () -> assertThat(refused).isInstanceOf(DoclingRunsAnotherImageException.class));
         claim(
@@ -107,34 +107,34 @@ class ExtractorIdentityCompositionTest {
 
     @Test
     @Story("A conversion is recorded only under the image that made it")
-    @DisplayName("A sidecar that does not say which image it runs gets no identity, and the refusal names the image configured")
+    @DisplayName("A docling that does not say which image it runs gets no identity, and the refusal names the image configured")
     @Issue("373")
     @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
-    void composesNoIdentityForASidecarThatDoesNotSayWhichImage() {
+    void composesNoIdentityForADoclingThatDoesNotSayWhichImage() {
         Throwable refused = catchThrowable(() -> new ExtractionJobConfiguration()
                 .extractorIdentity(reporting(THE_SAME_VERSIONS), THE_CPU_IMAGE));
 
         claim(
-                "no identity is composed: the sidecar was built before its image could say its name, or is not"
+                "no identity is composed: the docling was built before its image could say its name, or is not"
                         + " Vespera's image at all",
                 () -> assertThat(refused).isInstanceOf(DoclingRunsAnotherImageException.class));
         claim(
                 "the refusal names the image configured",
                 () -> assertThat(refused).hasMessageContaining(THE_CPU_IMAGE));
         claim(
-                "and says to start the sidecars again with a fresh build, which gives the image its name",
+                "and says to start the Docling again with a fresh build, which gives the image its name",
                 () -> assertThat(refused).hasMessageContaining("--build"));
     }
 
-    /** The identity for a sidecar on {@link #THE_SAME_VERSIONS}, built as {@code image} and configured as it. */
+    /** The identity for a docling on {@link #THE_SAME_VERSIONS}, built as {@code image} and configured as it. */
     private static ExtractorIdentity identityOf(String image) {
         return new ExtractionJobConfiguration().extractorIdentity(reporting(versionsFrom(image)), image);
     }
 
-    /** {@link #THE_SAME_VERSIONS}, from a sidecar whose image says it was built as {@code image}. */
+    /** {@link #THE_SAME_VERSIONS}, from a docling whose image says it was built as {@code image}. */
     private static Map<String, String> versionsFrom(String image) {
         Map<String, String> versions = new HashMap<>(THE_SAME_VERSIONS);
-        versions.put(SidecarVersionReport.IMAGE_ENTRY, image);
+        versions.put(DoclingVersionReport.IMAGE_ENTRY, image);
         return Map.copyOf(versions);
     }
 

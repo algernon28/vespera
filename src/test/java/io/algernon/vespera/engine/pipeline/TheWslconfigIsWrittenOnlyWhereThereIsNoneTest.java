@@ -34,15 +34,15 @@ import org.yaml.snakeyaml.Yaml;
 /**
  * On Windows, Vespera writes {@code .wslconfig} in the profile folder, holding {@code [general]} and {@code
  * instanceIdleTimeout=-1}, where no file of that name is there, and reads one that is there without ever changing it
- * (ADR-421): {@link WslIdleTimeout} for the file and its lines, and {@link SidecarStarter} for where a start sees to it.
+ * (ADR-421): {@link WslIdleTimeout} for the file and its lines, and {@link ContainerStarter} for where a start sees to it.
  *
  * <p>Every profile folder here is one of JUnit's temporary folders, named to the code under test; no test reads or sets
  * {@code user.home}, so the machine's own {@code .wslconfig} is never looked at (ADR-421 §7). No Docker is needed: the
- * starter is given a {@link ScriptedDocker} and a scripted health, as in {@code SidecarStartTest}, and the {@link
+ * starter is given a {@link ScriptedDocker} and a scripted health, as in {@code ContainerStartTest}, and the {@link
  * HostSystem} is named, so the claims about Windows hold on every system the suite runs on.
  */
 @Epic("Pipeline")
-@Feature("The sidecars")
+@Feature("The containers")
 @Issue("881")
 @Link(name = "ADR-421", url = Adr.ON_WINDOWS_VESPERA_WRITES_WSLCONFIG_WHERE_THERE_IS_NONE, type = "adr")
 @Link(name = "ADR-390", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
@@ -63,7 +63,7 @@ class TheWslconfigIsWrittenOnlyWhereThereIsNoneTest {
     private static final int WRITTEN_BYTES = 35;
 
     /** What every line but the first two says the missing setting costs. */
-    private static final String THE_COST = "so WSL may shut its distribution down while idle, and Docker and the sidecars"
+    private static final String THE_COST = "so WSL may shut its distribution down while idle, and Docker and the containers"
             + " with it, in the middle of a run.";
 
     /** What every line that asks the operator to act ends with: the restart, and what it stops. */
@@ -78,7 +78,7 @@ class TheWslconfigIsWrittenOnlyWhereThereIsNoneTest {
 
     private static final URI OLLAMA_ELSEWHERE = URI.create("http://ollama.example.org:11434");
 
-    /** How long these tests wait for the engine or a sidecar to answer: one second, so a wait that runs out is quick. */
+    /** How long these tests wait for the engine or a container to answer: one second, so a wait that runs out is quick. */
     private static final Duration WAIT_AT_MOST = Duration.ofSeconds(1);
 
     /** How often they ask meanwhile. */
@@ -123,7 +123,7 @@ class TheWslconfigIsWrittenOnlyWhereThereIsNoneTest {
         claim("and the one line says where it was written, what it sets, why, and when it takes effect",
                 () -> assertThat(line).contains("Vespera wrote " + file + ", setting instanceIdleTimeout=-1 under"
                         + " [general], so that WSL does not shut its distribution down while idle, and Docker and the"
-                        + " sidecars with it. It applies from WSL's next start; if WSL is running now, wsl --shutdown"
+                        + " containers with it. It applies from WSL's next start; if WSL is running now, wsl --shutdown"
                         + " starts it afresh, and stops every WSL distribution and the containers in them."));
     }
 
@@ -209,7 +209,7 @@ class TheWslconfigIsWrittenOnlyWhereThereIsNoneTest {
                         Pattern.quote("Vespera could not read " + aFolder + " (") + ".+"
                                 + Pattern.quote(") to see whether it sets instanceIdleTimeout=-1 under [general];"
                                         + " without it WSL may shut its distribution down while idle, and Docker and"
-                                        + " the sidecars with it, in the middle of a run. See that it does, "
+                                        + " the containers with it, in the middle of a run. See that it does, "
                                         + THE_RESTART))));
         claim("and that folder is left as it was, empty", () -> assertThat(namesIn(aFolder)).isEmpty());
 
@@ -218,24 +218,24 @@ class TheWslconfigIsWrittenOnlyWhereThereIsNoneTest {
                 () -> assertThat(WslIdleTimeout.keepTheDistributionUp(null)).contains("Vespera cannot tell where the"
                         + " Windows profile folder is, so it cannot see whether %UserProfile%\\.wslconfig sets"
                         + " instanceIdleTimeout=-1 under [general]; without it WSL may shut its distribution down"
-                        + " while idle, and Docker and the sidecars with it, in the middle of a run. See that it does, "
+                        + " while idle, and Docker and the containers with it, in the middle of a run. See that it does, "
                         + THE_RESTART));
     }
 
     @Test
     @Story("On Windows, WSL is kept from shutting Docker down while idle")
-    @DisplayName("On Windows a start of the sidecars writes .wslconfig before it asks them anything, even where they answer, and then runs the commands it ran before, none restarting WSL")
-    void onWindowsAStartWritesItBeforeAskingTheSidecarsAndRunsWhatItRanBefore() throws IOException {
+    @DisplayName("On Windows a start of the containers writes .wslconfig before it asks them anything, even where they answer, and then runs the commands it ran before, none restarting WSL")
+    void onWindowsAStartWritesItBeforeAskingTheContainersAndRunsWhatItRanBefore() throws IOException {
         Path profile = Files.createDirectory(folder.resolve("answering"));
         WatchingHealth answering = new WatchingHealth(profile.resolve(FILE_NAME), true);
         ScriptedDocker untouched = ScriptedDocker.engineRunning();
 
-        SidecarStarter.Outcome found = starter(here(profile), untouched, answering, HostSystem.WINDOWS).ensureRunning();
+        ContainerStarter.Outcome found = starter(here(profile), untouched, answering, HostSystem.WINDOWS).ensureRunning();
 
-        claim("with both sidecars answering, the file was already there when the first sidecar was asked",
+        claim("with both containers answering, the file was already there when the first container was asked",
                 () -> assertThat(answering.fileThereWhenFirstAsked).isTrue());
         claim("and the start found them answering and ran no command", () -> assertThat(List.of(found,
-                untouched.commands())).containsExactly(SidecarStarter.Outcome.ALREADY_ANSWERING, List.of()));
+                untouched.commands())).containsExactly(ContainerStarter.Outcome.ALREADY_ANSWERING, List.of()));
         claim("and the file holds the " + WRITTEN_BYTES + " bytes Vespera writes", () -> assertThat(
                 Files.readAllBytes(profile.resolve(FILE_NAME))).isEqualTo(WRITTEN.getBytes(StandardCharsets.US_ASCII)));
 
@@ -245,11 +245,11 @@ class TheWslconfigIsWrittenOnlyWhereThereIsNoneTest {
                 .answering(WSL_START, 0, "")
                 .whenUpSucceeds(() -> starting.answering = true);
 
-        SidecarStarter.Outcome started = starter(here(down), docker, starting, HostSystem.WINDOWS).ensureRunning();
+        ContainerStarter.Outcome started = starter(here(down), docker, starting, HostSystem.WINDOWS).ensureRunning();
 
-        claim("with the engine down, the file was there before the sidecars were first asked, and the sidecars were"
+        claim("with the engine down, the file was there before the containers were first asked, and the containers were"
                         + " started", () -> assertThat(List.of(starting.fileThereWhenFirstAsked, started))
-                .containsExactly(true, SidecarStarter.Outcome.STARTED));
+                .containsExactly(true, ContainerStarter.Outcome.STARTED));
         claim("and the commands were, in order and whole, those a start on Windows runs: the engine check, its start,"
                         + " the " + ENGINE_CHECKS_FAILED + " checks of the wait, the checks for compose and buildx, and"
                         + " the up", () -> assertThat(docker.commands()).containsExactlyElementsOf(theWindowsStart()));
@@ -262,24 +262,24 @@ class TheWslconfigIsWrittenOnlyWhereThereIsNoneTest {
     @DisplayName("Off Windows, or with both containers looked for on another machine, nothing is written and the control panel's call says nothing")
     @Issue("889")
     @Link(name = "ADR-430", url = Adr.THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER, type = "adr")
-    void nothingIsWrittenOffWindowsOrForSidecarsOnAnotherMachine() throws IOException {
+    void nothingIsWrittenOffWindowsOrForContainersOnAnotherMachine() throws IOException {
         for (HostSystem system : List.of(HostSystem.LINUX, HostSystem.MAC)) {
             Path profile = Files.createDirectory(folder.resolve(system.name()));
-            SidecarStarter starter =
+            ContainerStarter starter =
                     starter(here(profile), ScriptedDocker.engineRunning(), new WatchingHealth(null, true), system);
 
-            SidecarStarter.Outcome outcome = starter.ensureRunning();
+            ContainerStarter.Outcome outcome = starter.ensureRunning();
             Optional<String> said = starter.keepTheWslDistributionUp();
 
-            claim("on " + system + " the start found the sidecars answering, the control panel's call said nothing,"
+            claim("on " + system + " the start found the containers answering, the control panel's call said nothing,"
                             + " and the profile folder is empty",
                     () -> assertThat(List.of(outcome, said, namesIn(profile))).containsExactly(
-                            SidecarStarter.Outcome.ALREADY_ANSWERING, Optional.empty(), List.of()));
+                            ContainerStarter.Outcome.ALREADY_ANSWERING, Optional.empty(), List.of()));
         }
 
         Path profile = Files.createDirectory(folder.resolve("elsewhere"));
         ScriptedDocker docker = ScriptedDocker.engineRunning();
-        SidecarStarter elsewhere = new SidecarStarter(new SidecarStartSettings(DOCLING_ELSEWHERE, OLLAMA_ELSEWHERE,
+        ContainerStarter elsewhere = new ContainerStarter(new ContainerStartSettings(DOCLING_ELSEWHERE, OLLAMA_ELSEWHERE,
                 cpuImage, WAIT_AT_MOST, "", profile), docker, new WatchingHealth(null, false), HostSystem.WINDOWS,
                 () -> ComposeFiles.in(REPOSITORY), folder.resolve("locks"), CHECK_EVERY, new ThisMachine(
                         name -> switch (name) {
@@ -288,35 +288,35 @@ class TheWslconfigIsWrittenOnlyWhereThereIsNoneTest {
                             default -> throw new UnknownHostException(name);
                         }, List::of));
 
-        SidecarStarter.Outcome outcome = elsewhere.ensureRunning();
+        ContainerStarter.Outcome outcome = elsewhere.ensureRunning();
         Optional<String> said = elsewhere.keepTheWslDistributionUp();
 
         claim("on Windows with docling-serve at " + DOCLING_ELSEWHERE + " and Ollama at " + OLLAMA_ELSEWHERE + ", both"
                         + " resolving to another machine, the start starts nothing and runs no command, the control"
                         + " panel's call says nothing, and the profile folder is empty (ADR-430 §10)",
                 () -> assertThat(List.of(outcome, docker.commands(), said, namesIn(profile))).containsExactly(
-                        SidecarStarter.Outcome.ON_ANOTHER_MACHINE, List.of(), Optional.empty(), List.of()));
+                        ContainerStarter.Outcome.ON_ANOTHER_MACHINE, List.of(), Optional.empty(), List.of()));
     }
 
     @Test
     @Story("On Windows, WSL is kept from shutting Docker down while idle")
-    @DisplayName("A .wslconfig that cannot be written, or a profile folder nobody can name, refuses no start: the sidecars are started with the same commands")
+    @DisplayName("A .wslconfig that cannot be written, or a profile folder nobody can name, refuses no start: the containers are started with the same commands")
     void aWriteThatFailsRefusesNoStart() {
-        Map<String, SidecarStartSettings> failing = new LinkedHashMap<>();
+        Map<String, ContainerStartSettings> failing = new LinkedHashMap<>();
         failing.put("a profile folder that is not there", here(folder.resolve("not-there")));
-        failing.put("no profile folder known", new SidecarStartSettings(DOCLING_HERE, OLLAMA_HERE, cpuImage,
+        failing.put("no profile folder known", new ContainerStartSettings(DOCLING_HERE, OLLAMA_HERE, cpuImage,
                 WAIT_AT_MOST, "", null));
 
-        for (Map.Entry<String, SidecarStartSettings> each : failing.entrySet()) {
+        for (Map.Entry<String, ContainerStartSettings> each : failing.entrySet()) {
             WatchingHealth health = new WatchingHealth(null, false);
             ScriptedDocker docker = ScriptedDocker.engineAnsweringAfter(ENGINE_CHECKS_FAILED)
                     .answering(WSL_START, 0, "")
                     .whenUpSucceeds(() -> health.answering = true);
 
-            SidecarStarter.Outcome outcome = starter(each.getValue(), docker, health, HostSystem.WINDOWS).ensureRunning();
+            ContainerStarter.Outcome outcome = starter(each.getValue(), docker, health, HostSystem.WINDOWS).ensureRunning();
 
-            claim("with " + each.getKey() + ", the sidecars were started, nothing refused", () -> assertThat(outcome)
-                    .isEqualTo(SidecarStarter.Outcome.STARTED));
+            claim("with " + each.getKey() + ", the containers were started, nothing refused", () -> assertThat(outcome)
+                    .isEqualTo(ContainerStarter.Outcome.STARTED));
             claim("and the commands were those a start on Windows runs, in order and whole",
                     () -> assertThat(docker.commands()).containsExactlyElementsOf(theWindowsStart()));
         }
@@ -326,11 +326,11 @@ class TheWslconfigIsWrittenOnlyWhereThereIsNoneTest {
 
     @Test
     @Story("On Windows, WSL is kept from shutting Docker down while idle")
-    @DisplayName("The control panel's call writes .wslconfig and says so, once; the engine's start alone, the stop of the sidecars and the shut-down write nothing")
+    @DisplayName("The control panel's call writes .wslconfig and says so, once; the engine's start alone, the stop of the containers and the shut-down write nothing")
     void theControlPanelsCallWritesItAndTheEnginesStartAndTheStopsWriteNothing() throws IOException {
         Path profile = Files.createDirectory(folder.resolve("window"));
         Path file = profile.resolve(FILE_NAME);
-        SidecarStarter window =
+        ContainerStarter window =
                 starter(here(profile), ScriptedDocker.engineRunning(), new WatchingHealth(null, false), HostSystem.WINDOWS);
 
         Optional<String> first = window.keepTheWslDistributionUp();
@@ -345,15 +345,15 @@ class TheWslconfigIsWrittenOnlyWhereThereIsNoneTest {
 
         Path untouched = Files.createDirectory(folder.resolve("untouched"));
         ScriptedDocker docker = ScriptedDocker.engineRunning().otherCommandsExiting(0);
-        SidecarStarter starter = starter(here(untouched), docker, new WatchingHealth(null, true), HostSystem.WINDOWS);
+        ContainerStarter starter = starter(here(untouched), docker, new WatchingHealth(null, true), HostSystem.WINDOWS);
 
-        SidecarStarter.Outcome engine = starter.ensureTheEngineRuns();
-        Optional<String> stopped = starter.stopTheSidecars();
-        SidecarStarter.ShutDown shutDown = starter.shutDown();
+        ContainerStarter.Outcome engine = starter.ensureTheEngineRuns();
+        Optional<String> stopped = starter.stopTheContainers();
+        ContainerStarter.ShutDown shutDown = starter.shutDown();
 
-        claim("the engine's start alone found it answering, and the stop of the sidecars and the shut-down went"
+        claim("the engine's start alone found it answering, and the stop of the containers and the shut-down went"
                         + " through", () -> assertThat(List.of(engine, stopped, shutDown.done()))
-                .containsExactly(SidecarStarter.Outcome.ENGINE_ANSWERING, Optional.empty(), true));
+                .containsExactly(ContainerStarter.Outcome.ENGINE_ANSWERING, Optional.empty(), true));
         claim("and none of the three wrote anything in the profile folder", () -> assertThat(namesIn(untouched))
                 .isEmpty());
     }
@@ -365,22 +365,22 @@ class TheWslconfigIsWrittenOnlyWhereThereIsNoneTest {
         Path home = folder.resolve("home");
 
         claim("the folder is the user.home the environment gives",
-                () -> assertThat(SidecarStartSettings.from(new MockEnvironment().withProperty("user.home",
+                () -> assertThat(ContainerStartSettings.from(new MockEnvironment().withProperty("user.home",
                         home.toString())).profileFolder()).isEqualTo(home));
         claim("a blank user.home, or none, is no folder known",
                 () -> assertThat(Stream.of(new MockEnvironment().withProperty("user.home", "  "), new MockEnvironment())
-                        .map(environment -> SidecarStartSettings.from(environment).profileFolder()).toList())
+                        .map(environment -> ContainerStartSettings.from(environment).profileFolder()).toList())
                         .containsExactly(null, null));
-        claim("and the settings built with four or five values, as the tests that start the sidecars build them,"
+        claim("and the settings built with four or five values, as the tests that start the containers build them,"
                         + " know no folder",
-                () -> assertThat(List.of(Optional.ofNullable(new SidecarStartSettings(DOCLING_HERE, OLLAMA_HERE,
+                () -> assertThat(List.of(Optional.ofNullable(new ContainerStartSettings(DOCLING_HERE, OLLAMA_HERE,
                                 cpuImage, WAIT_AT_MOST).profileFolder()),
-                        Optional.ofNullable(new SidecarStartSettings(DOCLING_HERE, OLLAMA_HERE, cpuImage, WAIT_AT_MOST,
+                        Optional.ofNullable(new ContainerStartSettings(DOCLING_HERE, OLLAMA_HERE, cpuImage, WAIT_AT_MOST,
                                 "Ubuntu").profileFolder())))
                         .containsExactly(Optional.empty(), Optional.empty()));
     }
 
-    /** The commands a start of the sidecars runs on Windows with the engine down, in order and whole (ADR-390, ADR-410). */
+    /** The commands a start of the containers runs on Windows with the engine down, in order and whole (ADR-390, ADR-410). */
     private static List<List<String>> theWindowsStart() {
         List<String> check = concat(IN_WSL, ScriptedDocker.ENGINE_CHECK);
         return List.of(check, WSL_START, check, check,
@@ -390,15 +390,15 @@ class TheWslconfigIsWrittenOnlyWhereThereIsNoneTest {
                                 "up", "-d", "--build", "--no-recreate")));
     }
 
-    private SidecarStarter starter(SidecarStartSettings settings, ScriptedDocker docker, SidecarHealth health,
+    private ContainerStarter starter(ContainerStartSettings settings, ScriptedDocker docker, ContainerHealth health,
             HostSystem host) {
-        return new SidecarStarter(settings, docker, health, host, () -> ComposeFiles.in(REPOSITORY),
+        return new ContainerStarter(settings, docker, health, host, () -> ComposeFiles.in(REPOSITORY),
                 folder.resolve("locks"), CHECK_EVERY);
     }
 
-    /** Both sidecars on this machine, the CPU image, and {@code profile} as the profile folder. */
-    private static SidecarStartSettings here(Path profile) {
-        return new SidecarStartSettings(DOCLING_HERE, OLLAMA_HERE, cpuImage, WAIT_AT_MOST, "", profile);
+    /** Both containers on this machine, the CPU image, and {@code profile} as the profile folder. */
+    private static ContainerStartSettings here(Path profile) {
+        return new ContainerStartSettings(DOCLING_HERE, OLLAMA_HERE, cpuImage, WAIT_AT_MOST, "", profile);
     }
 
     private static List<String> namesIn(Path directory) throws IOException {
@@ -413,8 +413,8 @@ class TheWslconfigIsWrittenOnlyWhereThereIsNoneTest {
         return List.copyOf(whole);
     }
 
-    /** Sidecars that answer or not as set, noting whether {@code file} was there when they were first asked. */
-    private static final class WatchingHealth implements SidecarHealth {
+    /** Containers that answer or not as set, noting whether {@code file} was there when they were first asked. */
+    private static final class WatchingHealth implements ContainerHealth {
 
         private final Path file;
         volatile boolean answering;

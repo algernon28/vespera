@@ -21,16 +21,16 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * A compose file beside the jar that cannot be read for the image its {@code docling-serve} service builds refuses the
- * start of the sidecars in one line, as every other refusal of ADR-323 §8 does, and never as a stack trace
+ * start of the containers in one line, as every other refusal of ADR-323 §8 does, and never as a stack trace
  * (ADR-397 §12). The compose files are the operator's to edit once they lie beside the jar, so one that does not load,
  * names no image, or is not there is a state the operator can reach.
  *
  * <p>The folder beside the jar is a temporary folder of the test's own, holding the repository's compose files as the
  * jar writes them there, one of them then changed or deleted. No Docker is needed: the starter is given a
- * {@link ScriptedDocker} and a {@link ScriptedSidecarHealth}, and the refusal is shown to come before any command.
+ * {@link ScriptedDocker} and a {@link ScriptedContainerHealth}, and the refusal is shown to come before any command.
  */
 @Epic("Pipeline")
-@Feature("The sidecars")
+@Feature("The containers")
 @Issue("836")
 @Link(name = "ADR-397", url = Adr.THE_YAML_CONFIGURATION_LIES_BESIDE_THE_JAR, type = "adr")
 @Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
@@ -40,7 +40,7 @@ class AComposeFileThatCannotBeReadRefusesTheStartTest {
     private static final Path REPOSITORY = Path.of("").toAbsolutePath();
 
     /** What every line of this refusal begins with, before the file it names. */
-    private static final String BEGINS = "the sidecars are not answering and Vespera cannot start them: ";
+    private static final String BEGINS = "the containers are not answering and Vespera cannot start them: ";
 
     /** What follows the file's path, before the reason. */
     private static final String CANNOT_BE_READ = " cannot be read for the image its docling-serve service builds (";
@@ -66,7 +66,7 @@ class AComposeFileThatCannotBeReadRefusesTheStartTest {
     Path lockFolder;
 
     @Test
-    @Story("Vespera says in one line why it cannot start the sidecars")
+    @Story("Vespera says in one line why it cannot start the containers")
     @DisplayName("A compose.yaml whose docling-serve service names no image refuses the start in one line naming the file and why, before Docker is asked anything")
     void aComposeFileNamingNoImageRefusesTheStartInOneLine() throws IOException {
         String configured = theRepositorysFiles().cpuImage();
@@ -75,22 +75,22 @@ class AComposeFileThatCannotBeReadRefusesTheStartTest {
         Files.writeString(composeFile, NAMES_NO_IMAGE);
         ScriptedDocker docker = ScriptedDocker.engineRunning();
 
-        Throwable refused = catchThrowable(() -> starter(configured, docker, ScriptedSidecarHealth.neitherAnswering())
+        Throwable refused = catchThrowable(() -> starter(configured, docker, ScriptedContainerHealth.neitherAnswering())
                 .ensureRunning());
 
         claim("the start is refused as the commands catch a refusal, in the line naming compose.yaml where it lies and"
                         + " that it names no image for its docling-serve service",
                 () -> assertThat(refused)
                         .isInstanceOf(ComposeFileUnreadableException.class)
-                        .isInstanceOf(SidecarStartRefusedException.class)
+                        .isInstanceOf(ContainerStartRefusedException.class)
                         .hasMessage(BEGINS + composeFile + CANNOT_BE_READ
                                 + "it names no image for its docling-serve service" + ENDS));
         claim("and Docker was asked nothing", () -> assertThat(docker.commands()).isEmpty());
     }
 
     @Test
-    @Story("Vespera says in one line why it cannot start the sidecars")
-    @DisplayName("A compose.yaml that does not load refuses the start in one line saying so, and is never read while both sidecars answer")
+    @Story("Vespera says in one line why it cannot start the containers")
+    @DisplayName("A compose.yaml that does not load refuses the start in one line saying so, and is never read while both containers answer")
     void aComposeFileThatDoesNotLoadRefusesTheStartInOneLine() throws IOException {
         String configured = theRepositorysFiles().cpuImage();
         theRepositorysComposeFilesBesideTheJar();
@@ -98,10 +98,10 @@ class AComposeFileThatCannotBeReadRefusesTheStartTest {
         Files.writeString(composeFile, DOES_NOT_LOAD);
         ScriptedDocker docker = ScriptedDocker.engineRunning();
 
-        Throwable refused = catchThrowable(() -> starter(configured, docker, ScriptedSidecarHealth.neitherAnswering())
+        Throwable refused = catchThrowable(() -> starter(configured, docker, ScriptedContainerHealth.neitherAnswering())
                 .ensureRunning());
         Throwable whileAnswering = catchThrowable(() -> starter(configured, ScriptedDocker.engineRunning(),
-                ScriptedSidecarHealth.bothAnswering()).ensureRunning());
+                ScriptedContainerHealth.bothAnswering()).ensureRunning());
 
         claim("the start is refused in one line naming compose.yaml where it lies and that it does not load as YAML",
                 () -> assertThat(refused)
@@ -112,12 +112,12 @@ class AComposeFileThatCannotBeReadRefusesTheStartTest {
                         .doesNotContain("\n")
                         .doesNotContain("\r"));
         claim("Docker was asked nothing", () -> assertThat(docker.commands()).isEmpty());
-        claim("and while both sidecars answer, the file is not read and nothing is refused",
-                () -> assertThat(whileAnswering).as("what a start with both sidecars answering threw").isNull());
+        claim("and while both containers answer, the file is not read and nothing is refused",
+                () -> assertThat(whileAnswering).as("what a start with both containers answering threw").isNull());
     }
 
     @Test
-    @Story("Vespera says in one line why it cannot start the sidecars")
+    @Story("Vespera says in one line why it cannot start the containers")
     @DisplayName("A compose.gpu.yaml that is not there refuses the start in one line naming it, though compose.yaml builds the image configured")
     void aGpuFileThatIsNotThereRefusesTheStartInOneLine() throws IOException {
         String configured = theRepositorysFiles().cpuImage();
@@ -126,7 +126,7 @@ class AComposeFileThatCannotBeReadRefusesTheStartTest {
         Files.delete(gpuFile);
         ScriptedDocker docker = ScriptedDocker.engineRunning();
 
-        Throwable refused = catchThrowable(() -> starter(configured, docker, ScriptedSidecarHealth.neitherAnswering())
+        Throwable refused = catchThrowable(() -> starter(configured, docker, ScriptedContainerHealth.neitherAnswering())
                 .ensureRunning());
 
         claim("both files are read before the image is compared, compose.yaml first, so the start is refused in the"
@@ -148,8 +148,8 @@ class AComposeFileThatCannotBeReadRefusesTheStartTest {
         return ComposeFiles.in(REPOSITORY);
     }
 
-    private SidecarStarter starter(String image, ScriptedDocker docker, ScriptedSidecarHealth health) {
-        return new SidecarStarter(new SidecarStartSettings(DOCLING_HERE, OLLAMA_HERE, image, Duration.ofSeconds(1)),
+    private ContainerStarter starter(String image, ScriptedDocker docker, ScriptedContainerHealth health) {
+        return new ContainerStarter(new ContainerStartSettings(DOCLING_HERE, OLLAMA_HERE, image, Duration.ofSeconds(1)),
                 docker, health, HostSystem.LINUX, () -> ComposeFiles.in(besideTheJar), lockFolder,
                 Duration.ofMillis(20));
     }

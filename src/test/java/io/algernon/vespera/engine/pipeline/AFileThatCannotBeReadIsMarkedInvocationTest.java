@@ -16,7 +16,7 @@ import io.algernon.vespera.engine.extraction.DoclingClient;
 import io.algernon.vespera.engine.extraction.DoclingExtractor;
 import io.algernon.vespera.engine.extraction.DoclingResponse;
 import io.algernon.vespera.engine.extraction.PathScriptedExtractor;
-import io.algernon.vespera.engine.extraction.SidecarVersionReport;
+import io.algernon.vespera.engine.extraction.DoclingVersionReport;
 import io.algernon.vespera.engine.ledger.OccurrenceId;
 import io.algernon.vespera.engine.ledger.RunId;
 import io.algernon.vespera.engine.profile.ProfileFixture;
@@ -172,7 +172,7 @@ class AFileThatCannotBeReadIsMarkedInvocationTest {
 
                 @Override
                 public Map<String, String> version() {
-                    return SidecarVersionReport.runningImage(configuredImage);
+                    return DoclingVersionReport.runningImage(configuredImage);
                 }
             };
         }

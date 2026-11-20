@@ -49,8 +49,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>Three outcomes come from a call that brought no response to judge (ADR-071, ADR-175): a timeout,
  * an HTTP error status, and a connection dropped twice. A connection dropped once is not an outcome: the
- * sidecar is waited for and the call placed once more, here on the step thread (ADR-175 section 2). What
- * stops the step from here is a sidecar that does not come back, or one that drops the connection twice
+ * Docling is waited for and the call placed once more, here on the step thread (ADR-175 section 2). What
+ * stops the step from here is a Docling that does not come back, or one that drops the connection twice
  * under {@link FailuresInARow#CONSECUTIVE_DROPPED_TWICE_COUNT} occurrences in a row and then does not
  * convert the control conversion either (ADR-184).
  *
@@ -84,7 +84,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     private final StageRuns stageRuns;
     private final Shingler shingler;
     private final PendingConversions pending;
-    private final SidecarRecovery sidecarRecovery;
+    private final DoclingRecovery doclingRecovery;
     private final FailuresInARow failuresInARow;
     private final OccurrenceJudge judge;
     private final ExtractionCacheKeys cacheKeys;
@@ -110,7 +110,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             ExtractionMetrics extractionMetrics,
             DegenerateOutputConfidenceFloor confidenceFloor,
             Shingler shingler,
-            SidecarRecovery sidecarRecovery) {
+            DoclingRecovery doclingRecovery) {
         this(
                 ledger,
                 contentIdentity,
@@ -122,7 +122,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
                 confidenceFloor,
                 shingler,
                 PendingConversions.none(),
-                sidecarRecovery,
+                doclingRecovery,
                 new FailuresInARow(ControlConversion.never()));
     }
 
@@ -148,7 +148,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
             DegenerateOutputConfidenceFloor confidenceFloor,
             Shingler shingler,
             PendingConversions pending,
-            SidecarRecovery sidecarRecovery,
+            DoclingRecovery doclingRecovery,
             FailuresInARow failuresInARow) {
         this.ledger = ledger;
         this.contentIdentity = contentIdentity;
@@ -158,7 +158,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         this.stageRuns = stageRuns;
         this.shingler = shingler;
         this.pending = pending;
-        this.sidecarRecovery = sidecarRecovery;
+        this.doclingRecovery = doclingRecovery;
         this.failuresInARow = failuresInARow;
         this.cacheKeys = extractionMetrics.cacheKeys();
         // Nothing is deleted here. ExtractionJobConfiguration's reader deletes the fault rows and the
@@ -286,7 +286,7 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
     }
 
     /**
-     * What a dropped connection earns an occurrence (ADR-175 section 2): the sidecar is waited for, and
+     * What a dropped connection earns an occurrence (ADR-175 section 2): Docling is waited for, and
      * the call is placed once more, here on the step thread. An answer is judged like any other.
      *
      * <p>Before it waits, the first drop asks two questions about the file (ADR-210 section 3): whether the
@@ -297,14 +297,14 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
      * not a byte-range lock, and it is made once: a second drop is read as the converter's, which is wrong
      * for a disk lost during the wait (left open by ADR-210).
      *
-     * <p>A second drop is read as the file's doing: the sidecar is waited for again, so that the next
+     * <p>A second drop is read as the file's doing: Docling is waited for again, so that the next
      * occurrences find it up, and this one is removed. It can be wrong. Up to eight calls are in flight
-     * when a sidecar dies (ADR-140), each retries alone, and one retry can overlap the call of the file
+     * when a Docling dies (ADR-140), each retries alone, and one retry can overlap the call of the file
      * that really kills it. That is accepted (ADR-175 section 5): nothing is stored for a call that
      * failed, so the next run asks about the file again.
      *
-     * <p>Five such files in a row are read as the sidecar's doing only if the control conversion then
-     * fails too (ADR-184 section 2, and section 3a of ADR-175): the sidecar then answers its health check
+     * <p>Five such files in a row are read as Docling's doing only if the control conversion then
+     * fails too (ADR-184 section 2, and section 3a of ADR-175): Docling then answers its health check
      * and converts nothing, which neither the wait nor ADR-071's breaker sees. If it converts, each of
      * the five keeps its {@code crashed the converter} verdict and the count starts again.
      */
@@ -316,14 +316,14 @@ class ExtractionItemProcessor implements ItemProcessor<OccurrenceId, ExtractionO
         } catch (IOException cannotOpen) {
             return couldNotBeRead(occurrenceId, CorpusRootCheck.reported(cannotOpen));
         }
-        sidecarRecovery.awaitHealthy();
+        doclingRecovery.awaitHealthy();
         try {
             DoclingResponse response = convertNow(occurrenceId, file, contentHash, format);
             return acting(occurrenceId, judge.answered(occurrenceId, response, false), response, contentHash);
         } catch (CouldNotBeReadException unreadable) {
             return couldNotBeRead(occurrenceId, CorpusRootCheck.reported(unreadable.getCause()));
         } catch (DoclingConnectionLostException again) {
-            sidecarRecovery.awaitHealthy();
+            doclingRecovery.awaitHealthy();
             OccurrenceDecision.DroppedTwice dropped = (OccurrenceDecision.DroppedTwice) judge.droppedTwice(
                     occurrenceId, recordedPath(occurrenceId), again.getCause().getMessage());
             switch (dropped.row()) {

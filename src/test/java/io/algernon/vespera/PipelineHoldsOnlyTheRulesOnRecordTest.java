@@ -130,6 +130,9 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "DocumentOpening",
             // ADR-330 §1: writes effective-values.properties, what lies beneath the profile; it decides no verdict.
             "EffectiveValuesFile",
+            // ADR-433 §5: reads the container settings' earlier names and says each one set in a line; neither
+            // setting enters a run's identity, and it decides no verdict, cache key, cluster or text of the deliverable.
+            "EarlierSettingNames",
             "EmbeddingModelGate",
             "EmbeddingScoringTasklet",
             "ExtractionAttempt",
@@ -221,11 +224,11 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "ServiceScopeFailureException",
             // ADR-265: records which step ended at a shut gate; the gate's decision is the gate's.
             "ShutGates",
-            "SidecarRecovery",
+            "DoclingRecovery",
             // ADR-371 §1: writes a size of memory in powers of 1,024 for the report's page and its sampler; it decides
             // no verdict, cache key, cluster or text of the deliverable.
             "Sizes",
-            // ADR-323: start the Docker engine and the sidecars, and say why where they cannot; none decides a
+            // ADR-323: start the Docker engine and the containers, and say why where they cannot; none decides a
             // verdict, a cache key, a cluster or text of the deliverable.
             "ComposeFiles",
             // ADR-397 §12: say in one line that a compose file beside the jar cannot be read for its image.
@@ -244,17 +247,17 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-410 §3: say in one line that docker compose or docker buildx is missing, and how to install it.
             "ComposeOrBuildxIsNotInstalledException",
             "HostSystem",
-            "HttpSidecarHealth",
+            "HttpContainerHealth",
             "NoComposeFileBuildsTheImageException",
             "ProcessOutcome",
             "ProcessRunner",
-            "SidecarHealth",
-            "SidecarLockUnavailableException",
-            "SidecarStartRefusedException",
-            "SidecarStartSettings",
-            "SidecarStarter",
-            "SidecarsDidNotAnswerException",
-            "SidecarsDidNotStartException",
+            "ContainerHealth",
+            "ContainerLockUnavailableException",
+            "ContainerStartRefusedException",
+            "ContainerStartSettings",
+            "ContainerStarter",
+            "ContainersDidNotAnswerException",
+            "ContainersDidNotStartException",
             "SystemProcessRunner",
             // ADR-421: on Windows, write .wslconfig where there is none, and read one that is there for its idle
             // timeout; it decides no verdict, cache key, cluster or text of the deliverable.

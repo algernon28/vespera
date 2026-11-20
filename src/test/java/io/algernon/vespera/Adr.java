@@ -3194,6 +3194,15 @@ public final class Adr {
             + "0432-each-step-has-a-chart-beneath-its-legs-bars-the-output-spans-the-column-above-the-legs-and-the-cockpit-holds-no-tabs.md";
 
     /**
+     * ADR-433 -- a Docling or an Ollama Vespera runs on this machine is a container, and what the operator reads of one
+     * on another machine names it; no name of ours says the earlier word, but the earlier settings' names, which are
+     * still read where the new ones are not set and said in one line each, and the earlier lock file, which, held by
+     * another, refuses a start (amends ADR-430 §8 and §9, ADR-323 §6 and §7, and ADR-390 §1).
+     */
+    public static final String DOCLING_AND_OLLAMA_ARE_CONTAINERS_WHERE_VESPERA_RUNS_THEM = FILE
+            + "0433-docling-and-ollama-are-containers-where-vespera-runs-them-and-never-sidecars-and-the-earlier-names-are-still-honoured.md";
+
+    /**
      * ADR-436 -- nothing uses a working directory nothing names: the shipped {@code application.yaml} reads
      * {@code ${db-dir:}}, a start of the command line naming none is refused in one line before the log is set up and
      * {@code vespera serve} in its own, {@code --help} and {@code --version} being handed over before Spring; the window

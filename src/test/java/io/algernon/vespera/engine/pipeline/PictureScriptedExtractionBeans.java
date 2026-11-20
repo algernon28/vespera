@@ -5,7 +5,7 @@ import io.algernon.vespera.engine.extraction.DoclingClient;
 import io.algernon.vespera.engine.extraction.DoclingExtractor;
 import io.algernon.vespera.engine.extraction.DoclingResponse;
 import io.algernon.vespera.engine.extraction.PathScriptedExtractor;
-import io.algernon.vespera.engine.extraction.SidecarVersionReport;
+import io.algernon.vespera.engine.extraction.DoclingVersionReport;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -254,7 +254,7 @@ class PictureScriptedExtractionBeans {
 
             @Override
             public Map<String, String> version() {
-                return SidecarVersionReport.runningImage(configuredImage);
+                return DoclingVersionReport.runningImage(configuredImage);
             }
         };
     }

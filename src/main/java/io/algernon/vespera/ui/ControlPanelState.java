@@ -22,7 +22,7 @@ import java.util.stream.Stream;
  * ADR-331 §6's two among them) are made here, so that Run, Save my labels, Auto Label and Publish
  * start a child by the same checks. Every write of a working directory's file goes through {@link #write}, one at a
  * time with every start (ADR-295 §1). As the control panel's process ends, {@link #endWithTheControlPanel} ends the
- * child with it (ADR-307 §1). It also holds the answers the sidecars last gave ({@link #lastChecks}).
+ * child with it (ADR-307 §1). It also holds the answers the containers last gave ({@link #lastChecks}).
  *
  * <p>The class holds no connection to {@code vespera.db} (ADR-278 §3) and writes no file but the launch values'
  * (ADR-292 §2), as an invocation starts.
@@ -68,9 +68,9 @@ final class ControlPanelState {
     private volatile Optional<String> dotVesperaLine = Optional.empty();
     private volatile Optional<Path> dotVesperaAdded = Optional.empty();
     private volatile LaunchValues values;
-    private volatile SidecarChecks.Checks lastChecks = new SidecarChecks.Checks(
-            new SidecarChecks.Check(SidecarChecks.Result.NOT_CHECKED),
-            new SidecarChecks.Check(SidecarChecks.Result.NOT_CHECKED));
+    private volatile ServiceChecks.Checks lastChecks = new ServiceChecks.Checks(
+            new ServiceChecks.Check(ServiceChecks.Result.NOT_CHECKED),
+            new ServiceChecks.Check(ServiceChecks.Result.NOT_CHECKED));
     private Child child;
     private String childCommand = "";
     private Instant childStartInstant = Instant.EPOCH;
@@ -128,14 +128,14 @@ final class ControlPanelState {
         return docker.download(asked, model, stalledAtMost, told);
     }
 
-    /** Stops the sidecars and then the engine (ADR-390 §3); the child is stopped by the caller, first. */
+    /** Stops the containers and then the engine (ADR-390 §3); the child is stopped by the caller, first. */
     DockerControl.Said shutDownDocker() {
         return docker.shutDown();
     }
 
-    /** Stops the sidecars alone, for the launch values held now, as the window closes (ADR-390 §5). */
-    DockerControl.Said stopTheSidecars() {
-        return docker.stopTheSidecars(values);
+    /** Stops the containers alone, for the launch values held now, as the window closes (ADR-390 §5). */
+    DockerControl.Said stopTheContainers() {
+        return docker.stopTheContainers(values);
     }
 
     /** Whether the operator chose the dark theme, kept beside the launch values in a folder of the user's own; light where none was kept there or it cannot be read. */
@@ -337,12 +337,12 @@ final class ControlPanelState {
         this.values = replacement;
     }
 
-    /** What the sidecars last said, {@code not-checked} for each until the window has asked (ADR-302 §5). */
-    SidecarChecks.Checks lastChecks() {
+    /** What the containers last said, {@code not-checked} for each until the window has asked (ADR-302 §5). */
+    ServiceChecks.Checks lastChecks() {
         return lastChecks;
     }
 
-    void keepChecks(SidecarChecks.Checks asked) {
+    void keepChecks(ServiceChecks.Checks asked) {
         this.lastChecks = asked;
     }
 

@@ -107,7 +107,7 @@ public class ConverterStopsPartwayBeans {
     /** The mean confidence every converted answer carries: inside the top grade, so it is bucketed. */
     public static final double MEAN_SCORE = 0.95;
 
-    /** What the client throws once it has stopped answering, as the real one does when the sidecar is gone. */
+    /** What the client throws once it has stopped answering, as the real one does when the docling is gone. */
     public static final String CONNECTION_FAILURE =
             "I/O error on POST request for http://localhost:5001/v1/convert/file: Unexpected end of file from server";
 
@@ -172,7 +172,7 @@ public class ConverterStopsPartwayBeans {
         ARMED.set(true);
     }
 
-    /** Disarms it, which is the sidecar being brought back, and starts the count again from zero. */
+    /** Disarms it, which is the docling being brought back, and starts the count again from zero. */
     public static void keepAnswering() {
         ANSWERED.clear();
         ARMED.set(false);
@@ -196,7 +196,7 @@ public class ConverterStopsPartwayBeans {
 
             @Override
             public Map<String, String> version() {
-                return SidecarVersionReport.runningImage(configuredImage);
+                return DoclingVersionReport.runningImage(configuredImage);
             }
 
             @Override

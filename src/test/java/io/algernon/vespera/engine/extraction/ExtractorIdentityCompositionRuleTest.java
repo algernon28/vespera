@@ -16,8 +16,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * How the extractor identity is composed (ADR-012, ADR-090, ADR-147), in {@code extraction} since
- * ADR-189: the engine's name, the image, every entry of the sidecar's {@code /version} sorted by key,
- * and the options this client sends. Asking the sidecar, and checking that it runs the configured image
+ * ADR-189: the engine's name, the image, every entry of the docling's {@code /version} sorted by key,
+ * and the options this client sends. Asking the docling, and checking that it runs the configured image
  * (ADR-179), stay in {@code pipeline}'s lazy bean, so nothing here calls anything.
  *
  * <p>The expected string is today's composition written out, so a change of a separator, of the order or
@@ -39,7 +39,7 @@ class ExtractorIdentityCompositionRuleTest {
 
     @Test
     @Story("The cache key carries the whole engine")
-    @DisplayName("The identity is the engine, the image, every version the sidecar reports in key order, and the options sent")
+    @DisplayName("The identity is the engine, the image, every version the docling reports in key order, and the options sent")
     void theIdentityIsComposedInOneFixedShape() {
         Map<String, String> reported = new LinkedHashMap<>();
         reported.put("vespera-image", IMAGE);

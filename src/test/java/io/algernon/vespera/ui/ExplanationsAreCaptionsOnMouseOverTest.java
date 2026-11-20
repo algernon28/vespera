@@ -53,8 +53,8 @@ class ExplanationsAreCaptionsOnMouseOverTest {
 
     private static final String START_DOCKERS_CAPTION = "Starts Docker and the containers on this machine and waits for"
             + " them, then downloads a model Ollama lacks where vespera.models.pull is on. Off while they all show OK,"
-            + " while Docker starts or shuts down or a model downloads, while an invocation runs, and where both"
-            + " containers are on another machine.";
+            + " while Docker starts or shuts down or a model downloads, while an invocation runs, and where Docling"
+            + " and Ollama are both on another machine.";
 
     private static final String SHUT_DOWNS_CAPTION = "Stops the containers, then Docker and every other container it"
             + " runs. Asks first.";
@@ -86,6 +86,8 @@ class ExplanationsAreCaptionsOnMouseOverTest {
     Path folder;
 
     @Test
+    @Link(name = "ADR-433", url = Adr.DOCLING_AND_OLLAMA_ARE_CONTAINERS_WHERE_VESPERA_RUNS_THEM, type = "adr")
+    @Issue("891")
     @Story("Explanations are captions on mouse over")
     @DisplayName("Run, Stop, Start Docker, Shut down Docker, Save my labels and Auto Label each stand alone on a wrapper that carries its caption, is not disabled with it, and is the control's own size with the control at its corner")
     void eachButtonOfTheActionRowStandsOnAWrapperThatCarriesItsCaption() throws Exception {
@@ -152,12 +154,14 @@ class ExplanationsAreCaptionsOnMouseOverTest {
     }
 
     @Test
+    @Link(name = "ADR-433", url = Adr.DOCLING_AND_OLLAMA_ARE_CONTAINERS_WHERE_VESPERA_RUNS_THEM, type = "adr")
+    @Issue("891")
     @Story("Explanations are captions on mouse over")
     @DisplayName("Each row of the header's check says in its caption what it is, the container's address and where it was found, and the model's name")
     void eachHeaderRowsCaptionSaysWhatItIsAndWhereItWasFound() throws Exception {
         RecordingDockerControl docker = new RecordingDockerControl().checkAnswering(new DockerCheck(OK,
-                new DockerCheck.Container(OK, DockerCheck.Where.THIS_MACHINE, "http://localhost:5001"),
-                new DockerCheck.Container(OK, DockerCheck.Where.ANOTHER_MACHINE, "http://gpu-box.lan:11434"),
+                new DockerCheck.Service(OK, DockerCheck.Where.THIS_MACHINE, "http://localhost:5001"),
+                new DockerCheck.Service(OK, DockerCheck.Where.ANOTHER_MACHINE, "http://gpu-box.lan:11434"),
                 OK, KO));
         List<String> here;
         List<String> elsewhere;
@@ -165,8 +169,8 @@ class ExplanationsAreCaptionsOnMouseOverTest {
             here = window.awaiting(ExplanationsAreCaptionsOnMouseOverTest::rowCaptions,
                     read -> read.get(2) != null && read.get(2).contains("gpu-box.lan"));
             docker.checkAnswering(new DockerCheck(NOT_ASKED,
-                    new DockerCheck.Container(KO, DockerCheck.Where.NOT_RESOLVED, "http://docling.invalid:5001"),
-                    new DockerCheck.Container(KO, DockerCheck.Where.ANOTHER_MACHINE, "http://gpu-box.lan:11434"),
+                    new DockerCheck.Service(KO, DockerCheck.Where.NOT_RESOLVED, "http://docling.invalid:5001"),
+                    new DockerCheck.Service(KO, DockerCheck.Where.ANOTHER_MACHINE, "http://gpu-box.lan:11434"),
                     NOT_ASKED, NOT_ASKED));
             elsewhere = window.awaiting(ExplanationsAreCaptionsOnMouseOverTest::rowCaptions,
                     read -> read.get(1) != null && read.get(1).contains("docling.invalid"));
@@ -185,7 +189,7 @@ class ExplanationsAreCaptionsOnMouseOverTest {
         claim("with neither here, the daemon's says it is not asked, Docling's that its host cannot be resolved, and"
                         + " each model's that it is asked once Ollama shows OK",
                 () -> assertThat(elsewhere).containsExactly(
-                        "Docker daemon: not asked, both containers are on another machine",
+                        "Docker daemon: not asked, Docling and Ollama are both on another machine",
                         "Docling: docling.invalid cannot be resolved; Vespera does not ask it or start it",
                         "Ollama: gpu-box.lan, another machine; Vespera does not start it",
                         "Embedding model: " + TheWindowChecksAndStartsNothingAsItOpensTest.EMBEDDING_MODEL

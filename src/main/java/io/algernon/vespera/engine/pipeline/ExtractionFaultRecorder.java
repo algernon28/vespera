@@ -37,9 +37,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * carries -- {@code category: message}, the same shape every other extraction-failed reason already has.
  * The discriminator is ADR-071's own breaker and introduces no new number (ADR-139 section 3): a step
  * that completed is a step in which five service-scope failures never landed consecutively, so the
- * sidecar answered for every faulted occurrence's neighbours and each refusal reads as a property of
- * what was uploaded rather than of the sidecar. A step the breaker stopped writes no verdict at all --
- * there, no occurrence is judged on the strength of a sidecar that had already stopped answering. The
+ * Docling answered for every faulted occurrence's neighbours and each refusal reads as a property of
+ * what was uploaded rather than of Docling. A step the breaker stopped writes no verdict at all --
+ * there, no occurrence is judged on the strength of a Docling that had already stopped answering. The
  * fault rows of its committed chunks stand; the chunk it stopped in rolls back, its fault rows with it,
  * and its occurrences are read again by the next invocation (ADR-220 section 14).
  *
@@ -64,7 +64,7 @@ class ExtractionFaultRecorder implements SkipListener<OccurrenceId, ExtractionOu
      * Holds {@link StageRuns} rather than asking it for the run here (#319). This object is step-scoped,
      * so it is built the first time the step calls it -- and a step whose health check failed calls it
      * first from {@code afterStep}, having never run. Asking for the run then asked for the extractor
-     * identity, which calls the sidecar that had just failed its check: with the sidecar unreachable that
+     * identity, which calls the Docling that had just failed its check: with Docling unreachable that
      * threw out of {@code afterStep} and stopped every listener after this one, stage 2's closing line
      * among them, and with it answering but unhealthy it minted stage 2's run behind the failed check,
      * which #319 forbids as ADR-080 forbids it behind a gate.

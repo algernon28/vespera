@@ -175,7 +175,7 @@ The control panel reads `vespera.sidecars.wait-at-most`, from the sources ADR-39
 | `pipeline.MachineLockTest.aFolderValueThatIsNoPathRefusesTheTakeQuotingTheValue` | §2, §5: the lock named by a value holding NUL is made without reading it, and refuses a command and a control panel in the second line, the value as written |
 | `pipeline.MachineLockTest.aLockWhoseHolderLineCannotBeWrittenIsLetGo` | §2: `machine.lock`, and for a start let through `machine-child.lock`, linked to `/dev/full`: refused in the second line, and the lock it took let go; skipped where the system has no `/dev/full` or makes no link |
 | `pipeline.MachineLockTest.onlyRunLabelAndPublishNameAKind` | §1, §4: the first argument `run`, `label` or `publish` names its kind; `serve`, `--help`, `--version`, none and any other name none |
-| `TheEntryPointTakesTheMachineLockTest.aCommandThatUsesTheSidecarsTakesTheMachineLockFirst` | §4: `run`, `label` and `publish`, with `--headless` first or not, ask the lock for their kind before the command line starts; `--version`, `--help`, `serve` and `--headless` alone ask nothing |
+| `TheEntryPointTakesTheMachineLockTest.aCommandThatUsesTheContainersTakesTheMachineLockFirst` (named for the container by ADR-433, #891) | §4: `run`, `label` and `publish`, with `--headless` first or not, ask the lock for their kind before the command line starts; `--version`, `--help`, `serve` and `--headless` alone ask nothing |
 | `TheEntryPointTakesTheMachineLockTest.aRefusedCommandSaysOneLineAndExitsOneBeforeTheCommandLine` | §4, §5: the line alone on standard error, exit 1, no command line |
 | `TheEntryPointTakesTheMachineLockTest.theControlPanelTakesTheMachineLockAfterTheDisplayAndBeforeTheWindow` | §4: with a display, the lock as `control-panel`, then the window; with none, no lock |
 | `TheEntryPointTakesTheMachineLockTest.aSecondControlPanelIsRefusedInOneLineAndTriesNoWindow` | §4, §5: the line, exit 1, no window and no command line |
@@ -184,20 +184,20 @@ The control panel reads `vespera.sidecars.wait-at-most`, from the sources ADR-39
 | `ui.TheChildIsGivenTheLockFolderAbsoluteTest.aRelativeLockFolderReachesTheChildAbsolute` | §2: a control panel's state given a relative folder starts a child whose environment names it absolute, against the control panel's current directory |
 | `ui.TheControlPanelsDockerSettingsTest.theWaitIsReadInTheJarsFormsAndThreeMinutesWhereNoFormReadsIt` | §9: `PT3M`, `5M` and `2d` read; `180` and `500ms` one second; a value of no form and `99999999999999999999` 180 s |
 | `CliExitIT.aCommandStartedWhileAControlPanelRunsIsRefusedBeforeItOpensAWorkingDirectory` | §4, §5: the packaged jar, with a second process holding as `control-panel` in the folder its environment names: `run` exits 1, its one line of the jar's own on standard error quoting the holder line, and its working directory never made; `serve` is not refused by it |
-| `pipeline.DockerShutDownTest.anEngineStopsUnusableOutputFileSaysTheSidecarsWereStopped` | §6: the engine stop's output file failing after the compose stop, the line whole, both commands run |
+| `pipeline.DockerShutDownTest.anEngineStopsUnusableOutputFileSaysTheContainersWereStopped` (named for the container by ADR-433, #891) | §6: the engine stop's output file failing after the compose stop, the line whole, both commands run |
 
 Added beside them, holding ADR-390 as it stands, each linked to it:
 
 | Method | What it holds |
 | --- | --- |
-| `pipeline.DockerShutDownTest.closingStopsTheSidecarsWhereEitherAnswersAndNothingWhereOneIsOnAnotherMachine` | ADR-390 §3: one sidecar answering, the compose stop alone; a base URL on another machine, no command |
-| `pipeline.DockerShutDownTest.anUnusableLockOrOutputFileBeforeTheSidecarsStopIsOneLineOfEachStop` | ADR-390 §6: the lock's line and the compose stop's output file's line, for the shut-down and for the stop of the sidecars alone |
-| `pipeline.DockerShutDownTest.bothStopsWaitForTheSidecarLockAnotherHolds` | ADR-390 §3: each stop waits for `sidecars.lock`, past the bound, and runs its commands once it has it |
-| `pipeline.SidecarStartTest.dockerNotInstalledNamesTheEngineChecksProgramOnEachSystem` | ADR-390 §6: Docker not installed names `docker` on Linux and macOS and `wsl` on Windows, for the start of the sidecars and the control panel's |
+| `pipeline.DockerShutDownTest.closingStopsTheContainersWhereEitherAnswersAndNothingWhereOneIsOnAnotherMachine` (named for the container by ADR-433, #891) | ADR-390 §3: one sidecar answering, the compose stop alone; a base URL on another machine, no command |
+| `pipeline.DockerShutDownTest.anUnusableLockOrOutputFileBeforeTheContainersStopIsOneLineOfEachStop` (named for the container by ADR-433, #891) | ADR-390 §6: the lock's line and the compose stop's output file's line, for the shut-down and for the stop of the sidecars alone |
+| `pipeline.DockerShutDownTest.bothStopsWaitForTheContainerLockAnotherHolds` (named for the container by ADR-433, #891) | ADR-390 §3: each stop waits for `sidecars.lock`, past the bound, and runs its commands once it has it |
+| `pipeline.ContainerStartTest.dockerNotInstalledNamesTheEngineChecksProgramOnEachSystem` (named for the container by ADR-433, #891) | ADR-390 §6: Docker not installed names `docker` on Linux and macOS and `wsl` on Windows, for the start of the sidecars and the control panel's |
 | `ui.TheControlPanelsDockerSettingsTest.theDistributionAndTheWaitAreReadFromTheSourcesInTheirOrder` | ADR-390 §4: the environment, then `.env`, then the jar's `application.yaml` |
 | `ui.TheControlPanelsDockerSettingsTest.aConverterTheEnvironmentNamesOnAnotherMachineStartsNothingWhereTheLaunchValuesAreBlank` | ADR-390 §4: a blank address is the environment's, and on another machine no lock is taken and nothing is run |
 
-and `ui.TheShutDownDockerButtonTest.closingTheWindowStopsTheSidecarsAndNotTheEngine` holds that the window is still shown at the moment the sidecars' stop is called.
+and `ui.TheShutDownDockerButtonTest.closingTheWindowStopsTheContainersAndNotTheEngine` (named for the container by ADR-433, #891) holds that the window is still shown at the moment the sidecars' stop is called.
 
 Amended:
 

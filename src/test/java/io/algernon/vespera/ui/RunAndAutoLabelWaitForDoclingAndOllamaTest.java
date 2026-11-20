@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Predicate;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -35,7 +36,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Feature("The control panel")
 @Issue("889")
 @Link(name = "ADR-430", url = Adr.THE_CONTROL_PANEL_CHECKS_DOCKER_AND_STARTS_NOTHING_UNTIL_START_DOCKER, type = "adr")
-class RunAndAutoLabelWaitForTheContainersTest {
+class RunAndAutoLabelWaitForDoclingAndOllamaTest {
 
     private static final DockerCheck.Mark OK = DockerCheck.Mark.OK;
 
@@ -61,13 +62,12 @@ class RunAndAutoLabelWaitForTheContainersTest {
         Held allUp;
         Held elsewhere;
         try (WindowForTests window = shown(docker)) {
-            doclingDown = window.awaiting(RunAndAutoLabelWaitForTheContainersTest::held,
-                    read -> read.runCaption().contains("Docling"));
+            doclingDown = window.awaiting(RunAndAutoLabelWaitForDoclingAndOllamaTest::held, oneRowNotOk());
             docker.checkAnswering(RecordingDockerControl.everyRow(KO, KO, OK, OK, OK));
-            twoDown = window.awaiting(RunAndAutoLabelWaitForTheContainersTest::held,
+            twoDown = window.awaiting(RunAndAutoLabelWaitForDoclingAndOllamaTest::held,
                     read -> read.runCaption().contains("Docker daemon"));
             docker.checkAnswering(RecordingDockerControl.everyRow(OK, OK, OK, OK, OK));
-            allUp = window.awaiting(RunAndAutoLabelWaitForTheContainersTest::held, Held::runEnabled);
+            allUp = window.awaiting(RunAndAutoLabelWaitForDoclingAndOllamaTest::held, Held::runEnabled);
             docker.checkAnswering(RecordingDockerControl.bothElsewhere("http://gpu-box.lan:5001", OK,
                     "http://gpu-box.lan:11434", OK, OK, OK));
             elsewhere = window.awaiting(root -> WindowForTests.node(root, "check-docker-daemon-mark", Labeled.class)
@@ -86,6 +86,8 @@ class RunAndAutoLabelWaitForTheContainersTest {
     }
 
     @Test
+    @Link(name = "ADR-433", url = Adr.DOCLING_AND_OLLAMA_ARE_CONTAINERS_WHERE_VESPERA_RUNS_THEM, type = "adr")
+    @Issue("891")
     @Story("Run waits for the containers")
     @DisplayName("Run is off until the first check has come back, while Docker and the containers start and while Docker shuts down, its caption saying which, before the rows that are not OK")
     void runsCaptionSaysItWaitsForTheFirstCheckAndForAStartOrAShutDown() throws Exception {
@@ -104,33 +106,33 @@ class RunAndAutoLabelWaitForTheContainersTest {
         try (WindowForTests window = shown(docker)) {
             try {
                 WindowForTests.within(() -> !docker.checks.isEmpty());
-                beforeTheFirstCheck = window.read(RunAndAutoLabelWaitForTheContainersTest::held);
+                beforeTheFirstCheck = window.read(RunAndAutoLabelWaitForDoclingAndOllamaTest::held);
             } finally {
                 firstCheck.countDown();
             }
-            daemonDown = window.awaiting(RunAndAutoLabelWaitForTheContainersTest::held,
+            daemonDown = window.awaiting(RunAndAutoLabelWaitForDoclingAndOllamaTest::held,
                     read -> read.runCaption().contains("Docker daemon"));
             window.awaiting(root -> !WindowForTests.node(root, "start-docker", Button.class).isDisabled(),
                     Boolean::booleanValue);
             window.act(root -> WindowForTests.node(root, "start-docker", Button.class).fire());
             WindowForTests.within(() -> !docker.of("start").isEmpty());
-            starting = window.awaiting(RunAndAutoLabelWaitForTheContainersTest::held,
+            starting = window.awaiting(RunAndAutoLabelWaitForDoclingAndOllamaTest::held,
                     read -> read.runCaption().contains("start."));
             startReleased.countDown();
-            window.awaiting(RunAndAutoLabelWaitForTheContainersTest::held,
+            window.awaiting(RunAndAutoLabelWaitForDoclingAndOllamaTest::held,
                     read -> read.runCaption().contains("Docker daemon"));
             window.dialogs.answer = true;
             window.act(root -> WindowForTests.node(root, "shut-down-docker", Button.class).fire());
             WindowForTests.within(() -> !docker.of("shut-down").isEmpty());
-            shuttingDown = window.awaiting(RunAndAutoLabelWaitForTheContainersTest::held,
+            shuttingDown = window.awaiting(RunAndAutoLabelWaitForDoclingAndOllamaTest::held,
                     read -> read.runCaption().contains("shuts down"));
             shutDownReleased.countDown();
         }
 
-        claim("before the first check has come back, Run is off and its caption reads: Off until the containers have"
-                        + " been checked.",
+        claim("before the first check has come back, Run is off and its caption reads: Off until Docling and Ollama"
+                        + " have been checked.",
                 () -> assertThat(List.of(beforeTheFirstCheck.runEnabled(), beforeTheFirstCheck.runCaption()))
-                        .containsExactly(false, "Off until the containers have been checked."));
+                        .containsExactly(false, "Off until Docling and Ollama have been checked."));
         claim("once it has, the daemon KO, its caption names the daemon",
                 () -> assertThat(daemonDown.runCaption()).isEqualTo("Off until Docker daemon shows OK."));
         claim("while Start Docker's start runs, Run is off and its caption reads: Off while Docker and the containers"
@@ -151,9 +153,9 @@ class RunAndAutoLabelWaitForTheContainersTest {
         Held pullOn;
         Held pullOff;
         try (WindowForTests window = shown(docker)) {
-            pullOn = window.awaiting(RunAndAutoLabelWaitForTheContainersTest::held, Held::runEnabled);
+            pullOn = window.awaiting(RunAndAutoLabelWaitForDoclingAndOllamaTest::held, Held::runEnabled);
             window.act(root -> WindowForTests.node(root, "vespera.models.pull", CheckBox.class).setSelected(false));
-            pullOff = window.awaiting(RunAndAutoLabelWaitForTheContainersTest::held, read -> !read.runEnabled());
+            pullOff = window.awaiting(RunAndAutoLabelWaitForDoclingAndOllamaTest::held, read -> !read.runEnabled());
         }
 
         claim("the embedding model KO and vespera.models.pull ticked, Run is on",
@@ -175,16 +177,15 @@ class RunAndAutoLabelWaitForTheContainersTest {
         Held generativeMissing;
         try (WindowForTests window = shown(docker)) {
             window.act(root -> WindowForTests.node(root, "vespera.models.pull", CheckBox.class).setSelected(false));
-            doclingDown = window.awaiting(RunAndAutoLabelWaitForTheContainersTest::held,
-                    read -> read.runCaption().contains("Docling"));
+            doclingDown = window.awaiting(RunAndAutoLabelWaitForDoclingAndOllamaTest::held, oneRowNotOk());
             docker.checkAnswering(RecordingDockerControl.everyRow(OK, OK, KO, NOT_ASKED, NOT_ASKED));
-            ollamaDown = window.awaiting(RunAndAutoLabelWaitForTheContainersTest::held,
+            ollamaDown = window.awaiting(RunAndAutoLabelWaitForDoclingAndOllamaTest::held,
                     read -> read.runCaption().contains("Ollama"));
             docker.checkAnswering(RecordingDockerControl.everyRow(OK, OK, OK, KO, OK));
-            embeddingMissing = window.awaiting(RunAndAutoLabelWaitForTheContainersTest::held,
+            embeddingMissing = window.awaiting(RunAndAutoLabelWaitForDoclingAndOllamaTest::held,
                     read -> read.runCaption().contains("downloaded"));
             docker.checkAnswering(RecordingDockerControl.everyRow(OK, OK, OK, OK, KO));
-            generativeMissing = window.awaiting(RunAndAutoLabelWaitForTheContainersTest::held,
+            generativeMissing = window.awaiting(RunAndAutoLabelWaitForDoclingAndOllamaTest::held,
                     read -> !read.autoLabelEnabled());
         }
 
@@ -207,6 +208,15 @@ class RunAndAutoLabelWaitForTheContainersTest {
                 Files.createDirectories(folder.resolve("working")).toString(), "", "", "", "", "", ""));
         state.useSources(TheWindowChecksAndStartsNothingAsItOpensTest.withModels());
         return WindowForTests.shown(state);
+    }
+
+    /**
+     * Run's caption once a check has come back with one row not OK, whichever row: the caption before the first check
+     * names Docling too, so waiting for the name alone could read the window before the check, and the claim, not this
+     * wait, says which row.
+     */
+    private static Predicate<Held> oneRowNotOk() {
+        return read -> read.runCaption().endsWith(" shows OK.");
     }
 
     private static Held held(Parent root) {

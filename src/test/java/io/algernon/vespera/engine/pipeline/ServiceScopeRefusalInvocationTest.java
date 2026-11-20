@@ -36,7 +36,7 @@ import org.springframework.test.context.DynamicPropertySource;
  *
  * <p>Every test runs a first invocation over {@link ConverterStopsPartwayBeans} with outcomes scripted
  * by the order documents are first asked about, then scripts it afresh with nothing, which is the
- * sidecar having recovered: every document it is asked about from then on converts. <b>Unlike {@code
+ * container having recovered: every document it is asked about from then on converts. <b>Unlike {@code
  * ExtractionResumeInvocationTest}, nothing here empties {@code extraction_cache} between
  * invocations</b>, because what the cache keeps is what these tests are about. The converter's count
  * therefore reads exactly the documents the second invocation could not be answered about from the

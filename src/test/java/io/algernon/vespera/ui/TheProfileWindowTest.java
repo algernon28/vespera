@@ -443,7 +443,7 @@ class TheProfileWindowTest {
             afterCancel = showing(WindowForTests.closeAsTheOperatorDoes(window.stage), profile);
             fileAfterCancel = Files.readAllBytes(profileFile);
             window.dialogs.chosen = Optional.of(SAVE);
-            afterSave = closedOnceTheSidecarsAreStopped(window, profile);
+            afterSave = closedOnceTheContainersAreStopped(window, profile);
             statedAfterSave = spaceIn(profileFile);
             askedOnSave = List.copyOf(window.dialogs.choices);
         }
@@ -459,7 +459,7 @@ class TheProfileWindowTest {
             Stage profile = window.profileWindow();
             typed(window, FIRST_EDIT);
             window.dialogs.chosen = Optional.of(DISCARD);
-            afterDiscard = closedOnceTheSidecarsAreStopped(window, profile);
+            afterDiscard = closedOnceTheContainersAreStopped(window, profile);
             askedOnDiscard = window.dialogs.choices.size();
         }
 
@@ -469,7 +469,7 @@ class TheProfileWindowTest {
         try (WindowForTests window = WindowForTests.shown(aStateOver(unedited))) {
             window.openProfile();
             Stage profile = window.profileWindow();
-            withNoEdit = closedOnceTheSidecarsAreStopped(window, profile);
+            withNoEdit = closedOnceTheContainersAreStopped(window, profile);
             askedWithNoEdit = window.dialogs.choices.size();
         }
 
@@ -1230,7 +1230,7 @@ class TheProfileWindowTest {
      * WindowForTests#closedAsTheOperatorDoesAndAwaited} does. Gives whether the cockpit and the Profile window are each
      * still shown.
      */
-    private static boolean[] closedOnceTheSidecarsAreStopped(WindowForTests window, Stage profile) throws Exception {
+    private static boolean[] closedOnceTheContainersAreStopped(WindowForTests window, Stage profile) throws Exception {
         return showing(window.closedAsTheOperatorDoesAndAwaited(), profile);
     }
 

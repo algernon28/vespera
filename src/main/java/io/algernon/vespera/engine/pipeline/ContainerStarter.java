@@ -20,15 +20,15 @@ import org.springframework.core.env.Environment;
  * Brings the containers on this machine up where they are not answering: starts the Docker engine where it is not
  * running, then runs the README's {@code up} with {@code --no-recreate}, and waits for every container on this machine
  * (ADR-323, ADR-430 §10). It never removes or
- * recreates a container, and stops the sidecars and the engine only when asked to ({@link #stopTheSidecars} and
+ * recreates a container, and stops the containers and the engine only when asked to ({@link #stopTheContainers} and
  * {@link #shutDown}, ADR-390 §3); it does nothing at exit.
  *
- * <p>The commands that use a sidecar, {@code vespera run} and {@code vespera label --auto}, ask {@link
- * #ensureRunning} before they do anything else; a {@link SidecarStartRefusedException} is its refusal, one line and
+ * <p>The commands that use a container, {@code vespera run} and {@code vespera label --auto}, ask {@link
+ * #ensureRunning} before they do anything else; a {@link ContainerStartRefusedException} is its refusal, one line and
  * exit 1. It is registered by {@code VesperaApplication.main} alone, as the corpus-root lock is (ADR-279 §7), so a
  * context built by Spring's test support has none.
  */
-public class SidecarStarter {
+public class ContainerStarter {
 
     /** How a call to {@link #ensureRunning} ended when it did not refuse. */
     enum Outcome {
@@ -44,42 +44,45 @@ public class SidecarStarter {
         ENGINE_STARTED
     }
 
-    /** What the shut-down did: whether both the sidecars and the engine are stopped, and the one line that says it (ADR-390 §6). */
+    /** What the shut-down did: whether both the containers and the engine are stopped, and the one line that says it (ADR-390 §6). */
     record ShutDown(boolean done, String line) {
     }
 
     /** The line of a shut-down that stopped both (ADR-390 §6). */
     static final String SHUT_DOWN_DONE =
-            "the sidecars and the Docker engine are stopped; Vespera starts them again when it next needs them.";
+            "the containers and the Docker engine are stopped; Vespera starts them again when it next needs them.";
 
     /** The lock file, in the folder the corpus-root locks lie in (ADR-323 §6). */
-    private static final String LOCK_FILE = "sidecars.lock";
+    private static final String LOCK_FILE = "containers.lock";
+
+    /** The file an earlier version of Vespera locked, which a live one refuses the action by (ADR-433 §6). */
+    private static final String THE_EARLIER_LOCK_FILE = "sidecars.lock";
 
     private static final long LOCKED_BYTE = Long.MAX_VALUE - 1;
 
     private static final long LOCKED_LENGTH = 1;
 
-    /** How long between two checks while waiting for the engine or a sidecar. */
+    /** How long between two checks while waiting for the engine or a container. */
     private static final Duration CHECK_EVERY = Duration.ofSeconds(2);
 
     /** A command of the engine's section is killed, and counts as exited non-zero, after this long. */
     private static final Duration COMMAND_LIMIT = Duration.ofSeconds(30);
 
-    private static final Logger log = LoggerFactory.getLogger(SidecarStarter.class);
+    private static final Logger log = LoggerFactory.getLogger(ContainerStarter.class);
 
-    private final SidecarStartSettings settings;
+    private final ContainerStartSettings settings;
     private final ProcessRunner runner;
-    private final SidecarHealth health;
+    private final ContainerHealth health;
     private final HostSystem host;
     private final Supplier<ComposeFiles> composeFiles;
     private final Path lockFolder;
     private final Duration checkEvery;
     private final ThisMachine thisMachine;
 
-    SidecarStarter(
-            SidecarStartSettings settings,
+    ContainerStarter(
+            ContainerStartSettings settings,
             ProcessRunner runner,
-            SidecarHealth health,
+            ContainerHealth health,
             HostSystem host,
             Supplier<ComposeFiles> composeFiles,
             Path lockFolder,
@@ -87,10 +90,10 @@ public class SidecarStarter {
         this(settings, runner, health, host, composeFiles, lockFolder, checkEvery, ThisMachine.system());
     }
 
-    SidecarStarter(
-            SidecarStartSettings settings,
+    ContainerStarter(
+            ContainerStartSettings settings,
             ProcessRunner runner,
-            SidecarHealth health,
+            ContainerHealth health,
             HostSystem host,
             Supplier<ComposeFiles> composeFiles,
             Path lockFolder,
@@ -110,12 +113,12 @@ public class SidecarStarter {
      * The starter an invocation of the application has: real processes, real HTTP questions, the compose files the
      * jar carries, and the lock in the folder the corpus-root locks lie in.
      */
-    public static SidecarStarter forTheApplication(Environment environment) {
-        SidecarStartSettings settings = SidecarStartSettings.from(environment);
-        return new SidecarStarter(
+    public static ContainerStarter forTheApplication(Environment environment) {
+        ContainerStartSettings settings = ContainerStartSettings.from(environment);
+        return new ContainerStarter(
                 settings,
                 new SystemProcessRunner(Path.of(System.getProperty("java.io.tmpdir"))),
-                new HttpSidecarHealth(settings),
+                new HttpContainerHealth(settings),
                 HostSystem.current(),
                 () -> BesideTheJar.ofThisApplication().composeFiles(),
                 CorpusRootLock.folderNamedBy(environment.getProperty(CorpusRootLock.FOLDER_PROPERTY)),
@@ -126,7 +129,7 @@ public class SidecarStarter {
      * Makes every container on this machine answer where it does not, in the order of ADR-323 §3; where neither
      * container is on this machine it does nothing (ADR-430 §10).
      *
-     * @throws SidecarStartRefusedException when they do not answer and cannot be made to
+     * @throws ContainerStartRefusedException when they do not answer and cannot be made to
      */
     Outcome ensureRunning() {
         return ensureRunning(true);
@@ -158,7 +161,7 @@ public class SidecarStarter {
         } else {
             throw new NoComposeFileBuildsTheImageException(settings.doclingImage(), cpuImage, gpuImage);
         }
-        try (SidecarLock lock = takeTheLock()) {
+        try (ContainerLock lock = takeTheLock()) {
             if (theLocalOnesAnswer()) {
                 return Outcome.ALREADY_ANSWERING;
             }
@@ -288,14 +291,14 @@ public class SidecarStarter {
      * The control panel's window no longer runs it as it opens (ADR-430 §12); it starts nothing until Start Docker is
      * pressed.
      *
-     * @throws SidecarStartRefusedException when the engine does not answer and cannot be made to, or when it answers
+     * @throws ContainerStartRefusedException when the engine does not answer and cannot be made to, or when it answers
      *     and docker compose or docker buildx is not installed (ADR-410 §3)
      */
     Outcome ensureTheEngineRuns() {
         if (neitherIsOnThisMachine()) {
             return Outcome.ON_ANOTHER_MACHINE;
         }
-        try (SidecarLock lock = takeTheLock()) {
+        try (ContainerLock lock = takeTheLock()) {
             boolean started = makeTheEngineAnswer();
             checkComposeAndBuildx();
             return started ? Outcome.ENGINE_STARTED : Outcome.ENGINE_ANSWERING;
@@ -308,58 +311,62 @@ public class SidecarStarter {
      *
      * @return the line of a refusal, empty where they were stopped or nothing was to be done
      */
-    Optional<String> stopTheSidecars() {
+    Optional<String> stopTheContainers() {
         boolean docling = doclingIsHere();
         boolean ollama = ollamaIsHere();
         if (!(docling && health.doclingAnswers()) && !(ollama && health.ollamaAnswers())) {
             return Optional.empty();
         }
-        try (SidecarLock lock = takeTheLock()) {
+        try (ContainerLock lock = takeTheLock()) {
             ProcessOutcome stopped = runStop(host.composeStop(settings.wslDistribution()));
             if (stopped.exitCode() != 0) {
-                return Optional.of("the sidecars were not stopped: " + exited(host.composeStop(settings.wslDistribution()),
+                return Optional.of("the containers were not stopped: " + exited(host.composeStop(settings.wslDistribution()),
                         stopped) + ".");
             }
             return Optional.empty();
-        } catch (SidecarLockUnavailableException unusable) {
-            return Optional.of("the sidecars were not stopped: " + unusable.unusable() + ".");
+        } catch (ContainerLockUnavailableException unusable) {
+            return Optional.of("the containers were not stopped: " + unusable.unusable() + ".");
+        } catch (EarlierVersionHoldsTheLockException held) {
+            return Optional.of("the containers were not stopped: " + held.unusable() + ".");
         } catch (CommandOutputFileUnusableException unusable) {
-            return Optional.of("the sidecars were not stopped: " + unusable.unusable() + ".");
+            return Optional.of("the containers were not stopped: " + unusable.unusable() + ".");
         }
     }
 
-    /** The shut-down: the sidecars' stop, then, only where it exited 0, the engine's (ADR-390 §3). */
+    /** The shut-down: the containers' stop, then, only where it exited 0, the engine's (ADR-390 §3). */
     ShutDown shutDown() {
         List<String> composeStop = host.composeStop(settings.wslDistribution());
         List<String> engineStop = host.engineStop(settings.wslDistribution());
-        try (SidecarLock lock = takeTheLock()) {
-            ProcessOutcome sidecars = runStop(composeStop);
-            if (sidecars.exitCode() != 0) {
-                return new ShutDown(false, "Docker was not shut down: " + exited(composeStop, sidecars)
+        try (ContainerLock lock = takeTheLock()) {
+            ProcessOutcome containers = runStop(composeStop);
+            if (containers.exitCode() != 0) {
+                return new ShutDown(false, "Docker was not shut down: " + exited(composeStop, containers)
                         + ". The Docker engine was not stopped.");
             }
             ProcessOutcome engine;
             try {
                 engine = runStop(engineStop);
             } catch (CommandOutputFileUnusableException unusable) {
-                // Step 1 exited 0: the sidecars are stopped, and it is the engine stop's output file that failed (ADR-395 §6).
-                return new ShutDown(false, "The sidecars were stopped, but Docker was not shut down: "
+                // Step 1 exited 0: the containers are stopped, and it is the engine stop's output file that failed (ADR-395 §6).
+                return new ShutDown(false, "The containers were stopped, but Docker was not shut down: "
                         + unusable.unusable() + ".");
             }
             if (engine.exitCode() != 0) {
-                return new ShutDown(false, "the sidecars are stopped, but the Docker engine is not: "
+                return new ShutDown(false, "the containers are stopped, but the Docker engine is not: "
                         + exited(engineStop, engine) + ". Stop Docker yourself, or leave it running.");
             }
             return new ShutDown(true, SHUT_DOWN_DONE);
-        } catch (SidecarLockUnavailableException unusable) {
+        } catch (ContainerLockUnavailableException unusable) {
             return new ShutDown(false, "Docker was not shut down: " + unusable.unusable() + ".");
+        } catch (EarlierVersionHoldsTheLockException held) {
+            return new ShutDown(false, "Docker was not shut down: " + held.unusable() + ".");
         } catch (CommandOutputFileUnusableException unusable) {
             return new ShutDown(false, "Docker was not shut down: " + unusable.unusable() + ".");
         }
     }
 
     private static String exited(List<String> command, ProcessOutcome outcome) {
-        return SidecarStartRefusedException.asRun(command) + " exited " + outcome.exitCode() + ": "
+        return ContainerStartRefusedException.asRun(command) + " exited " + outcome.exitCode() + ": "
                 + outcome.lastLine();
     }
 
@@ -459,7 +466,7 @@ public class SidecarStarter {
                     ? List.of(files.composeFile(), files.gpuFile())
                     : List.of(files.composeFile());
             List<String> up = host.composeUp(settings.wslDistribution(), named, services());
-            log.info("Starting the sidecars: {}", SidecarStartRefusedException.asRun(up));
+            log.info("Starting the containers: {}", ContainerStartRefusedException.asRun(up));
             ProcessOutcome outcome;
             try {
                 outcome = runner.runToTheEnd(up, line -> log.info("{}", line));
@@ -467,7 +474,7 @@ public class SidecarStarter {
                 throw new DockerIsNotInstalledException(host.engineProgram());
             }
             if (outcome.exitCode() != 0) {
-                throw new SidecarsDidNotStartException(up, outcome);
+                throw new ContainersDidNotStartException(up, outcome);
             }
         }
     }
@@ -498,7 +505,7 @@ public class SidecarStarter {
             }
             if (System.nanoTime() - began >= settings.waitAtMost().toNanos()) {
                 String which = !docling && !ollama ? "docling-serve and Ollama" : docling ? "Ollama" : "docling-serve";
-                throw new SidecarsDidNotAnswerException(which, settings.waitAtMost());
+                throw new ContainersDidNotAnswerException(which, settings.waitAtMost());
             }
             sleep();
         }
@@ -513,40 +520,57 @@ public class SidecarStarter {
             Thread.sleep(checkEvery);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("interrupted while waiting for the sidecars", interrupted);
+            throw new IllegalStateException("interrupted while waiting for the containers", interrupted);
         }
     }
 
-    // ---- the lock (ADR-323 §6)
+    // ---- the locks (ADR-323 §6, ADR-433 §6)
 
     /**
-     * Takes {@code sidecars.lock} in the lock folder, waiting for it where another invocation holds it: unlike the
-     * working directory's and the corpus root's, it is waited for, because the holder is doing what this would.
+     * Takes {@code containers.lock} in the lock folder, waiting for it where another invocation holds it: unlike the
+     * working directory's and the corpus root's, it is waited for, because the holder is doing what this would. Then
+     * tries the lock file of an earlier version, without waiting for it: held, the action is refused and
+     * {@code containers.lock} is let go; not held, it is kept beside the first until the action ends (ADR-433 §6).
      */
-    private SidecarLock takeTheLock() {
+    private ContainerLock takeTheLock() {
+        ContainerLock own = takeTheLockOf(LOCK_FILE, true);
+        try {
+            ContainerLock earlier = takeTheLockOf(THE_EARLIER_LOCK_FILE, false);
+            return new ContainerLock(earlier, own);
+        } catch (RuntimeException refused) {
+            own.close();
+            throw refused;
+        }
+    }
+
+    private ContainerLock takeTheLockOf(String fileName, boolean waitForIt) {
+        Path file = lockFolder.resolve(fileName);
         FileChannel channel;
         try {
             Files.createDirectories(lockFolder);
-            channel = FileChannel.open(
-                    lockFolder.resolve(LOCK_FILE), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+            channel = FileChannel.open(file, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         } catch (IOException | RuntimeException unavailable) {
-            throw new SidecarLockUnavailableException(lockFolder.resolve(LOCK_FILE), unavailable);
+            throw new ContainerLockUnavailableException(file, unavailable);
         }
         boolean said = false;
         while (true) {
             try {
                 FileLock lock = channel.tryLock(LOCKED_BYTE, LOCKED_LENGTH, false);
                 if (lock != null) {
-                    return new SidecarLock(channel, lock);
+                    return new ContainerLock(channel, lock, null);
                 }
             } catch (OverlappingFileLockException heldByThisProcess) {
-                // Another invocation of this JVM holds it, which a test can; wait the same way.
+                // Another lock of this JVM holds it, which a test can.
             } catch (IOException unlockable) {
                 closeQuietly(channel);
-                throw new SidecarLockUnavailableException(lockFolder.resolve(LOCK_FILE), unlockable);
+                throw new ContainerLockUnavailableException(file, unlockable);
+            }
+            if (!waitForIt) {
+                closeQuietly(channel);
+                throw new EarlierVersionHoldsTheLockException(file);
             }
             if (!said) {
-                log.info("Another Vespera invocation is starting the sidecars; waiting for it");
+                log.info("Another Vespera invocation is starting the containers; waiting for it");
                 said = true;
             }
             sleep();
@@ -561,17 +585,47 @@ public class SidecarStarter {
         }
     }
 
-    /** The held lock, released and its channel closed at the end of the start. */
-    private record SidecarLock(FileChannel channel, FileLock lock) implements AutoCloseable {
+    /** The held lock, or two, the earlier version's and this one's, released and the channels closed at the end of the action. */
+    private record ContainerLock(FileChannel channel, FileLock lock, ContainerLock alsoHeld) implements AutoCloseable {
+
+        /** The earlier lock, released before the one it is kept beside. */
+        ContainerLock(ContainerLock earlier, ContainerLock own) {
+            this(own.channel, own.lock, earlier);
+        }
 
         @Override
         public void close() {
+            if (alsoHeld != null) {
+                alsoHeld.close();
+            }
             try {
                 lock.release();
             } catch (IOException ignored) {
                 // Closing the channel releases it all the same.
             }
             closeQuietly(channel);
+        }
+    }
+
+    /**
+     * An earlier version of Vespera holds its lock file, so that it may be starting or stopping the containers
+     * (ADR-433 §6). A start of the containers and the engine's start are refused by its message; the stop and the
+     * shut-down say {@link #unusable()} in their own lines.
+     */
+    static final class EarlierVersionHoldsTheLockException extends ContainerStartRefusedException {
+
+        private final String unusable;
+
+        EarlierVersionHoldsTheLockException(Path lockFile) {
+            super("the containers are not answering and Vespera cannot start them: an earlier version of Vespera holds"
+                    + " the lock file " + lockFile.toAbsolutePath() + ", and may be starting or stopping them. Let it"
+                    + " finish, or end it, and run the same command again.");
+            this.unusable = "an earlier version of Vespera holds the lock file " + lockFile.toAbsolutePath();
+        }
+
+        /** What the refusal says of the lock, for the lines of the stops (ADR-390 §6). */
+        String unusable() {
+            return unusable;
         }
     }
 }

@@ -18,7 +18,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The commands Vespera runs on each system to check, start and stop the Docker engine, to stop the sidecars and to
+ * The commands Vespera runs on each system to check, start and stop the Docker engine, to stop the containers and to
  * bring them up (ADR-390 §1 to §3, ADR-323 §4 and §5): Docker Engine alone, the {@code docker} service on Linux, Docker
  * Engine inside a WSL 2 distribution on Windows, reached through {@code wsl}, and Colima on macOS; one start command
  * on each, and none of Docker Desktop.
@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
  * shows.
  */
 @Epic("Pipeline")
-@Feature("The sidecars")
+@Feature("The containers")
 @Issue("816")
 @Link(name = "ADR-390", url = Adr.VESPERA_USES_DOCKER_ENGINE_ALONE_AND_A_BUTTON_SHUTS_IT_DOWN, type = "adr")
 @Link(name = "ADR-323", url = Adr.VESPERA_STARTS_DOCKER_AND_THE_SIDECARS_AND_STAGE_2_WAITS_FOR_A_STARTING_CONVERTER, type = "adr")
@@ -48,7 +48,7 @@ class EachSystemsDockerCommandsTest {
     private static final List<String> IN_THE_DEFAULT_DISTRIBUTION = List.of("wsl", "-u", "root", "--exec");
 
     /** The folder the compose files are written out to, absolute on whatever system the test runs on. */
-    private static final Path FOLDER = Path.of("").toAbsolutePath().resolve("vespera-sidecars-written-out");
+    private static final Path FOLDER = Path.of("").toAbsolutePath().resolve("vespera-containers-written-out");
 
     private static final Path COMPOSE_FILE = FOLDER.resolve("compose.yaml");
 
@@ -59,7 +59,7 @@ class EachSystemsDockerCommandsTest {
     /** Words no command of any system holds: Docker Desktop's, the openers', and a removal of the containers. */
     private static final List<String> NEVER_NAMED = List.of("desktop", "Docker Desktop.exe", "cmd", "open", "down");
 
-    /** One system's four commands of the engine and the sidecars' stop. */
+    /** One system's four commands of the engine and the containers' stop. */
     record Commands(List<String> check, List<String> start, List<String> composeStop, List<String> stop) {
     }
 
@@ -86,7 +86,7 @@ class EachSystemsDockerCommandsTest {
 
         for (Map.Entry<HostSystem, Commands> system : expected.entrySet()) {
             HostSystem host = system.getKey();
-            claim("on " + host + ", the engine check, the engine's one start, the sidecars' stop and the engine's stop"
+            claim("on " + host + ", the engine check, the engine's one start, the containers' stop and the engine's stop"
                             + " are, whole, the ones listed for it",
                     () -> assertThat(new Commands(
                                     host.engineCheck(THE_DEFAULT_DISTRIBUTION),
@@ -126,7 +126,7 @@ class EachSystemsDockerCommandsTest {
     void onWindowsEveryDockerCommandRunsInsideTheNamedWslDistribution() {
         List<String> inTheNamedOne = List.of("wsl", "-d", A_NAMED_DISTRIBUTION, "-u", "root", "--exec");
 
-        claim("with a distribution named, the engine check and the sidecars' stop run in it, as root, with no shell"
+        claim("with a distribution named, the engine check and the containers' stop run in it, as root, with no shell"
                         + " between",
                 () -> assertThat(List.of(
                                 HostSystem.WINDOWS.engineCheck(A_NAMED_DISTRIBUTION),

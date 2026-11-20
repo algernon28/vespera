@@ -27,7 +27,7 @@ import org.springframework.batch.core.step.StepExecution;
  *
  * <p>Holds {@link StageRuns} rather than asking it for the run when built, for the reason {@link
  * ExtractionFaultRecorder} gives (#319): a step that failed its health check first builds this object
- * from {@code afterStep}, and asking for the run there calls the sidecar that just failed its check.
+ * from {@code afterStep}, and asking for the run there calls the Docling that just failed its check.
  */
 class ReviewListListener implements StepExecutionListener {
 
@@ -59,8 +59,8 @@ class ReviewListListener implements StepExecutionListener {
     /**
      * Writes the page for a step that completed, or failed after reading an occurrence. A step that
      * failed having read nothing never reached the survivors reader that asks for its run -- its health
-     * check failed, or the sidecar would not say what it is -- so nothing is asked for and no page is
-     * written (#319): there is no run to list, and asking for one would call the sidecar again.
+     * check failed, or Docling would not say what it is -- so nothing is asked for and no page is
+     * written (#319): there is no run to list, and asking for one would call Docling again.
      *
      * <p>The page is written beside its place and moved there once whole, as {@code arrangement.html} is
      * (ADR-223 section 3), by the move that is attempted again where it is refused as access denied or, on

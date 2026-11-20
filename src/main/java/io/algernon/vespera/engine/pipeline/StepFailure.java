@@ -34,7 +34,7 @@ final class StepFailure {
 
     /**
      * Whether the failure {@link #named} reads is a database file another process holds (ADR-177 §2.3),
-     * for a closing line to say to close what holds it in place of advice about the sidecar.
+     * for a closing line to say to close what holds it in place of advice about Docling.
      */
     static boolean lockedDatabaseFile(StepExecution stepExecution) {
         List<Throwable> failures = stepExecution.getFailureExceptions();
@@ -51,7 +51,7 @@ final class StepFailure {
 
     /**
      * Whether the failure {@link #named} reads is the corpus root no longer being listable (ADR-210 section
-     * 2), for a closing line to say to reconnect the archive in place of advice about the sidecar.
+     * 2), for a closing line to say to reconnect the archive in place of advice about Docling.
      */
     static boolean archiveGone(StepExecution stepExecution) {
         List<Throwable> failures = stepExecution.getFailureExceptions();

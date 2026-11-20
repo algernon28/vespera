@@ -52,7 +52,7 @@ enum HostSystem {
         };
     }
 
-    /** The stop of the sidecars, {@code stop} and nothing harder (ADR-390 §3, step 1). */
+    /** The stop of the containers, {@code stop} and nothing harder (ADR-390 §3, step 1). */
     List<String> composeStop(String wslDistribution) {
         return inTheEngine(wslDistribution, List.of("docker", "compose", "-p", "vespera", "stop"));
     }

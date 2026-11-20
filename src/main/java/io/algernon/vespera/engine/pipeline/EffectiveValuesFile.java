@@ -64,7 +64,7 @@ final class EffectiveValuesFile {
     /** The keys of the application's own file the control panel shows, in the order of ADR-330 §1. */
     private static final String[] AS_THE_APPLICATION_RESOLVES_THEM = {
         "vespera.docling.image",
-        SidecarStartSettings.WAIT_AT_MOST_PROPERTY,
+        ContainerStartSettings.WAIT_AT_MOST_PROPERTY,
         "vespera.progress-interval",
         // The presets of ADR-330 §9, in the order of its table: the neighbours first, then the fourteen from the OCR
         // preset to the sample's number from each band, then the topics' presets (ADR-399, ADR-401, ADR-400). The
@@ -137,10 +137,12 @@ final class EffectiveValuesFile {
         // What applies where the profile's clusterResolution names none: the preset as configuration resolves it.
         named(values, "clusterResolution", Presets.RESOLUTION);
         for (String key : AS_THE_APPLICATION_RESOLVES_THEM) {
-            named(values, key, key);
+            named(values, key, key.equals(EarlierSettingNames.WAIT_AT_MOST.now())
+                    ? EarlierSettingNames.nameSet(environment, EarlierSettingNames.WAIT_AT_MOST)
+                    : key);
         }
-        address(values, "vespera.docling.base-url", SidecarStartSettings.DEFAULT_DOCLING);
-        address(values, "spring.ai.ollama.base-url", SidecarStartSettings.DEFAULT_OLLAMA);
+        address(values, "vespera.docling.base-url", ContainerStartSettings.DEFAULT_DOCLING);
+        address(values, "spring.ai.ollama.base-url", ContainerStartSettings.DEFAULT_OLLAMA);
         labelModel(values);
         namingModel(values);
         return values;

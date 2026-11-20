@@ -11,7 +11,7 @@ import io.algernon.vespera.engine.extraction.DoclingClient;
 import io.algernon.vespera.engine.extraction.DoclingExtractor;
 import io.algernon.vespera.engine.extraction.DoclingResponse;
 import io.algernon.vespera.engine.extraction.PathScriptedExtractor;
-import io.algernon.vespera.engine.extraction.SidecarVersionReport;
+import io.algernon.vespera.engine.extraction.DoclingVersionReport;
 import io.algernon.vespera.engine.profile.Profile;
 import io.algernon.vespera.engine.profile.ProfileFixture;
 import io.algernon.vespera.engine.profile.ProfileStore;
@@ -116,7 +116,7 @@ class AnErrorWhileHashingStopsTheStepInvocationTest {
 
                 @Override
                 public Map<String, String> version() {
-                    return SidecarVersionReport.runningImage(configuredImage);
+                    return DoclingVersionReport.runningImage(configuredImage);
                 }
             };
         }

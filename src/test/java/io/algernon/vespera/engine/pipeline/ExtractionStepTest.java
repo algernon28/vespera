@@ -56,7 +56,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * the real one then goes past with them. The rule itself is pinned where it can be caught and
  * asserted instead: {@link ExtractionCircuitBreakerTest} holds the breaker to throwing after the
  * streak. What nothing now catches is a future {@code .skip(ExtractorStoppedAnsweringException.class)}
- * on this step, which would make a dead sidecar produce a successful run — worth remembering when
+ * on this step, which would make a dead container produce a successful run — worth remembering when
  * editing {@link ExtractionJobConfiguration}'s fault tolerance.
  *
  * <p><b>One claim here exists because no unit can make it</b> (ADR-140): that the assembled step really

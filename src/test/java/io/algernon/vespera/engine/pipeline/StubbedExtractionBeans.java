@@ -5,7 +5,7 @@ import io.algernon.vespera.engine.extraction.DoclingClient;
 import io.algernon.vespera.engine.extraction.DoclingExtractor;
 import io.algernon.vespera.engine.extraction.DoclingResponse;
 import io.algernon.vespera.engine.extraction.ScriptedExtractor;
-import io.algernon.vespera.engine.extraction.SidecarVersionReport;
+import io.algernon.vespera.engine.extraction.DoclingVersionReport;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,7 +28,7 @@ import org.springframework.context.annotation.Bean;
  * {@code @TestConfiguration} while scanning but not a plain {@code @Configuration}. Left plain, this
  * would be picked up by every {@code @SpringBootTest} in the suite, where {@link #doclingClient()}
  * collides by bean name with the scanned {@link DoclingClient} component and silently replaces it —
- * which is how {@code DoclingClientIT} came to fail against a live sidecar with
+ * which is how {@code DoclingClientIT} came to fail against a live docling with
  * {@code IllegalArgumentException: URI with undefined scheme}, having been handed the {@code "unused"}
  * base URL below. An explicit {@code @Import} of this class still works either way; only the scanning
  * changes, which is exactly the difference wanted.
@@ -50,9 +50,9 @@ class StubbedExtractionBeans {
     }
 
     /**
-     * Never actually reached over HTTP. It stands for a sidecar that answers its health check, both
+     * Never actually reached over HTTP. It stands for a docling that answers its health check, both
      * the readiness check {@link ExtractionHealthCheckListener} makes and the one {@link
-     * SidecarRecovery} waits on before a control conversion (ADR-184 §2). Left to the real {@code
+     * DoclingRecovery} waits on before a control conversion (ADR-184 §2). Left to the real {@code
      * isHealthy}, the {@code "unused"} URL would never answer, and that wait would run its full bound.
      */
     @Bean
@@ -69,15 +69,15 @@ class StubbedExtractionBeans {
             }
 
             /**
-             * A version report in the shape a real sidecar answers with, so the extractor identity
+             * A version report in the shape a real docling answers with, so the extractor identity
              * these tests compose is built the same way the real one is. Stubbed because no socket is
              * ever opened here — and answering nothing would compose a blank identity, which is
              * exactly the thing an identity must never be. It names the configured image, as the
-             * sidecar the operator started does (ADR-179).
+             * docling the operator started does (ADR-179).
              */
             @Override
             public Map<String, String> version() {
-                return SidecarVersionReport.runningImage(configuredImage);
+                return DoclingVersionReport.runningImage(configuredImage);
             }
         };
     }

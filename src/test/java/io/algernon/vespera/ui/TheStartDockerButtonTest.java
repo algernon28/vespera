@@ -37,7 +37,7 @@ import org.junit.jupiter.api.io.TempDir;
  * Command options' {@code vespera.models.pull} is ticked, and not where it is not.
  *
  * <p>The window is given a {@link RecordingDockerControl}, so nothing is run: what the start runs is {@code
- * EachContainerIsStartedOnlyWhereItIsOnThisMachineTest}'s and {@code SidecarStartTest}'s.
+ * EachServiceIsStartedOnlyWhereItIsOnThisMachineTest}'s and {@code ContainerStartTest}'s.
  */
 @Epic("Operation")
 @Feature("The control panel")
@@ -103,7 +103,7 @@ class TheStartDockerButtonTest {
     @Test
     @Story("Start Docker starts Docker and the containers")
     @DisplayName("Start Docker is off until the first check, while everything on this machine answers, while it runs, while a download runs, while a shut-down runs, while an invocation runs, and where both containers are on another machine")
-    void itIsOffWhileEverythingHereAnswersWhileItRunsWhileAnInvocationRunsAndForContainersOnAnotherMachine()
+    void itIsOffWhileEverythingHereAnswersWhileItRunsWhileAnInvocationRunsAndForServicesOnAnotherMachine()
             throws Exception {
         CountDownLatch firstCheck = new CountDownLatch(1);
         CountDownLatch startReleased = new CountDownLatch(1);

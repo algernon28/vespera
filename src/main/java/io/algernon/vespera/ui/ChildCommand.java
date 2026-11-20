@@ -91,8 +91,8 @@ public final class ChildCommand {
     public static final List<Option> OPTIONS = List.of(
             new Option("vespera.progress-interval", List.of("run", "label", "label --auto"),
                     "How often the report and its page are rewritten; no run's identity holds it."),
-            new Option("vespera.sidecars.wait-at-most", List.of("run", "label --auto"),
-                    "How long the jar waits for the sidecars to answer; no run's identity holds it."),
+            new Option("vespera.containers.wait-at-most", List.of("run", "label --auto"),
+                    "How long the jar waits for Docling and Ollama to answer; no run's identity holds it."),
             new Option("vespera.models.pull", List.of("run"),
                     "Whether a model Ollama does not serve is pulled; no run's identity holds it."),
             new Option("vespera.models.pull-stalled-at-most", List.of("run"),

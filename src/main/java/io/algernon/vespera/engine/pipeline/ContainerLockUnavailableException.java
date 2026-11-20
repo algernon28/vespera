@@ -2,13 +2,13 @@ package io.algernon.vespera.engine.pipeline;
 
 import java.nio.file.Path;
 
-/** The sidecar-start lock cannot be opened or locked (ADR-323 §8). */
-final class SidecarLockUnavailableException extends SidecarStartRefusedException {
+/** The container-start lock cannot be opened or locked (ADR-323 §8). */
+final class ContainerLockUnavailableException extends ContainerStartRefusedException {
 
     private final String unusable;
 
-    SidecarLockUnavailableException(Path lockFile, Throwable reason) {
-        super("the sidecars are not answering and Vespera cannot start them: the lock file "
+    ContainerLockUnavailableException(Path lockFile, Throwable reason) {
+        super("the containers are not answering and Vespera cannot start them: the lock file "
                 + lockFile.toAbsolutePath() + " cannot be opened (" + reasonOf(reason)
                 + "). Make its folder writable, or name another with vespera.corpus-root-lock-folder, and run the"
                 + " same command again.");

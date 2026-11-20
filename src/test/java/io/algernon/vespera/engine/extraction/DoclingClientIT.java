@@ -31,7 +31,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * {@link DoclingClient} against the real {@code docling-serve} sidecar (ADR-071): one synchronous
+ * {@link DoclingClient} against the real {@code docling-serve} docling (ADR-071): one synchronous
  * call per document, and a response this module can actually read back.
  *
  * <p>Every other test of this ticket's behaviour — the cache hit that issues no call, the changed
@@ -42,7 +42,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * the same beliefs as the code would happily confirm.
  *
  * <p>An integration test, so {@code *IT} and failsafe rather than surefire (ADR-052's conventions):
- * it needs a Docker daemon, and {@link TestcontainersConfiguration} starts the sidecar for it.
+ * it needs a Docker daemon, and {@link TestcontainersConfiguration} starts the docling for it.
  *
  * <p>Both fixtures are built inside the test rather than committed as binaries (ADR-063): they are
  * genuine files — a real single-page PDF with a real text-showing content stream, and a real
@@ -120,7 +120,7 @@ class DoclingClientIT {
     }
 
     @Test
-    @Story("The sidecar says what it is built from")
+    @Story("The docling says what it is built from")
     @DisplayName("The running document service reports the component versions the extractor identity is built from")
     @Link(name = "ADR-090", url = Adr.THE_EXTRACTOR_IDENTITY_IS_THE_VERSION_MAP, type = "adr")
     void reportsTheComponentsItIsBuiltFrom() {
@@ -140,7 +140,7 @@ class DoclingClientIT {
                 "and among them the image it was built as, which is the name the tests built it under, so the image the"
                         + " configuration names can be checked against the one actually running",
                 () -> assertThat(version)
-                        .containsEntry(SidecarVersionReport.IMAGE_ENTRY, TestcontainersConfiguration.DOCLING_SERVE_IMAGE));
+                        .containsEntry(DoclingVersionReport.IMAGE_ENTRY, TestcontainersConfiguration.DOCLING_SERVE_IMAGE));
     }
 
     /**
