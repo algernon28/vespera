@@ -1,5 +1,7 @@
 # ADR-418 — Every stage's chart is written empty as the job of `vespera run` begins, and frozen only within its invocation
 
+> **Partly amended — see [ADR-432](0432-each-step-has-a-chart-beneath-its-legs-bars-the-output-spans-the-column-above-the-legs-and-the-cockpit-holds-no-tabs.md).** Of §1: the fifteen step files, `chart-step-<step>.json`, are written empty as the job begins, and no stage file; of §2: a step's key is its run, written at its chart's first sample; of §3: a step finished in an earlier invocation freezes holding no sample, `finishedEarlier` true and `finishedAt` null; of §4, §5 and §7: of the census's step file, the window reading the step files and `JobSampler` writing them. The rest of this record stands.
+
 - **Date**: 2026-11-18
 - **Status**: accepted on 2026-11-18.
 - **Decided**: by the operator on 2026-11-18, on [#880](https://github.com/algernon28/vespera/issues/880): every stage's chart is cleared when an invocation of `vespera run` starts, the stages it only goes through finished among them, which then draw one sample or none; within one invocation a finished stage still freezes and keeps its chart. What *cleared* is and when an invocation starts for it (§1), what a chart is within its invocation (§2), a stage continued from an earlier invocation and one going through finished (§3), stage 0's samples before the census hands the job its walk (§4), what the window draws with no invocation running (§5), and which of ADR-412's rules stand (§6), are decided here.

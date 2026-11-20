@@ -274,8 +274,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         Map<String, Class<?>> legTexts = new LinkedHashMap<>();
         Map<String, Boolean> legTextsInTheHeader = new LinkedHashMap<>();
         try (WindowForTests window = WindowForTests.shown(WindowForTests.aState(folder, SleepingJar.runtime()))) {
-            tabTitles = window.read(root -> HeadlessToolkit.tabWithId(root, "inclusions").orElseThrow().getTabPane()
-                    .getTabs().stream().map(Tab::getText).toList());
+            tabTitles = window.read(WindowForTests::tabIds);
             buttons = window.read(root -> List.of(WindowForTests.node(root, "run", Node.class).getClass(),
                     WindowForTests.node(root, "stop", Node.class).getClass(),
                     WindowForTests.node(root, "label", Node.class).getClass()));
@@ -295,8 +294,8 @@ class EveryTextOfTheWindowCanBeCopiedTest {
             });
         }
 
-        claim("the tabs' titles are those of the Report and Inclusions tabs",
-                () -> assertThat(tabTitles).containsExactly("Report", "Inclusions"));
+        claim("the window holds no tab, so no tab's title stands among its texts",
+                () -> assertThat(tabTitles).isEmpty());
         claim("Run, Stop and Save my labels are buttons", () -> assertThat(buttons).containsOnly(Button.class));
         claim("the sidebar's section titles are the titled panes' own",
                 () -> assertThat(sections).containsExactly("Profile", "Preflight", "Folders", "Services",

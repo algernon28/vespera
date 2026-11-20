@@ -382,15 +382,27 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
     @Link(name = "ADR-374", url = Adr.EVERY_TEXT_LINE_AND_MARKER_OF_THE_WINDOW_STANDS_AT_AA_IN_BOTH_THEMES, type = "adr")
     @Link(name = "ADR-382", url = Adr.EACH_STAGE_HAS_A_CHART_OF_ITS_OWN, type = "adr")
     @Link(name = "ADR-389", url = Adr.THE_PROFILE_IS_EDITED_IN_A_WINDOW_OF_ITS_OWN, type = "adr")
+    @Link(name = "ADR-432", url = Adr.EACH_STEP_HAS_A_CHART_BENEATH_ITS_LEG_AND_THE_COCKPIT_HOLDS_NO_TABS, type = "adr")
     void everyTextOfTheWindowAndEveryMarkOfItsChartsStandsAtAaInBothThemes(@TempDir Path folder) throws Exception {
+        Path running = workingDirectoryOfCharts(folder.resolve("byte-level-reduction-running"), false);
+        Path finished = workingDirectoryOfCharts(folder.resolve("byte-level-reduction-finished"), true);
+        ControlPanelState state = WindowForTests.aState(folder,
+                new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar")));
+        state.useWorkingDirectoryDefault(WorkingDirectoryDefault.of(folder,
+                Map.of("vespera.working-dir", folder.resolve("machine").resolve(".vespera").toString()), Map.of()));
+        WorkingDirectoryList.store(WorkingDirectoryList.besides(LaunchValues.fileIn(folder.resolve("tmp"), USER)),
+                USER, List.of(finished), line -> { });
+        state.hold(new LaunchValues(java.nio.file.Files.createDirectories(folder.resolve("corpus")).toString(),
+                running.toString(), "", "", "", "", "", ""));
         Map<String, String> faults = new LinkedHashMap<>();
         int[] measured = new int[3];
-        try (WindowForTests window = WindowForTests.shown(WindowForTests.aState(folder,
-                new ChildRuntime(folder.resolve("java"), folder.resolve("vespera.jar"))))) {
-            window.act(root -> shown(root, extractionAt(375, 1000)));
-            for (boolean stage1Finished : List.of(false, true)) {
-                String drawing = stage1Finished ? "stage 1 finished" : "stage 1 running";
-                window.act(root -> chartsOf(root).show(stagesCharts(stage1Finished)));
+        try (WindowForTests window = WindowForTests.shown(state)) {
+            for (Path working : List.of(running, finished)) {
+                String drawing = working == finished ? "byte-level reduction finished" : "byte-level reduction running";
+                chooseWorkingDirectory(window, working);
+                window.act(root -> shown(root, extractionAt(375, 1000)));
+                // the steps' charts stand in their legs, every one opened as the operator opens them (ADR-432 §2)
+                window.act(EveryBarOfTheStepsCarriesItsPercentTest::openEveryLeg);
                 for (String theme : THEMES) {
                     window.act(root -> themed(root, theme));
                     List<String> sections = window.read(EveryBarOfTheStepsCarriesItsPercentTest::sidebarSections);
@@ -398,11 +410,6 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                         window.act(root -> WindowForTests.node(root, section, TitledPane.class).setExpanded(true));
                         keptOncePerPair(faults, window.read(root -> faultsIn(root,
                                 theme + ", " + drawing + ", " + section + " open", measured)));
-                    }
-                    for (String tab : window.read(WindowForTests::tabIds)) {
-                        window.act(root -> select(root, tab));
-                        keptOncePerPair(faults, window.read(root -> faultsIn(root,
-                                theme + ", " + drawing + ", " + tab + " tab", measured)));
                     }
                     // the profile's form is a window of its own, which follows the switch (ADR-389 §7)
                     window.openProfile();
@@ -412,17 +419,17 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
             }
         }
 
-        claim("the window was measured: texts and chart marks were found in it, and marks of a finished stage's chart"
+        claim("the window was measured: texts and chart marks were found in it, and marks of a finished step's chart"
                         + " drawn dimmed",
                 () -> assertThat(measured).as("texts measured, chart marks measured, dimmed chart marks measured")
                         .doesNotContain(0));
-        claim("in the light theme and in the dark, with each section of the sidebar open in turn and each tab selected in"
-                        + " turn and the profile window open, the chart of stage 0 drawing one line, of stage 1 six and"
-                        + " of stage 2 three, stage 1 running and then finished, every text shown, not disabled and not"
-                        + " drawn transparent stands at 4.5 : 1 or more against what is drawn behind it,"
-                        + " and every line, legend swatch and marked sample of the charts, a finished stage's dimmed"
-                        + " ones as dimmed as they are drawn, at 3 : 1 or more against the chart's plot or its legend,"
-                        + " WCAG AA",
+        claim("in the light theme and in the dark, with each section of the sidebar open in turn, every part of the job"
+                        + " open and the profile window open, the chart of the census drawing one line, of byte-level"
+                        + " reduction six and of the extraction three, byte-level reduction running and then finished,"
+                        + " every text shown, not disabled and not drawn transparent stands at 4.5 : 1 or more against"
+                        + " what is drawn behind it, and every line, legend swatch and marked sample of the charts, a"
+                        + " finished step's dimmed ones as dimmed as they are drawn, at 3 : 1 or more against the chart's"
+                        + " plot or its legend, WCAG AA",
                 () -> assertThat(faults.values()).as("each text or mark under AA, once for each theme and pair of colours")
                         .isEmpty());
     }
@@ -522,41 +529,63 @@ class EveryBarOfTheStepsCarriesItsPercentTest {
                 .filter(id -> id != null).toList();
     }
 
-    /** Selects the tab {@code id} of the pane the Inclusions tab stands in. */
-    private static void select(Parent root, String id) {
-        javafx.scene.control.Tab tab = HeadlessToolkit.tabWithId(root, id).orElseThrow();
-        tab.getTabPane().getSelectionModel().select(tab);
+    /** Opens every leg, as the operator does by its title, so that its steps' charts are drawn. */
+    private static void openEveryLeg(Parent root) {
+        for (Legs.Leg leg : Legs.ALL) {
+            WindowForTests.node(root, "leg-" + leg.name(), TitledPane.class).setExpanded(true);
+        }
     }
 
-    /** The stages' charts of the cockpit. */
-    private static ProgressCharts chartsOf(Parent root) {
-        return WindowForTests.node(root, "stage-charts", ProgressCharts.class);
+    /** Chooses {@code working}'s row in the list of working directories, as the operator does. */
+    @SuppressWarnings("unchecked")
+    private static void chooseWorkingDirectory(WindowForTests window, Path working) throws Exception {
+        window.act(root -> {
+            javafx.scene.control.ListView<Path> list = WindowForTests.node(root, "working-directories",
+                    javafx.scene.control.ListView.class);
+            Path row = list.getItems().stream()
+                    .filter(each -> ControlPanelState.namesTheSameFolder(each.toString(), working.toString()))
+                    .findFirst().orElseThrow(() -> new AssertionError("the list holds no row for " + working));
+            list.getSelectionModel().select(row);
+        });
     }
 
-    /** When stage 1 finished, in the chart drawn finished. */
-    private static final Instant STAGE_1_FINISHED = Instant.parse("2026-11-12T13:32:05Z");
+    private static final String USER = System.getProperty("user.name");
+
+    /** When byte-level reduction finished, in the chart drawn finished. */
+    private static final Instant BYTE_LEVEL_REDUCTION_FINISHED = Instant.parse("2026-11-12T13:32:05Z");
 
     /**
-     * The stages' charts as the working directory's files keep them: stage 0's of one line, stage 1's of six, its
-     * counts and its five kinds, running or, where {@code stage1Finished}, finished and drawn dimmed, and stage 2's of
-     * three, running.
+     * A working directory keeping the steps' charts as the jar's files keep them (ADR-432 §4): the census's of one line,
+     * byte-level reduction's of six, its counts and its five kinds, running or, where {@code finished}, finished and
+     * drawn dimmed, and the extraction's of three, running.
      */
-    private static Map<String, StageChartFile.Chart> stagesCharts(boolean stage1Finished) {
-        List<Double> seconds = List.of(0.0, 10.0, 20.0);
-        return Map.of(
-                "0", new StageChartFile.Chart("0", null,
-                        List.of(new StageChartFile.Line("done", seconds, List.of(100.0, 900.0, 2000.0)))),
-                "1", new StageChartFile.Chart("1", stage1Finished ? STAGE_1_FINISHED : null, List.of(
-                        new StageChartFile.Line("done", seconds, List.of(5.0, 1234.0, 2000.0)),
-                        new StageChartFile.Line("broken", seconds, List.of(1.0, 2.0, 3.0)),
-                        new StageChartFile.Line("duplicate-of", seconds, List.of(2.0, 4.0, 6.0)),
-                        new StageChartFile.Line("superseded-by", seconds, List.of(3.0, 6.0, 9.0)),
-                        new StageChartFile.Line("out-of-scope", seconds, List.of(4.0, 8.0, 12.0)),
-                        new StageChartFile.Line("code", seconds, List.of(5.0, 10.0, 15.0)))),
-                "2", new StageChartFile.Chart("2", null, List.of(
-                        new StageChartFile.Line("done", seconds, List.of(10.0, 400.0, 900.0)),
-                        new StageChartFile.Line("extraction-failed", seconds, List.of(0.0, 3.0, 4.0)),
-                        new StageChartFile.Line("degenerate-output", seconds, List.of(0.0, 1.0, 2.0)))));
+    private static Path workingDirectoryOfCharts(Path working, boolean finished) throws java.io.IOException {
+        java.nio.file.Files.createDirectories(working);
+        String run = "\"aa11bb22cc33dd44ee55ff6600778899aa11bb22cc33dd44ee55ff6600778899\"";
+        String seconds = "[0,10,20]";
+        java.nio.file.Files.writeString(working.resolve("chart-step-census.json"),
+                "{\"format\":1,\"step\":\"census\",\"key\":{\"walk\":\"46\"},\"finishedAt\":null,"
+                        + "\"finishedEarlier\":false,\"lines\":[{\"name\":\"done\",\"seconds\":" + seconds
+                        + ",\"values\":[100,900,2000]}]}", java.nio.charset.StandardCharsets.UTF_8);
+        java.nio.file.Files.writeString(working.resolve("chart-step-byte-level-reduction.json"),
+                "{\"format\":1,\"step\":\"byte-level-reduction\",\"key\":{\"byte-level-reduction\":" + run + "},"
+                        + "\"finishedAt\":" + (finished ? "\"" + BYTE_LEVEL_REDUCTION_FINISHED + "\"" : "null")
+                        + ",\"finishedEarlier\":false,\"lines\":["
+                        + "{\"name\":\"done\",\"seconds\":" + seconds + ",\"values\":[5,1234,2000]},"
+                        + "{\"name\":\"broken\",\"seconds\":" + seconds + ",\"values\":[1,2,3]},"
+                        + "{\"name\":\"duplicate-of\",\"seconds\":" + seconds + ",\"values\":[2,4,6]},"
+                        + "{\"name\":\"superseded-by\",\"seconds\":" + seconds + ",\"values\":[3,6,9]},"
+                        + "{\"name\":\"out-of-scope\",\"seconds\":" + seconds + ",\"values\":[4,8,12]},"
+                        + "{\"name\":\"code\",\"seconds\":" + seconds + ",\"values\":[5,10,15]}]}",
+                java.nio.charset.StandardCharsets.UTF_8);
+        java.nio.file.Files.writeString(working.resolve("chart-step-extraction.json"),
+                "{\"format\":1,\"step\":\"extraction\",\"key\":{\"extraction\":" + run + "},\"finishedAt\":null,"
+                        + "\"finishedEarlier\":false,\"lines\":["
+                        + "{\"name\":\"done\",\"seconds\":" + seconds + ",\"values\":[10,400,900]},"
+                        + "{\"name\":\"extraction-failed\",\"seconds\":" + seconds + ",\"values\":[0,3,4]},"
+                        + "{\"name\":\"degenerate-output\",\"seconds\":" + seconds + ",\"values\":[0,1,2]}]}",
+                java.nio.charset.StandardCharsets.UTF_8);
+        return working;
     }
 
     /**

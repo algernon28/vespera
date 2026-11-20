@@ -239,7 +239,8 @@ class ExplanationsAreCaptionsOnMouseOverTest {
 
         claim("no node of the window is the label commands' captions or a field's hint any more",
                 () -> assertThat(formerTexts).isEmpty());
-        claim("each of those words, and the Inclusions tab's two, is the caption of the control it explained",
+        claim("each of those words, and the two of the Folders section's tree and folders not relevant, is the caption of"
+                        + " the control it explained",
                 () -> assertThat(captions).containsExactlyEntriesOf(expected));
         claim("and none of them is shown as text anywhere in the window",
                 () -> assertThat(texts).doesNotContainAnyElementsOf(expected.values()));
@@ -281,9 +282,9 @@ class ExplanationsAreCaptionsOnMouseOverTest {
                 .map(id -> WindowForTests.caption(root, id)).toList();
     }
 
-    /** The Inclusions tab's content, which the window holds whether or not the tab is selected. */
+    /** The sidebar's Folders section's content, which holds the tree of the folders to read (ADR-432 §9). */
     private static Parent inclusions(Parent root) {
-        return (Parent) HeadlessToolkit.tabWithId(root, "inclusions").orElseThrow().getContent();
+        return (Parent) WindowForTests.section(root, "folders").getContent();
     }
 
     /** Every text shown under {@code node}, a label's or a text control's, none blank. */

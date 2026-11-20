@@ -1,5 +1,7 @@
 # ADR-425 — A stage's chart sets each axis from the samples it holds at each reading, and centres one of one number or none
 
+> **Partly amended — see [ADR-432](0432-each-step-has-a-chart-beneath-its-legs-bars-the-output-spans-the-column-above-the-legs-and-the-cockpit-holds-no-tabs.md).** Of §1 to §5: a step's chart, each axis set as they say; a step finished in an earlier invocation holds no sample and draws both axes as §4 draws an axis of none; of its Consequences' first bullet: it draws no marker. The rest of this record stands.
+
 - **Date**: 2026-11-19
 - **Status**: accepted on 2026-11-19.
 - **Decided**: on [#884](https://github.com/algernon28/vespera/issues/884), a defect of [ADR-382](0382-each-stage-has-a-chart-of-its-own-in-two-rows-frozen-once-it-finishes-and-kept-under-its-run-beside-the-report.md) §4, *"the window draws what each file holds"*, which none of its Known limits covers: that each reading sets both axes of a stage's chart from that chart's samples alone (§1); that an axis of two numbers or more is ranged as before (§2); the span and ticks of an axis of one number (§3) and of none (§4); and that no tick below 0 carries a label (§5). #884's other cause, a line of one sample drawn as nothing on a frozen chart, is [ADR-422](0422-a-line-of-one-sample-is-drawn-as-a-marker-in-its-colour-on-a-frozen-chart-too.md)'s.

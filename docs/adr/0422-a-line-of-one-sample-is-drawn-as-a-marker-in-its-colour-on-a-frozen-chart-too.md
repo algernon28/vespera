@@ -1,5 +1,7 @@
 # ADR-422 — A line of one sample is drawn as a marker in its colour, on a frozen chart too
 
+> **Partly amended — see [ADR-432](0432-each-step-has-a-chart-beneath-its-legs-bars-the-output-spans-the-column-above-the-legs-and-the-cockpit-holds-no-tabs.md).** Of §1 and its Consequences: a step finished in an earlier invocation draws no sample and no marker, its words in their place; a line of one sample of any other step's chart is drawn as §1 and §2 have it. The rest of this record stands.
+
 - **Date**: 2026-11-18
 - **Status**: accepted on 2026-11-18.
 - **Decided**: by the operator on 2026-11-18: a stage's chart whose lines each hold a single sample, frozen or not, draws a visible marker for each line, holding its value, and keeps its legend. Under the operator's delegation: that the rule is each line's, whatever the chart's other lines hold (§1); the marker's look, and its dimming on a frozen chart (§2); and the tests.
