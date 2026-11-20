@@ -93,7 +93,7 @@ class LabelIngestion {
         if (!Files.isRegularFile(offered)) {
             return Outcome.refused(NO_FILE + " at " + offered
                     + ". A sample is written there by a scoring run; run vespera against the corpus"
-                    + " first, answer the questions in the file, then run this again.");
+                    + " first, label the documents in the file, then run this again.");
         }
         if (!Files.isRegularFile(generated)) {
             return Outcome.refused("no sample has been generated yet, so there is nothing to check this"
@@ -126,7 +126,7 @@ class LabelIngestion {
         String seedSet = seedSet();
         if (seedSet == null) {
             return Outcome.refused("no seed folder is named in the profile, so there is no seed set for"
-                    + " these answers to be about. Nothing was recorded.");
+                    + " these labels to be about. Nothing was recorded.");
         }
 
         // The file names the seed set it was generated under (ADR-169 §4). A file with no stamp was
@@ -138,8 +138,8 @@ class LabelIngestion {
         Optional<String> fileSeedSet = LabelFileReader.seedSetNamedBy(offeredYaml);
         if (fileSeedSet.isPresent() && !fileSeedSet.get().equals(seedSet)) {
             return Outcome.refused("the label file was generated under the seed set at " + fileSeedSet.get()
-                    + ", but the profile now names the seed set at " + seedSet + "; answers about one seed"
-                    + " set are not answers about another, so nothing in it was recorded");
+                    + ", but the profile now names the seed set at " + seedSet + "; labels about one seed"
+                    + " set are not labels about another, so nothing in it was recorded");
         }
 
         // Compared against what was recorded before this answer overwrites it (ADR-169 §2): new,
@@ -166,17 +166,17 @@ class LabelIngestion {
         String message;
         if (newCount > 0 || changedCount > 0) {
             int total = newCount + changedCount + unchangedCount;
-            message = "recorded " + total + " answer(s) about the seed set at " + seedSet + ": " + newCount
+            message = "recorded " + total + " label(s) about the seed set at " + seedSet + ": " + newCount
                     + " new, " + changedCount + " changed, " + unchangedCount + " unchanged";
             if (changedCount > 0) {
                 message += "; changed: " + String.join(", ", changedDescriptions);
             }
         } else {
             message = "recorded nothing new about the seed set at " + seedSet + ": " + unchangedCount
-                    + " answer(s) unchanged, none new";
+                    + " label(s) unchanged, none new";
         }
         if (answers.unanswered() > 0) {
-            message += "; " + answers.unanswered() + " question(s) are still blank";
+            message += "; " + answers.unanswered() + " document(s) are still blank";
         }
         LOG.info("{}", message);
         return Outcome.recorded(message, newCount, changedCount, unchangedCount, answers.unanswered());

@@ -116,10 +116,10 @@ g[data-state="not started"] text { fill: var(--muted); }
 </section>
 {{/drawn.hasCharts}}{{#drawn.hasLabel}}
 <section data-section="answers">
-<h2>Answers recorded</h2>
-<p class="caption">The answers this invocation counted, by their words.</p>
-<div class="table-card" title="The answers this invocation counted, by their words.">
-<table><tr><th>Answer</th><th>Count</th></tr>
+<h2>Labels recorded</h2>
+<p class="caption">The labels this invocation counted, by their words.</p>
+<div class="table-card" title="The labels this invocation counted, by their words.">
+<table><tr><th>Labels</th><th>Count</th></tr>
 {{#drawn.answers}}<tr><td>{{words}}</td><td class="count">{{count}}</td></tr>
 {{/drawn.answers}}</table></div>
 </section>
@@ -144,7 +144,7 @@ g[data-state="not started"] text { fill: var(--muted); }
 {{/drawn.hasGates}}{{#drawn.hasNext}}
 <section data-section="next">
 <h2>The next invocation</h2>
-<p>Run <code>{{drawn.next.invocation}}</code> next.{{#drawn.next.answer}} Answers are wanted.{{/drawn.next.answer}}{{#drawn.next.hasArrangement}} Arrangement to approve: <code>{{drawn.next.arrangement}}</code>.{{/drawn.next.hasArrangement}}</p>
+<p>Run <code>{{drawn.next.invocation}}</code> next.{{#drawn.next.answer}} Labels are wanted.{{/drawn.next.answer}}{{#drawn.next.hasArrangement}} Arrangement to approve: <code>{{drawn.next.arrangement}}</code>.{{/drawn.next.hasArrangement}}</p>
 {{#drawn.next.hasWants}}<ul>
 {{#drawn.next.wants}}<li>Wants <code>{{key}}</code></li>
 {{/drawn.next.wants}}</ul>

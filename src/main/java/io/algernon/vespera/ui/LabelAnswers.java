@@ -45,14 +45,14 @@ public final class LabelAnswers {
     public static String rewrite(Optional<String> current, Map<String, Optional<Boolean>> answersByPath) {
         if (current.isEmpty()) {
             throw new IllegalArgumentException(
-                    FILE_NAME + " is not there, so there is no question to answer; vespera run writes it");
+                    FILE_NAME + " is not there, so there is no document to label; vespera run writes it");
         }
         Parsed parsed = parse(current.get());
         Set<String> asked = new HashSet<>();
         parsed.entries().forEach(entry -> asked.add(entry.path()));
         for (String path : answersByPath.keySet()) {
             if (!asked.contains(path)) {
-                throw new IllegalArgumentException(FILE_NAME + " holds no question about " + path);
+                throw new IllegalArgumentException(FILE_NAME + " lists no document at " + path);
             }
         }
         List<Line> lines = parsed.lines();
