@@ -3,6 +3,7 @@ package io.algernon.vespera.engine.deliverable;
 import static io.algernon.vespera.TestSteps.claim;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.ledger.RunId;
@@ -19,6 +20,7 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -53,6 +55,15 @@ class TreeLedgerTest {
             + " kind TEXT NOT NULL,"
             + " reason TEXT,"
             + " a_column_the_schema_lacks TEXT)";
+
+    /**
+     * The start of a network path to this machine by its loopback address, a host SQLite does not read as localhost, so a
+     * file named by a URI with it as the authority is refused.
+     */
+    private static final String THROUGH_THE_LOOPBACK_ADDRESS = "\\\\127.0.0.1\\";
+
+    /** A folder's name holding a question mark, where a connection's settings would begin in a path read as text. */
+    private static final String A_NAME_WITH_A_QUESTION_MARK = "a tree?named so";
 
     private SingleConnectionDataSource workingStore;
 
@@ -115,6 +126,62 @@ class TreeLedgerTest {
         claim(
                 "and no file was moved into the file's place",
                 () -> assertThat(tree.resolve(TreeLedger.FILE_NAME)).doesNotExist());
+    }
+
+    @Test
+    @Story("A tree's ledger is written wherever the tree may be drawn")
+    @DisplayName("A tree reached through a network path to a host that is not localhost has its ledger written, as a tree on a local disk does")
+    void aTreeReachedThroughANetworkPathHasItsLedgerWritten(@TempDir Path folder) throws Exception {
+        assumeTrue(OS.WINDOWS.isCurrentOs(), "a path to a network share is spelt \\\\host\\share on Windows alone");
+        Path local = folder.toRealPath();
+        String drive = local.getRoot().toString().substring(0, 1);
+        Path tree = Path.of(THROUGH_THE_LOOPBACK_ADDRESS + drive + "$\\" + local.getRoot().relativize(local));
+        assumeTrue(
+                Files.isDirectory(tree),
+                "the drive's administrative share is reachable at " + tree + ", so the folder can be named as a share's");
+        JdbcTemplate store = aWorkingStore(List.of());
+
+        Throwable failure = catchThrowable(() -> new TreeLedger(store).writeInto(tree, A_GENERATION_RUN));
+
+        claim(
+                "writing the tree's ledger through a path naming a host, " + THROUGH_THE_LOOPBACK_ADDRESS + ", which is not"
+                        + " localhost, succeeds, as it does on a local disk: a deliverable root on a share is a root the"
+                        + " operator may name",
+                () -> assertThat(failure).isNull());
+        claim(
+                "and the file stands at the tree's top, seen through the local path as well",
+                () -> assertThat(local.resolve(TreeLedger.FILE_NAME)).isRegularFile());
+        claim(
+                "and neither the part file nor its rollback journal is left beside it",
+                () -> assertThat(LEFT_BESIDE_A_FILE_BEING_WRITTEN)
+                        .allSatisfy(suffix -> assertThat(local.resolve(TreeLedger.FILE_NAME + suffix)).doesNotExist()));
+    }
+
+    @Test
+    @Story("A tree's ledger is written wherever the tree may be drawn")
+    @DisplayName("A tree whose folder's name holds a question mark has its ledger written in that folder")
+    void aTreeWhoseNameHoldsAQuestionMarkHasItsLedgerWritten(@TempDir Path folder) throws Exception {
+        assumeTrue(!OS.WINDOWS.isCurrentOs(), "Windows allows no question mark in a name");
+        Path tree = Files.createDirectories(folder.resolve(A_NAME_WITH_A_QUESTION_MARK));
+        JdbcTemplate store = aWorkingStore(List.of());
+
+        Throwable failure = catchThrowable(() -> new TreeLedger(store).writeInto(tree, A_GENERATION_RUN));
+
+        claim(
+                "writing the tree's ledger into a folder named " + A_NAME_WITH_A_QUESTION_MARK + " succeeds: the question"
+                        + " mark is part of the name, and not where a connection's settings begin",
+                () -> assertThat(failure).isNull());
+        claim(
+                "and the file stands in that folder, and nothing is left beside it or in the folder above",
+                () -> {
+                    assertThat(tree.resolve(TreeLedger.FILE_NAME)).isRegularFile();
+                    assertThat(LEFT_BESIDE_A_FILE_BEING_WRITTEN)
+                            .allSatisfy(suffix -> assertThat(tree.resolve(TreeLedger.FILE_NAME + suffix)).doesNotExist());
+                    try (java.util.stream.Stream<Path> above = Files.list(folder)) {
+                        assertThat(above.map(path -> path.getFileName().toString()))
+                                .containsExactly(A_NAME_WITH_A_QUESTION_MARK);
+                    }
+                });
     }
 
     /**
