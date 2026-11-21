@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.TestcontainersConfiguration;
+import io.algernon.vespera.engine.pipeline.DockerEngineForIntegrationTests;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -18,6 +19,7 @@ import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -66,6 +68,7 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>An integration test, so {@code *IT} and failsafe rather than surefire (ADR-052): it needs a
  * Docker daemon and it pulls a model.
  */
+@ExtendWith(DockerEngineForIntegrationTests.class)
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("test")
