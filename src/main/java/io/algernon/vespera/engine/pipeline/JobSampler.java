@@ -32,6 +32,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.BatchStatus;
@@ -57,6 +59,12 @@ import org.springframework.batch.core.step.StepExecution;
  * readings (ADR-432 section 3 to 6, which amends ADR-382 and ADR-418: all fifteen files are written empty as the job
  * begins, none is read, each chart is started once in its invocation, at its step's first sample, a step finished in an
  * earlier invocation is frozen holding no sample, and the census's is written as it walks). No stage's file is written.
+ *
+ * <p>ADR-438 amends that: a chart of one of {@code InvocationReport.STEPS_OF_A_STAGE}'s steps that freezes having run
+ * is also written to {@code charts/<run id>/chart-step-<step>.json} (never at the job's first reading), and the one file
+ * the sampler reads is that kept chart, at the reading that freezes the chart of a step found finished in an earlier
+ * invocation: where it is of format 1, names the step and the run, and holds a {@code finishedAt}, the chart freezes
+ * holding its lines and that instant; otherwise as ADR-432 section 5 has it.
  *
  * <p>It holds no rule: it decides no verdict, cache key, cluster or text of the deliverable.
  */
@@ -783,6 +791,9 @@ final class JobSampler implements JobExecutionListener {
         private final Map<String, String> key = new LinkedHashMap<>();
         private String finishedAt;
         private boolean finishedEarlier;
+
+        /** The lines of the chart kept under its run, as read (ADR-438 section 2); null where none was read. */
+        private List<Object> keptLines;
         private List<Point> points = new ArrayList<>();
 
         /** The instant of the chart's first sample in this invocation, which stands at second 0. */
@@ -875,13 +886,15 @@ final class JobSampler implements JobExecutionListener {
         }
         boolean finishes = "finished".equals(states.get(step.step()));
         if (finishes && finishedInAnEarlierInvocation(step, key)) {
-            // frozen holding no sample, the instant it first finished recorded nowhere (ADR-432 section 5)
+            // frozen holding the chart kept under its run (ADR-438 section 2), else no sample and no instant (ADR-432 section 5)
             chart.key.clear();
             chart.key.putAll(key);
             chart.points = new ArrayList<>();
             chart.firstSampleAt = null;
             chart.finishedAt = null;
+            chart.keptLines = null;
             chart.finishedEarlier = true;
+            readTheKeptChart(step, key, chart);
             writeTheChart(step, chart);
             return;
         }
@@ -901,7 +914,83 @@ final class JobSampler implements JobExecutionListener {
                     ? execution.getEndTime().atZone(zone).toInstant() : null;
             chart.finishedAt = (end == null ? now : end).truncatedTo(java.time.temporal.ChronoUnit.SECONDS).toString();
         }
-        writeTheChart(step, chart);
+        try {
+            writeTheChart(step, chart);
+        } catch (IOException | RuntimeException e) {
+            warnOfAChart(e);
+        }
+        if (finishes && step.runStage() != null && KEPT_STEPS.contains(step.step())) {
+            try {
+                writeTheChartKept(step, chart, key.get(step.runStage()));
+            } catch (IOException | RuntimeException e) {
+                warnOfAChart(e);
+            }
+        }
+    }
+
+    private static final JsonMapper JSON = JsonMapper.builder().build();
+
+    /** The steps that record their completion under a run, which keep a chart under it (ADR-438 section 1). */
+    private static final Set<String> KEPT_STEPS = InvocationReport.STEPS_OF_A_STAGE.values().stream()
+            .flatMap(List::stream)
+            .collect(java.util.stream.Collectors.toUnmodifiableSet());
+
+    /** The folder the charts are kept under their runs in, in the working directory (ADR-438 section 1). */
+    private static final String KEPT_FOLDER = "charts";
+
+    private Path keptFileOf(StepOfChart step, String run) {
+        return workingDirectory.resolve(KEPT_FOLDER).resolve(run).resolve("chart-step-" + step.step() + ".json");
+    }
+
+    /**
+     * Reads the chart kept under the run a step is found finished under (ADR-438 section 2); where it holds what the
+     * section requires, {@code chart} takes its instant and lines, and otherwise it is left holding none. Nothing is
+     * warned of: a run finished before the record keeps no chart.
+     */
+    private void readTheKeptChart(StepOfChart step, Map<String, String> key, KeptChart chart) {
+        String run = key.get(step.runStage());
+        try {
+            JsonNode root = JSON.readTree(Files.readString(keptFileOf(step, run), StandardCharsets.UTF_8));
+            JsonNode kept = root.path("key");
+            if (root.path("format").asLong(-1) != CHART_FORMAT
+                    || !root.path("format").isIntegralNumber()
+                    || !step.step().equals(root.path("step").isString() ? root.path("step").asString() : null)
+                    || !kept.isObject() || kept.size() != 1
+                    || !kept.path(step.runStage()).isString()
+                    || !run.equals(kept.path(step.runStage()).asString())
+                    || !root.path("finishedAt").isString()
+                    || !root.path("lines").isArray()
+                    || !root.path("finishedEarlier").isBoolean() || root.path("finishedEarlier").asBoolean()) {
+                return;
+            }
+            Instant finishedAt = Instant.parse(root.path("finishedAt").asString());
+            List<Object> lines = new ArrayList<>();
+            for (JsonNode each : root.path("lines")) {
+                JsonNode seconds = each.path("seconds");
+                JsonNode values = each.path("values");
+                if (!each.path("name").isString() || !seconds.isArray() || !values.isArray()
+                        || seconds.size() != values.size()) {
+                    return;
+                }
+                lines.add(line(each.path("name").asString(), numbersOf(seconds), numbersOf(values)));
+            }
+            chart.finishedAt = finishedAt.toString();
+            chart.keptLines = lines;
+        } catch (IOException | RuntimeException unreadable) {
+            chart.finishedAt = null;
+            chart.keptLines = null;
+        }
+    }
+
+    private static List<Object> numbersOf(JsonNode array) {
+        List<Object> numbers = new ArrayList<>();
+        for (JsonNode each : array) {
+            if (!each.isNumber()) {
+                throw new IllegalArgumentException("not a number");
+            }
+            numbers.add(each.isIntegralNumber() ? (Object) each.longValue() : (Object) each.doubleValue());
+        }
+        return numbers;
     }
 
     /** Whether the runs reading made as the invocation started lists the step finished under the run reached (ADR-432 section 5). */
@@ -1024,8 +1113,21 @@ final class JobSampler implements JobExecutionListener {
 
     /** Writes the step's file whole, to a temporary file moved over it as the report is (ADR-432 section 4). */
     private void writeTheChart(StepOfChart stage, KeptChart chart) throws IOException {
+        writeTheChartTo(stage, chart, fileOf(stage));
+    }
+
+    /** Writes the chart frozen as it finished under its run, its two folders made where absent (ADR-438 section 1). */
+    private void writeTheChartKept(StepOfChart stage, KeptChart chart, String run) throws IOException {
+        Path place = keptFileOf(stage, run);
+        Files.createDirectories(place.getParent());
+        writeTheChartTo(stage, chart, place);
+    }
+
+    private void writeTheChartTo(StepOfChart stage, KeptChart chart, Path place) throws IOException {
         List<Object> lines = new ArrayList<>();
-        if (!chart.key.isEmpty() && !chart.finishedEarlier) {
+        if (chart.finishedEarlier && chart.keptLines != null) {
+            lines.addAll(chart.keptLines);
+        } else if (!chart.key.isEmpty() && !chart.finishedEarlier) {
             List<Object> doneSeconds = new ArrayList<>();
             List<Object> doneValues = new ArrayList<>();
             for (Point point : chart.points) {
@@ -1052,7 +1154,6 @@ final class JobSampler implements JobExecutionListener {
         tree.put("finishedAt", chart.finishedAt);
         tree.put("finishedEarlier", chart.finishedEarlier);
         tree.put("lines", lines);
-        Path place = fileOf(stage);
         Path part = place.resolveSibling(place.getFileName() + ".part");
         Files.writeString(part, InvocationReport.Json.render(tree) + "\n", StandardCharsets.UTF_8);
         ReplacingMove.ATOMIC.intoPlace(part, place);

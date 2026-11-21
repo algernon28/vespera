@@ -53,6 +53,10 @@ final class ProgressCharts {
     private static final DateTimeFormatter HOURS_AND_MINUTES =
             DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT).withZone(ZoneId.systemDefault());
 
+    /** The finished-at time of a chart that finished on another day than the one it is drawn on (ADR-438 §4). */
+    private static final DateTimeFormatter DAY_AND_TIME =
+            DateTimeFormatter.ofPattern("d MMM HH:mm", Locale.ENGLISH).withZone(ZoneId.systemDefault());
+
     /** The title of a value axis whose unit is memory: it ends with a size's unit in parentheses (ADR-371 §3). */
     private static final Pattern A_SIZES_AXIS = Pattern.compile("\\((B|KB|MB|GB|TB)\\)\\s*$");
 
@@ -300,7 +304,8 @@ final class ProgressCharts {
      * Draws each step's chart from the file the working directory keeps for it, or empties it, under its title, where
      * {@code kept} holds none (ADR-432 §4). A chart whose file gives the instant its step finished is drawn frozen, its
      * title ending with that time and no sample marked as the latest (ADR-432 §6); one whose step finished in an earlier
-     * invocation draws no line and says so, and one that ran and holds no count of its own says it reported none (§5).
+     * invocation holding no line draws none and says so (ADR-438 §4: holding lines, it is drawn frozen, its title naming the
+     * day where it finished on another), and one that ran and holds no count of its own says it reported none (§5).
      */
     void show(Map<String, StepChartFile.Chart> kept) {
         for (Map.Entry<String, StepChart> entry : charts.entrySet()) {
@@ -308,7 +313,7 @@ final class ProgressCharts {
             StepChartFile.Chart drawn = kept.get(entry.getKey());
             boolean frozen = drawn != null && drawn.finishedAt() != null;
             chart.getData().clear();
-            chart.setTitle(entry.getKey() + (frozen ? ", finished at " + HOURS_AND_MINUTES.format(drawn.finishedAt()) : ""));
+            chart.setTitle(entry.getKey() + (frozen ? ", finished at " + finishedAt(drawn.finishedAt()) : ""));
             if (frozen && !chart.getStyleClass().contains("frozen")) {
                 chart.getStyleClass().add("frozen");
             } else if (!frozen) {
@@ -345,13 +350,21 @@ final class ProgressCharts {
         }
     }
 
+    /** The time of a frozen chart's title, the day named where it is not the day the window draws it on (ADR-438 §4). */
+    private static String finishedAt(java.time.Instant finishedAt) {
+        ZoneId zone = ZoneId.systemDefault();
+        boolean today = finishedAt.atZone(zone).toLocalDate().equals(java.time.LocalDate.now(zone));
+        return (today ? HOURS_AND_MINUTES : DAY_AND_TIME).format(finishedAt);
+    }
+
     /** The words a chart says in its plot: none where it is not started, or has a count (ADR-432 §5). */
     private static String wordsOf(StepChartFile.Chart drawn) {
         if (drawn == null) {
             return "";
         }
         if (drawn.finishedEarlier()) {
-            return FINISHED_EARLIER;
+            // a file of such a step holding a line is a chart kept under its run, drawn frozen with no words (ADR-438 §4)
+            return drawn.lines().isEmpty() ? FINISHED_EARLIER : "";
         }
         boolean counted = drawn.lines().stream()
                 .anyMatch(line -> line.name().equals("done") && !line.values().isEmpty());

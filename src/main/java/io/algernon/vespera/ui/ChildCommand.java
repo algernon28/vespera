@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * The command line, environment and current directory of the child the control panel starts (ADR-278 §1, ADR-285 §5):
@@ -20,6 +21,12 @@ import java.util.Map;
  * environment alone (ADR-359 §3).
  */
 public final class ChildCommand {
+
+    /** The form of an invocation's id, as the jar reads it (ADR-439 §1). */
+    static final Pattern INVOCATION_ID = Pattern.compile("^[0-9]{8}T[0-9]{6}Z(-[0-9]+)?$");
+
+    /** The refusal of an id outside that form (ADR-439 §7). */
+    static final String INVOCATION_REFUSED = "an invocation outside the form of an invocation's id was named";
 
     /** One option or positional argument of picocli's model of the jar's commands, and how the control panel sets it (ADR-336 §2). */
     public record Argument(String command, String name, String control, String reason) {
@@ -46,6 +53,8 @@ public final class ChildCommand {
             new Argument("label", "db-dir", "vespera.working-dir", "As for run."),
             new Argument("publish", "to", "publish-to",
                     "The boxes beside Publish, one for each destination drawn; never a launch value."),
+            new Argument("publish", "invocation", "earlier-deliverables",
+                    "The row chosen in Earlier deliverables, where one is (ADR-439 §7)."),
             new Argument("publish", "db-dir", "vespera.working-dir", "As for run; Publish stands in the action row."),
             new Argument("serve", "db-dir", "",
                     "Never passed: the window starts no vespera serve, a reader's server being a command the operator"
@@ -180,7 +189,20 @@ public final class ChildCommand {
      *     as a label, needs the working directory alone; or with a line of its own where {@code destinations} is empty
      *     or names one outside {@link #DESTINATIONS}
      */
-    public static ChildCommand publish(Path java, Path jar, LaunchValues values, List<String> destinations) {
+    static ChildCommand publish(Path java, Path jar, LaunchValues values, List<String> destinations) {
+        return publish(java, jar, values, destinations, null);
+    }
+
+    /**
+     * {@code publish --invocation <id> --to <destinations>} where {@code invocation} is given, {@code --to} staying
+     * the last of the command's own arguments, before {@code --db-dir}; the same as the four-argument form where it is
+     * null or empty (ADR-439 §7).
+     *
+     * @throws IllegalArgumentException as the four-argument form does, or with {@value #INVOCATION_REFUSED} where
+     *     {@code invocation} is not of an invocation's id's form
+     */
+    public static ChildCommand publish(Path java, Path jar, LaunchValues values, List<String> destinations,
+            String invocation) {
         values.refusalToLabel().ifPresent(line -> {
             throw new IllegalArgumentException(line);
         });
@@ -190,8 +212,14 @@ public final class ChildCommand {
         if (!DESTINATIONS.containsAll(destinations)) {
             throw new IllegalArgumentException("a destination outside the ones the control panel offers was named");
         }
+        boolean named = invocation != null && !invocation.isEmpty();
+        if (named && !INVOCATION_ID.matcher(invocation).matches()) {
+            throw new IllegalArgumentException(INVOCATION_REFUSED);
+        }
         return new ChildCommand(java, jar, values, Path.of(values.workingDirectory()),
-                List.of("publish", "--to", String.join(",", destinations)), "publish", Map.of());
+                named ? List.of("publish", "--invocation", invocation, "--to", String.join(",", destinations))
+                        : List.of("publish", "--to", String.join(",", destinations)),
+                "publish", Map.of());
     }
 
     /**

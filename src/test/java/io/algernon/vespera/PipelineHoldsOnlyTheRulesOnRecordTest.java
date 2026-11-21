@@ -185,6 +185,8 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             // ADR-330 §9: reads the presets and the profile's resolution; what it resolves names the run.
             "Presets",
             "ProfileShapeCheck",
+            // ADR-439 §1: reads the copy of the invocation a publish names; decides no verdict, cache key, cluster or text.
+            "PublishedInvocation",
             "RedundancyBoilerplate",
             "RedundancyGate",
             "RedundancyJobConfiguration",

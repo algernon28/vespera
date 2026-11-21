@@ -22,6 +22,8 @@
 
 > **Partly amended — see [ADR-436](0436-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md).** Of §6: a sixth case of the starts' lines, `<Run> is not started: no working directory is chosen`, comes first, while no working directory is chosen in the list. The refusal of a working directory that is not there stands. The rest of this record stands.
 
+> **Partly amended — see [ADR-440](0440-the-preflight-section-is-the-folders-and-their-holders-a-row-each-of-a-name-a-mark-and-words-a-holder-said-once.md).** Of §7: the models offered for `embeddingModel` and `generationModel` are the names the header's last check found Ollama listing, in its order, none before the first check; `ServiceChecks` goes. The rest of this record stands.
+
 - **Date**: 2026-10-31
 - **Status**: accepted on 2026-10-31.
 - **Keeps**: [ADR-285](0285-the-control-panel-is-a-second-jar-of-this-build-under-a-package-of-its-own-outside-the-nine-modules-linking-no-class-of-the-jar.md) §3: the control panel names its own package, `java.base` and `jdk.httpserver` alone, and starts the window by `ProcessBuilder`, `java.desktop` not added (§1). Its §4: one class owns the pages' skeleton, styling and escaping (§3).
