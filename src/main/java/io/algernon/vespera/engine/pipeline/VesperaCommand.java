@@ -913,8 +913,16 @@ public class VesperaCommand implements Callable<Integer> {
             Map<String, Set<String>> finished = null;
             Earlier earlier = null;
             if (invocation != null) {
-                finished = ledger.runs().finishedSteps();
-                Object refusedOrEarlier = earlierOf(finished);
+                Object refusedOrEarlier;
+                try {
+                    finished = ledger.runs().finishedSteps();
+                    refusedOrEarlier = earlierOf(finished);
+                } catch (RuntimeException unreadable) {
+                    // read before the publish starts, so a failure is said as a refusal and the report ends with it
+                    return refuse("vespera publish sent nothing: the working directory's runs could not be read to"
+                            + " find what the invocation " + invocation + " reached. Publish again once vespera.db"
+                            + " can be read.", CommandLine.ExitCode.SOFTWARE);
+                }
                 if (refusedOrEarlier instanceof String line) {
                     return refuse(line, CommandLine.ExitCode.SOFTWARE);
                 }
