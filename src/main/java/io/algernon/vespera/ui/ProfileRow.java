@@ -164,6 +164,8 @@ final class ProfileRow {
     private Consumer<String> setValue = text -> {
     };
     private Optional<ProfileEdit.Stated> loaded = Optional.empty();
+    private Consumer<List<String>> offerModels = models -> {
+    };
 
     /**
      * @param idPrefix put before the key in the ids of the row's controls, so that a key shown twice has distinct ones
@@ -470,7 +472,26 @@ final class ProfileRow {
         box.getEditor().setPromptText(key.example());
         value = () -> box.getEditor().getText();
         setValue = text -> box.getEditor().setText(text);
+        if (key == ProfileKey.EMBEDDING_MODEL || key == ProfileKey.GENERATION_MODEL) {
+            offerModels = models -> {
+                if (box.getItems().equals(models)) {
+                    return;
+                }
+                String typed = box.getEditor().getText();
+                box.getItems().setAll(models);
+                box.getEditor().setText(typed);
+            };
+        }
         return box;
+    }
+
+    /**
+     * Offers {@code models} in a model's choice, keeping what its field reads; a row of any other key ignores them. The
+     * names are those the header's last check found Ollama listing, which may come back after the row was drawn
+     * (ADR-440 §7).
+     */
+    void offerModels(List<String> models) {
+        offerModels.accept(models);
     }
 
     /**

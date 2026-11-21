@@ -81,6 +81,39 @@ public final class DeliverableRoot {
                 : workingDirectory.resolve(Deliverable.DIRECTORY_NAME).resolve(generationRun);
     }
 
+    /** Whether a tree stands at a root for a working directory and a generation run (ADR-439 §3). */
+    public enum Standing {
+        /** The tree is there: the unnamed root's folder, or a named root whose marker names both. */
+        STANDS,
+        /** No tree is there: the root is absent, not a folder, or holds no marker naming a working directory and run. */
+        NONE,
+        /** The root's marker names another generation run or another working directory: drawn again since. */
+        DRAWN_AGAIN
+    }
+
+    /**
+     * Whether the tree of {@code generationRun} of {@code workingDirectory} stands where this root places it, and if
+     * not whether none is there or the one there was drawn again for another (ADR-439 §3). At the unnamed root the tree
+     * stands where its folder is a folder, its marker not read; at a named root where its marker names this working
+     * directory, compared as ADR-276 §2 compares, and this generation run. It reads the marker alone.
+     */
+    public Standing standingFor(Path workingDirectory, String generationRun) {
+        Path tree = treeOf(workingDirectory, generationRun);
+        if (named == null || namesTheDefaultFolder(workingDirectory)) {
+            return Files.isDirectory(tree) ? Standing.STANDS : Standing.NONE;
+        }
+        if (!Files.isDirectory(tree)) {
+            return Standing.NONE;
+        }
+        Optional<Marker> marker = markerOf(tree);
+        if (marker.isEmpty()) {
+            return Standing.NONE;
+        }
+        return isWorkingDirectory(marker.get(), workingDirectory) && marker.get().generationRun().equals(generationRun)
+                ? Standing.STANDS
+                : Standing.DRAWN_AGAIN;
+    }
+
     /**
      * The folder this root draws in, as named or as the default places it: the root named, or
      * {@code <working directory>/deliverable} where none is named or the one named is that folder (ADR-334 §1).

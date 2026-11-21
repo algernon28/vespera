@@ -1,23 +1,40 @@
 package io.algernon.vespera.ui;
 
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
-import javafx.application.Platform;
+import javafx.geometry.HPos;
 import javafx.scene.Node;
-import javafx.scene.control.Button;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
-/** The sidebar's Preflight section: what the folders and the containers are, and a Check that asks Docling and Ollama (ADR-344 §1). */
+/**
+ * The sidebar's Preflight section (ADR-440): the two folders and their holders, a row each of a name, a mark and words in
+ * the three columns of the grid {@code preflight-list}, and Docling's image where the header's check found it running
+ * another than the one Run would use. A holder is said in words, its line whole the caption (§3); one process holding
+ * both folders is said once (§4); free space is said in each folder's words alone (§5). The section holds no Check and no
+ * line of Docling's or Ollama's answers, which the header's list says.
+ */
 final class PreflightPane {
+
+    private static final String IMAGE_CAPTION =
+            "Extraction refuses a Docling that runs another image than the one Run would use.";
+
+    /** One row: its id, its name, whether its mark is OK, its words and the caption of its words (empty for none). */
+    private record Row(String id, String name, boolean ok, String words, String caption) {
+    }
 
     private final ControlPanelState state;
     private final WorkingFolders folders;
     private final Function<String, String> fieldText;
-    private final VBox preflight = new VBox();
+    private final GridPane preflight = new GridPane();
 
-    /** The lines last drawn. */
-    private List<String> drawn = List.of();
+    /** The rows last drawn. */
+    private List<Row> drawn = List.of();
 
     /** {@code fieldText} gives the text of the launch field of a property. */
     PreflightPane(ControlPanelState state, WorkingFolders folders, Function<String, String> fieldText) {
@@ -28,60 +45,87 @@ final class PreflightPane {
 
     Node pane() {
         preflight.setId("preflight-list");
-        preflight.getStyleClass().add("section");
-        Button check = new Button("Check");
-        check.setId("check");
-        check.setOnAction(event -> askTheServices());
-        VBox pane = new VBox(preflight, check);
+        preflight.getStyleClass().addAll("section", "preflight-list");
+        ColumnConstraints name = new ColumnConstraints();
+        name.setHgrow(Priority.NEVER);
+        ColumnConstraints mark = new ColumnConstraints();
+        mark.setHgrow(Priority.NEVER);
+        ColumnConstraints words = new ColumnConstraints();
+        words.setHgrow(Priority.ALWAYS);
+        words.setFillWidth(true);
+        preflight.getColumnConstraints().setAll(name, mark, words);
+        VBox pane = new VBox(preflight);
         pane.getStyleClass().add("section");
         return pane;
     }
 
-    private void askTheServices() {
-        String converter = fieldText.apply("vespera.docling.base-url");
-        String image = fieldText.apply("vespera.docling.image");
-        String ollama = fieldText.apply("spring.ai.ollama.base-url");
-        String model = fieldText.apply("vespera.label.model");
-        Thread.ofPlatform().daemon().name("the control panel asks Docling and Ollama").start(() -> {
-            ServiceChecks.Checks asked = ServiceChecks.ask(converter, image, ollama,
-                    model.isBlank() ? List.of() : List.of(model));
-            Platform.runLater(() -> {
-                state.keepChecks(asked);
-                draw();
-            });
-        });
-    }
-
-    private static String describe(ServiceChecks.Result result) {
-        return switch (result) {
-            case NOT_CHECKED -> "not checked";
-            case MATCHES -> "answers, and runs the image named";
-            case ANOTHER_IMAGE -> "answers, and runs another image";
-            case NOT_ANSWERING -> "does not answer";
-            case SERVES_ALL -> "answers, and serves every model named";
-            case MISSING -> "answers, and is missing a model named";
-        };
-    }
-
-    /** Draws a line for each folder, each of Docling and Ollama, each holder and the free space, then the converter's warnings. */
+    /** Draws §1's rows, the clock drawing them each second. */
     void draw() {
         ControlPanelState.Holders holders = state.holders(folders.workingDirectory(), folders.corpusRoot());
-        ServiceChecks.Checks checks = state.lastChecks();
+        String corpus = fieldText.apply("vespera.corpus-root");
         String working = fieldText.apply("vespera.working-dir");
-        List<String> lines = new ArrayList<>(List.of(
-                "Corpus root: " + FolderStatus.of(fieldText.apply("vespera.corpus-root"), false).words(),
-                "Working directory: " + FolderStatus.of(working, false).words(),
-                "Converter: " + describe(checks.docling().result()),
-                "Ollama: " + describe(checks.ollama().result()),
-                "Working directory held by: " + holders.workingDirectory().orElse("nobody"),
-                "Corpus root held by: " + holders.corpusRoot().orElse("nobody"),
-                "Free space: " + FolderStatus.usable(working).map(FolderStatus::gib).orElse("not known")));
-        lines.addAll(checks.docling().warnings());
-        if (lines.equals(drawn)) {
-            // the clock draws this each second; lines that are the same are left as they are, selection and all
+        ZonedDateTime now = ZonedDateTime.now();
+        FolderStatus corpusStatus = FolderStatus.of(corpus, false);
+        FolderStatus workingStatus = FolderStatus.of(working, false);
+        List<Row> rows = new ArrayList<>();
+        rows.add(new Row("corpus-root", "Corpus root", found(corpusStatus), corpusStatus.words(), ""));
+        Optional<String> rootLine = holders.corpusRoot();
+        Optional<String> workingLine = holders.workingDirectory();
+        boolean one = rootLine.isPresent() && workingLine.isPresent() && samePid(rootLine.get(), workingLine.get());
+        if (rootLine.isPresent() && !one) {
+            rows.add(holder("corpus-root-holder", "Held by", rootLine.get(), rootLine.get(), now));
+        }
+        rows.add(new Row("working-directory", "Working directory", found(workingStatus), workingStatus.words(), ""));
+        if (one) {
+            rows.add(holder("holder", "Both held by", workingLine.get(), rootLine.get() + "\n" + workingLine.get(), now));
+        } else if (workingLine.isPresent()) {
+            rows.add(holder("working-directory-holder", "Held by", workingLine.get(), workingLine.get(), now));
+        }
+        String kept = state.lastCheck().map(DockerCheck::doclingImage).orElse("");
+        String field = fieldText.apply("vespera.docling.image").strip();
+        if (!kept.isEmpty() && !field.isEmpty() && !kept.equals(field)) {
+            rows.add(new Row("docling-image", "Docling's image", false, "runs " + kept + "; Run would use " + field,
+                    IMAGE_CAPTION));
+        }
+        if (rows.equals(drawn)) {
+            // the clock draws this each second; rows that are the same are left as they are, selection and all
             return;
         }
-        drawn = lines;
-        preflight.getChildren().setAll(lines.stream().map(line -> (Node) SelectableText.line(line)).toList());
+        drawn = rows;
+        List<Node> children = new ArrayList<>();
+        for (int at = 0; at < rows.size(); at++) {
+            Row row = rows.get(at);
+            SelectableText.Line name = SelectableText.line(row.name());
+            name.setId("preflight-" + row.id());
+            SelectableText.Line mark = SelectableText.line(row.ok() ? "OK" : "KO");
+            mark.setId("preflight-" + row.id() + "-mark");
+            mark.getStyleClass().addAll("preflight-mark", row.ok() ? "ok" : "ko");
+            SelectableText.Line words = SelectableText.line(row.words());
+            words.setId("preflight-" + row.id() + "-words");
+            if (!row.caption().isEmpty()) {
+                Captions.on(words, row.caption());
+            }
+            GridPane.setConstraints(name, 0, at);
+            GridPane.setConstraints(mark, 1, at);
+            GridPane.setConstraints(words, 2, at);
+            GridPane.setHgrow(words, Priority.ALWAYS);
+            children.addAll(List.of(name, mark, words));
+        }
+        preflight.getChildren().setAll(children);
+    }
+
+    private static boolean found(FolderStatus status) {
+        return status.state().equals("found");
+    }
+
+    private static Row holder(String id, String name, String line, String caption, ZonedDateTime now) {
+        return new Row(id, name, false, HolderWords.of(line, now), caption);
+    }
+
+    /** Whether both lines have the form and name the same pid (ADR-440 §4). */
+    private static boolean samePid(String one, String other) {
+        Optional<HolderLine> first = HolderLine.parse(one);
+        Optional<HolderLine> second = HolderLine.parse(other);
+        return first.isPresent() && second.isPresent() && first.get().pid() == second.get().pid();
     }
 }

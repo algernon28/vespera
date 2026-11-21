@@ -114,6 +114,11 @@ final class ProfileForm {
         return content;
     }
 
+    /** Offers {@code models} in each model's choice drawn, keeping what each reads (ADR-440 §7). */
+    void offerModels(List<String> models) {
+        profileRows.forEach(row -> row.offerModels(models));
+    }
+
     /**
      * Draws a row for each key from {@code stated}, after the problem with the file where it has one: the working
      * directory not named, {@code problem} where it could not be read, or {@code notInForm}'s repair of {@code text}.
@@ -121,7 +126,7 @@ final class ProfileForm {
     void draw(Map<ProfileKey, ProfileEdit.Stated> stated, String problem, Optional<ProfileRepair.Analysis> notInForm,
             String text, Map<String, Boolean> written) {
         Optional<EffectiveValues> effective = state.effectiveValues(folders.workingDirectory());
-        List<String> models = state.lastChecks().ollama().models();
+        List<String> models = state.lastCheck().map(DockerCheck::ollamaModels).orElse(List.of());
         loadedFrom = folders.workingDirectory();
         profileRows.clear();
         titles.clear();

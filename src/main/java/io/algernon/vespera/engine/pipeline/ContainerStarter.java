@@ -11,9 +11,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.helpers.MessageFormatter;
 import org.springframework.core.env.Environment;
 
 /**
@@ -78,6 +80,8 @@ public class ContainerStarter {
     private final Path lockFolder;
     private final Duration checkEvery;
     private final ThisMachine thisMachine;
+    /** Told each line the starter logs for a press, its words alone (ADR-437 §3); drops them where none was given. */
+    private final Consumer<String> eachLine;
 
     ContainerStarter(
             ContainerStartSettings settings,
@@ -99,6 +103,21 @@ public class ContainerStarter {
             Path lockFolder,
             Duration checkEvery,
             ThisMachine thisMachine) {
+        this(settings, runner, health, host, composeFiles, lockFolder, checkEvery, thisMachine, line -> {
+        });
+    }
+
+    private ContainerStarter(
+            ContainerStartSettings settings,
+            ProcessRunner runner,
+            ContainerHealth health,
+            HostSystem host,
+            Supplier<ComposeFiles> composeFiles,
+            Path lockFolder,
+            Duration checkEvery,
+            ThisMachine thisMachine,
+            Consumer<String> eachLine) {
+        this.eachLine = eachLine;
         this.thisMachine = thisMachine;
         this.settings = settings;
         this.runner = runner;
@@ -107,6 +126,31 @@ public class ContainerStarter {
         this.composeFiles = composeFiles;
         this.lockFolder = lockFolder;
         this.checkEvery = checkEvery;
+    }
+
+    /**
+     * A starter of the same settings and collaborators that hands {@code eachLine} each line it logs for
+     * {@link #ensureRunning}, {@link #keepTheWslDistributionUp} and {@link #shutDown}, its words alone, after logging it,
+     * on the thread that logs it (ADR-437 §3, §7).
+     */
+    ContainerStarter telling(Consumer<String> eachLine) {
+        return new ContainerStarter(settings, runner, health, host, composeFiles, lockFolder, checkEvery, thisMachine,
+                eachLine);
+    }
+
+    /** Logs at INFO and tells the line's words alone (ADR-437 §3). */
+    private void say(String format, Object... arguments) {
+        log.info(format, arguments);
+        eachLine.accept(MessageFormatter.arrayFormat(format, arguments).getMessage());
+    }
+
+    /**
+     * What a command of the engine's start or stop printed, logged a line at a time once it has exited (ADR-437 §2):
+     * NULs and byte-order marks taken out, trailing white space taken off, blank lines left out.
+     */
+    private void sayWhatItPrinted(String output) {
+        output.replace("\u0000", "").replace("\uFEFF", "").lines().map(String::stripTrailing)
+                .filter(line -> !line.isBlank()).forEach(line -> say("{}", line));
     }
 
     /**
@@ -191,7 +235,10 @@ public class ContainerStarter {
         }
         Optional<String> line = WslIdleTimeout.keepTheDistributionUp(settings.profileFolder());
         if (logIt) {
-            line.ifPresent(said -> log.warn("{}", said));
+            line.ifPresent(said -> {
+                log.warn("{}", said);
+                eachLine.accept(said);
+            });
         }
         return line;
     }
@@ -338,14 +385,14 @@ public class ContainerStarter {
         List<String> composeStop = host.composeStop(settings.wslDistribution());
         List<String> engineStop = host.engineStop(settings.wslDistribution());
         try (ContainerLock lock = takeTheLock()) {
-            ProcessOutcome containers = runStop(composeStop);
+            ProcessOutcome containers = runStopTelling("Stopping the containers", composeStop);
             if (containers.exitCode() != 0) {
                 return new ShutDown(false, "Docker was not shut down: " + exited(composeStop, containers)
                         + ". The Docker engine was not stopped.");
             }
             ProcessOutcome engine;
             try {
-                engine = runStop(engineStop);
+                engine = runStopTelling("Stopping the Docker engine", engineStop);
             } catch (CommandOutputFileUnusableException unusable) {
                 // Step 1 exited 0: the containers are stopped, and it is the engine stop's output file that failed (ADR-395 §6).
                 return new ShutDown(false, "The containers were stopped, but Docker was not shut down: "
@@ -375,6 +422,25 @@ public class ContainerStarter {
         return runCounting(command, settings.waitAtMost());
     }
 
+    /** As {@link #runStop}, logging {@code beforeIt} first and what the command printed once it has exited (ADR-437 §2). */
+    private ProcessOutcome runStopTelling(String beforeIt, List<String> command) {
+        say(beforeIt + ": {}", ContainerStartRefusedException.asRun(command));
+        return runTelling(command, settings.waitAtMost());
+    }
+
+    /** As {@link #runCounting}, then logs each line the command printed; a program that cannot be started prints nothing. */
+    private ProcessOutcome runTelling(List<String> command, Duration limit) {
+        try {
+            ProcessOutcome outcome = runner.run(command, limit);
+            sayWhatItPrinted(outcome.output());
+            return outcome;
+        } catch (CommandOutputFileException unusable) {
+            throw new CommandOutputFileUnusableException(unusable);
+        } catch (IOException cannotStart) {
+            return new ProcessOutcome(127, cannotStart.getMessage() == null ? "" : cannotStart.getMessage());
+        }
+    }
+
     /** Whether every container on this machine answers; one on another machine is not asked (ADR-430 §10). */
     private boolean theLocalOnesAnswer() {
         boolean docling = !doclingIsHere() || health.doclingAnswers();
@@ -390,11 +456,12 @@ public class ContainerStarter {
             return false;
         }
         List<String> start = host.engineStart(settings.wslDistribution());
-        ProcessOutcome outcome = runCounting(start, settings.waitAtMost());
+        say("Starting the Docker engine: {}", ContainerStartRefusedException.asRun(start));
+        ProcessOutcome outcome = runTelling(start, settings.waitAtMost());
         if (outcome.exitCode() != 0) {
             throw DockerEngineDidNotStartException.noCommandStartedIt(List.of(exited(start, outcome)));
         }
-        log.info("Waiting up to {} seconds for the Docker engine to answer", settings.waitAtMost().toSeconds());
+        say("Waiting up to {} seconds for the Docker engine to answer", settings.waitAtMost().toSeconds());
         long began = System.nanoTime();
         while (!engineAnswers()) {
             if (System.nanoTime() - began >= settings.waitAtMost().toNanos()) {
@@ -402,7 +469,7 @@ public class ContainerStarter {
             }
             sleep();
         }
-        log.info("The Docker engine answers after {} seconds", secondsSince(began));
+        say("The Docker engine answers after {} seconds", secondsSince(began));
         return true;
     }
 
@@ -466,10 +533,10 @@ public class ContainerStarter {
                     ? List.of(files.composeFile(), files.gpuFile())
                     : List.of(files.composeFile());
             List<String> up = host.composeUp(settings.wslDistribution(), named, services());
-            log.info("Starting the containers: {}", ContainerStartRefusedException.asRun(up));
+            say("Starting the containers: {}", ContainerStartRefusedException.asRun(up));
             ProcessOutcome outcome;
             try {
-                outcome = runner.runToTheEnd(up, line -> log.info("{}", line));
+                outcome = runner.runToTheEnd(up, line -> say("{}", line));
             } catch (IOException cannotStart) {
                 throw new DockerIsNotInstalledException(host.engineProgram());
             }
@@ -494,13 +561,13 @@ public class ContainerStarter {
         boolean askDocling = doclingIsHere();
         boolean askOllama = ollamaIsHere();
         String names = askDocling && askOllama ? "docling-serve and Ollama" : askDocling ? "docling-serve" : "Ollama";
-        log.info("Waiting up to {} seconds for {} to answer", settings.waitAtMost().toSeconds(), names);
+        say("Waiting up to {} seconds for {} to answer", settings.waitAtMost().toSeconds(), names);
         long began = System.nanoTime();
         while (true) {
             boolean docling = !askDocling || health.doclingAnswers();
             boolean ollama = !askOllama || health.ollamaAnswers();
             if (docling && ollama) {
-                log.info("{} answer after {} seconds", names, secondsSince(began));
+                say("{} answer after {} seconds", names, secondsSince(began));
                 return;
             }
             if (System.nanoTime() - began >= settings.waitAtMost().toNanos()) {
@@ -570,7 +637,7 @@ public class ContainerStarter {
                 throw new EarlierVersionHoldsTheLockException(file);
             }
             if (!said) {
-                log.info("Another Vespera invocation is starting the containers; waiting for it");
+                say("Another Vespera invocation is starting the containers; waiting for it");
                 said = true;
             }
             sleep();

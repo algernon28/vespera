@@ -3252,6 +3252,51 @@ public final class Adr {
     public static final String NOTHING_USES_A_WORKING_DIRECTORY_NOTHING_NAMES = FILE
             + "0436-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md";
 
+    /**
+     * ADR-437 -- while Start Docker or a Shut down Docker answered to go on runs, the output panel, emptied at the
+     * press, shows each line the start or the shut-down logs, its words alone, {@code up}'s console output among them,
+     * and its own line last, until the next child is watched or the next press; the starter logs the engine's start and
+     * the two stops, and each one's output once it has exited; the lines reach the window as a {@code Consumer<String>}
+     * through {@code DockerControl} and {@code DockerEngine} (amends ADR-430 §5 and §12, ADR-364 §1 and §7, and ADR-390
+     * §4 and §5).
+     */
+    public static final String START_DOCKERS_AND_SHUT_DOWN_DOCKERS_LINES_ARE_SHOWN_IN_THE_OUTPUT_PANEL = FILE
+            + "0437-start-dockers-and-shut-down-dockers-lines-are-shown-in-the-output-panel-as-each-is-logged.md";
+
+    /**
+     * ADR-438 -- as the chart of a step that records its completion under a run freezes having run, the job writes it
+     * also to {@code charts/<run id>/chart-step-<step>.json}, which nothing writes empty or deletes; an invocation finding
+     * the step finished under the run it reached for it freezes its chart with that kept chart's key, finishing time and
+     * lines, still marked finished in an earlier invocation, and the window draws it frozen with no words, saying the
+     * words only where no chart is kept; the chart kept is that of the invocation in which the step finished; a frozen
+     * chart's title names the day where the step finished on another (amends ADR-432 §4 to §6 and ADR-418 §1).
+     */
+    public static final String A_STEPS_CHART_IS_KEPT_UNDER_ITS_RUN_AS_IT_FREEZES = FILE
+            + "0438-a-steps-chart-is-kept-under-its-run-as-it-freezes-and-an-invocation-finding-the-step-finished-earlier-draws-it.md";
+
+    /**
+     * ADR-439 -- {@code vespera publish --invocation <id>} delivers the rendering of the generation run that
+     * invocation's report names, its tree looked for at the output folder the report names, refused in a line of its
+     * own where the report is not kept, the invocation was no run or did not reach the deliverable, or the tree is gone
+     * or drawn again for another; the Working directory section lists the earlier deliverables still standing, one
+     * chosen giving Publish its invocation and its boxes, and the window asks before an earlier one than the latest
+     * replaces what Confluence or the website holds (amends ADR-393 §7, ADR-436 §6, ADR-333 §6, ADR-345 §4 and
+     * ADR-047).
+     */
+    public static final String A_PUBLISH_MAY_NAME_AN_EARLIER_RUN_BY_ITS_INVOCATION = FILE
+            + "0439-a-publish-may-name-an-earlier-run-by-its-invocation-and-the-control-panel-lists-the-earlier-deliverables.md";
+
+    /**
+     * ADR-440 -- the Preflight section is a grid of rows, each a name, a mark and words: the corpus root, the working
+     * directory, each one's holder said in words, {@code vespera run (pid <pid>) since <HH:mm>}, its line whole the
+     * caption, one row where one process holds both, and Docling's image where the header's check found it running
+     * another than the one Run would use; free space in each folder's words alone; no Check and no line of Docling's or
+     * Ollama's answers; the window's check keeps Docling's image and the names Ollama lists, which the Profile window
+     * offers (amends ADR-344 §1, ADR-430 §3, §8 and §12, ADR-334 §2 and ADR-331 §7).
+     */
+    public static final String THE_PREFLIGHT_IS_THE_FOLDERS_AND_THEIR_HOLDERS_A_HOLDER_SAID_ONCE_IN_WORDS = FILE
+            + "0440-the-preflight-section-is-the-folders-and-their-holders-a-row-each-of-a-name-a-mark-and-words-a-holder-said-once.md";
+
     private Adr() {
     }
 }

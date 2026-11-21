@@ -784,10 +784,20 @@ public class VesperaCommand implements Callable<Integer> {
      * recorded as finished and whose tree holds that plugin's folder with its list or a {@code drawing.txt}. Where the
      * tree lies is the deliverable root {@code run} draws it at (ADR-276). It mints no run and opens no archive file;
      * what each sends and how is its plugin's.
+     *
+     * <p>{@code --invocation <id>} names an earlier invocation of this working directory instead (ADR-439 §1): the
+     * rendering delivered is that of the generation run its report copy's {@code arrivedAt} names, in the tree at the
+     * output folder that copy's {@code places.deliverableRoot} names, or at the root in use now where it names none
+     * (§3). Five refusals are each said once, before any destination, exit 1: the copy is not kept or cannot be read,
+     * the invocation was no {@code run}, it did not reach the deliverable, no tree is at the place it drew one, and the
+     * tree there was drawn again for another generation run or working directory (§2). Each destination then finds
+     * {@code <tree>/<plugin's name>}, and is refused where the invocation drew none (§4). The jar asks nothing before
+     * it replaces a later rendering with an earlier one (§4). Without it a publish is as ADR-393 §7 has it (§5).
      */
     @Component
     @Command(name = "publish", description = "Delivers the rendering of the generation run the last vespera run's report copy names in arrivedAt,"
-            + " the last one minted only where no such copy is kept, to each destination"
+            + " the last one minted only where no such copy is kept, or of the one the invocation named on --invocation"
+            + " reached, to each destination"
             + " named on --to: the operator's Confluence Cloud site, as the VESPERA_CONFLUENCE_* variables name it,"
             + " or the website folder of the working directory. Bare, it delivers to Confluence.")
     public static class Publish implements Callable<Integer> {
@@ -803,6 +813,9 @@ public class VesperaCommand implements Callable<Integer> {
         private final DeliverableRoot deliverableRoot;
         private InvocationReport report;
 
+        /** What a publish naming an invocation delivers, once its refusals are passed (ADR-439 §1 to §3). */
+        private record Earlier(String invocation, String generationRun, Path tree) {}
+
         /** The same option {@code run} and {@code label} take (ADR-054, #310). */
         @Mixin
         private WorkingDirectoryOption databaseDirectory = new WorkingDirectoryOption();
@@ -814,6 +827,15 @@ public class VesperaCommand implements Callable<Integer> {
                 paramLabel = "<destination>",
                 description = "The destinations to deliver to, by their names, separated by commas.")
         private List<String> destinations = new java.util.ArrayList<>();
+
+        /** The invocation named, by its id, whose generation run's rendering is delivered; none where not given (ADR-439 §1). */
+        @Option(
+                names = "--invocation",
+                paramLabel = "<id>",
+                description = "Delivers the rendering of the generation run the invocation with this id reached, as"
+                        + " 20261114T083000Z or 20261114T083000Z-2, in the tree it drew, in place of the last vespera"
+                        + " run's.")
+        private String invocation;
 
         /**
          * The plugins in the jar, sorted by name as a drawing orders them, of which a bare publish takes the one named
@@ -849,6 +871,7 @@ public class VesperaCommand implements Callable<Integer> {
         void forgetPreviousInvocation() {
             databaseDirectory = new WorkingDirectoryOption();
             destinations = new java.util.ArrayList<>();
+            invocation = null;
         }
 
         /** A refusal after the working-directory lock: its line is printed whole, and the report says it, once. */
@@ -883,18 +906,34 @@ public class VesperaCommand implements Callable<Integer> {
                     chosen.add(named.get());
                 }
             }
+            if (invocation != null && !PublishedInvocation.ID.matcher(invocation).matches()) {
+                return refuse("vespera publish has no invocation " + invocation + ": an invocation is named by its id,"
+                        + " as 20261114T083000Z or 20261114T083000Z-2.", CommandLine.ExitCode.USAGE);
+            }
+            Map<String, Set<String>> finished = null;
+            Earlier earlier = null;
+            if (invocation != null) {
+                finished = ledger.runs().finishedSteps();
+                Object refusedOrEarlier = earlierOf(finished);
+                if (refusedOrEarlier instanceof String line) {
+                    return refuse(line, CommandLine.ExitCode.SOFTWARE);
+                }
+                earlier = (Earlier) refusedOrEarlier;
+            }
             OperatorLines.info("Report: " + ReportHtml.pathIn(workingDirectoryInUse));
             if (report != null) {
                 report.publishStarts();
             }
             int exit = CommandLine.ExitCode.SOFTWARE;
             try {
-                Map<String, Set<String>> finished = ledger.runs().finishedSteps();
+                if (finished == null) {
+                    finished = ledger.runs().finishedSteps();
+                }
                 List<Runs.Listed> runs = ledger.runs().listed();
                 boolean anyStopped = false;
                 int ownCode = CommandLine.ExitCode.OK;
                 for (Plugin plugin : chosen) {
-                    int code = deliverTo(plugin, bare, finished, runs);
+                    int code = deliverTo(plugin, bare, finished, runs, earlier);
                     anyStopped |= code != CommandLine.ExitCode.OK;
                     if (ownCode == CommandLine.ExitCode.OK && code != CommandLine.ExitCode.OK
                             && code != CommandLine.ExitCode.SOFTWARE) {
@@ -943,7 +982,11 @@ public class VesperaCommand implements Callable<Integer> {
          * @param bare whether this is a bare publish, which says what ADR-308 §5 said before {@code --to}
          * @return 0 where it was delivered, else the code its stop carries (1 where it carries none of its own)
          */
-        private int deliverTo(Plugin plugin, boolean bare, Map<String, Set<String>> finished, List<Runs.Listed> runs) {
+        private int deliverTo(Plugin plugin, boolean bare, Map<String, Set<String>> finished, List<Runs.Listed> runs,
+                Earlier earlier) {
+            if (earlier != null) {
+                return deliverEarlier(plugin, bare, earlier);
+            }
             Optional<LastRunInvocationReader.Arrival> lastRunInvocation = LastRunInvocationReader.of(workingDirectoryInUse, StageModules.GENERATION.stage());
             Optional<String> generation;
             if (lastRunInvocation.isPresent()) {
@@ -972,14 +1015,18 @@ public class VesperaCommand implements Callable<Integer> {
                                 + " rendering is drawn in this working directory. Run vespera run to the deliverable,"
                                 + " and publish again.");
             }
-            Path rendering = renderingOf(plugin, generation.get());
+            return deliverRendering(plugin, renderingOf(plugin, generation.get()), generation.get());
+        }
+
+        /** Hands {@code plugin} the rendering and the generation run, once its drawing is finished (ADR-333 §11). */
+        private int deliverRendering(Plugin plugin, Path rendering, String generationRun) {
             if (!drawingFinished(rendering)) {
                 return stopped(plugin, "vespera publish sent nothing to " + plugin.name() + ": the last drawing"
                         + " of its rendering did not finish. Run vespera run to draw it again, and publish again.");
             }
             Plugin.Delivery outcome;
             try {
-                outcome = plugin.deliver(rendering, generation.get(), workingDirectoryInUse, OperatorLines::info);
+                outcome = plugin.deliver(rendering, generationRun, workingDirectoryInUse, OperatorLines::info);
             } catch (RuntimeException thrown) {
                 return stopped(plugin, "vespera publish stopped " + plugin.name() + ": it threw "
                         + thrown.getClass().getSimpleName() + ", whose message is not written. Publish again once"
@@ -993,6 +1040,60 @@ public class VesperaCommand implements Callable<Integer> {
                 report.destinationEnds(plugin.name(), "delivered", outcome.closingLine());
             }
             return CommandLine.ExitCode.OK;
+        }
+
+        /**
+         * What the invocation named delivers, or the line refusing it (ADR-439 §2, §3): the five refusals in their
+         * order, each whole.
+         *
+         * @return an {@link Earlier}, or the refusal's line as a {@link String}
+         */
+        private Object earlierOf(Map<String, Set<String>> finished) {
+            String nameAnother = " Name another, or publish without --invocation.";
+            Optional<PublishedInvocation.Report> copy =
+                    PublishedInvocation.of(workingDirectoryInUse, invocation, StageModules.GENERATION.stage());
+            if (copy.isEmpty()) {
+                return "vespera publish sent nothing: this working directory keeps no report of the invocation "
+                        + invocation + " that can be read." + nameAnother;
+            }
+            PublishedInvocation.Report kept = copy.get();
+            if (!InvocationReport.RUN.equals(kept.command())) {
+                return "vespera publish sent nothing: the invocation " + invocation + " was a vespera "
+                        + kept.command() + ", which draws no deliverable." + nameAnother;
+            }
+            String generation = kept.generationRun();
+            if (generation == null || !finished.getOrDefault(generation, Set.of()).contains(StepNames.GENERATION)) {
+                return "vespera publish sent nothing: the invocation " + invocation
+                        + " did not reach the deliverable." + nameAnother;
+            }
+            DeliverableRoot drawnAt = kept.deliverableRoot() == null ? deliverableRoot
+                    : DeliverableRoot.of(kept.deliverableRoot());
+            Path tree = drawnAt.treeOf(workingDirectoryInUse, generation).toAbsolutePath().normalize();
+            return switch (drawnAt.standingFor(workingDirectoryInUse, generation)) {
+                case NONE -> "vespera publish sent nothing: the tree the invocation " + invocation
+                        + " drew is no longer at " + tree + "." + nameAnother;
+                case DRAWN_AGAIN -> "vespera publish sent nothing: the tree at " + tree + " was drawn again for another"
+                        + " generation run or working directory after the invocation " + invocation + "." + nameAnother;
+                case STANDS -> new Earlier(invocation, generation, tree);
+            };
+        }
+
+        /**
+         * Delivers {@code plugin}'s rendering in the tree of the invocation named (ADR-439 §4): refused where the tree
+         * holds neither its list nor its {@code drawing.txt}, then as any publish is, asking nothing.
+         */
+        private int deliverEarlier(Plugin plugin, boolean bare, Earlier earlier) {
+            Path rendering = earlier.tree().resolve(plugin.name());
+            if (!Files.isRegularFile(rendering.resolve(plugin.listName()))
+                    && !Files.isRegularFile(rendering.resolve(Plugin.DRAWING_STATE_FILE_NAME))) {
+                return stopped(plugin, bare
+                        ? "vespera publish sent nothing: the invocation " + earlier.invocation()
+                                + " drew no Confluence rendering. Name another, or publish without --invocation."
+                        : "vespera publish sent nothing to " + plugin.name() + ": the invocation "
+                                + earlier.invocation() + " drew no " + plugin.name() + " rendering. Name another, or"
+                                + " publish without --invocation.");
+            }
+            return deliverRendering(plugin, rendering, earlier.generationRun());
         }
 
         /**

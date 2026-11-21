@@ -185,7 +185,7 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                         + " the Tab key",
                 () -> assertThat(reading).isEmpty());
         claim("the walk reaches the header's where and child, the outcome, a step's state, a profile row's title, a"
-                        + " preflight line, a wanted value's title, a profile problem's line, and a report's headline"
+                        + " preflight row's name, a wanted value's title, a profile problem's line, and a report's headline"
                         + " and paragraph in the Reports window, so that a walk reaching nothing cannot pass",
                 () -> {
                     assertThat(reached).filteredOn(node -> "where".equals(node.getId())).hasSize(1);
@@ -194,7 +194,8 @@ class EveryTextOfTheWindowCanBeCopiedTest {
                     assertThat(texts(reached, "step-census")).as("the row of the census step").contains("waiting");
                     assertThat(texts(reached, "profile-row-" + ProfileKey.GENERATION_MODEL.key()))
                             .contains(ProfileKey.GENERATION_MODEL.title());
-                    assertThat(texts(reached, "preflight-list")).anyMatch(line -> line.startsWith("Corpus root: "));
+                    // a row's name, mark and words are three texts (ADR-440 §2)
+                    assertThat(texts(reached, "preflight-list")).contains("Corpus root");
                     assertThat(texts(reached, "wanted-row-boilerplateDocumentFrequencyFloor")).isNotEmpty();
                     assertThat(texts(reached, "code-sets")).contains(elsewhere.toString());
                     assertThat(texts(reached, "headline-" + A_REPORT_WRITTEN)).contains("Files");

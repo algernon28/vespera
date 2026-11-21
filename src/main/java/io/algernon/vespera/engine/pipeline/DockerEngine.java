@@ -4,6 +4,7 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * The Docker engine's code as the control panel calls it, in its own process (ADR-390 §4): the one class of the jar
@@ -67,7 +68,13 @@ public final class DockerEngine {
      *     is on this machine
      */
     public Optional<String> keepTheWslDistributionUp(URI doclingBaseUrl, URI ollamaBaseUrl) {
-        return starter(doclingBaseUrl, ollamaBaseUrl).keepTheWslDistributionUp();
+        return keepTheWslDistributionUp(doclingBaseUrl, ollamaBaseUrl, line -> {
+        });
+    }
+
+    /** As the two-address form, telling {@code told} the line it logs, on the thread that logs it (ADR-437 §3, §7). */
+    public Optional<String> keepTheWslDistributionUp(URI doclingBaseUrl, URI ollamaBaseUrl, Consumer<String> told) {
+        return starter(doclingBaseUrl, ollamaBaseUrl).telling(told).keepTheWslDistributionUp();
     }
 
     /**
@@ -117,6 +124,16 @@ public final class DockerEngine {
      * @return the refusal's line; empty where started, already answering or nothing was to be done
      */
     public Optional<String> startTheContainers(URI doclingBaseUrl, URI ollamaBaseUrl, String doclingImage) {
+        return startTheContainers(doclingBaseUrl, ollamaBaseUrl, doclingImage, line -> {
+        });
+    }
+
+    /**
+     * As the three-argument form, telling {@code told} each line the start logs, the engine's start and what it printed
+     * among them, on the thread that logs it (ADR-437 §3, §7).
+     */
+    public Optional<String> startTheContainers(URI doclingBaseUrl, URI ollamaBaseUrl, String doclingImage,
+            Consumer<String> told) {
         ContainerStartSettings settings = new ContainerStartSettings(
                 doclingBaseUrl, ollamaBaseUrl, doclingImage == null ? "" : doclingImage, waitAtMost, wslDistribution,
                 profileFolder);
@@ -132,7 +149,7 @@ public final class DockerEngine {
                 CHECK_EVERY);
         try {
             // .wslconfig is still seen to, but its line was logged by keepTheWslDistributionUp, which the window calls first
-            starter.ensureRunning(false);
+            starter.telling(told).ensureRunning(false);
             return Optional.empty();
         } catch (ContainerStartRefusedException refused) {
             return Optional.of(refused.getMessage());
@@ -150,8 +167,14 @@ public final class DockerEngine {
 
     /** Stops the containers and then the engine; the line says what came of it, {@link #SHUT_DOWN_DONE} where both stopped. */
     public String shutDown() {
+        return shutDown(line -> {
+        });
+    }
+
+    /** As {@link #shutDown()}, telling {@code told} each line of the two stops and what each printed (ADR-437 §3, §7). */
+    public String shutDown(Consumer<String> told) {
         return starter(URI.create(ContainerStartSettings.DEFAULT_DOCLING), URI.create(ContainerStartSettings.DEFAULT_OLLAMA))
-                .shutDown().line();
+                .telling(told).shutDown().line();
     }
 
     private ContainerStarter starter(URI doclingBaseUrl, URI ollamaBaseUrl) {

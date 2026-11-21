@@ -112,7 +112,7 @@ final class WantedValues {
             }
             Optional<EffectiveValues.Value> beneath = key.get().hasAValueBeneath()
                     ? effective.flatMap(said -> said.named(key.get().key())) : Optional.empty();
-            ProfileRow row = new ProfileRow(key.get(), "wanted-", state.lastChecks().ollama().models(), beneath,
+            ProfileRow row = new ProfileRow(key.get(), "wanted-", state.lastCheck().map(DockerCheck::ollamaModels).orElse(List.of()), beneath,
                     dialogs, null, openReport, written, open, titles);
             row.load(Optional.ofNullable(stated.get(key.get())));
             offerTo(row);
@@ -130,5 +130,10 @@ final class WantedValues {
         });
         wanted.getChildren().add(save);
         rowsDrawn.run();
+    }
+
+    /** Offers {@code models} in each model's choice drawn, keeping what each reads (ADR-440 §7). */
+    void offerModels(List<String> models) {
+        wantedRows.forEach(row -> row.offerModels(models));
     }
 }

@@ -238,4 +238,34 @@ class TheControlPanelsDockerSettingsTest {
         claim("and the start was refused at the container lock, in the lock's line, whole, which is the one line it gives",
                 () -> assertThat(said).isEqualTo(new DockerControl.Said(false, theLocksRefusal(notAFolder))));
     }
+
+    /**
+     * The window's start hands the lines it is told to the {@code Consumer} it is given (ADR-437 §3, §7): on Windows the
+     * line on {@code .wslconfig} it wrote, then nothing more, the start being refused at the container lock before any
+     * command, as above, and a refusal being returned and not told.
+     */
+    @Test
+    @Link(name = "ADR-437", url = Adr.START_DOCKERS_AND_SHUT_DOWN_DOCKERS_LINES_ARE_SHOWN_IN_THE_OUTPUT_PANEL, type = "adr")
+    @Issue("921")
+    @Story("Start Docker and Shut down Docker show what they do")
+    @DisplayName("On Windows the window's start tells the line on .wslconfig it wrote, and nothing of its refusal")
+    void onWindowsTheWindowsStartTellsTheWslconfigLineItWrote() throws IOException {
+        org.junit.jupiter.api.Assumptions.assumeTrue(System.getProperty("os.name", "").startsWith("Windows"),
+                "the system is the one this JVM runs on, and WSL is on Windows alone");
+        Path notAFolder = Files.createFile(folder.resolve("a-file-where-the-lock-folder-would-be"));
+        Path profileFolder = Files.createDirectory(folder.resolve("profile"));
+        java.util.List<String> told = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+        DockerControl.Said said = DockerControl.inProcess(new DockerControl.Settings("", Duration.ofSeconds(1),
+                notAFolder, profileFolder, REPOSITORY, nothingAnsweringHere())).start(BLANK, told::add);
+
+        claim("the one line told is the line on the .wslconfig it wrote in the profile folder given, whole",
+                () -> assertThat(told).containsExactly("Vespera wrote " + profileFolder.resolve(".wslconfig")
+                        + ", setting instanceIdleTimeout=-1 under [general], so that WSL does not shut its distribution"
+                        + " down while idle, and Docker and the containers with it. It applies from WSL's next start;"
+                        + " if WSL is running now, wsl --shutdown starts it afresh, and stops every WSL distribution and"
+                        + " the containers in them."));
+        claim("and the start was refused at the container lock, in the lock's line, returned and not told",
+                () -> assertThat(said).isEqualTo(new DockerControl.Said(false, theLocksRefusal(notAFolder))));
+    }
 }
