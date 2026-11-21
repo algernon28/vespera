@@ -19,6 +19,8 @@
 > **Partly amended — see [ADR-430](0430-the-control-panel-checks-docker-the-containers-and-the-models-and-starts-nothing-until-start-docker-is-pressed.md).** Of §3's step 2: a base URL's host is resolved, and its container is on this machine where any address it resolves to is a loopback, a wildcard or one of this machine's own; a host that cannot be resolved, `.invalid` among them and never looked up, starts nothing. Each container is judged on its own: only those on this machine are asked at steps 3 and 5, named to `up` where the other is not here, and waited for at step 8. The rest of this record stands.
 >
 > **Partly amended — see [ADR-433](0433-docling-and-ollama-are-containers-where-vespera-runs-them-and-never-sidecars-and-the-earlier-names-are-still-honoured.md).** Of §6: the lock file is `containers.lock`, and `sidecars.lock`, held by another, refuses a start, the engine's start, the stop and the shut-down until a later major release; not held, it is kept beside the new lock for the length of the action. Of §7 and §3's step 8: the wait is `vespera.containers.wait-at-most`, `vespera.sidecars.wait-at-most` still read where the new name is not set, in one line at WARN.
+>
+> **Partly amended — see [ADR-441](0441-the-docker-integration-tests-start-the-engine-where-it-does-not-answer-and-stop-it-after-them-only-where-they-started-it.md).** Of §1: a context built by Spring's test support still has no starter, but `DockerEngineForIntegrationTests`, a JUnit extension of the test tree run before the context of each integration test that needs Docker, starts the engine where it does not answer and shuts it down after the last of them where they started it.
 
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.
