@@ -1,0 +1,442 @@
+<!doctype html>
+<!--
+  PROTOTYPE for #878. THROWAWAY: do not fold into the cockpit as-is; nothing here is production code.
+  Question: what should a detachable Architecture window, opened from the cockpit's sidebar, look like,
+  and what lights up when a component is "running now"?
+  Shape: three structurally different drawings in one window, switchable via ?variant=A|B|C and the floating
+  bar at the bottom (or the left/right arrow keys). A fake run driver (right panel) pushes the same step
+  states the cockpit reads from the invocation report (StepsChart / Legs: waiting, running, finished, failed,
+  stopped, stopped at a gate) and HowItEnded. Open the file by double-clicking it; no server, no persistence.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE #878: Architecture window</title>
+<style>
+:root{
+  --ink:#1e1b2e;--dim:#67637a;--surface:#ffffff;--ground:#f5f4f1;--rule:#dfdce6;--accent:#4c3fb1;--accent-ink:#fff;
+  --bad:#b3282d;--faint:#5f5a78;--keeping:#356d4d;
+  --k-stage:#7a3fc4;--k-stage-bg:#f6f1fc;--k-side:#2a6fd6;--k-side-bg:#eef4fd;--k-io:#2f8a46;--k-io-bg:#eff8f1;
+  --k-ctl:#c25a12;--k-ctl-bg:#fdf3ea;--k-pub:#b8327f;--k-pub-bg:#fcf0f6;
+  --lit-bg:#e4e0fb;
+}
+.dark{
+  --ink:#ecebf3;--dim:#aeaac2;--surface:#25232f;--ground:#1a1922;--rule:#3b3949;--accent:#b0a6ff;--accent-ink:#16132b;
+  --bad:#ff8f94;--faint:#8e8aa6;--keeping:#98c7aa;
+  --k-stage:#b48cf0;--k-stage-bg:#2a2338;--k-side:#6ea6f5;--k-side-bg:#1f2838;--k-io:#7ccb93;--k-io-bg:#1f2b24;
+  --k-ctl:#f0a065;--k-ctl-bg:#33261c;--k-pub:#ee8cc3;--k-pub-bg:#331f2b;
+  --lit-bg:#3a3268;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font:13px/1.4 "Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--ground)}
+button{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:4px 10px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.proto-banner{background:#ffe9a8;color:#3b2c00;padding:4px 10px;font-weight:600;font-size:12px}
+/* ---------- fake cockpit ---------- */
+#cockpit{display:grid;grid-template-columns:230px 1fr 300px;height:calc(100% - 24px)}
+#sidebar{border-right:1px solid var(--rule);background:var(--surface);overflow:auto}
+.sec{border-bottom:1px solid var(--rule);padding:7px 12px;color:var(--dim)}
+.sec.new{color:var(--ink);background:var(--k-stage-bg)}
+.sec.new b{display:block;margin-bottom:4px}
+.sec small{color:var(--dim);display:block;margin-top:4px}
+#main{padding:14px;overflow:auto}
+#main h2{margin:0 0 6px;font-size:15px}
+.steprow{display:grid;grid-template-columns:70px 170px 1fr 120px;gap:6px;align-items:center;padding:2px 0}
+.bar{height:8px;background:var(--rule);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent)}
+#driver{border-left:1px solid var(--rule);background:var(--surface);padding:10px;overflow:auto}
+#driver h3{margin:10px 0 4px;font-size:13px}
+#driver .row{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px}
+#driver pre{font:11px/1.35 Consolas,monospace;background:var(--ground);border:1px solid var(--rule);padding:6px;white-space:pre-wrap;max-height:260px;overflow:auto;user-select:text}
+label.inl{display:inline-flex;gap:4px;align-items:center;margin-right:8px}
+/* ---------- the Architecture window (in-page stand-in for a JavaFX Stage) ---------- */
+#win{position:fixed;left:250px;top:70px;width:900px;height:560px;min-width:300px;min-height:220px;background:var(--surface);
+  border:1px solid var(--rule);border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.25);display:flex;flex-direction:column;resize:both;overflow:hidden;z-index:5}
+#win.hidden{display:none}
+body.popup #win{position:static;width:100%;height:100vh;border:0;border-radius:0;resize:none;box-shadow:none}
+body.popup #cockpit,body.popup .proto-banner,body.popup #switcher{display:none}
+#titlebar{display:flex;align-items:center;gap:6px;padding:5px 8px;border-bottom:1px solid var(--rule);cursor:move;user-select:none;background:var(--ground)}
+#titlebar b{flex:1}
+#nowline{padding:6px 10px;border-bottom:1px solid var(--rule);font-size:13px;user-select:text;min-height:30px}
+#nowline .lbl{color:var(--dim)}
+#canvas{flex:1;overflow:auto;position:relative}
+#canvas.fit svg{width:100%;height:100%}
+#canvas.fit .mini svg{height:auto;display:block}
+#winfoot{display:flex;gap:8px;align-items:center;padding:4px 8px;border-top:1px solid var(--rule);font-size:12px;color:var(--dim);flex-wrap:wrap}
+/* ---------- states (shared by all variants): colour + a second cue (outline style / weight) + a word ---------- */
+.c rect.box{stroke-width:1.5}
+.c.st-running rect.box{stroke:var(--accent)!important;stroke-width:4;fill:var(--lit-bg)!important}
+.c.st-finished rect.box{stroke-width:2}
+.c.st-failed rect.box{stroke:var(--bad)!important;stroke-width:3;stroke-dasharray:6 3}
+.c.st-stopped rect.box{stroke:var(--faint)!important;stroke-width:3;stroke-dasharray:2 3}
+.c.st-gate rect.box{stroke:var(--k-ctl)!important;stroke-width:3;stroke-dasharray:10 3 2 3}
+.c.st-idle text,.c.st-waiting text{opacity:.92}
+.c text{fill:var(--ink);font-family:"Segoe UI",system-ui,sans-serif}
+.c text.tag{font-weight:700}
+.c.st-failed text.tag{fill:var(--bad)}
+/* motion: each says something. pulse = this is running now; flow = data moving between these two; nothing else moves */
+.motion .c.st-running rect.box{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{stroke-opacity:1}50%{stroke-opacity:.35}}
+.wire{stroke:var(--faint);stroke-width:1.5;fill:none}
+.wire.dash{stroke-dasharray:5 4}
+.wire.on{stroke:var(--accent);stroke-width:3;stroke-dasharray:7 5}
+.motion .wire.on{animation:flow .9s linear infinite}
+.motion .wire.on.rev{animation-direction:reverse}
+@keyframes flow{to{stroke-dashoffset:-12}}
+.c rect.box{transition:fill .4s, stroke .4s}
+.nomotion .c rect.box{transition:none}
+.grp{fill:none;stroke-width:2;rx:10}
+.grptitle{font-weight:700;font-size:15px}
+/* ---------- variant B (generated rail) ---------- */
+.rail{padding:10px;display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
+.rail .lane{display:grid;grid-template-columns:34px minmax(0,1fr);gap:8px;align-items:start;border:1.5px solid var(--k-stage);background:var(--k-stage-bg);border-radius:8px;padding:6px 8px}
+.rail .num{width:28px;height:28px;border-radius:50%;background:var(--ink);color:var(--surface);display:grid;place-items:center;font-weight:700;font-size:12px}
+.rail .steps{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.chip{border:1.5px solid var(--rule);border-radius:12px;padding:1px 8px;font-size:12px;background:var(--surface);user-select:text}
+.rail .head{display:flex;flex-wrap:wrap;gap:6px;align-items:baseline}
+.rail .head b{font-size:14px}
+.rail .uses{color:var(--dim);font-size:12px}
+.rail .side{display:flex;flex-wrap:wrap;gap:6px}
+.rail .side .chip{border-radius:6px;padding:3px 8px}
+.rail h4{margin:8px 0 2px;font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
+.st-running.lane,.chip.st-running{border:3px solid var(--accent)!important;background:var(--lit-bg)}
+.motion .st-running.lane,.motion .chip.st-running{animation:pulseb 1.6s ease-in-out infinite}
+@keyframes pulseb{50%{border-color:transparent}}
+.st-failed.lane,.chip.st-failed{border:2.5px dashed var(--bad)!important}
+.st-stopped.lane,.chip.st-stopped{border:2.5px dotted var(--faint)!important}
+.st-gate.lane,.chip.st-gate{border:2.5px double var(--k-ctl)!important;border-width:4px!important}
+.st-finished.lane{border-width:2px}
+.word{font-weight:700;font-size:12px}
+.st-failed .word,.word.st-failed{color:var(--bad)}
+.bus{border:1.5px solid var(--k-io);background:var(--k-io-bg);border-radius:8px;padding:5px 8px}
+.bus.st-running{border:3px solid var(--accent);background:var(--lit-bg)}
+/* ---------- floating variant switcher (prototype chrome, not part of the design) ---------- */
+#switcher{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);background:#111;color:#fff;border-radius:999px;padding:6px 8px;
+  display:flex;gap:8px;align-items:center;box-shadow:0 6px 24px rgba(0,0,0,.4);z-index:99;font-weight:600}
+#switcher button{background:#333;color:#fff;border:0;border-radius:999px;width:30px;height:30px}
+#switcher span{min-width:290px;text-align:center}
+</style>
+</head>
+<body>
+<div class="proto-banner">PROTOTYPE #878 (throwaway). A mock cockpit: only the "Architecture" sidebar entry and its window are under question. The right panel is a fake run driver.</div>
+<div id="cockpit">
+  <nav id="sidebar">
+    <div class="sec">Profile</div><div class="sec">Preflight</div><div class="sec">Folders</div><div class="sec">Services</div>
+    <div class="sec">Seed folder</div><div class="sec">Topics</div><div class="sec">Labels</div><div class="sec">Code sets</div>
+    <div class="sec">Outputs</div><div class="sec">Command options</div><div class="sec">Reports</div>
+    <div class="sec new"><b>Architecture</b><button class="primary" id="openwin">Open the architecture</button>
+      <small>Opens its own window like Profile and Reports. Closing it loses nothing: the cockpit keeps only its size, place, zoom and the detached/in-front choice.</small></div>
+  </nav>
+  <section id="main">
+    <h2>Steps (stand-in for StepsChart)</h2>
+    <div id="steplist"></div>
+  </section>
+  <aside id="driver">
+    <h3>Invocation</h3>
+    <div class="row"><button data-inv="run" class="primary">vespera run</button><button data-inv="label">vespera label</button><button data-inv="publish">vespera publish</button></div>
+    <h3>Drive the running step</h3>
+    <div class="row"><button id="tick">Advance 25%</button><button id="auto">Auto-play</button></div>
+    <h3>End it as (HowItEnded)</h3>
+    <div class="row"><button data-end="FAILED_OR_REFUSED">Fail here</button><button data-end="STOPPED">Stop (operator)</button><button data-end="GATE">Stop at a gate</button><button data-end="DEFECT_OF_THE_CONTROL_PANEL">Exit 2</button></div>
+    <div class="row"><button id="reset">Reset to idle</button></div>
+    <h3>Services</h3>
+    <div class="row"><label class="inl"><input type="checkbox" id="dockerUp" checked>Docker containers up</label><label class="inl"><input type="checkbox" id="gpu">GPU compose</label></div>
+    <h3>Look</h3>
+    <div class="row"><label class="inl"><input type="checkbox" id="dark">Dark theme</label></div>
+    <div class="row">Motion: <label class="inl"><input type="radio" name="motion" value="system" checked>follow OS</label><label class="inl"><input type="radio" name="motion" value="on">on</label><label class="inl"><input type="radio" name="motion" value="off">off</label></div>
+    <h3>State (what changed)</h3>
+    <pre id="state"></pre>
+    <button id="copy">Copy state</button>
+  </aside>
+</div>
+
+<div id="win" class="hidden" role="dialog" aria-label="Architecture">
+  <div id="titlebar"><b>Architecture</b>
+    <button id="zoom" title="Fit to the window, or draw at 100% and scroll">Fit</button>
+    <button id="detach" title="Open in a window of its own, e.g. on a second screen">Detach</button>
+    <button id="closewin" title="Close; reopen from the sidebar">✕</button></div>
+  <div id="nowline"></div>
+  <div id="canvas" class="fit"></div>
+  <div id="winfoot"></div>
+</div>
+
+<div id="switcher"><button id="prev" aria-label="previous variant">‹</button><span id="vlabel"></span><button id="next" aria-label="next variant">›</button></div>
+
+<script>
+// ======================= the one table everything is drawn from =======================
+// Mirrors Legs.ALL + StopCosts.stageOf + the reference picture's stage numbers. In the real thing this would be
+// read from the jar's step table, so adding a stage changes this table only, and a test (like
+// TheControlPanelsLegsAreTheReportsTest) fails when the drawing's table and the report's steps disagree.
+const STAGES = [
+  {id:'s0', n:'0', name:'Census', sub:'path, size, mtime'},
+  {id:'s1', n:'1', name:'Byte Reduction', sub:'SHA-256 on size ties'},
+  {id:'s2', n:'2', name:'Extraction', sub:'Docling, cached'},
+  {id:'s3', n:'3', name:'Content Census', sub:'boilerplate, distributions'},
+  {id:'s4', n:'4', name:'Content Redundancy', sub:'MinHash + LSH'},
+  {id:'s5', n:'5', name:'Relevance', sub:'seed scoring, clustering'},
+  {id:'s6a',n:'6a',name:'Arrangement', sub:'taxonomy, ordered groups', gate:true},
+  {id:'s6b',n:'6b',name:'Generation', sub:'one verified call per group', gate:true},
+];
+// step -> stage, and what else it touches (assumed from the tasklets' imports; verify before folding in)
+const STEPS = [
+  ['census','s0',['archive']], ['byte-level-reduction','s1',['archive']], ['extraction','s2',['archive','docling']],
+  ['content-census','s3',[]], ['redundancy-signature','s4',[]], ['content-redundancy','s4',[]],
+  ['seed-extraction','s5',['seed','docling']], ['seed-corpus-comparison','s5',['seed']], ['embedding-scoring','s5',['ollama']],
+  ['relevance-scoring','s5',[]], ['relevance-floor','s5',[]], ['clustering','s5',[]], ['relevance-report','s5',['reports']],
+  ['arrangement','s6a',['ollama','reports']], ['generation','s6b',['ollama','deliverable']],
+].map(([name,stage,uses])=>({name,stage,uses}));
+const OTHER = {
+  archive:{name:'Document Archive',sub:'read-only',kind:'io'}, seed:{name:'Seed Folder',sub:'exemplars, read-only',kind:'io'},
+  console:{name:'Vespera Console',sub:'JavaFX cockpit',kind:'ctl'}, cli:{name:'Vespera CLI',sub:'run · label · publish',kind:'ctl'},
+  ledger:{name:'SQLite Ledger',sub:'occurrences, verdicts, runs, content hashes, caches',kind:'io'},
+  docling:{name:'Docling',sub:'conversion, OCR, layout',kind:'side'}, ollama:{name:'Ollama',sub:'qwen3-embedding-8B · qwen3:8b',kind:'side'},
+  gpu:{name:'GPU',sub:'optional',kind:'side'},
+  deliverable:{name:'Deliverable',sub:'HTML pages + verified copies',kind:'io'}, reports:{name:'Reports',sub:'+ arrangement.html',kind:'io'},
+  confluence:{name:'Confluence Cloud',sub:'',kind:'pub'}, website:{name:'Website',sub:'',kind:'pub'},
+};
+
+// ======================= state (in memory only) =======================
+const params = new URLSearchParams(location.search);
+const VARIANTS = {A:'A: the picture, redrawn as SVG', B:'B: a rail generated from the step table', C:'C: a sentence first, a minimap beneath'};
+let S = {
+  variant: VARIANTS[params.get('variant')] ? params.get('variant') : 'A',
+  invocation: null,      // 'run' | 'label' | 'publish' | null
+  ended: null,           // HowItEnded name, or 'GATE' (a run stopping at a gate ends with 0 but leaves a step "stopped at a gate")
+  steps: Object.fromEntries(STEPS.map(s=>[s.name,{state:'waiting',done:0}])),
+  publishState: 'waiting',
+  dockerUp: true, gpu: false, dark: false, motion: 'system', fit: true, windowOpen: false, detached: false,
+};
+const isPopup = params.get('popup') === '1';
+let popup = null;
+
+// ======================= derive what lights up, and why =======================
+const running = () => STEPS.find(s=>S.steps[s.name].state==='running');
+function aggregate(states){ // same rules as Legs.stateOf
+  if(states.every(x=>x==='waiting')) return 'waiting';
+  if(states.every(x=>x==='finished')) return 'finished';
+  if(states.includes('failed')) return 'failed';
+  if(states.includes('stopped')) return 'stopped';
+  if(states.includes('stopped at a gate')) return 'gate';
+  if(states.includes('running')) return 'running';
+  return S.ended ? 'failed' : 'running';
+}
+function derive(){
+  const out = {}; const why = {};
+  for(const st of STAGES){
+    const mine = STEPS.filter(s=>s.stage===st.id).map(s=>S.steps[s.name].state);
+    out[st.id] = aggregate(mine);
+    const r = STEPS.find(s=>s.stage===st.id && S.steps[s.name].state==='running');
+    why[st.id] = r ? `step ${r.name} is running` : `its steps: ${aggregate(mine)}`;
+  }
+  const r = running(); const uses = r ? r.uses : [];
+  const alive = S.invocation && !S.ended;
+  out.console = 'idle'; why.console = 'you are here (never lit)';
+  out.cli = alive ? 'running' : S.ended ? endWord() : 'idle'; why.cli = alive ? `child "vespera ${S.invocation}" alive` : S.ended ? `child ended: ${S.ended}` : 'no child';
+  out.ledger = (r || (S.invocation==='label' && alive)) ? 'running' : 'idle'; why.ledger = r ? `${r.name} writes verdicts` : (S.invocation==='label'&&alive) ? 'label writes answers' : 'nothing writes';
+  for(const k of ['archive','seed','reports','deliverable']){ out[k] = uses.includes(k)?'running':'idle'; why[k] = uses.includes(k)?`${r.name} ${k==='reports'||k==='deliverable'?'writes':'reads'} it`:'not touched now'; }
+  for(const k of ['docling','ollama']){
+    out[k] = !S.dockerUp ? 'down' : uses.includes(k) ? 'running' : 'idle';
+    why[k] = !S.dockerUp ? 'container not running' : uses.includes(k) ? `${r.name} calls it` : 'container up, unused';
+  }
+  out.gpu = !S.gpu ? 'down' : (out.ollama==='running'||out.docling==='running') ? 'running' : 'idle';
+  why.gpu = !S.gpu ? 'compose.gpu.yaml not in use' : out.gpu==='running' ? 'a sidecar using it is busy' : 'idle';
+  const pub = S.invocation==='publish' ? S.publishState : 'idle';
+  out.confluence = out.website = pub; why.confluence = why.website = S.invocation==='publish' ? `publish: ${S.publishState}` : 'only "vespera publish" touches it';
+  if(S.invocation==='publish' && alive) { out.deliverable='running'; why.deliverable='publish reads it'; }
+  return {out, why, r};
+}
+function endWord(){ return {ENDED:'finished',FAILED_OR_REFUSED:'failed',STOPPED:'stopped',GATE:'gate',DEFECT_OF_THE_CONTROL_PANEL:'failed'}[S.ended]; }
+const WORD = {running:'▶ running', finished:'✓ finished', failed:'✕ failed', stopped:'■ stopped', gate:'⏸ at a gate', waiting:'', idle:'', down:'○ down'};
+const KIND = {stage:['--k-stage','--k-stage-bg'], side:['--k-side','--k-side-bg'], io:['--k-io','--k-io-bg'], ctl:['--k-ctl','--k-ctl-bg'], pub:['--k-pub','--k-pub-bg']};
+function pct(r){ return r ? Math.min(99,S.steps[r.name].done)+'%' : ''; }
+
+// ======================= variant A: the reference picture, hand-placed =======================
+function svgBox(id, x,y,w,h, kind, title, sub, st, extra=''){
+  const [stroke,fill] = KIND[kind];
+  const word = WORD[st]||''; const fs = w<80 ? 11 : 13; const ss = w<80 ? 10 : 11;
+  const isStage = /^s\d/.test(id); const p = st==='running'&&isStage ? pct(running()) : '';
+  if(h<45){ // a flat bar (the ledger, the minimap's small boxes): title centred, the word at the right end
+    let t = `<text x="${x+w/2}" y="${y+h/2+4}" text-anchor="middle" font-weight="700" font-size="${fs}">${esc(title)}${sub&&w>300?' <tspan font-weight="400" font-size="11">'+esc(sub)+'</tspan>':''}</text>`;
+    if(word) t += w>300 ? `<text class="tag" x="${x+w-8}" y="${y+h/2+4}" text-anchor="end" font-size="12">${word}</text>` : `<text class="tag" x="${x+w-3}" y="${y+11}" text-anchor="end" font-size="10">${word.split(' ')[0]}</text>`;
+    return `<g class="c st-${st}" data-id="${id}"><title>${esc(title)}: ${esc(st)}</title><rect class="box" x="${x}" y="${y}" width="${w}" height="${h}" rx="7" style="stroke:var(${stroke});fill:var(${fill})"/>${extra}${t}</g>`;
+  }
+  const lines = wrap(title, Math.floor(w/(fs*0.62)));
+  let t = lines.map((l,i)=>`<text x="${x+w/2}" y="${y+18+i*(fs+2)}" text-anchor="middle" font-weight="700" font-size="${fs}">${esc(l)}</text>`).join('');
+  const subY = y+20+lines.length*(fs+2);
+  if(sub) t += wrap(sub, Math.floor(w/(ss*0.55))).slice(0,4).map((l,i)=>`<text x="${x+w/2}" y="${subY+i*(ss+2)}" text-anchor="middle" font-size="${ss}">${esc(l)}</text>`).join('');
+  if(p) t += `<text class="tag" x="${x+w/2}" y="${y+h-22}" text-anchor="middle" font-size="12">${p}</text>`;
+  if(word) t += `<text class="tag" x="${x+w/2}" y="${y+h-8}" text-anchor="middle" font-size="${w<80?10:12}">${w<80?word.replace('stopped','stop.').replace('finished','done').replace('running','run'):word}</text>`;
+  return `<g class="c st-${st}" data-id="${id}"><title>${esc(title)}: ${esc(st)}</title><rect class="box" x="${x}" y="${y}" width="${w}" height="${h}" rx="7" style="stroke:var(${stroke});fill:var(${fill})"/>${extra}${t}</g>`;
+}
+function wire(id, d, on, cls=''){ return `<path class="wire ${cls} ${on?'on':''}" data-w="${id}" d="${d}"/>`; }
+function variantA(D){
+  const {out, r} = D; const u = r?r.uses:[]; const alive = S.invocation && !S.ended;
+  let s = `<svg viewBox="0 0 1000 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Vespera architecture">`;
+  const grp=(x,y,w,h,v,t)=>`<rect class="grp" x="${x}" y="${y}" width="${w}" height="${h}" rx="10" style="stroke:var(${v})"/><text class="grptitle" x="${x+10}" y="${y+20}" style="fill:var(${v})">${t}</text>`;
+  s += grp(10,10,125,390,'--k-io','Inputs') + grp(148,10,567,390,'--faint','Operator’s Machine') + grp(728,10,125,390,'--k-io','Outputs') + grp(866,10,124,390,'--k-pub','Connectors');
+  s += grp(158,38,547,62,'--k-ctl','') + grp(158,108,547,190,'--k-stage','') + grp(148,410,567,100,'--k-side','Docker: local AI sidecars');
+  s += `<text x="170" y="128" font-weight="700" font-size="13" style="fill:var(--k-stage)">Vespera Application</text><text x="695" y="128" text-anchor="end" font-weight="700" font-size="12" style="fill:var(--k-ctl)">human gate: 6a, 6b</text>`;
+  // wires first, boxes on top
+  s += wire('archive-app','M135 120 H158', u.includes('archive')) + wire('seed-app','M135 280 H158', u.includes('seed'));
+  s += wire('console-cli','M370 70 H420', alive) + wire('cli-app','M620 70 H690 V108', alive);
+  STAGES.forEach((st,i)=>{ const cx = 168+i*67+31; s += wire('led-'+st.id, `M${cx} 288 V318`, out[st.id]==='running'); });
+  s += wire('ledger-docling','M260 350 V438', u.includes('docling'), 'rev') + wire('ledger-ollama','M470 350 V438', u.includes('ollama'), 'rev');
+  s += wire('ollama-gpu','M580 465 H600', out.gpu==='running');
+  s += wire('app-deliv','M705 160 H738', u.includes('deliverable')) + wire('ledger-reports','M705 334 H720 V300 H738', u.includes('reports'));
+  s += wire('pub-conf','M843 120 H876', out.confluence==='running','dash') + wire('pub-web','M843 290 H876', out.website==='running','dash');
+  s += svgBox('archive',20,40,105,150,'io',OTHER.archive.name,OTHER.archive.sub,out.archive);
+  s += svgBox('seed',20,205,105,150,'io',OTHER.seed.name,OTHER.seed.sub,out.seed);
+  s += svgBox('console',170,46,200,46,'ctl',OTHER.console.name,'',out.console);
+  s += svgBox('cli',420,46,200,46,'ctl',OTHER.cli.name,'',out.cli);
+  STAGES.forEach((st,i)=>{ const x=168+i*67, y=138;
+    const badge = `<circle cx="${x+31}" cy="${y+14}" r="10" style="fill:var(--ink)"/><text x="${x+31}" y="${y+18}" text-anchor="middle" font-size="10" font-weight="700" style="fill:var(--surface)">${st.n}</text>`;
+    s += svgBox(st.id,x,y,62,150,st.gate?'ctl':'stage',' \n'+st.name.replace('Content ','Content\n').replace('Byte ','Byte\n'),st.sub,out[st.id],badge);
+  });
+  s += svgBox('ledger',158,318,547,32,'io',OTHER.ledger.name,'',out.ledger);
+  s += svgBox('docling',160,438,200,62,'side',OTHER.docling.name,OTHER.docling.sub,out.docling);
+  s += svgBox('ollama',380,438,200,62,'side',OTHER.ollama.name,OTHER.ollama.sub,out.ollama);
+  s += svgBox('gpu',600,438,105,62,'side',OTHER.gpu.name,OTHER.gpu.sub,out.gpu);
+  s += svgBox('deliverable',738,40,105,160,'io',OTHER.deliverable.name,OTHER.deliverable.sub,out.deliverable);
+  s += svgBox('reports',738,215,105,150,'io',OTHER.reports.name,OTHER.reports.sub,out.reports);
+  s += svgBox('confluence',876,40,105,160,'pub',OTHER.confluence.name,'',out.confluence);
+  s += svgBox('website',876,215,105,150,'pub',OTHER.website.name,'',out.website);
+  s += legend(728,410);
+  return s + `</svg>`;
+}
+function legend(x,y){
+  const it=(dx,dy,v,t,dash='')=>`<rect x="${x+dx}" y="${y+dy}" width="14" height="10" style="fill:var(${v})"/><text x="${x+dx+20}" y="${y+dy+10}" font-size="11" style="fill:var(--ink)">${t}</text>`;
+  return `<g><rect x="${x}" y="${y}" width="262" height="100" rx="8" style="fill:var(--surface);stroke:var(--rule)"/>`+
+    it(10,10,'--k-stage','Pipeline stage')+it(10,28,'--k-side','Local AI sidecar')+it(10,46,'--k-io','Input, storage, output')+it(10,64,'--k-ctl','Control, human gate')+
+    ['▶ thick: running','✓ finished · ⏸ gate','✕ dashed: failed','■ dotted: stopped','○ down · ⇢ data flow'].map((l,i)=>`<text x="${x+148}" y="${y+20+i*16}" font-size="11" style="fill:var(--ink)">${l}</text>`).join('')+`</g>`;
+}
+
+// ======================= variant B: a rail generated from the table, reflows when small =======================
+function variantB(D){
+  const {out, why} = D;
+  const chip = (k)=>`<span class="chip st-${out[k]}" title="${esc(why[k])}" style="border-color:var(${KIND[OTHER[k].kind][0]})">${esc(OTHER[k].name)} <span class="word st-${out[k]}">${WORD[out[k]]||''}</span></span>`;
+  let h = `<div class="rail"><h4>Control</h4><div class="side">${chip('console')}${chip('cli')}</div><h4>Inputs</h4><div class="side">${chip('archive')}${chip('seed')}</div><h4>Stages</h4>`;
+  for(const st of STAGES){
+    const steps = STEPS.filter(s=>s.stage===st.id);
+    const uses = [...new Set(steps.flatMap(s=>s.uses).filter(u=>OTHER[u].kind==='side'))];
+    h += `<div class="lane st-${out[st.id]}" style="${st.gate?'border-color:var(--k-ctl);background:var(--k-ctl-bg)':''}"><div class="num">${st.n}</div><div>
+      <div class="head"><b>${esc(st.name)}</b><span class="word">${WORD[out[st.id]]||''}</span><span class="uses">${esc(st.sub)}${uses.length?' · uses '+uses.map(u=>OTHER[u].name).join(', '):''}${st.gate?' · human gate':''}</span></div>
+      <div class="steps">${steps.map(s=>{const x=S.steps[s.name]; const w=x.state==='stopped at a gate'?'gate':x.state; return `<span class="chip st-${w}">${s.name}${w==='running'?' '+Math.min(99,x.done)+'%':w==='waiting'?'':' · '+(WORD[w]||w)}</span>`;}).join('')}</div></div></div>`;
+  }
+  h += `<div class="bus st-${out.ledger}"><b>SQLite Ledger</b> <span class="word">${WORD[out.ledger]||''}</span> <span class="uses">${esc(why.ledger)}</span></div>`;
+  h += `<h4>Docker sidecars</h4><div class="side">${chip('docling')}${chip('ollama')}${chip('gpu')}</div>`;
+  h += `<h4>Outputs</h4><div class="side">${chip('reports')}${chip('deliverable')}</div><h4>Connectors (publish only)</h4><div class="side">${chip('confluence')}${chip('website')}</div></div>`;
+  return h;
+}
+
+// ======================= variant C: sentence first, minimap beneath =======================
+function variantC(D){
+  const {out, r} = D;
+  // a compact flow: one row of 8 stage cells, sidecars under the cells that use them
+  let s = `<svg viewBox="0 0 700 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="minimap">`;
+  s += svgBox('archive',4,30,70,40,'io','Archive','',out.archive) + svgBox('seed',4,80,70,40,'io','Seeds','',out.seed);
+  s += wire('in','M74 75 H84', !!(r&&(r.uses.includes('archive')||r.uses.includes('seed'))));
+  STAGES.forEach((st,i)=>{ s += svgBox(st.id,84+i*62,30,58,90,st.gate?'ctl':'stage',st.n,st.name.split(' ')[0],out[st.id]); });
+  s += svgBox('ledger',84,130,494,24,'io','Ledger','',out.ledger);
+  s += svgBox('docling',84,170,150,34,'side','Docling','',out.docling)+svgBox('ollama',250,170,150,34,'side','Ollama','',out.ollama)+svgBox('gpu',416,170,80,34,'side','GPU','',out.gpu);
+  s += svgBox('reports',590,30,106,40,'io','Reports','',out.reports)+svgBox('deliverable',590,80,106,40,'io','Deliverable','',out.deliverable);
+  s += svgBox('confluence',590,130,106,30,'pub','Confluence','',out.confluence)+svgBox('website',590,170,106,30,'pub','Website','',out.website);
+  return `<div class="mini"><div style="padding:10px">${timeline()}</div>` + s + `</svg></div>`;
+}
+function timeline(){ // the run as a strip of its 15 steps: settled marks for what is done
+  return `<div style="display:flex;gap:2px;flex-wrap:wrap" aria-label="steps">${STEPS.map(s=>{const st=S.steps[s.name].state; const w=st==='stopped at a gate'?'gate':st;
+    return `<span class="chip st-${w}" title="${s.name}: ${st}" style="font-size:11px;padding:0 5px">${{finished:'✓',failed:'✕',stopped:'■',gate:'⏸',running:'▶',waiting:'·'}[w]} ${STAGES.find(x=>x.id===s.stage).n}</span>`;}).join('')}</div>`;
+}
+
+// ======================= render =======================
+function nowSentence(D){
+  const {out, r} = D;
+  if(!S.invocation) return `<span class="lbl">Now:</span> nothing is running. The drawing shows the last state the cockpit read.`;
+  if(S.invocation==='publish') return `<span class="lbl">Now:</span> <b>vespera publish</b> ${S.ended?'ended: '+S.ended:'is sending the deliverable'}; Confluence and Website ${S.publishState}.`;
+  if(S.invocation==='label') return `<span class="lbl">Now:</span> <b>vespera label</b> ${S.ended?'ended: '+S.ended:'is writing the label answers into the ledger'}.`;
+  if(r){ const st = STAGES.find(x=>x.id===r.stage); const side = r.uses.filter(u=>OTHER[u].kind==='side').map(u=>OTHER[u].name);
+    return `<span class="lbl">Now:</span> stage <b>${st.n} ${esc(st.name)}</b>, step <b>${r.name}</b> ${Math.min(99,S.steps[r.name].done)}%${side.length?' · using <b>'+side.join(', ')+'</b>'+(out.gpu==='running'?' on the GPU':''):''} · writing the ledger`; }
+  if(S.ended){ const f = STEPS.find(s=>['failed','stopped','stopped at a gate'].includes(S.steps[s.name].state));
+    return `<span class="lbl">Ended:</span> <b>${S.ended}</b>${f?` at step <b>${f.name}</b> (stage ${STAGES.find(x=>x.id===f.stage).n}) — ${S.steps[f.name].state}`:''}.`; }
+  return `<span class="lbl">Now:</span> between two steps.`;
+}
+function render(){
+  document.documentElement.classList.toggle('dark', S.dark); document.body.classList.toggle('dark', S.dark);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const moving = S.motion==='on' || (S.motion==='system' && !reduce);
+  document.body.classList.toggle('motion', moving); document.body.classList.toggle('nomotion', !moving);
+  const D = derive();
+  document.getElementById('nowline').innerHTML = nowSentence(D);
+  const cv = document.getElementById('canvas');
+  cv.className = (S.fit?'fit ':'') ;
+  cv.innerHTML = S.variant==='A' ? variantA(D) : S.variant==='B' ? variantB(D) : variantC(D);
+  if(!S.fit){ const svg = cv.querySelector('svg'); if(svg){ svg.setAttribute('width', S.variant==='A'?1000:700); } }
+  document.getElementById('zoom').textContent = S.fit ? 'Fit' : '100%';
+  document.getElementById('winfoot').textContent = `Variant ${S.variant} · motion ${moving?'on':'off'}${S.motion==='system'?' (follows the OS'+(reduce?': reduced':'')+')':''} · ${S.detached?'detached':'in the cockpit'} · drawn from a table of ${STAGES.length} stages / ${STEPS.length} steps`;
+  if(isPopup) return;
+  document.getElementById('win').classList.toggle('hidden', !S.windowOpen || S.detached);
+  document.getElementById('vlabel').textContent = VARIANTS[S.variant];
+  document.getElementById('steplist').innerHTML = STEPS.map(s=>{const x=S.steps[s.name];return `<div class="steprow"><span style="color:var(--dim)">${STAGES.find(t=>t.id===s.stage).n}</span><span>${s.name}</span><div class="bar"><i style="width:${x.state==='finished'?100:Math.min(99,x.done)}%"></i></div><span>${x.state}</span></div>`;}).join('');
+  document.getElementById('state').textContent = JSON.stringify({variant:S.variant, invocation:S.invocation, ended:S.ended,
+    runningStep: D.r?D.r.name:null, components: Object.fromEntries(Object.keys(D.out).map(k=>[k, D.out[k]+'  ← '+D.why[k]]))}, null, 1);
+  if(popup && !popup.closed) popup.postMessage({proto878:S}, '*');
+}
+function wrap(t,n){ const out=[]; for(const para of String(t).split('\n')){ let line=''; for(const w of para.split(' ')){ if((line+' '+w).trim().length>n && line){out.push(line);line=w;} else line=(line+' '+w).trim(); } out.push(line);} return out; }
+function esc(t){ return String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// ======================= driver =======================
+function resetSteps(){ for(const s of STEPS) S.steps[s.name]={state:'waiting',done:0}; S.ended=null; S.publishState='waiting'; }
+function start(inv){ resetSteps(); S.invocation=inv; if(inv==='run'){ S.steps[STEPS[0].name].state='running'; } if(inv==='publish') S.publishState='running'; render(); }
+function tick(){
+  if(S.ended || !S.invocation) return;
+  if(S.invocation!=='run'){ S.ended='ENDED'; if(S.invocation==='publish') S.publishState='finished'; render(); return; }
+  const r = running(); if(!r) return;
+  const x = S.steps[r.name]; x.done += 25;
+  if(x.done>=100){ x.state='finished'; x.done=100; const i=STEPS.indexOf(r); if(i<STEPS.length-1) S.steps[STEPS[i+1].name].state='running'; else S.ended='ENDED'; }
+  render();
+}
+function end(how){
+  if(!S.invocation || S.ended) return;
+  const r = running();
+  if(how==='GATE'){ if(r) S.steps[r.name].state='stopped at a gate'; S.ended='GATE'; }
+  else { if(r) S.steps[r.name].state = how==='STOPPED'?'stopped':'failed'; S.ended=how; if(S.invocation==='publish') S.publishState = how==='STOPPED'?'stopped':'failed'; }
+  render();
+}
+let autoT=null;
+if(!isPopup){
+  document.querySelectorAll('[data-inv]').forEach(b=>b.onclick=()=>start(b.dataset.inv));
+  document.querySelectorAll('[data-end]').forEach(b=>b.onclick=()=>end(b.dataset.end));
+  document.getElementById('tick').onclick=tick;
+  document.getElementById('auto').onclick=e=>{ if(autoT){clearInterval(autoT);autoT=null;e.target.textContent='Auto-play';} else {autoT=setInterval(tick,700);e.target.textContent='Pause';} };
+  document.getElementById('reset').onclick=()=>{ resetSteps(); S.invocation=null; render(); };
+  document.getElementById('dockerUp').onchange=e=>{S.dockerUp=e.target.checked;render();};
+  document.getElementById('gpu').onchange=e=>{S.gpu=e.target.checked;render();};
+  document.getElementById('dark').onchange=e=>{S.dark=e.target.checked;render();};
+  document.querySelectorAll('[name=motion]').forEach(r=>r.onchange=()=>{S.motion=r.value;render();});
+  document.getElementById('copy').onclick=()=>navigator.clipboard.writeText(document.getElementById('state').textContent);
+  document.getElementById('openwin').onclick=()=>{ S.windowOpen=true; if(S.detached && popup && !popup.closed) popup.focus(); else S.detached=false; render(); };
+  document.getElementById('closewin').onclick=()=>{ S.windowOpen=false; render(); };
+  document.getElementById('detach').onclick=()=>{
+    popup = window.open(location.pathname+'?popup=1&variant='+S.variant, 'proto878', 'width=900,height=600');
+    if(popup){ S.detached=true; render(); setTimeout(render,500); const t=setInterval(()=>{ if(popup.closed){clearInterval(t);S.detached=false;S.windowOpen=false;render();} },500); }
+  };
+  const go = d=>{ const k=Object.keys(VARIANTS); S.variant=k[(k.indexOf(S.variant)+d+k.length)%k.length];
+    const u=new URL(location); u.searchParams.set('variant',S.variant); history.replaceState(null,'',u); render(); };
+  document.getElementById('prev').onclick=()=>go(-1); document.getElementById('next').onclick=()=>go(1);
+  addEventListener('keydown',e=>{ if(e.target.closest('input,textarea,[contenteditable]')) return; if(e.key==='ArrowLeft')go(-1); if(e.key==='ArrowRight')go(1); });
+  // the window can be dragged by its title bar
+  const win=document.getElementById('win'), tb=document.getElementById('titlebar');
+  tb.onpointerdown=e=>{ if(e.target.tagName==='BUTTON')return; const ox=e.clientX-win.offsetLeft, oy=e.clientY-win.offsetTop;
+    const mv=ev=>{win.style.left=(ev.clientX-ox)+'px';win.style.top=(ev.clientY-oy)+'px';}; addEventListener('pointermove',mv); addEventListener('pointerup',()=>removeEventListener('pointermove',mv),{once:true}); };
+  S.windowOpen = true; // open on load so the question is in front
+} else {
+  document.body.classList.add('popup'); document.getElementById('detach').style.display='none'; document.getElementById('closewin').onclick=()=>close();
+  addEventListener('message', e=>{ if(e.data && e.data.proto878){ const fit=S.fit; S=e.data.proto878; S.fit=fit; render(); } });
+}
+document.getElementById('zoom').onclick=()=>{ S.fit=!S.fit; render(); };
+matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', render);
+render();
+</script>
+</body>
+</html>
