@@ -18,7 +18,9 @@ import java.util.function.Supplier;
  * answered with the check the test set last, every row OK at this machine's addresses until it sets one. Each download
  * is kept as a {@link ScriptedDownload}, with the stalled-at-most bound the window gave it, which the test drives: it
  * says how far it has got, that it is done, or that its connection was lost, and it records whether the window
- * cancelled it. A start, a shut-down and a check can each be held until the test releases it.
+ * cancelled it. A start, a shut-down and a check can each be held until the test releases it; a start and a shut-down
+ * each tell the lines the test set for them before they are held, as a start and a shut-down tell each line they log
+ * (ADR-437 §3).
  */
 final class RecordingDockerControl implements DockerControl {
 
@@ -62,6 +64,8 @@ final class RecordingDockerControl implements DockerControl {
     private volatile CountDownLatch startHeldUntil = new CountDownLatch(0);
     private volatile CountDownLatch shutDownHeldUntil = new CountDownLatch(0);
     private volatile CountDownLatch checkHeldUntil = new CountDownLatch(0);
+    private volatile List<String> startTells = List.of();
+    private volatile List<String> shutDownTells = List.of();
 
     /** Answers a start with {@code startSays}, a shut-down with {@code shutDownSays}, and a stop of the containers as done. */
     RecordingDockerControl(Said startSays, Said shutDownSays) {
@@ -129,9 +133,22 @@ final class RecordingDockerControl implements DockerControl {
         return checks.stream().filter(check -> check.at().isAfter(instant)).toList();
     }
 
+    /** Every start tells {@code lines}, in order, before it is held, as a start tells each line it logs (ADR-437 §3). */
+    RecordingDockerControl tellingOnEachStart(List<String> lines) {
+        startTells = List.copyOf(lines);
+        return this;
+    }
+
+    /** Every shut-down tells {@code lines}, in order, before it is held, as a shut-down tells each line it logs (ADR-437 §3). */
+    RecordingDockerControl tellingOnEachShutDown(List<String> lines) {
+        shutDownTells = List.copyOf(lines);
+        return this;
+    }
+
     @Override
-    public Said start(LaunchValues values) {
+    public Said start(LaunchValues values, Consumer<String> told) {
         calls.add(new Call("start", Optional.of(values), childRuns.getAsBoolean()));
+        startTells.forEach(told);
         try {
             startHeldUntil.await();
         } catch (InterruptedException interrupted) {
@@ -145,8 +162,9 @@ final class RecordingDockerControl implements DockerControl {
     }
 
     @Override
-    public Said shutDown() {
+    public Said shutDown(Consumer<String> told) {
         calls.add(new Call("shut-down", Optional.empty(), childRuns.getAsBoolean()));
+        shutDownTells.forEach(told);
         awaitQuietly(shutDownHeldUntil);
         shutDownsReturned.add(Instant.now());
         return shutDownSays;

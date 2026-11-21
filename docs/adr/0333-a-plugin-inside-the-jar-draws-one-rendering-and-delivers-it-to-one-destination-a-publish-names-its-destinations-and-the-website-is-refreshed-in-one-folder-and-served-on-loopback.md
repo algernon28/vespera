@@ -14,6 +14,8 @@
 
 > **Partly amended — see [ADR-436](0436-the-jar-and-the-control-panel-use-no-working-directory-nothing-names-and-browse-chooses-one.md).** Of §8's *"else `.vespera` under `user.dir`"*: `vespera serve` naming no working directory is refused, exit 1, in a line of its own, before its other refusals. The rest of this record stands.
 
+> **Partly amended — see [ADR-439](0439-a-publish-may-name-an-earlier-run-by-its-invocation-and-the-control-panel-lists-the-earlier-deliverables.md).** Of §6: `publish` takes `--invocation <id>` beside `--to`, and where it is given each destination's rendering is the one in the tree of the generation run that invocation reached, at the output folder its report names; a report not kept, an invocation that was no `vespera run` or did not reach the deliverable, and a tree no longer there or drawn again for another generation run or working directory are each refused before any destination, and a rendering that invocation did not draw is refused for its destination. The rest of this record stands.
+
 - **Date**: 2026-11-02
 - **Status**: accepted on 2026-11-02.
 - **Decided**: by the operator on 2026-11-02: the ruling in bold at the head of each of §1 to §12, the order of §13 and the refusals under Alternatives refused marked as theirs. What a section adds beneath its ruling is what building it needs, and Decided here lists each such choice.

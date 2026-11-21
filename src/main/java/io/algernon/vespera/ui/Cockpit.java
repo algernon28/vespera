@@ -164,6 +164,19 @@ final class Cockpit {
     /** Set while the list moves the launch value, so that the value's change does not move the list in turn. */
     private boolean choosing;
 
+    /**
+     * The earlier deliverables of the working directory chosen, beneath the list of working directories (ADR-439 §6):
+     * read as the window opens, as another working directory is chosen and as the child ends, and nothing chosen as it is read.
+     */
+    private final ListView<EarlierDeliverable> earlierDeliverables = new ListView<>();
+    private final Button earlierDeliverablesClear = new Button("Clear the choice");
+    /** The working directory the list was last read for; null before the first reading (ADR-439 §6). */
+    private Optional<Path> earlierRead;
+    /** Whether the working directory read keeps a copy of a {@code vespera run}'s report, as Publish's boxes then follow the rows (ADR-439 §7). */
+    private boolean keepsARun;
+    /** Set while the list is read again, so that clearing its selection is not a choice. */
+    private boolean readingEarlier;
+
     /** The status line and the stale mark of the invocation watched, which stand in the header (ADR-432 §8). */
     private final InvocationsStatusLine live = new InvocationsStatusLine();
     private Ending reportedEnding;
@@ -447,7 +460,9 @@ final class Cockpit {
         List<String> ticked = publishTo.getChildren().stream().filter(CheckBox.class::isInstance)
                 .map(CheckBox.class::cast).filter(CheckBox::isSelected)
                 .map(box -> box.getId().substring("publish-to-".length())).toList();
-        return new ControlPanelState.Plan(valuesOf(passed, seed), valuesOf(kept, seed), passedOptions, ticked);
+        EarlierDeliverable chosen = earlierDeliverables.getSelectionModel().getSelectedItem();
+        return new ControlPanelState.Plan(valuesOf(passed, seed), valuesOf(kept, seed), passedOptions, ticked,
+                chosen == null ? "" : chosen.invocation());
     }
 
     /** Draws a box for each destination whose rendering is drawn, Confluence's ticked and the others not, as each is added (ADR-345 §4). */
@@ -492,7 +507,22 @@ final class Cockpit {
         List<String> stored = new ArrayList<>();
         ControlPanelState.Plan plan = plan();
         Optional<String> token = Optional.empty();
-        if (kind == ControlPanelState.Start.PUBLISH && plan.destinations().contains("confluence")) {
+        EarlierDeliverable chosen = earlierDeliverables.getSelectionModel().getSelectedItem();
+        boolean toConfluence = plan.destinations().contains("confluence");
+        boolean toTheWebsite = plan.destinations().contains("website");
+        if (kind == ControlPanelState.Start.PUBLISH && chosen != null && !chosen.latest()
+                && (toConfluence || toTheWebsite)) {
+            // an earlier deliverable replaces what is published, and is asked once, before the token (ADR-439 §7)
+            String where = toConfluence && toTheWebsite ? "Confluence and the website"
+                    : toConfluence ? "Confluence" : "the website";
+            if (!dialogs.confirm("Publish an earlier deliverable", "The deliverable of " + chosen.started()
+                    + " replaces what is published to " + where + ", and what it does not hold is taken off there.",
+                    "Publish", "Cancel")) {
+                say(words + " is not started: it was cancelled");
+                return;
+            }
+        }
+        if (kind == ControlPanelState.Start.PUBLISH && toConfluence) {
             token = dialogs.masked("Publish to Confluence", "The API token of the Confluence account, which is passed"
                     + " to this publish alone and kept nowhere:").filter(typed -> !typed.isBlank());
             if (token.isEmpty()) {
@@ -632,11 +662,13 @@ final class Cockpit {
         }
         shuttingDown = true;
         showEnablement();
+        // ADR-437 §5: emptied once the question is answered to go on, before the thread stops the child
+        OutputPanel.Press told = outputPanel.showsAPress();
         Thread.ofPlatform().daemon().name("the control panel shuts Docker down").start(() -> {
             String line;
             try {
                 state.stop();
-                line = state.shutDownDocker().line();
+                line = state.shutDownDocker(told).line();
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
                 line = "Docker was not shut down: interrupted.";
@@ -646,6 +678,7 @@ final class Cockpit {
             String said = line;
             Platform.runLater(() -> {
                 say(said);
+                outputPanel.endsOnTheLineOfThePress(told, said);
                 shuttingDown = false;
                 refresh();
                 clock.now();
@@ -667,10 +700,12 @@ final class Cockpit {
         showEnablement();
         readFieldValues();
         LaunchValues startValues = fieldValues();
+        // ADR-437 §4: the output panel is emptied at the press and shows the start's lines
+        OutputPanel.Press told = outputPanel.showsAPress();
         Thread.ofPlatform().daemon().name("the control panel starts Docker").start(() -> {
             String line;
             try {
-                line = state.startDocker(startValues).line();
+                line = state.startDocker(startValues, told).line();
             } catch (RuntimeException failed) {
                 line = "Docker was not started: " + failed;
             }
@@ -678,6 +713,7 @@ final class Cockpit {
             Platform.runLater(() -> {
                 if (!said.isEmpty()) {
                     say(said);
+                    outputPanel.endsOnTheLineOfThePress(told, said);
                 }
                 starting = false;
                 downloadAfterTheStart = true;
@@ -802,6 +838,9 @@ final class Cockpit {
 
     private void showTheCheck(DockerCheck found, DockerControl.Models asked, long began) {
         lastCheck = found;
+        state.keepCheck(found);
+        profile.offerModels(found.ollamaModels());
+        wanted.offerModels(found.ollamaModels());
         checkedModels = asked;
         checkList.show(found, asked);
         showEnablement();
@@ -1125,11 +1164,78 @@ final class Cockpit {
         });
         showTheListsButtons();
         HBox buttons = row(workingDirectoryNew, workingDirectoryBrowse, workingDirectoryRemove);
-        VBox box = tight(heading, working.input, workingDirectoryList, buttons, working.status, working.startingLine);
+        VBox box = tight(heading, working.input, workingDirectoryList, buttons, earlierDeliverablesBox(),
+                working.status, working.startingLine);
         box.setId("field-" + working.property);
         Captions.on(box, LaunchValues.hintOf(working.property));
         box.getStyleClass().add("field");
         return box;
+    }
+
+    // ---- the earlier deliverables of the working directory chosen (ADR-439 §6, §7)
+
+    /** The list, headed {@code earlier-deliverables-heading}, its placeholder and the button that clears the choice. */
+    private Node earlierDeliverablesBox() {
+        SelectableText.Line heading = SelectableText.line("Earlier deliverables");
+        heading.setId("earlier-deliverables-heading");
+        heading.getStyleClass().add("field-name");
+        earlierDeliverables.setId("earlier-deliverables");
+        earlierDeliverables.setPrefHeight(100);
+        Label none = new Label("No earlier deliverable of this working directory still stands.");
+        none.setId("earlier-deliverables-empty");
+        none.setWrapText(true);
+        earlierDeliverables.setPlaceholder(none);
+        earlierDeliverables.setCellFactory(list -> new ListCell<>() {
+            @Override
+            protected void updateItem(EarlierDeliverable row, boolean empty) {
+                super.updateItem(row, empty);
+                setText(empty || row == null ? null : row.words());
+            }
+        });
+        earlierDeliverables.getSelectionModel().selectedItemProperty().addListener((observed, was, now) -> {
+            if (!readingEarlier) {
+                drawDestinations(offeredDestinations());
+                showCommandLines();
+            }
+        });
+        earlierDeliverablesClear.setId("earlier-deliverables-clear");
+        earlierDeliverablesClear.setOnAction(event -> earlierDeliverables.getSelectionModel().clearSelection());
+        VBox box = tight(heading, earlierDeliverables, row(earlierDeliverablesClear));
+        box.setId("earlier-deliverables-box");
+        return box;
+    }
+
+    /** Reads the list again for the working directory chosen, nothing chosen as it is read (ADR-439 §6, §7). */
+    private void readEarlierDeliverables() {
+        Optional<Path> folder = workingDirectory();
+        earlierRead = folder;
+        readingEarlier = true;
+        try {
+            earlierDeliverables.getSelectionModel().clearSelection();
+            earlierDeliverables.getItems().setAll(
+                    folder.map(each -> EarlierDeliverable.of(each, ZoneId.systemDefault())).orElse(List.of()));
+            keepsARun = folder.map(EarlierDeliverable::keepsARunsReport).orElse(false);
+        } finally {
+            readingEarlier = false;
+        }
+        drawDestinations(offeredDestinations());
+        showCommandLines();
+    }
+
+    /**
+     * What Publish's boxes offer (ADR-439 §7): the chosen row's destinations, or the latest row's, none where no row is
+     * latest; as ADR-345 §4 has it only where no copy of a {@code vespera run}'s report is kept.
+     */
+    private List<String> offeredDestinations() {
+        if (!keepsARun) {
+            return state.destinationsDrawn(workingDirectory(), fields.get("vespera.deliverable-root").text());
+        }
+        EarlierDeliverable chosen = earlierDeliverables.getSelectionModel().getSelectedItem();
+        if (chosen != null) {
+            return chosen.destinations();
+        }
+        return earlierDeliverables.getItems().stream().filter(EarlierDeliverable::latest).findFirst()
+                .map(EarlierDeliverable::destinations).orElse(List.of());
     }
 
     /** What a row says, on one line: its name and the parts of ADR-393 §5. */
@@ -1644,8 +1750,10 @@ final class Cockpit {
         readModelsInForce();
         readFieldValues();
         showEnablement();
-        List<String> drawnDestinations = state.destinationsDrawn(workingDirectory(),
-                fields.get("vespera.deliverable-root").text());
+        if (earlierRead == null || !earlierRead.equals(workingDirectory())) {
+            readEarlierDeliverables();
+        }
+        List<String> drawnDestinations = offeredDestinations();
         boolean drawn = !drawnDestinations.isEmpty();
         if (drawn && !actions.getChildren().contains(publish)) {
             actions.getChildren().add(actions.getChildren().indexOf(publishTo), publish);
@@ -1662,6 +1770,7 @@ final class Cockpit {
             // the child ended: the check is done at once (ADR-430 §4)
             clock.now();
             readTheRowsAgain();
+            readEarlierDeliverables();
             showModelsInUse();
             Map<String, Boolean> written = folders.writtenReports();
             profile.showReports(written);

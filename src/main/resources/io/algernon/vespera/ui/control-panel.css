@@ -670,3 +670,21 @@
 .download-row {
     -fx-spacing: 2px;
 }
+
+/* The Preflight section (ADR-440 section 2): a grid of a name, a mark and words; the marks in the header's two colours, which each theme redefines */
+.preflight-list {
+    -fx-hgap: 8px;
+    -fx-vgap: 2px;
+}
+
+.preflight-mark {
+    -fx-font-weight: bold;
+}
+
+.preflight-mark.ok {
+    -fx-text-fill: -vespera-keeping;
+}
+
+.preflight-mark.ko {
+    -fx-text-fill: -vespera-ending;
+}

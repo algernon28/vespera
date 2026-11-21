@@ -62,7 +62,8 @@ import org.junit.jupiter.api.io.TempDir;
  * steps, at least 320 × 240 px, three to a row at the window's opening size (§2); each drawn from the file the jar keeps
  * for its step, and from no stage's file (§4); a chart not started wordless, a step finished in an earlier invocation
  * and a step that reported no count saying so (§5); a finished step's chart frozen (§6), its lines of one sample marked
- * (ADR-422) and its axes set from its own samples (ADR-425).
+ * (ADR-422) and its axes set from its own samples (ADR-425); a step finished in an earlier invocation whose chart its run
+ * kept drawn from it, frozen, and a frozen chart naming the day it finished where it is another (ADR-438 §4).
  *
  * <p>Each window is drawn over a working directory the test fills, as a first start's state names it, on the Headless
  * platform (ADR-342 §6); its parts are found by the ids ADR-432 §1, §2 and §5 give them. A leg's charts lie in its pane,
@@ -125,6 +126,16 @@ class EachStepHasAChartBeneathItsLegTest {
 
     /** When a step finished, as its file writes it. */
     private static final Instant A_STEP_FINISHED = Instant.parse("2026-11-20T13:32:05Z");
+
+    /**
+     * The hour and minute of the machine's day at which a test's step finished, on the day the window draws it or
+     * {@link #DAYS_BEFORE} days before it, so that the title's day is decided by the day alone (ADR-438 §4).
+     */
+    private static final int FINISHED_AT_HOUR = 12;
+
+    private static final int FINISHED_AT_MINUTE = 32;
+
+    private static final int DAYS_BEFORE = 3;
 
     /** A run, as a step's file names it. */
     private static final String A_RUN = "3f1c9a2b7d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccddeef";
@@ -440,16 +451,18 @@ class EachStepHasAChartBeneathItsLegTest {
     // ---- a finished step (§6)
 
     @Test
+    @Link(name = "ADR-438", url = Adr.A_STEPS_CHART_IS_KEPT_UNDER_ITS_RUN_AS_IT_FREEZES, type = "adr")
     @Story("The window shows how each step has gone")
     @DisplayName("A step's chart kept in the working directory is drawn as the window opens, dimmed with the time it finished and no latest point marked where its step has finished")
     void aFinishedStepsChartIsDrawnFrozenFromItsFileAsTheWindowOpens() throws Exception {
         Path working = Files.createDirectories(folder.resolve("working"));
+        Instant finishedToday = todayAt(FINISHED_AT_HOUR, FINISHED_AT_MINUTE);
         Files.writeString(working.resolve("chart-step-byte-level-reduction.json"),
-                aStepsFile("byte-level-reduction", A_STEP_FINISHED, BYTE_LEVEL_REDUCTIONS_LINES), UTF_8);
+                aStepsFile("byte-level-reduction", finishedToday, BYTE_LEVEL_REDUCTIONS_LINES), UTF_8);
         Files.writeString(working.resolve("chart-step-extraction.json"),
                 aStepsFile("extraction", null, EXTRACTIONS_LINES), UTF_8);
         String finishedAt = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT).withZone(ZoneId.systemDefault())
-                .format(A_STEP_FINISHED);
+                .format(finishedToday);
 
         Drawn frozen;
         Drawn live;
@@ -460,8 +473,8 @@ class EachStepHasAChartBeneathItsLegTest {
             live = window.read(root -> drawn(root, "extraction"));
         }
 
-        claim("byte-level reduction's chart, finished, is titled with its step and the time it finished, on the machine's"
-                        + " clock",
+        claim("byte-level reduction's chart, finished on the day the window draws it, is titled with its step and the time"
+                        + " it finished alone, on the machine's clock",
                 () -> assertThat(frozen.title()).isEqualTo("byte-level-reduction, finished at " + finishedAt));
         claim("it is marked frozen", () -> assertThat(frozen.frozen()).isTrue());
         claim("it draws the six lines its file holds, in the file's order, each at the file's seconds and values",
@@ -490,6 +503,45 @@ class EachStepHasAChartBeneathItsLegTest {
                     assertThat(live.lineOpacities())
                             .allSatisfy(opacity -> assertThat(opacity).isCloseTo(1.0, within(1e-9)));
                 });
+    }
+
+    /**
+     * ADR-438 §4: a step finished in an earlier invocation whose run kept its chart is drawn from that chart, frozen, with
+     * no words, and its title names the day it finished, another than the one the window draws it on.
+     */
+    @Test
+    @Issue("922")
+    @Link(name = "ADR-438", url = Adr.A_STEPS_CHART_IS_KEPT_UNDER_ITS_RUN_AS_IT_FREEZES, type = "adr")
+    @Story("The window shows how each step has gone")
+    @DisplayName("A step finished in an earlier invocation whose chart was kept is drawn from it, dimmed, with no words, titled with the day and the time it finished")
+    void aStepFinishedInAnEarlierInvocationWithItsChartKeptIsDrawnFrozenWithTheDayItFinished() throws Exception {
+        Path working = Files.createDirectories(folder.resolve("working"));
+        Instant finishedEarlier = todayAt(FINISHED_AT_HOUR, FINISHED_AT_MINUTE)
+                .minus(java.time.Duration.ofDays(DAYS_BEFORE));
+        Files.writeString(working.resolve("chart-step-extraction.json"),
+                aStepsFile("extraction", finishedEarlier, EXTRACTIONS_LINES).replace("\"finishedEarlier\":false",
+                        "\"finishedEarlier\":true"), UTF_8);
+        String finishedAt = DateTimeFormatter.ofPattern("d MMM HH:mm", Locale.ENGLISH).withZone(ZoneId.systemDefault())
+                .format(finishedEarlier);
+
+        Drawn kept;
+        try (WindowForTests window = WindowForTests.shown(overThe(working))) {
+            window.act(EachStepHasAChartBeneathItsLegTest::openEveryLeg);
+            window.read(root -> null);
+            kept = window.read(root -> drawn(root, "extraction"));
+        }
+
+        claim("the extraction's chart, finished in an earlier invocation three days before, is titled with its step, the"
+                        + " day and the time it finished, on the machine's clock",
+                () -> assertThat(kept.title()).isEqualTo("extraction, finished at " + finishedAt));
+        claim("it is marked frozen and draws the three lines its file holds, in the file's order, none marked latest",
+                () -> {
+                    assertThat(kept.frozen()).isTrue();
+                    assertThat(kept.lines()).containsExactlyElementsOf(EXTRACTIONS_LINES);
+                    assertThat(kept.latestMarks()).isZero();
+                });
+        claim("it says nothing in its plot: its lines say how its step went",
+                () -> assertThat(kept.words()).isEmpty());
     }
 
     /**
@@ -1015,6 +1067,12 @@ class EachStepHasAChartBeneathItsLegTest {
             return labeled.getText();
         }
         throw new AssertionError("the node " + node.getId() + " shows no text");
+    }
+
+    /** The instant of {@code hour}:{@code minute} on the machine's day, in its zone, as the test runs. */
+    private static Instant todayAt(int hour, int minute) {
+        ZoneId zone = ZoneId.systemDefault();
+        return java.time.LocalDate.now(zone).atTime(hour, minute, 5).atZone(zone).toInstant();
     }
 
     // ---- the files

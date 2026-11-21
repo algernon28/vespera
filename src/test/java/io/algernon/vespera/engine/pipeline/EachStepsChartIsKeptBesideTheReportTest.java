@@ -53,8 +53,9 @@ import tools.jackson.databind.json.JsonMapper;
  * The chart of each of the job's fifteen steps is kept by the job in a file of its own beside the report,
  * {@code chart-step-<step>.json}, in place of a stage's (ADR-432 §4): written empty as the job of {@code vespera run}
  * begins, keyed by the step's run from its first sample, drawn from second 0 by the invocation that works the step,
- * frozen once it finishes, and, where the step finished in an earlier invocation, frozen holding no sample and saying so
- * (ADR-432 §5, §6, with ADR-418's rules for one invocation). Each plots its own {@code done} and the kinds of verdict its
+ * frozen once it finishes, and kept then in its run's own folder, {@code charts/<run id>/}; where the step finished in an
+ * earlier invocation, frozen holding the chart kept under its run, or, where none is kept, holding no sample and saying
+ * so (ADR-432 §5, §6, ADR-438, with ADR-418's rules for one invocation). Each plots its own {@code done} and the kinds of verdict its
  * step records (ADR-432 §3). The census's is written as the census walks, under the walk its lines name, and kept under
  * the walk the census hands the job (ADR-418 §4). No stage's file is written.
  *
@@ -310,12 +311,20 @@ class EachStepsChartIsKeptBesideTheReportTest {
                 () -> assertThat(keys).isEqualTo(keysExpected));
     }
 
+    /**
+     * ADR-438 §1 to §3: the chart the extraction froze as it finished is kept under its run, and a later invocation of
+     * the same run, finding it finished, draws that chart in place of none.
+     */
     @Test
+    @Issue("922")
+    @Link(name = "ADR-438", url = Adr.A_STEPS_CHART_IS_KEPT_UNDER_ITS_RUN_AS_IT_FREEZES, type = "adr")
     @Story("The window shows how each step has gone")
-    @DisplayName("Every invocation draws its step's chart afresh under the same run, and one that finds the step finished in an earlier invocation says so, holding no sample")
-    void everyInvocationDrawsTheStepsChartAfreshAndOneFindingItFinishedEarlierSaysSoWithNoSample() throws IOException {
+    @DisplayName("Every invocation draws its step's chart afresh under the same run, the one in which the step finishes keeps that chart under the run, and one that finds the step finished in an earlier invocation draws the chart kept")
+    void everyInvocationDrawsTheStepsChartAfreshAndOneFindingItFinishedEarlierDrawsTheChartKeptUnderItsRun()
+            throws IOException {
         AtomicReference<Map<String, Long>> recorded = new AtomicReference<>(Map.of());
         Path file = fileOf(StepNames.EXTRACTION);
+        Path kept = keptUnder(THE_RUN, StepNames.EXTRACTION);
 
         // the first invocation: the extraction reads two of four documents, refuses one, and is stopped
         JobSampler first = aSampler(recorded, noRunsListed());
@@ -328,6 +337,7 @@ class EachStepsChartIsKeptBesideTheReportTest {
         stopped.setStatus(BatchStatus.STOPPED);
         first.afterJob(stopped);
         Chart afterTheStop = Chart.in(file);
+        boolean keptAfterTheStop = Files.exists(kept);
 
         // the second, a process of its own: the runs reading counts the refusal; it reads all four, refuses one more
         // and finds one with no text, and finishes
@@ -342,6 +352,8 @@ class EachStepsChartIsKeptBesideTheReportTest {
         finished.setStatus(BatchStatus.COMPLETED);
         second.afterJob(finished);
         Chart afterItFinished = Chart.in(file);
+        String besideTheReportAsItFroze = Files.readString(file, UTF_8);
+        String keptAsItFroze = Files.isRegularFile(kept) ? Files.readString(kept, UTF_8) : null;
 
         // the third, under the same run: the runs reading lists the extraction finished under it, and the extraction
         // goes through
@@ -353,6 +365,7 @@ class EachStepsChartIsKeptBesideTheReportTest {
         ended(extractionUnder(goingThrough, THE_RUN), BatchStatus.COMPLETED, EXTRACTION_GOES_THROUGH);
         goingThrough.setStatus(BatchStatus.COMPLETED);
         third.afterJob(goingThrough);
+        String keptAfterTheThird = Files.isRegularFile(kept) ? Files.readString(kept, UTF_8) : null;
 
         claim("the stopped invocation keeps the extraction's chart under its run, not finished, its one sample at second"
                         + " 0: two documents read, one refused, none without text",
@@ -368,11 +381,219 @@ class EachStepsChartIsKeptBesideTheReportTest {
                         new Line("done", List.of(0.0), List.of(4.0)),
                         new Line(EXTRACTION_FAILED, List.of(0.0), List.of(2.0)),
                         new Line(DEGENERATE_OUTPUT, List.of(0.0), List.of(1.0))))));
-        claim("an invocation that finds the extraction finished under its run in an earlier invocation keeps its chart"
-                        + " under that run saying so: finished in an earlier invocation, no time it finished, and no line,"
-                        + " so no sample",
-                () -> assertThat(Chart.in(file)).isEqualTo(new Chart(Map.of("extraction", THE_RUN), null, true,
-                        List.of())));
+        claim("the stopped invocation, its extraction not finished, keeps no chart of it in the run's own folder",
+                () -> assertThat(keptAfterTheStop).as("whether a chart is kept in the run's folder").isFalse());
+        claim("the invocation in which the extraction finished keeps, in the run's own folder, the very file it froze"
+                        + " beside the report",
+                () -> assertThat(keptAsItFroze).isEqualTo(besideTheReportAsItFroze));
+        claim("an invocation that finds the extraction finished under its run in an earlier invocation draws the chart"
+                        + " kept in the run's folder: the time the extraction finished there and its one sample at second"
+                        + " 0, four read, two refused and one without text, marked finished in an earlier invocation",
+                () -> assertThat(Chart.in(file)).isEqualTo(new Chart(Map.of("extraction", THE_RUN),
+                        JOB_START.plusSeconds(EXTRACTION_ENDS).toString(), true, List.of(
+                        new Line("done", List.of(0.0), List.of(4.0)),
+                        new Line(EXTRACTION_FAILED, List.of(0.0), List.of(2.0)),
+                        new Line(DEGENERATE_OUTPUT, List.of(0.0), List.of(1.0))))));
+        claim("and leaves the chart kept in the run's folder as the invocation that finished the extraction wrote it",
+                () -> assertThat(keptAfterTheThird).isEqualTo(keptAsItFroze));
+    }
+
+    /**
+     * ADR-438 §2: a step found finished in an earlier invocation under a run that keeps no chart of it that matches,
+     * freezes holding no sample and says so, as ADR-432 §5 has it.
+     */
+    @Test
+    @Issue("922")
+    @Link(name = "ADR-438", url = Adr.A_STEPS_CHART_IS_KEPT_UNDER_ITS_RUN_AS_IT_FREEZES, type = "adr")
+    @Story("The window shows how each step has gone")
+    @DisplayName("A step found finished in an earlier invocation, where its run keeps no chart of it that names that step and that run in the same format and was drawn by the invocation that ran it, says so, holding no sample")
+    void aStepFinishedEarlierUnderARunThatKeepsNoChartOfItSaysSoWithNoSample() throws IOException {
+        Chart saysSo = new Chart(Map.of("extraction", THE_RUN), null, true, List.of());
+
+        Chart noneKept = goneThroughFinished();
+
+        Files.createDirectories(keptUnder(ANOTHER_RUN, StepNames.EXTRACTION).getParent());
+        Files.writeString(keptUnder(ANOTHER_RUN, StepNames.EXTRACTION), aChartFile(StepNames.EXTRACTION, "extraction",
+                ANOTHER_RUN, EXTRACTION_FAILED, JOB_START.plusSeconds(EXTRACTION_ENDS).toString()), UTF_8);
+        Chart keptUnderAnotherRun = goneThroughFinished();
+
+        Files.createDirectories(keptUnder(THE_RUN, StepNames.EXTRACTION).getParent());
+        Files.writeString(keptUnder(THE_RUN, StepNames.EXTRACTION), aChartFile(StepNames.EXTRACTION, "extraction",
+                ANOTHER_RUN, EXTRACTION_FAILED, JOB_START.plusSeconds(EXTRACTION_ENDS).toString()), UTF_8);
+        Chart namingAnotherRun = goneThroughFinished();
+
+        Files.writeString(keptUnder(THE_RUN, StepNames.EXTRACTION), aChartFile(StepNames.EXTRACTION, "extraction",
+                THE_RUN, EXTRACTION_FAILED, JOB_START.plusSeconds(EXTRACTION_ENDS).toString())
+                .replace("\"format\":1", "\"format\":2"), UTF_8);
+        Chart ofAnotherFormat = goneThroughFinished();
+
+        Files.writeString(keptUnder(THE_RUN, StepNames.EXTRACTION), aChartFile(StepNames.EXTRACTION, "extraction",
+                THE_RUN, EXTRACTION_FAILED, JOB_START.plusSeconds(EXTRACTION_ENDS).toString())
+                .replace("\"finishedEarlier\":false", "\"finishedEarlier\":true"), UTF_8);
+        Chart markedFinishedEarlier = goneThroughFinished();
+
+        claim("with no chart kept in the run's folder, the extraction's chart says it finished in an earlier invocation,"
+                        + " with no time it finished and no line",
+                () -> assertThat(noneKept).isEqualTo(saysSo));
+        claim("with a chart kept only in another run's folder, it says so too",
+                () -> assertThat(keptUnderAnotherRun).isEqualTo(saysSo));
+        claim("with a chart in the run's folder that names another run, it says so too",
+                () -> assertThat(namingAnotherRun).isEqualTo(saysSo));
+        claim("with a chart in the run's folder of a format the job does not write, it says so too",
+                () -> assertThat(ofAnotherFormat).isEqualTo(saysSo));
+        claim("with a chart in the run's folder of that step and that run, holding lines, but itself marked finished in an"
+                        + " earlier invocation, which no step that ran writes, it says so too",
+                () -> assertThat(markedFinishedEarlier).isEqualTo(saysSo));
+    }
+
+    /** ADR-438 §1: the job's first reading writes the fifteen files beside the report empty, and no chart kept under a run. */
+    @Test
+    @Issue("922")
+    @Link(name = "ADR-438", url = Adr.A_STEPS_CHART_IS_KEPT_UNDER_ITS_RUN_AS_IT_FREEZES, type = "adr")
+    @Story("The window shows how each step has gone")
+    @DisplayName("A job that begins, and works the step under another run, leaves the chart kept in a run's own folder as it was")
+    void theJobsFirstReadingWritesNoChartKeptUnderARun() throws IOException {
+        Path kept = keptUnder(THE_RUN, StepNames.EXTRACTION);
+        Files.createDirectories(kept.getParent());
+        String keptBefore = aChartFile(StepNames.EXTRACTION, "extraction", THE_RUN, EXTRACTION_FAILED,
+                JOB_START.plusSeconds(EXTRACTION_ENDS).toString());
+        Files.writeString(kept, keptBefore, UTF_8);
+        AtomicReference<Map<String, Long>> recorded = new AtomicReference<>(Map.of());
+
+        JobSampler sampler = aSampler(recorded, noRunsListed());
+        JobExecution job = aJob();
+        sampler.beforeJob(job);
+        String asTheJobBegins = Files.readString(kept, UTF_8);
+        StepExecution extraction = extractionUnder(job, ANOTHER_RUN);
+        says(extraction, 1);
+        recorded.set(Map.of(EXTRACTION_FAILED, 1L));
+        ended(extraction, BatchStatus.STOPPED, 20);
+        job.setStatus(BatchStatus.STOPPED);
+        sampler.afterJob(job);
+
+        claim("at the job's first reading the chart kept in the run's folder is as it was, byte for byte",
+                () -> assertThat(asTheJobBegins).isEqualTo(keptBefore));
+        claim("after the extraction ran under another run and was stopped, it is still as it was",
+                () -> assertThat(Files.readString(kept, UTF_8)).isEqualTo(keptBefore));
+    }
+
+    /**
+     * ADR-438 §1: of the steps that finish, only one that records its completion under a run keeps its chart in that
+     * run's folder; the census, keyed by its walk, and the relevance floor keep none, nor does a step stopped.
+     */
+    @Test
+    @Issue("922")
+    @Link(name = "ADR-438", url = Adr.A_STEPS_CHART_IS_KEPT_UNDER_ITS_RUN_AS_IT_FREEZES, type = "adr")
+    @Story("The window shows how each step has gone")
+    @DisplayName("Only a step that records its completion under a run, and finished, keeps its chart in that run's own folder: not the census, not the relevance floor, not a step stopped")
+    void onlyAStepThatRecordsItsCompletionAndFinishedKeepsAChartUnderItsRun() throws IOException {
+        MovingClock clock = new MovingClock();
+        JobSampler sampler = aSampler(new AtomicReference<>(Map.of()), noRunsListed(), clock);
+        JobExecution job = aJob();
+        sampler.beforeJob(job);
+
+        // the census walks the corpus root's walk, hands it the job and finishes; a reading freezes its chart
+        StepExecution census = censusOf(job);
+        censusSays(WALKED_AT_THE_LAST_LINE, THE_WALK_KEPT);
+        readsOnce(sampler);
+        new InvocationRuns(job.getExecutionContext()).recordCorpusWalk(new WalkId(THE_WALK_KEPT));
+        ended(census, BatchStatus.COMPLETED, CENSUS_ENDS);
+        clock.moveOn(BETWEEN_READINGS);
+        readsOnce(sampler);
+
+        // the extraction runs under its run and is stopped
+        StepExecution extraction = extractionUnder(job, THE_RUN);
+        says(extraction, READ_BEFORE_THE_STOP);
+        clock.moveOn(BETWEEN_READINGS);
+        readsOnce(sampler);
+        ended(extraction, BatchStatus.STOPPED, CENSUS_ENDS + BETWEEN_READINGS);
+
+        // the relevance floor, then the clustering, each run and finish under the embedding-scoring run
+        String scoring = A_RUN_OF.get("embedding-scoring");
+        new InvocationRuns(job.getExecutionContext()).record("embedding-scoring", new RunId(scoring));
+        long second = CENSUS_ENDS + BETWEEN_READINGS;
+        for (String step : List.of(StepNames.RELEVANCE_FLOOR, StepNames.CLUSTERING)) {
+            StepExecution execution = aStep(job, step, BatchStatus.STARTED, second, null);
+            clock.moveOn(BETWEEN_READINGS);
+            readsOnce(sampler);
+            second += BETWEEN_READINGS;
+            ended(execution, BatchStatus.COMPLETED, second);
+            clock.moveOn(BETWEEN_READINGS);
+            readsOnce(sampler);
+        }
+        job.setStatus(BatchStatus.STOPPED);
+        sampler.afterJob(job);
+
+        Path charts = workingDirectory.resolve(KEPT_CHARTS);
+        List<String> keptFiles = new ArrayList<>();
+        if (Files.isDirectory(charts)) {
+            try (var walked = Files.walk(charts)) {
+                walked.filter(Files::isRegularFile)
+                        .map(path -> charts.relativize(path).toString().replace('\\', '/'))
+                        .sorted()
+                        .forEach(keptFiles::add);
+            }
+        }
+        Path clustering = keptUnder(scoring, StepNames.CLUSTERING);
+        String keptClustering = Files.isRegularFile(clustering) ? Files.readString(clustering, UTF_8) : null;
+
+        claim("the run folders hold one chart, the clustering's in the embedding-scoring run's folder: none of the census,"
+                        + " which works under a walk, none of the stopped extraction, none of the relevance floor, which"
+                        + " records no completion",
+                () -> assertThat(keptFiles).containsExactly(scoring + "/chart-step-" + StepNames.CLUSTERING + ".json"));
+        claim("the clustering's chart kept in its run's folder is its file beside the report, byte for byte",
+                () -> assertThat(keptClustering).isEqualTo(Files.readString(fileOf(StepNames.CLUSTERING), UTF_8)));
+    }
+
+    /** ADR-438 §1, with ADR-230: a step finished again under its run writes over the chart kept under it as it freezes again. */
+    @Test
+    @Issue("922")
+    @Link(name = "ADR-438", url = Adr.A_STEPS_CHART_IS_KEPT_UNDER_ITS_RUN_AS_IT_FREEZES, type = "adr")
+    @Story("The window shows how each step has gone")
+    @DisplayName("A step that runs again under its run and finishes again writes over the chart kept in the run's folder with the one it froze this time")
+    void aStepFinishedAgainUnderItsRunWritesOverTheChartKeptUnderIt() throws IOException {
+        String scoring = A_RUN_OF.get("embedding-scoring");
+        Path kept = keptUnder(scoring, StepNames.CLUSTERING);
+        Files.createDirectories(kept.getParent());
+        Files.writeString(kept, aChartFile(StepNames.CLUSTERING, "embedding-scoring", scoring, null,
+                "2026-11-05T09:00:00Z"), UTF_8);
+        MovingClock clock = new MovingClock();
+        JobSampler sampler = aSampler(new AtomicReference<>(Map.of()), noRunsListed(), clock);
+        JobExecution job = aJob();
+        sampler.beforeJob(job);
+
+        // the clustering, recorded finished no more, runs again under the same run, says a counter, and finishes
+        new InvocationRuns(job.getExecutionContext()).record("embedding-scoring", new RunId(scoring));
+        StepExecution clustering = aStep(job, StepNames.CLUSTERING, BatchStatus.STARTED, 0, null);
+        readsOnce(sampler);
+        ended(clustering, BatchStatus.COMPLETED, BETWEEN_READINGS);
+        clock.moveOn(BETWEEN_READINGS);
+        readsOnce(sampler);
+        job.setStatus(BatchStatus.COMPLETED);
+        sampler.afterJob(job);
+
+        claim("the chart kept in the run's folder is the clustering's file beside the report as this invocation froze it,"
+                        + " finished at its end this time, not the chart kept before",
+                () -> {
+                    assertThat(Files.readString(kept, UTF_8)).isEqualTo(Files.readString(fileOf(StepNames.CLUSTERING),
+                            UTF_8));
+                    assertThat(Chart.in(kept).finishedAt()).isEqualTo(JOB_START.plusSeconds(BETWEEN_READINGS).toString());
+                });
+    }
+
+    /**
+     * An invocation of its own whose extraction, under {@link #THE_RUN}, goes through finished, the runs reading at its
+     * start listing it finished under that run; the extraction's file beside the report after it.
+     */
+    private Chart goneThroughFinished() throws IOException {
+        JobSampler sampler = aSampler(new AtomicReference<>(Map.of()),
+                theRunListedWith(Map.of(EXTRACTION_FAILED, 2L, DEGENERATE_OUTPUT, 1L), Set.of(StepNames.EXTRACTION)));
+        JobExecution job = aJob();
+        sampler.beforeJob(job);
+        ended(extractionUnder(job, THE_RUN), BatchStatus.COMPLETED, EXTRACTION_GOES_THROUGH);
+        job.setStatus(BatchStatus.COMPLETED);
+        sampler.afterJob(job);
+        return Chart.in(fileOf(StepNames.EXTRACTION));
     }
 
     @Test
@@ -765,6 +986,14 @@ class EachStepsChartIsKeptBesideTheReportTest {
 
     private Path fileOf(String step) {
         return workingDirectory.resolve("chart-step-" + step + ".json");
+    }
+
+    /** The folder of the working directory under which a step's chart is kept in its run's own folder (ADR-438 §1). */
+    private static final String KEPT_CHARTS = "charts";
+
+    /** The chart of {@code step} kept in the folder of {@code run} (ADR-438 §1). */
+    private Path keptUnder(String run, String step) {
+        return workingDirectory.resolve(KEPT_CHARTS).resolve(run).resolve("chart-step-" + step + ".json");
     }
 
     /** The file an earlier version kept a stage's chart in. */

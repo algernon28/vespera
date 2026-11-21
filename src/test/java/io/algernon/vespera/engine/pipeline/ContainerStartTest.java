@@ -340,8 +340,9 @@ class ContainerStartTest {
         return List.copyOf(whole);
     }
 
+    /** The image {@code composeFile} builds for docling-serve, as the file stands; {@code AStartAndAShutDownTellEachLineTheyLogTest} reads it too. */
     @SuppressWarnings("unchecked")
-    private static String doclingImageIn(Path composeFile) throws IOException {
+    static String doclingImageIn(Path composeFile) throws IOException {
         Map<String, Object> compose = new Yaml().load(Files.readString(composeFile));
         Map<String, Object> services = (Map<String, Object>) compose.get("services");
         return (String) ((Map<String, Object>) services.get("docling-serve")).get("image");

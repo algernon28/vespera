@@ -6,7 +6,11 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Pattern;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
@@ -17,6 +21,11 @@ import javafx.scene.layout.Region;
  * window accepts names an output file that is there; then that file, its text replacing the panel's once, and from
  * then on the whole lines it gains. The panel is a {@link TextArea}, not editable and wrapping no line, whose view
  * follows new lines only while it is at the bottom and nothing in it is selected.
+ *
+ * <p>From a press of <i>Start Docker</i> or a kept <i>Shut down Docker</i> until the next child is watched or the next
+ * press, it holds that press's lines alone: emptied at the press, each line told appended at the next tick, from
+ * whatever thread it is told on, and neither the child's held lines nor an output file shown (ADR-437 §4, amending
+ * ADR-364 §7).
  */
 final class OutputPanel {
 
@@ -32,6 +41,13 @@ final class OutputPanel {
     private Path file;
     private long read;
     private final ByteArrayOutputStream partial = new ByteArrayOutputStream();
+    /** Whether the panel shows a press's lines (ADR-437 §4). */
+    private boolean showsAPress;
+    /** Which press the lines told belong to; a line told by an earlier press is dropped. */
+    private volatile long press;
+    private final ConcurrentLinkedQueue<String> notShownYet = new ConcurrentLinkedQueue<>();
+    /** The lines of this press already appended, on the toolkit's thread. */
+    private final List<String> shownOfThePress = new ArrayList<>();
 
     OutputPanel(TextArea area) {
         this.area = area;
@@ -52,7 +68,65 @@ final class OutputPanel {
         reset(false);
     }
 
+    /**
+     * A press of <i>Start Docker</i>, or a <i>Shut down Docker</i> answered to go on, on the toolkit's thread: the panel
+     * empties and holds that press's lines alone until the next child or press (ADR-437 §4, §5).
+     *
+     * @return the press: where its lines are told, safe to call from any thread, each appended at the next tick; it
+     *         carries the press's id, so its last line is taken through it by {@link #endsOnTheLineOfThePress}
+     */
+    Press showsAPress() {
+        reset(false);
+        showsAPress = true;
+        return new Press(++press);
+    }
+
+    /** One press's lines; told from any thread, dropped once another child or press has taken the panel. */
+    final class Press implements Consumer<String> {
+        private final long id;
+
+        private Press(long id) {
+            this.id = id;
+        }
+
+        @Override
+        public void accept(String line) {
+            if (press == id) {
+                notShownYet.add(line);
+            }
+        }
+    }
+
+    /**
+     * The press has returned, on the toolkit's thread: its {@code line}, where it has one and no line told reads the
+     * same, is appended last (ADR-437 §4). Nothing is appended unless {@code press} is still the one shown: where
+     * another child or press has taken the panel, this press's lines are not put into its lines.
+     */
+    void endsOnTheLineOfThePress(Press press, String line) {
+        if (!showsAPress || press.id != this.press) {
+            return;
+        }
+        appendTheLinesTold();
+        if (line != null && !line.isEmpty() && !shownOfThePress.contains(line)) {
+            shownOfThePress.add(line);
+            append(line + "\n");
+        }
+    }
+
+    private void appendTheLinesTold() {
+        StringBuilder text = new StringBuilder();
+        for (String line = notShownYet.poll(); line != null; line = notShownYet.poll()) {
+            shownOfThePress.add(line);
+            text.append(line).append('\n');
+        }
+        append(text.toString());
+    }
+
     private void reset(boolean child) {
+        showsAPress = false;
+        press++;
+        notShownYet.clear();
+        shownOfThePress.clear();
         area.clear();
         shown = 0;
         childsLines = child;
@@ -68,6 +142,10 @@ final class OutputPanel {
 
     /** One tick of the window's clock: the file's new whole lines, or the child's lines not shown yet. */
     void tick(Supplier<Child.Held> held) {
+        if (showsAPress) {
+            appendTheLinesTold();
+            return;
+        }
         if (file != null) {
             String gained = gained();
             append(gained);
@@ -102,7 +180,7 @@ final class OutputPanel {
      * replaced by the file's, once, and {@code letGo} lets the child's held lines go.
      */
     void fileNamedBy(Path workingDirectory, String id, Runnable letGo) {
-        if (file != null || id == null || !ID.matcher(id).matches()) {
+        if (showsAPress || file != null || id == null || !ID.matcher(id).matches()) {
             return;
         }
         Path named = workingDirectory.resolve("logs").resolve("output-" + id + ".log");

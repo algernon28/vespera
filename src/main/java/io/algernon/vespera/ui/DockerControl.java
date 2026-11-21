@@ -50,7 +50,16 @@ interface DockerControl {
      * <i>Start Docker</i>'s start (ADR-430 §5): sees to {@code .wslconfig} on Windows, then starts the engine and brings
      * up and waits for the containers on this machine, for the addresses {@code values} hold.
      */
-    Said start(LaunchValues values);
+    default Said start(LaunchValues values) {
+        return start(values, line -> {
+        });
+    }
+
+    /**
+     * As {@link #start(LaunchValues)}, telling {@code told} each line the start logs, as it is logged, on the thread that
+     * runs it (ADR-437 §3).
+     */
+    Said start(LaunchValues values, Consumer<String> told);
 
     /** Checks the daemon, the two containers and the two models, for the addresses {@code values} hold, and starts nothing (ADR-430 §3). */
     DockerCheck check(LaunchValues values, Models models);
@@ -64,7 +73,13 @@ interface DockerControl {
     Download download(LaunchValues values, String model, Duration stalledAtMost, Consumer<Downloaded> told);
 
     /** Stops the containers and then the engine. */
-    Said shutDown();
+    default Said shutDown() {
+        return shutDown(line -> {
+        });
+    }
+
+    /** As {@link #shutDown()}, telling {@code told} each line of the two stops and what each printed (ADR-437 §3). */
+    Said shutDown(Consumer<String> told);
 
     /** Stops the containers alone, where one answers on this machine, for the addresses {@code values} hold. */
     Said stopTheContainers(LaunchValues values);
@@ -72,7 +87,7 @@ interface DockerControl {
     /** Runs nothing and answers done with no line, every row of a check OK and every download done: what a state built with no Docker holds. */
     DockerControl NONE = new DockerControl() {
         @Override
-        public Said start(LaunchValues values) {
+        public Said start(LaunchValues values, Consumer<String> told) {
             return new Said(true, "");
         }
 
@@ -81,7 +96,7 @@ interface DockerControl {
             return new DockerCheck(DockerCheck.Mark.OK,
                     new DockerCheck.Service(DockerCheck.Mark.OK, DockerCheck.Where.THIS_MACHINE, DEFAULT_DOCLING),
                     new DockerCheck.Service(DockerCheck.Mark.OK, DockerCheck.Where.THIS_MACHINE, DEFAULT_OLLAMA),
-                    DockerCheck.Mark.OK, DockerCheck.Mark.OK);
+                    DockerCheck.Mark.OK, DockerCheck.Mark.OK, "", List.of());
         }
 
         @Override
@@ -92,7 +107,7 @@ interface DockerControl {
         }
 
         @Override
-        public Said shutDown() {
+        public Said shutDown(Consumer<String> told) {
             return new Said(true, "");
         }
 
@@ -150,14 +165,14 @@ interface DockerControl {
             java.util.function.BiFunction<URI, URI, Optional<Boolean>> daemonAnswers) {
         return new DockerControl() {
             @Override
-            public Said start(LaunchValues values) {
+            public Said start(LaunchValues values, Consumer<String> told) {
                 URI docling = address(values.doclingBaseUrl(), DOCLING_PROPERTY, DEFAULT_DOCLING);
                 URI ollama = address(values.ollamaBaseUrl(), OLLAMA_PROPERTY, DEFAULT_OLLAMA);
-                Optional<String> wslLine = engine.keepTheWslDistributionUp(docling, ollama);
+                Optional<String> wslLine = engine.keepTheWslDistributionUp(docling, ollama, told);
                 String image = values.doclingImage() == null || values.doclingImage().isBlank()
                         ? StartingValues.of(StartingValues.DOCLING_IMAGE, settings.sources()).value()
                         : values.doclingImage().strip();
-                Optional<String> refusal = engine.startTheContainers(docling, ollama, image);
+                Optional<String> refusal = engine.startTheContainers(docling, ollama, image, told);
                 if (refusal.isPresent()) {
                     return new Said(false, refusal.get());
                 }
@@ -173,13 +188,15 @@ interface DockerControl {
                         .orElse(DockerCheck.Mark.NOT_ASKED);
                 DockerCheck.Service doclingAnswers = service(docling, "/health");
                 DockerCheck.Service ollamaAnswers = service(ollama, "/api/version");
+                // ADR-440 §6: the image is asked of /version only where Docling answered /health
+                String image = doclingAnswers.mark() == DockerCheck.Mark.OK ? imageDoclingRuns(docling) : "";
                 if (ollamaAnswers.mark() != DockerCheck.Mark.OK) {
                     return new DockerCheck(daemon, doclingAnswers, ollamaAnswers, DockerCheck.Mark.NOT_ASKED,
-                            DockerCheck.Mark.NOT_ASKED);
+                            DockerCheck.Mark.NOT_ASKED, image, List.of());
                 }
                 List<String> listed = namesOllamaLists(ollama);
                 return new DockerCheck(daemon, doclingAnswers, ollamaAnswers, markOf(models.embedding(), listed),
-                        markOf(models.generative(), listed));
+                        markOf(models.generative(), listed), image, listed);
             }
 
             @Override
@@ -189,8 +206,8 @@ interface DockerControl {
             }
 
             @Override
-            public Said shutDown() {
-                String line = engine.shutDown();
+            public Said shutDown(Consumer<String> told) {
+                String line = engine.shutDown(told);
                 return new Said(DockerEngine.SHUT_DOWN_DONE.equals(line), line);
             }
 
@@ -239,6 +256,26 @@ interface DockerControl {
             }
         } catch (IOException | RuntimeException noAnswer) {
             return false;
+        }
+    }
+
+    /** The string member {@code vespera-image} of Docling's {@code GET /version} (ADR-440 §6); empty where there is none or no 2xx answer. */
+    private static String imageDoclingRuns(URI docling) {
+        try {
+            HttpURLConnection connection = open(docling, "/version");
+            try {
+                if (connection.getResponseCode() / 100 != 2) {
+                    return "";
+                }
+                String body = new String(connection.getInputStream().readNBytes(4 * 1024 * 1024),
+                        StandardCharsets.UTF_8);
+                return JsonReader.read(body) instanceof Map<?, ?> answer && answer.get("vespera-image") instanceof String image
+                        ? image : "";
+            } finally {
+                connection.disconnect();
+            }
+        } catch (IOException | RuntimeException unreadable) {
+            return "";
         }
     }
 

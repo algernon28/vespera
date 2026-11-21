@@ -22,7 +22,7 @@ import java.util.stream.Stream;
  * ADR-331 §6's two among them) are made here, so that Run, Save my labels, Auto Label and Publish
  * start a child by the same checks. Every write of a working directory's file goes through {@link #write}, one at a
  * time with every start (ADR-295 §1). As the control panel's process ends, {@link #endWithTheControlPanel} ends the
- * child with it (ADR-307 §1). It also holds the answers the containers last gave ({@link #lastChecks}).
+ * child with it (ADR-307 §1). It also holds the answers the containers last gave ({@link #lastCheck}).
  *
  * <p>The class holds no connection to {@code vespera.db} (ADR-278 §3) and writes no file but the launch values'
  * (ADR-292 §2), as an invocation starts.
@@ -68,9 +68,7 @@ final class ControlPanelState {
     private volatile Optional<String> dotVesperaLine = Optional.empty();
     private volatile Optional<Path> dotVesperaAdded = Optional.empty();
     private volatile LaunchValues values;
-    private volatile ServiceChecks.Checks lastChecks = new ServiceChecks.Checks(
-            new ServiceChecks.Check(ServiceChecks.Result.NOT_CHECKED),
-            new ServiceChecks.Check(ServiceChecks.Result.NOT_CHECKED));
+    private volatile Optional<DockerCheck> lastCheck = Optional.empty();
     private Child child;
     private String childCommand = "";
     private Instant childStartInstant = Instant.EPOCH;
@@ -103,7 +101,13 @@ final class ControlPanelState {
 
     /** Start Docker's start for {@code asked}, the values the window's fields hold as it is pressed (ADR-430 §5). */
     DockerControl.Said startDocker(LaunchValues asked) {
-        return docker.start(asked);
+        return startDocker(asked, line -> {
+        });
+    }
+
+    /** As the one-argument form, telling {@code told} each line the start logs, on the thread that runs it (ADR-437 §7). */
+    DockerControl.Said startDocker(LaunchValues asked, java.util.function.Consumer<String> told) {
+        return docker.start(asked, told);
     }
 
     /** Checks the daemon, the containers and {@code models}, for the launch values held now, and starts nothing (ADR-430 §3). */
@@ -130,7 +134,13 @@ final class ControlPanelState {
 
     /** Stops the containers and then the engine (ADR-390 §3); the child is stopped by the caller, first. */
     DockerControl.Said shutDownDocker() {
-        return docker.shutDown();
+        return shutDownDocker(line -> {
+        });
+    }
+
+    /** As {@link #shutDownDocker()}, telling {@code told} each line of the two stops and what each printed (ADR-437 §7). */
+    DockerControl.Said shutDownDocker(java.util.function.Consumer<String> told) {
+        return docker.shutDown(told);
     }
 
     /** Stops the containers alone, for the launch values held now, as the window closes (ADR-390 §5). */
@@ -337,13 +347,14 @@ final class ControlPanelState {
         this.values = replacement;
     }
 
-    /** What the containers last said, {@code not-checked} for each until the window has asked (ADR-302 §5). */
-    ServiceChecks.Checks lastChecks() {
-        return lastChecks;
+    /** The check that last came back, empty before the first (ADR-440 §8). */
+    Optional<DockerCheck> lastCheck() {
+        return lastCheck;
     }
 
-    void keepChecks(ServiceChecks.Checks asked) {
-        this.lastChecks = asked;
+    /** Keeps each check that comes back (ADR-440 §8). */
+    void keepCheck(DockerCheck found) {
+        this.lastCheck = Optional.of(found);
     }
 
     /**
@@ -568,12 +579,20 @@ final class ControlPanelState {
     /**
      * What the window starts an invocation with (ADR-344 §3, §4, ADR-345 §4): the values passed to the child, the values
      * kept in the launch values file as it starts, the presets passed as options of the command line, and the
-     * destinations ticked, which only a publish passes. No label file is among them (ADR-377 §10).
+     * destinations ticked, which only a publish passes, and the invocation chosen in Earlier deliverables, empty where
+     * none is (ADR-439 §7). No label file is among them (ADR-377 §10).
      */
-    record Plan(LaunchValues toPass, LaunchValues toKeep, Map<String, String> presets, List<String> destinations) {
+    record Plan(LaunchValues toPass, LaunchValues toKeep, Map<String, String> presets, List<String> destinations,
+            String invocation) {
 
         Plan {
             destinations = List.copyOf(destinations);
+            invocation = invocation == null ? "" : invocation;
+        }
+
+        /** A plan naming no invocation (ADR-439 §7). */
+        Plan(LaunchValues toPass, LaunchValues toKeep, Map<String, String> presets, List<String> destinations) {
+            this(toPass, toKeep, presets, destinations, "");
         }
 
         /** A plan ticking no destination, as every start but a publish has. */
@@ -589,7 +608,8 @@ final class ControlPanelState {
             case RUN -> ChildCommand.run(runtime.java(), runtime.jar(), now);
             case LABEL -> ChildCommand.label(runtime.java(), runtime.jar(), false, now);
             case LABEL_AUTO -> ChildCommand.label(runtime.java(), runtime.jar(), true, now);
-            case PUBLISH -> ChildCommand.publish(runtime.java(), runtime.jar(), now, plan.destinations());
+            case PUBLISH -> ChildCommand.publish(runtime.java(), runtime.jar(), now, plan.destinations(),
+                    plan.invocation());
         };
         return command.withOptions(plan.presets());
     }
