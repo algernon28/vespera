@@ -302,10 +302,11 @@ class TheArchitectureWindowTest {
 
         claim("extraction running, the arrowheads in the accent are those of the wires it sends data along: from the"
                         + " archive into the application, from stage 2 to the ledger, to the reports, and to Docling and"
-                        + " back",
+                        + " back; not Ollama's, nor Ollama's to the GPU, Ollama standing idle",
                 () -> assertThat(arrowsFlowing).contains("architecture-arrow-archive", "architecture-arrow-stage-2",
                         "architecture-arrow-reports", "architecture-arrow-docling", "architecture-arrow-docling-back")
-                        .doesNotContain("architecture-arrow-ollama", "architecture-arrow-stage-3"));
+                        .doesNotContain("architecture-arrow-ollama", "architecture-arrow-stage-3",
+                                "architecture-arrow-ollama-gpu", "architecture-arrow-deliverable"));
         claim("the archive's runners point right, into the application",
                 () -> assertThat(shown(archive)).isNotEmpty().allMatch(runner -> runner.rotate() == 0));
         claim("Docling's runners point down to it in one lane and up from it in the other, beside each other",

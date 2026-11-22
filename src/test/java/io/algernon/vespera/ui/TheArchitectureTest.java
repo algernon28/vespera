@@ -154,6 +154,11 @@ class TheArchitectureTest {
                 new Architecture.Child(ControlPanelState.Start.PUBLISH, false, Optional.of(HowItEnded.FAILED_OR_REFUSED),
                         List.of("confluence")), BOTH_ANSWER, false));
         Architecture.Lighting nothing = Architecture.light(new Architecture.Reading(null, null, null, null, false));
+        Architecture.Lighting noState = Architecture.light(new Architecture.Reading(report(false, List.of(
+                step("census", "finished", null, null),
+                step("byte-level-reduction", "finished", null, null),
+                step("extraction", null, null, null))), null, child(ControlPanelState.Start.RUN, true, null),
+                BOTH_ANSWER, true));
 
         claim("extraction running lights stage 2, the ledger, the CLI, the document archive, Docling, the reports and"
                         + " the GPU it runs on, and nothing else; stages 0 and 1 read finished",
@@ -215,6 +220,21 @@ class TheArchitectureTest {
                     assertThat(run.flows(wire("stage-2"))).isTrue();
                     assertThat(run.flows(wire("stage-1"))).isFalse();
                 });
+        claim("on the GPU, the wire between Docling and the GPU carries data while extraction runs, and Ollama's to the"
+                        + " GPU does not, Ollama standing idle; on the CPU neither does",
+                () -> {
+                    assertThat(run.flows(wire("docling-gpu"))).isTrue();
+                    assertThat(run.flows(wire("ollama-gpu"))).isFalse();
+                    assertThat(onTheCpu.flows(wire("docling-gpu"))).isFalse();
+                });
+        claim("a publish reads the deliverable and writes none: the wire from the application into it carries nothing,"
+                        + " and the deliverable's wire to Confluence carries data",
+                () -> {
+                    assertThat(publishing.flows(wire("deliverable"))).isFalse();
+                    assertThat(publishing.flows(wire("confluence"))).isTrue();
+                });
+        claim("a report whose step has no state lights that step's stage as one not begun, and throws nothing",
+                () -> assertThat(noState.of(Part.STAGE_2)).isEqualTo(Lit.WAITING));
     }
 
     // ---- what the tests share

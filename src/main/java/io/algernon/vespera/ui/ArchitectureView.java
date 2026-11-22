@@ -119,9 +119,8 @@ final class ArchitectureView extends Pane {
             double middle = stageX(i) + 38;
             wire(Architecture.STAGES.get(i).id(), middle, 298, middle, 318);
         }
-        wire("docling", 285, 352, 285, 440);
-        wire("ollama", 545, 352, 545, 440);
-        wire("gpu", 665, 473, 685, 473);
+        wire("docling-gpu", 390, 440, 390, 425, 755, 425, 755, 440);
+        wire("ollama-gpu", 665, 473, 685, 473);
         wire("deliverable", 830, 120, 860, 120);
         wire("reports", 830, 290, 860, 290);
         wire("confluence", 970, 120, 1000, 120);
@@ -142,6 +141,10 @@ final class ArchitectureView extends Pane {
         part(Part.REPORTS, 860, 215, 110, 150);
         part(Part.CONFLUENCE, 1000, 40, 110, 160);
         part(Part.WEBSITE, 1000, 215, 110, 150);
+        // the application's wires to its containers pass over the ledger, between the stages' wires and clear of its
+        // words: data goes from a stage to the container and back, never through the ledger
+        wire("docling", 249, 308, 249, 440);
+        wire("ollama", 741, 308, 741, 385, 600, 385, 600, 440);
         legend(850, 410);
     }
 
@@ -180,7 +183,10 @@ final class ArchitectureView extends Pane {
         getChildren().add(line);
         List<Polygon> heads = new ArrayList<>(List.of(head("architecture-arrow-" + name, route)));
         List<Lane> lanes = new ArrayList<>();
-        if (wire.bothWays()) {
+        if (route.length() - (wire.bothWays() ? 2 : 1) * HEAD_LENGTH < RUNNER_GAP / 2) {
+            // a wire too short to hold a runner says its flow by its accent and its arrowheads alone
+            lanes = List.of();
+        } else if (wire.bothWays()) {
             heads.add(head("architecture-arrow-" + name + "-back", route.reversed()));
             lanes.add(lane("architecture-runners-" + name, route.shifted(LANE)));
             lanes.add(lane("architecture-runners-" + name + "-back", route.reversed().shifted(LANE)));

@@ -68,6 +68,11 @@ final class ArchitectureWindow {
     private String endedAs;
     /** What the window does as the system's reduced-motion setting changes, held here so that the setting holds it weakly. */
     private final ChangeListener<Boolean> reducedMotion = (observed, was, reduced) -> move();
+    /**
+     * The setting's hold on {@link #reducedMotion}: the setting outlives every window, so it holds the listener weakly,
+     * from the window's first opening until the cockpit closes it, and a window never opened is not held at all.
+     */
+    private final WeakChangeListener<Boolean> followingTheSystem = new WeakChangeListener<>(reducedMotion);
     private Stage stage;
     private Placed kept;
 
@@ -101,8 +106,6 @@ final class ArchitectureWindow {
         root.setCenter(scroll);
         root.getStyleClass().addAll("cockpit", "architecture-window");
         reading.setCycleCount(Animation.INDEFINITE);
-        // the system's setting outlives every window, so it holds this one's listener weakly, and the window holds it
-        Platform.getPreferences().reducedMotionProperty().addListener(new WeakChangeListener<>(reducedMotion));
         follow();
         cockpitRoot.getStyleClass().addListener((ListChangeListener<String>) change -> follow());
     }
@@ -155,6 +158,9 @@ final class ArchitectureWindow {
             stage.showingProperty().addListener((observed, was, showing) -> move());
             stage.iconifiedProperty().addListener((observed, was, iconified) -> move());
         }
+        // added once however often the window opens: a listener removed first is added back alone
+        Platform.getPreferences().reducedMotionProperty().removeListener(followingTheSystem);
+        Platform.getPreferences().reducedMotionProperty().addListener(followingTheSystem);
         follow();
         if (!stage.isShowing() && kept != null) {
             stage.setX(kept.x());
@@ -178,6 +184,7 @@ final class ArchitectureWindow {
     void close() {
         if (stage != null) {
             stage.hide();
+            Platform.getPreferences().reducedMotionProperty().removeListener(followingTheSystem);
         }
     }
 

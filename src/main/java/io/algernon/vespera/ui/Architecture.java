@@ -162,14 +162,14 @@ final class Architecture {
 
     /**
      * A wire of the picture: its name in its node's id, {@code architecture-wire-<name>}; the part whose running makes it
-     * carry data; and whether data goes both ways along it, a request out and an answer back, or only from its first
-     * point to its last, as the drawing lays it (ADR-442 §6).
+     * carry data, and the part that must run with it, null where none; and whether data goes both ways along it, a
+     * request out and an answer back, or only from its first point to its last, as the drawing lays it (ADR-442 §6).
      */
-    record Wire(String name, Part carrier, boolean bothWays) {
+    record Wire(String name, Part carrier, Part with, boolean bothWays) {
 
-        /** A wire data goes along one way only, from its first point to its last. */
+        /** A wire data goes along one way only, from its first point to its last, while its carrier runs. */
         Wire(String name, Part carrier) {
-            this(name, carrier, false);
+            this(name, carrier, null, false);
         }
     }
 
@@ -182,10 +182,13 @@ final class Architecture {
                 new Wire("seed-folder", Part.SEED_FOLDER),
                 new Wire("control-panel", Part.CLI),
                 new Wire("cli", Part.LEDGER),
-                new Wire("docling", Part.DOCLING, true),
-                new Wire("ollama", Part.OLLAMA, true),
-                new Wire("gpu", Part.GPU, true),
-                new Wire("deliverable", Part.DELIVERABLE),
+                new Wire("docling", Part.DOCLING, null, true),
+                new Wire("ollama", Part.OLLAMA, null, true),
+                // each container's wire to the GPU carries data while that container runs on it, and only then
+                new Wire("docling-gpu", Part.DOCLING, Part.GPU, true),
+                new Wire("ollama-gpu", Part.OLLAMA, Part.GPU, true),
+                // the deliverable is written by a step, which runs the ledger, and only read by a publish
+                new Wire("deliverable", Part.DELIVERABLE, Part.LEDGER, false),
                 new Wire("reports", Part.REPORTS),
                 new Wire("confluence", Part.CONFLUENCE),
                 new Wire("website", Part.WEBSITE)));
@@ -233,9 +236,10 @@ final class Architecture {
             return parts.get(part);
         }
 
-        /** Whether {@code wire} carries data now: its carrier runs. */
+        /** Whether {@code wire} carries data now: its carrier runs, and the part it runs with where it names one. */
         boolean flows(Wire wire) {
-            return parts.get(wire.carrier()) == Lit.RUNNING;
+            return parts.get(wire.carrier()) == Lit.RUNNING
+                    && (wire.with() == null || parts.get(wire.with()) == Lit.RUNNING);
         }
     }
 
@@ -289,8 +293,9 @@ final class Architecture {
         Map<String, String> states = new LinkedHashMap<>();
         for (Step step : STEPS) {
             InvocationReportFile.Step read = byName.get(step.name());
-            String state = read == null ? WAITING : read.state();
-            states.put(step.name(), reading.endedAs() != null && state.equals(RUNNING) ? reading.endedAs() : state);
+            // a step the report names with no state reads as one not begun
+            String state = read == null || read.state() == null ? WAITING : read.state();
+            states.put(step.name(), reading.endedAs() != null && RUNNING.equals(state) ? reading.endedAs() : state);
         }
         Step running = STEPS.stream().filter(step -> RUNNING.equals(states.get(step.name()))).findFirst().orElse(null);
         Child child = reading.child();
