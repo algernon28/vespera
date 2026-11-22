@@ -840,7 +840,8 @@
     -fx-border-color: -vespera-faint;
 }
 
-/* a wire, and one carrying data (section 6): dashed in the accent, its dashes moved by the window's one timeline */
+/* a wire and its arrowheads, and one carrying data (section 6): in the accent, its runners moved by the window's one
+   timeline, each in the accent outlined in the accent's ink, so that it shows on the line and off it alike */
 .architecture-wire {
     -fx-stroke: -vespera-faint;
     -fx-stroke-width: 1.5px;
@@ -850,5 +851,18 @@
 .architecture-wire.flowing {
     -fx-stroke: -vespera-accent;
     -fx-stroke-width: 3px;
-    -fx-stroke-dash-array: 7 5;
+}
+
+.architecture-arrow {
+    -fx-fill: -vespera-faint;
+}
+
+.architecture-arrow.flowing {
+    -fx-fill: -vespera-accent;
+}
+
+.architecture-runner {
+    -fx-fill: -vespera-accent;
+    -fx-stroke: -vespera-accent-ink;
+    -fx-stroke-width: 1px;
 }

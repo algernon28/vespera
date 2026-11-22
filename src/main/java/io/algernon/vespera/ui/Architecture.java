@@ -160,8 +160,17 @@ final class Architecture {
             .map(row -> new Step(row.getKey(), STAGE_OF_A_RECORD.get(StopCosts.stageOf(row.getKey())), row.getValue()))
             .toList();
 
-    /** A wire of the picture: its name in its node's id, {@code architecture-wire-<name>}, and the part whose running makes it carry data. */
-    record Wire(String name, Part carrier) {
+    /**
+     * A wire of the picture: its name in its node's id, {@code architecture-wire-<name>}; the part whose running makes it
+     * carry data; and whether data goes both ways along it, a request out and an answer back, or only from its first
+     * point to its last, as the drawing lays it (ADR-442 §6).
+     */
+    record Wire(String name, Part carrier, boolean bothWays) {
+
+        /** A wire data goes along one way only, from its first point to its last. */
+        Wire(String name, Part carrier) {
+            this(name, carrier, false);
+        }
     }
 
     /** The wires, each carrying data while its carrier runs (ADR-442 §6). */
@@ -173,9 +182,9 @@ final class Architecture {
                 new Wire("seed-folder", Part.SEED_FOLDER),
                 new Wire("control-panel", Part.CLI),
                 new Wire("cli", Part.LEDGER),
-                new Wire("docling", Part.DOCLING),
-                new Wire("ollama", Part.OLLAMA),
-                new Wire("gpu", Part.GPU),
+                new Wire("docling", Part.DOCLING, true),
+                new Wire("ollama", Part.OLLAMA, true),
+                new Wire("gpu", Part.GPU, true),
                 new Wire("deliverable", Part.DELIVERABLE),
                 new Wire("reports", Part.REPORTS),
                 new Wire("confluence", Part.CONFLUENCE),

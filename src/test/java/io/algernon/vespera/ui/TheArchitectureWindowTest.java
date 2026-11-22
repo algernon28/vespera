@@ -10,10 +10,12 @@ import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Accordion;
@@ -22,6 +24,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.control.ToggleButton;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
@@ -262,6 +265,82 @@ class TheArchitectureWindowTest {
                 });
     }
 
+    @Test
+    @Story("The Architecture window lights what runs")
+    @DisplayName("Each wire points the way data goes, and while it carries data its arrows run that way, both ways to a container")
+    void dataRunsAlongItsWiresAsArrowsTheWayItGoes(@TempDir Path folder) throws Exception {
+        List<String> arrowsFlowing;
+        List<Runner> doclingThereEarly;
+        List<Runner> doclingThereLater;
+        List<Runner> doclingBackEarly;
+        List<Runner> doclingBackLater;
+        List<Runner> archive;
+        List<Runner> ollama;
+        try (WindowForTests window = WindowForTests.readingEverySecond(folder)) {
+            window.reportWritten(folder, EXTRACTING);
+            window.awaiting(root -> WindowForTests.node(root, "step-extraction", Node.class).lookupAll(".text-field")
+                    .stream().map(each -> ((TextInputControl) each).getText()).toList(),
+                    texts -> texts.stream().anyMatch(text -> text.startsWith("running")));
+            window.openArchitecture();
+            window.awaitingArchitecture(root -> styleOf(root, "stage-2"), classes -> classes.contains("lit-running"));
+            // with motion off the drawing is posed by hand, a quarter and then half of a pulse's cycle on, each pose
+            // read in the same pass as it is set, before the once-a-second reading draws the drawing again
+            window.readArchitecture(root -> {
+                motion(root).getSelectionModel().select(ArchitectureWindow.MOTION_OFF);
+                return null;
+            });
+            arrowsFlowing = window.readArchitecture(root -> HeadlessToolkit.everyNodeUnder(root).stream()
+                    .filter(node -> node.getStyleClass().contains("architecture-arrow"))
+                    .filter(node -> node.getStyleClass().contains("flowing")).map(Node::getId).sorted().toList());
+            doclingThereEarly = window.readArchitecture(root -> runners(root, 0.25, "docling"));
+            doclingBackEarly = window.readArchitecture(root -> runners(root, 0.25, "docling-back"));
+            archive = window.readArchitecture(root -> runners(root, 0.25, "archive"));
+            ollama = window.readArchitecture(root -> runners(root, 0.25, "ollama"));
+            doclingThereLater = window.readArchitecture(root -> runners(root, 0.5, "docling"));
+            doclingBackLater = window.readArchitecture(root -> runners(root, 0.5, "docling-back"));
+        }
+
+        claim("extraction running, the arrowheads in the accent are those of the wires it sends data along: from the"
+                        + " archive into the application, from stage 2 to the ledger, to the reports, and to Docling and"
+                        + " back",
+                () -> assertThat(arrowsFlowing).contains("architecture-arrow-archive", "architecture-arrow-stage-2",
+                        "architecture-arrow-reports", "architecture-arrow-docling", "architecture-arrow-docling-back")
+                        .doesNotContain("architecture-arrow-ollama", "architecture-arrow-stage-3"));
+        claim("the archive's runners point right, into the application",
+                () -> assertThat(shown(archive)).isNotEmpty().allMatch(runner -> runner.rotate() == 0));
+        claim("Docling's runners point down to it in one lane and up from it in the other, beside each other",
+                () -> {
+                    assertThat(shown(doclingThereEarly)).isNotEmpty().allMatch(runner -> runner.rotate() == 90);
+                    assertThat(shown(doclingBackEarly)).isNotEmpty().allMatch(runner -> runner.rotate() == -90);
+                    assertThat(shown(doclingThereEarly).getFirst().x())
+                            .isNotEqualTo(shown(doclingBackEarly).getFirst().x());
+                });
+        claim("as the cycle goes on, the runners to Docling move down and those back move up",
+                () -> {
+                    assertThat(doclingThereLater.get(1).y()).isGreaterThan(doclingThereEarly.get(1).y());
+                    assertThat(doclingBackLater.get(1).y()).isLessThan(doclingBackEarly.get(1).y());
+                });
+        claim("Ollama, which extraction does not call, shows no runner", () -> assertThat(shown(ollama)).isEmpty());
+    }
+
+    @Test
+    @Story("The Architecture window lights what runs")
+    @DisplayName("A window nothing holds any more is let go: the system's motion setting it follows does not hold it")
+    void aWindowNothingHoldsIsLetGo() throws Exception {
+        WeakReference<ArchitectureWindow> held = HeadlessToolkit.onTheToolkit(() -> new WeakReference<>(
+                new ArchitectureWindow(new BorderPane(), () -> Architecture.Child.NONE, () -> null, () -> false)));
+        boolean letGo = false;
+        for (int tries = 0; tries < 50 && !letGo; tries++) {
+            System.gc();
+            Thread.sleep(20);
+            letGo = held.get() == null;
+        }
+        boolean collected = letGo;
+
+        claim("a window built and then held by nothing is collected, so that each control panel a run builds goes with"
+                + " its own, and none piles up behind the system's setting", () -> assertThat(collected).isTrue());
+    }
+
     // ---- what the tests share
 
     private static ControlPanelState aStateOver(Path folder) throws IOException {
@@ -269,6 +348,22 @@ class TheArchitectureWindowTest {
         state.hold(new LaunchValues(Files.createDirectories(folder.resolve("corpus")).toString(),
                 Files.createDirectories(folder.resolve("working")).toString(), "", "", "", "", "", ""));
         return state;
+    }
+
+    /** A runner of a wire's lane as drawn: whether it shows, where, and which way it points, in degrees from right. */
+    private record Runner(boolean visible, double x, double y, double rotate) {
+    }
+
+    /** The runners of the lane {@code architecture-runners-<lane>}, in their order along it, the drawing posed {@code at}. */
+    private static List<Runner> runners(Parent root, double at, String lane) {
+        drawing(root).pose(at);
+        return WindowForTests.node(root, "architecture-runners-" + lane, Group.class).getChildren().stream()
+                .map(node -> new Runner(node.isVisible(), node.getLayoutX(), node.getLayoutY(), node.getRotate()))
+                .toList();
+    }
+
+    private static List<Runner> shown(List<Runner> runners) {
+        return runners.stream().filter(Runner::visible).toList();
     }
 
     private static ArchitectureView drawing(Parent root) {

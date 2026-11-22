@@ -3,6 +3,7 @@ package io.algernon.vespera.ui;
 import io.algernon.vespera.ui.Architecture.Kind;
 import io.algernon.vespera.ui.Architecture.Lit;
 import io.algernon.vespera.ui.Architecture.Part;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,12 +17,14 @@ import javafx.animation.Timeline;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.geometry.Pos;
+import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Polyline;
 import javafx.scene.transform.Scale;
 import javafx.util.Duration;
@@ -40,10 +43,24 @@ final class ArchitectureView extends Pane {
 
     static final double HEIGHT = 530;
 
-    /** How long a pulse of a running outline takes, and how far a flowing wire's dashes move in it: two of their periods. */
+    /**
+     * How long a pulse of a running outline takes, and how far a flowing wire's runners move in it: the gap between two
+     * of them, so that each takes the place of the one ahead as the pulse ends.
+     */
     private static final Duration PULSE = Duration.millis(1600);
 
-    private static final double DASHES_MOVED = 24;
+    private static final double RUNNER_GAP = 24;
+
+    /** How long an arrowhead is from its base to its tip, and how far its base reaches to either side of the wire. */
+    private static final double HEAD_LENGTH = 9;
+
+    private static final double HEAD_HALF_WIDTH = 5;
+
+    /** How far a lane of runners lies to the right of a wire data goes along both ways, each way in a lane of its own. */
+    private static final double LANE = 6;
+
+    /** How far from either end of its lane a runner fades in or out. */
+    private static final double FADE = 6;
 
     /** The height at or below which a part's texts stand in a row: the ledger's. */
     private static final double FLAT = 40;
@@ -56,7 +73,15 @@ final class ArchitectureView extends Pane {
     }
 
     private final Map<Part, Drawn> parts = new EnumMap<>(Part.class);
-    private final Map<Architecture.Wire, Polyline> wires = new LinkedHashMap<>();
+    /** A wire as drawn: its line, its arrowheads at each end data arrives at, and its lanes of runners. */
+    private record Laid(Polyline line, List<Polygon> heads, List<Lane> lanes) {
+    }
+
+    /** A lane of runners: the route they follow, from where data leaves to where it arrives, and the runners on it. */
+    private record Lane(Route route, List<Polygon> runners) {
+    }
+
+    private final Map<Architecture.Wire, Laid> wires = new LinkedHashMap<>();
     private final DoubleProperty phase = new SimpleDoubleProperty();
     private final Timeline motion = new Timeline(new KeyFrame(Duration.ZERO, new KeyValue(phase, 0)),
             new KeyFrame(PULSE, new KeyValue(phase, 1, Interpolator.LINEAR)));
@@ -137,15 +162,67 @@ final class ArchitectureView extends Pane {
         getChildren().addAll(outline, words);
     }
 
+    /**
+     * A wire through {@code points}, laid from where data leaves to where it arrives: its line, an arrowhead at its last
+     * point, and one at its first where data goes both ways; and a lane of runners each way data goes, to the right of
+     * the line where it goes both ways and along it otherwise (ADR-442 §6).
+     */
     private void wire(String name, double... points) {
         Architecture.Wire wire = Architecture.WIRES.stream().filter(each -> each.name().equals(name)).findFirst()
                 .orElseThrow();
-        Polyline line = new Polyline(points);
+        Route route = Route.through(points);
+        // the line stops short of each arrowhead's tip, so that its width shows nowhere beside the narrowing head
+        Route drawnRoute = route.trimmed(wire.bothWays() ? HEAD_LENGTH - 1 : 0, HEAD_LENGTH - 1);
+        Polyline line = new Polyline(drawnRoute.points());
         line.setId("architecture-wire-" + name);
         line.getStyleClass().add("architecture-wire");
         line.setManaged(false);
-        wires.put(wire, line);
         getChildren().add(line);
+        List<Polygon> heads = new ArrayList<>(List.of(head("architecture-arrow-" + name, route)));
+        List<Lane> lanes = new ArrayList<>();
+        if (wire.bothWays()) {
+            heads.add(head("architecture-arrow-" + name + "-back", route.reversed()));
+            lanes.add(lane("architecture-runners-" + name, route.shifted(LANE)));
+            lanes.add(lane("architecture-runners-" + name + "-back", route.reversed().shifted(LANE)));
+        } else {
+            lanes.add(lane("architecture-runners-" + name, route));
+        }
+        wires.put(wire, new Laid(line, List.copyOf(heads), List.copyOf(lanes)));
+    }
+
+    /** An arrowhead whose tip is the last point of {@code route}, pointing the way its last run goes. */
+    private Polygon head(String id, Route route) {
+        double[] tip = route.pointAt(route.length());
+        double[] base = route.pointAt(route.length() - HEAD_LENGTH);
+        double dx = (tip[0] - base[0]) / HEAD_LENGTH;
+        double dy = (tip[1] - base[1]) / HEAD_LENGTH;
+        Polygon head = new Polygon(tip[0], tip[1], base[0] - dy * HEAD_HALF_WIDTH, base[1] + dx * HEAD_HALF_WIDTH,
+                base[0] + dy * HEAD_HALF_WIDTH, base[1] - dx * HEAD_HALF_WIDTH);
+        head.setId(id);
+        head.getStyleClass().add("architecture-arrow");
+        head.setManaged(false);
+        head.setMouseTransparent(true);
+        getChildren().add(head);
+        return head;
+    }
+
+    /** A lane along {@code route}: as many runners as fit it, a gap apart, hidden until its wire carries data. */
+    private Lane lane(String id, Route route) {
+        Group group = new Group();
+        group.setId(id);
+        group.setManaged(false);
+        group.setMouseTransparent(true);
+        List<Polygon> runners = new ArrayList<>();
+        for (int i = 0; i <= (int) Math.ceil(route.length() / RUNNER_GAP); i++) {
+            // a chevron about its own middle, pointing right until it is turned the way its run goes
+            Polygon runner = new Polygon(-5, -5, -1, -5, 5, 0, -1, 5, -5, 5, 1, 0);
+            runner.getStyleClass().add("architecture-runner");
+            runner.setVisible(false);
+            runners.add(runner);
+        }
+        group.getChildren().addAll(runners);
+        getChildren().add(group);
+        return new Lane(route, List.copyOf(runners));
     }
 
     /** A part: its box filled in its kind's colour, its title, the line saying what it is, and its words, beneath an outline. */
@@ -262,16 +339,24 @@ final class ArchitectureView extends Pane {
             show(at.words(), lit.words());
             show(at.percent(), lit == Lit.RUNNING && Architecture.STAGES.contains(part) ? lighting.percent() : "");
         });
-        wires.forEach((wire, line) -> {
-            line.getStyleClass().remove("flowing");
-            if (lighting.flows(wire)) {
-                line.getStyleClass().add("flowing");
+        wires.forEach((wire, laid) -> {
+            List<Node> marked = new ArrayList<>(laid.heads());
+            marked.add(laid.line());
+            for (Node node : marked) {
+                node.getStyleClass().remove("flowing");
+                if (lighting.flows(wire)) {
+                    node.getStyleClass().add("flowing");
+                }
             }
         });
         move(phase.get());
     }
 
-    /** Sets the parts that pulse and the dashes that move where {@code at}, of a pulse's cycle from 0 to 1. */
+    /**
+     * Sets the parts that pulse and the runners that move where {@code at}, of a pulse's cycle from 0 to 1: each runner
+     * of a wire carrying data stands {@code at} of a gap past its place, so that it runs the way data goes; with
+     * motion off they stand still at their places, still saying which way it goes.
+     */
     private void move(double at) {
         if (drawn == null) {
             return;
@@ -279,7 +364,32 @@ final class ArchitectureView extends Pane {
         boolean moving = moving();
         double faded = moving ? (1 - FAINTEST) * (0.5 - 0.5 * Math.cos(2 * Math.PI * at)) : 0;
         parts.forEach((part, shown) -> shown.outline().setOpacity(drawn.of(part) == Lit.RUNNING ? 1 - faded : 1));
-        wires.forEach((wire, line) -> line.setStrokeDashOffset(moving && drawn.flows(wire) ? -DASHES_MOVED * at : 0));
+        wires.forEach((wire, laid) -> {
+            boolean flows = drawn.flows(wire);
+            for (Lane lane : laid.lanes()) {
+                // runners stop short of the arrowhead at the lane's end, and of the one at its start where there is one
+                double from = wire.bothWays() ? HEAD_LENGTH : 0;
+                double to = lane.route().length() - HEAD_LENGTH;
+                for (int i = 0; i < lane.runners().size(); i++) {
+                    Polygon runner = lane.runners().get(i);
+                    double along = (i + at) * RUNNER_GAP;
+                    boolean shown = flows && along >= from && along <= to;
+                    runner.setVisible(shown);
+                    if (shown) {
+                        double[] point = lane.route().pointAt(along);
+                        runner.setLayoutX(point[0]);
+                        runner.setLayoutY(point[1]);
+                        runner.setRotate(point[2]);
+                        runner.setOpacity(Math.min(1, Math.min(along - from, to - along) / FADE));
+                    }
+                }
+            }
+        });
+    }
+
+    /** Sets the drawing as it stands {@code at} of a pulse's cycle, which a test calls with the motion stopped. */
+    void pose(double at) {
+        move(at);
     }
 
     /** Starts or stops the one timeline that moves the drawing. */
@@ -307,6 +417,91 @@ final class ArchitectureView extends Pane {
     /** Whether the drawing moves now. */
     boolean moving() {
         return motion.getStatus() == Animation.Status.RUNNING;
+    }
+
+    /**
+     * A route of straight runs through points: where each point lies, and how far along the route from its first one;
+     * which a lane's runners follow and an arrowhead points along.
+     */
+    private record Route(double[] xs, double[] ys, double[] along) {
+
+        static Route through(double... points) {
+            int count = points.length / 2;
+            double[] xs = new double[count];
+            double[] ys = new double[count];
+            double[] along = new double[count];
+            for (int i = 0; i < count; i++) {
+                xs[i] = points[2 * i];
+                ys[i] = points[2 * i + 1];
+                along[i] = i == 0 ? 0 : along[i - 1] + Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]);
+            }
+            return new Route(xs, ys, along);
+        }
+
+        double length() {
+            return along[along.length - 1];
+        }
+
+        double[] points() {
+            double[] points = new double[2 * xs.length];
+            for (int i = 0; i < xs.length; i++) {
+                points[2 * i] = xs[i];
+                points[2 * i + 1] = ys[i];
+            }
+            return points;
+        }
+
+        /** The point {@code distance} along the route, and the angle in degrees of the run it lies on, clockwise from right. */
+        double[] pointAt(double distance) {
+            double clamped = Math.clamp(distance, 0, length());
+            int run = 1;
+            while (run < xs.length - 1 && along[run] < clamped) {
+                run++;
+            }
+            double span = along[run] - along[run - 1];
+            double share = span == 0 ? 0 : (clamped - along[run - 1]) / span;
+            return new double[] {xs[run - 1] + share * (xs[run] - xs[run - 1]),
+                    ys[run - 1] + share * (ys[run] - ys[run - 1]),
+                    Math.toDegrees(Math.atan2(ys[run] - ys[run - 1], xs[run] - xs[run - 1]))};
+        }
+
+        /** The same route the other way, from its last point to its first. */
+        Route reversed() {
+            double[] points = new double[2 * xs.length];
+            for (int i = 0; i < xs.length; i++) {
+                points[2 * i] = xs[xs.length - 1 - i];
+                points[2 * i + 1] = ys[ys.length - 1 - i];
+            }
+            return through(points);
+        }
+
+        /** The route moved {@code by} to its own right, each point along the runs it joins. */
+        Route shifted(double by) {
+            double[] points = new double[2 * xs.length];
+            for (int i = 0; i < xs.length; i++) {
+                int a = Math.max(0, i - 1);
+                int b = Math.min(xs.length - 1, i + 1);
+                double dx = xs[b] - xs[a];
+                double dy = ys[b] - ys[a];
+                double norm = Math.hypot(dx, dy);
+                // to the right of the way the route goes, as the screen's y grows downwards
+                points[2 * i] = xs[i] - dy / norm * by;
+                points[2 * i + 1] = ys[i] + dx / norm * by;
+            }
+            return through(points);
+        }
+
+        /** The route with {@code fromStart} cut off its first run and {@code fromEnd} off its last. */
+        Route trimmed(double fromStart, double fromEnd) {
+            double[] points = points();
+            double[] start = pointAt(fromStart);
+            double[] end = pointAt(length() - fromEnd);
+            points[0] = start[0];
+            points[1] = start[1];
+            points[points.length - 2] = end[0];
+            points[points.length - 1] = end[1];
+            return through(points);
+        }
     }
 
     /** The node of {@code part}, which a test reads. */

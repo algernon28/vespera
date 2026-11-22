@@ -8,6 +8,8 @@ import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.WeakChangeListener;
 import javafx.collections.ListChangeListener;
 import javafx.scene.Scene;
 import javafx.scene.control.ChoiceBox;
@@ -64,6 +66,8 @@ final class ArchitectureWindow {
     private final Timeline reading = new Timeline(new KeyFrame(READING, event -> draw()));
     private InvocationReportFile.Report report = InvocationReportFile.Report.none();
     private String endedAs;
+    /** What the window does as the system's reduced-motion setting changes, held here so that the setting holds it weakly. */
+    private final ChangeListener<Boolean> reducedMotion = (observed, was, reduced) -> move();
     private Stage stage;
     private Placed kept;
 
@@ -97,7 +101,8 @@ final class ArchitectureWindow {
         root.setCenter(scroll);
         root.getStyleClass().addAll("cockpit", "architecture-window");
         reading.setCycleCount(Animation.INDEFINITE);
-        Platform.getPreferences().reducedMotionProperty().addListener((observed, was, reduced) -> move());
+        // the system's setting outlives every window, so it holds this one's listener weakly, and the window holds it
+        Platform.getPreferences().reducedMotionProperty().addListener(new WeakChangeListener<>(reducedMotion));
         follow();
         cockpitRoot.getStyleClass().addListener((ListChangeListener<String>) change -> follow());
     }
