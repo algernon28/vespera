@@ -148,6 +148,8 @@ public class VesperaCommand implements Callable<Integer> {
         // Picocli's own refusals and usage are logged through the operator logger (ADR-364 section 4), a line at a time.
         commandLine.setOut(OperatorLines.out());
         commandLine.setErr(OperatorLines.err());
+        // ...in words alone, whatever TERM, OSTYPE or picocli.ansi say of a terminal (ADR-443 section 1).
+        commandLine.setColorScheme(CommandLine.Help.defaultColorScheme(CommandLine.Help.Ansi.OFF));
         return commandLine;
     }
 
