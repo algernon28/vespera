@@ -152,6 +152,7 @@ public record EarlierDeliverable(String invocation, String started, String corpu
 | `ui.EarlierDeliverablesAreListedFromTheRunsReportsTest.aFolderKeepingNoRunsReportListsNothing` | §6: no `logs`, and a label's copy alone, list nothing |
 | `ui.PublishOfAnEarlierDeliverableNamesItsInvocationTest.theChildIsGivenTheInvocationBeforeItsDestinations` | §7: `publish --invocation <id> --to <names>` before `--db-dir`, the token still reaching a publish to Confluence |
 | `ui.PublishOfAnEarlierDeliverableNamesItsInvocationTest.anInvocationNotOfAnIdsFormIsRefused` | §7: the exception's message, whole |
+| `ui.TheWindowAndTheJarReadAnInvocationsIdAlikeTest.theThreeFormsTakeAndRefuseTheSameIds` | §1, §6, §7: the jar's id form, the window's and the name of a kept copy take and refuse the same ids |
 | `ui.PublishDeliversTheEarlierDeliverableChosenTest.theListShowsTheEarlierDeliverablesNoneChosenAndTheBoxesAreTheLatests` | §6, §7: the rows' words, nothing chosen, the boxes those of the latest row's tree and not of a tree no kept run reached |
 | `ui.PublishDeliversTheEarlierDeliverableChosenTest.aRowChosenOffersItsBoxesNamesItsInvocationAndAsksBeforePublishing` | §7: the boxes, the command line shown, the confirmation whole, Cancel starting nothing; cleared, the line names no invocation |
 

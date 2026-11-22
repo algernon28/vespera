@@ -45,7 +45,8 @@ final class OutputPanel {
     private boolean showsAPress;
     /** Which press the lines told belong to; a line told by an earlier press is dropped. */
     private volatile long press;
-    private final ConcurrentLinkedQueue<String> notShownYet = new ConcurrentLinkedQueue<>();
+    /** Lines told, each with the id of the press that told it; one of a press no longer shown is dropped as it is taken. */
+    private final ConcurrentLinkedQueue<Told> notShownYet = new ConcurrentLinkedQueue<>();
     /** The lines of this press already appended, on the toolkit's thread. */
     private final List<String> shownOfThePress = new ArrayList<>();
 
@@ -81,6 +82,10 @@ final class OutputPanel {
         return new Press(++press);
     }
 
+    /** A line and the press that told it. */
+    private record Told(long press, String line) {
+    }
+
     /** One press's lines; told from any thread, dropped once another child or press has taken the panel. */
     final class Press implements Consumer<String> {
         private final long id;
@@ -91,8 +96,11 @@ final class OutputPanel {
 
         @Override
         public void accept(String line) {
+            // queued with its id, and dropped as it is taken where its press is no longer shown: a check here and an
+            // add after it would let a line in that a reset between the two should have dropped. A line of a press
+            // already replaced is dropped here too, so that none waits in the queue while a child is shown
             if (press == id) {
-                notShownYet.add(line);
+                notShownYet.add(new Told(id, line));
             }
         }
     }
@@ -115,9 +123,12 @@ final class OutputPanel {
 
     private void appendTheLinesTold() {
         StringBuilder text = new StringBuilder();
-        for (String line = notShownYet.poll(); line != null; line = notShownYet.poll()) {
-            shownOfThePress.add(line);
-            text.append(line).append('\n');
+        for (Told told = notShownYet.poll(); told != null; told = notShownYet.poll()) {
+            if (told.press() != press) {
+                continue;
+            }
+            shownOfThePress.add(told.line());
+            text.append(told.line()).append('\n');
         }
         append(text.toString());
     }

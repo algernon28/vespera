@@ -913,8 +913,22 @@ public class VesperaCommand implements Callable<Integer> {
             Map<String, Set<String>> finished = null;
             Earlier earlier = null;
             if (invocation != null) {
-                finished = ledger.runs().finishedSteps();
-                Object refusedOrEarlier = earlierOf(finished);
+                // read before the publish starts, so a failure is said as a refusal and the report ends with it
+                try {
+                    finished = ledger.runs().finishedSteps();
+                } catch (RuntimeException unreadable) {
+                    return refuse("vespera publish sent nothing: the working directory's runs could not be read to"
+                            + " find what the invocation " + invocation + " reached. Publish again once vespera.db"
+                            + " can be read.", CommandLine.ExitCode.SOFTWARE);
+                }
+                Object refusedOrEarlier;
+                try {
+                    refusedOrEarlier = earlierOf(finished);
+                } catch (RuntimeException unreadable) {
+                    return refuse("vespera publish sent nothing: where the invocation " + invocation + " drew its"
+                            + " deliverable could not be read here (" + unreadable.getClass().getSimpleName() + ")."
+                            + " Name another, or publish without --invocation.", CommandLine.ExitCode.SOFTWARE);
+                }
                 if (refusedOrEarlier instanceof String line) {
                     return refuse(line, CommandLine.ExitCode.SOFTWARE);
                 }

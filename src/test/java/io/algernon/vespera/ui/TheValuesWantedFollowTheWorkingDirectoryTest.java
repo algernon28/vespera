@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Optional;
 import javafx.scene.Node;
 import javafx.scene.Parent;
-import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.ListView;
 import javafx.scene.control.Spinner;
@@ -72,6 +71,10 @@ class TheValuesWantedFollowTheWorkingDirectoryTest {
     /** The Profile section's title with no value wanted, and with one. */
     private static final String PROFILE = "Profile";
     private static final String PROFILE_NEEDING_A_VALUE = "Profile (needs a value)";
+
+    /** Run's caption while another process holds the working directory: the window has seen the hold. */
+    private static final String HELD_BY_ANOTHER =
+            "Off while another invocation holds the working directory or the corpus root.";
 
     /** What the row of the approval reads where no row of it is drawn. */
     private static final String NO_ROW = "no row";
@@ -287,8 +290,10 @@ class TheValuesWantedFollowTheWorkingDirectoryTest {
                     + " started=" + DateTimeFormatter.ISO_OFFSET_DATE_TIME
                             .format(OffsetDateTime.ofInstant(lockStarted, ZoneOffset.UTC))
                     + " command=run\n", StandardCharsets.UTF_8);
-            heldSeen = window.awaiting(root -> WindowForTests.node(root, "run", Button.class).isDisabled(),
-                    Boolean::booleanValue);
+            // Run's caption naming the hold, not Run disabled alone: Run is also off until the first check comes back,
+            // and a hold that ends before any tick has seen it leaves the window nothing to read on its end
+            heldSeen = HELD_BY_ANOTHER.equals(window.awaiting(root -> WindowForTests.caption(root, "run-captioned"),
+                    HELD_BY_ANOTHER::equals));
             // the holder writes the file before it ends, as an invocation does with its closing line
             wants(working, THE_SECONDS);
             holder.destroyForcibly().waitFor();

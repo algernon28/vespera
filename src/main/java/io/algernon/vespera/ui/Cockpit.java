@@ -176,6 +176,8 @@ final class Cockpit {
     private boolean keepsARun;
     /** Set while the list is read again, so that clearing its selection is not a choice. */
     private boolean readingEarlier;
+    /** The number of the list's last reading begun; a reading that comes back after a later one began is dropped. */
+    private long earlierReading;
 
     /** The status line and the stale mark of the invocation watched, which stand in the header (ADR-432 §8). */
     private final InvocationsStatusLine live = new InvocationsStatusLine();
@@ -1205,16 +1207,42 @@ final class Cockpit {
         return box;
     }
 
-    /** Reads the list again for the working directory chosen, nothing chosen as it is read (ADR-439 §6, §7). */
+    /**
+     * Reads the list again for the working directory chosen, nothing chosen as it is read (ADR-439 §6, §7). The copies
+     * in {@code logs}, which nothing removes, are read on a thread of their own, each once, and the rows put in place on
+     * the toolkit's thread; a reading begun before a later one is dropped.
+     */
     private void readEarlierDeliverables() {
         Optional<Path> folder = workingDirectory();
         earlierRead = folder;
+        long reading = ++earlierReading;
+        // emptied at once, so that no row of the folder read before stays chosen while this reading is out
         readingEarlier = true;
         try {
             earlierDeliverables.getSelectionModel().clearSelection();
-            earlierDeliverables.getItems().setAll(
-                    folder.map(each -> EarlierDeliverable.of(each, ZoneId.systemDefault())).orElse(List.of()));
-            keepsARun = folder.map(EarlierDeliverable::keepsARunsReport).orElse(false);
+            earlierDeliverables.getItems().clear();
+            keepsARun = false;
+        } finally {
+            readingEarlier = false;
+        }
+        Thread.ofPlatform().daemon().name("the control panel reads the earlier deliverables").start(() -> {
+            EarlierDeliverable.Listing listing = folder
+                    .map(each -> EarlierDeliverable.read(each, ZoneId.systemDefault()))
+                    .orElse(EarlierDeliverable.Listing.NONE);
+            Platform.runLater(() -> showEarlierDeliverables(reading, listing));
+        });
+    }
+
+    /** Puts a reading's rows in place, nothing chosen, where no later reading has begun since. */
+    private void showEarlierDeliverables(long reading, EarlierDeliverable.Listing listing) {
+        if (reading != earlierReading) {
+            return;
+        }
+        readingEarlier = true;
+        try {
+            earlierDeliverables.getSelectionModel().clearSelection();
+            earlierDeliverables.getItems().setAll(listing.rows());
+            keepsARun = listing.keepsARun();
         } finally {
             readingEarlier = false;
         }
