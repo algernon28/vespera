@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.engine.corpus.DetectedFormat;
 import io.algernon.vespera.TestcontainersConfiguration;
+import io.algernon.vespera.engine.pipeline.DockerEngineForIntegrationTests;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -22,6 +23,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -53,6 +55,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * pipeline and {@code .docx} through its simple one (ADR-070's confidence finding rests on exactly
  * that split), so a single format would leave the other pipeline's response shape unread.
  */
+@ExtendWith(DockerEngineForIntegrationTests.class)
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
 @ActiveProfiles("test")

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.algernon.vespera.Adr;
 import io.algernon.vespera.TestcontainersConfiguration;
+import io.algernon.vespera.engine.pipeline.DockerEngineForIntegrationTests;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
@@ -13,6 +14,7 @@ import io.qameta.allure.Story;
 import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,6 +44,7 @@ import org.testcontainers.ollama.OllamaContainer;
  * <p>An integration test, so {@code *IT} and failsafe rather than surefire (ADR-052): it needs a
  * Docker daemon, and it pulls a model, which is why it is not in the unit suite.
  */
+@ExtendWith(DockerEngineForIntegrationTests.class)
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("test")

@@ -13,6 +13,8 @@
 > **Partly amended — see [ADR-433](0433-docling-and-ollama-are-containers-where-vespera-runs-them-and-never-sidecars-and-the-earlier-names-are-still-honoured.md).** Of §1: the distribution is `vespera.containers.wsl-distribution`, `VESPERA_CONTAINERS_WSL_DISTRIBUTION` in the environment; `vespera.sidecars.wsl-distribution` is still read where the new name is not set, in one line at WARN, until a later major release.
 >
 > **Partly amended — see [ADR-437](0437-start-dockers-and-shut-down-dockers-lines-are-shown-in-the-output-panel-as-each-is-logged.md).** Of §4: `DockerEngine` gains forms of `keepTheWslDistributionUp`, `startTheContainers` and `shutDown` taking a `Consumer<String>` told each line logged, its surface still primitives, `java.base` types and itself. Of §5: *Shut down Docker*, answered to go on, empties the output panel and shows there `Stopping the containers: <command>`, `Stopping the Docker engine: <command>` and what each printed, then its line. The rest of this record stands.
+>
+> **Partly amended — see [ADR-441](0441-the-docker-integration-tests-start-the-engine-where-it-does-not-answer-and-stop-it-after-them-only-where-they-started-it.md).** Of §7: the integration tests that need Docker bring the engine in through `DockerEngineForIntegrationTests`, which starts it where it does not answer and, where they started it, removes their test containers and runs the shut-down after the last of them; a test that needs no Docker still keeps Docker out by naming both containers on a host under `.invalid`.
 
 - **Date**: 2026-11-14
 - **Status**: accepted on 2026-11-14.

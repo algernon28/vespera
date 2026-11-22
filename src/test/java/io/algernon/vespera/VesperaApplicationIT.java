@@ -1,5 +1,6 @@
 package io.algernon.vespera;
 
+import io.algernon.vespera.engine.pipeline.DockerEngineForIntegrationTests;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Link;
@@ -7,6 +8,7 @@ import io.qameta.allure.Story;
 import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -21,7 +23,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * {@code contextLoads} asserts nothing itself — the test fails only if the context cannot be built.
  * That is a low bar, but it is the bar that catches the failures this project's dependency set is
  * prone to: a starter on the classpath whose auto-configuration demands a schema that does not
- * exist. Requires a running Docker daemon.
+ * exist. Requires a Docker daemon, which {@link DockerEngineForIntegrationTests} starts where it is not running.
  * <p>
  * Starting contacts no container: neither Ollama's clients nor docling-serve's reach anything while the
  * context starts.
@@ -30,6 +32,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * {@code ApplicationModules.verify()} and, unlike that call alone, also catches a module that ships
  * with no {@code allowedDependencies} declaration.
  */
+@ExtendWith(DockerEngineForIntegrationTests.class)
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
 @ActiveProfiles("test")

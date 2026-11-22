@@ -3297,6 +3297,16 @@ public final class Adr {
     public static final String THE_PREFLIGHT_IS_THE_FOLDERS_AND_THEIR_HOLDERS_A_HOLDER_SAID_ONCE_IN_WORDS = FILE
             + "0440-the-preflight-section-is-the-folders-and-their-holders-a-row-each-of-a-name-a-mark-and-words-a-holder-said-once.md";
 
+    /**
+     * ADR-441 -- the Docker integration tests start the engine where it does not answer, and stop it after them only
+     * where they started it: the engine is theirs where it did not answer when first asked and answers afterwards; the
+     * WSL distribution, the wait and the lock folder are read as the jar reads them; this JVM's test containers are
+     * removed before the stop; and an invocation on an engine the tests started is stopped with it (amends ADR-323 §1
+     * and ADR-390 §7).
+     */
+    public static final String THE_INTEGRATION_TESTS_STOP_ONLY_THE_ENGINE_THEY_STARTED = FILE
+            + "0441-the-docker-integration-tests-start-the-engine-where-it-does-not-answer-and-stop-it-after-them-only-where-they-started-it.md";
+
     private Adr() {
     }
 }
