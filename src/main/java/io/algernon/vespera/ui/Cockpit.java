@@ -1216,6 +1216,15 @@ final class Cockpit {
         Optional<Path> folder = workingDirectory();
         earlierRead = folder;
         long reading = ++earlierReading;
+        // emptied at once, so that no row of the folder read before stays chosen while this reading is out
+        readingEarlier = true;
+        try {
+            earlierDeliverables.getSelectionModel().clearSelection();
+            earlierDeliverables.getItems().clear();
+            keepsARun = false;
+        } finally {
+            readingEarlier = false;
+        }
         Thread.ofPlatform().daemon().name("the control panel reads the earlier deliverables").start(() -> {
             EarlierDeliverable.Listing listing = folder
                     .map(each -> EarlierDeliverable.read(each, ZoneId.systemDefault()))

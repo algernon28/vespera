@@ -97,8 +97,11 @@ final class OutputPanel {
         @Override
         public void accept(String line) {
             // queued with its id, and dropped as it is taken where its press is no longer shown: a check here and an
-            // add after it would let a line in that a reset between the two should have dropped
-            notShownYet.add(new Told(id, line));
+            // add after it would let a line in that a reset between the two should have dropped. A line of a press
+            // already replaced is dropped here too, so that none waits in the queue while a child is shown
+            if (press == id) {
+                notShownYet.add(new Told(id, line));
+            }
         }
     }
 
