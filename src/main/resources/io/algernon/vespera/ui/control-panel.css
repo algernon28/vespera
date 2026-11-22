@@ -688,3 +688,167 @@
 .preflight-mark.ko {
     -fx-text-fill: -vespera-ending;
 }
+
+/*
+ * The Architecture window (ADR-442): the reference picture's colours, a kind each, drawn with the themes' series
+ * tokens of the same hues, which each theme sets at 3:1 or more against the surface: stages violet, containers blue,
+ * inputs, storage and outputs green, control and the human gates orange, connectors pink. Every part is filled with
+ * the surface, a running one with the rule's colour, and every text is in the ink colour, at 4.5:1 or more in either
+ * theme; a state is told by an outline and a word as well as a colour (section 5).
+ */
+.architecture-top {
+    -fx-padding: 8px 12px;
+    -fx-spacing: 6px;
+}
+
+.architecture-switches {
+    -fx-spacing: 8px;
+}
+
+.architecture-scroll,
+.architecture-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.architecture-drawing .selectable-text {
+    -fx-font-size: 11px;
+}
+
+.architecture-drawing .architecture-title,
+.architecture-drawing .architecture-number,
+.architecture-drawing .architecture-words,
+.architecture-drawing .architecture-group-title {
+    -fx-font-weight: bold;
+}
+
+.architecture-drawing .architecture-group-title {
+    -fx-font-size: 13px;
+}
+
+.architecture-texts {
+    -fx-spacing: 1px;
+    -fx-padding: 4px;
+}
+
+.architecture-row {
+    -fx-spacing: 10px;
+}
+
+.architecture-group {
+    -fx-border-width: 2px;
+    -fx-border-radius: 10px;
+}
+
+.architecture-part {
+    -fx-background-color: -vespera-surface;
+    -fx-background-radius: 7px;
+}
+
+.architecture-outline {
+    -fx-border-width: 1.5px;
+    -fx-border-radius: 7px;
+}
+
+.architecture-group.kind-input, .architecture-group.kind-store, .architecture-group.kind-output,
+.architecture-part.kind-input > .architecture-outline, .architecture-part.kind-store > .architecture-outline,
+.architecture-part.kind-output > .architecture-outline {
+    -fx-border-color: -vespera-series-3;
+}
+
+.architecture-group.kind-stage, .architecture-part.kind-stage > .architecture-outline {
+    -fx-border-color: -vespera-series-6;
+}
+
+.architecture-part.kind-control > .architecture-outline, .architecture-part.kind-gate > .architecture-outline {
+    -fx-border-color: -vespera-series-2;
+}
+
+.architecture-group.kind-control {
+    -fx-border-color: -vespera-faint;
+}
+
+.architecture-group.kind-container, .architecture-part.kind-container > .architecture-outline {
+    -fx-border-color: -vespera-series-1;
+}
+
+.architecture-group.kind-connector, .architecture-part.kind-connector > .architecture-outline {
+    -fx-border-color: -vespera-series-5;
+}
+
+/* the legend's swatches: each kind's colour, filled */
+.architecture-swatch.kind-stage {
+    -fx-background-color: -vespera-series-6;
+}
+
+.architecture-swatch.kind-container {
+    -fx-background-color: -vespera-series-1;
+}
+
+.architecture-swatch.kind-store {
+    -fx-background-color: -vespera-series-3;
+}
+
+.architecture-swatch.kind-gate {
+    -fx-background-color: -vespera-series-2;
+}
+
+.architecture-swatch.kind-connector {
+    -fx-background-color: -vespera-series-5;
+}
+
+.architecture-legend {
+    -fx-background-color: -vespera-surface;
+    -fx-border-color: -vespera-rule;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+}
+
+/* the states (section 5): running thick in the accent on the rule's fill, finished thicker, failed dashed, stopped dotted, at a gate double, down faint */
+.architecture-part.lit-running {
+    -fx-background-color: -vespera-rule;
+}
+
+.architecture-part.lit-running > .architecture-outline {
+    -fx-border-color: -vespera-accent;
+    -fx-border-width: 4px;
+}
+
+.architecture-part.lit-finished > .architecture-outline {
+    -fx-border-width: 2.5px;
+}
+
+.architecture-part.lit-failed > .architecture-outline {
+    -fx-border-color: -vespera-bad;
+    -fx-border-width: 3px;
+    -fx-border-style: segments(6, 3);
+}
+
+.architecture-part.lit-stopped > .architecture-outline {
+    -fx-border-color: -vespera-faint;
+    -fx-border-width: 3px;
+    -fx-border-style: segments(2, 3);
+}
+
+.architecture-part.lit-gate > .architecture-outline {
+    -fx-border-color: -vespera-series-2, -vespera-series-2;
+    -fx-border-width: 2px, 2px;
+    -fx-border-insets: 0, 4px;
+    -fx-border-radius: 7px, 4px;
+}
+
+.architecture-part.lit-down > .architecture-outline {
+    -fx-border-color: -vespera-faint;
+}
+
+/* a wire, and one carrying data (section 6): dashed in the accent, its dashes moved by the window's one timeline */
+.architecture-wire {
+    -fx-stroke: -vespera-faint;
+    -fx-stroke-width: 1.5px;
+    -fx-fill: transparent;
+}
+
+.architecture-wire.flowing {
+    -fx-stroke: -vespera-accent;
+    -fx-stroke-width: 3px;
+    -fx-stroke-dash-array: 7 5;
+}

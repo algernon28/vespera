@@ -300,7 +300,8 @@ class EveryTextOfTheWindowCanBeCopiedTest {
         claim("Run, Stop and Save my labels are buttons", () -> assertThat(buttons).containsOnly(Button.class));
         claim("the sidebar's section titles are the titled panes' own",
                 () -> assertThat(sections).containsExactly("Profile", "Preflight", "Folders", "Services",
-                        "Seed folder", "Topics", "Labels", "Code sets", "Outputs", "Command options", "Reports"));
+                        "Seed folder", "Topics", "Labels", "Code sets", "Outputs", "Command options", "Reports",
+                        "Architecture"));
         claim("each leg's name and state are labels, and lie in the header of the leg's titled pane",
                 () -> {
                     assertThat(legTexts).hasSize(2 * Legs.ALL.size());

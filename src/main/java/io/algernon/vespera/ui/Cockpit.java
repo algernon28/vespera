@@ -144,6 +144,7 @@ final class Cockpit {
     private final InclusionsPane inclusions;
     private final ProfileForm profile;
     private final ProfileWindow profileWindow;
+    private final ArchitectureWindow architectureWindow;
     private final Button openProfile = new Button("Open profile");
     private final Button outcomeOpenProfile = new Button("Open profile");
     private final WantedValues wanted;
@@ -224,6 +225,10 @@ final class Cockpit {
             root.getStyleClass().add("dark");
         }
         this.profileWindow = new ProfileWindow(profile, root, dialogs);
+        // the Architecture window lights from what the cockpit reads, and from nothing of its own (ADR-442 §3)
+        this.architectureWindow = new ArchitectureWindow(root,
+                () -> ArchitectureWindow.childOf(startedKind, state, () -> plan().destinations()), () -> lastCheck,
+                () -> ArchitectureWindow.gpuInUse(fieldValues().doclingImage(), state.sources()));
         root.setLeft(sidebarPane());
         // the download panel floats over the content at its top right and moves nothing beneath it (ADR-430 §7)
         StackPane over = new StackPane(mainPane(), downloads.node());
@@ -998,6 +1003,12 @@ final class Cockpit {
         section("outputs", "Outputs", outputs.pane());
         section("command-options", "Command options", options.pane());
         section("reports", "Reports", reports.pane());
+        Button openArchitecture = new Button("Open the architecture");
+        openArchitecture.setId("open-architecture");
+        openArchitecture.setOnAction(event -> architectureWindow.open());
+        VBox architecturePane = new VBox(openArchitecture);
+        architecturePane.getStyleClass().add("section");
+        section("architecture", "Architecture", architecturePane);
         sidebar.setExpandedPane(sections.get("folders"));
         ScrollPane scroll = new ScrollPane(sidebar);
         scroll.setFitToWidth(true);
@@ -2073,9 +2084,11 @@ final class Cockpit {
             }
             outputPanel.fileNamedBy(folder, invocation.id(), state::letGo);
             // a child that ended before its last write leaves no step of its report running (ADR-387 section 1)
-            steps.show(report, childEnded && endingOfItsChild.isPresent() && !report.ended()
+            String endedAs = childEnded && endingOfItsChild.isPresent() && !report.ended()
                     ? endingOfItsChild.get().howItEnded() == HowItEnded.STOPPED ? StepsChart.STOPPED : StepsChart.FAILED
-                    : null);
+                    : null;
+            steps.show(report, endedAs);
+            architectureWindow.show(report, endedAs);
             live.shows(report, Instant.now(), childEnded);
             return true;
         } catch (InvocationReportFile.FormatNotKnownException notKnown) {
@@ -2102,5 +2115,6 @@ final class Cockpit {
         clock.stop();
         profileWindow.close();
         analysisReportsWindow.close();
+        architectureWindow.close();
     }
 }
