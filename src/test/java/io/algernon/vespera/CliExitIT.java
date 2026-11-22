@@ -273,6 +273,10 @@ class CliExitIT {
         builder.environment().put("CI", "true");
         builder.environment().putIfAbsent("DISPLAY", ":99");
         builder.environment().put(LOCK_FOLDER_VARIABLE, lockFolder().toString());
+        // On Windows picocli colours its lines wherever TERM or OSTYPE is set, its sign of a Cygwin or MSYS terminal, even
+        // with both streams going to files; a shell such as Git Bash sets them, and the launch would inherit its colours.
+        builder.environment().remove("TERM");
+        builder.environment().remove("OSTYPE");
         Process process = builder.start();
         boolean finished = process.waitFor(EXIT_BOUND_SECONDS, TimeUnit.SECONDS);
         if (!finished) {
