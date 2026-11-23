@@ -197,7 +197,11 @@ class TheGpuImageStartsOnlyWhereDockerHasTheNvidiaRuntimeTest {
                         noNvidiaCard("no NVIDIA graphics card was found on this machine")),
                 new Case("on Linux, an AMD card", HostSystem.LINUX, THE_DEFAULT_DISTRIBUTION,
                         ScriptedDocker.engineRunning().withoutTheNvidiaRuntime().answering(LINUX_CARDS, 0, "0x1002\n"),
-                        List.of(), LINUX_CARDS, noNvidiaCard("this machine's graphics card is AMD's")));
+                        List.of(), LINUX_CARDS, noNvidiaCard("this machine's graphics card is AMD's")),
+                new Case("on Linux, a read that exits 0 naming only a vendor none of the three is, QEMU's standard VGA",
+                        HostSystem.LINUX, THE_DEFAULT_DISTRIBUTION,
+                        ScriptedDocker.engineRunning().withoutTheNvidiaRuntime().answering(LINUX_CARDS, 0, "0x1234\n"),
+                        List.of(), LINUX_CARDS, noNvidiaCard("no NVIDIA graphics card was found on this machine")));
 
         for (Case one : cases) {
             Throwable refused = catchThrowable(() -> starter(one, gpuImage).ensureRunning());

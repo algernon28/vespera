@@ -29,7 +29,8 @@ import java.util.function.Consumer;
  * <p>A command ending in {@link #RUNTIME_CHECK}, as it is or inside {@code wsl}, answers exit 0 with the runtimes an
  * engine the NVIDIA Container Toolkit configured lists, {@code nvidia} among them, unless {@link
  * #withoutTheNvidiaRuntime} took it away (ADR-444 §1). A command given to {@link #runFeeding} is recorded as any other,
- * with what it was fed, {@link #fed}, copied as it was given, and answered as {@link #run} answers it.
+ * with what it was fed, {@link #fed}, copied as it was given, runs what {@link #whenFed} set, and is answered as
+ * {@link #run} answers it.
  */
 final class ScriptedDocker implements ProcessRunner {
 
@@ -67,6 +68,7 @@ final class ScriptedDocker implements ProcessRunner {
     private int engineChecks;
     private ProcessOutcome upAnswers = new ProcessOutcome(0, " Container vespera-docling-serve-1 Started\n");
     private Runnable whenUpSucceeds = () -> {};
+    private Runnable whenFed = () -> {};
 
     /** No {@code docker} command exists on this machine. */
     static ScriptedDocker notInstalled() {
@@ -102,6 +104,12 @@ final class ScriptedDocker implements ProcessRunner {
     /** The engine lists no {@code nvidia} runtime, as one the NVIDIA Container Toolkit never configured (ADR-444 §1). */
     ScriptedDocker withoutTheNvidiaRuntime() {
         nvidiaRuntimeListed = false;
+        return this;
+    }
+
+    /** Runs {@code then} as each command given to {@link #runFeeding} runs, before it is answered (ADR-444 §6). */
+    ScriptedDocker whenFed(Runnable then) {
+        whenFed = then;
         return this;
     }
 
@@ -186,6 +194,7 @@ final class ScriptedDocker implements ProcessRunner {
         commands.add(List.copyOf(command));
         limits.add(timeout);
         fed.add(new Fed(List.copyOf(command), input == null ? null : new String(input)));
+        whenFed.run();
         return answer(command);
     }
 

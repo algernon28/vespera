@@ -66,6 +66,7 @@ final class RecordingDockerControl implements DockerControl {
     private volatile CountDownLatch startHeldUntil = new CountDownLatch(0);
     private volatile CountDownLatch shutDownHeldUntil = new CountDownLatch(0);
     private volatile CountDownLatch checkHeldUntil = new CountDownLatch(0);
+    private volatile CountDownLatch cardCheckHeldUntil = new CountDownLatch(0);
     private volatile List<String> startTells = List.of();
     private volatile List<String> shutDownTells = List.of();
 
@@ -189,10 +190,21 @@ final class RecordingDockerControl implements DockerControl {
         return installSays;
     }
 
+    /**
+     * Holds every check of the graphics card, once it is kept in {@link #cardChecks}, until {@code released} counts
+     * down, as a question of the engine that waits on its commands does (ADR-444 §5).
+     */
+    RecordingDockerControl holdingCardChecksUntil(CountDownLatch released) {
+        cardCheckHeldUntil = released;
+        return this;
+    }
+
     @Override
     public CardCheck graphicsCard(LaunchValues values) {
         cardChecks.add(values);
-        return graphicsCardSays;
+        CardCheck answer = graphicsCardSays;
+        awaitQuietly(cardCheckHeldUntil);
+        return answer;
     }
 
     /** The calls of {@code kind}, in order. */

@@ -17,6 +17,11 @@
   - that the Preflight section says it in rows of ADR-440's shape, asked once while the Docker daemon answers and not at every check (§5);
   - that the install's lines, like the start's, are shown in the output panel as each is logged, as ADR-437 has a press's lines shown (§5, §6);
   - that the install is the NVIDIA Container Toolkit alone, at a version the jar pins, behind one confirmation listing every command (§6);
+  - that on Linux each command runs through `sudo -k -S`, so that `sudo` reads the password line itself at every command and none is left for the command (§6, §8);
+  - that the install holds the containers' lock while its commands run, as the stop and the shut-down do, and lets it go before the start runs again (§6);
+  - the install's line where its lock cannot be taken or a command's output file cannot be written or read (§6);
+  - that the start run again after *Use the CPU image* reads the Services fields as they hold when it runs (§5);
+  - that an answer of the card still being asked when a check finds the daemon not answering is not kept (§5);
   - that a confirmed fallback sets the converter's image field to the CPU image (§7);
   - the commands, their limits and the lines (§1 to §6);
   - the Services section's words (§9);
@@ -119,7 +124,7 @@ Error response from daemon: could not select device driver "nvidia" with capabil
 
 ### Not measured
 
-- the install's commands run through `wsl -u root --exec` or `sudo -S`;
+- the install's commands run through `wsl -u root --exec` or `sudo -k -S`;
 - `bash -c` given its script through `wsl.exe`'s command line;
 - that `nvidia-smi` inside WSL reports the Windows driver's version;
 - `--query-gpu=compute_cap` on a driver older than the query;
@@ -246,7 +251,7 @@ Each line of its output is one card: its name, its driver's version and its comp
 
 **What each answer does:**
 
-- **Use the CPU image**: the converter's image field is set to the CPU image, as its *CPU* choice sets it (§7). The start then runs again, for what the Services fields hold now.
+- **Use the CPU image**: the converter's image field is set to the CPU image, as its *CPU* choice sets it (§7). The start then runs again, for what the Services fields hold now: read as it runs again, so a field the operator edited while the first start ran is the edited one, and not the values the press was given.
 - **Install the toolkit**:
   - On Linux the window first asks for the password (§8). Cancelled, nothing is installed and the refusal's line is the press's.
   - The install runs (§6), on the press's thread. *Start Docker*, Run and Auto Label stay disabled while it runs, as while a start runs (ADR-430 §5, §6).
@@ -277,6 +282,7 @@ The marks and the grid are ADR-440 §2's; a warning's words are cut with an elli
 
 - **Asked once.** When a check of ADR-430 §3 that found the Docker daemon *OK* comes back, the converter's image field names the GPU image and the window keeps no answer of the card, the window asks `DockerControl.graphicsCard` for the launch values that check was for, off the toolkit's thread, and keeps what it answers, a runtime unknown included.
 - **Asked again** only after the answer kept is dropped: where a check comes back with the daemon other than *OK*, and where a press of *Start Docker* returns, an install among it.
+- **An answer that comes back after a drop is not kept.** Where such a check comes back, or such a press returns, while the card is still being asked, the answer it gives is thrown away when it comes back, and the next check that finds the daemon *OK* asks again.
 - **What is asked.** `graphicsCard` asks the engine only where ADR-430 §3's commands, which start nothing, find it answering. So it boots no WSL distribution and starts no engine. It asks the runtime (§1) and, where it is listed, the query of §4; it reads no card where the runtime is not listed. On macOS it asks nothing, and its runtime is unknown.
 
 **Why once, and not at each check.** The answer changes only with an install or a restart of Docker, and `wsl -u root --exec docker info` twelve times a minute would ask that for nothing. A daemon that stopped answering, or a press, is when it may have changed.
@@ -299,14 +305,32 @@ systemctl restart docker
 **How each is run:**
 
 - **On Windows**, inside the distribution as root: `wsl [-d <distribution>] -u root --exec <command>`. Nothing is written on its standard input.
-- **On Linux**, through `sudo`: `sudo -S <command>`. Its standard input is given the password the operator typed and one line end, an empty line where none was typed (§8).
+- **On Linux**, through `sudo`: `sudo -k -S <command>`. Its standard input is given the password the operator typed and one line end, an empty line where none was typed (§8).
 - **On macOS** nothing is run, and the install answers *Vespera installs the NVIDIA Container Toolkit on Windows and Linux alone.*
+
+**Why `-k`.** With no terminal, `sudo`'s default `timestamp_type=tty` keys its cached credentials on the parent process, which is the same JVM for all eight commands. Without `-k`, every `sudo` after the first would use the cache and read nothing. The password line would then stay on the standard input that `apt-get`, `dpkg`, `bash`, `nvidia-ctk` and `systemctl` inherit. `-k` given with a command makes `sudo` ignore the cache for that command, so it asks, and reads the line, every time.
+
+**What `-k` leaves.** A sudoers rule granting the user `NOPASSWD` asks for no password, so `sudo` reads nothing and the line passes to the command's standard input. The commands read no password there; the line is the operator's own password, given to their own commands, and is not shown, logged or kept by Vespera.
+
+**The lock.** The install holds the containers' lock, `containers.lock` with the earlier `sidecars.lock` beside it, as the stop of the containers and the shut-down do (ADR-390 §3, ADR-433 §6), from before its first command until it returns, done or not. Its last command restarts Docker, which no start, stop or other Vespera may run beside. It waits for its own lock held by another process, as they do. It lets both go as it returns, before the start that runs again takes them (§5). On macOS it takes none.
 
 **`bash -c` for the two pipelines** is so that `pipefail` fails a download whose `curl` fails. A plain `sh` would give the exit of the last command of the pipe, and the key or the list would be written empty. The scripts are the jar's, and no value the operator gave is put into them.
 
 **The first command that does not exit 0 ends the install.** That includes a command killed at its limit, and a program that cannot be started, which counts as exit 127 with its reason (ADR-390 §2). Nothing after it is run, and the line is:
 
 > The NVIDIA Container Toolkit was not installed: &lt;command, as listed&gt; exited &lt;code&gt;: &lt;last line&gt;. Nothing after it was run.
+
+**A lock that cannot be taken**, ADR-433 §6's earlier lock held or either file not opened or locked, ends the install before its first command, in:
+
+> The NVIDIA Container Toolkit was not installed: &lt;why&gt;. Nothing was run.
+
+`<why>` is the words ADR-390 §6's and ADR-433 §6's lines give the lock, as the shut-down's line has them: *an earlier version of Vespera holds the lock file &lt;path&gt;*, or the file that cannot be used and why.
+
+**An output file that cannot be written or read** (ADR-326) for a command ends the install at that command, in:
+
+> The NVIDIA Container Toolkit was not installed: &lt;why&gt;. Nothing after it was run.
+
+`<why>` is ADR-326's words for the file.
 
 **Done**, every command having exited 0:
 
@@ -353,16 +377,16 @@ On Linux, *Install the toolkit* first asks through `Dialogs.secret`:
 The details:
 
 - **What the window holds.** What is typed comes to the window as a `char[]`, which the window hands to `DockerControl.installTheNvidiaToolkit` and does not keep. The field is cleared once the dialog closes.
-- **Where it goes.** The install writes it, followed by a line end, on the standard input of each `sudo -S` it starts (§6), and nowhere else:
+- **Where it goes.** The install writes it, followed by a line end, on the standard input of each `sudo -k -S` it starts (§6), and nowhere else:
   - not in a command line or an environment variable;
   - not in a log line, a line told, the output panel, the invocation report or `effective-values.properties`;
   - not in the launch values file, the profile, or any file;
   - never shown in the window.
 - **Once the install has returned**, done or not, every character of the array is set to `\0`.
-- **What cannot be cleared.** JavaFX's `PasswordField` holds what is typed as a `String`. The field is cleared, and the string is left to the garbage collector; Java gives no way to clear it.
+- **What cannot be cleared.** JavaFX's `PasswordField` holds what is typed as a `String`. The field is cleared, and the string is left to the garbage collector; Java gives no way to clear it. The same holds of the bytes written to a command's standard input: the `Process`'s output stream is a `BufferedOutputStream` whose buffer keeps a copy of them, which no public member reaches, and which is left to the garbage collector with the process.
 - **The jar holds no credential** (ADR-359's rule for the Confluence token stands): the password is typed into the window and used once.
 
-**Why `sudo -S` on standard input.** A password on a command line is read by every process of the machine, and one in the environment by every child. On standard input it reaches `sudo` alone. `-S` is how `sudo` takes it with no terminal.
+**Why `sudo -k -S` on standard input.** A password on a command line is read by every process of the machine, and one in the environment by every child. On standard input it reaches `sudo`, which reads the line before it starts the command, `-k` making it read it at every command (§6); only under a `NOPASSWD` rule does it reach the command instead (§6). `-S` is how `sudo` takes it with no terminal.
 
 ### 9. Words
 
@@ -382,7 +406,7 @@ The details:
 - `ProcessRunner` gains `ProcessOutcome runFeeding(List<String> command, Duration timeout, char[] input)`: as `run`, with `input` written on the command's standard input, encoded as UTF-8, and the input closed. A null `input` writes nothing and closes it.
 - `NvidiaRuntimeIsMissingException` and `NoNvidiaCardException`, each extending `ContainerStartRefusedException` (§2, §3).
 - `ContainerStarter` gains:
-  - `String installTheNvidiaToolkit(char[] sudoPassword)`: §6, its line, done or not, the done line being `ContainerStarter.NVIDIA_TOOLKIT_INSTALLED`; the array cleared on return; a starter made by `telling` tells §6's lines;
+  - `String installTheNvidiaToolkit(char[] sudoPassword)`: §6, under the containers' lock, its line, done or not, the done line being `ContainerStarter.NVIDIA_TOOLKIT_INSTALLED`; the array cleared on return; a starter made by `telling` tells §6's lines;
   - `List<String> nvidiaToolkitCommands()`: §6's commands as listed, none on macOS;
   - `Optional<Boolean> nvidiaRuntimeListedStartingNothing()`;
   - `List<String> graphicsCardWarningsStartingNothing()`.
@@ -466,29 +490,32 @@ The operator's *Use the CPU image* names another extractor, so the next run mint
 | Method | What it holds |
 |---|---|
 | `pipeline.TheGpuImageStartsOnlyWhereDockerHasTheNvidiaRuntimeTest.whereTheRuntimeIsMissingTheStartIsRefusedBeforeUpNamingTheToolkitAndTheCpuImage` | §1 to §3: on Windows with a distribution named and with the default one, and on Linux, an NVIDIA card read or no card read, `NvidiaRuntimeIsMissingException` in §2's line, whole, after exactly the engine check, the checks for Compose and buildx, the runtime check and the read of the cards, and no `up` |
-| `pipeline.TheGpuImageStartsOnlyWhereDockerHasTheNvidiaRuntimeTest.aMachineWhoseCardIsNotNvidiasIsToldItRunsOnTheProcessor` | §3: AMD's, Intel's, both, and none of the three, on Windows and Linux: `NoNvidiaCardException` in §3's line, whole, and no `up` |
+| `pipeline.TheGpuImageStartsOnlyWhereDockerHasTheNvidiaRuntimeTest.aMachineWhoseCardIsNotNvidiasIsToldItRunsOnTheProcessor` | §3: AMD's, Intel's, both, and none of the three, on Windows and Linux, a read exiting 0 naming no vendor of the three among them: `NoNvidiaCardException` in §3's line, whole, and no `up` |
 | `pipeline.TheGpuImageStartsOnlyWhereDockerHasTheNvidiaRuntimeTest.onMacosTheGpuImageIsRefusedBeforeAnyCommand` | §3: on macOS, §3's line naming macOS, and no command run |
 | `pipeline.TheGpuImageStartsOnlyWhereDockerHasTheNvidiaRuntimeTest.whereTheRuntimeIsListedTheCardsAreAskedAndUpNamesBothFiles` | §1, §4: on Windows and Linux, the runtime check, then the card query, then `up` naming both files; each check given 30 s |
 | `pipeline.TheGpuImageStartsOnlyWhereDockerHasTheNvidiaRuntimeTest.anOldDriverOrACardBeforeTuringIsWarnedAndTheStartGoesOn` | §4: a driver under each system's floor and a compute capability under 7.5 give their lines at WARN, whole, each told too, and `up` still runs; a card above both, and a query that fails, say nothing |
 | `pipeline.TheGpuImageStartsOnlyWhereDockerHasTheNvidiaRuntimeTest.theCpuImageAsksNothingOfTheCard` | §1: the CPU image, no runtime check and no query |
 | `pipeline.TheGpuImageStartsOnlyWhereDockerHasTheNvidiaRuntimeTest.theControlPanelTellsTheTwoRefusalsFromEveryOther` | §10: `DockerEngine.offersTheNvidiaToolkit` true for §2's line, false for §3's, empty for ADR-410's and ADR-323's |
 | `pipeline.TheNvidiaToolkitIsInstalledAsRootTest.onWindowsEachCommandRunsAsRootInsideTheDistributionWithNothingOnItsInput` | §6: the eight commands, whole and in order, inside the distribution named, nothing fed, each given 10 minutes; the done line |
-| `pipeline.TheNvidiaToolkitIsInstalledAsRootTest.onLinuxEachCommandRunsThroughSudoFedThePasswordOnItsInputAndNowhereElse` | §6, §8: `sudo -S` before each command, each fed the password and a line end; exactly the eight `Installing …` lines told; no command word, no line told and no logged line holds it; the array all `\0` after |
+| `pipeline.TheNvidiaToolkitIsInstalledAsRootTest.onLinuxEachCommandRunsThroughSudoFedThePasswordOnItsInputAndNowhereElse` | §6, §8: `sudo -k -S` before each command, `-k` claimed on its own, each fed the password and a line end; exactly the eight `Installing …` lines told; no command word, no line told and no logged line holds it; the array all `\0` after |
 | `pipeline.TheNvidiaToolkitIsInstalledAsRootTest.theFirstCommandThatFailsEndsTheInstallAndItsLineNamesIt` | §6, §8: a command exiting 100, `sudo` refusing the password, and a program not found as exit 127, each ending the install at that command, in the line, whole, the lines told exactly each command run and what it printed; the array cleared |
+| `pipeline.TheNvidiaToolkitIsInstalledAsRootTest.theInstallHoldsTheContainersLockWhileItRunsAndLetsItGoBeforeTheStartRunsAgain` | §6: while each of the eight commands runs, `containers.lock` and `sidecars.lock` held by this process; both free once it returns; the earlier lock held, the lock's line, whole, no command run, the array cleared |
 | `pipeline.TheNvidiaToolkitIsInstalledAsRootTest.theCommandsListedAreTheOnesRunAtThePinnedVersionAndMacosInstallsNothing` | §6, §10: the listed commands, whole, with `1.20.2-1`; on macOS none listed, its line, and no command run |
 | `ui.TheGraphicsCardQuestionTest.aStartRefusedForTheMissingRuntimeAsksWithTheCommandsAndBothWaysOn` | §5: the question's title, sentence and three answers, whole; closed with none, the refusal's line in `outcome` and nothing more run |
 | `ui.TheGraphicsCardQuestionTest.useTheCpuImageSetsTheImageFieldAndStartsAgainForIt` | §5, §7: the field reads the CPU image, a second start given it, no install |
+| `ui.TheGraphicsCardQuestionTest.theStartAfterUseTheCpuImageIsForWhatTheServicesFieldsHoldThen` | §5: the Docling address edited while the first start is held; *Use the CPU image* answered; the second start for the CPU image and the edited address, the first for neither |
 | `ui.TheGraphicsCardQuestionTest.installTheToolkitOnWindowsAsksNoPasswordAndStartsAgainOnceInstalled` | §5, §6: one install, no password asked, then a second start; the done line shown; the output panel exactly the first start's lines, the install's, the second start's and the done line; a start refused again for the card not asked twice |
 | `ui.TheGraphicsCardQuestionTest.onLinuxTheInstallAsksThePasswordInASecretFieldAndKeepsItNowhere` | §5, §8: the secret's title, sentence and answers; the install given what was typed; no file under the test's folder and no text of the window holds it; cancelled, no install and the refusal's line |
 | `ui.TheGraphicsCardQuestionTest.aCardThatIsNotNvidiasOffersTheCpuImageAlone` | §5: §3's question, its two answers, whole |
 | `ui.TheGraphicsCardQuestionTest.thePreflightSectionSaysWhetherDockerHasTheNvidiaRuntimeAskingOnceWhileTheDaemonAnswers` | §5: for the GPU image with the daemon *OK*, the rows `graphics-card`, *KO*, its words and caption, and its warning's row after `working-directory`, the card asked once over later checks; for the CPU image, no such row; after a check with the daemon *KO*, the GPU image again, asked a second time, the row *OK* with its words |
+| `ui.TheGraphicsCardQuestionTest.anAnswerOfTheCardStillBeingAskedWhenDockerStopsAnsweringIsNotKept` | §5: the card's question held, a check finding the daemon *KO* comes back, the question then answered: no row of the card while the daemon stays *KO*; once it answers, the card asked a second time and its row that answer's |
 | `ui.TheGraphicsCardQuestionTest.theServicesSectionSaysTheGpuImageIsForNvidiasCardsAlone` | §9: the two choices' words |
 
 Amended:
 
-- **`ScriptedDocker`** answers the runtime check as listed unless `withoutTheNvidiaRuntime`, and records what `runFeeding` is fed.
+- **`ScriptedDocker`** answers the runtime check as listed unless `withoutTheNvidiaRuntime`, records what `runFeeding` is fed, and runs what `whenFed` sets as each fed command runs.
 - **`NoCommandOpensAnythingTest`**'s runner passes `runFeeding` to it.
-- **`RecordingDockerControl`** answers `cardRefused`, `installTheNvidiaToolkit` and `graphicsCard` as a test scripts them, an install telling the lines `tellingOnEachInstall` sets, and its starts in turn.
+- **`RecordingDockerControl`** answers `cardRefused`, `installTheNvidiaToolkit` and `graphicsCard` as a test scripts them, an install telling the lines `tellingOnEachInstall` sets, a check of the card held until `holdingCardChecksUntil` releases it, and its starts in turn.
 - **`AnsweringDialogs`** answers `secret`.
 - **`PipelineHoldsOnlyTheRulesOnRecordTest`** lists the two exceptions.
 
@@ -503,13 +530,14 @@ Beside turning the tests above green:
   - the check between `checkComposeAndBuildx` and `bringUp`, for the GPU image alone;
   - macOS's refusal where the image is found to be the GPU file's;
   - the warnings at WARN, told;
-  - its four new methods (§10), the install's lines logged and told.
+  - its four new methods (§10), the install's lines logged and told;
+  - `sudo -k -S` on Linux, and the install under the containers' lock, with its line where the lock cannot be taken.
 - **The two exceptions** and their lines.
 - **`ProcessRunner.runFeeding`**, and `SystemProcessRunner`'s, writing the input and closing it.
 - **`DockerEngine`**'s members (§10).
 - **`DockerControl`**'s records, its three methods and `inProcess`'s and `NONE`'s answers. `cardRefused` reads `why` as the line's first sentence and the rest from `DockerEngine`.
 - **`Dialogs.secret`**, over a `PasswordField`, cleared once it closes.
-- **The window**: *Start Docker*'s question and its answers, the install on the press's thread, the press's lines and its line in the output panel, and the Preflight rows, the card asked once while the daemon answers and the answer dropped as §5 has it.
+- **The window**: *Start Docker*'s question and its answers, the install on the press's thread, the press's lines and its line in the output panel, and the Preflight rows, the card asked once while the daemon answers and the answer dropped as §5 has it, one coming back after a drop not kept; and the start after *Use the CPU image* for the fields as they hold then.
 - **The Services section's words.**
 
 The README, `CONTEXT.md`, `docs/architecture.md`, the notes at the heads of the records amended, and `PipelineHoldsOnlyTheRulesOnRecordTest`'s lines change with this record.

@@ -3322,7 +3322,7 @@ public final class Adr {
      * ADR-444 -- for the GPU image, the start asks the Docker engine for its nvidia runtime before {@code up} and refuses
      * where it is not listed, naming NVIDIA's toolkit and the CPU image, or saying that an AMD or Intel card runs on the
      * CPU image; a driver or a card too old only warns; Start Docker asks the operator to use the CPU image or to install
-     * the NVIDIA Container Toolkit, as root through {@code wsl -u root} on Windows and {@code sudo -S} on Linux with a
+     * the NVIDIA Container Toolkit, as root through {@code wsl -u root} on Windows and {@code sudo -k -S} on Linux with a
      * password typed in a secret field and kept nowhere, the install's lines shown as the press's; the Preflight section
      * gains a row of the runtime (amends ADR-410, ADR-390 §1 to §3, ADR-421's Consequences, ADR-323 §3 and §8, ADR-430
      * §5 and §12, ADR-437 §1, §4 and §7, ADR-440 §1 and §8 and ADR-344's words of the converter's image).

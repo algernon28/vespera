@@ -18,6 +18,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Stream;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -146,6 +147,9 @@ class TheGraphicsCardQuestionTest {
 
     private static final String LISTED = "Docker has the nvidia runtime";
 
+    /** A Docling address the operator types while a start runs: another port of this machine. */
+    private static final String AN_EDITED_DOCLING = "http://localhost:5002";
+
     private static final String NOT_LISTED_CAPTION = "The GPU image starts only where Docker has the nvidia runtime,"
             + " which the NVIDIA Container Toolkit gives it.";
 
@@ -222,6 +226,42 @@ class TheGraphicsCardQuestionTest {
         claim("the first start for the GPU image, the second for the CPU image",
                 () -> assertThat(docker.of("start")).extracting(call -> call.values().orElseThrow().doclingImage())
                         .containsExactly(StartingValues.DOCLING_IMAGE_GPU, StartingValues.DOCLING_IMAGE_CPU));
+    }
+
+    @Test
+    @Story("The control panel asks before it takes the CPU image or installs NVIDIA's toolkit")
+    @DisplayName("The start after Use the CPU image is for what the Services fields hold then, a Docling address edited while the first start ran among them")
+    void theStartAfterUseTheCpuImageIsForWhatTheServicesFieldsHoldThen() throws Exception {
+        CountDownLatch released = new CountDownLatch(1);
+        RecordingDockerControl docker = daemonDown()
+                .startsAnswering(new DockerControl.Said(false, REFUSED_ON_WINDOWS), new DockerControl.Said(true, ""))
+                .cardRefusedReading(refusal -> refusal.equals(REFUSED_ON_WINDOWS)
+                        ? Optional.of(THE_TOOLKIT_ON_WINDOWS) : Optional.empty())
+                .holdingStartsUntil(released);
+        try (WindowForTests window = WindowForTests.shown(aState(docker, "edited"))) {
+            window.dialogs.chosen = Optional.of(USE_THE_CPU_IMAGE);
+            chooseTheGpuImage(window);
+            try {
+                pressStartDocker(window);
+                WindowForTests.within(() -> docker.of("start").size() == 1);
+                window.act(root -> field(root, "vespera.docling.base-url").setText(AN_EDITED_DOCLING));
+            } finally {
+                released.countDown();
+            }
+            WindowForTests.within(() -> docker.startsReturned.size() == 2);
+        }
+
+        claim("Docker was asked to start twice",
+                () -> assertThat(docker.of("start")).hasSize(2));
+        claim("the first start was for the GPU image and the Docling address the field held at the press, not the one"
+                        + " it was edited to",
+                () -> assertThat(docker.of("start").getFirst().values().orElseThrow())
+                        .extracting(LaunchValues::doclingImage, LaunchValues::doclingBaseUrl)
+                        .doesNotContain(AN_EDITED_DOCLING).first().isEqualTo(StartingValues.DOCLING_IMAGE_GPU));
+        claim("the second was for the CPU image and the Docling address the field was edited to while the first ran",
+                () -> assertThat(docker.of("start").get(1).values().orElseThrow())
+                        .extracting(LaunchValues::doclingImage, LaunchValues::doclingBaseUrl)
+                        .containsExactly(StartingValues.DOCLING_IMAGE_CPU, AN_EDITED_DOCLING));
     }
 
     @Test
@@ -422,6 +462,48 @@ class TheGraphicsCardQuestionTest {
                 () -> assertThat(docker.cardChecks).extracting(LaunchValues::doclingImage)
                         .containsExactly(StartingValues.DOCLING_IMAGE_GPU, StartingValues.DOCLING_IMAGE_GPU));
         claim("and the row then read OK, that Docker has the nvidia runtime, with no caption and no warning's row",
+                () -> assertThat(onceDockerAnsweredAgain).filteredOn(row -> row.id().startsWith("graphics-card"))
+                        .containsExactly(new Row("graphics-card", "Graphics card", "OK", "ok", LISTED, null)));
+    }
+
+    @Test
+    @Story("The control panel asks before it takes the CPU image or installs NVIDIA's toolkit")
+    @DisplayName("An answer of the card still being asked when a check finds Docker not answering is not kept, and the card is asked again once Docker answers")
+    void anAnswerOfTheCardStillBeingAskedWhenDockerStopsAnsweringIsNotKept() throws Exception {
+        CountDownLatch answered = new CountDownLatch(1);
+        RecordingDockerControl docker = new RecordingDockerControl().checkAnswering(EVERYTHING_ANSWERS)
+                .graphicsCardAnswering(new DockerControl.CardCheck(Optional.of(false), List.of(A_WARNING)))
+                .holdingCardChecksUntil(answered);
+        List<Row> afterTheAnswerCameBack;
+        List<Row> onceDockerAnsweredAgain;
+        try (WindowForTests window = WindowForTests.shown(aState(docker, "dropped"))) {
+            window.act(root -> WindowForTests.section(root, "preflight").setExpanded(true));
+            chooseTheGpuImage(window);
+            try {
+                WindowForTests.within(() -> docker.cardChecks.size() == 1);
+                docker.checkAnswering(NOTHING_ANSWERS);
+                window.awaiting(root -> WindowForTests.node(root, "check-docker-daemon-mark", Labeled.class).getText(),
+                        "KO"::equals);
+            } finally {
+                answered.countDown();
+            }
+            // Docker stays not answering: watched for the whole bound, no row of the card may show at any reading.
+            afterTheAnswerCameBack = window.awaiting(TheGraphicsCardQuestionTest::preflightRows,
+                    rows -> rows.stream().anyMatch(row -> row.id().startsWith("graphics-card")));
+
+            docker.graphicsCardAnswering(new DockerControl.CardCheck(Optional.of(true), List.of()))
+                    .checkAnswering(EVERYTHING_ANSWERS);
+            onceDockerAnsweredAgain = window.awaiting(TheGraphicsCardQuestionTest::preflightRows,
+                    rows -> rows.stream().anyMatch(row -> row.id().equals("graphics-card") && row.mark().equals("OK")));
+        }
+
+        claim("the answer asked while Docker answered came back after a check found it not answering, and while Docker"
+                        + " still did not answer no row said anything of the card",
+                () -> assertThat(afterTheAnswerCameBack).extracting(Row::id)
+                        .containsExactly("corpus-root", "working-directory"));
+        claim("once Docker answered again, the card was asked a second time",
+                () -> assertThat(docker.cardChecks).hasSize(2));
+        claim("and the row read that second answer: OK, Docker has the nvidia runtime, no warning's row",
                 () -> assertThat(onceDockerAnsweredAgain).filteredOn(row -> row.id().startsWith("graphics-card"))
                         .containsExactly(new Row("graphics-card", "Graphics card", "OK", "ok", LISTED, null)));
     }

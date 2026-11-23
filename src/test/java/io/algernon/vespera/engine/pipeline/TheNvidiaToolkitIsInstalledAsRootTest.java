@@ -12,8 +12,14 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
 import io.qameta.allure.Link;
 import io.qameta.allure.Story;
+import java.io.IOException;
 import java.net.URI;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,10 +34,11 @@ import org.slf4j.LoggerFactory;
 /**
  * The NVIDIA Container Toolkit's install (ADR-444 §6, §8): eight commands, each root's, in order, at the version the jar
  * pins, each given ten minutes; on Windows inside the WSL distribution through {@code wsl -u root}, fed nothing; on
- * Linux through {@code sudo -S}, each fed the password the operator typed and a line end on its standard input, and the
+ * Linux through {@code sudo -k -S}, each fed the password the operator typed and a line end on its standard input, and the
  * password in no command word, no logged line and no line told, and cleared once the install returns; each command
  * told before it runs and what it printed after, as a press of Start Docker is told its lines (ADR-437 §2, §3); the first
- * command that fails ends the install, in a line naming it; macOS installs nothing.
+ * command that fails ends the install, in a line naming it; the install holds the containers' lock, and the earlier
+ * version's beside it, while its commands run, and lets both go as it returns; macOS installs nothing.
  *
  * <p>No command is run and nothing needs root: the starter is given a {@link ScriptedDocker}, which records every command,
  * its limit, and what it was fed. Each expected command and line is written out whole.
@@ -60,7 +67,22 @@ class TheNvidiaToolkitIsInstalledAsRootTest {
     private static final List<String> IN_THE_NAMED_DISTRIBUTION =
             List.of("wsl", "-d", A_NAMED_DISTRIBUTION, "-u", "root", "--exec");
 
-    private static final List<String> THROUGH_SUDO = List.of("sudo", "-S");
+    /**
+     * {@code sudo} with {@code -k}, so that it ignores the credentials an earlier {@code sudo} of the install cached and
+     * reads the password line every time, and {@code -S}, so that it reads it from its standard input (ADR-444 §6, §8).
+     */
+    private static final List<String> THROUGH_SUDO = List.of("sudo", "-k", "-S");
+
+    /** The lock files the install holds, as the stop and the shut-down hold them (ADR-433 §6, ADR-444 §6). */
+    private static final String THE_LOCK = "containers.lock";
+
+    private static final String THE_EARLIER_LOCK = "sidecars.lock";
+
+    private static final long LOCKED_BYTE = Long.MAX_VALUE - 1;
+
+    private static final String HELD_HERE = "held by this process";
+
+    private static final String FREE = "free";
 
     /** A password with a space, a backslash and a quote, which a command line or a shell would have had to quote. */
     private static final String PASSWORD = "c0rrect horse\\batt'ry";
@@ -151,8 +173,12 @@ class TheNvidiaToolkitIsInstalledAsRootTest {
         String line = starter(HostSystem.LINUX, docker).telling(told::add).installTheNvidiaToolkit(typed);
 
         claim("the install said it is done, in this line, whole", () -> assertThat(line).isEqualTo(INSTALLED));
-        claim("the eight commands ran, in order and whole, each through sudo -S",
+        claim("the eight commands ran, in order and whole, each through sudo -k -S",
                 () -> assertThat(docker.commands()).containsExactlyElementsOf(prefixed(THROUGH_SUDO)));
+        claim("each sudo was given -k, so that none uses the credentials an earlier one cached and each reads the"
+                        + " password line itself",
+                () -> assertThat(docker.commands()).allSatisfy(command -> assertThat(command.subList(0, 2))
+                        .containsExactly("sudo", "-k")));
         claim("the lines told were exactly one before each command, naming it as the confirmation lists it, none of"
                         + " them printing anything, and not the done line",
                 () -> assertThat(told).containsExactlyElementsOf(
@@ -243,6 +269,66 @@ class TheNvidiaToolkitIsInstalledAsRootTest {
                 () -> assertThat(installedOnMac)
                         .isEqualTo("Vespera installs the NVIDIA Container Toolkit on Windows and Linux alone."));
         claim("and runs no command", () -> assertThat(onMac.commands()).isEmpty());
+    }
+
+    @Test
+    @Story("The control panel installs NVIDIA's toolkit on the operator's confirmation")
+    @DisplayName("The install holds the containers' lock and the earlier version's while each command runs, as a stop does, lets both go as it returns, and an earlier version holding its lock refuses it before any command")
+    void theInstallHoldsTheContainersLockWhileItRunsAndLetsItGoBeforeTheStartRunsAgain() throws IOException {
+        List<String> duringEachCommand = new ArrayList<>();
+        String line;
+        List<String> afterwards;
+        try (FileChannel probe = channelOn(THE_LOCK); FileChannel earlierProbe = channelOn(THE_EARLIER_LOCK)) {
+            ScriptedDocker docker = ScriptedDocker.engineRunning().otherCommandsExiting(0).whenFed(() -> {
+                duringEachCommand.add(whoHolds(probe));
+                duringEachCommand.add(whoHolds(earlierProbe));
+            });
+            line = starter(HostSystem.LINUX, docker).installTheNvidiaToolkit(PASSWORD.toCharArray());
+            afterwards = List.of(whoHolds(probe), whoHolds(earlierProbe));
+        }
+
+        ScriptedDocker refused = ScriptedDocker.engineRunning().otherCommandsExiting(0);
+        char[] typed = PASSWORD.toCharArray();
+        String refusedLine;
+        try (FileChannel earlier = channelOn(THE_EARLIER_LOCK);
+                FileLock held = earlier.lock(LOCKED_BYTE, 1, false)) {
+            refusedLine = starter(HostSystem.LINUX, refused).installTheNvidiaToolkit(typed);
+        }
+
+        claim("the install was done", () -> assertThat(line).isEqualTo(INSTALLED));
+        claim("while each of the eight commands ran, the install held the containers' lock and the earlier version's,"
+                        + " both in this process",
+                () -> assertThat(duringEachCommand).hasSize(2 * THE_INSTALL.size()).containsOnly(HELD_HERE));
+        claim("once it had returned, both were free, for the start that runs again to take",
+                () -> assertThat(afterwards).containsExactly(FREE, FREE));
+        claim("with the earlier version's lock held, the install said so in this line, whole",
+                () -> assertThat(refusedLine).isEqualTo("The NVIDIA Container Toolkit was not installed: an earlier"
+                        + " version of Vespera holds the lock file "
+                        + lockFolder.resolve(THE_EARLIER_LOCK).toAbsolutePath() + ". Nothing was run."));
+        claim("ran no command", () -> assertThat(refused.commands()).isEmpty());
+        claim("and cleared the password all the same",
+                () -> assertThat(new String(typed)).isEqualTo("\0".repeat(PASSWORD.length())));
+    }
+
+    private FileChannel channelOn(String name) throws IOException {
+        Files.createDirectories(lockFolder);
+        return FileChannel.open(lockFolder.resolve(name), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+    }
+
+    /** Who holds the locked byte of {@code channel}'s file: this process, another, or nobody, who is let go at once. */
+    private static String whoHolds(FileChannel channel) {
+        try {
+            FileLock lock = channel.tryLock(LOCKED_BYTE, 1, false);
+            if (lock == null) {
+                return "held by another process";
+            }
+            lock.release();
+            return FREE;
+        } catch (OverlappingFileLockException heldHere) {
+            return HELD_HERE;
+        } catch (IOException unlockable) {
+            return "cannot be locked: " + unlockable.getMessage();
+        }
     }
 
     private ContainerStarter starter(HostSystem host, ScriptedDocker docker) {
