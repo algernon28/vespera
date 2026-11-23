@@ -148,7 +148,7 @@ enum HostSystem {
         if (this == WINDOWS) {
             return inTheEngine(wslDistribution, command);
         }
-        List<String> through = new ArrayList<>(List.of("sudo", "-S"));
+        List<String> through = new ArrayList<>(List.of("sudo", "-k", "-S"));
         through.addAll(command);
         return List.copyOf(through);
     }

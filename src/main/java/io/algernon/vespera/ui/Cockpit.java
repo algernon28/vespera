@@ -782,9 +782,10 @@ final class Cockpit {
         if (answer.get().equals(USE_THE_CPU_IMAGE)) {
             onTheToolkitThread(() -> {
                 fields.get("vespera.docling.image").input.setText(StartingValues.DOCLING_IMAGE_CPU);
+                readFieldValues();
                 return null;
             });
-            return state.startDocker(startValues.withDoclingImage(StartingValues.DOCLING_IMAGE_CPU), told).line();
+            return state.startDocker(fieldValues(), told).line();
         }
         if (!answer.get().equals(INSTALL_THE_TOOLKIT) || !refused.offersTheToolkit()) {
             return first.line();
@@ -954,9 +955,8 @@ final class Cockpit {
      */
     private void askTheCardOnce(DockerCheck found, LaunchValues askedValues) {
         if (found.daemon() != DockerCheck.Mark.OK) {
-            if (cardKept != null) {
-                dropTheCardKept();
-            }
+            // also an answer still being asked, which the drop counter keeps from being kept when it returns
+            dropTheCardKept();
             return;
         }
         if (cardKept != null || cardAsking

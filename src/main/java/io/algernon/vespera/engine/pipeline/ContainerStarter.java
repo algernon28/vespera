@@ -732,27 +732,33 @@ public class ContainerStarter {
             if (host == HostSystem.MAC) {
                 return "Vespera installs the NVIDIA Container Toolkit on Windows and Linux alone.";
             }
-            for (List<String> command : NVIDIA_TOOLKIT_INSTALL) {
-                String listed = asListed(command);
-                say("Installing the NVIDIA Container Toolkit: {}", listed);
-                char[] input = standardInputOfTheInstall(sudoPassword);
-                ProcessOutcome outcome;
-                try {
-                    outcome = runFeedingTelling(host.asRoot(settings.wslDistribution(), command), input);
-                } catch (CommandOutputFileUnusableException unusable) {
-                    return "The NVIDIA Container Toolkit was not installed: " + unusable.unusable()
-                            + ". Nothing after it was run.";
-                } finally {
-                    if (input != null) {
-                        java.util.Arrays.fill(input, '\0');
+            try (ContainerLock lock = takeTheLock()) {
+                for (List<String> command : NVIDIA_TOOLKIT_INSTALL) {
+                    String listed = asListed(command);
+                    say("Installing the NVIDIA Container Toolkit: {}", listed);
+                    char[] input = standardInputOfTheInstall(sudoPassword);
+                    ProcessOutcome outcome;
+                    try {
+                        outcome = runFeedingTelling(host.asRoot(settings.wslDistribution(), command), input);
+                    } catch (CommandOutputFileUnusableException unusable) {
+                        return "The NVIDIA Container Toolkit was not installed: " + unusable.unusable()
+                                + ". Nothing after it was run.";
+                    } finally {
+                        if (input != null) {
+                            java.util.Arrays.fill(input, '\0');
+                        }
+                    }
+                    if (outcome.exitCode() != 0) {
+                        return "The NVIDIA Container Toolkit was not installed: " + listed + " exited "
+                                + outcome.exitCode() + ": " + outcome.lastLine() + ". Nothing after it was run.";
                     }
                 }
-                if (outcome.exitCode() != 0) {
-                    return "The NVIDIA Container Toolkit was not installed: " + listed + " exited " + outcome.exitCode()
-                            + ": " + outcome.lastLine() + ". Nothing after it was run.";
-                }
+                return NVIDIA_TOOLKIT_INSTALLED;
+            } catch (ContainerLockUnavailableException unusable) {
+                return "The NVIDIA Container Toolkit was not installed: " + unusable.unusable() + ". Nothing was run.";
+            } catch (EarlierVersionHoldsTheLockException held) {
+                return "The NVIDIA Container Toolkit was not installed: " + held.unusable() + ". Nothing was run.";
             }
-            return NVIDIA_TOOLKIT_INSTALLED;
         } finally {
             if (sudoPassword != null) {
                 java.util.Arrays.fill(sudoPassword, '\0');
