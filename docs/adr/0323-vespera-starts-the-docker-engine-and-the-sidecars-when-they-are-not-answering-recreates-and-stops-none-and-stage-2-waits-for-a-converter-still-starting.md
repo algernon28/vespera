@@ -22,6 +22,8 @@
 >
 > **Partly amended — see [ADR-441](0441-the-docker-integration-tests-start-the-engine-where-it-does-not-answer-and-stop-it-after-them-only-where-they-started-it.md).** Of §1: a context built by Spring's test support still has no starter, but `DockerEngineForIntegrationTests`, a JUnit extension of the test tree run before the context of each integration test that needs Docker, starts the engine where it does not answer and shuts it down after the last of them where they started it.
 
+> **Partly amended — see [ADR-444](0444-the-gpu-image-starts-only-where-docker-has-the-nvidia-runtime-and-the-control-panel-offers-the-toolkit-or-the-cpu-image.md).** Of §3: for the GPU image, after ADR-410's checks and before step 7, the engine is asked for its `nvidia` runtime, and one not listed refuses the start; on macOS the GPU image is refused before step 5. Of §8: the lines of `NvidiaRuntimeIsMissingException` and `NoNvidiaCardException`. §2 stands: `vespera.docling.image` alone chooses the files. The rest of this record stands.
+
 - **Date**: 2026-10-23
 - **Status**: accepted on 2026-10-23.
 - **Decided**: by the operator, who decided that Vespera starts the Docker engine where it is not running, Docker Desktop on Windows and macOS and the service on Linux, then brings the sidecars up with the README's `up` line, `compose.gpu.yaml` included where the configuration asks for the GPU, and never stops them; and that stage 2's start check waits for a converter that is still starting. How the GPU is known, which commands start them, the per-system commands, the bounds, the refusals, the opt-out and the locks are decided under delegation.

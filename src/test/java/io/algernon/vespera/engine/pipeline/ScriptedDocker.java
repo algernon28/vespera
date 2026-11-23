@@ -25,8 +25,20 @@ import java.util.function.Consumer;
  * with the version Ubuntu 24.04's packages print, unless {@link #withoutCompose} or {@link #withoutBuildx} took that
  * one away, when it answers as the {@code docker} client answers a command it has no plugin for (ADR-410, Measured);
  * a script {@link #answering} sets for the whole command comes first.
+ *
+ * <p>A command ending in {@link #RUNTIME_CHECK}, as it is or inside {@code wsl}, answers exit 0 with the runtimes an
+ * engine the NVIDIA Container Toolkit configured lists, {@code nvidia} among them, unless {@link
+ * #withoutTheNvidiaRuntime} took it away (ADR-444 §1). A command given to {@link #runFeeding} is recorded as any other,
+ * with what it was fed, {@link #fed}, copied as it was given, and answered as {@link #run} answers it.
  */
 final class ScriptedDocker implements ProcessRunner {
+
+    /** The command that asks the engine for the runtimes it was configured with (ADR-444 §1). */
+    static final List<String> RUNTIME_CHECK = List.of("docker", "info", "--format", "{{json .Runtimes}}");
+
+    /** What a command given to {@link #runFeeding} was fed on its standard input; null where it was fed nothing. */
+    record Fed(List<String> command, String input) {
+    }
 
     /** The command that asks whether the Docker engine answers. */
     static final List<String> ENGINE_CHECK = List.of("docker", "version", "--format", "{{.Server.Version}}");
@@ -48,6 +60,8 @@ final class ScriptedDocker implements ProcessRunner {
     private boolean installed = true;
     private boolean composeInstalled = true;
     private boolean buildxInstalled = true;
+    private boolean nvidiaRuntimeListed = true;
+    private final List<Fed> fed = new ArrayList<>();
     private int engineAnswersAfter;
     private int otherCommandsExit = 1;
     private int engineChecks;
@@ -83,6 +97,17 @@ final class ScriptedDocker implements ProcessRunner {
     ScriptedDocker withoutBuildx() {
         buildxInstalled = false;
         return this;
+    }
+
+    /** The engine lists no {@code nvidia} runtime, as one the NVIDIA Container Toolkit never configured (ADR-444 §1). */
+    ScriptedDocker withoutTheNvidiaRuntime() {
+        nvidiaRuntimeListed = false;
+        return this;
+    }
+
+    /** Every command given to {@link #runFeeding}, with what it was fed, in the order given. */
+    List<Fed> fed() {
+        return List.copyOf(fed);
     }
 
     ScriptedDocker answering(List<String> command, int exitCode, String output) {
@@ -152,6 +177,19 @@ final class ScriptedDocker implements ProcessRunner {
     public ProcessOutcome run(List<String> command, Duration timeout) throws IOException, CommandOutputFileException {
         commands.add(List.copyOf(command));
         limits.add(timeout);
+        return answer(command);
+    }
+
+    @Override
+    public ProcessOutcome runFeeding(List<String> command, Duration timeout, char[] input)
+            throws IOException, CommandOutputFileException {
+        commands.add(List.copyOf(command));
+        limits.add(timeout);
+        fed.add(new Fed(List.copyOf(command), input == null ? null : new String(input)));
+        return answer(command);
+    }
+
+    private ProcessOutcome answer(List<String> command) throws IOException, CommandOutputFileException {
         if (outputFileFailures.containsKey(command)) {
             throw outputFileFailures.get(command);
         }
@@ -175,6 +213,13 @@ final class ScriptedDocker implements ProcessRunner {
             return buildxInstalled
                     ? new ProcessOutcome(0, "github.com/docker/buildx 0.30.1 0.30.1-0ubuntu1~24.04.1\n")
                     : unknownToTheClient("buildx");
+        }
+        if (!scripted.containsKey(command) && endsWith(command, RUNTIME_CHECK)) {
+            return new ProcessOutcome(0, nvidiaRuntimeListed
+                    ? "{\"io.containerd.runc.v2\":{\"path\":\"runc\",\"status\":{}},\"nvidia\":{\"path\":"
+                            + "\"nvidia-container-runtime\",\"status\":{}},\"runc\":{\"path\":\"runc\",\"status\":{}}}\n"
+                    : "{\"io.containerd.runc.v2\":{\"path\":\"runc\",\"status\":{}},\"runc\":{\"path\":\"runc\","
+                            + "\"status\":{}}}\n");
         }
         return scripted.getOrDefault(command, new ProcessOutcome(otherCommandsExit, ""));
     }

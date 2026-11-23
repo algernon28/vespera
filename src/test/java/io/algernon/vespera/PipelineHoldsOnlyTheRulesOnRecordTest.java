@@ -248,6 +248,10 @@ class PipelineHoldsOnlyTheRulesOnRecordTest {
             "DockerIsNotInstalledException",
             // ADR-410 §3: say in one line that docker compose or docker buildx is missing, and how to install it.
             "ComposeOrBuildxIsNotInstalledException",
+            // ADR-444 §2, §3: say in one line that Docker has no nvidia runtime, or that the card is not NVIDIA's, and
+            // how to go on; neither decides a verdict, a cache key, a cluster or text of the deliverable.
+            "NvidiaRuntimeIsMissingException",
+            "NoNvidiaCardException",
             "HostSystem",
             "HttpContainerHealth",
             "NoComposeFileBuildsTheImageException",

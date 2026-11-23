@@ -159,6 +159,12 @@ class NoCommandOpensAnythingTest {
                 }
 
                 @Override
+                public ProcessOutcome runFeeding(List<String> command, Duration timeout, char[] input)
+                        throws IOException, CommandOutputFileException {
+                    return docker.runFeeding(command, timeout, input);
+                }
+
+                @Override
                 public ProcessOutcome runToTheEnd(List<String> command, Consumer<String> eachLine) throws IOException {
                     return docker.runToTheEnd(command, eachLine);
                 }
