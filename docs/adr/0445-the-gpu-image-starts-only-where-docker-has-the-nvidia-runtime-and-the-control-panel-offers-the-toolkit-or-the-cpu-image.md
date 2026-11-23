@@ -2,6 +2,7 @@
 
 - **Date**: 2026-11-23
 - **Status**: accepted on 2026-11-23.
+- **Release**: minor
 - **Decided**: by the operator, in [#860](https://github.com/algernon28/vespera/issues/860):
   - that the control panel installs what the GPU image needs in Docker, where ADR-410 rejected installing anything (§6);
   - that NVIDIA's cards alone are used: a machine whose card is AMD's or Intel's is told so in one line and runs on the CPU image, and macOS stays on the CPU image (§3);

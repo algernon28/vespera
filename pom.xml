@@ -10,7 +10,13 @@
     </parent>
     <groupId>io.algernon</groupId>
     <artifactId>vespera</artifactId>
-    <version>${revision}</version>
+    <!--
+      ADR-444: the version is git's, never edited here. The git-versioning extension (.mvn/extensions.xml, configured
+      in .mvn/maven-git-versioning-extension.xml) replaces this one in every build: a commit carrying a vMAJOR.MINOR.PATCH
+      tag builds that version, any other <previous tag>-<commits since>-g<commit>-SNAPSHOT. This value is seen only
+      where the extension is turned off, -Dversioning.disable.
+    -->
+    <version>0-SNAPSHOT</version>
     <name>vespera</name>
     <description>vespera</description>
     <url>https://github.com/algernon28/vespera</url>
@@ -27,8 +33,6 @@
         <url>https://github.com/algernon28/vespera</url>
     </scm>
     <properties>
-        <!-- ADR-431 §2: a release build is given -Drevision=<the tag without its v>; every other build is this. -->
-        <revision>0-SNAPSHOT</revision>
         <java.version>26</java.version>
         <spring-ai.version>2.0.0</spring-ai.version>
         <spring-modulith.version>2.1.0</spring-modulith.version>
@@ -365,6 +369,10 @@
                 <configuration>
                     <!-- In English as used in the United States, as surefire's (ADR-386). -->
                     <argLine>-javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar" -Duser.language=en -Duser.country=US --enable-native-access=ALL-UNNAMED</argLine>
+                    <!-- ADR-444: the jar's name carries git's version, so the tests launching it are told its path. -->
+                    <systemPropertyVariables>
+                        <vespera.jar>${project.build.directory}/${project.build.finalName}.jar</vespera.jar>
+                    </systemPropertyVariables>
                 </configuration>
                 <executions>
                     <execution>

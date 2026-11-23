@@ -3319,6 +3319,17 @@ public final class Adr {
             + "0443-picoclis-refusals-and-usage-carry-no-colour-whatever-the-environment.md";
 
     /**
+     * ADR-444 -- the release version is computed from git and the records merged since the previous tag, and every
+     * push to {@code main} is released: each record from ADR-444 on names its bump on a {@code Release} line;
+     * {@code node docs/release.mjs next} raises the previous tag by the greatest bump merged since it, a patch where
+     * none; the workflow tags, builds and pushes the tag last; a Maven core extension names every build from git, a
+     * tagged commit by its tag and any other {@code <tag>-<distance>-g<commit>-SNAPSHOT} (amends ADR-431 §2 and §6
+     * and ADR-046).
+     */
+    public static final String THE_RELEASE_VERSION_IS_COMPUTED_FROM_GIT_AND_THE_RECORDS = FILE
+            + "0444-the-release-version-is-computed-from-git-and-the-records-merged-since-the-last-tag-and-every-push-to-main-is-released.md";
+
+    /**
      * ADR-445 -- for the GPU image, the start asks the Docker engine for its nvidia runtime before {@code up} and refuses
      * where it is not listed, naming NVIDIA's toolkit and the CPU image, or saying that an AMD or Intel card runs on the
      * CPU image; a driver or a card too old only warns; Start Docker asks the operator to use the CPU image or to install

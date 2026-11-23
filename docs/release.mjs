@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// The rules a release is held to (ADR-431 §6 to §8), held here so that .github/workflows/release.yml carries none of its
-// own. Each refusal throws an Error naming what it refuses; run as a command, the refusal's line goes to standard error
-// and the exit is 1.
+// The rules a release is held to (ADR-431 §6 to §8, ADR-444), held here so that .github/workflows/release.yml carries
+// none of its own. Each refusal throws an Error naming what it refuses; run as a command, the refusal's line goes to
+// standard error and the exit is 1.
 //
+//   node docs/release.mjs next
 //   node docs/release.mjs check <tag>
 //   node docs/release.mjs built <tag> <manifest> <implementation-versions>
 //   node docs/release.mjs notes <tag>
@@ -90,6 +91,40 @@ export function releaseNotes({ tag, previous, currentIndex, previousIndex }) {
   return [head, "", ...lines, ""].join("\n");
 }
 
+const BUMPS = ["patch", "minor", "major"];
+const FIRST = "2.0.0";
+const RELEASE_LINE = /^- \*\*Release\*\*: (major|minor|patch)\s*$/m;
+
+/** The bump a record's head names on its `- **Release**:` line, major, minor or patch; ADR-444 §2. */
+export function releaseOf(number, recordText) {
+  const m = RELEASE_LINE.exec(recordText.replace(/\r\n?/g, "\n"));
+  if (m === null) {
+    throw new Error(`ADR-${String(number).padStart(3, "0")} names no release on a "- **Release**:" line, major, minor or patch`);
+  }
+  return m[1];
+}
+
+/**
+ * The next release's version, ADR-444 §3: the previous tag's version raised by the greatest bump among the records
+ * merged since it, a patch where none was; 2.0.0 where there is no previous tag or it lies below 2.0.0 (ADR-431 §9).
+ */
+export function nextVersion(previous, bumps) {
+  const key = previous === null ? null : parsed(previous);
+  if (key === null || compare(key, [2, 0, 0]) < 0) return FIRST;
+  const greatest = Math.max(0, ...bumps.map((b) => BUMPS.indexOf(b)));
+  const [major, minor, patch] = key;
+  if (greatest === 2) return `${major + 1}.0.0`;
+  if (greatest === 1) return `${major}.${minor + 1}.0`;
+  return `${major}.${minor}.${patch + 1}`;
+}
+
+/** The numbers of the records `currentIndex` holds and `previousIndex` does not, ascending, with each one's file. */
+export function freshRecords(currentIndex, previousIndex) {
+  const had = previousIndex == null ? new Map() : rowsOf(previousIndex);
+  return [...rowsOf(currentIndex)].filter(([n]) => !had.has(n)).sort((a, b) => a[0] - b[0])
+    .map(([n, r]) => ({ number: n, file: r.file }));
+}
+
 /** §8's third rule: whether `commit` is an ancestor of `main`. */
 export function reachableFromMain(commit, { cwd = process.cwd(), main = "origin/main" } = {}) {
   return spawnSync("git", ["merge-base", "--is-ancestor", commit, main], { cwd }).status === 0;
@@ -103,7 +138,20 @@ function git(...args) {
 
 function main(argv) {
   const [command, tag, ...rest] = argv;
-  if (command === "check") {
+  if (command === "next") {
+    // ADR-444 §3: nothing where HEAD already carries a release tag, else the version its release takes.
+    const here = git("tag", "--points-at", "HEAD").split("\n").filter((t) => /^v\d+\.\d+\.\d+$/.test(t));
+    if (here.length > 0) return;
+    const reached = git("tag", "--merged", "HEAD").split("\n").filter(Boolean);
+    const previous = previousTag("v999999.0.0", reached);
+    const at = (ref, path) => git("show", `${ref}:${path}`);
+    let bumps = [];
+    if (previous !== null && compare(parsed(previous), [2, 0, 0]) >= 0) {
+      bumps = freshRecords(at("HEAD", "docs/adr/README.md"), at(previous, "docs/adr/README.md"))
+        .map(({ number, file }) => releaseOf(number, at("HEAD", `docs/adr/${file}`)));
+    }
+    console.log(nextVersion(previous, bumps));
+  } else if (command === "check") {
     const version = versionOfTag(tag);
     checkPublishable(version);
     if (!reachableFromMain(`${tag}^{commit}`)) {
@@ -121,7 +169,7 @@ function main(argv) {
       releaseNotes({ tag, previous, currentIndex: index(tag), previousIndex: previous === null ? null : index(previous) }),
     );
   } else {
-    throw new Error("usage: release.mjs check <tag> | built <tag> <manifest> <implementation-versions> | notes <tag>");
+    throw new Error("usage: release.mjs next | check <tag> | built <tag> <manifest> <implementation-versions> | notes <tag>");
   }
 }
 

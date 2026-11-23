@@ -1,15 +1,16 @@
-// docs/release.mjs holds the rules a release is held to (ADR-431 §6 to §8), so that .github/workflows/release.yml
+// docs/release.mjs holds the rules a release is held to (ADR-431 §6 to §8, ADR-444), so that .github/workflows/release.yml
 // carries none of its own: the tag's version and the tags refused, a version that is no release refused, a jar whose
 // manifest names another version or which could mint no run refused, the previous tag, the release notes read off two
-// copies of the index of records, and whether a commit is reachable from main. The last builds a git repository in a
-// temporary folder; the rest are pure.
+// copies of the index of records, the bump each record names and the next version (ADR-444), and whether a commit is
+// reachable from main. The last builds a git repository in a temporary folder, and one reads docs/adr; the rest are
+// pure.
 //
 //   node --test src/test/docs/release.test.mjs
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -143,6 +144,64 @@ test("where no record is new, the notes say so in one line", async () => {
     releaseNotes({ tag: "v2.0.1", previous: "v2.0.0", currentIndex: index, previousIndex: index }),
     "No decision record was merged since v2.0.0.\n",
   );
+});
+
+/* ---------- the next version (ADR-444) ---------- */
+
+/** A record's head as written, its Release line naming `bump`, or none where `bump` is null. */
+const record = (bump) => {
+  const head = ["# ADR-999 — A record", "", "- **Date**: 2026-11-23"];
+  if (bump !== null) head.push(`- **Release**: ${bump}`);
+  return head.concat([""]).join("\n");
+};
+
+test("a record's head names its bump on its Release line", async () => {
+  const { releaseOf } = await release();
+  for (const bump of ["major", "minor", "patch"]) assert.equal(releaseOf(999, record(bump)), bump);
+});
+
+test("a record naming no bump, or another word, is refused, the refusal naming it", async () => {
+  const { releaseOf } = await release();
+  assert.throws(() => releaseOf(999, record(null)), /ADR-999/);
+  assert.throws(() => releaseOf(7, record("huge")), /ADR-007/);
+});
+
+test("the next version raises the previous tag's by the greatest bump merged since it", async () => {
+  const { nextVersion } = await release();
+  assert.equal(nextVersion("v2.3.4", ["patch", "minor", "patch"]), "2.4.0");
+  assert.equal(nextVersion("v2.3.4", ["minor", "major"]), "3.0.0");
+  assert.equal(nextVersion("v2.3.4", ["patch"]), "2.3.5");
+});
+
+test("a release merging no record is a patch", async () => {
+  const { nextVersion } = await release();
+  assert.equal(nextVersion("v2.3.4", []), "2.3.5");
+});
+
+test("with no previous tag, or one below 2.0.0, the next release is 2.0.0", async () => {
+  const { nextVersion } = await release();
+  assert.equal(nextVersion(null, []), "2.0.0");
+  assert.equal(nextVersion("v1.2", ["major"]), "2.0.0");
+});
+
+test("the records merged since the previous tag are the index's new rows, ascending", async () => {
+  const { freshRecords } = await release();
+  const previousIndex = indexOf([summarised(427, "An older record")]);
+  const currentIndex = indexOf([summarised(427, "An older record"), summarised(430, "B"), summarised(429, "A")]);
+  assert.deepEqual(freshRecords(currentIndex, previousIndex).map((r) => r.number), [429, 430]);
+});
+
+const RECORDS = fileURLToPath(new URL("../../../docs/adr/", import.meta.url));
+
+test("every record from ADR-444 on names its bump", async () => {
+  const { releaseOf } = await release();
+  const named = readdirSync(RECORDS)
+    .map((file) => ({ file, number: Number(/^(\d{4})-/.exec(file)?.[1]) }))
+    .filter(({ number }) => number >= 444);
+  assert.ok(named.length > 0, "ADR-444 itself is among the records");
+  for (const { file, number } of named) {
+    assert.doesNotThrow(() => releaseOf(number, readFileSync(join(RECORDS, file), "utf8")), file);
+  }
 });
 
 /* ---------- main ---------- */

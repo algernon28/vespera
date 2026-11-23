@@ -364,7 +364,7 @@ The jar's own copy of a file of the folder beside the jar, carried under `beside
 _Avoid_: template, default config, bundled config
 
 **Release version**:
-The version of Vespera itself, SemVer `MAJOR.MINOR.PATCH`, given by the `v` tag the operator pushes to cut a release, and `0-SNAPSHOT` in every build no tag made; the jar reads it from its manifest, and says `unknown` where none names one (ADR-431). Provenance only: `vespera --version`, the control panel's title, `report.json`, the deliverable's marker and the foot of each tree's top page show it, the ledger keeps each that minted or continued a run in `run_release`, and it enters no run id, configuration consumed, implementation version or cache key.
+The version of Vespera itself, SemVer `MAJOR.MINOR.PATCH`, computed for each push to `main` from the previous `v` tag and the bump each decision record merged since it names, and tagged by the release workflow; a build of any other commit is named by git, `<previous tag>-<commits since>-g<commit>-SNAPSHOT`; the jar reads it from its manifest, and says `unknown` where none names one (ADR-431, ADR-444). Provenance only: `vespera --version`, the control panel's title, `report.json`, the deliverable's marker and the foot of each tree's top page show it, the ledger keeps each that minted or continued a run in `run_release`, and it enters no run id, configuration consumed, implementation version or cache key.
 _Avoid_: build version, app version, product version
 _Not to be confused with_: a stage's implementation version, the last commit touching its modules, which a run id is hashed from (ADR-058); a module's schema version (ADR-059); `report.json`'s `format`.
 _Renders as_: **version**.
