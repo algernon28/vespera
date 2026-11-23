@@ -826,10 +826,12 @@ final class JobSampler implements JobExecutionListener {
      * Takes, at one reading, the samples of the stages' charts and writes the files that changed (ADR-382 section 4 to
      * 7, as ADR-412 and ADR-418 amend them): a chart not frozen takes a sample at a reading at which a step of its
      * stage runs, at the one at which it freezes and at the last where a step of its stage ran; a frozen chart is not
-     * written again in its invocation; a chart is started once, its key added to as the invocation reaches it; the
-     * census's chart is written as it walks, its key moving to the walk handed, and is left empty where no walk is
-     * handed (ADR-418 section 4). A file that cannot be written is warned of once in the invocation and fails nothing
-     * (ADR-265 section 4).
+     * written again in its invocation, and a chart is frozen only once its file holding it frozen is written, a reading
+     * whose freezing write fails leaving it as it was before that reading, to be frozen at the next, and keeping no
+     * chart under its run until then (ADR-265 section 4); a chart is started once, its key added to as the invocation
+     * reaches it; the census's chart is written as it walks, its key moving to the walk handed, and is left empty
+     * where no walk is handed (ADR-418 section 4). A file that cannot be written is warned of once in the invocation
+     * and fails nothing (ADR-265 section 4).
      */
     private void keepTheCharts(
             JobExecution job, Map<String, StepExecution> executions, Map<String, String> states, boolean last,
@@ -895,7 +897,15 @@ final class JobSampler implements JobExecutionListener {
             chart.keptLines = null;
             chart.finishedEarlier = true;
             readTheKeptChart(step, key, chart);
-            writeTheChart(step, chart);
+            try {
+                writeTheChart(step, chart);
+            } catch (IOException | RuntimeException e) {
+                // not frozen until its file holds it frozen: the next reading freezes it again (ADR-265 section 4)
+                chart.finishedEarlier = false;
+                chart.finishedAt = null;
+                chart.keptLines = null;
+                throw e;
+            }
             return;
         }
         boolean keyChanged = !key.equals(chart.key);
@@ -905,6 +915,10 @@ final class JobSampler implements JobExecutionListener {
         }
         chart.key.clear();
         chart.key.putAll(key);
+        // what a freezing write that fails gives back, so that the next reading freezes the chart afresh
+        // (ADR-265 section 4)
+        List<Point> pointsBefore = new ArrayList<>(chart.points);
+        Instant firstSampleBefore = chart.firstSampleAt;
         if (sampling) {
             takeASample(step, chart, runs, now, nowRecorded, nowDiscarded);
         }
@@ -918,6 +932,12 @@ final class JobSampler implements JobExecutionListener {
             writeTheChart(step, chart);
         } catch (IOException | RuntimeException e) {
             warnOfAChart(e);
+            if (finishes) {
+                chart.finishedAt = null;
+                chart.points = pointsBefore;
+                chart.firstSampleAt = firstSampleBefore;
+                return;
+            }
         }
         if (finishes && step.runStage() != null && KEPT_STEPS.contains(step.step())) {
             try {
