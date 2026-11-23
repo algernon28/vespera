@@ -51,8 +51,11 @@ import org.junit.jupiter.api.Test;
 @Link(name = "ADR-179", url = Adr.NO_ENTRY_POINT_STARTS_THE_SIDECARS, type = "adr")
 class PackagedJarIT {
 
-    /** The packaged, executable jar the operator runs, at the path README.md names. */
-    private static final Path EXECUTABLE_JAR = Path.of("target", "vespera-0-SNAPSHOT.jar");
+    /**
+     * The packaged, executable jar the operator runs, its name carrying git's version, so
+     * failsafe names its path (ADR-444).
+     */
+    private static final Path EXECUTABLE_JAR = Path.of(System.getProperty("vespera.jar"));
 
     /** Where the Boot plugin puts the application's own classes. */
     private static final String CLASSES = "BOOT-INF/classes/";

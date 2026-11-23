@@ -35,3 +35,7 @@ If the concept you need isn't in the glossary yet, that's a signal: either you'r
 If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
 
 > _Contradicts ADR-0007 (event-sourced orders), but worth reopening because…_
+
+## A record names its release bump
+
+From ADR-444 on, a record's head carries `- **Release**: major`, `minor` or `patch` after its Status, chosen by ADR-431 §1's table for what the record decides; one that changes nothing an operator installs is `patch`. Every push to `main` is released, its version raised from the previous `v` tag by the greatest bump merged since it, so a record without the line is refused by `src/test/docs/release.test.mjs`. No one writes a version anywhere: the build's is git's, through `.mvn/extensions.xml`, and a Maven build needs the whole history, `git fetch --unshallow` in a shallow clone.

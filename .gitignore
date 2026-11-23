@@ -2,6 +2,8 @@ HELP.md
 target/
 .allure/
 .mvn/wrapper/maven-wrapper.jar
+# Written by the git-versioning extension in every build (ADR-444).
+.git-versioned-pom.xml
 !**/src/main/**/target/
 !**/src/test/**/target/
 

@@ -1,14 +1,21 @@
 name: release
 
-# ADR-431 §6: a release is cut by pushing a vMAJOR.MINOR.PATCH tag on a commit of main. Every rule it
-# refuses by is held in docs/release.mjs (ADR-431 §8), so this file carries none of its own.
+# ADR-444: every push to main is released. Its version is computed, never typed: the previous v tag raised by the
+# greatest bump the decision records merged since it name (node docs/release.mjs next). The tag is made here, the jar
+# built from it, and the tag pushed only once the build and ADR-431 §8's refusals have passed. Every rule is held in
+# docs/release.mjs (ADR-431 §8), so this file carries none of its own.
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
 
 permissions:
   contents: write
+
+# One release at a time, in the order main moved; a later push waits rather than cancelling one being published.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -16,8 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      # The whole history, so that no module's implementation version is "unknown" (ADR-272), and
-      # the tags, which the previous tag and the notes are read from.
+      # The whole history, so that no module's implementation version is "unknown" (ADR-272), and the tags, which the
+      # previous tag, the next version and the notes are read from.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -26,37 +33,56 @@ jobs:
         with:
           node-version: "22"
 
-      # §8's first and third rules.
+      # ADR-444 §3: nothing where this commit already carries a release tag.
+      - name: Compute the version
+        id: next
+        run: |
+          version="$(node docs/release.mjs next)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      # Made here and pushed last, so the git-versioning extension builds this version and a failed build leaves no tag.
+      - name: Tag the commit
+        if: steps.next.outputs.version != ''
+        run: git tag "${{ steps.next.outputs.tag }}"
+
+      # ADR-431 §8's first and third rules.
       - name: Refuse a tag that is no release
-        id: tag
-        run: echo "version=$(node docs/release.mjs check "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
+        if: steps.next.outputs.version != ''
+        run: node docs/release.mjs check "${{ steps.next.outputs.tag }}"
 
       - uses: actions/setup-java@v4
+        if: steps.next.outputs.version != ''
         with:
           distribution: temurin
           java-version: 26
           cache: maven
 
-      # As the Linux job of build.yml builds, given the tag's version, so a released jar is one the suite passed.
-      - run: ./mvnw -B verify -DexcludedGroups=confluence -Drevision=${{ steps.tag.outputs.version }}
+      # As the Linux job of build.yml builds, so a released jar is one the suite passed; the version is the tag's.
+      - if: steps.next.outputs.version != ''
+        run: ./mvnw -B verify -DexcludedGroups=confluence
 
-      # §8's second and fourth rules, read off the jar.
+      # ADR-431 §8's second and fourth rules, read off the jar.
       - name: Refuse a jar that names another version or could mint no run
+        if: steps.next.outputs.version != ''
         run: |
-          jar="target/vespera-${{ steps.tag.outputs.version }}.jar"
+          jar="target/vespera-${{ steps.next.outputs.version }}.jar"
           unzip -p "$jar" META-INF/MANIFEST.MF > "$RUNNER_TEMP/manifest.txt"
           unzip -p "$jar" BOOT-INF/classes/implementation-versions.properties > "$RUNNER_TEMP/implementation-versions.txt"
-          node docs/release.mjs built "$GITHUB_REF_NAME" "$RUNNER_TEMP/manifest.txt" "$RUNNER_TEMP/implementation-versions.txt"
+          node docs/release.mjs built "${{ steps.next.outputs.tag }}" "$RUNNER_TEMP/manifest.txt" "$RUNNER_TEMP/implementation-versions.txt"
 
       - name: Write the notes
-        run: node docs/release.mjs notes "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
+        if: steps.next.outputs.version != ''
+        run: node docs/release.mjs notes "${{ steps.next.outputs.tag }}" > "$RUNNER_TEMP/notes.md"
 
-      - name: Create the release
+      - name: Push the tag and create the release
+        if: steps.next.outputs.version != ''
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >
-          gh release create "$GITHUB_REF_NAME"
-          "target/vespera-${{ steps.tag.outputs.version }}.jar"
-          --title "$GITHUB_REF_NAME"
-          --notes-file "$RUNNER_TEMP/notes.md"
-          --verify-tag
+        run: |
+          git push origin "${{ steps.next.outputs.tag }}"
+          gh release create "${{ steps.next.outputs.tag }}" \
+            "target/vespera-${{ steps.next.outputs.version }}.jar" \
+            --title "${{ steps.next.outputs.tag }}" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --verify-tag

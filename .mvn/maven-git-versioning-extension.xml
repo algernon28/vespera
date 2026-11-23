@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration xmlns="https://github.com/qoomon/maven-git-versioning-extension"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xsi:schemaLocation="https://github.com/qoomon/maven-git-versioning-extension https://qoomon.github.io/maven-git-versioning-extension/configuration-9.10.0.xsd">
+    <!--
+      ADR-444 §5: no version is typed. A commit carrying a release tag, vMAJOR.MINOR.PATCH, builds those numbers; any
+      other builds <previous tag's numbers>-<commits since it>-g<commit>-SNAPSHOT, the tag found along the first-parent
+      line, 0.0.0 where none is. v1.2, the baseline of two numbers (ADR-431 §9), is found as a previous tag.
+    -->
+    <describeTagPattern><![CDATA[v\d+\.\d+(?:\.\d+)?]]></describeTagPattern>
+    <refs considerTagsOnBranches="true">
+        <ref type="tag">
+            <pattern><![CDATA[v(?<version>\d+\.\d+\.\d+)]]></pattern>
+            <version>${ref.version}</version>
+        </ref>
+    </refs>
+    <rev>
+        <version>${describe.tag.version.core:-0.0.0}-${describe.distance}-g${commit.short}-SNAPSHOT</version>
+    </rev>
+</configuration>
