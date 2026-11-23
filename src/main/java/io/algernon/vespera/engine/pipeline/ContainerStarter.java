@@ -721,8 +721,9 @@ public class ContainerStarter {
     }
 
     /**
-     * Installs the NVIDIA Container Toolkit as root: inside the WSL distribution on Windows, through {@code sudo -S}
-     * fed {@code sudoPassword} on Linux (ADR-444 §6, §8). The first command that does not exit 0 ends it. Every character
+     * Installs the NVIDIA Container Toolkit as root: inside the WSL distribution on Windows, through {@code sudo -k -S}
+     * fed {@code sudoPassword} on Linux (ADR-444 §6, §8). It holds the containers' lock from before its first command and
+     * lets it go as it returns, before any start runs again (ADR-444 §6). The first command that does not exit 0 ends it. Every character
      * of {@code sudoPassword} is set to {@code \0} on return.
      *
      * @return the line of what came of it, {@link #NVIDIA_TOOLKIT_INSTALLED} where every command exited 0

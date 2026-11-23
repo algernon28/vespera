@@ -143,7 +143,7 @@ enum HostSystem {
         return this == WINDOWS ? "570.65" : "570.26";
     }
 
-    /** {@code command} as root: inside the WSL distribution on Windows, through {@code sudo -S} on Linux (ADR-444 §6). */
+    /** {@code command} as root: inside the WSL distribution on Windows, through {@code sudo -k -S} on Linux (ADR-444 §6). */
     List<String> asRoot(String wslDistribution, List<String> command) {
         if (this == WINDOWS) {
             return inTheEngine(wslDistribution, command);
