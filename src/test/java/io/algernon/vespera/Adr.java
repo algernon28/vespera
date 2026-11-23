@@ -3318,6 +3318,17 @@ public final class Adr {
     public static final String PICOCLIS_OWN_LINES_CARRY_NO_COLOUR = FILE
             + "0443-picoclis-refusals-and-usage-carry-no-colour-whatever-the-environment.md";
 
+    /**
+     * ADR-444 -- the release version is computed from git and the records merged since the previous tag, and every
+     * push to {@code main} is released: each record from ADR-444 on names its bump on a {@code Release} line;
+     * {@code node docs/release.mjs next} raises the previous tag by the greatest bump merged since it, a patch where
+     * none; the workflow tags, builds and pushes the tag last; a Maven core extension names every build from git, a
+     * tagged commit by its tag and any other {@code <tag>-<distance>-g<commit>-SNAPSHOT} (amends ADR-431 §2 and §6
+     * and ADR-046).
+     */
+    public static final String THE_RELEASE_VERSION_IS_COMPUTED_FROM_GIT_AND_THE_RECORDS = FILE
+            + "0444-the-release-version-is-computed-from-git-and-the-records-merged-since-the-last-tag-and-every-push-to-main-is-released.md";
+
     private Adr() {
     }
 }

@@ -534,9 +534,11 @@ function readmeSection(heading, name) {
     const project = pom.slice(pom.indexOf("</parent>"));
     const artifact = /<artifactId>([^<]+)<\/artifactId>/.exec(project);
     const version = /<version>([^<]+)<\/version>/.exec(project);
-    // ADR-431 §2: the pom's version is ${revision}, whose default is the property of that name.
-    const revision = /<revision>([^<]+)<\/revision>/.exec(pom);
-    const built = version && version[1] === "${revision}" && revision ? revision[1] : version && version[1];
+    // ADR-444 §5: where .mvn/extensions.xml loads the git-versioning extension, the version is git's, which README
+    // writes as <version>; otherwise the pom's own.
+    const extensions = existsSync(".mvn/extensions.xml") ? readFileSync(".mvn/extensions.xml", "utf8") : "";
+    const gits = /<artifactId>maven-git-versioning-extension<\/artifactId>/.test(extensions);
+    const built = gits ? "<version>" : version && version[1];
     const jar = artifact && built ? `target/${artifact[1]}-${built}.jar` : null;
     const launched = [...section.matchAll(/java -jar (\S+?)`?(?:\s|$)/g)].map((m) => m[1]);
     if (!jar) wrong.push(`could not read the project's artifactId and version from ${POM}`);

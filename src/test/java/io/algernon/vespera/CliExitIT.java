@@ -48,8 +48,11 @@ class CliExitIT {
      */
     private static final long EXIT_BOUND_SECONDS = 60;
 
-    /** The packaged, executable jar the operator actually runs. */
-    private static final Path EXECUTABLE_JAR = Path.of("target", "vespera-0-SNAPSHOT.jar");
+    /**
+     * The packaged, executable jar the operator actually runs, its name carrying git's version, so
+     * failsafe names its path (ADR-444).
+     */
+    private static final Path EXECUTABLE_JAR = Path.of(System.getProperty("vespera.jar"));
 
     /**
      * Where each launch names both containers: a host under {@code .invalid}, which never resolves (RFC 6761), so the
