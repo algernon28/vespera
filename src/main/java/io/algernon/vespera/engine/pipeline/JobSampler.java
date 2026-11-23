@@ -66,6 +66,10 @@ import org.springframework.batch.core.step.StepExecution;
  * invocation: where it is of format 1, names the step and the run, and holds a {@code finishedAt}, the chart freezes
  * holding its lines and that instant; otherwise as ADR-432 section 5 has it.
  *
+ * <p>ADR-446 amends ADR-432 section 3: a step's chart draws its {@code done} from the step's main counter alone (the
+ * table of ADR-446 section 1), the latest line of which is kept beside the last line; where it has said none, no
+ * {@code done}. The census keeps its entries walked, and the report's reading and counts chart still follow the last line.
+ *
  * <p>It holds no rule: it decides no verdict, cache key, cluster or text of the deliverable.
  */
 final class JobSampler implements JobExecutionListener {
@@ -134,6 +138,28 @@ final class JobSampler implements JobExecutionListener {
 
     /** The last progress line admitted for each step, written by the step's own thread and read by the writer. */
     private final Map<String, String> lastLine = new ConcurrentHashMap<>();
+
+    /** The latest line of each step's main counter (ADR-446 section 2), cleared as the job begins like {@link #lastLine}. */
+    private final Map<String, String> lastMainLine = new ConcurrentHashMap<>();
+
+    /**
+     * Each step's main counter, by its whole label as the step says it (ADR-446 section 1). The census (its own entries
+     * walked, ADR-412 section 2) and the seed-corpus comparison (it says no counter) have none.
+     */
+    private static final Map<String, String> MAIN_COUNTER = Map.ofEntries(
+            Map.entry(StepNames.BYTE_LEVEL_REDUCTION, "Stage 1 (byte-level reduction, content hash)"),
+            Map.entry(StepNames.EXTRACTION, "Stage 2 (extraction)"),
+            Map.entry(StepNames.CONTENT_CENSUS, "Stage 3 (content census, files checked)"),
+            Map.entry(StepNames.REDUNDANCY_SIGNATURE, "Stage 4a (redundancy signatures)"),
+            Map.entry(StepNames.CONTENT_REDUNDANCY, "Stage 4b (redundancy resolution, near-duplicate candidates)"),
+            Map.entry(StepNames.SEED_EXTRACTION, "Stage 5a (seed extraction)"),
+            Map.entry(StepNames.EMBEDDING_SCORING, "Stage 5c (embedding scoring, corpus survivors)"),
+            Map.entry(StepNames.RELEVANCE_SCORING, "Stage 5d (relevance scoring, corpus survivors)"),
+            Map.entry(StepNames.RELEVANCE_FLOOR, "Stage 5e (relevance floor, below-threshold verdicts)"),
+            Map.entry(StepNames.CLUSTERING, "Stage 5f (clustering, topics)"),
+            Map.entry(StepNames.RELEVANCE_REPORT, "Stage 5 (relevance report, labels matched)"),
+            Map.entry(StepNames.ARRANGEMENT, "Stage 6a (arrangement, members gathered)"),
+            Map.entry(StepNames.GENERATION, "Stage 6b (generation, survivors copied)"));
 
     /** Steps whose execution is complete while their own listener still runs on the step's thread. */
     private final java.util.Set<String> stillInside = ConcurrentHashMap.newKeySet();
@@ -283,6 +309,7 @@ final class JobSampler implements JobExecutionListener {
     public void beforeJob(JobExecution jobExecution) {
         this.jobExecution = jobExecution;
         lastLine.clear();
+        lastMainLine.clear();
         stillInside.clear();
         entriesWalked.clear();
         walkWalked.set(null);
@@ -1089,8 +1116,9 @@ final class JobSampler implements JobExecutionListener {
             Long walk = walkWalked.get();
             done = walk == null ? null : entriesWalked.get(walk);
         }
-        if (done == null) {
-            Matcher counter = COUNTER.matcher(lastLine.getOrDefault(stage.step(), ""));
+        if (done == null && stage.runStage() != null) {
+            // ADR-446 section 2: the step's main counter's latest line alone, none where it has said none
+            Matcher counter = COUNTER.matcher(lastMainLine.getOrDefault(stage.step(), ""));
             if (counter.matches()) {
                 done = Long.parseLong(counter.group(2).replace(",", ""));
             }
@@ -1221,6 +1249,11 @@ final class JobSampler implements JobExecutionListener {
             }
             StepExecution execution = context.getStepExecution();
             lastLine.put(execution.getStepName(), message);
+            String mainLabel = MAIN_COUNTER.get(execution.getStepName());
+            Matcher counter = mainLabel == null ? null : COUNTER.matcher(message);
+            if (counter != null && counter.matches() && mainLabel.equals(counter.group(1))) {
+                lastMainLine.put(execution.getStepName(), message);
+            }
             if (execution.getStatus() != BatchStatus.STARTED && execution.getStatus() != BatchStatus.STARTING) {
                 stillInside.add(execution.getStepName());
             }

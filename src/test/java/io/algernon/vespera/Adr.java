@@ -3352,6 +3352,16 @@ public final class Adr {
     public static final String THE_GPU_IMAGE_STARTS_ONLY_WHERE_DOCKER_HAS_THE_NVIDIA_RUNTIME = FILE
             + "0445-the-gpu-image-starts-only-where-docker-has-the-nvidia-runtime-and-the-control-panel-offers-the-toolkit-or-the-cpu-image.md";
 
+    /**
+     * ADR-446 -- the {@code done} of a step's chart is the count of that step's main counter alone, one counter named
+     * for each of the thirteen steps that say one: a line of another counter of the step, or of a statement, moves it
+     * nowhere; a sample taken before the main counter has said a count in the invocation holds none, and once it has,
+     * its latest count; the census's chart, the seed-corpus comparison's, which says no counter, and the report's own
+     * counts of a step are unchanged (amends ADR-432 §3).
+     */
+    public static final String A_STEPS_CHART_DRAWS_ITS_DONE_FROM_ITS_MAIN_COUNTER_ALONE = FILE
+            + "0446-a-steps-chart-draws-its-done-from-the-steps-main-counter-alone.md";
+
     private Adr() {
     }
 }
