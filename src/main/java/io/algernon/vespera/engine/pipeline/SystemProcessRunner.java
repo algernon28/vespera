@@ -32,6 +32,17 @@ final class SystemProcessRunner implements ProcessRunner {
     @Override
     public ProcessOutcome run(List<String> command, Duration timeout)
             throws IOException, CommandOutputFileException {
+        return run(command, timeout, false, null);
+    }
+
+    @Override
+    public ProcessOutcome runFeeding(List<String> command, Duration timeout, char[] input)
+            throws IOException, CommandOutputFileException {
+        return run(command, timeout, true, input);
+    }
+
+    private ProcessOutcome run(List<String> command, Duration timeout, boolean feeding, char[] input)
+            throws IOException, CommandOutputFileException {
         // The output goes to a file, not a pipe: a child the command started may hold it open for as long as it
         // lives, and on Windows closing a pipe another thread is blocked reading waits for that read (ADR-323 §5).
         // Nothing here reads a pipe, so nothing here can block on one.
@@ -42,7 +53,12 @@ final class SystemProcessRunner implements ProcessRunner {
             throw new CommandOutputFileException(command, folder, asIoException(unwritable));
         }
         try {
-            Process process = start(command, ProcessBuilder.Redirect.to(file.toFile()));
+            Process process = feeding
+                    ? startFeeding(command, ProcessBuilder.Redirect.to(file.toFile()))
+                    : start(command, ProcessBuilder.Redirect.to(file.toFile()));
+            if (feeding) {
+                feed(process, input);
+            }
             try {
                 boolean exited = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
                 if (!exited) {
@@ -88,6 +104,30 @@ final class SystemProcessRunner implements ProcessRunner {
             process.destroyForcibly();
             Thread.currentThread().interrupt();
             throw new IOException("interrupted while waiting for " + String.join(" ", command), interrupted);
+        }
+    }
+
+    private static Process startFeeding(List<String> command, ProcessBuilder.Redirect output) throws IOException {
+        return new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(output).start();
+    }
+
+    /** Writes {@code input}, UTF-8, on the process's standard input and closes it; the bytes are cleared once written. */
+    private static void feed(Process process, char[] input) {
+        byte[] bytes = new byte[0];
+        try (java.io.OutputStream standardInput = process.getOutputStream()) {
+            if (input != null) {
+                java.nio.ByteBuffer encoded = StandardCharsets.UTF_8.encode(java.nio.CharBuffer.wrap(input));
+                bytes = new byte[encoded.remaining()];
+                encoded.get(bytes);
+                if (encoded.hasArray()) {
+                    java.util.Arrays.fill(encoded.array(), (byte) 0);
+                }
+                standardInput.write(bytes);
+            }
+        } catch (IOException exitedFirst) {
+            // a command that exited before it read its input has its exit code to say so
+        } finally {
+            java.util.Arrays.fill(bytes, (byte) 0);
         }
     }
 

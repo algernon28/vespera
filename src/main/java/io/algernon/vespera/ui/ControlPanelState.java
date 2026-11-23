@@ -110,6 +110,21 @@ final class ControlPanelState {
         return docker.start(asked, told);
     }
 
+    /** What a start's refusal says of the graphics card, empty where it is no refusal for the card (ADR-445 §5). */
+    java.util.Optional<DockerControl.CardRefused> cardRefused(String refusal) {
+        return docker.cardRefused(refusal);
+    }
+
+    /** Installs NVIDIA's toolkit, telling {@code told} each line it logs; {@code sudoPassword} is cleared by it (ADR-445 §6, §8). */
+    DockerControl.Said installTheNvidiaToolkit(char[] sudoPassword, java.util.function.Consumer<String> told) {
+        return docker.installTheNvidiaToolkit(sudoPassword, told);
+    }
+
+    /** What Docker says of its nvidia runtime and the cards, for {@code asked}, starting nothing (ADR-445 §5). */
+    DockerControl.CardCheck graphicsCard(LaunchValues asked) {
+        return docker.graphicsCard(asked);
+    }
+
     /** Checks the daemon, the containers and {@code models}, for the launch values held now, and starts nothing (ADR-430 §3). */
     DockerCheck checkDocker(DockerControl.Models models) {
         return checkDocker(values, models);

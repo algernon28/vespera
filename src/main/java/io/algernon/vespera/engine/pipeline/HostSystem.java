@@ -109,6 +109,59 @@ enum HostSystem {
         return List.copyOf(command);
     }
 
+    /** The runtime check, {@code docker info --format {{json .Runtimes}}}, inside WSL on Windows (ADR-445 §1). */
+    List<String> runtimeCheck(String wslDistribution) {
+        return inTheEngine(wslDistribution, List.of("docker", "info", "--format", "{{json .Runtimes}}"));
+    }
+
+    /**
+     * The read of the display adapters, run on the system itself and not inside WSL (ADR-445 §3); none on macOS, where
+     * the GPU image is refused before any command.
+     */
+    List<String> cardsRead() {
+        return switch (this) {
+            case WINDOWS -> List.of("powershell", "-NoProfile", "-NonInteractive", "-Command",
+                    "Get-CimInstance Win32_VideoController | ForEach-Object PNPDeviceID");
+            case LINUX -> List.of("sh", "-c",
+                    "for d in /sys/bus/pci/devices/*; do case \"$(cat \"$d/class\")\" in 0x03*) cat \"$d/vendor\";;"
+                            + " esac; done");
+            case MAC -> List.of();
+        };
+    }
+
+    /** The query of the cards' names, drivers and compute capabilities; inside WSL on Windows, by the path off root's (ADR-445 §4). */
+    List<String> cardQuery(String wslDistribution) {
+        List<String> query = List.of("--query-gpu=name,driver_version,compute_cap", "--format=csv,noheader");
+        List<String> command = new ArrayList<>();
+        command.add(this == WINDOWS ? "/usr/lib/wsl/lib/nvidia-smi" : "nvidia-smi");
+        command.addAll(query);
+        return inTheEngine(wslDistribution, command);
+    }
+
+    /** The driver's version the GPU image's CUDA 12.8 needs at least: 570.65 on Windows, 570.26 elsewhere (ADR-445 §4). */
+    String driverFloor() {
+        return this == WINDOWS ? "570.65" : "570.26";
+    }
+
+    /** {@code command} as root: inside the WSL distribution on Windows, through {@code sudo -k -S} on Linux (ADR-445 §6). */
+    List<String> asRoot(String wslDistribution, List<String> command) {
+        if (this == WINDOWS) {
+            return inTheEngine(wslDistribution, command);
+        }
+        List<String> through = new ArrayList<>(List.of("sudo", "-k", "-S"));
+        through.addAll(command);
+        return List.copyOf(through);
+    }
+
+    /** Where the engine is, as ADR-410 §3 and ADR-445 §2 name it. */
+    String whereTheEngineIs(String wslDistribution) {
+        if (this != WINDOWS) {
+            return "on this machine";
+        }
+        String named = wslDistribution == null ? "" : wslDistribution.strip();
+        return named.isEmpty() ? "in WSL's default distribution" : "in the WSL distribution " + named;
+    }
+
     /** {@code command}, run inside the WSL distribution on Windows and as it is elsewhere (ADR-390 §1). */
     private List<String> inTheEngine(String wslDistribution, List<String> command) {
         if (this != WINDOWS) {

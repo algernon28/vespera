@@ -20,11 +20,13 @@ import java.util.function.Supplier;
  * says how far it has got, that it is done, or that its connection was lost, and it records whether the window
  * cancelled it. A start, a shut-down and a check can each be held until the test releases it; a start and a shut-down
  * each tell the lines the test set for them before they are held, as a start and a shut-down tell each line they log
- * (ADR-437 §3).
+ * (ADR-437 §3). A refusal is read for the graphics card, an install answered and the card checked as the test scripts
+ * them, each install kept with the password it was given and telling the lines the test set for it, and each check of
+ * the card kept with its launch values (ADR-445 §5, §8, §10); the starts may answer in turn.
  */
 final class RecordingDockerControl implements DockerControl {
 
-    /** One call: {@code start}, {@code shut-down} or {@code stop-containers}, its values, and whether a child ran then. */
+    /** One call: {@code start}, {@code shut-down}, {@code stop-containers} or {@code install}, its values, and whether a child ran then. */
     record Call(String kind, Optional<LaunchValues> values, boolean childRan) {
     }
 
@@ -64,8 +66,29 @@ final class RecordingDockerControl implements DockerControl {
     private volatile CountDownLatch startHeldUntil = new CountDownLatch(0);
     private volatile CountDownLatch shutDownHeldUntil = new CountDownLatch(0);
     private volatile CountDownLatch checkHeldUntil = new CountDownLatch(0);
+    private volatile CountDownLatch cardCheckHeldUntil = new CountDownLatch(0);
     private volatile List<String> startTells = List.of();
     private volatile List<String> shutDownTells = List.of();
+
+    /** What the starts answer in turn, the last for every start after; empty where {@link #startSays} answers each. */
+    private final List<Said> startsInTurn = new CopyOnWriteArrayList<>();
+
+    private volatile java.util.function.Function<String, Optional<CardRefused>> cardRefusedSays = refusal -> Optional.empty();
+
+    private volatile Said installSays = new Said(true, "");
+
+    private volatile List<String> installTells = List.of();
+
+    private volatile CardCheck graphicsCardSays = new CardCheck(Optional.empty(), List.of());
+
+    /**
+     * What each install was given (ADR-445 §8): the password's characters as they were when it was called, copied, or
+     * null where it was given none.
+     */
+    final List<String> installsGiven = new CopyOnWriteArrayList<>();
+
+    /** Every check of the graphics card, with the launch values it was given, in order (ADR-445 §5). */
+    final List<LaunchValues> cardChecks = new CopyOnWriteArrayList<>();
 
     /** Answers a start with {@code startSays}, a shut-down with {@code shutDownSays}, and a stop of the containers as done. */
     RecordingDockerControl(Said startSays, Said shutDownSays) {
@@ -123,6 +146,67 @@ final class RecordingDockerControl implements DockerControl {
         return this;
     }
 
+    /** The starts answer {@code saids} in turn, the last answering every start after it. */
+    RecordingDockerControl startsAnswering(Said... saids) {
+        startsInTurn.clear();
+        startsInTurn.addAll(List.of(saids));
+        return this;
+    }
+
+    /** A refusal is read for the graphics card by {@code reading} (ADR-445 §5). */
+    RecordingDockerControl cardRefusedReading(java.util.function.Function<String, Optional<CardRefused>> reading) {
+        cardRefusedSays = reading;
+        return this;
+    }
+
+    /** Every install answers {@code said}. */
+    RecordingDockerControl installAnswering(Said said) {
+        installSays = said;
+        return this;
+    }
+
+    /** Every install tells {@code lines}, in order, as an install tells each line it logs (ADR-445 §6, ADR-437 §3). */
+    RecordingDockerControl tellingOnEachInstall(List<String> lines) {
+        installTells = List.copyOf(lines);
+        return this;
+    }
+
+    /** Every check of the graphics card answers {@code check}. */
+    RecordingDockerControl graphicsCardAnswering(CardCheck check) {
+        graphicsCardSays = check;
+        return this;
+    }
+
+    @Override
+    public Optional<CardRefused> cardRefused(String refusal) {
+        return cardRefusedSays.apply(refusal);
+    }
+
+    @Override
+    public Said installTheNvidiaToolkit(char[] sudoPassword, Consumer<String> told) {
+        installsGiven.add(sudoPassword == null ? null : new String(sudoPassword));
+        calls.add(new Call("install", Optional.empty(), childRuns.getAsBoolean()));
+        installTells.forEach(told);
+        return installSays;
+    }
+
+    /**
+     * Holds every check of the graphics card, once it is kept in {@link #cardChecks}, until {@code released} counts
+     * down, as a question of the engine that waits on its commands does (ADR-445 §5).
+     */
+    RecordingDockerControl holdingCardChecksUntil(CountDownLatch released) {
+        cardCheckHeldUntil = released;
+        return this;
+    }
+
+    @Override
+    public CardCheck graphicsCard(LaunchValues values) {
+        cardChecks.add(values);
+        CardCheck answer = graphicsCardSays;
+        awaitQuietly(cardCheckHeldUntil);
+        return answer;
+    }
+
     /** The calls of {@code kind}, in order. */
     List<Call> of(String kind) {
         return calls.stream().filter(call -> call.kind().equals(kind)).toList();
@@ -158,6 +242,9 @@ final class RecordingDockerControl implements DockerControl {
             checkSays = checkAfterAStartSays;
         }
         startsReturned.add(Instant.now());
+        if (!startsInTurn.isEmpty()) {
+            return startsInTurn.size() == 1 ? startsInTurn.getFirst() : startsInTurn.removeFirst();
+        }
         return startSays;
     }
 

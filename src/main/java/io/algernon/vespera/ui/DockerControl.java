@@ -84,11 +84,51 @@ interface DockerControl {
     /** Stops the containers alone, where one answers on this machine, for the addresses {@code values} hold. */
     Said stopTheContainers(LaunchValues values);
 
+    /**
+     * A start refused because the graphics card cannot be used (ADR-445 §5, §10): whether the toolkit is offered, the
+     * line's first sentence, the install's commands as the confirmation lists them, where they run, and whether the
+     * install asks for a password.
+     */
+    record CardRefused(boolean offersTheToolkit, String why, List<String> commands, String where,
+            boolean asksForAPassword) {
+    }
+
+    /** What the check of the graphics card found: whether Docker lists the nvidia runtime, empty where unknown, and the warnings (ADR-445 §5). */
+    record CardCheck(Optional<Boolean> runtimeListed, List<String> warnings) {
+    }
+
+    /** What a start's refusal says of the graphics card, empty where it is no refusal for the card (ADR-445 §5). */
+    Optional<CardRefused> cardRefused(String refusal);
+
+    /**
+     * Installs the NVIDIA Container Toolkit (ADR-445 §6, §8), telling {@code told} each line it logs. {@code sudoPassword}
+     * is handed to the install alone and cleared by it; null where none is asked.
+     */
+    Said installTheNvidiaToolkit(char[] sudoPassword, Consumer<String> told);
+
+    /** Asks Docker for its nvidia runtime and the cards' warnings, for the addresses {@code values} hold, and starts nothing (ADR-445 §5). */
+    CardCheck graphicsCard(LaunchValues values);
+
     /** Runs nothing and answers done with no line, every row of a check OK and every download done: what a state built with no Docker holds. */
     DockerControl NONE = new DockerControl() {
         @Override
         public Said start(LaunchValues values, Consumer<String> told) {
             return new Said(true, "");
+        }
+
+        @Override
+        public Optional<CardRefused> cardRefused(String refusal) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Said installTheNvidiaToolkit(char[] sudoPassword, Consumer<String> told) {
+            return new Said(true, "");
+        }
+
+        @Override
+        public CardCheck graphicsCard(LaunchValues values) {
+            return new CardCheck(Optional.empty(), List.of());
         }
 
         @Override
@@ -215,6 +255,40 @@ interface DockerControl {
             public Said stopTheContainers(LaunchValues values) {
                 return said(engine.stopTheContainers(address(values.doclingBaseUrl(), DOCLING_PROPERTY, DEFAULT_DOCLING),
                         address(values.ollamaBaseUrl(), OLLAMA_PROPERTY, DEFAULT_OLLAMA)));
+            }
+
+            @Override
+            public Optional<CardRefused> cardRefused(String refusal) {
+                Optional<Boolean> offers = DockerEngine.offersTheNvidiaToolkit(refusal);
+                if (offers.isEmpty()) {
+                    return Optional.empty();
+                }
+                int firstSentence = refusal.indexOf(". ");
+                String why = firstSentence < 0 ? refusal : refusal.substring(0, firstSentence + 1);
+                boolean toolkit = offers.get();
+                return Optional.of(new CardRefused(toolkit, why,
+                        toolkit ? engine.nvidiaToolkitCommands() : List.of(),
+                        toolkit ? engine.whereTheToolkitIsInstalled() : "",
+                        toolkit && engine.installAsksForAPassword()));
+            }
+
+            @Override
+            public Said installTheNvidiaToolkit(char[] sudoPassword, Consumer<String> told) {
+                String line = engine.installTheNvidiaToolkit(sudoPassword, told);
+                return new Said(DockerEngine.NVIDIA_TOOLKIT_INSTALLED.equals(line), line);
+            }
+
+            @Override
+            public CardCheck graphicsCard(LaunchValues values) {
+                URI docling = address(values.doclingBaseUrl(), DOCLING_PROPERTY, DEFAULT_DOCLING);
+                URI ollama = address(values.ollamaBaseUrl(), OLLAMA_PROPERTY, DEFAULT_OLLAMA);
+                try {
+                    Optional<Boolean> listed = engine.nvidiaRuntimeListed(docling, ollama);
+                    List<String> warnings = listed.orElse(false) ? engine.graphicsCardWarnings(docling, ollama) : List.of();
+                    return new CardCheck(listed, warnings);
+                } catch (RuntimeException unasked) {
+                    return new CardCheck(Optional.empty(), List.of());
+                }
             }
 
             /** One of Docling and Ollama: where its host resolves to and, where it does, whether {@code path} answers 2xx within 2 s (ADR-430 §3). */
