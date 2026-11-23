@@ -45,6 +45,13 @@ interface Dialogs {
     Optional<String> masked(String title, String sentence);
 
     /**
+     * Asks {@code sentence} under {@code title} in a field that does not show what is typed, with the answers {@code yes}
+     * and {@code no} (ADR-444 §8): what is typed as characters the caller clears, empty where the operator answered
+     * {@code no} or closed the dialog. The field is cleared once the dialog closes.
+     */
+    Optional<char[]> secret(String title, String sentence, String yes, String no);
+
+    /**
      * Opens a warning, {@code sentence} over one field holding {@code initial} and the answers Publish and Cancel
      * (ADR-383 §3): what is typed, empty where the warning is cancelled.
      */
@@ -82,6 +89,11 @@ interface Dialogs {
     Dialogs NONE = new Dialogs() {
         @Override
         public Optional<String> masked(String title, String sentence) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<char[]> secret(String title, String sentence, String yes, String no) {
             return Optional.empty();
         }
 
@@ -210,6 +222,31 @@ interface Dialogs {
                     themed(ask.getDialogPane(), over);
                 }
                 return ask.showAndWait();
+            }
+
+            @Override
+            public Optional<char[]> secret(String title, String sentence, String yes, String no) {
+                ButtonType goOn = new ButtonType(yes, ButtonBar.ButtonData.OK_DONE);
+                ButtonType keep = new ButtonType(no, ButtonBar.ButtonData.CANCEL_CLOSE);
+                Dialog<char[]> ask = new Dialog<>();
+                ask.setTitle(title);
+                PasswordField field = new PasswordField();
+                field.setId("secret-field");
+                Label words = new Label(sentence);
+                words.setWrapText(true);
+                ask.getDialogPane().setContent(new VBox(8, words, field));
+                ask.getDialogPane().getButtonTypes().setAll(goOn, keep);
+                ask.setResultConverter(pressed -> pressed == goOn ? field.getText().toCharArray() : null);
+                Window over = owner.get();
+                if (over != null) {
+                    ask.initOwner(over);
+                    themed(ask.getDialogPane(), over);
+                }
+                try {
+                    return ask.showAndWait();
+                } finally {
+                    field.clear();
+                }
             }
 
             @Override

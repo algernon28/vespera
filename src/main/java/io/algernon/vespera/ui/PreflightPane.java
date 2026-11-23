@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import javafx.geometry.HPos;
 import javafx.scene.Node;
 import javafx.scene.layout.ColumnConstraints;
@@ -24,6 +25,9 @@ final class PreflightPane {
     private static final String IMAGE_CAPTION =
             "Extraction refuses a Docling that runs another image than the one Run would use.";
 
+    private static final String NO_RUNTIME_CAPTION = "The GPU image starts only where Docker has the nvidia runtime,"
+            + " which the NVIDIA Container Toolkit gives it.";
+
     /** One row: its id, its name, whether its mark is OK, its words and the caption of its words (empty for none). */
     private record Row(String id, String name, boolean ok, String words, String caption) {
     }
@@ -36,11 +40,16 @@ final class PreflightPane {
     /** The rows last drawn. */
     private List<Row> drawn = List.of();
 
-    /** {@code fieldText} gives the text of the launch field of a property. */
-    PreflightPane(ControlPanelState state, WorkingFolders folders, Function<String, String> fieldText) {
+    /** What the window keeps of the card's last check, null where it keeps none (ADR-444 §5). */
+    private final Supplier<DockerControl.CardCheck> cardKept;
+
+    /** {@code fieldText} gives the text of the launch field of a property, {@code cardKept} the answer kept of the card. */
+    PreflightPane(ControlPanelState state, WorkingFolders folders, Function<String, String> fieldText,
+            Supplier<DockerControl.CardCheck> cardKept) {
         this.state = state;
         this.folders = folders;
         this.fieldText = fieldText;
+        this.cardKept = cardKept;
     }
 
     Node pane() {
@@ -86,6 +95,20 @@ final class PreflightPane {
         if (!kept.isEmpty() && !field.isEmpty() && !kept.equals(field)) {
             rows.add(new Row("docling-image", "Docling's image", false, "runs " + kept + "; Run would use " + field,
                     IMAGE_CAPTION));
+        }
+        DockerControl.CardCheck card = cardKept.get();
+        if (card != null && card.runtimeListed().isPresent()
+                && fieldText.apply("vespera.docling.image").strip().equals(StartingValues.DOCLING_IMAGE_GPU)) {
+            boolean listed = card.runtimeListed().get();
+            rows.add(listed
+                    ? new Row("graphics-card", "Graphics card", true, "Docker has the nvidia runtime", "")
+                    : new Row("graphics-card", "Graphics card", false,
+                            "Docker has no nvidia runtime; Start Docker offers to install the NVIDIA Container Toolkit",
+                            NO_RUNTIME_CAPTION));
+            for (int at = 0; at < card.warnings().size(); at++) {
+                String warning = card.warnings().get(at);
+                rows.add(new Row("graphics-card-warning-" + (at + 1), "Warning", false, warning, warning));
+            }
         }
         if (rows.equals(drawn)) {
             // the clock draws this each second; rows that are the same are left as they are, selection and all

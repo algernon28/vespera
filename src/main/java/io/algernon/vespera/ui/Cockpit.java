@@ -91,6 +91,14 @@ final class Cockpit {
     private volatile DockerControl.Models modelsInForce = new DockerControl.Models("", "");
     /** What the Services fields hold now, read on the toolkit's thread for the check, Start Docker and the download to ask with (ADR-430 §3, §5, §7). */
     private volatile LaunchValues fieldValues;
+    /**
+     * What Docker said of its nvidia runtime and the cards, kept once the daemon answers for the GPU image and dropped where
+     * a check finds the daemon not answering and where a press of Start Docker returns (ADR-444 §5); null where none is kept.
+     */
+    private volatile DockerControl.CardCheck cardKept;
+    /** Whether the card is being asked, and how many times the kept answer has been dropped: an answer asked before a drop is not kept. */
+    private boolean cardAsking;
+    private long cardDrops;
     /** Set where Start Docker's start has returned: the first check begun after it may open the download panel (ADR-430 §5). */
     private boolean downloadAfterTheStart;
     private long startReturned;
@@ -212,7 +220,7 @@ final class Cockpit {
         this.analysisReportsWindow = new AnalysisReportsWindow(root, dialogs, folders, this::say);
         this.endingPanel = new EndingPanel(this::openTheProfileWindow, dialogs::handToTheSystem,
                 this::browseForTheWorkingDirectory);
-        this.preflight = new PreflightPane(state, folders, property -> fields.get(property).text());
+        this.preflight = new PreflightPane(state, folders, property -> fields.get(property).text(), () -> cardKept);
         this.codeSets = new CodeSetsPane(state, dialogs, folders, this::foldersToKeepApart, this::loadFiles);
         this.topics = new TopicsPane(state, folders, this::loadFiles);
         this.outputs = new OutputsPane(state, folders, this::loadFiles);
@@ -707,7 +715,7 @@ final class Cockpit {
         Thread.ofPlatform().daemon().name("the control panel starts Docker").start(() -> {
             String line;
             try {
-                line = state.startDocker(startValues, told).line();
+                line = theStartAndWhatItIsAskedAbout(startValues, told);
             } catch (RuntimeException failed) {
                 line = "Docker was not started: " + failed;
             }
@@ -717,6 +725,7 @@ final class Cockpit {
                     say(said);
                     outputPanel.endsOnTheLineOfThePress(told, said);
                 }
+                dropTheCardKept();
                 starting = false;
                 downloadAfterTheStart = true;
                 startReturned = System.nanoTime();
@@ -724,6 +733,101 @@ final class Cockpit {
                 clock.now();
             });
         });
+    }
+
+    private static final String USE_THE_CPU_IMAGE = "Use the CPU image";
+    private static final String INSTALL_THE_TOOLKIT = "Install the toolkit";
+    private static final String CANCEL = "Cancel";
+
+    private static final String WHAT_THE_COMMANDS_DO = "They add NVIDIA's package source and its signing key, install the"
+            + " NVIDIA Container Toolkit, write its nvidia runtime into /etc/docker/daemon.json and restart Docker."
+            + " Restarting Docker stops every container running on it, Vespera's and any other, and only those set to"
+            + " restart come back.";
+
+    private static final String WHAT_THE_CPU_IMAGE_COSTS = "Use the CPU image runs the converter on the processor"
+            + " instead, and remembers that choice. The CPU image converts documents differently, so it is another"
+            + " converter: every stage from extraction on starts new runs, and a document it has not converted before is"
+            + " converted again.";
+
+    /**
+     * Start Docker's start and, where it is refused because the graphics card cannot be used, the question and what its
+     * answer does (ADR-444 §5), on the press's thread. Everything is told through {@code told}, in order.
+     *
+     * @return the press's line
+     */
+    private String theStartAndWhatItIsAskedAbout(LaunchValues startValues, java.util.function.Consumer<String> told) {
+        DockerControl.Said first = state.startDocker(startValues, told);
+        if (first.done()) {
+            return first.line();
+        }
+        Optional<DockerControl.CardRefused> card = state.cardRefused(first.line());
+        if (card.isEmpty()) {
+            return first.line();
+        }
+        DockerControl.CardRefused refused = card.get();
+        List<String> answers = refused.offersTheToolkit()
+                ? List.of(USE_THE_CPU_IMAGE, INSTALL_THE_TOOLKIT, CANCEL)
+                : List.of(USE_THE_CPU_IMAGE, CANCEL);
+        String sentence = refused.why() + "\n\n"
+                + (refused.offersTheToolkit()
+                        ? "Install the toolkit runs these commands as root " + refused.where()
+                                + (refused.asksForAPassword() ? ", asking for your password for sudo first" : "")
+                                + ":\n\n" + String.join("\n", refused.commands()) + "\n\n" + WHAT_THE_COMMANDS_DO + "\n\n"
+                        : "")
+                + WHAT_THE_CPU_IMAGE_COSTS;
+        Optional<String> answer = onTheToolkitThread(() -> dialogs.choose("The graphics card", sentence, answers));
+        if (answer.isEmpty()) {
+            return first.line();
+        }
+        if (answer.get().equals(USE_THE_CPU_IMAGE)) {
+            onTheToolkitThread(() -> {
+                fields.get("vespera.docling.image").input.setText(StartingValues.DOCLING_IMAGE_CPU);
+                return null;
+            });
+            return state.startDocker(startValues.withDoclingImage(StartingValues.DOCLING_IMAGE_CPU), told).line();
+        }
+        if (!answer.get().equals(INSTALL_THE_TOOLKIT) || !refused.offersTheToolkit()) {
+            return first.line();
+        }
+        char[] password = null;
+        if (refused.asksForAPassword()) {
+            Optional<char[]> typed = onTheToolkitThread(() -> dialogs.secret("Install the NVIDIA Container Toolkit",
+                    "Your password, for sudo. Vespera hands it to sudo for this install alone and keeps it nowhere.",
+                    "Install", CANCEL));
+            if (typed.isEmpty()) {
+                return first.line();
+            }
+            password = typed.get();
+        }
+        DockerControl.Said installed;
+        try {
+            installed = state.installTheNvidiaToolkit(password, told);
+        } finally {
+            if (password != null) {
+                java.util.Arrays.fill(password, '\0');
+            }
+        }
+        if (!installed.done()) {
+            return installed.line();
+        }
+        String again = state.startDocker(startValues, told).line();
+        return again.isEmpty() ? installed.line() : again;
+    }
+
+    /** Runs {@code asking} on the toolkit's thread and waits for what it gives, as a dialog is opened there (ADR-444 §5). */
+    private static <T> T onTheToolkitThread(java.util.function.Supplier<T> asking) {
+        if (Platform.isFxApplicationThread()) {
+            return asking.get();
+        }
+        java.util.concurrent.CompletableFuture<T> answered = new java.util.concurrent.CompletableFuture<>();
+        Platform.runLater(() -> {
+            try {
+                answered.complete(asking.get());
+            } catch (RuntimeException failed) {
+                answered.completeExceptionally(failed);
+            }
+        });
+        return answered.join();
     }
 
     /** Opens the window's checking: the first check as it opens, nothing started (ADR-430 §1, §4). */
@@ -835,10 +939,51 @@ final class Cockpit {
             log.log(System.Logger.Level.WARNING, "the check of Docker failed: " + failed);
             return;
         }
-        Platform.runLater(() -> showTheCheck(found, asked, began));
+        Platform.runLater(() -> showTheCheck(found, asked, began, askedValues));
     }
 
-    private void showTheCheck(DockerCheck found, DockerControl.Models asked, long began) {
+    /** Drops the answer kept of the card, so that the next check that finds the daemon answering asks again (ADR-444 §5). */
+    private void dropTheCardKept() {
+        cardKept = null;
+        cardDrops++;
+    }
+
+    /**
+     * Asks the card once, off the toolkit's thread, where this check found the daemon answering, {@code askedValues} name
+     * the GPU image and no answer is kept or being asked; drops the answer where the daemon does not answer (ADR-444 §5).
+     */
+    private void askTheCardOnce(DockerCheck found, LaunchValues askedValues) {
+        if (found.daemon() != DockerCheck.Mark.OK) {
+            if (cardKept != null) {
+                dropTheCardKept();
+            }
+            return;
+        }
+        if (cardKept != null || cardAsking
+                || !askedValues.doclingImage().strip().equals(StartingValues.DOCLING_IMAGE_GPU)) {
+            return;
+        }
+        cardAsking = true;
+        long dropsThen = cardDrops;
+        Thread.ofPlatform().daemon().name("the control panel asks for the graphics card").start(() -> {
+            DockerControl.CardCheck answer;
+            try {
+                answer = state.graphicsCard(askedValues);
+            } catch (RuntimeException failed) {
+                answer = new DockerControl.CardCheck(Optional.empty(), List.of());
+            }
+            DockerControl.CardCheck asked = answer;
+            Platform.runLater(() -> {
+                cardAsking = false;
+                if (cardDrops == dropsThen) {
+                    cardKept = asked;
+                }
+            });
+        });
+    }
+
+    private void showTheCheck(DockerCheck found, DockerControl.Models asked, long began, LaunchValues askedValues) {
+        askTheCardOnce(found, askedValues);
         lastCheck = found;
         state.keepCheck(found);
         profile.offerModels(found.ollamaModels());
@@ -1428,8 +1573,8 @@ final class Cockpit {
         LaunchField ollama = launchField("spring.ai.ollama.base-url", false, false);
         LaunchField model = launchField("vespera.label.model", false, false);
         ToggleGroup group = new ToggleGroup();
-        RadioButton gpu = new RadioButton("GPU: needs an NVIDIA graphics card. Much faster.");
-        RadioButton cpu = new RadioButton("CPU: runs on any machine. Slower.");
+        RadioButton gpu = new RadioButton("GPU: an NVIDIA graphics card, with NVIDIA's toolkit in Docker. Much faster.");
+        RadioButton cpu = new RadioButton("CPU: any machine, AMD and Intel cards included. Slower.");
         RadioButton other = new RadioButton("Another image");
         gpu.setId("image-gpu");
         cpu.setId("image-cpu");

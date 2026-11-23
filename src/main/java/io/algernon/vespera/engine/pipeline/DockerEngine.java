@@ -3,6 +3,7 @@ package io.algernon.vespera.engine.pipeline;
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -175,6 +176,67 @@ public final class DockerEngine {
     public String shutDown(Consumer<String> told) {
         return starter(URI.create(ContainerStartSettings.DEFAULT_DOCLING), URI.create(ContainerStartSettings.DEFAULT_OLLAMA))
                 .telling(told).shutDown().line();
+    }
+
+    /** The line of an install that ran every command (ADR-444 §6). */
+    public static final String NVIDIA_TOOLKIT_INSTALLED = ContainerStarter.NVIDIA_TOOLKIT_INSTALLED;
+
+    /**
+     * Whether a start's refusal is the graphics card's (ADR-444 §10).
+     *
+     * @return true for the line of the nvidia runtime missing, false for the line of a card that is not NVIDIA's or of
+     *     macOS, empty for any other line
+     */
+    public static Optional<Boolean> offersTheNvidiaToolkit(String refusal) {
+        if (refusal == null) {
+            return Optional.empty();
+        }
+        if (refusal.startsWith(NvidiaRuntimeIsMissingException.BEGINNING)) {
+            return Optional.of(true);
+        }
+        return refusal.startsWith(NoNvidiaCardException.BEGINNING) ? Optional.of(false) : Optional.empty();
+    }
+
+    /**
+     * Installs the NVIDIA Container Toolkit (ADR-444 §6, §8), telling {@code told} each line it logs. {@code sudoPassword}
+     * is handed to {@code sudo} on Linux and is cleared on return; null on Windows, where none is asked.
+     *
+     * @return the line of what came of it, {@link #NVIDIA_TOOLKIT_INSTALLED} where it is done
+     */
+    public String installTheNvidiaToolkit(char[] sudoPassword, Consumer<String> told) {
+        return starter(URI.create(ContainerStartSettings.DEFAULT_DOCLING), URI.create(ContainerStartSettings.DEFAULT_OLLAMA))
+                .telling(told).installTheNvidiaToolkit(sudoPassword);
+    }
+
+    /** The install's commands as the confirmation lists them, none on macOS (ADR-444 §6). */
+    public List<String> nvidiaToolkitCommands() {
+        return starter(URI.create(ContainerStartSettings.DEFAULT_DOCLING), URI.create(ContainerStartSettings.DEFAULT_OLLAMA))
+                .nvidiaToolkitCommands();
+    }
+
+    /** Where the toolkit is installed, as a refusal names it: the WSL distribution, or {@code on this machine} (ADR-444 §2). */
+    public String whereTheToolkitIsInstalled() {
+        return HostSystem.current().whereTheEngineIs(wslDistribution);
+    }
+
+    /** Whether the install asks for a password: on Linux, for {@code sudo} (ADR-444 §8). */
+    public boolean installAsksForAPassword() {
+        return HostSystem.current() == HostSystem.LINUX;
+    }
+
+    /**
+     * Whether Docker lists an {@code nvidia} runtime, asked only where the daemon answers, and starting nothing
+     * (ADR-444 §5).
+     *
+     * @return empty where nothing was asked
+     */
+    public Optional<Boolean> nvidiaRuntimeListed(URI doclingBaseUrl, URI ollamaBaseUrl) {
+        return starter(doclingBaseUrl, ollamaBaseUrl).nvidiaRuntimeListedStartingNothing();
+    }
+
+    /** The warnings of the driver and the card, asked as {@link #nvidiaRuntimeListed} is (ADR-444 §4, §5). */
+    public List<String> graphicsCardWarnings(URI doclingBaseUrl, URI ollamaBaseUrl) {
+        return starter(doclingBaseUrl, ollamaBaseUrl).graphicsCardWarningsStartingNothing();
     }
 
     private ContainerStarter starter(URI doclingBaseUrl, URI ollamaBaseUrl) {

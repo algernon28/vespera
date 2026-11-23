@@ -23,6 +23,16 @@ interface ProcessRunner {
     ProcessOutcome run(List<String> command, Duration timeout) throws IOException, CommandOutputFileException;
 
     /**
+     * As {@link #run}, with {@code input} written on the command's standard input, encoded as UTF-8, and the input
+     * closed; a null {@code input} writes nothing and closes it (ADR-444 §10).
+     *
+     * @throws IOException when the program cannot be started
+     * @throws CommandOutputFileException when the temporary file its output goes to cannot be created or read
+     */
+    ProcessOutcome runFeeding(List<String> command, Duration timeout, char[] input)
+            throws IOException, CommandOutputFileException;
+
+    /**
      * Runs the command to its end with no bound of Vespera's, handing every line it prints to {@code eachLine} as it
      * is printed.
      *

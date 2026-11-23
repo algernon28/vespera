@@ -205,12 +205,18 @@ public class ContainerStarter {
         } else {
             throw new NoComposeFileBuildsTheImageException(settings.doclingImage(), cpuImage, gpuImage);
         }
+        if (withTheGpuFile && host == HostSystem.MAC) {
+            throw new NoNvidiaCardException("on macOS Docker reaches no graphics card", cpuImage);
+        }
         try (ContainerLock lock = takeTheLock()) {
             if (theLocalOnesAnswer()) {
                 return Outcome.ALREADY_ANSWERING;
             }
             makeTheEngineAnswer();
             checkComposeAndBuildx();
+            if (withTheGpuFile) {
+                checkTheGraphicsCard(cpuImage);
+            }
             bringUp(withTheGpuFile);
             waitForTheLocalOnes();
             return Outcome.STARTED;
@@ -514,6 +520,264 @@ public class ContainerStarter {
             return runner.run(command, limit);
         } catch (CommandOutputFileException unusable) {
             // Whatever the program: Docker is not what failed, and the next command writes to the same folder.
+            throw new CommandOutputFileUnusableException(unusable);
+        } catch (IOException cannotStart) {
+            return new ProcessOutcome(127, cannotStart.getMessage() == null ? "" : cannotStart.getMessage());
+        }
+    }
+
+    // ---- the graphics card (ADR-444)
+
+    /**
+     * Before {@code up}, for the GPU image: the engine lists an {@code nvidia} runtime or the start is refused (§1, §2,
+     * §3); where it does, the driver and the card are warned of where they are old and the start goes on (§4).
+     */
+    private void checkTheGraphicsCard(String cpuImage) {
+        if (!runtimeListed()) {
+            throw theRuntimeIsMissing(cpuImage);
+        }
+        for (String warning : cardWarnings()) {
+            log.warn("{}", warning);
+            eachLine.accept(warning);
+        }
+    }
+
+    /** Whether the engine lists an {@code nvidia} runtime: exit 0 and the name as a key of the object it printed (§1). */
+    private boolean runtimeListed() {
+        List<String> check = host.runtimeCheck(settings.wslDistribution());
+        try {
+            ProcessOutcome outcome = runner.run(check, COMMAND_LIMIT);
+            return outcome.exitCode() == 0 && outcome.output().contains("\"nvidia\":");
+        } catch (CommandOutputFileException unusable) {
+            throw new CommandOutputFileUnusableException(unusable);
+        } catch (IOException cannotStart) {
+            throw new DockerIsNotInstalledException(host.engineProgram());
+        }
+    }
+
+    /** Where the runtime is not listed: reads the cards, and gives the refusal of §2 or of §3. */
+    private ContainerStartRefusedException theRuntimeIsMissing(String cpuImage) {
+        ProcessOutcome read = runCounting(host.cardsRead(), COMMAND_LIMIT);
+        String where = host.whereTheEngineIs(settings.wslDistribution());
+        if (read.exitCode() != 0) {
+            return new NvidiaRuntimeIsMissingException(where, cpuImage);
+        }
+        boolean nvidia = false;
+        boolean amd = false;
+        boolean intel = false;
+        for (String vendor : vendorsIn(read.output())) {
+            nvidia |= vendor.equals("10de");
+            amd |= vendor.equals("1002");
+            intel |= vendor.equals("8086");
+        }
+        if (nvidia) {
+            return new NvidiaRuntimeIsMissingException(where, cpuImage);
+        }
+        String cards = amd && intel ? "this machine's graphics cards are AMD's and Intel's"
+                : amd ? "this machine's graphics card is AMD's"
+                : intel ? "this machine's graphics card is Intel's"
+                : "no NVIDIA graphics card was found on this machine";
+        return new NoNvidiaCardException(cards, cpuImage);
+    }
+
+    private static final java.util.regex.Pattern VENDOR =
+            java.util.regex.Pattern.compile("(?i)VEN_([0-9a-f]{4})|^\\s*0x([0-9a-f]{4})\\s*$");
+
+    /** The vendor ids, lower case, of the lines: Windows' {@code VEN_<id>} in a device id, Linux's {@code 0x<id>}. */
+    private static List<String> vendorsIn(String output) {
+        List<String> vendors = new ArrayList<>();
+        output.replace("\u0000", "").replace("﻿", "").lines().forEach(line -> {
+            java.util.regex.Matcher found = VENDOR.matcher(line);
+            if (found.find()) {
+                vendors.add((found.group(1) != null ? found.group(1) : found.group(2)).toLowerCase(java.util.Locale.ROOT));
+            }
+        });
+        return vendors;
+    }
+
+    /** The CUDA 12.8 GA driver floor's, and the converter's compute capability floor's, lines for each card (§4). */
+    private List<String> cardWarnings() {
+        ProcessOutcome outcome = runCounting(host.cardQuery(settings.wslDistribution()), COMMAND_LIMIT);
+        if (outcome.exitCode() != 0) {
+            return List.of();
+        }
+        List<String> warnings = new ArrayList<>();
+        String floor = host.driverFloor();
+        outcome.output().replace("\u0000", "").replace("﻿", "").lines().map(String::strip)
+                .filter(line -> !line.isEmpty()).forEach(line -> {
+                    String[] card = line.split(", ", -1);
+                    if (card.length != 3) {
+                        return;
+                    }
+                    String name = card[0].strip();
+                    String driver = card[1].strip();
+                    String capability = card[2].strip();
+                    boolean driverIsOld;
+                    boolean capabilityIsOld;
+                    try {
+                        driverIsOld = compareNumberByNumber(driver, floor) < 0;
+                        capabilityIsOld = compareNumberByNumber(capability, "7.5") < 0;
+                    } catch (NumberFormatException unreadable) {
+                        return;
+                    }
+                    if (driverIsOld) {
+                        warnings.add("The NVIDIA driver of " + name + " is " + driver + ", and the GPU image's CUDA 12.8"
+                                + " needs " + floor + " or later, so the containers may not start on the card: update the"
+                                + " driver" + (host == HostSystem.WINDOWS ? ", on Windows," : "")
+                                + " or choose the CPU image.");
+                    }
+                    if (capabilityIsOld) {
+                        warnings.add(name + " has compute capability " + capability + ", and the GPU image's converter"
+                                + " needs 7.5 or later, a Turing card (GeForce RTX 20 or GTX 16) or newer, so it may not"
+                                + " convert on the card: choose the CPU image if it does not.");
+                    }
+                });
+        return warnings;
+    }
+
+    /** Two dotted versions compared number by number; a part that is no whole number is a {@link NumberFormatException}. */
+    private static int compareNumberByNumber(String version, String other) {
+        String[] left = version.split("\\.", -1);
+        String[] right = other.split("\\.", -1);
+        for (int at = 0; at < Math.max(left.length, right.length); at++) {
+            int one = at < left.length ? Integer.parseUnsignedInt(left[at]) : 0;
+            int two = at < right.length ? Integer.parseUnsignedInt(right[at]) : 0;
+            if (one != two) {
+                return Integer.compare(one, two);
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * Whether the engine lists the {@code nvidia} runtime, asked only where ADR-430 §3's check finds it answering, which
+     * starts nothing and tells nothing (ADR-444 §5, §10).
+     *
+     * @return empty where nothing was asked: macOS, no container on this machine, or no engine answering
+     */
+    Optional<Boolean> nvidiaRuntimeListedStartingNothing() {
+        if (host == HostSystem.MAC || !engineAnswersStartingNothing().orElse(false)) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(runtimeListed());
+        } catch (DockerIsNotInstalledException notInstalled) {
+            return Optional.empty();
+        }
+    }
+
+    /** The lines of §4's warnings, asked as {@link #nvidiaRuntimeListedStartingNothing()} is, and told to no one. */
+    List<String> graphicsCardWarningsStartingNothing() {
+        if (host == HostSystem.MAC || !engineAnswersStartingNothing().orElse(false)) {
+            return List.of();
+        }
+        return cardWarnings();
+    }
+
+    // ---- the toolkit's install (ADR-444 §6)
+
+    /** The version of the NVIDIA Container Toolkit the jar pins (ADR-444 §6). */
+    private static final String NVIDIA_TOOLKIT_VERSION = "1.20.2-1";
+
+    /** The line of an install that ran every command (ADR-444 §6). */
+    static final String NVIDIA_TOOLKIT_INSTALLED = "The NVIDIA Container Toolkit " + NVIDIA_TOOLKIT_VERSION
+            + " is installed, and Docker was restarted with its nvidia runtime.";
+
+    private static final String THE_KEYRING = "/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg";
+
+    /** The install's commands, root's, in order (ADR-444 §6). */
+    private static final List<List<String>> NVIDIA_TOOLKIT_INSTALL = List.of(
+            List.of("apt-get", "update"),
+            List.of("apt-get", "install", "-y", "--no-install-recommends", "ca-certificates", "curl", "gnupg2"),
+            List.of("bash", "-c", "set -euo pipefail; curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey"
+                    + " | gpg --batch --yes --dearmor -o " + THE_KEYRING),
+            List.of("bash", "-c", "set -euo pipefail; curl -fsSL"
+                    + " https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list"
+                    + " | sed 's#deb https://#deb [signed-by=" + THE_KEYRING + "] https://#g'"
+                    + " > /etc/apt/sources.list.d/nvidia-container-toolkit.list"),
+            List.of("apt-get", "update"),
+            List.of("apt-get", "install", "-y", "nvidia-container-toolkit=" + NVIDIA_TOOLKIT_VERSION,
+                    "nvidia-container-toolkit-base=" + NVIDIA_TOOLKIT_VERSION,
+                    "libnvidia-container-tools=" + NVIDIA_TOOLKIT_VERSION,
+                    "libnvidia-container1=" + NVIDIA_TOOLKIT_VERSION),
+            List.of("nvidia-ctk", "runtime", "configure", "--runtime=docker"),
+            List.of("systemctl", "restart", "docker"));
+
+    /** Each command of each install is killed after this long. */
+    private static final Duration INSTALL_COMMAND_LIMIT = Duration.ofMinutes(10);
+
+    /** The install's commands as the confirmation lists them, none on macOS (ADR-444 §6). */
+    List<String> nvidiaToolkitCommands() {
+        if (host == HostSystem.MAC) {
+            return List.of();
+        }
+        return NVIDIA_TOOLKIT_INSTALL.stream().map(ContainerStarter::asListed).toList();
+    }
+
+    /** The words of a command joined by spaces, a word holding a space between double quotes. */
+    private static String asListed(List<String> command) {
+        return command.stream().map(word -> word.contains(" ") ? "\"" + word + "\"" : word)
+                .collect(java.util.stream.Collectors.joining(" "));
+    }
+
+    /**
+     * Installs the NVIDIA Container Toolkit as root: inside the WSL distribution on Windows, through {@code sudo -S}
+     * fed {@code sudoPassword} on Linux (ADR-444 §6, §8). The first command that does not exit 0 ends it. Every character
+     * of {@code sudoPassword} is set to {@code \0} on return.
+     *
+     * @return the line of what came of it, {@link #NVIDIA_TOOLKIT_INSTALLED} where every command exited 0
+     */
+    String installTheNvidiaToolkit(char[] sudoPassword) {
+        try {
+            if (host == HostSystem.MAC) {
+                return "Vespera installs the NVIDIA Container Toolkit on Windows and Linux alone.";
+            }
+            for (List<String> command : NVIDIA_TOOLKIT_INSTALL) {
+                String listed = asListed(command);
+                say("Installing the NVIDIA Container Toolkit: {}", listed);
+                char[] input = standardInputOfTheInstall(sudoPassword);
+                ProcessOutcome outcome;
+                try {
+                    outcome = runFeedingTelling(host.asRoot(settings.wslDistribution(), command), input);
+                } catch (CommandOutputFileUnusableException unusable) {
+                    return "The NVIDIA Container Toolkit was not installed: " + unusable.unusable()
+                            + ". Nothing after it was run.";
+                } finally {
+                    if (input != null) {
+                        java.util.Arrays.fill(input, '\0');
+                    }
+                }
+                if (outcome.exitCode() != 0) {
+                    return "The NVIDIA Container Toolkit was not installed: " + listed + " exited " + outcome.exitCode()
+                            + ": " + outcome.lastLine() + ". Nothing after it was run.";
+                }
+            }
+            return NVIDIA_TOOLKIT_INSTALLED;
+        } finally {
+            if (sudoPassword != null) {
+                java.util.Arrays.fill(sudoPassword, '\0');
+            }
+        }
+    }
+
+    /** Nothing on Windows; on Linux the password and one line end, an empty line where none was typed (ADR-444 §6). */
+    private char[] standardInputOfTheInstall(char[] sudoPassword) {
+        if (host != HostSystem.LINUX) {
+            return null;
+        }
+        char[] typed = sudoPassword == null ? new char[0] : sudoPassword;
+        char[] input = java.util.Arrays.copyOf(typed, typed.length + 1);
+        input[typed.length] = '\n';
+        return input;
+    }
+
+    /** As {@link #runTelling}, writing {@code input} on the command's standard input; the password is in no line. */
+    private ProcessOutcome runFeedingTelling(List<String> command, char[] input) {
+        try {
+            ProcessOutcome outcome = runner.runFeeding(command, INSTALL_COMMAND_LIMIT, input);
+            sayWhatItPrinted(outcome.output());
+            return outcome;
+        } catch (CommandOutputFileException unusable) {
             throw new CommandOutputFileUnusableException(unusable);
         } catch (IOException cannotStart) {
             return new ProcessOutcome(127, cannotStart.getMessage() == null ? "" : cannotStart.getMessage());
