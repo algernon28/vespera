@@ -237,6 +237,25 @@ class TheArchitectureTest {
                 () -> assertThat(noState.of(Part.STAGE_2)).isEqualTo(Lit.WAITING));
     }
 
+    @Test
+    @Story("The Architecture window lights what runs")
+    @DisplayName("The GPU is in use where the header's check found Docling running the GPU image, and else where the Services field names it")
+    void theGpuIsInUseWhereTheCheckFoundDoclingRunningTheGpuImage() {
+        StartingValues.Sources none = StartingValues.Sources.none();
+        claim("the check's image decides, whatever the field says: the GPU image is in use, the CPU image is not",
+                () -> {
+                    assertThat(ArchitectureWindow.gpuInUse(checkFinding(StartingValues.DOCLING_IMAGE_GPU),
+                            StartingValues.DOCLING_IMAGE_CPU, none)).isTrue();
+                    assertThat(ArchitectureWindow.gpuInUse(checkFinding(StartingValues.DOCLING_IMAGE_CPU), "", none))
+                            .isFalse();
+                });
+        claim("with no check kept, or one that kept no image, the field decides, a blank one the preselected GPU image",
+                () -> {
+                    assertThat(ArchitectureWindow.gpuInUse(null, StartingValues.DOCLING_IMAGE_CPU, none)).isFalse();
+                    assertThat(ArchitectureWindow.gpuInUse(checkFinding(""), "", none)).isTrue();
+                });
+    }
+
     // ---- what the tests share
 
     private static Map<String, Set<Part>> asTheCodeHasIt() {
@@ -284,6 +303,13 @@ class TheArchitectureTest {
 
     private static Architecture.Child child(ControlPanelState.Start started, boolean alive, HowItEnded ended) {
         return new Architecture.Child(started, alive, Optional.ofNullable(ended), List.of());
+    }
+
+    /** A check both containers answered, Docling's {@code /version} naming {@code image}. */
+    private static DockerCheck checkFinding(String image) {
+        DockerCheck answered = BOTH_ANSWER;
+        return new DockerCheck(answered.daemon(), answered.docling(), answered.ollama(), answered.embeddingModel(),
+                answered.generativeModel(), image, List.of());
     }
 
     private static DockerCheck check(DockerCheck.Mark docling, DockerCheck.Mark ollama) {

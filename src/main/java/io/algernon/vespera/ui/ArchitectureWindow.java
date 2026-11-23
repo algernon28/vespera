@@ -231,12 +231,15 @@ final class ArchitectureWindow {
 
     /**
      * Whether the containers run with {@code compose.gpu.yaml} beside {@code compose.yaml}: exactly where the converter's
-     * image in force, {@code held} or where it is blank the one the sources start from, is the GPU image (ADR-442's
-     * Context).
+     * image in force is the GPU image (ADR-442 §3). The image in force is the one the header's last check found Docling
+     * running, {@code check}'s (ADR-440); where no check kept one, the Services field's, {@code held}, or where that is
+     * blank the one the sources start from.
      */
-    static boolean gpuInUse(String held, StartingValues.Sources sources) {
-        String image = held == null || held.isBlank()
-                ? StartingValues.of(StartingValues.DOCLING_IMAGE, sources).value() : held.strip();
+    static boolean gpuInUse(DockerCheck check, String held, StartingValues.Sources sources) {
+        String found = check == null ? "" : check.doclingImage().strip();
+        String image = !found.isEmpty() ? found
+                : held == null || held.isBlank() ? StartingValues.of(StartingValues.DOCLING_IMAGE, sources).value()
+                        : held.strip();
         return StartingValues.DOCLING_IMAGE_GPU.equals(image);
     }
 }

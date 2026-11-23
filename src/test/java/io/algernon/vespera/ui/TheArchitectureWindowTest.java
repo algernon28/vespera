@@ -15,10 +15,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Accordion;
+import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
@@ -30,6 +33,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -63,6 +67,9 @@ class TheArchitectureWindowTest {
             + "{\"name\": \"census\", \"state\": \"finished\", \"done\": null, \"total\": null},"
             + "{\"name\": \"byte-level-reduction\", \"state\": \"finished\", \"done\": null, \"total\": null},"
             + "{\"name\": \"extraction\", \"state\": \"running\", \"done\": 37, \"total\": 100}], \"charts\": []}";
+
+    /** A generation run's folder, as the trees under the working directory's {@code deliverable} folder are named. */
+    private static final String A_RUN = "abcdef0123456789";
 
     /** WCAG AA's least contrast for text. */
     private static final double AA = 4.5;
@@ -270,6 +277,7 @@ class TheArchitectureWindowTest {
     @DisplayName("Each wire points the way data goes, and while it carries data its arrows run that way, both ways to a container")
     void dataRunsAlongItsWiresAsArrowsTheWayItGoes(@TempDir Path folder) throws Exception {
         List<String> arrowsFlowing;
+        List<String> backArrows;
         List<Runner> doclingThereEarly;
         List<Runner> doclingThereLater;
         List<Runner> doclingBackEarly;
@@ -292,6 +300,9 @@ class TheArchitectureWindowTest {
             arrowsFlowing = window.readArchitecture(root -> HeadlessToolkit.everyNodeUnder(root).stream()
                     .filter(node -> node.getStyleClass().contains("architecture-arrow"))
                     .filter(node -> node.getStyleClass().contains("flowing")).map(Node::getId).sorted().toList());
+            backArrows = window.readArchitecture(root -> HeadlessToolkit.everyNodeUnder(root).stream()
+                    .map(Node::getId).filter(id -> id != null && id.startsWith("architecture-arrow-")
+                            && id.endsWith("-back")).sorted().toList());
             doclingThereEarly = window.readArchitecture(root -> runners(root, 0.25, "docling"));
             doclingBackEarly = window.readArchitecture(root -> runners(root, 0.25, "docling-back"));
             archive = window.readArchitecture(root -> runners(root, 0.25, "archive"));
@@ -307,6 +318,11 @@ class TheArchitectureWindowTest {
                         "architecture-arrow-reports", "architecture-arrow-docling", "architecture-arrow-docling-back")
                         .doesNotContain("architecture-arrow-ollama", "architecture-arrow-stage-3",
                                 "architecture-arrow-ollama-gpu", "architecture-arrow-deliverable"));
+        claim("each wire data goes along both ways has its second arrowhead, the short one between Ollama and the GPU"
+                        + " too",
+                () -> assertThat(backArrows).containsExactlyInAnyOrder("architecture-arrow-docling-back",
+                        "architecture-arrow-ollama-back", "architecture-arrow-docling-gpu-back",
+                        "architecture-arrow-ollama-gpu-back"));
         claim("the archive's runners point right, into the application",
                 () -> assertThat(shown(archive)).isNotEmpty().allMatch(runner -> runner.rotate() == 0));
         claim("Docling's runners point down to it in one lane and up from it in the other, beside each other",
@@ -322,6 +338,67 @@ class TheArchitectureWindowTest {
                     assertThat(doclingBackLater.get(1).y()).isLessThan(doclingBackEarly.get(1).y());
                 });
         claim("Ollama, which extraction does not call, shows no runner", () -> assertThat(shown(ollama)).isEmpty());
+    }
+
+    @Test
+    @Story("The Architecture window lights what runs")
+    @DisplayName("A publish lights the destinations it was started with, and no box ticked while it runs")
+    void aPublishLightsTheDestinationsItWasStartedWithAndNoBoxTickedSince(@TempDir Path folder) throws Exception {
+        Path working = Files.createDirectories(folder.resolve("working"));
+        for (String destination : List.of("confluence", "website")) {
+            Path rendering = Files.createDirectories(working.resolve("deliverable").resolve(A_RUN).resolve(destination));
+            Files.writeString(rendering.resolve(ChildCommand.DESTINATION_LISTS.get(destination)), "{}");
+        }
+        List<String> confluence;
+        List<String> websiteAfterTicking;
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder))) {
+            window.dialogs.typed = Optional.of("a-token");
+            window.awaiting(root -> root.lookup("#publish-to-website") != null, drawn -> drawn);
+            window.act(root -> WindowForTests.node(root, "publish", Button.class).fire());
+            window.openArchitecture();
+            confluence = window.awaitingArchitecture(root -> styleOf(root, "confluence"),
+                    classes -> classes.contains("lit-running"));
+            window.act(root -> WindowForTests.node(root, "publish-to-website", CheckBox.class).setSelected(true));
+            // the window reads what it lights once a second: two readings pass before the website is looked at
+            Thread.sleep(2_500);
+            websiteAfterTicking = window.readArchitecture(root -> styleOf(root, "website"));
+        }
+
+        claim("a publish started with Confluence alone ticked lights Confluence running",
+                () -> assertThat(confluence).contains("lit-running"));
+        claim("the website's box ticked while it runs lights nothing: the publish never named it",
+                () -> assertThat(websiteAfterTicking).contains("lit-idle"));
+    }
+
+    @Test
+    @Story("The Architecture window lights what runs")
+    @DisplayName("A new invocation watched clears the drawing, as it clears the steps chart, until its own report is read")
+    void aNewInvocationClearsTheDrawingAsItClearsTheStepsChart(@TempDir Path folder) throws Exception {
+        List<String> running;
+        List<String> stopped;
+        List<String> afterTheNextStart;
+        try (WindowForTests window = WindowForTests.readingEverySecond(folder)) {
+            window.reportWritten(folder, EXTRACTING);
+            window.openArchitecture();
+            running = window.awaitingArchitecture(root -> styleOf(root, "stage-2"),
+                    classes -> classes.contains("lit-running"));
+            window.state.stop();
+            stopped = window.awaitingArchitecture(root -> styleOf(root, "stage-2"),
+                    classes -> classes.contains("lit-stopped"));
+            Optional<String> refusal = window.state.start(ControlPanelState.Start.RUN, new ArrayList<>());
+            Assumptions.assumeThat(refusal).as("the second sleeping child is started").isEmpty();
+            // the new child writes no report: what the drawing shows is what the cockpit cleared it to
+            afterTheNextStart = window.awaitingArchitecture(root -> styleOf(root, "stage-2"),
+                    classes -> classes.contains("lit-waiting"));
+        }
+
+        claim("the stopped run's stage 2 reads stopped",
+                () -> {
+                    assertThat(running).contains("lit-running");
+                    assertThat(stopped).contains("lit-stopped");
+                });
+        claim("a new run watched, its report not yet read, leaves stage 2 waiting and not the stopped run's",
+                () -> assertThat(afterTheNextStart).contains("lit-waiting").doesNotContain("lit-stopped"));
     }
 
     @Test

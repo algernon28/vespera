@@ -48,7 +48,7 @@
 
 ### 3. What lights a part, and from what
 
-The window is handed the report and the word the steps chart is handed at the same place (ADR-387 §1), and reads, as it draws, the command the cockpit last started, whether its child is alive and how it ended, the header's last check, the converter's image in force and Publish's destinations. Its own reading of those last is made once a second while it is shown.
+The window is handed the report and the word the steps chart is handed at the same place (ADR-387 §1), and is cleared where the steps chart is, as a new invocation is first watched, until that invocation's report is read; and it reads, as it draws, the command the cockpit last started, whether its child is alive and how it ended, the header's last check, the converter's image in force and the destinations the last publish was started with, as ticked when it started and not as ticked since. **The converter's image in force is the one the header's last check found Docling running** (its `/version`'s `vespera-image`, ADR-440); where no check kept one, the Services field's, or where that is blank the one the sources start from. Its own reading of those last is made once a second while it is shown.
 
 | Part | Lit, and how |
 | --- | --- |
@@ -99,7 +99,7 @@ Nothing in the window is pressed to act: no part opens, starts or stops anything
 
 - **New classes of `ui`**: `Architecture`, the parts, the step table, the wires and the lighting of §3, which links no JavaFX class; `ArchitectureView`, the drawing, its arrows and its motion; `ArchitectureWindow`, the window of §1, its line, its switch and its toggle.
 - **`ArchitectureWindow`** follows the system's reduced-motion setting through a listener the setting holds weakly, from the window's first opening until the cockpit closes it: the setting lives as long as the platform, and a listener it held strongly would keep every window, and through its readings every control panel, built since the platform started.
-- **`Cockpit`**: the twelfth section, the window made with the readings of §3, the report and the word handed to it where the steps chart is handed them, and its closing beside the Profile and Reports windows'.
+- **`Cockpit`**: the twelfth section, the window made with the readings of §3, the report and the word handed to it where the steps chart is handed them and the drawing cleared where the steps chart is, the destinations of the publish it started kept as it started, and its closing beside the Profile and Reports windows'.
 - **`control-panel.css`**: the window's rules, under its own style classes, every colour one of the two themes' own.
 - **Documents**: the README's paragraph on what the window shows says twelve sections, Architecture the last.
 
@@ -135,7 +135,10 @@ Nothing in the window is pressed to act: no part opens, starts or stops anything
 | `ui.TheArchitectureWindowTest.theArchitectureOpensFromTheLastSectionInAWindowOfItsOwn` | §1: the sidebar's last section opens one window, with no owner and no modality, resizable, titled Architecture; opened again, the same one; closed and opened, where it was left; and closed with the cockpit |
 | `ui.TheArchitectureWindowTest.aReportReadLightsTheDrawingAndTheLine` | §3, §5: a report the cockpit reads with a step running lights that step's stage running in the window, with its word, the line naming the step; every text in the window is a selectable text, not editable; and the window follows the theme switch, every word at 4.5 : 1 against its box in either theme |
 | `ui.TheArchitectureWindowTest.motionFollowsTheSwitchStopsWhileHiddenAndTheDrawingFitsOrStandsAtFullSize` | §6, §7: the drawing moves with motion on, stands still with it off, and stops while the window is hidden; it is scaled to the window, and at its own size with the toggle |
-| `ui.TheArchitectureWindowTest.dataRunsAlongItsWiresAsArrowsTheWayItGoes` | §6: extraction running, the arrowheads in the accent are those of the wires it sends data along, Docling's at both ends, Ollama's not; the archive's runners point into the application; Docling's point down to it in one lane and up from it in the other, and move that way as the cycle goes on; Ollama's show none |
+| `ui.TheArchitectureWindowTest.dataRunsAlongItsWiresAsArrowsTheWayItGoes` | §6: every wire data goes along both ways has its second arrowhead, the short one between Ollama and the GPU too; extraction running, the arrowheads in the accent are those of the wires it sends data along, Docling's at both ends, Ollama's not; the archive's runners point into the application; Docling's point down to it in one lane and up from it in the other, and move that way as the cycle goes on; Ollama's show none |
+| `ui.TheArchitectureTest.theGpuIsInUseWhereTheCheckFoundDoclingRunningTheGpuImage` | §3: the check's image decides the GPU, whatever the field says; with no image kept, the field, a blank one the preselected GPU image |
+| `ui.TheArchitectureWindowTest.aPublishLightsTheDestinationsItWasStartedWithAndNoBoxTickedSince` | §3: a publish started with Confluence alone lights Confluence, and the website's box ticked while it runs lights nothing |
+| `ui.TheArchitectureWindowTest.aNewInvocationClearsTheDrawingAsItClearsTheStepsChart` | §3: a run stopped leaves its stage stopped; a new run watched, its report not yet read, leaves that stage waiting |
 | `ui.TheArchitectureWindowTest.aWindowNothingHoldsIsLetGo` | §9: a window built and then held by nothing is collected, the system's motion setting holding it not |
 | `ui.TheOutputsSectionTest`, `ui.TheProfileWindowTest`, `ui.EveryTextOfTheWindowCanBeCopiedTest` | §1: amended so that the sidebar's sections are twelve, Architecture the last |
 

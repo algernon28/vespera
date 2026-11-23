@@ -182,12 +182,15 @@ final class ArchitectureView extends Pane {
         line.setManaged(false);
         getChildren().add(line);
         List<Polygon> heads = new ArrayList<>(List.of(head("architecture-arrow-" + name, route)));
+        if (wire.bothWays()) {
+            // its second arrowhead, whether or not the wire is long enough to hold runners
+            heads.add(head("architecture-arrow-" + name + "-back", route.reversed()));
+        }
         List<Lane> lanes = new ArrayList<>();
         if (route.length() - (wire.bothWays() ? 2 : 1) * HEAD_LENGTH < RUNNER_GAP / 2) {
             // a wire too short to hold a runner says its flow by its accent and its arrowheads alone
             lanes = List.of();
         } else if (wire.bothWays()) {
-            heads.add(head("architecture-arrow-" + name + "-back", route.reversed()));
             lanes.add(lane("architecture-runners-" + name, route.shifted(LANE)));
             lanes.add(lane("architecture-runners-" + name + "-back", route.reversed().shifted(LANE)));
         } else {
