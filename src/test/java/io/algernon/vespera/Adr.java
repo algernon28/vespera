@@ -3308,6 +3308,17 @@ public final class Adr {
             + "0441-the-docker-integration-tests-start-the-engine-where-it-does-not-answer-and-stop-it-after-them-only-where-they-started-it.md";
 
     /**
+     * ADR-442 -- the sidebar's twelfth and last section opens the Architecture window, a window of its own with no owner
+     * and no modality, which draws the reference picture of the architecture and lights the part at work from what the
+     * cockpit reads: a stage folds its steps as a leg does, the CLI follows the cockpit's child, and the ledger, the
+     * inputs, the outputs, the containers and the GPU are lit by the running step through one table a step; a state is a
+     * colour, an outline and a word; only a running part and a wire carrying data move, behind a switch that follows the
+     * system's reduced motion; the drawing fits the window or stands at its own size.
+     */
+    public static final String THE_ARCHITECTURE_WINDOW_LIGHTS_WHAT_RUNS = FILE
+            + "0442-the-architecture-window-draws-the-reference-picture-and-lights-what-runs-from-what-the-cockpit-reads.md";
+
+    /**
      * ADR-443 -- picocli's refusals and usage carry no colour, whatever the environment: the command line
      * {@code VesperaCommand.commandLine()} builds, and each of its subcommands, draws with
      * {@code Help.defaultColorScheme(Ansi.OFF)}, so that the lines ADR-364 §4 logs on the operator logger are their

@@ -324,6 +324,49 @@ final class WindowForTests implements AutoCloseable {
                 .orElseThrow(() -> new AssertionError("the table " + table + " draws no link to " + text)).fire();
     }
 
+    // ---- the Architecture window (ADR-442)
+
+    /** The id of the Architecture window's drawing, by which a test finds that window among the toolkit's (ADR-442 §2). */
+    static final String ARCHITECTURE_DRAWING = "architecture-drawing";
+
+    /** Opens the Architecture window as the operator does: the sidebar's Architecture section opened and its button pressed. */
+    void openArchitecture() throws Exception {
+        act(root -> {
+            section(root, "architecture").setExpanded(true);
+            node(root, "open-architecture", Button.class).fire();
+        });
+    }
+
+    /** Every Architecture window showing, in the toolkit's order: each stage but this window's own whose root holds the drawing. */
+    List<Stage> architectureWindows() throws Exception {
+        return HeadlessToolkit.onTheToolkit(() -> windowsBeside(stage, ARCHITECTURE_DRAWING));
+    }
+
+    /** The one Architecture window showing; the test fails where there is none, or more than one. */
+    Stage architectureWindow() throws Exception {
+        List<Stage> showing = architectureWindows();
+        if (showing.size() != 1) {
+            throw new AssertionError("the control panel shows " + showing.size() + " Architecture windows, not one");
+        }
+        return showing.getFirst();
+    }
+
+    /** What {@code reading} reads of the Architecture window's root, laid out, on the toolkit's thread. */
+    <T> T readArchitecture(Function<Parent, T> reading) throws Exception {
+        return readOn(architectureWindow(), reading);
+    }
+
+    /** What {@code reading} reads of the Architecture window's root, read again until {@code until} holds or the bound passes. */
+    <T> T awaitingArchitecture(Function<Parent, T> reading, Predicate<T> until) throws Exception {
+        Instant end = Instant.now().plus(BOUND);
+        T seen = readArchitecture(reading);
+        while (!until.test(seen) && Instant.now().isBefore(end)) {
+            Thread.sleep(LOOK.toMillis());
+            seen = readArchitecture(reading);
+        }
+        return seen;
+    }
+
     // ---- the Profile window (ADR-389)
 
     /** Opens the Profile window as the operator does: the sidebar's Profile section opened and Open profile pressed. */
@@ -436,6 +479,7 @@ final class WindowForTests implements AutoCloseable {
             HeadlessToolkit.onTheToolkit(() -> {
                 windowsBeside(stage, "profile-form").forEach(Stage::close);
                 windowsBeside(stage, ANALYSIS_REPORT_TABS).forEach(Stage::close);
+                windowsBeside(stage, ARCHITECTURE_DRAWING).forEach(Stage::close);
                 stage.close();
                 return null;
             });
