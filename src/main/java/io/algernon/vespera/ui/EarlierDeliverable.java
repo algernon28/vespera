@@ -60,8 +60,39 @@ public record EarlierDeliverable(String invocation, String started, String corpu
      * listed.
      */
     public static List<EarlierDeliverable> of(Path workingDirectory, ZoneId zone) {
+        return read(workingDirectory, zone).rows();
+    }
+
+    /**
+     * What one reading of {@code workingDirectory}'s copies gives the window (ADR-439 §6, §7): the rows {@link #of}
+     * gives, and whether a copy of a {@code vespera run}'s report is kept at all, each copy read once.
+     *
+     * @param rows the deliverables that still stand, newest first
+     * @param keepsARun whether a copy of a {@code vespera run}'s report that can be read is kept
+     */
+    record Listing(List<EarlierDeliverable> rows, boolean keepsARun) {
+
+        /** What a window with no working directory chosen reads. */
+        static final Listing NONE = new Listing(List.of(), false);
+
+        Listing {
+            rows = List.copyOf(rows);
+        }
+    }
+
+    /** The rows and whether a run's copy is kept, from one reading of the copies; never throws. */
+    static Listing read(Path workingDirectory, ZoneId zone) {
+        List<Run> runs;
         try {
-            List<Run> runs = runsOf(workingDirectory);
+            runs = runsOf(workingDirectory);
+        } catch (RuntimeException unreadable) {
+            return Listing.NONE;
+        }
+        return new Listing(rowsOf(workingDirectory, runs, zone), !runs.isEmpty());
+    }
+
+    private static List<EarlierDeliverable> rowsOf(Path workingDirectory, List<Run> runs, ZoneId zone) {
+        try {
             if (runs.isEmpty()) {
                 return List.of();
             }
@@ -90,15 +121,6 @@ public record EarlierDeliverable(String invocation, String started, String corpu
             return List.copyOf(rows.values());
         } catch (RuntimeException unreadable) {
             return List.of();
-        }
-    }
-
-    /** Whether {@code workingDirectory} keeps a copy of a {@code vespera run}'s report that can be read (ADR-439 §7). */
-    static boolean keepsARunsReport(Path workingDirectory) {
-        try {
-            return !runsOf(workingDirectory).isEmpty();
-        } catch (RuntimeException unreadable) {
-            return false;
         }
     }
 

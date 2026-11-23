@@ -140,3 +140,5 @@ ajcore.*.txt
 /docs/Vespera-executive-briefing.pptx
 /docs/~$Vespera-architecture.pptx
 /docs/~$Vespera-executive-briefing.pptx
+
+.playwright-mcp/

@@ -3318,6 +3318,17 @@ public final class Adr {
     public static final String THE_ARCHITECTURE_WINDOW_LIGHTS_WHAT_RUNS = FILE
             + "0442-the-architecture-window-draws-the-reference-picture-and-lights-what-runs-from-what-the-cockpit-reads.md";
 
+    /**
+     * ADR-443 -- picocli's refusals and usage carry no colour, whatever the environment: the command line
+     * {@code VesperaCommand.commandLine()} builds, and each of its subcommands, draws with
+     * {@code Help.defaultColorScheme(Ansi.OFF)}, so that the lines ADR-364 §4 logs on the operator logger are their
+     * words alone whatever {@code TERM}, {@code OSTYPE}, {@code CLICOLOR_FORCE} or {@code picocli.ansi} say; the control
+     * panel's child keeps its environment, and {@code HelpAndVersion} and {@code ServeCommand} keep picocli's
+     * {@code AUTO} (keeps ADR-364 §4).
+     */
+    public static final String PICOCLIS_OWN_LINES_CARRY_NO_COLOUR = FILE
+            + "0443-picoclis-refusals-and-usage-carry-no-colour-whatever-the-environment.md";
+
     private Adr() {
     }
 }
