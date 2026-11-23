@@ -32,7 +32,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
 
 /**
- * The NVIDIA Container Toolkit's install (ADR-444 §6, §8): eight commands, each root's, in order, at the version the jar
+ * The NVIDIA Container Toolkit's install (ADR-445 §6, §8): eight commands, each root's, in order, at the version the jar
  * pins, each given ten minutes; on Windows inside the WSL distribution through {@code wsl -u root}, fed nothing; on
  * Linux through {@code sudo -k -S}, each fed the password the operator typed and a line end on its standard input, and the
  * password in no command word, no logged line and no line told, and cleared once the install returns; each command
@@ -46,7 +46,7 @@ import org.slf4j.LoggerFactory;
 @Epic("Pipeline")
 @Feature("The containers")
 @Issue("860")
-@Link(name = "ADR-444", url = Adr.THE_GPU_IMAGE_STARTS_ONLY_WHERE_DOCKER_HAS_THE_NVIDIA_RUNTIME, type = "adr")
+@Link(name = "ADR-445", url = Adr.THE_GPU_IMAGE_STARTS_ONLY_WHERE_DOCKER_HAS_THE_NVIDIA_RUNTIME, type = "adr")
 class TheNvidiaToolkitIsInstalledAsRootTest {
 
     private static final Path REPOSITORY = Path.of("").toAbsolutePath();
@@ -59,7 +59,7 @@ class TheNvidiaToolkitIsInstalledAsRootTest {
 
     private static final Duration CHECK_EVERY = Duration.ofMillis(20);
 
-    /** Each command of the install is killed after ten minutes (ADR-444 §6). */
+    /** Each command of the install is killed after ten minutes (ADR-445 §6). */
     private static final Duration TEN_MINUTES = Duration.ofMinutes(10);
 
     private static final String A_NAMED_DISTRIBUTION = "Ubuntu-24.04";
@@ -69,11 +69,11 @@ class TheNvidiaToolkitIsInstalledAsRootTest {
 
     /**
      * {@code sudo} with {@code -k}, so that it ignores the credentials an earlier {@code sudo} of the install cached and
-     * reads the password line every time, and {@code -S}, so that it reads it from its standard input (ADR-444 §6, §8).
+     * reads the password line every time, and {@code -S}, so that it reads it from its standard input (ADR-445 §6, §8).
      */
     private static final List<String> THROUGH_SUDO = List.of("sudo", "-k", "-S");
 
-    /** The lock files the install holds, as the stop and the shut-down hold them (ADR-433 §6, ADR-444 §6). */
+    /** The lock files the install holds, as the stop and the shut-down hold them (ADR-433 §6, ADR-445 §6). */
     private static final String THE_LOCK = "containers.lock";
 
     private static final String THE_EARLIER_LOCK = "sidecars.lock";
@@ -87,7 +87,7 @@ class TheNvidiaToolkitIsInstalledAsRootTest {
     /** A password with a space, a backslash and a quote, which a command line or a shell would have had to quote. */
     private static final String PASSWORD = "c0rrect horse\\batt'ry";
 
-    /** The install's eight commands, root's, as they are run after the prefix of the system (ADR-444 §6). */
+    /** The install's eight commands, root's, as they are run after the prefix of the system (ADR-445 §6). */
     private static final List<List<String>> THE_INSTALL = List.of(
             List.of("apt-get", "update"),
             List.of("apt-get", "install", "-y", "--no-install-recommends", "ca-certificates", "curl", "gnupg2"),
@@ -338,7 +338,7 @@ class TheNvidiaToolkitIsInstalledAsRootTest {
                 () -> ComposeFiles.in(REPOSITORY), lockFolder, CHECK_EVERY);
     }
 
-    /** The line told and logged before {@code command}, as the confirmation lists it, is run (ADR-444 §6). */
+    /** The line told and logged before {@code command}, as the confirmation lists it, is run (ADR-445 §6). */
     private static String installing(String command) {
         return "Installing the NVIDIA Container Toolkit: " + command;
     }

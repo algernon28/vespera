@@ -85,7 +85,7 @@ interface DockerControl {
     Said stopTheContainers(LaunchValues values);
 
     /**
-     * A start refused because the graphics card cannot be used (ADR-444 §5, §10): whether the toolkit is offered, the
+     * A start refused because the graphics card cannot be used (ADR-445 §5, §10): whether the toolkit is offered, the
      * line's first sentence, the install's commands as the confirmation lists them, where they run, and whether the
      * install asks for a password.
      */
@@ -93,20 +93,20 @@ interface DockerControl {
             boolean asksForAPassword) {
     }
 
-    /** What the check of the graphics card found: whether Docker lists the nvidia runtime, empty where unknown, and the warnings (ADR-444 §5). */
+    /** What the check of the graphics card found: whether Docker lists the nvidia runtime, empty where unknown, and the warnings (ADR-445 §5). */
     record CardCheck(Optional<Boolean> runtimeListed, List<String> warnings) {
     }
 
-    /** What a start's refusal says of the graphics card, empty where it is no refusal for the card (ADR-444 §5). */
+    /** What a start's refusal says of the graphics card, empty where it is no refusal for the card (ADR-445 §5). */
     Optional<CardRefused> cardRefused(String refusal);
 
     /**
-     * Installs the NVIDIA Container Toolkit (ADR-444 §6, §8), telling {@code told} each line it logs. {@code sudoPassword}
+     * Installs the NVIDIA Container Toolkit (ADR-445 §6, §8), telling {@code told} each line it logs. {@code sudoPassword}
      * is handed to the install alone and cleared by it; null where none is asked.
      */
     Said installTheNvidiaToolkit(char[] sudoPassword, Consumer<String> told);
 
-    /** Asks Docker for its nvidia runtime and the cards' warnings, for the addresses {@code values} hold, and starts nothing (ADR-444 §5). */
+    /** Asks Docker for its nvidia runtime and the cards' warnings, for the addresses {@code values} hold, and starts nothing (ADR-445 §5). */
     CardCheck graphicsCard(LaunchValues values);
 
     /** Runs nothing and answers done with no line, every row of a check OK and every download done: what a state built with no Docker holds. */

@@ -109,13 +109,13 @@ enum HostSystem {
         return List.copyOf(command);
     }
 
-    /** The runtime check, {@code docker info --format {{json .Runtimes}}}, inside WSL on Windows (ADR-444 §1). */
+    /** The runtime check, {@code docker info --format {{json .Runtimes}}}, inside WSL on Windows (ADR-445 §1). */
     List<String> runtimeCheck(String wslDistribution) {
         return inTheEngine(wslDistribution, List.of("docker", "info", "--format", "{{json .Runtimes}}"));
     }
 
     /**
-     * The read of the display adapters, run on the system itself and not inside WSL (ADR-444 §3); none on macOS, where
+     * The read of the display adapters, run on the system itself and not inside WSL (ADR-445 §3); none on macOS, where
      * the GPU image is refused before any command.
      */
     List<String> cardsRead() {
@@ -129,7 +129,7 @@ enum HostSystem {
         };
     }
 
-    /** The query of the cards' names, drivers and compute capabilities; inside WSL on Windows, by the path off root's (ADR-444 §4). */
+    /** The query of the cards' names, drivers and compute capabilities; inside WSL on Windows, by the path off root's (ADR-445 §4). */
     List<String> cardQuery(String wslDistribution) {
         List<String> query = List.of("--query-gpu=name,driver_version,compute_cap", "--format=csv,noheader");
         List<String> command = new ArrayList<>();
@@ -138,12 +138,12 @@ enum HostSystem {
         return inTheEngine(wslDistribution, command);
     }
 
-    /** The driver's version the GPU image's CUDA 12.8 needs at least: 570.65 on Windows, 570.26 elsewhere (ADR-444 §4). */
+    /** The driver's version the GPU image's CUDA 12.8 needs at least: 570.65 on Windows, 570.26 elsewhere (ADR-445 §4). */
     String driverFloor() {
         return this == WINDOWS ? "570.65" : "570.26";
     }
 
-    /** {@code command} as root: inside the WSL distribution on Windows, through {@code sudo -k -S} on Linux (ADR-444 §6). */
+    /** {@code command} as root: inside the WSL distribution on Windows, through {@code sudo -k -S} on Linux (ADR-445 §6). */
     List<String> asRoot(String wslDistribution, List<String> command) {
         if (this == WINDOWS) {
             return inTheEngine(wslDistribution, command);
@@ -153,7 +153,7 @@ enum HostSystem {
         return List.copyOf(through);
     }
 
-    /** Where the engine is, as ADR-410 §3 and ADR-444 §2 name it. */
+    /** Where the engine is, as ADR-410 §3 and ADR-445 §2 name it. */
     String whereTheEngineIs(String wslDistribution) {
         if (this != WINDOWS) {
             return "on this machine";

@@ -65,7 +65,7 @@ final class AnsweringDialogs implements Dialogs {
         return chosen;
     }
 
-    /** A secret the window asked for (ADR-444 §8): its title, its sentence, and its two answers' words. */
+    /** A secret the window asked for (ADR-445 §8): its title, its sentence, and its two answers' words. */
     record Secret(String title, String sentence, String yes, String no) {
     }
 
@@ -75,7 +75,7 @@ final class AnsweringDialogs implements Dialogs {
     /** What the next secret is answered: what is typed, or empty where it is cancelled. */
     volatile Optional<String> secretTyped = Optional.empty();
 
-    /** Answers {@code Dialogs.secret} (ADR-444 §8): keeps the secret asked for and gives {@link #secretTyped}'s characters. */
+    /** Answers {@code Dialogs.secret} (ADR-445 §8): keeps the secret asked for and gives {@link #secretTyped}'s characters. */
     @Override
     public Optional<char[]> secret(String title, String sentence, String yes, String no) {
         secrets.add(new Secret(title, sentence, yes, no));

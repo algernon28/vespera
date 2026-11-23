@@ -40,7 +40,7 @@ final class PreflightPane {
     /** The rows last drawn. */
     private List<Row> drawn = List.of();
 
-    /** What the window keeps of the card's last check, null where it keeps none (ADR-444 §5). */
+    /** What the window keeps of the card's last check, null where it keeps none (ADR-445 §5). */
     private final Supplier<DockerControl.CardCheck> cardKept;
 
     /** {@code fieldText} gives the text of the launch field of a property, {@code cardKept} the answer kept of the card. */

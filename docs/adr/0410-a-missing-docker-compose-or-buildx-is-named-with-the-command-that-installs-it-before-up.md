@@ -1,6 +1,6 @@
 # ADR-410 — A missing docker compose or buildx is named, with the command that installs it, before up
 
-> **Partly amended — see [ADR-444](0444-the-gpu-image-starts-only-where-docker-has-the-nvidia-runtime-and-the-control-panel-offers-the-toolkit-or-the-cpu-image.md).** Of §2: once Compose and buildx are found, and for the GPU image alone, `docker info --format {{json .Runtimes}}` asks the engine for its `nvidia` runtime before `up`, and a runtime not listed refuses the start in a line of its own. Of *Alternatives rejected*, *"Install them"*, and of *Keeps* ADR-047, *"nothing is installed"*: the control panel installs the NVIDIA Container Toolkit, and nothing else, once the operator confirms it, on Linux through `sudo` with the password the operator types. The rest of this record stands.
+> **Partly amended — see [ADR-445](0445-the-gpu-image-starts-only-where-docker-has-the-nvidia-runtime-and-the-control-panel-offers-the-toolkit-or-the-cpu-image.md).** Of §2: once Compose and buildx are found, and for the GPU image alone, `docker info --format {{json .Runtimes}}` asks the engine for its `nvidia` runtime before `up`, and a runtime not listed refuses the start in a line of its own. Of *Alternatives rejected*, *"Install them"*, and of *Keeps* ADR-047, *"nothing is installed"*: the control panel installs the NVIDIA Container Toolkit, and nothing else, once the operator confirms it, on Linux through `sudo` with the password the operator types. The rest of this record stands.
 
 - **Date**: 2026-11-17
 - **Status**: accepted on 2026-11-17.

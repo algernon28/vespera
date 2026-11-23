@@ -46,7 +46,7 @@ interface Dialogs {
 
     /**
      * Asks {@code sentence} under {@code title} in a field that does not show what is typed, with the answers {@code yes}
-     * and {@code no} (ADR-444 §8): what is typed as characters the caller clears, empty where the operator answered
+     * and {@code no} (ADR-445 §8): what is typed as characters the caller clears, empty where the operator answered
      * {@code no} or closed the dialog. The field is cleared once the dialog closes.
      */
     Optional<char[]> secret(String title, String sentence, String yes, String no);

@@ -34,7 +34,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Where <i>Start Docker</i>'s start is refused because the graphics card cannot be used, the window asks the operator
- * (ADR-444 §5): to use the CPU image, which sets the converter's image field and starts again for it (§7), to install the
+ * (ADR-445 §5): to use the CPU image, which sets the converter's image field and starts again for it (§7), to install the
  * NVIDIA Container Toolkit where an NVIDIA card is there, listing every command it runs as root, or to cancel, which
  * shows the refusal's line. On Linux the install first asks for the password {@code sudo} wants, in a secret field, and
  * hands it to the install alone; nothing the window writes or shows holds it (§8). The output panel holds the press's
@@ -49,7 +49,7 @@ import org.junit.jupiter.api.io.TempDir;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("860")
-@Link(name = "ADR-444", url = Adr.THE_GPU_IMAGE_STARTS_ONLY_WHERE_DOCKER_HAS_THE_NVIDIA_RUNTIME, type = "adr")
+@Link(name = "ADR-445", url = Adr.THE_GPU_IMAGE_STARTS_ONLY_WHERE_DOCKER_HAS_THE_NVIDIA_RUNTIME, type = "adr")
 class TheGraphicsCardQuestionTest {
 
     private static final DockerCheck.Mark KO = DockerCheck.Mark.KO;
@@ -64,7 +64,7 @@ class TheGraphicsCardQuestionTest {
 
     private static final String CANCEL = "Cancel";
 
-    /** The first sentence of the line of the nvidia runtime missing, on Windows and on Linux (ADR-444 §2). */
+    /** The first sentence of the line of the nvidia runtime missing, on Windows and on Linux (ADR-445 §2). */
     private static final String WHY_ON_WINDOWS = "The graphics card cannot be used: the Docker engine in WSL's default"
             + " distribution answers but has no nvidia runtime, which the NVIDIA Container Toolkit gives it.";
 
@@ -81,7 +81,7 @@ class TheGraphicsCardQuestionTest {
 
     private static final String REFUSED_ON_LINUX = WHY_ON_LINUX + HOW_TO_GO_ON;
 
-    /** The line of an AMD card, and its first sentence (ADR-444 §3). */
+    /** The line of an AMD card, and its first sentence (ADR-445 §3). */
     private static final String WHY_AN_AMD_CARD = "The graphics card cannot be used: this machine's graphics card is AMD's,"
             + " and Vespera runs the containers on NVIDIA cards alone.";
 
@@ -89,7 +89,7 @@ class TheGraphicsCardQuestionTest {
             + StartingValues.DOCLING_IMAGE_CPU + ", which converts on the processor and starts new runs from extraction on,"
             + " and run the same command again.";
 
-    /** The install's commands as the confirmation lists them (ADR-444 §6). */
+    /** The install's commands as the confirmation lists them (ADR-445 §6). */
     private static final List<String> THE_COMMANDS = List.of(
             "apt-get update",
             "apt-get install -y --no-install-recommends ca-certificates curl gnupg2",
@@ -135,13 +135,13 @@ class TheGraphicsCardQuestionTest {
                     + " --no-recreate",
             "Container vespera-docling-1  Started");
 
-    /** The lines an install tells: a command before it runs and what it printed (ADR-444 §6). */
+    /** The lines an install tells: a command before it runs and what it printed (ADR-445 §6). */
     private static final List<String> THE_INSTALLS_LINES = List.of(
             "Installing the NVIDIA Container Toolkit: apt-get update",
             "Hit:1 http://archive.ubuntu.com/ubuntu noble InRelease",
             "Installing the NVIDIA Container Toolkit: systemctl restart docker");
 
-    /** The Preflight row's words where Docker has no nvidia runtime, and where it has one (ADR-444 §5). */
+    /** The Preflight row's words where Docker has no nvidia runtime, and where it has one (ADR-445 §5). */
     private static final String NOT_LISTED =
             "Docker has no nvidia runtime; Start Docker offers to install the NVIDIA Container Toolkit";
 

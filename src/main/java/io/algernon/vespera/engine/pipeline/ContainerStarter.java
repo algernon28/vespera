@@ -526,7 +526,7 @@ public class ContainerStarter {
         }
     }
 
-    // ---- the graphics card (ADR-444)
+    // ---- the graphics card (ADR-445)
 
     /**
      * Before {@code up}, for the GPU image: the engine lists an {@code nvidia} runtime or the start is refused (§1, §2,
@@ -651,7 +651,7 @@ public class ContainerStarter {
 
     /**
      * Whether the engine lists the {@code nvidia} runtime, asked only where ADR-430 §3's check finds it answering, which
-     * starts nothing and tells nothing (ADR-444 §5, §10).
+     * starts nothing and tells nothing (ADR-445 §5, §10).
      *
      * @return empty where nothing was asked: macOS, no container on this machine, or no engine answering
      */
@@ -674,18 +674,18 @@ public class ContainerStarter {
         return cardWarnings();
     }
 
-    // ---- the toolkit's install (ADR-444 §6)
+    // ---- the toolkit's install (ADR-445 §6)
 
-    /** The version of the NVIDIA Container Toolkit the jar pins (ADR-444 §6). */
+    /** The version of the NVIDIA Container Toolkit the jar pins (ADR-445 §6). */
     private static final String NVIDIA_TOOLKIT_VERSION = "1.20.2-1";
 
-    /** The line of an install that ran every command (ADR-444 §6). */
+    /** The line of an install that ran every command (ADR-445 §6). */
     static final String NVIDIA_TOOLKIT_INSTALLED = "The NVIDIA Container Toolkit " + NVIDIA_TOOLKIT_VERSION
             + " is installed, and Docker was restarted with its nvidia runtime.";
 
     private static final String THE_KEYRING = "/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg";
 
-    /** The install's commands, root's, in order (ADR-444 §6). */
+    /** The install's commands, root's, in order (ADR-445 §6). */
     private static final List<List<String>> NVIDIA_TOOLKIT_INSTALL = List.of(
             List.of("apt-get", "update"),
             List.of("apt-get", "install", "-y", "--no-install-recommends", "ca-certificates", "curl", "gnupg2"),
@@ -706,7 +706,7 @@ public class ContainerStarter {
     /** Each command of each install is killed after this long. */
     private static final Duration INSTALL_COMMAND_LIMIT = Duration.ofMinutes(10);
 
-    /** The install's commands as the confirmation lists them, none on macOS (ADR-444 §6). */
+    /** The install's commands as the confirmation lists them, none on macOS (ADR-445 §6). */
     List<String> nvidiaToolkitCommands() {
         if (host == HostSystem.MAC) {
             return List.of();
@@ -722,8 +722,8 @@ public class ContainerStarter {
 
     /**
      * Installs the NVIDIA Container Toolkit as root: inside the WSL distribution on Windows, through {@code sudo -k -S}
-     * fed {@code sudoPassword} on Linux (ADR-444 §6, §8). It holds the containers' lock from before its first command and
-     * lets it go as it returns, before any start runs again (ADR-444 §6). The first command that does not exit 0 ends it. Every character
+     * fed {@code sudoPassword} on Linux (ADR-445 §6, §8). It holds the containers' lock from before its first command and
+     * lets it go as it returns, before any start runs again (ADR-445 §6). The first command that does not exit 0 ends it. Every character
      * of {@code sudoPassword} is set to {@code \0} on return.
      *
      * @return the line of what came of it, {@link #NVIDIA_TOOLKIT_INSTALLED} where every command exited 0
@@ -767,7 +767,7 @@ public class ContainerStarter {
         }
     }
 
-    /** Nothing on Windows; on Linux the password and one line end, an empty line where none was typed (ADR-444 §6). */
+    /** Nothing on Windows; on Linux the password and one line end, an empty line where none was typed (ADR-445 §6). */
     private char[] standardInputOfTheInstall(char[] sudoPassword) {
         if (host != HostSystem.LINUX) {
             return null;

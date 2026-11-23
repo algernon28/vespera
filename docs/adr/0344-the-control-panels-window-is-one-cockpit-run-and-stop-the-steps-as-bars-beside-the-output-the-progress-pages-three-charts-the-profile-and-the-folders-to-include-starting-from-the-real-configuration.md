@@ -39,7 +39,7 @@
 
 > **Partly amended — see [ADR-440](0440-the-preflight-section-is-the-folders-and-their-holders-a-row-each-of-a-name-a-mark-and-words-a-holder-said-once.md).** Of §1's Preflight: the section is a grid of rows, each a name, a mark and words, for the corpus root, the working directory, each one's holder in words or one row where one process holds both, and Docling's image where it differs from the one Run would use; no line of Docling's or Ollama's answers, none of free space apart from each folder's words, and no Check. The rest of this record stands.
 
-> **Partly amended — see [ADR-444](0444-the-gpu-image-starts-only-where-docker-has-the-nvidia-runtime-and-the-control-panel-offers-the-toolkit-or-the-cpu-image.md).** Of the words of the converter's image: it is offered as *GPU: an NVIDIA graphics card, with NVIDIA's toolkit in Docker. Much faster.* and *CPU: any machine, AMD and Intel cards included. Slower.* The rest of this record stands.
+> **Partly amended — see [ADR-445](0445-the-gpu-image-starts-only-where-docker-has-the-nvidia-runtime-and-the-control-panel-offers-the-toolkit-or-the-cpu-image.md).** Of the words of the converter's image: it is offered as *GPU: an NVIDIA graphics card, with NVIDIA's toolkit in Docker. Much faster.* and *CPU: any machine, AMD and Intel cards included. Slower.* The rest of this record stands.
 
 - **Date**: 2026-11-04
 - **Status**: accepted on 2026-11-04.

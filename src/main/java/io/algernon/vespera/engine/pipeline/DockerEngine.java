@@ -178,11 +178,11 @@ public final class DockerEngine {
                 .telling(told).shutDown().line();
     }
 
-    /** The line of an install that ran every command (ADR-444 §6). */
+    /** The line of an install that ran every command (ADR-445 §6). */
     public static final String NVIDIA_TOOLKIT_INSTALLED = ContainerStarter.NVIDIA_TOOLKIT_INSTALLED;
 
     /**
-     * Whether a start's refusal is the graphics card's (ADR-444 §10).
+     * Whether a start's refusal is the graphics card's (ADR-445 §10).
      *
      * @return true for the line of the nvidia runtime missing, false for the line of a card that is not NVIDIA's or of
      *     macOS, empty for any other line
@@ -198,7 +198,7 @@ public final class DockerEngine {
     }
 
     /**
-     * Installs the NVIDIA Container Toolkit (ADR-444 §6, §8), telling {@code told} each line it logs. {@code sudoPassword}
+     * Installs the NVIDIA Container Toolkit (ADR-445 §6, §8), telling {@code told} each line it logs. {@code sudoPassword}
      * is handed to {@code sudo} on Linux and is cleared on return; null on Windows, where none is asked.
      *
      * @return the line of what came of it, {@link #NVIDIA_TOOLKIT_INSTALLED} where it is done
@@ -208,25 +208,25 @@ public final class DockerEngine {
                 .telling(told).installTheNvidiaToolkit(sudoPassword);
     }
 
-    /** The install's commands as the confirmation lists them, none on macOS (ADR-444 §6). */
+    /** The install's commands as the confirmation lists them, none on macOS (ADR-445 §6). */
     public List<String> nvidiaToolkitCommands() {
         return starter(URI.create(ContainerStartSettings.DEFAULT_DOCLING), URI.create(ContainerStartSettings.DEFAULT_OLLAMA))
                 .nvidiaToolkitCommands();
     }
 
-    /** Where the toolkit is installed, as a refusal names it: the WSL distribution, or {@code on this machine} (ADR-444 §2). */
+    /** Where the toolkit is installed, as a refusal names it: the WSL distribution, or {@code on this machine} (ADR-445 §2). */
     public String whereTheToolkitIsInstalled() {
         return HostSystem.current().whereTheEngineIs(wslDistribution);
     }
 
-    /** Whether the install asks for a password: on Linux, for {@code sudo} (ADR-444 §8). */
+    /** Whether the install asks for a password: on Linux, for {@code sudo} (ADR-445 §8). */
     public boolean installAsksForAPassword() {
         return HostSystem.current() == HostSystem.LINUX;
     }
 
     /**
      * Whether Docker lists an {@code nvidia} runtime, asked only where the daemon answers, and starting nothing
-     * (ADR-444 §5).
+     * (ADR-445 §5).
      *
      * @return empty where nothing was asked
      */
@@ -234,7 +234,7 @@ public final class DockerEngine {
         return starter(doclingBaseUrl, ollamaBaseUrl).nvidiaRuntimeListedStartingNothing();
     }
 
-    /** The warnings of the driver and the card, asked as {@link #nvidiaRuntimeListed} is (ADR-444 §4, §5). */
+    /** The warnings of the driver and the card, asked as {@link #nvidiaRuntimeListed} is (ADR-445 §4, §5). */
     public List<String> graphicsCardWarnings(URI doclingBaseUrl, URI ollamaBaseUrl) {
         return starter(doclingBaseUrl, ollamaBaseUrl).graphicsCardWarningsStartingNothing();
     }

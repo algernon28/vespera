@@ -1,4 +1,4 @@
-# ADR-444 — The GPU image starts only where Docker has the nvidia runtime, and the control panel offers the toolkit or the CPU image
+# ADR-445 — The GPU image starts only where Docker has the nvidia runtime, and the control panel offers the toolkit or the CPU image
 
 - **Date**: 2026-11-23
 - **Status**: accepted on 2026-11-23.

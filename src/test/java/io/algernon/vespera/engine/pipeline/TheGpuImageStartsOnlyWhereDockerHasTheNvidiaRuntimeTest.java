@@ -34,7 +34,7 @@ import org.slf4j.LoggerFactory;
  * one line, naming NVIDIA's toolkit and the CPU image where an NVIDIA card is there or none could be read, and saying that
  * the containers run on NVIDIA cards alone where the card is AMD's or Intel's. On macOS the GPU image is refused before
  * any command. Where the runtime is listed, the cards are asked, a driver or a card too old is warned of, and told as a
- * press of Start Docker is told its lines (ADR-437 §3), and {@code up} runs. The CPU image asks nothing of the card (ADR-444 §1 to §4).
+ * press of Start Docker is told its lines (ADR-437 §3), and {@code up} runs. The CPU image asks nothing of the card (ADR-445 §1 to §4).
  *
  * <p>No Docker is needed: the starter is given a {@link ScriptedDocker}, which answers the runtime check as an engine with
  * or without the toolkit answers it, and a {@link ScriptedContainerHealth}. The compose files are the repository's own.
@@ -43,7 +43,7 @@ import org.slf4j.LoggerFactory;
 @Epic("Pipeline")
 @Feature("The containers")
 @Issue("860")
-@Link(name = "ADR-444", url = Adr.THE_GPU_IMAGE_STARTS_ONLY_WHERE_DOCKER_HAS_THE_NVIDIA_RUNTIME, type = "adr")
+@Link(name = "ADR-445", url = Adr.THE_GPU_IMAGE_STARTS_ONLY_WHERE_DOCKER_HAS_THE_NVIDIA_RUNTIME, type = "adr")
 class TheGpuImageStartsOnlyWhereDockerHasTheNvidiaRuntimeTest {
 
     /** The repository root, where Maven runs the tests from and where the compose files lie. */
@@ -58,7 +58,7 @@ class TheGpuImageStartsOnlyWhereDockerHasTheNvidiaRuntimeTest {
 
     private static final Duration CHECK_EVERY = Duration.ofMillis(20);
 
-    /** The engine check's limit, which the runtime check and the card query are given too (ADR-444 §1, §4). */
+    /** The engine check's limit, which the runtime check and the card query are given too (ADR-445 §1, §4). */
     private static final Duration THIRTY_SECONDS = Duration.ofSeconds(30);
 
     /** No distribution named: WSL's default distribution is used. */
@@ -72,15 +72,15 @@ class TheGpuImageStartsOnlyWhereDockerHasTheNvidiaRuntimeTest {
     private static final List<String> IN_THE_NAMED_DISTRIBUTION =
             List.of("wsl", "-d", A_NAMED_DISTRIBUTION, "-u", "root", "--exec");
 
-    /** The read of the display adapters on Windows, run on Windows itself and not inside WSL (ADR-444 §3). */
+    /** The read of the display adapters on Windows, run on Windows itself and not inside WSL (ADR-445 §3). */
     private static final List<String> WINDOWS_CARDS = List.of("powershell", "-NoProfile", "-NonInteractive",
             "-Command", "Get-CimInstance Win32_VideoController | ForEach-Object PNPDeviceID");
 
-    /** The read of the display controllers' vendors on Linux (ADR-444 §3). */
+    /** The read of the display controllers' vendors on Linux (ADR-445 §3). */
     private static final List<String> LINUX_CARDS = List.of("sh", "-c",
             "for d in /sys/bus/pci/devices/*; do case \"$(cat \"$d/class\")\" in 0x03*) cat \"$d/vendor\";; esac; done");
 
-    /** The query of the cards, with no path inside WSL, where it is not on root's path (ADR-444 §4). */
+    /** The query of the cards, with no path inside WSL, where it is not on root's path (ADR-445 §4). */
     private static final List<String> CARD_QUERY =
             List.of("--query-gpu=name,driver_version,compute_cap", "--format=csv,noheader");
 

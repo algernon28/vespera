@@ -24,7 +24,7 @@ interface ProcessRunner {
 
     /**
      * As {@link #run}, with {@code input} written on the command's standard input, encoded as UTF-8, and the input
-     * closed; a null {@code input} writes nothing and closes it (ADR-444 §10).
+     * closed; a null {@code input} writes nothing and closes it (ADR-445 §10).
      *
      * @throws IOException when the program cannot be started
      * @throws CommandOutputFileException when the temporary file its output goes to cannot be created or read

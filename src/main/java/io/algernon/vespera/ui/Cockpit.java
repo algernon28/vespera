@@ -93,7 +93,7 @@ final class Cockpit {
     private volatile LaunchValues fieldValues;
     /**
      * What Docker said of its nvidia runtime and the cards, kept once the daemon answers for the GPU image and dropped where
-     * a check finds the daemon not answering and where a press of Start Docker returns (ADR-444 §5); null where none is kept.
+     * a check finds the daemon not answering and where a press of Start Docker returns (ADR-445 §5); null where none is kept.
      */
     private volatile DockerControl.CardCheck cardKept;
     /** Whether the card is being asked, and how many times the kept answer has been dropped: an answer asked before a drop is not kept. */
@@ -751,7 +751,7 @@ final class Cockpit {
 
     /**
      * Start Docker's start and, where it is refused because the graphics card cannot be used, the question and what its
-     * answer does (ADR-444 §5), on the press's thread. Everything is told through {@code told}, in order.
+     * answer does (ADR-445 §5), on the press's thread. Everything is told through {@code told}, in order.
      *
      * @return the press's line
      */
@@ -815,7 +815,7 @@ final class Cockpit {
         return again.isEmpty() ? installed.line() : again;
     }
 
-    /** Runs {@code asking} on the toolkit's thread and waits for what it gives, as a dialog is opened there (ADR-444 §5). */
+    /** Runs {@code asking} on the toolkit's thread and waits for what it gives, as a dialog is opened there (ADR-445 §5). */
     private static <T> T onTheToolkitThread(java.util.function.Supplier<T> asking) {
         if (Platform.isFxApplicationThread()) {
             return asking.get();
@@ -943,7 +943,7 @@ final class Cockpit {
         Platform.runLater(() -> showTheCheck(found, asked, began, askedValues));
     }
 
-    /** Drops the answer kept of the card, so that the next check that finds the daemon answering asks again (ADR-444 §5). */
+    /** Drops the answer kept of the card, so that the next check that finds the daemon answering asks again (ADR-445 §5). */
     private void dropTheCardKept() {
         cardKept = null;
         cardDrops++;
@@ -951,7 +951,7 @@ final class Cockpit {
 
     /**
      * Asks the card once, off the toolkit's thread, where this check found the daemon answering, {@code askedValues} name
-     * the GPU image and no answer is kept or being asked; drops the answer where the daemon does not answer (ADR-444 §5).
+     * the GPU image and no answer is kept or being asked; drops the answer where the daemon does not answer (ADR-445 §5).
      */
     private void askTheCardOnce(DockerCheck found, LaunchValues askedValues) {
         if (found.daemon() != DockerCheck.Mark.OK) {

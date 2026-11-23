@@ -28,13 +28,13 @@ import java.util.function.Consumer;
  *
  * <p>A command ending in {@link #RUNTIME_CHECK}, as it is or inside {@code wsl}, answers exit 0 with the runtimes an
  * engine the NVIDIA Container Toolkit configured lists, {@code nvidia} among them, unless {@link
- * #withoutTheNvidiaRuntime} took it away (ADR-444 §1). A command given to {@link #runFeeding} is recorded as any other,
+ * #withoutTheNvidiaRuntime} took it away (ADR-445 §1). A command given to {@link #runFeeding} is recorded as any other,
  * with what it was fed, {@link #fed}, copied as it was given, runs what {@link #whenFed} set, and is answered as
  * {@link #run} answers it.
  */
 final class ScriptedDocker implements ProcessRunner {
 
-    /** The command that asks the engine for the runtimes it was configured with (ADR-444 §1). */
+    /** The command that asks the engine for the runtimes it was configured with (ADR-445 §1). */
     static final List<String> RUNTIME_CHECK = List.of("docker", "info", "--format", "{{json .Runtimes}}");
 
     /** What a command given to {@link #runFeeding} was fed on its standard input; null where it was fed nothing. */
@@ -101,13 +101,13 @@ final class ScriptedDocker implements ProcessRunner {
         return this;
     }
 
-    /** The engine lists no {@code nvidia} runtime, as one the NVIDIA Container Toolkit never configured (ADR-444 §1). */
+    /** The engine lists no {@code nvidia} runtime, as one the NVIDIA Container Toolkit never configured (ADR-445 §1). */
     ScriptedDocker withoutTheNvidiaRuntime() {
         nvidiaRuntimeListed = false;
         return this;
     }
 
-    /** Runs {@code then} as each command given to {@link #runFeeding} runs, before it is answered (ADR-444 §6). */
+    /** Runs {@code then} as each command given to {@link #runFeeding} runs, before it is answered (ADR-445 §6). */
     ScriptedDocker whenFed(Runnable then) {
         whenFed = then;
         return this;

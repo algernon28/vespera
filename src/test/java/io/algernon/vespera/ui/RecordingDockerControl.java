@@ -22,7 +22,7 @@ import java.util.function.Supplier;
  * each tell the lines the test set for them before they are held, as a start and a shut-down tell each line they log
  * (ADR-437 §3). A refusal is read for the graphics card, an install answered and the card checked as the test scripts
  * them, each install kept with the password it was given and telling the lines the test set for it, and each check of
- * the card kept with its launch values (ADR-444 §5, §8, §10); the starts may answer in turn.
+ * the card kept with its launch values (ADR-445 §5, §8, §10); the starts may answer in turn.
  */
 final class RecordingDockerControl implements DockerControl {
 
@@ -82,12 +82,12 @@ final class RecordingDockerControl implements DockerControl {
     private volatile CardCheck graphicsCardSays = new CardCheck(Optional.empty(), List.of());
 
     /**
-     * What each install was given (ADR-444 §8): the password's characters as they were when it was called, copied, or
+     * What each install was given (ADR-445 §8): the password's characters as they were when it was called, copied, or
      * null where it was given none.
      */
     final List<String> installsGiven = new CopyOnWriteArrayList<>();
 
-    /** Every check of the graphics card, with the launch values it was given, in order (ADR-444 §5). */
+    /** Every check of the graphics card, with the launch values it was given, in order (ADR-445 §5). */
     final List<LaunchValues> cardChecks = new CopyOnWriteArrayList<>();
 
     /** Answers a start with {@code startSays}, a shut-down with {@code shutDownSays}, and a stop of the containers as done. */
@@ -153,7 +153,7 @@ final class RecordingDockerControl implements DockerControl {
         return this;
     }
 
-    /** A refusal is read for the graphics card by {@code reading} (ADR-444 §5). */
+    /** A refusal is read for the graphics card by {@code reading} (ADR-445 §5). */
     RecordingDockerControl cardRefusedReading(java.util.function.Function<String, Optional<CardRefused>> reading) {
         cardRefusedSays = reading;
         return this;
@@ -165,7 +165,7 @@ final class RecordingDockerControl implements DockerControl {
         return this;
     }
 
-    /** Every install tells {@code lines}, in order, as an install tells each line it logs (ADR-444 §6, ADR-437 §3). */
+    /** Every install tells {@code lines}, in order, as an install tells each line it logs (ADR-445 §6, ADR-437 §3). */
     RecordingDockerControl tellingOnEachInstall(List<String> lines) {
         installTells = List.copyOf(lines);
         return this;
@@ -192,7 +192,7 @@ final class RecordingDockerControl implements DockerControl {
 
     /**
      * Holds every check of the graphics card, once it is kept in {@link #cardChecks}, until {@code released} counts
-     * down, as a question of the engine that waits on its commands does (ADR-444 §5).
+     * down, as a question of the engine that waits on its commands does (ADR-445 §5).
      */
     RecordingDockerControl holdingCardChecksUntil(CountDownLatch released) {
         cardCheckHeldUntil = released;
