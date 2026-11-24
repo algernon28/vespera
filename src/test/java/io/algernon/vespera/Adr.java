@@ -3352,6 +3352,26 @@ public final class Adr {
     public static final String THE_GPU_IMAGE_STARTS_ONLY_WHERE_DOCKER_HAS_THE_NVIDIA_RUNTIME = FILE
             + "0445-the-gpu-image-starts-only-where-docker-has-the-nvidia-runtime-and-the-control-panel-offers-the-toolkit-or-the-cpu-image.md";
 
+    /**
+     * ADR-446 -- the {@code done} of a step's chart is the count of that step's main counter alone, one counter named
+     * for each of the thirteen steps that say one: a line of another counter of the step, or of a statement, moves it
+     * nowhere; a sample taken before the main counter has said a count in the invocation holds none, and once it has,
+     * its latest count; the census's chart, the seed-corpus comparison's, which says no counter, and the report's own
+     * counts of a step are unchanged (amends ADR-432 §3).
+     */
+    public static final String A_STEPS_CHART_DRAWS_ITS_DONE_FROM_ITS_MAIN_COUNTER_ALONE = FILE
+            + "0446-a-steps-chart-draws-its-done-from-the-steps-main-counter-alone.md";
+
+    /**
+     * ADR-448 -- a step's chart freezes at the first reading at which its step stands finished and its file holding it
+     * frozen is written; the reading whose freezing write fails leaves the chart not frozen, its sample and its end
+     * dropped, or not marked finished in an earlier invocation, is warned of once in the invocation and keeps no chart
+     * under the run, and the next reading freezes it afresh, for a step that finishes and for one found finished in an
+     * earlier invocation alike (amends ADR-432 §5 and §6 and ADR-438 §2 and §5).
+     */
+    public static final String A_STEPS_CHART_IS_FROZEN_ONLY_ONCE_ITS_FROZEN_FILE_IS_WRITTEN = FILE
+            + "0448-a-steps-chart-is-frozen-only-once-its-frozen-file-is-written.md";
+
     private Adr() {
     }
 }
