@@ -29,6 +29,13 @@
     -vespera-series-6: #8f5bd6;
     -vespera-series-7: #0e7490;
     -vespera-series-8: #525252;
+    /* the Architecture window's logos (ADR-447 section 2): their brands' own colours on a white tile, in both themes */
+    -vespera-logo-tile: #ffffff;
+    -vespera-brand-ollama: #000000;
+    -vespera-brand-sqlite: #003b57;
+    -vespera-brand-confluence: #172b4d;
+    -vespera-brand-docker: #2496ed;
+    -vespera-brand-nvidia: #76b900;
     -fx-font-size: 13px;
     -fx-base: #efedf3;
     -fx-background: -vespera-ground;
@@ -75,6 +82,12 @@
     -vespera-series-6: #9b74e6;
     -vespera-series-7: #38bdf8;
     -vespera-series-8: #a3a3a3;
+    -vespera-logo-tile: #ffffff;
+    -vespera-brand-ollama: #000000;
+    -vespera-brand-sqlite: #003b57;
+    -vespera-brand-confluence: #172b4d;
+    -vespera-brand-docker: #2496ed;
+    -vespera-brand-nvidia: #76b900;
     -fx-base: #2c2a38;
     -fx-background: -vespera-ground;
     -fx-control-inner-background: #211f2a;
@@ -725,13 +738,44 @@
     -fx-font-size: 13px;
 }
 
+/* a part's texts 8px inside its sides and 6px inside its top and bottom, clear of the thickest outline (ADR-447 section 1) */
 .architecture-texts {
     -fx-spacing: 1px;
-    -fx-padding: 4px;
+    -fx-padding: 6px 8px;
 }
 
 .architecture-row {
     -fx-spacing: 10px;
+}
+
+.architecture-beside {
+    -fx-spacing: 8px;
+}
+
+/* a product's logo on its white tile, its mark in its brand's colour (ADR-447 section 2) */
+.architecture-logo {
+    -fx-background-color: -vespera-logo-tile;
+    -fx-background-radius: 4px;
+}
+
+.architecture-logo-mark.logo-ollama {
+    -fx-fill: -vespera-brand-ollama;
+}
+
+.architecture-logo-mark.logo-sqlite {
+    -fx-fill: -vespera-brand-sqlite;
+}
+
+.architecture-logo-mark.logo-confluence {
+    -fx-fill: -vespera-brand-confluence;
+}
+
+.architecture-logo-mark.logo-docker {
+    -fx-fill: -vespera-brand-docker;
+}
+
+.architecture-logo-mark.logo-nvidia {
+    -fx-fill: -vespera-brand-nvidia;
 }
 
 .architecture-group {

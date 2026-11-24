@@ -3352,6 +3352,15 @@ public final class Adr {
     public static final String THE_GPU_IMAGE_STARTS_ONLY_WHERE_DOCKER_HAS_THE_NVIDIA_RUNTIME = FILE
             + "0445-the-gpu-image-starts-only-where-docker-has-the-nvidia-runtime-and-the-control-panel-offers-the-toolkit-or-the-cpu-image.md";
 
+    /**
+     * ADR-447 -- the Architecture window's parts hold their texts 8 px inside their sides and 6 px inside their top and
+     * bottom, clear of the thickest outline a state draws, and none is cut in any state, the drawing made wider and
+     * taller for them; Docling, Ollama, the SQLite ledger, the GPU, Confluence and the Docker group carry their official
+     * logos in their brands' colours, each on a white tile in either theme (amends ADR-442 §4).
+     */
+    public static final String THE_ARCHITECTURE_WINDOWS_TEXTS_FIT_AND_THE_PRODUCTS_CARRY_THEIR_LOGOS = FILE
+            + "0447-the-architecture-windows-texts-stand-clear-of-their-outlines-and-the-products-parts-carry-their-official-logos.md";
+
     private Adr() {
     }
 }
