@@ -1016,12 +1016,13 @@ final class JobSampler implements JobExecutionListener {
             return;
         }
         if (ran && !running && !"not started".equals(states.get(StepNames.CENSUS))) {
-            censusEmptied = true;
             chart.key.clear();
             chart.finishedAt = null;
             chart.points = new ArrayList<>();
             chart.firstSampleAt = null;
             writeTheChart(stage, chart);
+            // held emptied once written: a write that fails is made again at the next reading (ADR-265 section 4)
+            censusEmptied = true;
             return;
         }
         Long walked = walkWalked.get();
