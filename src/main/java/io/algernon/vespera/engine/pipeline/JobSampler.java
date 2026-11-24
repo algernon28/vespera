@@ -1051,9 +1051,9 @@ final class JobSampler implements JobExecutionListener {
     }
 
     /**
-     * The census's chart before it has handed the job its walk (ADR-418 section 4): each sample of the walk walked is
-     * written as it is taken, under the walk walked; where the census's step ends with no walk handed, the file is
-     * written empty, once, and takes no sample.
+     * The census's chart before it has handed the job its walk (ADR-418 section 4, as ADR-449 amends it): each sample of
+     * the walk walked is written as it is taken, under the walk walked; where the census's step ends with no walk
+     * handed, the file is written empty and takes no sample, at each reading until that write succeeds, then not again.
      */
     private void beforeTheHandOver(
             StepOfChart stage, KeptChart chart, InvocationRuns runs, Map<String, String> states, boolean running,
@@ -1063,12 +1063,13 @@ final class JobSampler implements JobExecutionListener {
             return;
         }
         if (ran && !running && !"not started".equals(states.get(StepNames.CENSUS))) {
-            censusEmptied = true;
             chart.key.clear();
             chart.finishedAt = null;
             chart.points = new ArrayList<>();
             chart.firstSampleAt = null;
             writeTheChart(stage, chart);
+            // held emptied once written: a write that fails is made again at the next reading (ADR-265 section 4)
+            censusEmptied = true;
             return;
         }
         Long walked = walkWalked.get();
