@@ -3372,6 +3372,15 @@ public final class Adr {
     public static final String A_STEPS_CHART_IS_FROZEN_ONLY_ONCE_ITS_FROZEN_FILE_IS_WRITTEN = FILE
             + "0448-a-steps-chart-is-frozen-only-once-its-frozen-file-is-written.md";
 
+    /**
+     * ADR-449 -- a census whose step ends with no walk handed has its file written empty at the first reading at which
+     * its step stands ended and that write succeeds; the reading whose emptying write fails leaves the file as the
+     * reading before wrote it, is warned of once in the invocation, and the next such reading, the job's last among
+     * them, writes it empty afresh (amends ADR-418 §4).
+     */
+    public static final String THE_CENSUSS_CHART_IS_HELD_EMPTIED_ONLY_ONCE_ITS_EMPTY_FILE_IS_WRITTEN = FILE
+            + "0449-the-censuss-chart-is-held-emptied-only-once-its-empty-file-is-written.md";
+
     private Adr() {
     }
 }

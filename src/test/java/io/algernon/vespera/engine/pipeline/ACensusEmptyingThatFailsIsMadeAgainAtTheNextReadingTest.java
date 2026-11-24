@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -43,7 +44,7 @@ import tools.jackson.databind.json.JsonMapper;
  * Issue 937: the reading that writes the census's file empty, as its step ends with no walk handed, held the file
  * emptied before it was written, so that a write that failed left the chart of the walk walked in the file for the rest
  * of the invocation. The census's file is held emptied only once the empty file is written, and the next reading writes
- * it again (ADR-418 §4, ADR-265 §4).
+ * it again (ADR-449 §1, amending ADR-418 §4; ADR-265 §4).
  *
  * <p>The write is made to fail as a write of the file can: the temporary file the census's chart is written to before it
  * is moved over its place cannot be written, a folder standing where it goes, until the test takes the folder away.
@@ -51,6 +52,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("937")
+@Link(name = "ADR-449", url = Adr.THE_CENSUSS_CHART_IS_HELD_EMPTIED_ONLY_ONCE_ITS_EMPTY_FILE_IS_WRITTEN, type = "adr")
 @Link(name = "ADR-418", url = Adr.EVERY_STAGES_CHART_IS_WRITTEN_EMPTY_AS_THE_JOB_BEGINS, type = "adr")
 @Link(name = "ADR-265", url = Adr.THE_RUN_REWRITES_A_PROGRESS_PAGE_WHILE_IT_RUNS, type = "adr")
 class ACensusEmptyingThatFailsIsMadeAgainAtTheNextReadingTest {
@@ -101,9 +103,15 @@ class ACensusEmptyingThatFailsIsMadeAgainAtTheNextReadingTest {
         clock.moveOn(BETWEEN_READINGS);
         readsOnce(sampler);
 
-        claim("while the census walked, its file held the seed folder's walk, one sample",
-                () -> assertThat(read(whileItWalked).get("key")).isEqualTo(Map.of("walk",
-                        String.valueOf(THE_SEED_FOLDERS_WALK))));
+        claim("while the census walked, its file held the seed folder's walk and one line, done, of one sample at second"
+                        + " 0: the seed folder's 2,000 entries",
+                () -> {
+                    Map<String, Object> walking = read(whileItWalked);
+                    assertThat(walking.get("key")).as("its key").isEqualTo(Map.of("walk",
+                            String.valueOf(THE_SEED_FOLDERS_WALK)));
+                    assertThat(linesOf(walking)).as("its lines, each its name, its seconds and its values")
+                            .containsExactly(new Line("done", List.of(0.0), List.of((double) SEED_FOLDER_WALKED)));
+                });
         claim("the reading whose write failed leaves the census's file as the reading while it walked wrote it",
                 () -> assertThat(afterTheFailedWrite).isEqualTo(whileItWalked));
         claim("the next reading writes it empty: format 1, its step, no key, no finishing time, not finished in an"
@@ -181,6 +189,26 @@ class ACensusEmptyingThatFailsIsMadeAgainAtTheNextReadingTest {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> read(String text) {
         return JSON.readValue(text, Map.class);
+    }
+
+    /** One line of a chart: its name, and its points' seconds and values in order. */
+    private record Line(String name, List<Double> seconds, List<Double> values) {
+    }
+
+    /** The lines a chart file read holds, in order. */
+    @SuppressWarnings("unchecked")
+    private static List<Line> linesOf(Map<String, Object> chart) {
+        List<Line> lines = new ArrayList<>();
+        for (Object each : (List<Object>) chart.getOrDefault("lines", List.of())) {
+            Map<String, Object> line = (Map<String, Object>) each;
+            lines.add(new Line((String) line.get("name"), numbers(line.get("seconds")), numbers(line.get("values"))));
+        }
+        return lines;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Double> numbers(Object read) {
+        return read == null ? List.of() : ((List<Number>) read).stream().map(Number::doubleValue).toList();
     }
 
     /** What the census's file holds once written empty. */
