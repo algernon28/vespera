@@ -3,12 +3,19 @@ package io.algernon.vespera.ui;
 import io.algernon.vespera.ui.Architecture.Kind;
 import io.algernon.vespera.ui.Architecture.Lit;
 import io.algernon.vespera.ui.Architecture.Part;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javafx.animation.Animation;
 import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
@@ -19,13 +26,19 @@ import javafx.beans.property.SimpleDoubleProperty;
 import javafx.geometry.Pos;
 import javafx.scene.Group;
 import javafx.scene.Node;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Polyline;
+import javafx.scene.shape.SVGPath;
+import javafx.scene.text.Font;
+import javafx.scene.text.Text;
 import javafx.scene.transform.Scale;
 import javafx.util.Duration;
 
@@ -34,14 +47,57 @@ import javafx.util.Duration;
  * legend, each part at the place the picture gives it, on a pane of a fixed size the window scales. Each part is its
  * own node, {@code architecture-<part>}, its texts {@link SelectableText}s, its state its style class; each wire its own,
  * {@code architecture-wire-<name>}, {@code flowing} while it carries data. Two things move, behind {@link #moving}: the
- * outline of a running part pulses and the dashes of a flowing wire move along it, both on one timeline.
+ * outline of a running part pulses and the dashes of a flowing wire move along it, both on one timeline. Each part's
+ * texts lie inside its padding, clear of its outline, and the parts standing for a product, and the Docker group, carry
+ * its official logo on a tile, {@code architecture-logo-<name>} (ADR-447).
  */
 final class ArchitectureView extends Pane {
 
-    /** The drawing's own size, which the window scales to fit. */
-    static final double WIDTH = 1130;
+    /** The drawing's own size, which the window scales to fit (ADR-447 §1). */
+    static final double WIDTH = 1226;
 
-    static final double HEIGHT = 530;
+    static final double HEIGHT = 550;
+
+    /** How wide a stage's box is, and the gap between two (ADR-447 §1). */
+    private static final double STAGE_WIDTH = 88;
+
+    private static final double STAGE_GAP = 6;
+
+    /**
+     * How far a part's texts lie inside its box's sides, as {@code .architecture-texts} has it, which a line is cut to
+     * fit inside (ADR-447 §1).
+     */
+    private static final double PADDING = 8;
+
+    /** A logo's tile, the logo inside it, and the gap between a tile and the texts beside it (ADR-447 §2). */
+    private static final double TILE = 22;
+
+    private static final double MARK = 16;
+
+    private static final double BESIDE_GAP = 8;
+
+    /** The parts that carry a product's logo, by the logo's name (ADR-447 §2). */
+    private static final Map<Part, String> LOGOS = Map.of(Part.DOCLING, "docling", Part.OLLAMA, "ollama",
+            Part.LEDGER, "sqlite", Part.GPU, "nvidia", Part.CONFLUENCE, "confluence");
+
+    /**
+     * The smaller sizes a line too wide for its box is drawn in, largest first, by the style class that gives each, as
+     * {@code control-panel.css} has them (ADR-447 §1).
+     */
+    private static final Map<String, Double> SMALLER = smaller();
+
+    private static final String SMALLEST = "architecture-size-8";
+
+    private static Map<String, Double> smaller() {
+        Map<String, Double> sizes = new LinkedHashMap<>();
+        sizes.put("architecture-size-10", 10.0);
+        sizes.put("architecture-size-9", 9.0);
+        sizes.put(SMALLEST, 8.0);
+        return java.util.Collections.unmodifiableMap(sizes);
+    }
+
+    /** The one path of a logo Simple Icons draws. */
+    private static final Pattern A_PATH = Pattern.compile("<path[^>]*\\sd=\"([^\"]+)\"");
 
     /**
      * How long a pulse of a running outline takes, and how far a flowing wire's runners move in it: the gap between two
@@ -98,71 +154,133 @@ final class ArchitectureView extends Pane {
         motion.setCycleCount(Animation.INDEFINITE);
         phase.addListener((observed, was, now) -> move(now.doubleValue()));
 
-        group("inputs", "Inputs", Kind.INPUT, 10, 10, 130, 390);
-        group("machine", "Operator's machine", Kind.CONTROL, 150, 10, 690, 390);
-        group("control", "Control", Kind.CONTROL, 160, 34, 670, 68);
-        group("application", "Vespera application", Kind.STAGE, 160, 108, 670, 200);
+        group("inputs", "Inputs", Kind.INPUT, 10, 10, 130, 410, "");
+        group("machine", "Operator's machine", Kind.CONTROL, 150, 10, 786, 410, "");
+        group("control", "Control", Kind.CONTROL, 160, 34, 766, 100, "");
+        group("application", "Vespera application", Kind.STAGE, 160, 140, 766, 200, "");
         SelectableText.Line gates = SelectableText.line("human gates: 6a, 6b");
         gates.setId("architecture-group-gates");
         gates.getStyleClass().addAll("architecture-group-title", kindClass(Kind.GATE));
-        gates.relocate(700, 110);
+        gates.relocate(796, 142);
         getChildren().add(gates);
-        group("outputs", "Outputs", Kind.OUTPUT, 850, 10, 130, 390);
-        group("connectors", "Connectors", Kind.CONNECTOR, 990, 10, 130, 390);
-        group("docker", "Docker: local AI containers", Kind.CONTAINER, 150, 410, 690, 112);
+        group("outputs", "Outputs", Kind.OUTPUT, 946, 10, 130, 410, "");
+        group("connectors", "Connectors", Kind.CONNECTOR, 1086, 10, 130, 410, "");
+        group("docker", "Docker: local AI containers", Kind.CONTAINER, 150, 430, 786, 112, "docker");
 
-        wire("archive", 130, 150, 160, 150);
-        wire("seed-folder", 130, 280, 160, 280);
-        wire("control-panel", 392, 79, 440, 79);
-        wire("cli", 660, 79, 700, 79, 700, 108);
+        wire("archive", 130, 170, 160, 170);
+        wire("seed-folder", 130, 300, 160, 300);
+        wire("control-panel", 432, 90, 480, 90);
+        wire("cli", 740, 90, 770, 90, 770, 140);
         for (int i = 0; i < Architecture.STAGES.size(); i++) {
-            double middle = stageX(i) + 38;
-            wire(Architecture.STAGES.get(i).id(), middle, 298, middle, 318);
+            double middle = stageX(i) + STAGE_WIDTH / 2;
+            wire(Architecture.STAGES.get(i).id(), middle, 330, middle, 350);
         }
-        wire("docling-gpu", 390, 440, 390, 425, 755, 425, 755, 440);
-        wire("ollama-gpu", 665, 473, 685, 473);
-        wire("deliverable", 830, 120, 860, 120);
-        wire("reports", 830, 290, 860, 290);
-        wire("confluence", 970, 120, 1000, 120);
-        wire("website", 970, 160, 985, 160, 985, 290, 1000, 290);
+        wire("docling-gpu", 410, 460, 410, 445, 835, 445, 835, 460);
+        wire("ollama-gpu", 725, 495, 745, 495);
+        wire("deliverable", 926, 150, 956, 150);
+        wire("reports", 926, 300, 956, 300);
+        wire("confluence", 1066, 120, 1096, 120);
+        wire("website", 1066, 170, 1081, 170, 1081, 300, 1096, 300);
 
-        part(Part.ARCHIVE, 20, 40, 110, 150);
-        part(Part.SEED_FOLDER, 20, 205, 110, 150);
-        part(Part.CONTROL_PANEL, 172, 56, 220, 46);
-        part(Part.CLI, 440, 56, 220, 46);
+        part(Part.ARCHIVE, 20, 40, 110, 160);
+        part(Part.SEED_FOLDER, 20, 220, 110, 160);
+        part(Part.CONTROL_PANEL, 172, 56, 260, 68);
+        part(Part.CLI, 480, 56, 260, 68);
         for (int i = 0; i < Architecture.STAGES.size(); i++) {
-            part(Architecture.STAGES.get(i), stageX(i), 138, 76, 160);
+            part(Architecture.STAGES.get(i), stageX(i), 170, STAGE_WIDTH, 160);
         }
-        part(Part.LEDGER, 160, 318, 670, 34);
-        part(Part.DOCLING, 165, 440, 240, 70);
-        part(Part.OLLAMA, 425, 440, 240, 70);
-        part(Part.GPU, 685, 440, 140, 70);
-        part(Part.DELIVERABLE, 860, 40, 110, 160);
-        part(Part.REPORTS, 860, 215, 110, 150);
-        part(Part.CONFLUENCE, 1000, 40, 110, 160);
-        part(Part.WEBSITE, 1000, 215, 110, 150);
+        part(Part.LEDGER, 160, 350, 766, 34);
+        part(Part.DOCLING, 165, 460, 270, 70);
+        part(Part.OLLAMA, 455, 460, 270, 70);
+        part(Part.GPU, 745, 460, 180, 70);
+        part(Part.DELIVERABLE, 956, 40, 110, 160);
+        part(Part.REPORTS, 956, 220, 110, 160);
+        part(Part.CONFLUENCE, 1096, 40, 110, 160);
+        part(Part.WEBSITE, 1096, 220, 110, 160);
         // the application's wires to its containers pass over the ledger, between the stages' wires and clear of its
         // words: data goes from a stage to the container and back, never through the ledger
-        wire("docling", 249, 308, 249, 440);
-        wire("ollama", 741, 308, 741, 385, 600, 385, 600, 440);
-        legend(850, 410);
+        wire("docling", 261, 340, 261, 460);
+        wire("ollama", 825, 340, 825, 400, 590, 400, 590, 460);
+        legend(946, 430);
     }
 
     private static double stageX(int i) {
-        return 170 + i * 82;
+        return 170 + i * (STAGE_WIDTH + STAGE_GAP);
     }
 
-    /** A group of the picture: an outline in its kind's colour and its title at its top left. */
-    private void group(String name, String title, Kind kind, double x, double y, double width, double height) {
+    /**
+     * A group of the picture: an outline in its kind's colour and its title at its top left, after the logo named
+     * {@code logo} where it names one (ADR-447 §2).
+     */
+    private void group(String name, String title, Kind kind, double x, double y, double width, double height,
+            String logo) {
         Region outline = new Region();
         outline.getStyleClass().addAll("architecture-group", kindClass(kind));
         outline.resizeRelocate(x, y, width, height);
         outline.setManaged(false);
+        getChildren().add(outline);
+        double titleX = x + 6;
+        if (!logo.isEmpty()) {
+            Region tile = logo(logo);
+            tile.setManaged(false);
+            tile.resizeRelocate(x + 6, y + 3, TILE, TILE);
+            getChildren().add(tile);
+            titleX += TILE + 4;
+        }
         SelectableText.Line words = SelectableText.line(title);
         words.setId("architecture-group-" + name);
         words.getStyleClass().addAll("architecture-group-title", kindClass(kind));
-        words.relocate(x + 6, y + 2);
-        getChildren().addAll(outline, words);
+        words.relocate(titleX, y + 2);
+        getChildren().add(words);
+    }
+
+    /**
+     * A product's official logo on its tile, {@code architecture-logo-<name>} (ADR-447 §2): the picture
+     * {@code logos/<name>.png} where there is one, else the path of {@code logos/<name>.svg}, filled by the stylesheet
+     * in its brand's colour.
+     */
+    private static Region logo(String name) {
+        Node mark;
+        URL picture = ArchitectureView.class.getResource("logos/" + name + ".png");
+        if (picture != null) {
+            ImageView image = new ImageView(new Image(picture.toExternalForm()));
+            image.setFitWidth(MARK);
+            image.setFitHeight(MARK);
+            image.setPreserveRatio(true);
+            image.setSmooth(true);
+            mark = image;
+        } else {
+            SVGPath path = new SVGPath();
+            path.setContent(pathOf(name));
+            path.getStyleClass().addAll("architecture-logo-mark", "logo-" + name);
+            // Simple Icons draws each mark on a 24 x 24 view box
+            path.getTransforms().add(new Scale(MARK / 24, MARK / 24, 0, 0));
+            mark = new Group(path);
+        }
+        StackPane tile = new StackPane(mark);
+        tile.setId("architecture-logo-" + name);
+        tile.getStyleClass().add("architecture-logo");
+        tile.setMinSize(TILE, TILE);
+        tile.setPrefSize(TILE, TILE);
+        tile.setMaxSize(TILE, TILE);
+        tile.setMouseTransparent(true);
+        return tile;
+    }
+
+    /** The path of the one {@code <path>} of {@code logos/<name>.svg}. */
+    private static String pathOf(String name) {
+        try (InputStream in = ArchitectureView.class.getResourceAsStream("logos/" + name + ".svg")) {
+            if (in == null) {
+                throw new IllegalStateException("no logo logos/" + name + ".svg beside " + ArchitectureView.class);
+            }
+            Matcher path = A_PATH.matcher(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+            if (!path.find()) {
+                throw new IllegalStateException("logos/" + name + ".svg holds no path");
+            }
+            return path.group(1);
+        } catch (IOException unread) {
+            throw new UncheckedIOException(unread);
+        }
     }
 
     /**
@@ -234,12 +352,18 @@ final class ArchitectureView extends Pane {
         return new Lane(route, List.copyOf(runners));
     }
 
-    /** A part: its box filled in its kind's colour, its title, the line saying what it is, and its words, beneath an outline. */
+    /**
+     * A part: its box filled in its kind's colour, its title, the line saying what it is, and its words, beneath an
+     * outline; and its product's logo where it has one, beside its texts in a box at least twice as wide as it is high
+     * and above them in a taller one (ADR-447 §2).
+     */
     private void part(Part part, double x, double y, double width, double height) {
         // a box as low as the ledger's draws its texts in a row, the others one beneath another
         boolean flat = height <= FLAT;
+        String logo = LOGOS.getOrDefault(part, "");
+        boolean beside = !logo.isEmpty() && !flat && width >= 2 * height;
         Pane texts = flat ? new HBox() : new VBox();
-        texts.getStyleClass().add("architecture-texts");
+        Pane content = texts;
         if (texts instanceof HBox row) {
             row.setAlignment(Pos.CENTER);
             row.getStyleClass().add("architecture-row");
@@ -247,6 +371,17 @@ final class ArchitectureView extends Pane {
             column.setAlignment(Pos.CENTER);
             column.setFillWidth(false);
         }
+        if (beside) {
+            HBox side = new HBox(logo(logo), texts);
+            side.setAlignment(Pos.CENTER_LEFT);
+            side.getStyleClass().add("architecture-beside");
+            HBox.setHgrow(texts, Priority.ALWAYS);
+            texts.setMaxWidth(Double.MAX_VALUE);
+            content = side;
+        } else if (!logo.isEmpty()) {
+            texts.getChildren().add(logo(logo));
+        }
+        content.getStyleClass().add("architecture-texts");
         if (!part.number().isEmpty()) {
             SelectableText.Line number = SelectableText.line(part.number());
             number.getStyleClass().add("architecture-number");
@@ -257,7 +392,8 @@ final class ArchitectureView extends Pane {
             title.getStyleClass().add("architecture-title");
             texts.getChildren().add(title);
         }
-        for (String line : flat ? List.of(part.about()) : wrap(part.about(), width)) {
+        double inside = width - 2 * PADDING - (beside ? TILE + BESIDE_GAP : 0);
+        for (String line : flat ? List.of(part.about()) : wrap(part.about(), inside)) {
             SelectableText.Line about = SelectableText.line(line);
             about.getStyleClass().add("architecture-about");
             texts.getChildren().add(about);
@@ -271,7 +407,7 @@ final class ArchitectureView extends Pane {
         Region outline = new Region();
         outline.getStyleClass().add("architecture-outline");
         outline.setMouseTransparent(true);
-        StackPane box = new StackPane(texts, outline);
+        StackPane box = flat ? new StackPane(content, outline) : new Fitting(texts, inside, content, outline);
         box.setId("architecture-" + part.id());
         box.getStyleClass().addAll("architecture-part", kindClass(part.kind()));
         box.resizeRelocate(x, y, width, height);
@@ -282,7 +418,70 @@ final class ArchitectureView extends Pane {
         show(percent, "");
     }
 
-    /** {@code text} cut into lines that fit a box {@code width} wide, at its spaces. */
+    /**
+     * A part's box whose texts stand one beneath another: before each layout, each line too wide for the width inside
+     * its padding is drawn in the largest of {@link #SMALLER} that fits it, measured in the font the system draws it in,
+     * and a line that fits again goes back to the stylesheet's size (ADR-447 §1). A style class is changed only where
+     * the size a line needs has changed, so that a layout asks for no new one.
+     */
+    private static final class Fitting extends StackPane {
+
+        /** The key under which a line keeps the size the stylesheet gives it. */
+        private static final String NATURAL = "architecture-natural-size";
+
+        private final Pane texts;
+        private final double inside;
+
+        Fitting(Pane texts, double inside, Node... children) {
+            super(children);
+            this.texts = texts;
+            this.inside = inside;
+        }
+
+        @Override
+        protected void layoutChildren() {
+            for (Node node : texts.getChildren()) {
+                if (node instanceof SelectableText.Line line && line.isVisible()) {
+                    fit(line);
+                }
+            }
+            super.layoutChildren();
+        }
+
+        private void fit(SelectableText.Line line) {
+            String was = SMALLER.keySet().stream().filter(line.getStyleClass()::contains).findFirst().orElse("");
+            Font drawn = line.getFont();
+            // what the control's insets take, beside its text, which no size changes
+            double beside = line.prefWidth(-1) - width(line.getText(), drawn);
+            if (was.isEmpty()) {
+                // the stylesheet's own size, kept while a smaller one is drawn: taking the class off to read it again
+                // would change the font, which asks for a new layout
+                line.getProperties().put(NATURAL, drawn.getSize());
+            }
+            double natural = (Double) line.getProperties().getOrDefault(NATURAL, drawn.getSize());
+            String wanted = "";
+            if (beside + width(line.getText(), new Font(drawn.getName(), natural)) > inside) {
+                wanted = SMALLER.entrySet().stream()
+                        .filter(size -> beside + width(line.getText(), new Font(drawn.getName(), size.getValue())) <= inside)
+                        .map(Map.Entry::getKey).findFirst().orElse(SMALLEST);
+            }
+            if (!wanted.equals(was)) {
+                line.getStyleClass().removeAll(SMALLER.keySet());
+                if (!wanted.isEmpty()) {
+                    line.getStyleClass().add(wanted);
+                }
+                line.applyCss();
+            }
+        }
+
+        private static double width(String text, Font font) {
+            Text measure = new Text(text);
+            measure.setFont(font);
+            return measure.getLayoutBounds().getWidth();
+        }
+    }
+
+    /** {@code text} cut into lines that fit {@code width}, at its spaces. */
     private static List<String> wrap(String text, double width) {
         int perLine = (int) Math.max(8, width / 6.2);
         List<String> lines = new java.util.ArrayList<>();

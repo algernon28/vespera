@@ -14,8 +14,11 @@ import java.lang.ref.WeakReference;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import javafx.geometry.Bounds;
 import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -27,9 +30,11 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.control.ToggleButton;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.SVGPath;
 import javafx.scene.text.Text;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
@@ -76,6 +81,44 @@ class TheArchitectureWindowTest {
 
     /** Where a window stands and how large it is. */
     private record Placed(double x, double y, double width, double height) {
+    }
+
+    /**
+     * How far inside its box every text and logo of a part lies: the thickest outline a state draws, the inner line of
+     * a part at a gate, 2 px wide and 4 px inside the edge, ends 6 px inside it.
+     */
+    private static final double CLEAR_OF_THE_OUTLINE = 6;
+
+    /** How far a running stage has got as every part is drawn running: the most the steps chart says while it runs. */
+    private static final String HOW_FAR = "99%";
+
+    /**
+     * Each logo the drawing carries, by its name, and the colour its brand records, empty for Docling's, a picture of
+     * many colours: in the order of the parts that carry them, the Docker group's last.
+     */
+    private static final Map<String, String> BRANDS = brands();
+
+    /** The part each logo but Docker's stands in, by the logo's name. */
+    private static final Map<String, Architecture.Part> CARRIED_BY = Map.of("docling", Architecture.Part.DOCLING,
+            "ollama", Architecture.Part.OLLAMA, "sqlite", Architecture.Part.LEDGER, "nvidia", Architecture.Part.GPU,
+            "confluence", Architecture.Part.CONFLUENCE);
+
+    /**
+     * A logo as drawn: whether it lies where it belongs, whether its mark is drawn, the colour of its mark, null for a
+     * picture, the colour of its tile, and whether it lies inside its box's padding and over none of the texts beside it.
+     */
+    private record Logo(String name, boolean inItsPlace, boolean drawn, Color mark, Color tile, boolean clearOfTexts) {
+    }
+
+    private static Map<String, String> brands() {
+        Map<String, String> brands = new java.util.LinkedHashMap<>();
+        brands.put("docling", "");
+        brands.put("ollama", "#000000");
+        brands.put("sqlite", "#003b57");
+        brands.put("nvidia", "#76b900");
+        brands.put("confluence", "#172b4d");
+        brands.put("docker", "#2496ed");
+        return java.util.Collections.unmodifiableMap(brands);
     }
 
     @Test
@@ -403,6 +446,66 @@ class TheArchitectureWindowTest {
 
     @Test
     @Story("The Architecture window lights what runs")
+    @DisplayName("In every state a part can be in, every text of every part fits inside its box, clear of its outline, and none is cut")
+    @Link(name = "ADR-447", url = Adr.THE_ARCHITECTURE_WINDOWS_TEXTS_FIT_AND_THE_PRODUCTS_CARRY_THEIR_LOGOS, type = "adr")
+    void everyTextOfAPartFitsItsBoxClearOfItsOutlineInEveryState(@TempDir Path folder) throws Exception {
+        Map<Architecture.Lit, List<String>> misfits = new EnumMap<>(Architecture.Lit.class);
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder))) {
+            window.openArchitecture();
+            for (Architecture.Lit lit : Architecture.Lit.values()) {
+                misfits.put(lit, window.readArchitecture(root -> misfitsOfEveryPartLit(root, lit)));
+            }
+        }
+
+        claim("in each of the " + Architecture.Lit.values().length + " states a part can be in, every part drawn in it"
+                        + " and a running stage showing how far it has got, every text of every part lies "
+                        + CLEAR_OF_THE_OUTLINE + " px or more inside its box, clear of the thickest outline a state draws,"
+                        + " and no text shows the mark of a line cut short",
+                () -> assertThat(misfits).allSatisfy((lit, found) -> assertThat(found)
+                        .as("the texts that do not fit with every part %s", lit.name().toLowerCase(java.util.Locale.ROOT))
+                        .isEmpty()));
+    }
+
+    @Test
+    @Story("The Architecture window lights what runs")
+    @DisplayName("Docling, Ollama, the SQLite ledger, the GPU, Confluence and the Docker group carry their official logos, in their brands' colours on a white tile in either theme")
+    @Link(name = "ADR-447", url = Adr.THE_ARCHITECTURE_WINDOWS_TEXTS_FIT_AND_THE_PRODUCTS_CARRY_THEIR_LOGOS, type = "adr")
+    void theProductsPartsCarryTheirOfficialLogosOnAWhiteTile(@TempDir Path folder) throws Exception {
+        List<Logo> light;
+        List<Logo> dark;
+        try (WindowForTests window = WindowForTests.shown(aStateOver(folder))) {
+            window.openArchitecture();
+            light = window.readArchitecture(TheArchitectureWindowTest::logosOf);
+            window.act(root -> WindowForTests.node(root, "theme-toggle", ToggleButton.class).setSelected(true));
+            dark = window.readArchitecture(TheArchitectureWindowTest::logosOf);
+        }
+
+        claim("Docling, Ollama, the ledger, the GPU and Confluence each hold their product's logo inside their box, and"
+                        + " the Docker group its own left of its title",
+                () -> assertThat(light).extracting(Logo::name, Logo::inItsPlace).containsExactlyElementsOf(
+                        BRANDS.keySet().stream().map(name -> org.assertj.core.groups.Tuple.tuple(name, true)).toList()));
+        claim("each logo is drawn: Docling's picture loaded, and each other mark filled with its brand's own colour",
+                () -> {
+                    assertThat(light).allMatch(Logo::drawn, "drawn");
+                    assertThat(light).extracting(Logo::name, Logo::mark).containsExactlyElementsOf(BRANDS.entrySet()
+                            .stream().map(brand -> org.assertj.core.groups.Tuple.tuple(brand.getKey(),
+                                    brand.getValue().isEmpty() ? null : Color.web(brand.getValue())))
+                            .toList());
+                });
+        claim("each logo stands on a white tile, in the light theme and in the dark, and keeps its brand's colour in both",
+                () -> {
+                    assertThat(light).extracting(Logo::tile).containsOnly(Color.WHITE);
+                    assertThat(dark).extracting(Logo::tile).containsOnly(Color.WHITE);
+                    assertThat(dark).extracting(Logo::mark).containsExactlyElementsOf(
+                            light.stream().map(Logo::mark).toList());
+                });
+        claim("each logo lies " + CLEAR_OF_THE_OUTLINE + " px or more inside its box and over none of its texts, the"
+                        + " Docker group's over none of its title",
+                () -> assertThat(light).allMatch(Logo::clearOfTexts, "clear of the texts"));
+    }
+
+    @Test
+    @Story("The Architecture window lights what runs")
     @DisplayName("A window nothing holds any more is let go: the system's motion setting it follows does not hold it")
     void aWindowNothingHoldsIsLetGo() throws Exception {
         WeakReference<ArchitectureWindow> held = HeadlessToolkit.onTheToolkit(() -> new WeakReference<>(
@@ -482,6 +585,92 @@ class TheArchitectureWindowTest {
             }
         }
         return reached;
+    }
+
+    /**
+     * Every part drawn {@code lit}, a running stage showing {@link #HOW_FAR}, and each text of a part that lies less than
+     * {@link #CLEAR_OF_THE_OUTLINE} inside its box or shows the mark of a line cut short, as its part, its text and where
+     * it lies in its box.
+     */
+    private static List<String> misfitsOfEveryPartLit(Parent root, Architecture.Lit lit) {
+        ArchitectureView drawing = drawing(root);
+        Map<Architecture.Part, Architecture.Lit> parts = new EnumMap<>(Architecture.Part.class);
+        for (Architecture.Part part : Architecture.Part.values()) {
+            parts.put(part, lit);
+        }
+        drawing.draw(new Architecture.Lighting(Map.copyOf(parts), "", HOW_FAR));
+        List<String> misfits = new ArrayList<>();
+        for (Architecture.Part part : Architecture.Part.values()) {
+            Region box = WindowForTests.node(root, "architecture-" + part.id(), Region.class);
+            box.applyCss();
+            box.layout();
+            for (Node node : HeadlessToolkit.everyNodeUnder(box)) {
+                if (node instanceof SelectableText.Line line && line.isVisible() && !line.getText().isBlank()) {
+                    Bounds in = within(box, line);
+                    if (!clear(box, in) || line.ellipsis().isVisible()) {
+                        misfits.add(part.id() + " \"" + line.getText() + "\" from (" + Math.round(in.getMinX()) + ", "
+                                + Math.round(in.getMinY()) + ") to (" + Math.round(in.getMaxX()) + ", "
+                                + Math.round(in.getMaxY()) + ") in a box " + Math.round(box.getWidth()) + " by "
+                                + Math.round(box.getHeight()) + (line.ellipsis().isVisible() ? ", cut short" : ""));
+                    }
+                }
+            }
+        }
+        return misfits;
+    }
+
+    /** Each logo of {@link #BRANDS}, in its order, as drawn under {@code root}. */
+    private static List<Logo> logosOf(Parent root) {
+        List<Logo> logos = new ArrayList<>();
+        for (String name : BRANDS.keySet()) {
+            Optional<Node> found = HeadlessToolkit.nodeWithId(root, "architecture-logo-" + name);
+            if (found.isEmpty() || !(found.get() instanceof Region tile)) {
+                logos.add(new Logo(name, false, false, null, null, false));
+                continue;
+            }
+            List<Node> under = HeadlessToolkit.everyNodeUnder(tile);
+            boolean drawn = under.stream().anyMatch(node -> node instanceof ImageView picture && picture.getImage() != null
+                    && !picture.getImage().isError() && picture.getImage().getWidth() > 0)
+                    || under.stream().anyMatch(node -> node instanceof SVGPath path && path.getContent() != null
+                            && !path.getContent().isBlank());
+            Color mark = under.stream().filter(SVGPath.class::isInstance).map(node -> ((SVGPath) node).getFill())
+                    .filter(Color.class::isInstance).map(Color.class::cast).findFirst().orElse(null);
+            Color fill = tile.getBackground() == null || tile.getBackground().getFills().isEmpty() ? null
+                    : tile.getBackground().getFills().getFirst().getFill() instanceof Color colour ? colour : null;
+            boolean inItsPlace;
+            boolean clear;
+            if (CARRIED_BY.containsKey(name)) {
+                Region box = WindowForTests.node(root, "architecture-" + CARRIED_BY.get(name).id(), Region.class);
+                inItsPlace = HeadlessToolkit.everyNodeUnder(box).contains(tile);
+                Bounds itsBounds = within(box, tile);
+                clear = inItsPlace && clear(box, itsBounds) && HeadlessToolkit.everyNodeUnder(box).stream()
+                        .filter(SelectableText.Line.class::isInstance).map(SelectableText.Line.class::cast)
+                        .filter(line -> line.isVisible() && !line.getText().isBlank())
+                        .noneMatch(line -> within(box, line).intersects(itsBounds));
+            } else {
+                Node title = WindowForTests.node(root, "architecture-group-" + name, Node.class);
+                Bounds itsBounds = tile.localToScene(tile.getBoundsInLocal());
+                Bounds titles = title.localToScene(title.getBoundsInLocal());
+                inItsPlace = itsBounds.getMaxX() <= titles.getMinX() && itsBounds.getMaxY() > titles.getMinY()
+                        && itsBounds.getMinY() < titles.getMaxY();
+                clear = !itsBounds.intersects(titles);
+            }
+            logos.add(new Logo(name, inItsPlace, drawn, mark, fill, clear));
+        }
+        return logos;
+    }
+
+    /** Where {@code node} lies in {@code box}'s own coordinates, whatever scale the drawing is drawn at. */
+    private static Bounds within(Region box, Node node) {
+        return box.sceneToLocal(node.localToScene(node.getBoundsInLocal()));
+    }
+
+    /** Whether {@code bounds}, in {@code box}'s coordinates, lie {@link #CLEAR_OF_THE_OUTLINE} or more inside it. */
+    private static boolean clear(Region box, Bounds bounds) {
+        double tolerance = 0.5;
+        return bounds.getMinX() >= CLEAR_OF_THE_OUTLINE - tolerance && bounds.getMinY() >= CLEAR_OF_THE_OUTLINE - tolerance
+                && bounds.getMaxX() <= box.getWidth() - CLEAR_OF_THE_OUTLINE + tolerance
+                && bounds.getMaxY() <= box.getHeight() - CLEAR_OF_THE_OUTLINE + tolerance;
     }
 
     private static boolean dark(Parent root) {

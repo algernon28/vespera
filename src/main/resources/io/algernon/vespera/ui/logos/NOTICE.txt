@@ -1,0 +1,12 @@
+The logos the Architecture window draws (ADR-447). Each is its owner's trademark, drawn to name the product the
+part of the drawing stands for, and endorses nothing.
+
+docling.png
+    Docling's logo, docs/assets/logo.png of https://github.com/docling-project/docling, scaled to 96 x 96 pixels.
+    MIT License, Copyright The Docling Contributors.
+
+ollama.svg, sqlite.svg, confluence.svg, docker.svg, nvidia.svg
+    The marks of Ollama, SQLite, Confluence, Docker and NVIDIA as Simple Icons 13.21.0 draws them,
+    https://github.com/simple-icons/simple-icons, CC0-1.0, each a single path on a 24 x 24 view box, drawn in the
+    brand's colour that Simple Icons records: Ollama #000000, SQLite #003B57, Confluence #172B4D, Docker #2496ED,
+    NVIDIA #76B900.

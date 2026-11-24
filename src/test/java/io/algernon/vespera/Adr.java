@@ -3363,6 +3363,15 @@ public final class Adr {
             + "0446-a-steps-chart-draws-its-done-from-the-steps-main-counter-alone.md";
 
     /**
+     * ADR-447 -- the Architecture window's parts hold their texts 8 px inside their sides and 6 px inside their top and
+     * bottom, clear of the thickest outline a state draws, and none is cut in any state, the drawing made wider and
+     * taller for them; Docling, Ollama, the SQLite ledger, the GPU, Confluence and the Docker group carry their official
+     * logos in their brands' colours, each on a white tile in either theme (amends ADR-442 §4).
+     */
+    public static final String THE_ARCHITECTURE_WINDOWS_TEXTS_FIT_AND_THE_PRODUCTS_CARRY_THEIR_LOGOS = FILE
+            + "0447-the-architecture-windows-texts-stand-clear-of-their-outlines-and-the-products-parts-carry-their-official-logos.md";
+
+    /**
      * ADR-448 -- a step's chart freezes at the first reading at which its step stands finished and its file holding it
      * frozen is written; the reading whose freezing write fails leaves the chart not frozen, its sample and its end
      * dropped, or not marked finished in an earlier invocation, is warned of once in the invocation and keeps no chart
