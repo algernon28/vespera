@@ -13,7 +13,7 @@
 
 **How a step's chart freezes.** At each reading `JobSampler.keepTheChart` takes each step's sample and writes its file, `chart-step-<step>.json`, whole through a temporary file moved over it (ADR-432 §4). At the first reading at which the step stands `finished` the chart freezes: its `finishedAt` the step's end (ADR-432 §6), or, for a step the runs reading made as the invocation started lists finished under the run this invocation reached for it, `finishedEarlier` `true` and the chart kept under that run, or no line where none is kept (ADR-432 §5, ADR-438 §2). A frozen chart is not written again in the invocation (ADR-418 §2). A file that cannot be written is warned of once in the invocation, `a step's chart could not be kept beside the report`, and fails nothing (ADR-265 §4, ADR-432 §4).
 
-**A freezing write that fails.** ADR-432 freezes the chart at the reading, whatever that reading's write does. Where the write throws, every later reading of the invocation finds the chart frozen and writes it no more: the file keeps what the reading before wrote, the empty chart of the job's first reading for a step found finished in an earlier invocation, the samples before its end for a step that finished, and the window draws a chart not finished, with no *finished at* and no words, beside a bar that says `finished`.
+**A freezing write that fails.** ADR-432 freezes the chart at the reading, whatever that reading's write does. Where the write throws, every later reading of the invocation finds the chart frozen and writes it no more: the file keeps what the reading before wrote, for a step found finished in an earlier invocation an empty chart, or one holding the samples of the readings that found it running, as a reading can catch the step running before it stands `finished`, and the samples before its end for a step that finished, and the window draws a chart not finished, with no *finished at* and no words, beside a bar that says `finished`.
 
 **What #934 saw.** In one invocation three steps found finished in an earlier invocation, the extraction, the content census and the redundancy signatures, each going through in under a second between two readings, drew a blank chart, while byte-level reduction's, found finished too, said *finished in an earlier invocation*; and no warning of a chart was logged, which a write that throws would have logged. A test of several such steps going through between two readings freezes each as ADR-432 §5 and ADR-438 §2 have it.
 
@@ -53,7 +53,7 @@
 
 ## Known limits
 
-- **A chart whose file cannot be written for the rest of the invocation ends it not frozen**, its file as the last write made left it: empty for a step found finished in an earlier invocation, the samples before its end for a step that finished. No chart is kept under its run, so a later invocation finding the step finished says *finished in an earlier invocation* (ADR-438, Known limits).
+- **A chart whose file cannot be written for the rest of the invocation ends it not frozen**, its file as the last write made left it: for a step found finished in an earlier invocation empty, or holding the samples of the readings that found it running, and the samples before its end for a step that finished. No chart is kept under its run, so a later invocation finding the step finished says *finished in an earlier invocation* (ADR-438, Known limits).
 
 ## What this does not decide
 
@@ -72,5 +72,5 @@ No test here reads §2's warning, which is ADR-265 §4's and ADR-432 §4's, unch
 
 ## What the implementation owes
 
-- `JobSampler`: `keepTheChart` holding a chart frozen, its `finishedAt` or its `finishedEarlier`, only once the write of its file holding it frozen is made; a freezing write that fails warned of as §2 has it, leaving the chart as it stood before that reading, its sample and its `finishedAt` dropped, or its `finishedEarlier` `false`, and writing no chart under its run; the next reading freezing it afresh. Its javadoc cites this record.
+- `JobSampler`: `keepTheChart` holding a chart frozen, its `finishedAt` or its `finishedEarlier`, only once the write of its file holding it frozen is made; a freezing write that fails warned of as §2 has it and writing no chart under its run. For a step that finishes, the chart keeps the samples it held before that reading, and that reading's sample and its `finishedAt` are dropped; for a step found finished in an earlier invocation, the chart is left not frozen, `finishedEarlier` `false`, and the chart read under its run is dropped; its file stays as the reading before wrote it, and the next reading rebuilds it whole. The next reading freezes it afresh. Its javadoc cites this record.
 - The tests above passing.
