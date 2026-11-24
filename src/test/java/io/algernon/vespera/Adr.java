@@ -3353,6 +3353,16 @@ public final class Adr {
             + "0445-the-gpu-image-starts-only-where-docker-has-the-nvidia-runtime-and-the-control-panel-offers-the-toolkit-or-the-cpu-image.md";
 
     /**
+     * ADR-446 -- the {@code done} of a step's chart is the count of that step's main counter alone, one counter named
+     * for each of the thirteen steps that say one: a line of another counter of the step, or of a statement, moves it
+     * nowhere; a sample taken before the main counter has said a count in the invocation holds none, and once it has,
+     * its latest count; the census's chart, the seed-corpus comparison's, which says no counter, and the report's own
+     * counts of a step are unchanged (amends ADR-432 §3).
+     */
+    public static final String A_STEPS_CHART_DRAWS_ITS_DONE_FROM_ITS_MAIN_COUNTER_ALONE = FILE
+            + "0446-a-steps-chart-draws-its-done-from-the-steps-main-counter-alone.md";
+
+    /**
      * ADR-447 -- the Architecture window's parts hold their texts 8 px inside their sides and 6 px inside their top and
      * bottom, clear of the thickest outline a state draws, and none is cut in any state, the drawing made wider and
      * taller for them; Docling, Ollama, the SQLite ledger, the GPU, Confluence and the Docker group carry their official
@@ -3360,6 +3370,16 @@ public final class Adr {
      */
     public static final String THE_ARCHITECTURE_WINDOWS_TEXTS_FIT_AND_THE_PRODUCTS_CARRY_THEIR_LOGOS = FILE
             + "0447-the-architecture-windows-texts-stand-clear-of-their-outlines-and-the-products-parts-carry-their-official-logos.md";
+
+    /**
+     * ADR-448 -- a step's chart freezes at the first reading at which its step stands finished and its file holding it
+     * frozen is written; the reading whose freezing write fails leaves the chart not frozen, its sample and its end
+     * dropped, or not marked finished in an earlier invocation, is warned of once in the invocation and keeps no chart
+     * under the run, and the next reading freezes it afresh, for a step that finishes and for one found finished in an
+     * earlier invocation alike (amends ADR-432 §5 and §6 and ADR-438 §2 and §5).
+     */
+    public static final String A_STEPS_CHART_IS_FROZEN_ONLY_ONCE_ITS_FROZEN_FILE_IS_WRITTEN = FILE
+            + "0448-a-steps-chart-is-frozen-only-once-its-frozen-file-is-written.md";
 
     private Adr() {
     }

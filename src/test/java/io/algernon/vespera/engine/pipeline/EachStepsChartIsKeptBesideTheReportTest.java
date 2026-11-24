@@ -119,20 +119,16 @@ class EachStepsChartIsKeptBesideTheReportTest {
 
     private static final long EXTRACTION_GOES_THROUGH = 11;
 
-    /** The two steps of the seed-measurement run: seed extraction's counter, two of four seeds, and the comparison's, three of four. */
-    private static final long SEEDS = 4;
-
-    private static final int SEEDS_DONE = 2;
-
-    private static final int SEEDS_COMPARED = 3;
-
-    /** When seed extraction ends, in seconds after the job's start. */
-    private static final long SEED_EXTRACTION_ENDS = 5;
-
     /** Embedding scoring's counter: three of ten survivors scored. */
     private static final long SURVIVORS_TO_SCORE = 10;
 
     private static final int SURVIVORS_SCORED = 3;
+
+    /** Relevance scoring's counter, of the same run as embedding scoring's: five of the ten survivors scored. */
+    private static final int SURVIVORS_SCORED_FOR_RELEVANCE = 5;
+
+    /** When embedding scoring ends, in seconds after the job's start. */
+    private static final long EMBEDDING_SCORING_ENDS = 5;
 
     /** Every counter of the lines test counts to ten, each step saying a done of its own below it. */
     private static final long A_STEPS_TOTAL = 10;
@@ -174,19 +170,22 @@ class EachStepsChartIsKeptBesideTheReportTest {
     }
 
     /**
-     * The steps the lines test works, one after another, each saying a counter of its own, the done a different number
-     * for each, so that each chart's {@code done} is seen to be its own step's.
+     * The steps the lines test works, one after another, each saying its main counter (ADR-446 §1), the done a
+     * different number for each, so that each chart's {@code done} is seen to be its own step's.
      */
     private static final List<Worked> WORKED = List.of(
-            new Worked(StepNames.BYTE_LEVEL_REDUCTION, "Stage 1 (byte-level reduction)", 1, "byte-level-reduction"),
+            new Worked(StepNames.BYTE_LEVEL_REDUCTION, "Stage 1 (byte-level reduction, content hash)", 1,
+                    "byte-level-reduction"),
             new Worked(StepNames.EXTRACTION, "Stage 2 (extraction)", 2, "extraction"),
-            new Worked(StepNames.CONTENT_CENSUS, "Stage 3 (content census)", 3, "content-census"),
+            new Worked(StepNames.CONTENT_CENSUS, "Stage 3 (content census, files checked)", 3, "content-census"),
             new Worked(StepNames.REDUNDANCY_SIGNATURE, "Stage 4a (redundancy signatures)", 4, "content-redundancy"),
-            new Worked(StepNames.CONTENT_REDUNDANCY, "Stage 4b (content redundancy)", 5, "content-redundancy"),
+            new Worked(StepNames.CONTENT_REDUNDANCY, "Stage 4b (redundancy resolution, near-duplicate candidates)", 5,
+                    "content-redundancy"),
             new Worked(StepNames.EMBEDDING_SCORING, "Stage 5c (embedding scoring, corpus survivors)", 6,
                     "embedding-scoring"),
-            new Worked(StepNames.RELEVANCE_FLOOR, "Stage 5e (relevance floor)", 7, "embedding-scoring"),
-            new Worked(StepNames.GENERATION, "Stage 6b (generation)", 8, "generation"));
+            new Worked(StepNames.RELEVANCE_FLOOR, "Stage 5e (relevance floor, below-threshold verdicts)", 7,
+                    "embedding-scoring"),
+            new Worked(StepNames.GENERATION, "Stage 6b (generation, survivors copied)", 8, "generation"));
 
     /** The lines each worked step's chart plots: its done, then each kind of verdict it records, in that order. */
     private static final Map<String, List<String>> LINES_OF = Map.of(
@@ -256,6 +255,8 @@ class EachStepsChartIsKeptBesideTheReportTest {
     }
 
     @Test
+    @Issue("934")
+    @Link(name = "ADR-446", url = Adr.A_STEPS_CHART_DRAWS_ITS_DONE_FROM_ITS_MAIN_COUNTER_ALONE, type = "adr")
     @Story("The window shows how each step has gone")
     @DisplayName("Each step's chart plots its own count done, then a line for each kind of verdict that step records, in the vocabulary's order, under the run that step works under")
     void eachStepsChartPlotsItsOwnDoneAndTheKindsOfVerdictItRecords() throws IOException {
@@ -657,47 +658,56 @@ class EachStepsChartIsKeptBesideTheReportTest {
                 () -> assertThat(theOthers).isEqualTo(emptyFiles(notYetRun)));
     }
 
+    /**
+     * ADR-432 §4, §6, with ADR-446: two steps of the embedding-scoring run, each saying its main counter; the
+     * seed-corpus comparison this test once drew says no counter, so its chart has no {@code done} to draw.
+     */
     @Test
+    @Issue("934")
+    @Link(name = "ADR-446", url = Adr.A_STEPS_CHART_DRAWS_ITS_DONE_FROM_ITS_MAIN_COUNTER_ALONE, type = "adr")
     @Story("The window shows how each step has gone")
     @DisplayName("Two steps of one run each draw a chart of their own, each from its own first sample")
     void twoStepsOfOneRunEachDrawAChartOfTheirOwn() throws IOException {
-        String measurementRun = A_RUN_OF.get("seed-measurement");
+        String scoringRun = A_RUN_OF.get("embedding-scoring");
         MovingClock clock = new MovingClock();
         JobSampler sampler = aSampler(new AtomicReference<>(Map.of()), noRunsListed(), clock);
         JobExecution job = aJob();
         sampler.beforeJob(job);
 
-        // seed extraction runs under the seed-measurement run, a reading falls while it does, and it finishes
-        new InvocationRuns(job.getExecutionContext()).record(StageModules.SEED_MEASUREMENT.stage(),
-                new RunId(measurementRun));
-        StepExecution seedExtraction = aStep(job, StepNames.SEED_EXTRACTION, BatchStatus.STARTED, 0, null);
-        counts(seedExtraction, "Stage 5a (seed extraction)", SEEDS, SEEDS_DONE);
+        // embedding scoring runs under the embedding-scoring run, a reading falls while it does, and it finishes
+        new InvocationRuns(job.getExecutionContext()).record(StageModules.EMBEDDING_SCORING.stage(),
+                new RunId(scoringRun));
+        StepExecution embeddingScoring = aStep(job, StepNames.EMBEDDING_SCORING, BatchStatus.STARTED, 0, null);
+        counts(embeddingScoring, "Stage 5c (embedding scoring, corpus survivors)", SURVIVORS_TO_SCORE,
+                SURVIVORS_SCORED);
         readsOnce(sampler);
-        ended(seedExtraction, BatchStatus.COMPLETED, SEED_EXTRACTION_ENDS);
+        ended(embeddingScoring, BatchStatus.COMPLETED, EMBEDDING_SCORING_ENDS);
 
-        // the seed-corpus comparison, of the same run, runs, a reading falls 10 s on, and it is stopped
-        StepExecution comparison = aStep(job, StepNames.SEED_CORPUS_COMPARISON, BatchStatus.STARTED,
-                SEED_EXTRACTION_ENDS, null);
-        counts(comparison, "Stage 5b (seed-corpus comparison)", SEEDS, SEEDS_COMPARED);
+        // relevance scoring, of the same run, runs, a reading falls 10 s on, and it is stopped
+        StepExecution relevanceScoring = aStep(job, StepNames.RELEVANCE_SCORING, BatchStatus.STARTED,
+                EMBEDDING_SCORING_ENDS, null);
+        counts(relevanceScoring, "Stage 5d (relevance scoring, corpus survivors)", SURVIVORS_TO_SCORE,
+                SURVIVORS_SCORED_FOR_RELEVANCE);
         clock.moveOn(BETWEEN_READINGS);
         readsOnce(sampler);
-        ended(comparison, BatchStatus.STOPPED, SEED_EXTRACTION_ENDS + 1);
+        ended(relevanceScoring, BatchStatus.STOPPED, EMBEDDING_SCORING_ENDS + 1);
         job.setStatus(BatchStatus.STOPPED);
         clock.moveOn(BETWEEN_READINGS);
         sampler.afterJob(job);
 
-        Map<String, String> theRun = Map.of(StageModules.SEED_MEASUREMENT.stage(), measurementRun);
-        claim("seed extraction's chart is keyed by the seed-measurement run, frozen at its end: 2 seeds extracted at"
+        Map<String, String> theRun = Map.of(StageModules.EMBEDDING_SCORING.stage(), scoringRun);
+        claim("embedding scoring's chart is keyed by the embedding-scoring run, frozen at its end: 3 survivors scored at"
                         + " seconds 0 and 10, the reading that froze it",
-                () -> assertThat(Chart.in(fileOf(StepNames.SEED_EXTRACTION))).isEqualTo(new Chart(theRun,
-                        JOB_START.plusSeconds(SEED_EXTRACTION_ENDS).toString(), false,
+                () -> assertThat(Chart.in(fileOf(StepNames.EMBEDDING_SCORING))).isEqualTo(new Chart(theRun,
+                        JOB_START.plusSeconds(EMBEDDING_SCORING_ENDS).toString(), false,
                         List.of(new Line("done", List.of(0.0, (double) BETWEEN_READINGS),
-                                List.of((double) SEEDS_DONE, (double) SEEDS_DONE))))));
-        claim("the comparison's chart is keyed by the same run, not finished, and starts at its own first sample: 3 seeds"
-                        + " compared at seconds 0 and 10, nothing of seed extraction's",
-                () -> assertThat(Chart.in(fileOf(StepNames.SEED_CORPUS_COMPARISON))).isEqualTo(new Chart(theRun, null,
+                                List.of((double) SURVIVORS_SCORED, (double) SURVIVORS_SCORED))))));
+        claim("relevance scoring's chart is keyed by the same run, not finished, and starts at its own first sample: 5"
+                        + " survivors scored at seconds 0 and 10, nothing of embedding scoring's",
+                () -> assertThat(Chart.in(fileOf(StepNames.RELEVANCE_SCORING))).isEqualTo(new Chart(theRun, null,
                         false, List.of(new Line("done", List.of(0.0, (double) BETWEEN_READINGS),
-                                List.of((double) SEEDS_COMPARED, (double) SEEDS_COMPARED))))));
+                                List.of((double) SURVIVORS_SCORED_FOR_RELEVANCE,
+                                        (double) SURVIVORS_SCORED_FOR_RELEVANCE))))));
     }
 
     @Test
