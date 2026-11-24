@@ -37,6 +37,8 @@ import javafx.scene.layout.VBox;
 import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Polyline;
 import javafx.scene.shape.SVGPath;
+import javafx.scene.text.Font;
+import javafx.scene.text.Text;
 import javafx.scene.transform.Scale;
 import javafx.util.Duration;
 
@@ -77,6 +79,22 @@ final class ArchitectureView extends Pane {
     /** The parts that carry a product's logo, by the logo's name (ADR-447 §2). */
     private static final Map<Part, String> LOGOS = Map.of(Part.DOCLING, "docling", Part.OLLAMA, "ollama",
             Part.LEDGER, "sqlite", Part.GPU, "nvidia", Part.CONFLUENCE, "confluence");
+
+    /**
+     * The smaller sizes a line too wide for its box is drawn in, largest first, by the style class that gives each, as
+     * {@code control-panel.css} has them (ADR-447 §1).
+     */
+    private static final Map<String, Double> SMALLER = smaller();
+
+    private static final String SMALLEST = "architecture-size-8";
+
+    private static Map<String, Double> smaller() {
+        Map<String, Double> sizes = new LinkedHashMap<>();
+        sizes.put("architecture-size-10", 10.0);
+        sizes.put("architecture-size-9", 9.0);
+        sizes.put(SMALLEST, 8.0);
+        return java.util.Collections.unmodifiableMap(sizes);
+    }
 
     /** The one path of a logo Simple Icons draws. */
     private static final Pattern A_PATH = Pattern.compile("<path[^>]*\\sd=\"([^\"]+)\"");
@@ -389,7 +407,7 @@ final class ArchitectureView extends Pane {
         Region outline = new Region();
         outline.getStyleClass().add("architecture-outline");
         outline.setMouseTransparent(true);
-        StackPane box = new StackPane(content, outline);
+        StackPane box = flat ? new StackPane(content, outline) : new Fitting(texts, inside, content, outline);
         box.setId("architecture-" + part.id());
         box.getStyleClass().addAll("architecture-part", kindClass(part.kind()));
         box.resizeRelocate(x, y, width, height);
@@ -398,6 +416,69 @@ final class ArchitectureView extends Pane {
         getChildren().add(box);
         show(words, "");
         show(percent, "");
+    }
+
+    /**
+     * A part's box whose texts stand one beneath another: before each layout, each line too wide for the width inside
+     * its padding is drawn in the largest of {@link #SMALLER} that fits it, measured in the font the system draws it in,
+     * and a line that fits again goes back to the stylesheet's size (ADR-447 §1). A style class is changed only where
+     * the size a line needs has changed, so that a layout asks for no new one.
+     */
+    private static final class Fitting extends StackPane {
+
+        /** The key under which a line keeps the size the stylesheet gives it. */
+        private static final String NATURAL = "architecture-natural-size";
+
+        private final Pane texts;
+        private final double inside;
+
+        Fitting(Pane texts, double inside, Node... children) {
+            super(children);
+            this.texts = texts;
+            this.inside = inside;
+        }
+
+        @Override
+        protected void layoutChildren() {
+            for (Node node : texts.getChildren()) {
+                if (node instanceof SelectableText.Line line && line.isVisible()) {
+                    fit(line);
+                }
+            }
+            super.layoutChildren();
+        }
+
+        private void fit(SelectableText.Line line) {
+            String was = SMALLER.keySet().stream().filter(line.getStyleClass()::contains).findFirst().orElse("");
+            Font drawn = line.getFont();
+            // what the control's insets take, beside its text, which no size changes
+            double beside = line.prefWidth(-1) - width(line.getText(), drawn);
+            if (was.isEmpty()) {
+                // the stylesheet's own size, kept while a smaller one is drawn: taking the class off to read it again
+                // would change the font, which asks for a new layout
+                line.getProperties().put(NATURAL, drawn.getSize());
+            }
+            double natural = (Double) line.getProperties().getOrDefault(NATURAL, drawn.getSize());
+            String wanted = "";
+            if (beside + width(line.getText(), new Font(drawn.getName(), natural)) > inside) {
+                wanted = SMALLER.entrySet().stream()
+                        .filter(size -> beside + width(line.getText(), new Font(drawn.getName(), size.getValue())) <= inside)
+                        .map(Map.Entry::getKey).findFirst().orElse(SMALLEST);
+            }
+            if (!wanted.equals(was)) {
+                line.getStyleClass().removeAll(SMALLER.keySet());
+                if (!wanted.isEmpty()) {
+                    line.getStyleClass().add(wanted);
+                }
+                line.applyCss();
+            }
+        }
+
+        private static double width(String text, Font font) {
+            Text measure = new Text(text);
+            measure.setFont(font);
+            return measure.getLayoutBounds().getWidth();
+        }
     }
 
     /** {@code text} cut into lines that fit {@code width}, at its spaces. */

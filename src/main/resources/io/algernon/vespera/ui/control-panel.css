@@ -738,6 +738,19 @@
     -fx-font-size: 13px;
 }
 
+/* a line too wide for its box in the font the system draws, the largest of these that fits it (ADR-447 section 1) */
+.architecture-drawing .selectable-text.architecture-size-10 {
+    -fx-font-size: 10px;
+}
+
+.architecture-drawing .selectable-text.architecture-size-9 {
+    -fx-font-size: 9px;
+}
+
+.architecture-drawing .selectable-text.architecture-size-8 {
+    -fx-font-size: 8px;
+}
+
 /* a part's texts 8px inside its sides and 6px inside its top and bottom, clear of the thickest outline (ADR-447 section 1) */
 .architecture-texts {
     -fx-spacing: 1px;

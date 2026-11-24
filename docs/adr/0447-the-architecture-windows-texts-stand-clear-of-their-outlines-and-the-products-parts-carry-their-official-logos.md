@@ -30,6 +30,8 @@ Docling's logo is a drawing of 41 shapes in several colours, which one path in o
 
 **Each part's texts lie 8 px inside its box's sides and 6 px inside its top and bottom**, `.architecture-texts`, so that no text reaches the thickest outline a state draws, the 4 px of a running part or the inner line of a part at a gate, which ends 6 px inside. **No text of a part is cut**: none shows the "…" of a line whose end is out of view (ADR-377 §6), in any state of ADR-442 §5, a running stage's percent among its lines.
 
+**Whatever font the system draws in.** The stylesheet names a size and no font, so each system draws the drawing in its own: on Linux, where no font is configured, the font drawn is wider than Windows', and at 11 px *Arrangement*, *redundancy*, *Document archive* and *⏸ at a gate* do not fit inside the padding of boxes they fit on Windows. **A line of a part whose texts stand one beneath another that does not fit the width inside its padding is drawn at 10, 9 or 8 px, the largest that fits**, measured in the font drawn, by the style classes `architecture-size-10`, `architecture-size-9` and `architecture-size-8`; a line that fits again goes back to the stylesheet's size. The ledger's row is wide enough in any font. Measured with the drawing's texts set to Verdana, a font as wide as those Linux draws in: by this rule every line fits in every state; without it, lines are cut in every state.
+
 So that they fit, **the drawing is 1,226 × 550 px**, from 1,130 × 530: each stage 88 px wide, 94 px apart; the application, the control, the ledger, the operator's machine and the Docker group wider by as much, the outputs, the connectors and the legend moved right with them; the control 100 px high, the control panel's and the CLI's boxes 68 px; the containers' boxes 70 px high, Docling's and Ollama's 270 px wide and the GPU's 180. Each part and wire keeps its place in the picture, its neighbours and the sides it is joined at (ADR-442 §2). A line is cut into lines at its spaces to the width its box leaves inside its padding, and beside its logo where it has one.
 
 ### 2. The products' parts carry their official logos
@@ -51,15 +53,15 @@ So that they fit, **the drawing is 1,226 × 550 px**, from 1,130 × 530: each st
 
 ### 3. What changes, by class, and run ids
 
-- **`ArchitectureView`**: §1's sizes and places, a line cut to the width inside its padding, and §2's tiles, a part's beside or above its texts and the Docker group's before its title.
-- **`control-panel.css`**: §1's padding; §2's tile and its colours, with the six tokens in both theme rules.
+- **`ArchitectureView`**: §1's sizes and places, a line cut to the width inside its padding, a line too wide for it drawn smaller before each layout, and §2's tiles, a part's beside or above its texts and the Docker group's before its title.
+- **`control-panel.css`**: §1's padding and its three smaller sizes; §2's tile and its colours, with the six tokens in both theme rules.
 - **Resources**: §2's six logos and their notice.
 
 `io.algernon.vespera.ui` is in no module and no class of the jar changes, so **no run id moves**.
 
 ## Consequences
 
-- Every text of the drawing reads whole, in every state, in either theme.
+- Every text of the drawing reads whole, in every state, in either theme, in whatever font the system draws; where that font is wide, some lines are smaller than the rest.
 - The operator knows Docling, Ollama, SQLite, NVIDIA, Confluence and Docker at a glance.
 - A logo its owner changes is not followed until its file here is replaced.
 - The drawing is about 8 % wider: in a window of the same size it is drawn a little smaller.
@@ -69,6 +71,8 @@ So that they fit, **the drawing is 1,226 × 550 px**, from 1,130 × 530: each st
 - **The logos in one colour, the part's kind's**, which would have kept ADR-442 §4 whole. Docling's, the one most often lit, would have been a shape no one knows, and the operator asked for the official ones.
 - **The logos on the part's own fill, without a tile.** Ollama's black and SQLite's and Confluence's dark blue would not show in the dark theme.
 - **More padding in boxes of the same size.** *Arrangement* and the CLI's three lines would have been cut more.
+- **Boxes wide enough for the widest font.** No width is known to be enough for every system's font, and the drawing would shrink further in the window on every system for the sake of one.
+- **A font named by the stylesheet, shipped with the jar.** It would make the drawing alone differ from the rest of the window, which follows the system's font.
 
 ## What this does not decide
 
@@ -78,6 +82,6 @@ So that they fit, **the drawing is 1,226 × 550 px**, from 1,130 × 530: each st
 
 | Method | What it holds |
 | --- | --- |
-| `ui.TheArchitectureWindowTest.everyTextOfAPartFitsItsBoxClearOfItsOutlineInEveryState` | §1: in every state of ADR-442 §5, a running stage showing its percent, every text of every part lies 6 px or more inside its box, and none shows a "…" |
+| `ui.TheArchitectureWindowTest.everyTextOfAPartFitsItsBoxClearOfItsOutlineInEveryState` | §1: in every state of ADR-442 §5, a running stage showing its percent, every text of every part lies 6 px or more inside its box, and none shows a "…", on Windows and on Linux, whose fonts differ |
 | `ui.TheArchitectureWindowTest.theProductsPartsCarryTheirOfficialLogosOnAWhiteTile` | §2: Docling, Ollama, the ledger, the GPU and Confluence each hold their logo's node, the Docker group its own beside its title; each mark is drawn, Docling's picture loaded and each other's path in its brand's colour; each tile is white in the light theme and in the dark; and each lies inside its box's padding and over none of its texts |
 | `ui.TheArchitectureWindowTest.aReportReadLightsTheDrawingAndTheLine` | §2: unchanged, every text of a part still at 4.5 : 1 against its box in either theme, the logos being no text |
