@@ -97,6 +97,13 @@ class EachStepsDoneFollowsItsMainCounterAloneTest {
 
     private static final long FAULTS = 2;
 
+    /** A counter-shaped line the seed-corpus comparison says, which its shipped step does not: 3 of 4 compared. */
+    private static final String SEED_CORPUS_COMPARISONS_LABEL = "Stage 5b (seed-corpus comparison)";
+
+    private static final long COMPARISONS = 4;
+
+    private static final int COMPARED = 3;
+
     /** A run of each run stage, of 64 hexadecimal characters, a different one for each. */
     private static final Map<String, String> A_RUN_OF = Map.of(
             StageModules.BYTE_LEVEL_REDUCTION.stage(), "1".repeat(64),
@@ -322,6 +329,79 @@ class EachStepsDoneFollowsItsMainCounterAloneTest {
                             List.of(0.0, (double) BETWEEN_READINGS, 2.0 * BETWEEN_READINGS),
                             List.of((double) TO_READ, (double) TO_READ, (double) TO_READ)));
                 });
+    }
+
+    /**
+     * ADR-446 §1, its third bullet: the seed-corpus comparison has no main counter, so a line of a counter's shape said
+     * on its thread moves its chart's {@code done} nowhere. The shipped step says none, its statements' labels holding a
+     * {@code /}; the line here is the shape a counter of its own would say.
+     */
+    @Test
+    @Story("The window shows how each step has gone")
+    @DisplayName("A line of a counter's shape said by the seed-corpus comparison, which has no main counter, gives its chart no done")
+    void aCounterShapedLineOfTheSeedCorpusComparisonMovesNoDone() throws IOException {
+        JobSampler sampler = aSampler(new MovingClock());
+        JobExecution job = aJob();
+        sampler.beforeJob(job);
+        String run = A_RUN_OF.get(StageModules.SEED_MEASUREMENT.stage());
+        new InvocationRuns(job.getExecutionContext()).record(StageModules.SEED_MEASUREMENT.stage(), new RunId(run));
+        StepExecution comparison = aStep(job, StepNames.SEED_CORPUS_COMPARISON, BatchStatus.STARTED, 0, null);
+
+        // the comparison says "Stage 5b (seed-corpus comparison): 3 of 4 (75%)", and a reading falls
+        counts(comparison, SEED_CORPUS_COMPARISONS_LABEL, COMPARISONS, COMPARED);
+        readsOnce(sampler);
+
+        Chart chart = Chart.in(fileOf(StepNames.SEED_CORPUS_COMPARISON));
+        claim("the seed-corpus comparison's chart is keyed by the seed-measurement run and its done holds no point, not"
+                        + " the 3 of 4 its counter-shaped line said",
+                () -> {
+                    assertThat(chart).as("the seed-corpus comparison's chart file").isNotNull();
+                    assertThat(chart.key()).as("its key")
+                            .isEqualTo(Map.of(StageModules.SEED_MEASUREMENT.stage(), run));
+                    assertThat(doneOf(chart)).isEqualTo(new Line("done", List.of(), List.of()));
+                });
+    }
+
+    /**
+     * ADR-446 §2, its fourth bullet: a line the main counter said in an earlier job is never its latest in the next. One
+     * sampler sees two jobs; the extraction's main counter speaks in the first alone, and a reading of the second, taken
+     * while the extraction runs again and before it says any line, holds no {@code done}.
+     */
+    @Test
+    @Story("The window shows how each step has gone")
+    @DisplayName("A line the main counter said in an earlier job gives no done to a sample of the next, taken before the counter speaks again")
+    void aMainCountersLineOfAnEarlierJobIsNotItsLatestInTheNext() throws IOException {
+        MovingClock clock = new MovingClock();
+        JobSampler sampler = aSampler(clock);
+        RunId run = new RunId(A_RUN_OF.get(StageModules.EXTRACTION.stage()));
+
+        // the first job: the extraction reads its four documents, a reading falls, and the job is stopped
+        JobExecution first = aJob();
+        sampler.beforeJob(first);
+        new InvocationRuns(first.getExecutionContext()).record(StageModules.EXTRACTION.stage(), run);
+        StepExecution extractionOfTheFirst = aStep(first, StepNames.EXTRACTION, BatchStatus.STARTED, 0, null);
+        counts(extractionOfTheFirst, "Stage 2 (extraction)", TO_READ, (int) TO_READ);
+        readsOnce(sampler);
+        Line doneOfTheFirst = doneOf(Chart.in(fileOf(StepNames.EXTRACTION)));
+        ended(extractionOfTheFirst, BatchStatus.STOPPED, BETWEEN_READINGS);
+        first.setStatus(BatchStatus.STOPPED);
+        clock.moveOn(BETWEEN_READINGS);
+        sampler.afterJob(first);
+
+        // the second job begins on the same sampler; the extraction runs again, and a reading falls before it says a line
+        JobExecution second = aJob();
+        sampler.beforeJob(second);
+        new InvocationRuns(second.getExecutionContext()).record(StageModules.EXTRACTION.stage(), run);
+        aStep(second, StepNames.EXTRACTION, BatchStatus.STARTED, 0, null);
+        clock.moveOn(BETWEEN_READINGS);
+        readsOnce(sampler);
+
+        claim("in the first job the extraction's done holds the 4 documents its main counter said",
+                () -> assertThat(doneOfTheFirst).isEqualTo(new Line("done", List.of(0.0), List.of((double) TO_READ))));
+        claim("in the second, at the reading before its main counter speaks again, the extraction's done holds no point:"
+                        + " not the 4 said in the first job",
+                () -> assertThat(doneOf(Chart.in(fileOf(StepNames.EXTRACTION))))
+                        .isEqualTo(new Line("done", List.of(), List.of())));
     }
 
     // ---- the job

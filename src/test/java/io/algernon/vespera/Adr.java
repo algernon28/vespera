@@ -3362,6 +3362,16 @@ public final class Adr {
     public static final String A_STEPS_CHART_DRAWS_ITS_DONE_FROM_ITS_MAIN_COUNTER_ALONE = FILE
             + "0446-a-steps-chart-draws-its-done-from-the-steps-main-counter-alone.md";
 
+    /**
+     * ADR-448 -- a step's chart freezes at the first reading at which its step stands finished and its file holding it
+     * frozen is written; the reading whose freezing write fails leaves the chart not frozen, its sample and its end
+     * dropped, or not marked finished in an earlier invocation, is warned of once in the invocation and keeps no chart
+     * under the run, and the next reading freezes it afresh, for a step that finishes and for one found finished in an
+     * earlier invocation alike (amends ADR-432 §5 and §6 and ADR-438 §2 and §5).
+     */
+    public static final String A_STEPS_CHART_IS_FROZEN_ONLY_ONCE_ITS_FROZEN_FILE_IS_WRITTEN = FILE
+            + "0448-a-steps-chart-is-frozen-only-once-its-frozen-file-is-written.md";
+
     private Adr() {
     }
 }

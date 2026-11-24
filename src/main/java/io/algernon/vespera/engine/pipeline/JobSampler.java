@@ -854,8 +854,8 @@ final class JobSampler implements JobExecutionListener {
      * 7, as ADR-412 and ADR-418 amend them): a chart not frozen takes a sample at a reading at which a step of its
      * stage runs, at the one at which it freezes and at the last where a step of its stage ran; a frozen chart is not
      * written again in its invocation, and a chart is frozen only once its file holding it frozen is written, a reading
-     * whose freezing write fails leaving it as it was before that reading, to be frozen at the next, and keeping no
-     * chart under its run until then (ADR-265 section 4); a chart is started once, its key added to as the invocation
+     * whose freezing write fails leaving the chart unfrozen, to be frozen at the next, and keeping no chart under its
+     * run until then (ADR-265 section 4, ADR-448); a chart is started once, its key added to as the invocation
      * reaches it; the census's chart is written as it walks, its key moving to the walk handed, and is left empty
      * where no walk is handed (ADR-418 section 4). A file that cannot be written is warned of once in the invocation
      * and fails nothing (ADR-265 section 4).

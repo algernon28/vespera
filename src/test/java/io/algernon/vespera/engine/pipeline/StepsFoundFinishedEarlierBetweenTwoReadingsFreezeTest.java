@@ -59,6 +59,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Epic("Operation")
 @Feature("The control panel")
 @Issue("934")
+@Link(name = "ADR-448", url = Adr.A_STEPS_CHART_IS_FROZEN_ONLY_ONCE_ITS_FROZEN_FILE_IS_WRITTEN, type = "adr")
 @Link(name = "ADR-432", url = Adr.EACH_STEP_HAS_A_CHART_BENEATH_ITS_LEG_AND_THE_COCKPIT_HOLDS_NO_TABS, type = "adr")
 @Link(name = "ADR-438", url = Adr.A_STEPS_CHART_IS_KEPT_UNDER_ITS_RUN_AS_IT_FREEZES, type = "adr")
 class StepsFoundFinishedEarlierBetweenTwoReadingsFreezeTest {
